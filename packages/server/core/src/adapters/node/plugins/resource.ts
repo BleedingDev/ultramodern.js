@@ -97,7 +97,12 @@ export async function getServerManifest(
       .filter(route => Boolean(route.bundle))
       .map(async route => {
         const entryName = route.entryName || MAIN_ENTRY_NAME;
-        const renderBundlePath = path.join(pwd, route.bundle || '');
+        // Normalize bundle path to posix format to ensure cross-platform compatibility
+        // route.bundle is a relative path that should use forward slashes
+        const normalizedBundle = route.bundle
+          ? route.bundle.split(path.sep).join(path.posix.sep)
+          : '';
+        const renderBundlePath = path.join(pwd, normalizedBundle);
         const loaderBundlePath = path.join(
           pwd,
           SERVER_BUNDLE_DIRECTORY,
