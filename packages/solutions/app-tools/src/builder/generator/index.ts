@@ -9,6 +9,7 @@ import {
   builderPluginAdapterBasic,
   builderPluginAdapterHooks,
   builderPluginAdapterHtml,
+  builderPluginAdapterPrecompress,
   builderPluginAdapterSSR,
 } from '../shared/builderPlugins';
 import { builderPluginAdapterCopy } from './adapterCopy';
@@ -82,6 +83,7 @@ async function applyBuilderPlugins(
     builderPluginAdapterBasic(options),
     builderPluginAdapterSSR(options),
     builderPluginAdapterHtml(options),
+    builderPluginAdapterPrecompress(options),
     builderPluginAdapterHooks(options),
   ]);
 

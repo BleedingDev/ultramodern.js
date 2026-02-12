@@ -101,6 +101,7 @@
     "@modern-js/utils": "workspace:*",
     "@rsbuild/core": "2.0.0-beta.2",
     "@swc/helpers": "^0.5.17",
+    "compression-webpack-plugin": "^11.1.0",
     "es-module-lexer": "^1.7.0",
     "esbuild": "0.25.5",
     "esbuild-register": "^3.6.0",

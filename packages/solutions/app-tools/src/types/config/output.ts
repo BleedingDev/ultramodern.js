@@ -1,6 +1,26 @@
 import type { BuilderConfig } from '@modern-js/builder';
 import type { SSGConfig, SSGMultiEntryOptions } from '@modern-js/types';
+import type { Options as CompressionPluginOptions } from 'compression-webpack-plugin';
 import type { UnwrapBuilderConfig } from '../utils';
+
+export type PrecompressCodecOptions = boolean | CompressionPluginOptions;
+
+export interface PrecompressConfig {
+  /**
+   * Configure gzip precompression options.
+   * `true` means using default options.
+   * `false` means disabling gzip precompression.
+   * @default true
+   */
+  gzip?: PrecompressCodecOptions;
+  /**
+   * Configure brotli precompression options.
+   * `true` means using default options.
+   * `false` means disabling brotli precompression.
+   * @default true
+   */
+  brotli?: PrecompressCodecOptions;
+}
 
 export interface OutputUserConfig
   extends UnwrapBuilderConfig<BuilderConfig, 'output'> {
@@ -34,6 +54,12 @@ export interface OutputUserConfig
    * Specify the temporary directory for framework generated files.
    */
   tempDir?: string;
+  /**
+   * Generate precompressed static assets by using compression-webpack-plugin.
+   * `true` means enabling both gzip and brotli with default options.
+   * @default true
+   */
+  precompress?: boolean | PrecompressConfig;
 }
 
 export type {
