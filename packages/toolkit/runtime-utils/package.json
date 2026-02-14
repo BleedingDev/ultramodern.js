@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.0.1",
+  "version": "3.0.2",
   "_comment": "Provide ESM and CJS exports, ESM is used by runtime package, for treeshaking",
   "exports": {
     "./router": {
@@ -183,7 +183,7 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.19.4",
+    "@rslib/core": "0.19.5",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.6",
     "@types/node": "^20",
