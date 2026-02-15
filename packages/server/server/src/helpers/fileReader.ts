@@ -22,8 +22,9 @@ export const initFileReader = (
 
     // When dev.writeToDisk is configured as false,
     // the renderHandler needs to read the html file in memory through the fileReader
-    const { outputFileSystem } =
+    const resolvedCompiler =
       'compilers' in compiler ? compiler.compilers[0] : compiler;
+    const outputFileSystem = resolvedCompiler?.outputFileSystem;
     if (outputFileSystem) {
       fileReader.reset(outputFileSystem as unknown as typeof fs);
     } else {

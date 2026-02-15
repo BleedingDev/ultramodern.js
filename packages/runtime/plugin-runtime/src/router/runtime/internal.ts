@@ -1,13 +1,13 @@
 import { merge } from '@modern-js/runtime-utils/merge';
-import { routerPlugin as reactRouterPlugin } from './plugin';
-import { tanstackRouterPlugin } from './tanstack/plugin';
+import type { RuntimePlugin } from '../../core';
 import {
   modifyRoutes as modifyRoutesHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
 } from './hooks';
-import type { RouterConfig, SingleRouteConfig } from './types';
 import type { RouterExtendsHooks } from './hooks';
-import type { RuntimePlugin } from '../../core';
+import { routerPlugin as reactRouterPlugin } from './plugin';
+import { tanstackRouterPlugin } from './tanstack/plugin';
+import type { RouterConfig, SingleRouteConfig } from './types';
 
 export const routerPlugin = (
   userConfig: Partial<RouterConfig> = {},

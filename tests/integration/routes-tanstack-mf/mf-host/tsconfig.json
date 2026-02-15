@@ -3,8 +3,15 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@api/*": ["./api/*"],
+      "@shared/*": ["./shared/*"],
+      "remote/*": ["./@mf-types/remote/*"],
+      "remote2/*": ["./@mf-types/remote2/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "api", "shared", "@mf-types/**/*.d.ts", "modern.config.ts"]
 }
-

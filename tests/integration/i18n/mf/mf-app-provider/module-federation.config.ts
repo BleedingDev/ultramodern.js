@@ -2,6 +2,9 @@ import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 
 export default createModuleFederationConfig({
   name: 'i18nAppProvider',
+  dev: {
+    disableDynamicRemoteTypeHints: true,
+  },
   filename: 'remoteEntry.js',
   exposes: {
     './export-app': './src/i18n-mf-app-provider/export-app.tsx',

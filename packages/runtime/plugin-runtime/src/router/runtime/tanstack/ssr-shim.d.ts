@@ -10,4 +10,3 @@ declare module '@tanstack/react-router/ssr/server' {
     manifest?: unknown;
   }): void;
 }
-

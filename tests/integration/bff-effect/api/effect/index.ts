@@ -1,0 +1,198 @@
+import {
+  Effect,
+  HttpApiBuilder,
+  HttpTraceContext,
+  Layer,
+  OpenTelemetry,
+  Option,
+  defineEffectBff,
+} from '@modern-js/plugin-bff/effect-server';
+import { bffEffectApi } from '../../shared/effect-api';
+import { bffRpcGroup } from '../../shared/effect-rpc';
+
+type TraceSpanProcessor = Exclude<
+  OpenTelemetry.NodeSdk.Configuration['spanProcessor'],
+  ReadonlyArray<unknown> | undefined
+>;
+
+type FinishedSpan = Parameters<TraceSpanProcessor['onEnd']>[0];
+
+type TraceSpanSnapshot = {
+  name: string;
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+};
+
+const traceSpans: TraceSpanSnapshot[] = [];
+
+function toSpanSnapshot(span: FinishedSpan): TraceSpanSnapshot {
+  const spanContext = span.spanContext();
+  const parentSpanId = span.parentSpanContext?.spanId;
+  return {
+    name: span.name,
+    traceId: spanContext.traceId,
+    spanId: spanContext.spanId,
+    ...(parentSpanId ? { parentSpanId } : {}),
+  };
+}
+
+function getTraceSpans(traceId?: string) {
+  if (!traceId) {
+    return [...traceSpans];
+  }
+  return traceSpans.filter(span => span.traceId === traceId);
+}
+
+const traceSpanProcessor: TraceSpanProcessor = {
+  onStart: () => {},
+  onEnd: span => {
+    traceSpans.push(toSpanSnapshot(span));
+  },
+  forceFlush: async () => {
+    await Promise.resolve();
+  },
+  shutdown: async () => {
+    await Promise.resolve();
+  },
+};
+
+const greetingsLayer = HttpApiBuilder.group(
+  bffEffectApi,
+  'greetings',
+  handlers => {
+    const handledHello = handlers.handle('hello', () =>
+      Effect.succeed({
+        message: 'Hello from Effect HttpApi',
+        runtime: 'effect' as const,
+      }),
+    );
+
+    const handledUserById = handledHello.handle(
+      'userById',
+      ({ path, urlParams }) =>
+        Effect.succeed({
+          id: path.id,
+          source: urlParams.source ?? 'unknown',
+        }),
+    );
+
+    const handledEcho = handledUserById.handle('echo', ({ payload }) =>
+      Effect.succeed({
+        echoed: payload.text,
+      }),
+    );
+
+    const handledTraceRun = handledEcho.handle(
+      'traceRun',
+      ({ headers, request }) => {
+        const parentSpan = Option.getOrUndefined(
+          HttpTraceContext.w3c(request.headers),
+        );
+        return Effect.gen(function* () {
+          if (headers.traceparent) {
+            yield* Effect.annotateCurrentSpan(
+              'bff.traceparent',
+              headers.traceparent,
+            );
+          }
+          yield* Effect.succeed('ok').pipe(
+            Effect.withSpan('bff.effect.db.query', {
+              attributes: {
+                'db.system': 'effect-test',
+                'db.operation': 'select',
+              },
+              kind: 'client',
+            }),
+          );
+          return {
+            status: 'ok',
+            traceparent: headers.traceparent,
+          };
+        }).pipe(
+          Effect.withSpan('bff.effect.trace.run', {
+            parent: parentSpan,
+            kind: 'server',
+          }),
+        );
+      },
+    );
+
+    const handledTraceSpans = handledTraceRun.handle(
+      'traceSpans',
+      ({ urlParams }) =>
+        Effect.succeed({
+          spans: getTraceSpans(urlParams.traceId),
+        }),
+    );
+
+    const handledTraceReset = handledTraceSpans.handle('traceReset', () =>
+      Effect.sync(() => {
+        traceSpans.length = 0;
+        return {
+          ok: true,
+        };
+      }),
+    );
+
+    return handledTraceReset.handle('managedFailure', () =>
+      Effect.succeed({
+        message: 'unreachable',
+      }),
+    );
+  },
+);
+
+const layer = HttpApiBuilder.api(bffEffectApi).pipe(
+  Layer.provide(greetingsLayer),
+  Layer.provideMerge(
+    OpenTelemetry.NodeSdk.layer(() => ({
+      spanProcessor: traceSpanProcessor,
+      resource: {
+        serviceName: 'modernjs-bff-effect-tests',
+      },
+    })),
+  ),
+);
+
+const rpcLayer = bffRpcGroup.toLayer(
+  bffRpcGroup.of({
+    ping: ({ name }) =>
+      Effect.succeed({
+        message: `Hello from Effect RPC, ${name}`,
+      }).pipe(Effect.withSpan('bff.rpc.ping')),
+  }),
+);
+
+const runtime = defineEffectBff({
+  api: bffEffectApi,
+  layer,
+  rpc: {
+    group: bffRpcGroup,
+    layer: rpcLayer,
+    path: '/rpc',
+  },
+});
+
+const withManagedFailure = {
+  ...runtime,
+  createHandler: (options?: Parameters<typeof runtime.createHandler>[0]) => {
+    const base = runtime.createHandler(options);
+    return {
+      handler: async (request: Request) => {
+        const pathname = new URL(request.url).pathname;
+        if (pathname.endsWith('/effect/managed')) {
+          const managedError = new Error('Managed effect error') as Error & {
+            status?: number;
+          };
+          managedError.status = 503;
+          throw managedError;
+        }
+        return base.handler(request);
+      },
+      dispose: base.dispose,
+    };
+  },
+};
+
+export default withManagedFailure;

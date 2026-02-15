@@ -24,6 +24,18 @@ export default defineConfig({
 应用级别模块（使用 `createBridgeComponent` 和 `createRemoteAppComponent` 的模块）不支持服务端渲染（SSR）。如果你需要使用 SSR 功能，请使用组件级别的模块导出方式。
 :::
 
+## Node SSR 打包兼容性
+
+当开启 Module Federation 并同时开启 `server.ssr` 时，Modern.js 会自动将 Node SSR 构建切换到 Module Federation 兼容模式：
+
+- `target: 'async-node'`
+- `output.module: false`
+- `output.chunkFormat: 'commonjs'`
+- `output.chunkLoading: 'async-node'`
+- `output.library.type: 'commonjs-module'`
+
+这样可以避免 ESM 服务端产物与 `@module-federation/node` 运行时之间的兼容性问题，并保证 host / remote 在 SSR 与 SSG 场景下的 hydration 行为一致。
+
 ## 数据获取
 
 :::tip

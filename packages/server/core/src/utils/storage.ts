@@ -24,14 +24,14 @@ const createStorage = <T>() => {
     });
   };
 
-  const useHonoContext: () => T = () => {
+  const useContext: () => T = () => {
     if (!storage) {
       throw new Error(`Unable to use async_hook, please confirm the node version >= 12.17
         `);
     }
     const context = storage.getStore();
     if (!context) {
-      throw new Error(`Can't call useContext out of server scope`);
+      throw new Error(`Can't call useBackendContext out of server scope`);
     }
 
     return context;
@@ -39,7 +39,7 @@ const createStorage = <T>() => {
 
   return {
     run,
-    useHonoContext,
+    useContext,
   };
 };
 

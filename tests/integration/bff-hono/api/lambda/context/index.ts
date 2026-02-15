@@ -1,7 +1,7 @@
-import { useHonoContext } from '@modern-js/server-runtime';
+import { useBackendContext } from '@modern-js/server-runtime';
 
 export default async () => {
-  const ctx = useHonoContext();
+  const ctx = useBackendContext();
   const { res } = ctx;
   res.headers.set('x-id', '1');
   return {

@@ -6,6 +6,7 @@ import {
   LAMBDA_DIR,
   PACKAGE_NAME,
   PREFIX,
+  RUNTIME_FRAMEWORK,
 } from './crossProjectApiPlugin';
 
 function replaceContent(
@@ -15,6 +16,7 @@ function replaceContent(
   relativeDistPath: string,
   relativeApiPath: string,
   relativeLambdaPath: string,
+  runtimeFramework: 'hono' | 'effect',
 ) {
   const updatedSource = source
     .replace(new RegExp(PACKAGE_NAME, 'g'), packageName)
@@ -24,7 +26,8 @@ function replaceContent(
     .replace(
       new RegExp(LAMBDA_DIR, 'g'),
       normalizeToPosixPath(relativeLambdaPath),
-    );
+    )
+    .replace(new RegExp(RUNTIME_FRAMEWORK, 'g'), runtimeFramework);
   return updatedSource;
 }
 
@@ -34,12 +37,14 @@ async function pluginGenerator({
   relativeDistPath,
   relativeApiPath,
   relativeLambdaPath,
+  runtimeFramework,
 }: {
   prefix: string;
   appDirectory: string;
   relativeDistPath: string;
   relativeApiPath: string;
   relativeLambdaPath: string;
+  runtimeFramework: 'hono' | 'effect';
 }) {
   try {
     const packageContent = await fs.readFile(
@@ -66,6 +71,7 @@ async function pluginGenerator({
       relativeDistPath,
       relativeApiPath,
       relativeLambdaPath,
+      runtimeFramework,
     );
 
     await fs.ensureFile(pluginPath);

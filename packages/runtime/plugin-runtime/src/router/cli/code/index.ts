@@ -31,12 +31,12 @@ import { ENTRY_POINT_RUNTIME_GLOBAL_CONTEXT_FILE_NAME } from '../../../cli/const
 import { resolveSSRMode } from '../../../cli/ssr/mode';
 import { FILE_SYSTEM_ROUTES_FILE_NAME } from '../constants';
 import { walk } from './nestedRoutes';
-import * as templates from './templates';
-import { getServerCombinedModueFile, getServerLoadersFile } from './utils';
 import {
   generateTanstackRouterTypesSourceForEntry,
   isTanstackRouterFrameworkEnabled,
 } from './tanstackTypes';
+import * as templates from './templates';
+import { getServerCombinedModueFile, getServerLoadersFile } from './utils';
 
 /**
  * Generate routing information for a single entry point (can be reused by the routes inspect feature)
@@ -167,7 +167,7 @@ declare module '@modern-js/runtime/tanstack-router' {
 `;
 
       try {
-        const prev = await fs.pathExists(registerDtsPath)
+        const prev = (await fs.pathExists(registerDtsPath))
           ? await fs.readFile(registerDtsPath, 'utf-8')
           : null;
         if (prev !== registerContent) {
@@ -348,13 +348,12 @@ declare module '@modern-js/runtime/tanstack-router' {
         );
 
         if (enableTanstackTypes) {
-          const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry(
-            {
+          const { routerGenTs } =
+            await generateTanstackRouterTypesSourceForEntry({
               appContext,
               entryName,
               routes: routes as any,
-            },
-          );
+            });
 
           const outPath = path.join(
             srcDirectory,
@@ -364,7 +363,7 @@ declare module '@modern-js/runtime/tanstack-router' {
           );
 
           try {
-            const prev = await fs.pathExists(outPath)
+            const prev = (await fs.pathExists(outPath))
               ? await fs.readFile(outPath, 'utf-8')
               : null;
             if (prev !== routerGenTs) {

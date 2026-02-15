@@ -1,5 +1,5 @@
-import path from 'path';
 import { execFileSync } from 'child_process';
+import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   getPort,
@@ -36,7 +36,12 @@ describe('routes-tanstack', () => {
     try {
       execFileSync(
         process.execPath,
-        [require.resolve('typescript/bin/tsc'), '--noEmit', '-p', 'tsconfig.json'],
+        [
+          require.resolve('typescript/bin/tsc'),
+          '--noEmit',
+          '-p',
+          'tsconfig.json',
+        ],
         { cwd: appDir, stdio: 'pipe' },
       );
     } catch (e: any) {
@@ -177,7 +182,10 @@ describe('routes-tanstack', () => {
     await page.waitForSelector('#mutation-count');
 
     const getCount = async () => {
-      const text = await page.$eval('#mutation-count', el => el.textContent || '');
+      const text = await page.$eval(
+        '#mutation-count',
+        el => el.textContent || '',
+      );
       return Number(text.replace('string-mutation:', ''));
     };
 

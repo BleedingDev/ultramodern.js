@@ -1,12 +1,47 @@
+import { execFileSync } from 'node:child_process';
 import path from 'path';
 import { execa, fs as fse } from '@modern-js/utils';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');
 
+function expectTypecheckPasses() {
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('typescript/bin/tsc'),
+        '--noEmit',
+        '-p',
+        'tsconfig.json',
+      ],
+      {
+        cwd: appDir,
+        stdio: 'pipe',
+      },
+    );
+  } catch (error: unknown) {
+    const maybeError = error as { stdout?: unknown; stderr?: unknown };
+    const stdout =
+      typeof maybeError.stdout === 'string'
+        ? maybeError.stdout
+        : maybeError.stdout
+          ? String(maybeError.stdout)
+          : '';
+    const stderr =
+      typeof maybeError.stderr === 'string'
+        ? maybeError.stderr
+        : maybeError.stderr
+          ? String(maybeError.stderr)
+          : '';
+    throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
+  }
+}
+
 // bff project's dependencies is more complex, so use bff project to test
 describe('deploy', () => {
   beforeAll(async () => {
+    expectTypecheckPasses();
     await modernBuild(appDir, [], {});
   });
 

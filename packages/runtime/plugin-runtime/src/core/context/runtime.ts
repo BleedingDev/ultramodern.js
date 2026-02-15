@@ -1,8 +1,8 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import type { BaseSSRServerContext } from '@modern-js/types';
-import type { AnyRouter } from '@tanstack/react-router';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
+import type { AnyRouter } from '@tanstack/react-router';
 import { createContext, useContext } from 'react';
 import type { RouteManifest } from '../../router/runtime/types';
 import type { RequestContext, SSRServerContext } from '../types';

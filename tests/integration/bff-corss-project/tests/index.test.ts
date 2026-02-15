@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -18,6 +19,47 @@ dns.setDefaultResultOrder('ipv4first');
 const apiAppDir = path.resolve(__dirname, '../bff-api-app');
 const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
+const typecheckedAppDirs = new Set<string>();
+
+function expectTypecheckPasses(projectDir: string) {
+  if (typecheckedAppDirs.has(projectDir)) {
+    return;
+  }
+
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('typescript/bin/tsc'),
+        '--noEmit',
+        '-p',
+        'tsconfig.json',
+      ],
+      {
+        cwd: projectDir,
+        stdio: 'pipe',
+      },
+    );
+    typecheckedAppDirs.add(projectDir);
+  } catch (error: unknown) {
+    const maybeError = error as { stdout?: unknown; stderr?: unknown };
+    const stdout =
+      typeof maybeError.stdout === 'string'
+        ? maybeError.stdout
+        : maybeError.stdout
+          ? String(maybeError.stdout)
+          : '';
+    const stderr =
+      typeof maybeError.stderr === 'string'
+        ? maybeError.stderr
+        : maybeError.stderr
+          ? String(maybeError.stderr)
+          : '';
+    throw new Error(
+      `TypeScript typecheck failed in ${projectDir}:\n${stdout}\n${stderr}`,
+    );
+  }
+}
 
 const testApiWorked = async ({
   host,
@@ -34,6 +76,42 @@ const testApiWorked = async ({
   const text = await res.text();
   expect(text).toBe(JSON.stringify({ message: expectedText }));
 };
+
+const testEffectApiWorked = async ({
+  host,
+  port,
+  prefix,
+}: {
+  host: string;
+  port: number;
+  prefix: string;
+}) => {
+  const res = await fetch(`${host}:${port}${prefix}/effect/hello`);
+  expect(res.status).toBe(200);
+  const info = await res.json();
+  expect(info).toEqual({
+    message: 'Hello get bff-api-app effect',
+    runtime: 'effect',
+  });
+};
+
+const testEffectOpenApiWorked = async ({
+  host,
+  port,
+  prefix,
+}: {
+  host: string;
+  port: number;
+  prefix: string;
+}) => {
+  const res = await fetch(`${host}:${port}${prefix}/openapi.json`);
+  expect(res.status).toBe(200);
+  const text = await res.text();
+  expect(text).toContain('"openapi":"3.1.0"');
+  expect(text).toContain('"greetings"');
+  expect(text).toContain('/effect/hello');
+};
+
 describe('corss project bff', () => {
   describe('bff client-app in dev', () => {
     const expectedText = 'Hello get bff-api-app';
@@ -43,6 +121,7 @@ describe('corss project bff', () => {
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
     const UPLOAD_PAGE = 'upload';
+    const EFFECT_PAGE = 'effect';
     const host = `http://localhost`;
     const prefix = '/api-app';
     let app: any;
@@ -52,6 +131,8 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 2);
+      expectTypecheckPasses(apiAppDir);
+      expectTypecheckPasses(appDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
       jest.setTimeout(1000 * 60 * 2);
@@ -62,6 +143,19 @@ describe('corss project bff', () => {
 
     test('api-app should works', async () => {
       await testApiWorked({
+        host,
+        port: apiPort,
+        prefix,
+      });
+    });
+
+    test('api-app effect endpoint should work', async () => {
+      await testEffectApiWorked({
+        host,
+        port: apiPort,
+        prefix,
+      });
+      await testEffectOpenApiWorked({
         host,
         port: apiPort,
         prefix,
@@ -110,6 +204,15 @@ describe('corss project bff', () => {
       expect(text).toBe('mock_image.png');
     });
 
+    test('support effect sdk import', async () => {
+      await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
+      await page.waitForFunction(() =>
+        document.querySelector('.effect')?.textContent?.includes('effect:'),
+      );
+      const text = await page.$eval('.effect', el => el?.textContent);
+      expect(text).toBe('effect:Hello get bff-api-app effect');
+    });
+
     afterAll(async () => {
       await killApp(app);
       await killApp(apiApp);
@@ -126,6 +229,7 @@ describe('corss project bff', () => {
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
     const UPLOAD_PAGE = 'upload';
+    const EFFECT_PAGE = 'effect';
     const host = `http://127.0.0.1`;
     const prefix = '/api-app';
     let app: any;
@@ -134,6 +238,8 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
+      expectTypecheckPasses(apiAppDir);
+      expectTypecheckPasses(appDir);
       await modernBuild(apiAppDir, [], {});
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
@@ -157,6 +263,19 @@ describe('corss project bff', () => {
       });
     });
 
+    test('api-app effect endpoint should work', async () => {
+      await testEffectApiWorked({
+        host,
+        port: apiPort,
+        prefix,
+      });
+      await testEffectOpenApiWorked({
+        host,
+        port: apiPort,
+        prefix,
+      });
+    });
+
     test('basic usage', async () => {
       await page.goto(`${host}:${port}/${BASE_PAGE}`, {
         timeout: 50000,
@@ -199,6 +318,15 @@ describe('corss project bff', () => {
       expect(text).toBe('mock_image.png');
     });
 
+    test('support effect sdk import', async () => {
+      await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
+      await page.waitForFunction(() =>
+        document.querySelector('.effect')?.textContent?.includes('effect:'),
+      );
+      const text = await page.$eval('.effect', el => el?.textContent);
+      expect(text).toBe('effect:Hello get bff-api-app effect');
+    });
+
     afterAll(async () => {
       await killApp(app);
       await killApp(apiApp);
@@ -214,6 +342,7 @@ describe('corss project bff', () => {
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
     const UPLOAD_PAGE = 'upload';
+    const EFFECT_PAGE = 'effect';
     const host = `http://localhost`;
     const prefix = '/api';
     let indepClientApp: any;
@@ -223,6 +352,8 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 2);
+      expectTypecheckPasses(apiAppDir);
+      expectTypecheckPasses(indepAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
       jest.setTimeout(1000 * 60 * 2);
@@ -267,6 +398,15 @@ describe('corss project bff', () => {
       expect(text).toBe('mock_image.png');
     });
 
+    test('support effect sdk import', async () => {
+      await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
+      await page.waitForFunction(() =>
+        document.querySelector('.effect')?.textContent?.includes('effect:'),
+      );
+      const text = await page.$eval('.effect', el => el?.textContent);
+      expect(text).toBe('effect:Hello get bff-api-app effect');
+    });
+
     test('bff response should not be compressed', async () => {
       const pageRes = await fetch(`${host}:${port}/${BASE_PAGE}`);
       expect(pageRes.headers.get('content-encoding')).toBe('gzip');
@@ -289,6 +429,7 @@ describe('corss project bff', () => {
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
     const UPLOAD_PAGE = 'upload';
+    const EFFECT_PAGE = 'effect';
     const host = `http://localhost`;
     let indepClientApp: any;
     let apiApp: any;
@@ -296,6 +437,8 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
+      expectTypecheckPasses(apiAppDir);
+      expectTypecheckPasses(indepAppDir);
       await modernBuild(apiAppDir, [], {});
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
@@ -334,6 +477,15 @@ describe('corss project bff', () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const text = await page.$eval('.mock_file', el => el?.textContent);
       expect(text).toBe('mock_image.png');
+    });
+
+    test('support effect sdk import', async () => {
+      await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
+      await page.waitForFunction(() =>
+        document.querySelector('.effect')?.textContent?.includes('effect:'),
+      );
+      const text = await page.$eval('.effect', el => el?.textContent);
+      expect(text).toBe('effect:Hello get bff-api-app effect');
     });
 
     afterAll(async () => {

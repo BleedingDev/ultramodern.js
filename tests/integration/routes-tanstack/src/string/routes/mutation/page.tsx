@@ -1,8 +1,4 @@
-import {
-  Form,
-  useFetcher,
-  useMatch,
-} from '@modern-js/runtime/tanstack-router';
+import { Form, useFetcher, useMatch } from '@modern-js/runtime/tanstack-router';
 
 export default function MutationPage() {
   const match = useMatch({ from: '/mutation' });
@@ -10,7 +6,9 @@ export default function MutationPage() {
   const loaderFetcher = useFetcher();
   const FetcherForm = fetcher.Form;
   const count = match.loaderData!.count;
-  const loaderFetcherData = loaderFetcher.data as { count?: number } | undefined;
+  const loaderFetcherData = loaderFetcher.data as
+    | { count?: number }
+    | undefined;
 
   return (
     <div id="mutation">

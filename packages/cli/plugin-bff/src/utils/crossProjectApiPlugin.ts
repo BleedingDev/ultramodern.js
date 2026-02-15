@@ -6,6 +6,7 @@ export const PREFIX = '{prefix}';
 export const API_DIR = '{apiDirectory}';
 export const LAMBDA_DIR = '{lambdaDirectory}';
 export const DIST_DIR = '{distDirectory}';
+export const RUNTIME_FRAMEWORK = '{runtimeFramework}';
 
 const NODE_MODULES = 'node_modules';
 
@@ -25,6 +26,7 @@ export const crossProjectApiPlugin = (): CliPlugin<AppTools> => ({
       api.updateAppContext({
         apiDirectory,
         lambdaDirectory,
+        bffRuntimeFramework: RUNTIME_FRAMEWORK as 'hono' | 'effect',
       });
       const config = api.getConfig();
       if (config?.bff?.prefix) {
@@ -34,7 +36,10 @@ When using cross-project BFF, you should not configure bff.prefix as it may caus
         );
       }
       resolvedConfig.bff.prefix = PREFIX;
-      (resolvedConfig.bff as any).isCrossProjectServer = true;
+      resolvedConfig.bff.runtimeFramework = RUNTIME_FRAMEWORK as
+        | 'hono'
+        | 'effect';
+      resolvedConfig.bff.isCrossProjectServer = true;
       return resolvedConfig;
     });
   },

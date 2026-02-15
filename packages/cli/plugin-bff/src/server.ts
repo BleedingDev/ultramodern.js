@@ -1,14 +1,57 @@
 import path from 'path';
 import { ApiRouter } from '@modern-js/bff-core';
-import type { MiddlewareHandler, ServerPlugin } from '@modern-js/server-core';
+import type {
+  APIServerStartInput,
+  BffUserConfig,
+  MiddlewareHandler,
+  ServerPlugin,
+  ServerPluginAPI,
+} from '@modern-js/server-core';
 import type { ServerNodeMiddleware } from '@modern-js/server-core/node';
 import { API_DIR, isWebOnly } from '@modern-js/utils';
 import { isFunction } from '@modern-js/utils';
+import { EffectAdapter } from './runtime/effect/adapter';
 import { HonoAdapter } from './runtime/hono/adapter';
 
-type SF = (args: any) => void;
+type ApiMiddlewareRegistration = unknown;
+type RuntimeFramework = NonNullable<BffUserConfig['runtimeFramework']>;
+
+type RuntimeAdapterOptions = {
+  prefix: string;
+  enableHandleWeb?: boolean;
+};
+
+type RuntimeAdapter = {
+  registerMiddleware: (options: RuntimeAdapterOptions) => Promise<void>;
+  onApiHandlersUpdated?: () => Promise<void>;
+};
+
+type RuntimeAdapterFactory = (api: ServerPluginAPI) => RuntimeAdapter;
+
+const RUNTIME_ADAPTER_FACTORIES: Record<
+  RuntimeFramework,
+  RuntimeAdapterFactory[]
+> = {
+  hono: [api => new HonoAdapter(api)],
+  effect: [api => new EffectAdapter(api)],
+};
+
+function resolveRuntimeFramework(
+  runtimeFramework: BffUserConfig['runtimeFramework'],
+): RuntimeFramework {
+  return runtimeFramework === 'effect' ? 'effect' : 'hono';
+}
+
+type PrepareApiServerNext = (
+  input: APIServerStartInput,
+) => Promise<ServerNodeMiddleware>;
+type PrepareApiServerTap = (
+  input: APIServerStartInput,
+  next: PrepareApiServerNext,
+) => Promise<ServerNodeMiddleware>;
+
 class Storage {
-  public middlewares: SF[] = [];
+  public middlewares: ApiMiddlewareRegistration[] = [];
 
   reset() {
     this.middlewares = [];
@@ -21,7 +64,13 @@ export default (): ServerPlugin => ({
     const storage = new Storage();
     let apiRouter: ApiRouter;
 
-    const honoAdapter = new HonoAdapter(api);
+    const appContext = api.getServerContext();
+    const runtimeFramework = resolveRuntimeFramework(
+      appContext.bffRuntimeFramework,
+    );
+    const runtimeAdapters = RUNTIME_ADAPTER_FACTORIES[runtimeFramework].map(
+      createAdapter => createAdapter(api),
+    );
 
     api.onPrepare(async () => {
       const appContext = api.getServerContext();
@@ -68,19 +117,22 @@ export default (): ServerPlugin => ({
           handler: ((c, next) => {
             if (!c.req.path.startsWith(prefix) && !enableHandleWeb) {
               return next();
-            } else {
-              return handler(c, next);
             }
+            return handler(c, next);
           }) as MiddlewareHandler,
           order: 'post',
           before: ['custom-server-hook', 'custom-server-middleware', 'render'],
         });
       }
 
-      honoAdapter.registerMiddleware({
-        prefix,
-        enableHandleWeb,
-      });
+      await Promise.all(
+        runtimeAdapters.map(adapter =>
+          adapter.registerMiddleware({
+            prefix,
+            enableHandleWeb,
+          }),
+        ),
+      );
     });
     api.onReset(async ({ event }) => {
       storage.reset();
@@ -99,19 +151,28 @@ export default (): ServerPlugin => ({
           apiHandlerInfos,
         });
 
-        await honoAdapter.setHandlers();
-        await honoAdapter.registerApiRoutes();
+        await Promise.all(
+          runtimeAdapters.map(adapter => adapter.onApiHandlersUpdated?.()),
+        );
       }
     });
-    api.prepareApiServer((async (input: any, next: any) => {
+    const prepareApiServer: PrepareApiServerTap = async (input, next) => {
       const { pwd, prefix, httpMethodDecider } = input;
-      const apiDir = path.resolve(pwd, API_DIR);
+      const defaultApiDirectory = path.resolve(pwd, API_DIR);
       const appContext = api.getServerContext();
-      const { apiDirectory, lambdaDirectory } = appContext;
+      const apiDirectory =
+        typeof appContext.apiDirectory === 'string'
+          ? appContext.apiDirectory
+          : defaultApiDirectory;
+      const lambdaDirectory =
+        typeof appContext.lambdaDirectory === 'string'
+          ? appContext.lambdaDirectory
+          : undefined;
+
       apiRouter = new ApiRouter({
         appDir: pwd,
-        apiDir: (apiDirectory as string) || apiDir,
-        lambdaDir: lambdaDirectory as string,
+        apiDir: apiDirectory,
+        lambdaDir: lambdaDirectory,
         prefix,
         httpMethodDecider,
       });
@@ -122,6 +183,9 @@ export default (): ServerPlugin => ({
         apiHandlerInfos,
       });
       return next(input);
-    }) as any);
+    };
+    api.prepareApiServer(
+      prepareApiServer as unknown as Parameters<typeof api.prepareApiServer>[0],
+    );
   },
 });

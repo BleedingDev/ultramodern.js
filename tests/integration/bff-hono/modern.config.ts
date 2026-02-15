@@ -13,10 +13,8 @@ export default applyBaseConfig({
   plugins: [bffPlugin()],
   security: {
     sri: {
-      enable: true,
+      enabled: true,
       hashFuncNames: ['sha256'],
-      hashLoading: 'eager',
-      algorithm: 'sha256',
     },
   },
 });

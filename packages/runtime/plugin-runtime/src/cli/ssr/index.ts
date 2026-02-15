@@ -8,9 +8,98 @@ import type {
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { Entrypoint } from '@modern-js/types';
 import { LOADABLE_STATS_FILE, isUseSSRBundle } from '@modern-js/utils';
-import type { RsbuildPlugin } from '@rsbuild/core';
+import type {
+  MergedEnvironmentConfig,
+  RsbuildPlugin,
+  RspackChain,
+} from '@rsbuild/core';
 import LoadableBundlerPlugin from './loadable-bundler-plugin';
 import { resolveSSRMode } from './mode';
+
+type RsbuildRspackPluginLike =
+  | string
+  | ((...args: any[]) => any)
+  | {
+      name?: string;
+      constructor?: {
+        name?: string;
+      };
+    }
+  | [unknown, ...unknown[]];
+
+type EnvironmentConfigLike = Partial<
+  Pick<MergedEnvironmentConfig, 'output' | 'source' | 'tools'>
+>;
+
+const getRspackPlugins = (rspackConfig: unknown): RsbuildRspackPluginLike[] => {
+  if (!rspackConfig) {
+    return [];
+  }
+
+  const rspackEntries = Array.isArray(rspackConfig)
+    ? rspackConfig
+    : [rspackConfig];
+  const plugins: RsbuildRspackPluginLike[] = [];
+
+  for (const entry of rspackEntries) {
+    if (!entry || typeof entry === 'function' || typeof entry !== 'object') {
+      continue;
+    }
+
+    const maybePlugins = (entry as { plugins?: unknown }).plugins;
+
+    if (!Array.isArray(maybePlugins)) {
+      continue;
+    }
+
+    for (const plugin of maybePlugins) {
+      if (plugin) {
+        plugins.push(plugin as RsbuildRspackPluginLike);
+      }
+    }
+  }
+
+  return plugins;
+};
+
+const getRspackPluginName = (
+  plugin: RsbuildRspackPluginLike,
+): string | undefined => {
+  if (typeof plugin === 'string') {
+    return plugin;
+  }
+
+  if (typeof plugin === 'function') {
+    return plugin.name;
+  }
+
+  if (Array.isArray(plugin)) {
+    const [first] = plugin;
+
+    if (!first) {
+      return undefined;
+    }
+
+    if (typeof first === 'string') {
+      return first;
+    }
+
+    if (typeof first === 'function') {
+      return first.name;
+    }
+
+    if (typeof first === 'object') {
+      return (
+        (first as { name?: string }).name ||
+        (first as { constructor?: { name?: string } }).constructor?.name
+      );
+    }
+
+    return undefined;
+  }
+
+  return plugin.name || plugin.constructor?.name;
+};
 
 const hasStringSSREntry = (userConfig: AppToolsNormalizedConfig): boolean => {
   const isStreaming = (ssr: ServerUserConfig['ssr']) =>
@@ -45,6 +134,30 @@ const hasStringSSREntry = (userConfig: AppToolsNormalizedConfig): boolean => {
   return false;
 };
 
+const hasServerRenderingConfig = (
+  userConfig: AppToolsNormalizedConfig,
+): boolean => {
+  const { output, server } = userConfig;
+
+  if (output?.ssg) {
+    return true;
+  }
+
+  if (output?.ssgByEntries && Object.keys(output.ssgByEntries).length > 0) {
+    return true;
+  }
+
+  if (server?.ssr) {
+    return true;
+  }
+
+  if (server?.ssrByEntries && Object.keys(server.ssrByEntries).length > 0) {
+    return true;
+  }
+
+  return false;
+};
+
 /**
  * Check if any entry uses string SSR mode.
  * Returns true if at least one entry uses 'string' SSR mode.
@@ -73,6 +186,35 @@ const checkUseStringSSR = (
   return true;
 };
 
+const isModuleFederationRspackPlugin = (
+  plugin: RsbuildRspackPluginLike,
+): boolean => {
+  const candidate = getRspackPluginName(plugin);
+
+  return typeof candidate === 'string' && /modulefederation/i.test(candidate);
+};
+
+const hasModuleFederationMarker = (config: EnvironmentConfigLike): boolean => {
+  if (process.env.MF_SSR_PRJ === 'true') {
+    return true;
+  }
+
+  const define = config.source?.define || {};
+
+  if ('REMOTE_IP_STRATEGY' in define || 'FEDERATION_IPV4' in define) {
+    return true;
+  }
+
+  const plugins = getRspackPlugins(config.tools?.rspack);
+
+  return plugins.some(isModuleFederationRspackPlugin);
+};
+
+export const shouldUseModuleFederationNodeOutput = (
+  config: EnvironmentConfigLike,
+): boolean =>
+  config.output?.target === 'node' && hasModuleFederationMarker(config);
+
 const ssrBuilderPlugin = (
   modernAPI: CLIPluginAPI<AppTools>,
   outputModule: boolean,
@@ -84,6 +226,9 @@ const ssrBuilderPlugin = (
       const isServerEnvironment =
         config.output.target === 'node' || name === 'workerSSR';
       const userConfig = modernAPI.getNormalizedConfig();
+      const useModuleFederationNodeOutput =
+        hasServerRenderingConfig(userConfig) &&
+        shouldUseModuleFederationNodeOutput(config);
 
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =
@@ -94,10 +239,29 @@ const ssrBuilderPlugin = (
       const appContext = modernAPI.getAppContext();
       const { appDirectory, entrypoints } = appContext;
 
+      const serverBundlerChain: ((chain: RspackChain) => void) | undefined =
+        useModuleFederationNodeOutput
+          ? (chain: RspackChain) => {
+              chain.target('async-node');
+              chain.output.module(false);
+              chain.output.chunkFormat('commonjs');
+              chain.output.chunkLoading('async-node');
+              chain.output.library({
+                ...(chain.output.get('library') || {}),
+                type: 'commonjs-module',
+              });
+            }
+          : undefined;
+
       const useLoadablePlugin =
         isUseSSRBundle(userConfig) &&
         !isServerEnvironment &&
         checkUseStringSSR(userConfig, appDirectory, entrypoints);
+
+      const outputConfig = {
+        module:
+          isServerEnvironment && !useModuleFederationNodeOutput && outputModule,
+      };
 
       return mergeEnvironmentConfig(config, {
         source: {
@@ -108,19 +272,19 @@ const ssrBuilderPlugin = (
             'process.env.MODERN_SSR_ENV': JSON.stringify(ssrEnv),
           },
         },
-        output: {
-          module: isServerEnvironment && outputModule,
-        },
+        output: outputConfig,
         tools: {
-          bundlerChain: useLoadablePlugin
-            ? chain => {
-                chain
-                  .plugin('loadable')
-                  .use(LoadableBundlerPlugin, [
-                    { filename: LOADABLE_STATS_FILE },
-                  ]);
-              }
-            : undefined,
+          bundlerChain:
+            serverBundlerChain ||
+            (useLoadablePlugin
+              ? (chain: RspackChain) => {
+                  chain
+                    .plugin('loadable')
+                    .use(LoadableBundlerPlugin, [
+                      { filename: LOADABLE_STATS_FILE },
+                    ]);
+                }
+              : undefined),
         },
       });
     });

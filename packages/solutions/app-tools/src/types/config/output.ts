@@ -1,7 +1,11 @@
 import type { BuilderConfig } from '@modern-js/builder';
 import type { SSGConfig, SSGMultiEntryOptions } from '@modern-js/types';
-import type { Options as CompressionPluginOptions } from 'compression-webpack-plugin';
+import type CompressionPlugin from 'compression-webpack-plugin';
 import type { UnwrapBuilderConfig } from '../utils';
+
+type CompressionPluginOptions = NonNullable<
+  ConstructorParameters<typeof CompressionPlugin>[0]
+>;
 
 export type PrecompressCodecOptions = boolean | CompressionPluginOptions;
 

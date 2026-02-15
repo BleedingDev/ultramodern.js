@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import type { AnyRouter } from '@tanstack/react-router';
-import React, { useCallback, useState } from 'react';
+import type React from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 type SubmitTarget =
   | HTMLFormElement
@@ -16,6 +17,18 @@ export type SubmitOptions = {
 };
 
 export type FetcherState = 'idle' | 'submitting' | 'loading';
+
+export class RouteActionResponseError<TData = unknown> extends Error {
+  readonly response: Response;
+  readonly data: TData;
+
+  constructor(response: Response, data: TData) {
+    super(`Route action failed with status ${response.status}`);
+    this.name = 'RouteActionResponseError';
+    this.response = response;
+    this.data = data;
+  }
+}
 
 type RouteAction = (args: {
   request: Request;
@@ -141,7 +154,9 @@ function resolveRouteHandlers(router: AnyRouter, actionTo: string) {
     to: actionTo as any,
   } as any);
   const href = router.getParsedLocationHref(builtLocation as any);
-  const matchedRoutes = router.getMatchedRoutes((builtLocation as any).pathname);
+  const matchedRoutes = router.getMatchedRoutes(
+    (builtLocation as any).pathname,
+  );
   const routeStaticData = matchedRoutes.foundRoute?.options?.staticData as
     | Record<string, unknown>
     | undefined;
@@ -175,16 +190,26 @@ async function parseResponseData(response: Response) {
   return response.text();
 }
 
+async function parseResponseResultOrThrow(response: Response) {
+  const parsed = await parseResponseData(response);
+  if (!response.ok) {
+    throw new RouteActionResponseError(response, parsed);
+  }
+  return parsed;
+}
+
 async function submitRouteAction({
   router,
   target,
   options = {},
   isFetcher = false,
+  onInvalidateStart,
 }: {
   router: AnyRouter;
   target: SubmitTarget;
   options?: SubmitOptions;
   isFetcher?: boolean;
+  onInvalidateStart?: () => void;
 }) {
   const method = (options.method || 'post').toLowerCase();
   const encType = options.encType || 'application/x-www-form-urlencoded';
@@ -215,7 +240,7 @@ async function submitRouteAction({
           } as any);
           return parseResponseData(result);
         }
-        return parseResponseData(result);
+        return parseResponseResultOrThrow(result);
       }
 
       return result;
@@ -242,7 +267,10 @@ async function submitRouteAction({
     headers.set('Content-Type', 'text/plain;charset=UTF-8');
     body = formDataToTextPlain(formData);
   } else if (encType.includes('application/x-www-form-urlencoded')) {
-    headers.set('Content-Type', 'application/x-www-form-urlencoded;charset=UTF-8');
+    headers.set(
+      'Content-Type',
+      'application/x-www-form-urlencoded;charset=UTF-8',
+    );
     body = formDataToUrlSearchParams(formData);
   } else {
     body = formData;
@@ -261,7 +289,8 @@ async function submitRouteAction({
 
   if (result instanceof Response) {
     const redirectTo =
-      result.headers.get('X-Modernjs-Redirect') || result.headers.get('Location');
+      result.headers.get('X-Modernjs-Redirect') ||
+      result.headers.get('Location');
     if (redirectTo || isRedirectResponse(result)) {
       await router.navigate({
         to: (redirectTo || '/') as any,
@@ -269,11 +298,15 @@ async function submitRouteAction({
       return parseResponseData(result);
     }
 
-    const parsed = await parseResponseData(result);
+    const parsed = isFetcher
+      ? await parseResponseResultOrThrow(result)
+      : await parseResponseData(result);
+    onInvalidateStart?.();
     await router.invalidate();
     return parsed;
   }
 
+  onInvalidateStart?.();
   await router.invalidate();
   return result;
 }
@@ -344,7 +377,10 @@ export type Fetcher = {
   data: unknown;
   error: unknown;
   Form: React.ComponentType<FormProps>;
-  submit: (target: SubmitTarget, options?: FetcherSubmitOptions) => Promise<void>;
+  submit: (
+    target: SubmitTarget,
+    options?: FetcherSubmitOptions,
+  ) => Promise<void>;
 };
 
 export function useFetcher(): Fetcher {
@@ -352,11 +388,57 @@ export function useFetcher(): Fetcher {
   const [state, setState] = useState<FetcherState>('idle');
   const [data, setData] = useState<unknown>(undefined);
   const [error, setError] = useState<unknown>(undefined);
+  const requestStatesRef = useRef<Map<number, Exclude<FetcherState, 'idle'>>>(
+    new Map(),
+  );
+  const requestIdRef = useRef(0);
+
+  const syncStateFromRequests = useCallback(() => {
+    let hasSubmitting = false;
+    let hasLoading = false;
+
+    requestStatesRef.current.forEach(requestState => {
+      if (requestState === 'submitting') {
+        hasSubmitting = true;
+      } else if (requestState === 'loading') {
+        hasLoading = true;
+      }
+    });
+
+    if (hasSubmitting) {
+      setState('submitting');
+      return;
+    }
+    if (hasLoading) {
+      setState('loading');
+      return;
+    }
+    setState('idle');
+  }, []);
+
+  const setRequestState = useCallback(
+    (requestId: number, requestState: Exclude<FetcherState, 'idle'>) => {
+      requestStatesRef.current.set(requestId, requestState);
+      syncStateFromRequests();
+    },
+    [syncStateFromRequests],
+  );
+
+  const clearRequestState = useCallback(
+    (requestId: number) => {
+      requestStatesRef.current.delete(requestId);
+      syncStateFromRequests();
+    },
+    [syncStateFromRequests],
+  );
 
   const submit = useCallback(
     async (target: SubmitTarget, options?: FetcherSubmitOptions) => {
       setError(undefined);
-      setState('submitting');
+      const requestId = ++requestIdRef.current;
+      const normalizedMethod = (options?.method || 'post').toLowerCase();
+      const isLoaderSubmit = normalizedMethod === 'get';
+      setRequestState(requestId, isLoaderSubmit ? 'loading' : 'submitting');
 
       try {
         const result = await submitRouteAction({
@@ -364,17 +446,21 @@ export function useFetcher(): Fetcher {
           target,
           options,
           isFetcher: true,
+          onInvalidateStart: () => {
+            if (!isLoaderSubmit) {
+              setRequestState(requestId, 'loading');
+            }
+          },
         });
         setData(result);
-        setState('loading');
       } catch (err) {
         setError(err);
         throw err;
       } finally {
-        setState('idle');
+        clearRequestState(requestId);
       }
     },
-    [router],
+    [clearRequestState, router, setRequestState],
   );
 
   const FetcherForm = useCallback(

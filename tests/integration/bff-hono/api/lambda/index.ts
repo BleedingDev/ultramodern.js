@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@modern-js/plugin-bff/server';
-import { useHonoContext } from '@modern-js/server-runtime';
+import { useBackendContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
 export default async () => {
@@ -69,7 +69,7 @@ export const postHello = Api(
     return input;
   }),
   async ({ query, data, params, headers }) => {
-    const c = useHonoContext();
+    const c = useBackendContext();
     c.res.headers.set('x-bff-api', c.req.path);
     return {
       path: c.req.path,
@@ -90,7 +90,7 @@ export const getHello = Api(
   Query(GetQuerySchema),
   async ({ query }) => {
     try {
-      const c = useHonoContext();
+      const c = useBackendContext();
       c.res.headers.set('x-bff-api', c.req.path);
     } catch (error) {
       return {

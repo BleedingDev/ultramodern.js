@@ -13,7 +13,7 @@ export type ServerAppContext = {
   apiDirectory: string;
   lambdaDirectory: string;
   metaName: string;
-  bffRuntimeFramework: string;
+  bffRuntimeFramework: 'hono' | 'effect';
 };
 
 export const serverAppContenxtTemplate = (appContext: AppToolsContext) => {

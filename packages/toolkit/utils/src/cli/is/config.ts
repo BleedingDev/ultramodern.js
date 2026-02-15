@@ -85,4 +85,7 @@ export const isSSGEntry = (
 export const isSingleEntry = (
   entrypoints: EntryPoint[],
   mainEntryName = MAIN_ENTRY_NAME,
-) => entrypoints.length === 1 && entrypoints[0].entryName === mainEntryName;
+) => {
+  const firstEntry = entrypoints[0];
+  return entrypoints.length === 1 && firstEntry?.entryName === mainEntryName;
+};

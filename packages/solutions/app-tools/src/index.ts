@@ -81,6 +81,10 @@ export const appTools = (): CliPlugin<AppTools> => ({
         metaName: context.metaName,
         appDirectory: context.appDirectory,
         runtimeConfigFile: DEFAULT_RUNTIME_CONFIG_FILE,
+        options: {
+          bffRuntimeFramework:
+            userConfig.bff?.runtimeFramework === 'effect' ? 'effect' : 'hono',
+        },
         tempDir: userConfig.output?.tempDir,
       }),
     );

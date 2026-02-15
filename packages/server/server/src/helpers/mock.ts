@@ -50,8 +50,8 @@ const parseKey = (key: string): { method: string; path: string } => {
   if (splitted.length > 1) {
     const [method, pathname] = splitted;
     return {
-      method: method.toLowerCase(),
-      path: pathname,
+      method: (method ?? 'get').toLowerCase(),
+      path: pathname ?? '/',
     };
   }
 

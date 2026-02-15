@@ -131,7 +131,7 @@ export interface AppToolsExtendContext {
    * Identification for bff runtime framework
    * @private
    */
-  bffRuntimeFramework?: string;
+  bffRuntimeFramework?: 'hono' | 'effect';
 }
 
 export type AppToolsContext = AppContext<AppTools> & AppToolsExtendContext;

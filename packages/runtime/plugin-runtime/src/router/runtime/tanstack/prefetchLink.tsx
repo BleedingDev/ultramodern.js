@@ -1,8 +1,8 @@
 import {
-  Link as TanStackLink,
   type AnyRouter,
   type LinkComponentProps,
   type RegisteredRouter,
+  Link as TanStackLink,
 } from '@tanstack/react-router';
 import type { ReactElement } from 'react';
 

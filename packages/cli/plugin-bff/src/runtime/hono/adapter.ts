@@ -100,11 +100,24 @@ export class HonoAdapter {
       } catch (configError) {
         logger.error(`Error in serverConfig.onError handler: ${configError}`);
       }
-      return c.json(
+      const status =
+        typeof err === 'object' &&
+        err !== null &&
+        'status' in err &&
+        typeof err.status === 'number'
+          ? err.status
+          : 500;
+      return new Response(
+        JSON.stringify({
+          message:
+            err instanceof Error ? err.message : '[BFF] Internal Server Error',
+        }),
         {
-          message: (err as any)?.message || '[BFF] Internal Server Error',
+          status,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+          },
         },
-        (err as any)?.status || 500,
       );
     });
   };
@@ -114,7 +127,7 @@ export class HonoAdapter {
 
     const { bffRuntimeFramework } = this.api.getServerContext();
 
-    if (bffRuntimeFramework !== 'hono') {
+    if (bffRuntimeFramework !== 'hono' && bffRuntimeFramework !== 'effect') {
       this.isHono = false;
       return;
     }
@@ -147,6 +160,15 @@ export class HonoAdapter {
       globalMiddlewares.push(dynamicApiMiddleware);
     }
   };
+
+  onApiHandlersUpdated = async () => {
+    if (!this.isHono) {
+      return;
+    }
+    await this.setHandlers();
+    await this.registerApiRoutes();
+  };
+
   wrapInArray(
     handler: MiddlewareHandler[] | MiddlewareHandler,
   ): MiddlewareHandler[] {

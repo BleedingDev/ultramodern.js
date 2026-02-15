@@ -2,8 +2,8 @@
 
 import { merge } from '@modern-js/runtime-utils/merge';
 import {
-  createRequestContext,
   type RequestContext,
+  createRequestContext,
 } from '@modern-js/runtime-utils/node';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
@@ -203,18 +203,23 @@ export const tanstackRouterPlugin = (
 
         await (tanstackRouter as any).serverSsr?.dehydrate?.();
 
-        const ssrScriptTag = (tanstackRouter as any).serverSsr?.takeBufferedScripts?.();
+        const ssrScriptTag = (
+          tanstackRouter as any
+        ).serverSsr?.takeBufferedScripts?.();
         (context as TInternalRuntimeContext).tanstackSsrScript =
           routerManagedTagToHtml(ssrScriptTag);
         (context as TInternalRuntimeContext).tanstackMatchedModernRouteIds =
           getModernRouteIdsFromMatches(tanstackRouter as any);
-        (context as TInternalRuntimeContext).tanstackRouter = tanstackRouter as any;
+        (context as TInternalRuntimeContext).tanstackRouter =
+          tanstackRouter as any;
       });
 
       api.wrapRoot(App => {
         const getRouteApp = () => {
           return (props => {
-            const context = useContext(InternalRuntimeContext) as any as TInternalRuntimeContext;
+            const context = useContext(
+              InternalRuntimeContext,
+            ) as any as TInternalRuntimeContext;
             const router = (context as any).tanstackRouter;
             if (!router) {
               return App ? <App {...props} /> : null;

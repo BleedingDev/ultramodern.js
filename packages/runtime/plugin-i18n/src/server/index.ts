@@ -58,6 +58,40 @@ const convertToHonoLanguageDetectorOptions = (
         ? false
         : (['cookie'] as ['cookie']);
 
+  const cookieMinutes = (mergedDetection as Record<string, unknown>)
+    .cookieMinutes;
+  const cookieMaxAge =
+    typeof cookieMinutes === 'number' && Number.isFinite(cookieMinutes)
+      ? Math.max(0, Math.floor(cookieMinutes * 60))
+      : DEFAULT_I18NEXT_DETECTION_OPTIONS.cookieMinutes * 60;
+
+  const cookieDomain = (mergedDetection as Record<string, unknown>)
+    .cookieDomain;
+  const cookieSecure = (mergedDetection as Record<string, unknown>)
+    .cookieSecure;
+  const cookieHttpOnly = (mergedDetection as Record<string, unknown>)
+    .cookieHttpOnly;
+  const cookieSameSite = (mergedDetection as Record<string, unknown>)
+    .cookieSameSite;
+
+  const normalizedCookieDomain =
+    typeof cookieDomain === 'string' ? cookieDomain : undefined;
+
+  // Keep cookie defaults aligned with i18next language detector behavior:
+  // language cookie should be readable from browser-side detector.
+  const cookieOptions = {
+    maxAge: cookieMaxAge,
+    sameSite:
+      cookieSameSite === 'None' || cookieSameSite === 'none'
+        ? ('None' as const)
+        : cookieSameSite === 'Lax' || cookieSameSite === 'lax'
+          ? ('Lax' as const)
+          : ('Strict' as const),
+    secure: typeof cookieSecure === 'boolean' ? cookieSecure : false,
+    httpOnly: typeof cookieHttpOnly === 'boolean' ? cookieHttpOnly : false,
+    ...(normalizedCookieDomain ? { domain: normalizedCookieDomain } : {}),
+  };
+
   return {
     supportedLanguages: languages.length > 0 ? languages : [fallbackLanguage],
     fallbackLanguage,
@@ -75,6 +109,7 @@ const convertToHonoLanguageDetectorOptions = (
       DEFAULT_I18NEXT_DETECTION_OPTIONS.lookupHeader ||
       'accept-language',
     ...(caches !== undefined && { caches }),
+    ...(caches !== false && { cookieOptions }),
     ignoreCase: true,
   };
 };

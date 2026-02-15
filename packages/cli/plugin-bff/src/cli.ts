@@ -24,6 +24,16 @@ const RUNTIME_CREATE_REQUEST = '@modern-js/plugin-bff/client';
 export const bffPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-bff',
   setup: api => {
+    {
+      const appContext = api.getAppContext();
+      const userRuntimeFramework = api.getConfig()?.bff?.runtimeFramework;
+      api.updateAppContext({
+        ...appContext,
+        bffRuntimeFramework:
+          userRuntimeFramework === 'effect' ? 'effect' : 'hono',
+      });
+    }
+
     const compileApi = async () => {
       const {
         appDirectory,
@@ -75,8 +85,13 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
     };
 
     const generator = async () => {
-      const { appDirectory, apiDirectory, lambdaDirectory, port } =
-        api.getAppContext();
+      const {
+        appDirectory,
+        apiDirectory,
+        lambdaDirectory,
+        port,
+        bffRuntimeFramework,
+      } = api.getAppContext();
 
       const modernConfig = api.getNormalizedConfig();
       const relativeDistPath = modernConfig?.output?.distPath?.root || 'dist';
@@ -96,8 +111,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       const lambdaDir = apiRouter.getLambdaDir();
       const existLambda = apiRouter.isExistLambda();
 
-      const runtime =
-        (bff as any)?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
+      const runtime = bff?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
       const relativeApiPath = path.relative(appDirectory, apiDirectory);
       const relativeLambdaPath = path.relative(appDirectory, lambdaDir);
 
@@ -107,6 +121,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         relativeDistPath,
         relativeApiPath,
         relativeLambdaPath,
+        runtimeFramework: bffRuntimeFramework === 'effect' ? 'effect' : 'hono',
       });
       await clientGenerator({
         prefix,
@@ -115,10 +130,13 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         lambdaDir,
         existLambda,
         port,
-        requestCreator: (bff as any)?.requestCreator,
+        requestCreator: bff?.requestCreator,
         httpMethodDecider,
         relativeDistPath,
         relativeApiPath,
+        bffRuntimeFramework,
+        effectEntry: bff?.effect?.entry,
+        effectDataPlatformBatch: bff?.effect?.dataPlatform?.batch,
       });
       await runtimeGenerator({
         runtime,
@@ -181,8 +199,13 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
             compress,
           },
           bundlerChain: (chain, { CHAIN_ID, isServer }) => {
-            const { port, appDirectory, apiDirectory, lambdaDirectory } =
-              api.getAppContext();
+            const {
+              port,
+              appDirectory,
+              apiDirectory,
+              lambdaDirectory,
+              bffRuntimeFramework,
+            } = api.getAppContext();
             const modernConfig = api.getNormalizedConfig();
             const { bff } = modernConfig || {};
             const prefix = bff?.prefix || DEFAULT_API_PREFIX;
@@ -223,8 +246,11 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
                 port,
                 target: name,
                 // Internal field
-                requestCreator: (bff as any)?.requestCreator,
+                requestCreator: bff?.requestCreator,
                 httpMethodDecider,
+                bffRuntimeFramework,
+                effectEntry: bff?.effect?.entry,
+                effectDataPlatformBatch: bff?.effect?.dataPlatform?.batch,
               });
           },
         },

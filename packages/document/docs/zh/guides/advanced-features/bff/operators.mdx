@@ -556,13 +556,13 @@ export default Api(
 
 ## 请求上下文
 
-如上面所述，通过操作符可以执行接口处理函数的入参，获得 `query`，`data`，`params` 等。但有时我们需要获得更多请求上下文的信息，此时可以通过 [`useHonoContext`](/apis/app/runtime/bff/use-hono-context) 获取：
+如上面所述，通过操作符可以执行接口处理函数的入参，获得 `query`，`data`，`params` 等。但有时我们需要获得更多请求上下文的信息，此时可以通过 [`useBackendContext`](/apis/app/runtime/bff/use-backend-context) 获取：
 
 <BFFOperatorCode>
 
 ```typescript title="api/lambda/user.ts"
 import { Api, Get, Query } from '@modern-js/plugin-bff/server';
-import { useHonoContext } from '@modern-js/server-runtime';
+import { useBackendContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
 const UserSchema = z.object({
@@ -574,7 +574,7 @@ export const queryUser = Api(
   Get('/user'),
   Query(UserSchema),
   async ({ query }) => {
-    const c = useHonoContext();
+    const c = useBackendContext();
     const userAgent = c.req.header('user-agent');
     return {
       name: query.name,

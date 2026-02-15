@@ -1,0 +1,13 @@
+import { bffPlugin } from '@modern-js/plugin-bff';
+import { applyBaseConfig } from '../../utils/applyBaseConfig';
+
+const runtimeFramework =
+  process.env.BFF_RUNTIME === 'effect' ? 'effect' : 'hono';
+
+export default applyBaseConfig({
+  bff: {
+    prefix: '/bff-api',
+    runtimeFramework,
+  },
+  plugins: [bffPlugin()],
+});

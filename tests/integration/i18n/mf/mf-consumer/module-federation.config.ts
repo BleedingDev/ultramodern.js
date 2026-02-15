@@ -2,6 +2,9 @@ import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 
 export default createModuleFederationConfig({
   name: 'consumer',
+  dev: {
+    disableDynamicRemoteTypeHints: true,
+  },
   remotes: {
     componentRemote:
       'i18nComponentProvider@http://localhost:3006/mf-manifest.json',

@@ -34,6 +34,35 @@ You can combine both options:
 npx @modern-js/create my-app --router tanstack --tailwind
 ```
 
+### BFF Runtime Template
+
+You can scaffold BFF APIs with the default Hono runtime:
+
+```bash
+npx @modern-js/create my-app --bff
+```
+
+You can scaffold Effect HttpApi runtime for BFF:
+
+```bash
+npx @modern-js/create my-app --bff-runtime effect
+```
+
+You can combine TanStack Router + Tailwind + Effect BFF in one command:
+
+```bash
+npx @modern-js/create my-app --router tanstack --tailwind --bff-runtime effect
+```
+
+### Local Monorepo Testing
+
+When testing unreleased Modern.js packages from a local monorepo checkout, use
+workspace protocol dependencies:
+
+```bash
+npx @modern-js/create my-app --router tanstack --bff-runtime effect --workspace
+```
+
 ## Documentation
 
 - [English Documentation](https://modernjs.dev/en/)

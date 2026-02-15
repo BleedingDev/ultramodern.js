@@ -5,6 +5,10 @@ export default applyBaseConfig({
   bff: {
     prefix: '/api-app',
     crossProject: true,
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: true,
+    },
   },
   plugins: [bffPlugin()],
   server: {

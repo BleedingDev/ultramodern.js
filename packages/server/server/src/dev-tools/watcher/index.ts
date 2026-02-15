@@ -20,7 +20,11 @@ export const getWatchedFiles = (watcher: FSWatcher) => {
   const watched = watcher.getWatched();
   const files: string[] = [];
   Object.keys(watched).forEach(dir => {
-    watched[dir].forEach((fileName: string) => {
+    const dirFiles = watched[dir];
+    if (!dirFiles) {
+      return;
+    }
+    dirFiles.forEach((fileName: string) => {
       files.push(path.join(dir, fileName));
     });
   });

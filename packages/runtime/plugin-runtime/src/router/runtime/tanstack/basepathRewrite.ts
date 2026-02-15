@@ -30,7 +30,9 @@ export function createModernBasepathRewrite(
 
   return {
     input: ({ url }: { url: URL }) => {
-      const pathname = caseSensitive ? url.pathname : url.pathname.toLowerCase();
+      const pathname = caseSensitive
+        ? url.pathname
+        : url.pathname.toLowerCase();
 
       if (pathname === checkBasepath) {
         url.pathname = '/';
@@ -55,4 +57,3 @@ export function createModernBasepathRewrite(
     },
   };
 }
-

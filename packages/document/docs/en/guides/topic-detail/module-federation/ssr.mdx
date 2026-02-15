@@ -24,6 +24,18 @@ For better performance, we only support using this capability combination in Str
 Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) do not support server-side rendering (SSR). If you need to use SSR functionality, please use component-level module export methods instead.
 :::
 
+## Node SSR Bundle Compatibility
+
+When Module Federation is enabled together with `server.ssr`, Modern.js automatically switches Node SSR output to a Module Federation compatible mode:
+
+- `target: 'async-node'`
+- `output.module: false`
+- `output.chunkFormat: 'commonjs'`
+- `output.chunkLoading: 'async-node'`
+- `output.library.type: 'commonjs-module'`
+
+This avoids runtime incompatibilities between ESM server output and `@module-federation/node`, and keeps SSR/SSG hydration behavior consistent across host and remote applications.
+
 ## Data Fetching
 
 :::tip

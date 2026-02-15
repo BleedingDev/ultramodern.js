@@ -1,4 +1,3 @@
-import * as React from 'react';
 import {
   Form,
   Link,
@@ -7,6 +6,7 @@ import {
   useMatch,
   useNavigate,
 } from '@modern-js/runtime/tanstack-router';
+import * as React from 'react';
 
 export function TanstackRouterTypeTests() {
   const navigate = useNavigate();
@@ -32,6 +32,7 @@ export function TanstackRouterTypeTests() {
   const badLinkMissingParams = <Link to="/user/$id" />;
 
   // @ts-expect-error invalid prefetch mode
+  // biome-ignore format: keep this on one line so @ts-expect-error applies.
   const badPrefetchValue = <Link to="/user/$id" params={{ id: '123' }} prefetch="viewport" />;
 
   // Optional param route: params should be optional

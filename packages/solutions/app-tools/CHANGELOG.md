@@ -235,8 +235,8 @@
 
 ### Patch Changes
 
-- f9d2cd2: fix: support useHonoContext in the loader
-  fix: 支持在 loader 中使用 useHonoContext
+- f9d2cd2: fix: support useBackendContext in the loader
+  fix: 支持在 loader 中使用 useBackendContext
   - @modern-js/core@2.67.10
   - @modern-js/plugin-data-loader@2.67.10
   - @modern-js/plugin-i18n@2.67.10

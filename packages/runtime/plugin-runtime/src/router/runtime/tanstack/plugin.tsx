@@ -101,9 +101,9 @@ export const tanstackRouterPlugin = (
 
           const routeObjects = createRoutes
             ? createRoutes()
-            : (createRouteObjectsFromConfig({
+            : createRouteObjectsFromConfig({
                 routesConfig: finalRouteConfig,
-              }) || []);
+              }) || [];
 
           const normalizedRouteObjects = createRoutes
             ? routeObjects
@@ -130,7 +130,10 @@ export const tanstackRouterPlugin = (
         const RouterWrapper = () => {
           const runtimeContext = useContext(InternalRuntimeContext);
 
-          const baseUrl = selectBasePath(location.pathname).replace(/^\/*/, '/');
+          const baseUrl = selectBasePath(location.pathname).replace(
+            /^\/*/,
+            '/',
+          );
           const _basename =
             baseUrl === '/'
               ? urlJoin(
@@ -182,15 +185,13 @@ export const tanstackRouterPlugin = (
           const hasSSRBootstrap =
             typeof window !== 'undefined' && (window as any).$_TSR;
 
-          const RouterContent = hasSSRBootstrap
-            ? (
-                <React.Suspense fallback={null}>
-                  <RouterClient router={router} />
-                </React.Suspense>
-              )
-            : (
-                <RouterProvider router={router} />
-              );
+          const RouterContent = hasSSRBootstrap ? (
+            <React.Suspense fallback={null}>
+              <RouterClient router={router} />
+            </React.Suspense>
+          ) : (
+            <RouterProvider router={router} />
+          );
 
           return App ? <App>{RouterContent}</App> : RouterContent;
         };

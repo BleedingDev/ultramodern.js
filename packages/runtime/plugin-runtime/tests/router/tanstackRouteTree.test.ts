@@ -1,8 +1,6 @@
-import {
-  createRouter,
-} from '@tanstack/react-router';
-import { createMemoryHistory } from '@tanstack/history';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
+import { createMemoryHistory } from '@tanstack/history';
+import { createRouter } from '@tanstack/react-router';
 import { createRouteTreeFromRouteObjects } from '../../src/router/runtime/tanstack/routeTree';
 
 async function loadRouteTree(routeTree: any, pathname: string) {
@@ -43,7 +41,9 @@ describe('tanstack route tree from RouteObject[]', () => {
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/user/123');
 
-    const rootMatch = router.state.matches.find(match => match.routeId === '__root__');
+    const rootMatch = router.state.matches.find(
+      match => match.routeId === '__root__',
+    );
     const userMatch = router.state.matches.find(
       match => match.routeId === '/user/$id',
     );

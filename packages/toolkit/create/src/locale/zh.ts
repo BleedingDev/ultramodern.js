@@ -5,7 +5,10 @@ export const ZH_LOCALE = {
   error: {
     projectNameEmpty: '错误: 项目名称不能为空',
     directoryExists: '错误: 目录 "{projectName}" 已存在且不为空',
-    invalidRouter: '错误: 不支持的路由器 "{router}"，请使用 "react-router" 或 "tanstack"',
+    invalidRouter:
+      '错误: 不支持的路由器 "{router}"，请使用 "react-router" 或 "tanstack"',
+    invalidBffRuntime:
+      '错误: 不支持的 BFF 运行时 "{runtime}"，请使用 "hono" 或 "effect"',
     createFailed: '创建项目时出错:',
   },
   message: {
@@ -33,8 +36,12 @@ export const ZH_LOCALE = {
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (zh 或 en)',
     optionRouter: '  -r, --router   选择路由框架 (react-router 或 tanstack)',
+    optionBff: '      --bff      启用 BFF 模板（默认运行时：hono）',
+    optionBffRuntime: '      --bff-runtime 选择 BFF 运行时（hono 或 effect）',
     optionTailwind:
       '      --tailwind 启用 Tailwind CSS v4 模板（PostCSS + 示例样式）',
+    optionWorkspace:
+      '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -43,6 +50,10 @@ export const ZH_LOCALE = {
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
     example6: '  create my-app --router tanstack --tailwind',
+    example7: '  create my-app --bff',
+    example8: '  create my-app --router tanstack --bff-runtime effect',
+    example9:
+      '  create my-app --router tanstack --bff-runtime effect --workspace',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

@@ -8,6 +8,8 @@ export const EN_LOCALE = {
       'Error: Directory "{projectName}" already exists and is not empty',
     invalidRouter:
       'Error: Unsupported router "{router}". Use "react-router" or "tanstack".',
+    invalidBffRuntime:
+      'Error: Unsupported BFF runtime "{runtime}". Use "hono" or "effect".',
     createFailed: 'Error creating project:',
   },
   message: {
@@ -36,8 +38,12 @@ export const EN_LOCALE = {
     optionLang: '  -l, --lang     Set the language (zh or en)',
     optionRouter:
       '  -r, --router   Select router framework (react-router or tanstack)',
+    optionBff: '      --bff      Enable BFF scaffold (default runtime: hono)',
+    optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
     optionTailwind:
       '      --tailwind Enable Tailwind CSS v4 scaffold (PostCSS + starter styles)',
+    optionWorkspace:
+      '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -46,6 +52,10 @@ export const EN_LOCALE = {
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
     example6: '  create my-app --router tanstack --tailwind',
+    example7: '  create my-app --bff',
+    example8: '  create my-app --router tanstack --bff-runtime effect',
+    example9:
+      '  create my-app --router tanstack --bff-runtime effect --workspace',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

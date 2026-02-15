@@ -2,6 +2,11 @@ import path from 'path';
 import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, logger } from '@modern-js/utils';
+import {
+  generateEffectClientCode,
+  renderEffectClientDeclaration,
+  resolveEffectEntryFile,
+} from './effectClientGenerator';
 
 export type APILoaderOptions = {
   prefix: string;
@@ -14,6 +19,17 @@ export type APILoaderOptions = {
   httpMethodDecider?: HttpMethodDecider;
   relativeDistPath: string;
   relativeApiPath: string;
+  bffRuntimeFramework?: 'hono' | 'effect';
+  effectEntry?: string;
+  effectDataPlatformBatch?: {
+    enabled?: boolean;
+    endpoint?: string;
+    flushIntervalMs?: number;
+    maxBatchSize?: number;
+    maxBatchBytes?: number;
+    requestTimeoutMs?: number;
+    allowedMethods?: string[];
+  };
 };
 
 interface FileDetails {
@@ -25,6 +41,19 @@ interface FileDetails {
   relativeTargetDistDir: string;
   exportKey: string;
 }
+
+type PackageJsonLike = {
+  files?: string[];
+  typesVersions?: Record<string, Record<string, string[]>>;
+  exports?: Record<
+    string,
+    {
+      import?: string;
+      require?: string;
+      types?: string;
+    }
+  >;
+};
 const API_DIR = 'api';
 const PLUGIN_DIR = 'plugin';
 const RUNTIME_DIR = 'runtime';
@@ -35,6 +64,52 @@ const TYPE_PREFIX = `${API_DIR}/`;
 
 const toPosixPath = (p: string) => p.replace(/\\/g, '/');
 const posixJoin = (...args: string[]) => toPosixPath(path.join(...args));
+
+function createFileDetails(options: {
+  appDirectory: string;
+  baseDirectory: string;
+  resourcePath: string;
+  source: string;
+  relativeDistPath: string;
+}): FileDetails {
+  const {
+    appDirectory,
+    baseDirectory,
+    resourcePath,
+    source,
+    relativeDistPath,
+  } = options;
+  const relativePath = path.relative(baseDirectory, resourcePath);
+  const parsedPath = path.parse(relativePath);
+
+  const targetDir = posixJoin(
+    `./${relativeDistPath}/${CLIENT_DIR}`,
+    parsedPath.dir,
+    `${parsedPath.name}.js`,
+  );
+  const absTargetDir = path.resolve(targetDir);
+
+  const relativePathFromAppDirectory = path.relative(
+    appDirectory,
+    path.dirname(resourcePath),
+  );
+
+  const typesFilePath = posixJoin(
+    `./${relativeDistPath}`,
+    relativePathFromAppDirectory,
+    `${parsedPath.name}.d.ts`,
+  );
+
+  return {
+    resourcePath,
+    source,
+    targetDir,
+    name: parsedPath.name,
+    absTargetDir,
+    relativeTargetDistDir: `./${typesFilePath}`,
+    exportKey: toPosixPath(path.join(parsedPath.dir, parsedPath.name)),
+  };
+}
 
 export async function readDirectoryFiles(
   appDirectory: string,
@@ -55,37 +130,15 @@ export async function readDirectoryFiles(
         await readFiles(resourcePath);
       } else {
         const source = await fs.readFile(resourcePath, 'utf8');
-        const relativePath = path.relative(directory, resourcePath);
-        const parsedPath = path.parse(relativePath);
-
-        const targetDir = posixJoin(
-          `./${relativeDistPath}/${CLIENT_DIR}`,
-          parsedPath.dir,
-          `${parsedPath.name}.js`,
+        filesList.push(
+          createFileDetails({
+            appDirectory,
+            baseDirectory: directory,
+            resourcePath,
+            source,
+            relativeDistPath,
+          }),
         );
-        const name = parsedPath.name;
-        const absTargetDir = path.resolve(targetDir);
-        const relativePathFromAppDirectory = path.relative(
-          appDirectory,
-          currentPath,
-        );
-        const typesFilePath = posixJoin(
-          `./${relativeDistPath}`,
-          relativePathFromAppDirectory,
-          `${name}.d.ts`,
-        );
-        const relativeTargetDistDir = `./${typesFilePath}`;
-        const exportKey = toPosixPath(path.join(parsedPath.dir, name));
-
-        filesList.push({
-          resourcePath,
-          source,
-          targetDir,
-          name,
-          absTargetDir,
-          relativeTargetDistDir,
-          exportKey,
-        });
       }
     }
   }
@@ -95,28 +148,37 @@ export async function readDirectoryFiles(
 }
 
 function mergePackageJson(
-  packageJson: any,
+  packageJson: PackageJsonLike,
   files: string[],
-  typesVersion: Record<string, any>,
-  exports: Record<string, any>,
+  typesVersion: Record<string, Record<string, string[]>>,
+  exports: Record<
+    string,
+    {
+      import?: string;
+      require?: string;
+      types?: string;
+    }
+  >,
 ) {
   packageJson.files = [...new Set([...(packageJson.files || []), ...files])];
 
   packageJson.typesVersions ??= {};
-  const starTypes = packageJson.typesVersions['*'] || {};
+  const typesVersions = packageJson.typesVersions;
+  const starTypes = typesVersions['*'] || {};
   Object.keys(starTypes).forEach(
     k => k.startsWith(TYPE_PREFIX) && delete starTypes[k],
   );
-  packageJson.typesVersions['*'] = {
+  typesVersions['*'] = {
     ...starTypes,
     ...(typesVersion['*'] || {}),
   };
 
   packageJson.exports ??= {};
-  Object.keys(packageJson.exports).forEach(
-    k => k.startsWith(EXPORT_PREFIX) && delete packageJson.exports[k],
+  const packageExports = packageJson.exports;
+  Object.keys(packageExports).forEach(
+    k => k.startsWith(EXPORT_PREFIX) && delete packageExports[k],
   );
-  Object.assign(packageJson.exports, exports);
+  Object.assign(packageExports, exports);
 }
 
 async function writeTargetFile(absTargetDir: string, content: string) {
@@ -136,7 +198,7 @@ async function setPackage(
   try {
     const packagePath = path.resolve(appDirectory, './package.json');
     const packageContent = await fs.readFile(packagePath, 'utf8');
-    const packageJson = JSON.parse(packageContent);
+    const packageJson = JSON.parse(packageContent) as PackageJsonLike;
 
     const addFiles = [
       posixJoin(relativeDistPath, CLIENT_DIR, '**', '*'),
@@ -219,11 +281,14 @@ export async function copyFiles(from: string, to: string) {
 }
 
 async function clientGenerator(draftOptions: APILoaderOptions) {
-  const sourceList = await readDirectoryFiles(
-    draftOptions.appDir,
-    draftOptions.lambdaDir,
-    draftOptions.relativeDistPath,
-  );
+  const lambdaSourceList = draftOptions.existLambda
+    ? await readDirectoryFiles(
+        draftOptions.appDir,
+        draftOptions.lambdaDir,
+        draftOptions.relativeDistPath,
+      )
+    : [];
+  const generatedSourceList = [...lambdaSourceList];
 
   const getClitentCode = async (resourcePath: string, source: string) => {
     const warning = `The file ${resourcePath} is not allowd to be imported in src directory, only API definition files are allowed.`;
@@ -248,7 +313,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
       requestCreator: draftOptions.requestCreator,
     };
 
-    const { lambdaDir } = draftOptions as any;
+    const { lambdaDir } = draftOptions;
     if (!resourcePath.startsWith(lambdaDir)) {
       logger.warn(warning);
       return;
@@ -260,7 +325,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
   };
 
   try {
-    for (const source of sourceList) {
+    for (const source of lambdaSourceList) {
       const code = await getClitentCode(source.resourcePath, source.source);
       if (code?.value) {
         await writeTargetFile(source.absTargetDir, code.value);
@@ -270,12 +335,80 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
         );
       }
     }
+
+    if (draftOptions.bffRuntimeFramework === 'effect') {
+      const effectEntryFile = resolveEffectEntryFile({
+        appDir: draftOptions.appDir,
+        apiDir: draftOptions.apiDir,
+        effectEntry: draftOptions.effectEntry,
+      });
+
+      if (effectEntryFile) {
+        const effectSource = await fs.readFile(effectEntryFile, 'utf8');
+        const effectFileDetails = createFileDetails({
+          appDirectory: draftOptions.appDir,
+          baseDirectory: draftOptions.apiDir,
+          resourcePath: effectEntryFile,
+          source: effectSource,
+          relativeDistPath: draftOptions.relativeDistPath,
+        });
+
+        const effectClientCode = await generateEffectClientCode({
+          appDir: draftOptions.appDir,
+          apiDir: draftOptions.apiDir,
+          resourcePath: effectEntryFile,
+          prefix: (Array.isArray(draftOptions.prefix)
+            ? draftOptions.prefix[0]
+            : draftOptions.prefix) as string,
+          port: Number(draftOptions.port),
+          target: 'bundle',
+          requestCreator: draftOptions.requestCreator,
+          httpMethodDecider: draftOptions.httpMethodDecider,
+          dataPlatformBatch: draftOptions.effectDataPlatformBatch,
+        });
+
+        if (effectClientCode) {
+          const targetTypeFile = effectFileDetails.targetDir.replace(
+            /\.js$/,
+            '.d.ts',
+          );
+          const effectDeclarationImportPath = toPosixPath(
+            path
+              .relative(
+                path.dirname(path.resolve(targetTypeFile)),
+                path.resolve(effectFileDetails.relativeTargetDistDir),
+              )
+              .replace(/\.d\.ts$/, ''),
+          );
+          const normalizedImportPath = effectDeclarationImportPath.startsWith(
+            '.',
+          )
+            ? effectDeclarationImportPath
+            : `./${effectDeclarationImportPath}`;
+
+          await writeTargetFile(
+            effectFileDetails.absTargetDir,
+            effectClientCode,
+          );
+          await writeTargetFile(
+            path.resolve(targetTypeFile),
+            renderEffectClientDeclaration(normalizedImportPath),
+          );
+          generatedSourceList.push(effectFileDetails);
+        }
+      }
+    }
+
     logger.info(`Client bundle generate succeed`);
   } catch (error) {
     logger.error(`Client bundle generate failed: ${error}`);
   }
 
-  setPackage(sourceList, draftOptions.appDir, draftOptions.relativeDistPath);
+  await setPackage(
+    generatedSourceList,
+    draftOptions.appDir,
+    draftOptions.relativeDistPath,
+  );
 }
 
 export default clientGenerator;

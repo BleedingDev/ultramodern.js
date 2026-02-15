@@ -1,7 +1,7 @@
-import { useHonoContext } from '@modern-js/server-runtime';
+import { useBackendContext } from '@modern-js/server-runtime';
 
 export const post = async () => {
-  const ctx = useHonoContext();
+  const ctx = useBackendContext();
   return {
     message: 'Hello Modern.js',
   };

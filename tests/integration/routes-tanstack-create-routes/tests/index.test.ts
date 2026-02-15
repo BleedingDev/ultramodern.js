@@ -47,7 +47,9 @@ describe('routes-tanstack-create-routes', () => {
       },
     });
     expect(modifiedRes.status).toBe(200);
-    expect(modifiedRes.headers.get('x-tanstack-before-create-routes')).toBe('1');
+    expect(modifiedRes.headers.get('x-tanstack-before-create-routes')).toBe(
+      '1',
+    );
     const html = await modifiedRes.text();
     expect(html).toContain('modified:');
     expect(html).toContain('hooked');

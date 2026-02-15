@@ -8,6 +8,7 @@ import { i18n, localeKeys } from './locale';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(__dirname, '..', 'template');
 type RouterFramework = 'react-router' | 'tanstack';
+type BffRuntime = 'none' | 'hono' | 'effect';
 
 function getOptionValue(args: string[], names: string[]): string | undefined {
   for (const name of names) {
@@ -65,27 +66,86 @@ function detectRouterFramework(): RouterFramework {
   process.exit(1);
 }
 
-function renderTemplate(template: string, data: Record<string, any>): string {
-  let result = template;
+function detectBffRuntime(): BffRuntime {
+  const args = process.argv.slice(2);
+  const runtimeValue = getOptionValue(args, ['--bff-runtime']);
 
-  const ifRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
-  result = result.replace(ifRegex, (match, condition, content) => {
-    const value = data[condition];
-    if (value) {
-      return content;
+  if (!runtimeValue) {
+    return args.includes('--bff') ? 'hono' : 'none';
+  }
+
+  if (runtimeValue === 'hono' || runtimeValue === 'effect') {
+    return runtimeValue;
+  }
+
+  console.error(
+    i18n.t(localeKeys.error.invalidBffRuntime, {
+      runtime: runtimeValue,
+    }),
+  );
+  process.exit(1);
+}
+
+function renderTemplate(
+  template: string,
+  data: Record<string, unknown>,
+): string {
+  type ConditionalKind = 'if' | 'unless';
+  const tagRegex = /\{\{(#if|#unless|\/if|\/unless)(?:\s+(\w+))?\}\}/g;
+
+  function renderConditionals(
+    startIndex: number,
+    expectedClose?: ConditionalKind,
+  ): {
+    rendered: string;
+    nextIndex: number;
+  } {
+    let rendered = '';
+    let cursor = startIndex;
+    tagRegex.lastIndex = startIndex;
+
+    while (true) {
+      const match = tagRegex.exec(template);
+      if (!match) {
+        return {
+          rendered: rendered + template.slice(cursor),
+          nextIndex: template.length,
+        };
+      }
+
+      const [raw, tag, condition] = match;
+      const tagIndex = match.index;
+      rendered += template.slice(cursor, tagIndex);
+      cursor = tagIndex + raw.length;
+
+      if (tag === '#if' || tag === '#unless') {
+        const kind: ConditionalKind = tag === '#if' ? 'if' : 'unless';
+        const innerResult = renderConditionals(cursor, kind);
+        cursor = innerResult.nextIndex;
+        tagRegex.lastIndex = cursor;
+
+        const conditionValue = Boolean(data[condition ?? '']);
+        const shouldInclude = kind === 'if' ? conditionValue : !conditionValue;
+        if (shouldInclude) {
+          rendered += innerResult.rendered;
+        }
+        continue;
+      }
+
+      if (tag === '/if' || tag === '/unless') {
+        const kind: ConditionalKind = tag === '/if' ? 'if' : 'unless';
+        if (expectedClose === kind) {
+          return {
+            rendered,
+            nextIndex: cursor,
+          };
+        }
+        rendered += raw;
+      }
     }
-    return '';
-  });
+  }
 
-  const unlessRegex = /\{\{#unless\s+(\w+)\}\}([\s\S]*?)\{\{\/unless\}\}/g;
-  result = result.replace(unlessRegex, (match, condition, content) => {
-    const value = data[condition];
-    if (!value) {
-      return content;
-    }
-    return '';
-  });
-
+  let result = renderConditionals(0).rendered;
   const varRegex = /\{\{(\w+)\}\}/g;
   result = result.replace(varRegex, (match, key) => {
     const value = data[key];
@@ -115,8 +175,17 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionVersion));
   console.log(i18n.t(localeKeys.help.optionLang));
   console.log(i18n.t(localeKeys.help.optionRouter));
+  if (localeKeys.help.optionBff) {
+    console.log(i18n.t(localeKeys.help.optionBff));
+  }
+  if (localeKeys.help.optionBffRuntime) {
+    console.log(i18n.t(localeKeys.help.optionBffRuntime));
+  }
   if (localeKeys.help.optionTailwind) {
     console.log(i18n.t(localeKeys.help.optionTailwind));
+  }
+  if (localeKeys.help.optionWorkspace) {
+    console.log(i18n.t(localeKeys.help.optionWorkspace));
   }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
@@ -132,6 +201,15 @@ function showHelp() {
   }
   if (localeKeys.help.example6) {
     console.log(i18n.t(localeKeys.help.example6));
+  }
+  if (localeKeys.help.example7) {
+    console.log(i18n.t(localeKeys.help.example7));
+  }
+  if (localeKeys.help.example8) {
+    console.log(i18n.t(localeKeys.help.example8));
+  }
+  if (localeKeys.help.example9) {
+    console.log(i18n.t(localeKeys.help.example9));
   }
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
@@ -169,6 +247,11 @@ function detectTailwindFlag(): boolean {
   return args.includes('--tailwind');
 }
 
+function detectWorkspaceProtocolFlag(): boolean {
+  const args = process.argv.slice(2);
+  return args.includes('--workspace');
+}
+
 function isDirectoryEmpty(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false;
@@ -186,7 +269,13 @@ async function getProjectName(): Promise<{
   useCurrentDir: boolean;
 }> {
   const args = process.argv.slice(2);
-  const optionWithValue = new Set(['--lang', '-l', '--router', '-r']);
+  const optionWithValue = new Set([
+    '--lang',
+    '-l',
+    '--router',
+    '-r',
+    '--bff-runtime',
+  ]);
   const optionWithoutValue = new Set([
     '--help',
     '-h',
@@ -196,7 +285,9 @@ async function getProjectName(): Promise<{
     '-s',
     '--no-sub',
     '--tanstack',
+    '--bff',
     '--tailwind',
+    '--workspace',
   ]);
   const positionalArgs: string[] = [];
 
@@ -212,7 +303,11 @@ async function getProjectName(): Promise<{
       continue;
     }
 
-    if (arg.startsWith('--lang=') || arg.startsWith('--router=')) {
+    if (
+      arg.startsWith('--lang=') ||
+      arg.startsWith('--router=') ||
+      arg.startsWith('--bff-runtime=')
+    ) {
       continue;
     }
 
@@ -280,13 +375,17 @@ async function main() {
   const subprojectFlag = detectSubprojectFlag();
   const isSubproject = subprojectFlag === true;
   const routerFramework = detectRouterFramework();
+  const bffRuntime = detectBffRuntime();
   const enableTailwind = detectTailwindFlag();
+  const useWorkspaceProtocol = detectWorkspaceProtocolFlag();
+  const dependencyVersion = useWorkspaceProtocol ? 'workspace:*' : version;
 
   copyTemplate(templateDir, targetDir, {
     packageName: projectName,
-    version,
+    version: dependencyVersion,
     isSubproject,
     routerFramework,
+    bffRuntime,
     enableTailwind,
   });
 
@@ -340,6 +439,7 @@ function copyTemplate(
     version: string;
     isSubproject: boolean;
     routerFramework: RouterFramework;
+    bffRuntime: BffRuntime;
     enableTailwind: boolean;
   },
 ) {
@@ -374,6 +474,9 @@ function copyTemplate(
             version: options.version,
             isSubproject: options.isSubproject,
             isTanstackRouter: options.routerFramework === 'tanstack',
+            enableBff: options.bffRuntime !== 'none',
+            useEffectBff: options.bffRuntime === 'effect',
+            bffRuntime: options.bffRuntime,
             enableTailwind: options.enableTailwind,
             routerImportPath:
               options.routerFramework === 'tanstack'

@@ -3,6 +3,9 @@ import { dependencies } from './package.json';
 
 export default createModuleFederationConfig({
   name: 'i18nComponentProvider',
+  dev: {
+    disableDynamicRemoteTypeHints: true,
+  },
   filename: 'remoteEntry.js',
   exposes: {
     './Text': './src/components/Text.tsx',

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -15,6 +16,40 @@ dns.setDefaultResultOrder('ipv4first');
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
 const ERROR_PAGE = 'error';
+let typecheckVerified = false;
+
+function expectTypecheckPasses() {
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('typescript/bin/tsc'),
+        '--noEmit',
+        '-p',
+        'tsconfig.json',
+      ],
+      {
+        cwd: appDir,
+        stdio: 'pipe',
+      },
+    );
+  } catch (error: unknown) {
+    const maybeError = error as { stdout?: unknown; stderr?: unknown };
+    const stdout =
+      typeof maybeError.stdout === 'string'
+        ? maybeError.stdout
+        : maybeError.stdout
+          ? String(maybeError.stdout)
+          : '';
+    const stderr =
+      typeof maybeError.stderr === 'string'
+        ? maybeError.stderr
+        : maybeError.stderr
+          ? String(maybeError.stderr)
+          : '';
+    throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
+  }
+}
 
 describe('bff hono tests', () => {
   describe('bff hono in dev', () => {
@@ -30,6 +65,10 @@ describe('bff hono tests', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 2);
+      if (!typecheckVerified) {
+        expectTypecheckPasses();
+        typecheckVerified = true;
+      }
       port = await getPort();
       app = await launchApp(appDir, port, {});
       browser = await puppeteer.launch(launchOptions as any);
@@ -134,6 +173,10 @@ describe('bff hono tests', () => {
     let browser: Browser;
 
     beforeAll(async () => {
+      if (!typecheckVerified) {
+        expectTypecheckPasses();
+        typecheckVerified = true;
+      }
       port = await getPort();
 
       await modernBuild(appDir, [], {});

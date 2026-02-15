@@ -31,6 +31,24 @@ npx @modern-js/create@latest myapp --tailwind
 npx @modern-js/create@latest myapp --router tanstack --tailwind
 ```
 
+初始化带 Hono 运行时的 BFF 模板：
+
+```bash
+npx @modern-js/create@latest myapp --bff
+```
+
+初始化带 Effect HttpApi 运行时的 BFF 模板：
+
+```bash
+npx @modern-js/create@latest myapp --bff-runtime effect
+```
+
+使用 workspace 协议依赖初始化（用于在本地 monorepo 中联调未发布的 Modern.js 包）：
+
+```bash
+npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --workspace
+```
+
 `@modern-js/create` 会直接创建应用，不再提供问答界面：
 
 ```bash
@@ -78,3 +96,7 @@ npx @modern-js/create@latest myapp --router tanstack --tailwind
 ```
 
 当启用 `--tailwind` 时，项目根目录会额外生成 `postcss.config.mjs` 和 `tailwind.config.ts`。
+
+当启用 `--bff` 或 `--bff-runtime` 时，会生成 `api/lambda/hello.ts`，并在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`。
+当启用 `--bff-runtime effect` 时，会额外生成 `api/effect/index.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
+当启用 `--workspace` 时，`@modern-js/*` 依赖会使用 `workspace:*` 版本，便于本地 monorepo 联调。

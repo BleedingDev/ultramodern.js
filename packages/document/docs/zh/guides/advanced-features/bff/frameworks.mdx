@@ -5,7 +5,76 @@ title: 运行时框架
 
 # 运行时框架
 
-Modern.js 以 [Hono.js](https://hono.dev/) 作为 BFF 和 Server 运行时框架，因此可以基于 Hono.js 生态[扩展 BFF Server](/guides/advanced-features/bff/extend-server.html)。
+Modern.js 目前支持两种 BFF 运行时框架：
+
+- `hono`（默认）：使用文件约定 BFF 函数以及 Hono 生态中间件。
+- `effect`：使用 [Effect HttpApi](https://effect.website/) 作为主要 BFF 运行时。
+
+启用 `effect` 模式后，`api/lambda/**` 下的文件约定 BFF API 仍可继续使用，便于兼容迁移。
+
+## 切换到 Effect 运行时
+
+```ts title="modern.config.ts"
+import { bffPlugin } from '@modern-js/plugin-bff';
+import { defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  plugins: [bffPlugin()],
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: {
+        path: '/openapi.json',
+      },
+    },
+  },
+});
+```
+
+先在共享目录中定义 Effect HttpApi 契约（前后端共享类型）：
+
+```ts title="shared/effect/api.ts"
+import {
+  HttpApi,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Schema,
+} from '@modern-js/plugin-bff/effect-client';
+
+export const bffEffectApi = HttpApi.make('MyApi').add(
+  HttpApiGroup.make('hello').add(
+    HttpApiEndpoint.get('ping')`/effect/ping`.addSuccess(Schema.String),
+  ),
+);
+```
+
+然后在 `api/effect/index.ts` 中实现 Effect BFF 入口：
+
+```ts title="api/effect/index.ts"
+import {
+  HttpApiBuilder,
+  defineEffectBff,
+  Effect,
+  Layer,
+} from '@modern-js/plugin-bff/effect-server';
+import { bffEffectApi } from '../../shared/effect/api';
+
+const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
+  handlers.handle('ping', () => Effect.succeed('pong')),
+);
+
+const layer = HttpApiBuilder.api(bffEffectApi).pipe(Layer.provide(group));
+
+export default defineEffectBff({ api: bffEffectApi, layer });
+```
+
+在浏览器端通过 `@api/effect/index` 调用接口：
+
+```ts title="src/routes/page.tsx"
+import effectBff from '@api/effect/index';
+
+const response = await effectBff.client.hello.ping({});
+```
 
 import Hono from '@site-docs/components/hono';
 

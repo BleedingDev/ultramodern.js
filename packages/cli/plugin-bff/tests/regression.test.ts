@@ -1,0 +1,98 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type { ServerPluginAPI } from '@modern-js/server-core';
+import { EffectAdapter } from '../src/runtime/effect/adapter';
+import clientGenerator, {
+  type APILoaderOptions,
+} from '../src/utils/clientGenerator';
+
+describe('plugin-bff regressions', () => {
+  test('effect adapter strips API prefix in enableHandleWeb mode', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+    } as unknown;
+
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      reloadLegacyApiRoutes: () => Promise<void>;
+      handler: (request: Request) => Promise<Response>;
+    };
+    let seenPath = '';
+
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async (request: Request) => {
+        seenPath = new URL(request.url).pathname;
+        return new Response('ok');
+      };
+    };
+    adapterState.reloadLegacyApiRoutes = async () => {};
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: true,
+    });
+
+    const middleware = middlewares[0];
+    expect(middleware).toBeDefined();
+
+    const context = {
+      req: {
+        raw: new Request('http://localhost/api/effect/hello'),
+        path: '/api/effect/hello',
+        method: 'GET',
+      },
+      env: {},
+    };
+
+    const response = (await middleware.handler(
+      context as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(seenPath).toBe('/effect/hello');
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.status).toBe(200);
+  });
+
+  test('client generator skips lambda scan when existLambda is false', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-regression-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const lambdaDir = path.join(apiDir, 'lambda');
+      await fs.promises.mkdir(apiDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: 'regression-app', version: '1.0.0' }, null, 2),
+      );
+
+      const options: APILoaderOptions = {
+        prefix: '/api',
+        appDir,
+        apiDir,
+        lambdaDir,
+        existLambda: false,
+        port: 8080,
+        relativeDistPath: '.modern-js',
+        relativeApiPath: './api',
+        bffRuntimeFramework: 'effect',
+      };
+
+      await expect(clientGenerator(options)).resolves.toBeUndefined();
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+});

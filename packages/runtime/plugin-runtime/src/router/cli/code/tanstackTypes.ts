@@ -1,9 +1,9 @@
 import path from 'path';
 import type { AppToolsContext } from '@modern-js/app-tools';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
-import { findExists, formatImportPath, fs, slash } from '@modern-js/utils';
-import { getPathWithoutExt } from './utils';
+import { fs, findExists, formatImportPath, slash } from '@modern-js/utils';
 import { makeLegalIdentifier } from './makeLegalIdentifier';
+import { getPathWithoutExt } from './utils';
 
 const JS_OR_TS_EXTS = [
   '.js',
@@ -39,9 +39,7 @@ function toTanstackPath(pathname: string): string {
 }
 
 async function resolveFileNoExt(inputNoExtPath: string) {
-  const file = findExists(
-    JS_OR_TS_EXTS.map(ext => `${inputNoExtPath}${ext}`),
-  );
+  const file = findExists(JS_OR_TS_EXTS.map(ext => `${inputNoExtPath}${ext}`));
   return file ? getPathWithoutExt(file) : null;
 }
 
@@ -121,8 +119,8 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   ) as NestedRouteForCli | undefined;
 
   const topLevel = rootModern
-    ? (((rootModern as any).children as Array<NestedRouteForCli | PageRoute>) ||
-        [])
+    ? ((rootModern as any).children as Array<NestedRouteForCli | PageRoute>) ||
+      []
     : routes;
 
   const imports: string[] = [];
@@ -198,9 +196,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     const rawPath = (route as any).path as string | undefined;
     const hasSplat = typeof rawPath === 'string' && rawPath.includes('*');
 
-    const routeOpts: string[] = [
-      `getParentRoute: () => ${parentVar},`,
-    ];
+    const routeOpts: string[] = [`getParentRoute: () => ${parentVar},`];
 
     if (isPathlessLayout(route)) {
       const id = (route as any).id as string | undefined;
@@ -234,10 +230,12 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   };
 
   const rootLoaderInfo = rootModern ? pickModernLoaderModule(rootModern) : null;
-  const rootLoaderName =
-    rootLoaderInfo && rootLoaderInfo.loaderPath
-      ? await getImportNameForLoader(rootLoaderInfo.loaderPath, rootLoaderInfo.inline)
-      : null;
+  const rootLoaderName = rootLoaderInfo?.loaderPath
+    ? await getImportNameForLoader(
+        rootLoaderInfo.loaderPath,
+        rootLoaderInfo.inline,
+      )
+    : null;
 
   const topLevelVars = await Promise.all(
     topLevel.map(route => buildRoute({ parentVar: 'rootRoute', route })),
@@ -245,7 +243,9 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
   const rootOpts: string[] = [];
   if (rootLoaderName) {
-    rootOpts.push(`loader: modernLoaderToTanstack({ hasSplat: false }, ${rootLoaderName}),`);
+    rootOpts.push(
+      `loader: modernLoaderToTanstack({ hasSplat: false }, ${rootLoaderName}),`,
+    );
   }
 
   const routerGenTs = `/* eslint-disable */

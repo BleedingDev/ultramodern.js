@@ -1,10 +1,12 @@
 import { constants as zlibConstants } from 'node:zlib';
 import type { RsbuildPlugin } from '@rsbuild/core';
-import CompressionPlugin, {
-  type Options as CompressionPluginOptions,
-} from 'compression-webpack-plugin';
+import CompressionPlugin from 'compression-webpack-plugin';
 import type { AppNormalizedConfig, PrecompressConfig } from '../../../types';
 import type { BuilderOptions } from '../types';
+
+type CompressionPluginOptions = NonNullable<
+  ConstructorParameters<typeof CompressionPlugin>[0]
+>;
 
 const DEFAULT_PRECOMPRESS_TEST = /\.(js|mjs|cjs|css|html|svg|json|map)$/i;
 const DEFAULT_PRECOMPRESS_THRESHOLD = 10 * 1024;

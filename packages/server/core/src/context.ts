@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { createStorage } from './utils/storage';
 
-const { run, useHonoContext } = createStorage<Context>();
+const { run, useContext: useBackendContext } = createStorage<Context>();
 
-export { run, useHonoContext };
+export { run, useBackendContext };

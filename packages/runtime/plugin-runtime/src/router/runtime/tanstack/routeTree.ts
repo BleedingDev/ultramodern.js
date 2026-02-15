@@ -1,11 +1,16 @@
-import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
+import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type {
   AnyRoute,
   AnyRouter,
   RootRoute as TanstackRootRoute,
 } from '@tanstack/react-router';
-import { createRootRoute, createRoute, notFound, redirect } from '@tanstack/react-router';
+import {
+  createRootRoute,
+  createRoute,
+  notFound,
+  redirect,
+} from '@tanstack/react-router';
 import { DefaultNotFound } from '../DefaultNotFound';
 
 function toTanstackPath(pathname: string): string {
@@ -102,9 +107,13 @@ function wrapModernLoader(
       }
 
       const signal: AbortSignal =
-        ctx?.abortController?.signal || ctx?.signal || new AbortController().signal;
+        ctx?.abortController?.signal ||
+        ctx?.signal ||
+        new AbortController().signal;
       const baseRequest: Request | undefined =
-        ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
+        ctx?.context?.request instanceof Request
+          ? ctx.context.request
+          : undefined;
 
       const href =
         typeof ctx?.location === 'string'
@@ -193,9 +202,13 @@ function wrapRouteObjectLoader(route: RouteObject) {
   return async (ctx: any) => {
     try {
       const signal: AbortSignal =
-        ctx?.abortController?.signal || ctx?.signal || new AbortController().signal;
+        ctx?.abortController?.signal ||
+        ctx?.signal ||
+        new AbortController().signal;
       const baseRequest: Request | undefined =
-        ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
+        ctx?.context?.request instanceof Request
+          ? ctx.context.request
+          : undefined;
 
       const href =
         typeof ctx?.location === 'string'
@@ -361,7 +374,8 @@ function createRouteFromModernRoute(opts: {
 
   const pendingComponent =
     (modernRoute as any).loading || (modernRoute as any).pendingComponent;
-  const errorComponent = (modernRoute as any).error || (modernRoute as any).errorComponent;
+  const errorComponent =
+    (modernRoute as any).error || (modernRoute as any).errorComponent;
   const component = (modernRoute as any).component;
   const modernLoader = (modernRoute as any).loader;
   const modernAction = (modernRoute as any).action;
@@ -494,9 +508,7 @@ export function createRouteTreeFromRouteObjects(
   return rootRoute as any;
 }
 
-export function getModernRouteIdsFromMatches(
-  router: AnyRouter,
-): string[] {
+export function getModernRouteIdsFromMatches(router: AnyRouter): string[] {
   const matches = router.state.matches || [];
   const ids = matches
     .map((m: any) => m.route?.options?.staticData?.modernRouteId)

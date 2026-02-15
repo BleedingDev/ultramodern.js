@@ -30,6 +30,7 @@ export { default as browserslist } from '../compiled/browserslist';
 
 export { program, Command } from '../compiled/commander';
 
+import _chokidar from '../compiled/chokidar';
 import _signale from '../compiled/signale';
 export const { Signale } = _signale;
 
@@ -44,31 +45,35 @@ export type { ExecaError } from '../compiled/execa';
  * Notice that `csmith-tools build` can not bundle lazy imported modules.
  */
 const getNodeRequire = () => {
-  if (
-    typeof global === 'object' &&
-    typeof (global as any).require === 'function'
-  ) {
-    return (global as any).require;
+  // Prefer module-scoped require. In Bun, globalThis.require may not be bound
+  // to a file and breaks relative lazy imports (e.g. ../compiled/chokidar).
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - import.meta is only valid in ESM, but this path is transpiled.
+    return /*#__PURE__*/ createRequire(import.meta.url);
+  } catch {
+    if (
+      typeof global === 'object' &&
+      typeof (global as any).require === 'function'
+    ) {
+      return (global as any).require;
+    }
+    if (
+      typeof globalThis === 'object' &&
+      typeof (globalThis as any).require === 'function'
+    ) {
+      return (globalThis as any).require;
+    }
+    throw new Error(
+      'Unable to resolve require function for lazy compiled imports',
+    );
   }
-  if (
-    typeof globalThis === 'object' &&
-    typeof (globalThis as any).require === 'function'
-  ) {
-    return (globalThis as any).require;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - import.meta is only valid in ESM, but we only execute this in ESM
-  return /*#__PURE__*/ createRequire(import.meta.url);
 };
 export const mime: typeof import('../compiled/mime-types') = Import.lazy(
   '../compiled/mime-types',
   getNodeRequire,
 );
-export const chokidar: typeof import('../compiled/chokidar') = Import.lazy(
-  '../compiled/chokidar',
-  getNodeRequire,
-);
+export const chokidar: typeof import('../compiled/chokidar') = _chokidar;
 export const inquirer: typeof import('../compiled/inquirer') = Import.lazy(
   '../compiled/inquirer',
   getNodeRequire,

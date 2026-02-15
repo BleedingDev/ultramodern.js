@@ -31,6 +31,24 @@ To initialize TanStack Router with Tailwind CSS v4:
 npx @modern-js/create@latest myapp --router tanstack --tailwind
 ```
 
+To initialize BFF scaffold with Hono runtime:
+
+```bash
+npx @modern-js/create@latest myapp --bff
+```
+
+To initialize BFF scaffold with Effect HttpApi runtime:
+
+```bash
+npx @modern-js/create@latest myapp --bff-runtime effect
+```
+
+To initialize with workspace protocol dependencies (for local monorepo testing of unreleased Modern.js packages):
+
+```bash
+npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --workspace
+```
+
 `@modern-js/create` will directly create the application without providing an interactive Q & A interface:
 
 ```bash
@@ -78,3 +96,7 @@ Now, the project structure is as follows:
 ```
 
 When `--tailwind` is enabled, `postcss.config.mjs` and `tailwind.config.ts` are generated in the project root.
+
+When `--bff` or `--bff-runtime` is enabled, `api/lambda/hello.ts` is generated and `modern.config.ts` enables `@modern-js/plugin-bff`.
+When `--bff-runtime effect` is enabled, `api/effect/index.ts` is generated and `bff.runtimeFramework` is set to `effect`.
+When `--workspace` is enabled, `@modern-js/*` dependencies use `workspace:*` versions for local monorepo linkage.

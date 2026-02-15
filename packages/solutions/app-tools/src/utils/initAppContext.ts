@@ -16,10 +16,15 @@ export const initAppContext = ({
     apiDir?: string;
     distDir?: string;
     sharedDir?: string;
+    bffRuntimeFramework?: 'hono' | 'effect';
   };
   tempDir?: string;
 }) => {
-  const { apiDir = 'api', sharedDir = 'shared' } = options || {};
+  const {
+    apiDir = 'api',
+    sharedDir = 'shared',
+    bffRuntimeFramework = 'hono',
+  } = options || {};
   const pkgPath = path.resolve(appDirectory, './package.json');
 
   const moduleType = fs.existsSync(pkgPath)
@@ -46,6 +51,6 @@ export const initAppContext = ({
     apiOnly: false,
     internalDirAlias: `@_${metaName.replace(/-/g, '_')}_internal`,
     internalSrcAlias: `@_${metaName.replace(/-/g, '_')}_src`,
-    bffRuntimeFramework: 'hono',
+    bffRuntimeFramework,
   };
 };

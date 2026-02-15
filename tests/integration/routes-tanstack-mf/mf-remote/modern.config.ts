@@ -1,5 +1,6 @@
 import { appTools, defineConfig } from '@modern-js/app-tools';
-import { moduleFederationPlugin } from '@module-federation/modern-js';
+import { bffPlugin } from '@modern-js/plugin-bff';
+import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
 export default defineConfig({
   server: {
@@ -13,6 +14,12 @@ export default defineConfig({
   performance: {
     buildCache: false,
   },
-  plugins: [appTools(), moduleFederationPlugin()],
+  bff: {
+    prefix: '/remote-api',
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: true,
+    },
+  },
+  plugins: [appTools(), bffPlugin(), moduleFederationPlugin()],
 });
-

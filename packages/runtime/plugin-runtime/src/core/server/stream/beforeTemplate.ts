@@ -90,7 +90,7 @@ export async function buildShellBeforeTemplate(
 
       let matchedRouteManifests: RouteManifest[] | undefined = undefined;
 
-      if (tanstackMatchedModernRouteIds && tanstackMatchedModernRouteIds.length) {
+      if (tanstackMatchedModernRouteIds?.length) {
         matchedRouteManifests = tanstackMatchedModernRouteIds
           .map(routeId => routeAssets[routeId] as RouteManifest | undefined)
           .filter(Boolean) as RouteManifest[];

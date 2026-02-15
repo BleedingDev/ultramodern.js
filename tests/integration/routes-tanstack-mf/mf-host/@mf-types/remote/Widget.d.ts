@@ -1,2 +1,2 @@
-export * from './compiled-types/components/Widget';
-export { default } from './compiled-types/components/Widget';
+export * from './compiled-types/src/components/Widget';
+export { default } from './compiled-types/src/components/Widget';
