@@ -57,6 +57,7 @@ playground/
 .swc/
 
 .swe
+.codex-gate-logs/
 .cursor
 .claude
 AGENTS.md
