@@ -1,0 +1,52 @@
+diff --git a/dist/index.js b/dist/index.js
+index fe98ea73fcd543c510ea877fa05908b994ce948a..7ed16198d1f9097ddb05eea85d32949a04c86ce0 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -300,7 +300,7 @@ __webpack_require__.r(ModuleFilenameHelpers_namespaceObject), __webpack_require_
+     matchObject: ()=>matchObject,
+     matchPart: ()=>matchPart
+ });
+-let binding_namespaceObject = __rspack_createRequire_require(process.env.RSPACK_BINDING ? process.env.RSPACK_BINDING : "@rspack/binding");
++let binding_namespaceObject = __rspack_createRequire_require(process.env.RSPACK_BINDING ? process.env.RSPACK_BINDING : new URL('../../binding', import.meta.url).pathname);
+ var binding_default = __webpack_require__.n(binding_namespaceObject);
+ let cutOffLoaderExecution = (stack)=>((stack, flag)=>{
+         let stacks = stack.split('\n');
+@@ -4934,7 +4934,7 @@ class ContextModuleFactory {
+         };
+     }
+ }
+-let FUNCTION_CONTENT_REGEX = /^function\s?\(\)\s?\{\r?\n?|\r?\n?\}$/g, INDENT_MULTILINE_REGEX = /^\t/gm, LINE_SEPARATOR_REGEX = /\r?\n/g, IDENTIFIER_NAME_REPLACE_REGEX = /^([^a-zA-Z$_])/, IDENTIFIER_ALPHA_NUMERIC_NAME_REPLACE_REGEX = /[^a-zA-Z0-9$]+/g, COMMENT_END_REGEX = /\*\//g, PATH_NAME_NORMALIZE_REPLACE_REGEX = /[^a-zA-Z0-9_!§$()=\-^°]+/g, MATCH_PADDED_HYPHENS_REPLACE_REGEX = /^-|-$/g;
++let FUNCTION_CONTENT_REGEX = /^function(?:\s+[\w$]+)?\s?\(\)\s?\{\r?\n?|\r?\n?\}$/g, INDENT_MULTILINE_REGEX = /^\t/gm, LINE_SEPARATOR_REGEX = /\r?\n/g, IDENTIFIER_NAME_REPLACE_REGEX = /^([^a-zA-Z$_])/, IDENTIFIER_ALPHA_NUMERIC_NAME_REPLACE_REGEX = /[^a-zA-Z0-9$]+/g, COMMENT_END_REGEX = /\*\//g, PATH_NAME_NORMALIZE_REPLACE_REGEX = /[^a-zA-Z0-9_!§$()=\-^°]+/g, MATCH_PADDED_HYPHENS_REPLACE_REGEX = /^-|-$/g;
+ class Template {
+     static getFunctionContent(fn) {
+         return fn.toString().replace(FUNCTION_CONTENT_REGEX, '').replace(INDENT_MULTILINE_REGEX, '').replace(LINE_SEPARATOR_REGEX, '\n');
+@@ -8025,7 +8025,7 @@ class NodeWatchFileSystem {
+         if ('number' != typeof startTime && startTime) throw Error("Invalid arguments: 'startTime'");
+         if ('object' != typeof options) throw Error("Invalid arguments: 'options'");
+         if ('function' != typeof callbackUndelayed && callbackUndelayed) throw Error("Invalid arguments: 'callbackUndelayed'");
+-        let oldWatcher = this.watcher, Watchpack = NodeWatchFileSystem_require('../compiled/watchpack/index.js');
++        let oldWatcher = this.watcher, Watchpack = NodeWatchFileSystem_require(new URL('../compiled/watchpack/index.js', import.meta.url).pathname);
+         this.watcher = new Watchpack(options), callbackUndelayed && this.watcher?.once('change', callbackUndelayed);
+         let fetchTimeInfo = ()=>{
+             let fileTimeInfoEntries = new Map(), contextTimeInfoEntries = new Map();
+@@ -11179,7 +11179,7 @@ Help:
+             __references: {}
+         });
+         rawOptions.__references = Object.fromEntries(this.#ruleSet.builtinReferences.entries()), rawOptions.__virtual_files = VirtualModulesPlugin.__internal__take_virtual_files(this);
+-        let instanceBinding = Compiler_require(process.env.RSPACK_BINDING ? process.env.RSPACK_BINDING : '@rspack/binding');
++        let instanceBinding = process.env.RSPACK_BINDING ? Compiler_require(process.env.RSPACK_BINDING) : binding_namespaceObject;
+         this.#registers = this.#createHooksRegisters();
+         let inputFileSystem = this.inputFileSystem && ThreadsafeInputNodeFS.needsBinding(options.experiments.useInputFileSystem) ? ThreadsafeInputNodeFS.__to_binding(this.inputFileSystem) : void 0;
+         try {
+@@ -12438,9 +12438,9 @@ let exports_rspackVersion = "2.0.0-beta.0", exports_version = "5.75.0", exports_
+                     `const __module_federation_remote_infos__ = ${JSON.stringify(remoteInfos)}`,
+                     `const __module_federation_container_name__ = ${JSON.stringify(options.name ?? compiler.options.output.uniqueName)}`,
+                     `const __module_federation_share_strategy__ = ${JSON.stringify(options.shareStrategy ?? 'version-first')}`,
+-                    compiler.webpack.Template.getFunctionContent(ModuleFederationPlugin_require('./moduleFederationDefaultRuntime.js').default)
++                    compiler.webpack.Template.getFunctionContent(ModuleFederationPlugin_require(new URL('./moduleFederationDefaultRuntime.js', import.meta.url).pathname).default)
+                 ].join(';');
+-                return `@module-federation/runtime/rspack.js!=!data:text/javascript,${content}`;
++                return `@module-federation/runtime/rspack.js!=!data:text/javascript,${encodeURIComponent(content)}`;
+             }(paths, this._options, compiler);
+             new ModuleFederationRuntimePlugin({
+                 entryRuntime,

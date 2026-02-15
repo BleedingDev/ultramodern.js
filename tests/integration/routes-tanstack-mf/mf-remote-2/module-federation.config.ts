@@ -8,14 +8,13 @@ const runtimeVersion = (
 ).version;
 
 export default createModuleFederationConfig({
-  name: 'tanstackRemote',
+  name: 'tanstackRemote2',
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
   filename: 'remoteEntry.js',
   exposes: {
-    './Widget': './src/components/Widget.tsx',
-    './Mutator': './src/components/Mutator.tsx',
+    './Panel': './src/components/Panel.tsx',
   },
   shared: {
     react: {

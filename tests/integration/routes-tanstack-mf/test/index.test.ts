@@ -1,9 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   killApp,
   launchApp,
   launchOptions,
+  modernBuild,
+  modernServe,
 } from '../../../utils/modernTestUtils';
 
 async function waitForAppReady(url: string, maxRetries = 60) {
@@ -24,9 +28,11 @@ async function waitForAppReady(url: string, maxRetries = 60) {
 }
 
 const remoteDir = path.resolve(__dirname, '../mf-remote');
+const remoteTwoDir = path.resolve(__dirname, '../mf-remote-2');
 const hostDir = path.resolve(__dirname, '../mf-host');
 
 const REMOTE_PORT = 3010;
+const REMOTE_TWO_PORT = 3012;
 const HOST_PORT = 3011;
 
 async function fetchHtml(url: string) {
@@ -41,8 +47,355 @@ async function fetchHtml(url: string) {
   };
 }
 
+async function fetchJson(url: string) {
+  const res = await fetch(url);
+  const json = await res.json();
+  return {
+    status: res.status,
+    json,
+  };
+}
+
+async function assertSharedTreeShakingStats(port: number) {
+  const statsResponse = await fetchJson(
+    `http://localhost:${port}/mf-stats.json`,
+  );
+  expect(statsResponse.status).toBe(200);
+  const shared = (
+    statsResponse.json as {
+      shared?: Array<{
+        name?: string;
+        treeShaking?: {
+          mode?: string;
+        };
+      }>;
+    }
+  ).shared;
+  expect(Array.isArray(shared)).toBe(true);
+  expect((shared || []).length).toBeGreaterThan(0);
+  const runtimeInferPackages = new Set([
+    'react',
+    'react-dom',
+    '@tanstack/react-router',
+  ]);
+  for (const item of shared || []) {
+    if (item.name === '@modern-js/runtime') {
+      expect(item.treeShaking ?? false).toBe(false);
+      continue;
+    }
+    if (runtimeInferPackages.has(item.name || '')) {
+      expect(item.treeShaking?.mode).toBe('runtime-infer');
+    }
+  }
+}
+
+function runTypecheck(appDir: string, tsconfig = 'tsconfig.json') {
+  try {
+    execFileSync(
+      process.execPath,
+      [require.resolve('typescript/bin/tsc'), '--noEmit', '-p', tsconfig],
+      {
+        cwd: appDir,
+        stdio: 'pipe',
+      },
+    );
+  } catch (error: any) {
+    const stdout = error?.stdout ? String(error.stdout) : '';
+    const stderr = error?.stderr ? String(error.stderr) : '';
+    throw new Error(
+      `TypeScript typecheck failed for ${path.basename(appDir)}:\n${stdout}\n${stderr}`,
+    );
+  }
+}
+
+type TraceSpanSnapshot = {
+  name: string;
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+};
+
+function randomHex(bytes: number) {
+  return randomBytes(bytes).toString('hex');
+}
+
+function createTraceparent() {
+  const traceId = randomHex(16);
+  const rootSpanId = randomHex(8);
+  return {
+    traceId,
+    rootSpanId,
+    traceparent: `00-${traceId}-${rootSpanId}-01`,
+  };
+}
+
+async function waitForTraceSpans(
+  url: string,
+  expectedNames: string[],
+): Promise<TraceSpanSnapshot[]> {
+  for (let index = 0; index < 40; index++) {
+    const response = await fetchJson(url);
+    if (response.status === 200) {
+      const spans =
+        (response.json as { spans?: TraceSpanSnapshot[] }).spans || [];
+      const spanNames = spans.map(span => span.name);
+      const hasAllExpected = expectedNames.every(name =>
+        spanNames.includes(name),
+      );
+      if (hasAllExpected) {
+        return spans;
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  throw new Error(`Timed out waiting for expected spans from ${url}`);
+}
+
+async function assertModuleFederationAssets(remotePort: number) {
+  const manifestResponse = await fetch(
+    `http://localhost:${remotePort}/mf-manifest.json`,
+  );
+  expect(manifestResponse.status).toBe(200);
+  const manifestContentType =
+    manifestResponse.headers.get('content-type') || '';
+  expect(manifestContentType).toContain('application/json');
+
+  const manifest = (await manifestResponse.json()) as {
+    metaData?: {
+      remoteEntry?: {
+        path?: string;
+        name?: string;
+      };
+    };
+  };
+  const remoteEntryName = manifest.metaData?.remoteEntry?.name;
+  expect(remoteEntryName).toBeTruthy();
+  if (!remoteEntryName) {
+    throw new Error('Expected remoteEntry name in mf-manifest');
+  }
+
+  const remoteEntryPath = manifest.metaData?.remoteEntry?.path || '';
+  const normalizedRemoteEntryPath =
+    remoteEntryPath === '' || remoteEntryPath.endsWith('/')
+      ? remoteEntryPath
+      : `${remoteEntryPath}/`;
+  const remoteEntryUrl = new URL(
+    `${normalizedRemoteEntryPath}${remoteEntryName}`,
+    `http://localhost:${remotePort}/`,
+  );
+  const remoteEntryResponse = await fetch(remoteEntryUrl);
+  expect(remoteEntryResponse.status).toBe(200);
+  const remoteEntryContentType =
+    remoteEntryResponse.headers.get('content-type') || '';
+  expect(remoteEntryContentType).toContain('javascript');
+
+  const remoteEntryCode = await remoteEntryResponse.text();
+  expect(remoteEntryCode.startsWith('<!DOCTYPE html>')).toBe(false);
+}
+
+async function assertRemoteComponentInteraction(
+  page: Page,
+  hostPort: number,
+  errors: string[],
+) {
+  await page.goto(`http://localhost:${hostPort}/mf`, {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+
+  await page.waitForSelector('#remote-widget', { timeout: 50000 });
+  const remoteText = await page.$eval('#remote-widget', el => el.textContent);
+  expect(remoteText).toContain('remote-widget:ok');
+  const remoteWidgetStyle = await page.$eval('#remote-widget', el => {
+    const style = window.getComputedStyle(el);
+    return {
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      fontWeight: style.fontWeight,
+    };
+  });
+  expect(remoteWidgetStyle.color).toBe('rgb(124, 58, 237)');
+  expect(remoteWidgetStyle.backgroundColor).toBe('rgb(243, 232, 255)');
+  expect(remoteWidgetStyle.fontWeight).toBe('700');
+
+  await page.waitForSelector('#remote-mutator', { timeout: 50000 });
+  await page.waitForSelector('#remote2-panel', { timeout: 50000 });
+  const remoteTwoText = await page.$eval(
+    '#remote2-panel',
+    el => el.textContent,
+  );
+  expect(remoteTwoText).toContain('remote2-panel:ok');
+  const remoteTwoStyle = await page.$eval('#remote2-panel', el => {
+    const style = window.getComputedStyle(el);
+    return {
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      fontWeight: style.fontWeight,
+    };
+  });
+  expect(remoteTwoStyle.color).toBe('rgb(21, 128, 61)');
+  expect(remoteTwoStyle.backgroundColor).toBe('rgb(240, 253, 244)');
+  expect(remoteTwoStyle.fontWeight).toBe('700');
+
+  const hostLoaderText = await page.$eval('#host-loader', el => el.textContent);
+  expect(hostLoaderText).toBe('host-mf-loader');
+  const hostLoaderStyle = await page.$eval('#host-loader', el => {
+    const style = window.getComputedStyle(el);
+    return {
+      color: style.color,
+      fontWeight: style.fontWeight,
+    };
+  });
+  expect(hostLoaderStyle.color).toBe('rgb(3, 105, 161)');
+  expect(hostLoaderStyle.fontWeight).toBe('700');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#host-effect-message')?.textContent ===
+      'host-effect:Hello from host Effect API',
+    { timeout: 50000 },
+  );
+
+  const getHostCount = async () => {
+    const text = await page.$eval('#host-mf-count', el => el.textContent || '');
+    return Number(text.replace('host-mf-count:', ''));
+  };
+
+  const initialCount = await getHostCount();
+
+  await page.click('[data-testid="remote-fetcher-submit"]');
+  await page.waitForFunction(
+    expected =>
+      document.querySelector('#host-mf-count')?.textContent ===
+      `host-mf-count:${expected}`,
+    {},
+    initialCount + 2,
+  );
+
+  await page.click('[data-testid="remote-fetcher-load"]');
+  await page.waitForFunction(
+    expected =>
+      document.querySelector('#remote-fetcher-data')?.textContent ===
+      `remote-fetcher:${expected}`,
+    {},
+    initialCount + 2,
+  );
+  expect(page.url()).toBe(`http://localhost:${hostPort}/mf`);
+
+  const remoteFetcherState = await page.$eval(
+    '#remote-fetcher-state',
+    el => el.textContent,
+  );
+  expect(remoteFetcherState).toBe('idle');
+  expect(errors).toEqual([]);
+}
+
+async function assertDistributedTraceFromBrowser(
+  page: Page,
+  hostPort: number,
+  remotePort: number,
+  errors: string[],
+) {
+  await page.goto(`http://localhost:${hostPort}/mf`, {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+
+  const trace = createTraceparent();
+  const runResult = (await page.evaluate(
+    input =>
+      fetch('/host-api/effect/trace/reset', {
+        method: 'POST',
+      }).then(resetHost =>
+        fetch(
+          `http://localhost:${input.remotePort}/remote-api/effect/trace/reset`,
+          {
+            method: 'POST',
+          },
+        ).then(resetRemote =>
+          fetch('/host-api/effect/trace/run', {
+            method: 'GET',
+            headers: {
+              traceparent: input.traceparent,
+            },
+          }).then(runResponse =>
+            runResponse.json().then(runBody => ({
+              resetHostStatus: resetHost.status,
+              resetRemoteStatus: resetRemote.status,
+              runStatus: runResponse.status,
+              runBody,
+            })),
+          ),
+        ),
+      ),
+    {
+      traceparent: trace.traceparent,
+      remotePort,
+    },
+  )) as {
+    resetHostStatus: number;
+    resetRemoteStatus: number;
+    runStatus: number;
+    runBody: {
+      status?: 'ok';
+      remoteStatus?: 'ok';
+      traceparent?: string;
+    };
+  };
+
+  expect(runResult.resetHostStatus).toBe(200);
+  expect(runResult.resetRemoteStatus).toBe(200);
+  expect(runResult.runStatus).toBe(200);
+  expect(runResult.runBody).toEqual({
+    status: 'ok',
+    traceparent: trace.traceparent,
+    remoteStatus: 'ok',
+  });
+
+  const hostSpans = await waitForTraceSpans(
+    `http://localhost:${hostPort}/host-api/effect/trace/spans?traceId=${trace.traceId}`,
+    ['mf.host.trace.run', 'mf.host.trace.remote.call'],
+  );
+  const remoteSpans = await waitForTraceSpans(
+    `http://localhost:${remotePort}/remote-api/effect/trace/spans?traceId=${trace.traceId}`,
+    ['mf.remote.trace.run', 'mf.remote.trace.db.query'],
+  );
+
+  const hostRunSpan = hostSpans.find(span => span.name === 'mf.host.trace.run');
+  const hostRemoteCallSpan = hostSpans.find(
+    span => span.name === 'mf.host.trace.remote.call',
+  );
+  const remoteRunSpan = remoteSpans.find(
+    span => span.name === 'mf.remote.trace.run',
+  );
+  const remoteDbSpan = remoteSpans.find(
+    span => span.name === 'mf.remote.trace.db.query',
+  );
+
+  expect(hostRunSpan).toBeDefined();
+  expect(hostRemoteCallSpan).toBeDefined();
+  expect(remoteRunSpan).toBeDefined();
+  expect(remoteDbSpan).toBeDefined();
+
+  if (!hostRunSpan || !hostRemoteCallSpan || !remoteRunSpan || !remoteDbSpan) {
+    throw new Error('Expected distributed trace spans were not found');
+  }
+
+  expect(hostRunSpan.traceId).toBe(trace.traceId);
+  expect(hostRemoteCallSpan.traceId).toBe(trace.traceId);
+  expect(remoteRunSpan.traceId).toBe(trace.traceId);
+  expect(remoteDbSpan.traceId).toBe(trace.traceId);
+
+  expect(hostRunSpan.parentSpanId).toBe(trace.rootSpanId);
+  expect(hostRemoteCallSpan.parentSpanId).toBe(hostRunSpan.spanId);
+  expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);
+  expect(remoteDbSpan.parentSpanId).toBe(remoteRunSpan.spanId);
+
+  expect(errors).toEqual([]);
+}
+
 describe('routes-tanstack-mf', () => {
   let remoteApp: unknown;
+  let remoteTwoApp: unknown;
   let hostApp: unknown;
   let browser: Browser;
   let page: Page;
@@ -51,8 +404,17 @@ describe('routes-tanstack-mf', () => {
   beforeAll(async () => {
     jest.setTimeout(1000 * 60 * 5);
 
+    runTypecheck(remoteDir, 'tsconfig.typecheck.json');
+    runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
+    runTypecheck(hostDir, 'tsconfig.typecheck.json');
+
     remoteApp = await launchApp(remoteDir, REMOTE_PORT);
     await waitForAppReady(`http://localhost:${REMOTE_PORT}/mf-manifest.json`);
+
+    remoteTwoApp = await launchApp(remoteTwoDir, REMOTE_TWO_PORT);
+    await waitForAppReady(
+      `http://localhost:${REMOTE_TWO_PORT}/mf-manifest.json`,
+    );
 
     hostApp = await launchApp(hostDir, HOST_PORT);
     await waitForAppReady(`http://localhost:${HOST_PORT}/`);
@@ -73,13 +435,18 @@ describe('routes-tanstack-mf', () => {
     if (hostApp) {
       await killApp(hostApp);
     }
+    if (remoteTwoApp) {
+      await killApp(remoteTwoApp);
+    }
     if (remoteApp) {
       await killApp(remoteApp);
     }
   });
 
   test('keeps client-render boundary explicit for federated route content', async () => {
-    const { status, html } = await fetchHtml(`http://localhost:${HOST_PORT}/mf`);
+    const { status, html } = await fetchHtml(
+      `http://localhost:${HOST_PORT}/mf`,
+    );
     expect(status).toBe(200);
     expect(html).toContain('<!--<?- html ?>-->');
     expect(html).not.toContain('host-mf-loader');
@@ -88,51 +455,170 @@ describe('routes-tanstack-mf', () => {
     expect(html).not.toContain('id="remote-mutator"');
   });
 
-  test('supports remote component fetcher with host loader/action', async () => {
-    await page.goto(`http://localhost:${HOST_PORT}/mf`, {
-      waitUntil: ['networkidle0'],
-      timeout: 50000,
+  test('host app exposes effect bff endpoints in mf setup', async () => {
+    const effectResponse = await fetchJson(
+      `http://localhost:${HOST_PORT}/host-api/effect/hello`,
+    );
+    expect(effectResponse.status).toBe(200);
+    expect(effectResponse.json).toEqual({
+      message: 'Hello from host Effect API',
+      runtime: 'host',
     });
 
-    await page.waitForSelector('#remote-widget', { timeout: 50000 });
-    const remoteText = await page.$eval('#remote-widget', el => el.textContent);
-    expect(remoteText).toContain('remote-widget:ok');
+    const lambdaResponse = await fetchJson(
+      `http://localhost:${HOST_PORT}/host-api/legacy`,
+    );
+    expect(lambdaResponse.status).toBe(200);
+    expect(lambdaResponse.json).toEqual({
+      message: 'Hello from host lambda in effect mode',
+    });
 
-    await page.waitForSelector('#remote-mutator', { timeout: 50000 });
-    const hostLoaderText = await page.$eval('#host-loader', el => el.textContent);
-    expect(hostLoaderText).toBe('host-mf-loader');
+    const openapiResponse = await fetchJson(
+      `http://localhost:${HOST_PORT}/host-api/openapi.json`,
+    );
+    expect(openapiResponse.status).toBe(200);
+    expect(openapiResponse.json.paths['/effect/hello']).toBeDefined();
+  });
 
-    const getHostCount = async () => {
-      const text = await page.$eval('#host-mf-count', el => el.textContent || '');
-      return Number(text.replace('host-mf-count:', ''));
-    };
+  test('remote app exposes effect bff endpoints in mf setup', async () => {
+    const effectResponse = await fetchJson(
+      `http://localhost:${REMOTE_PORT}/remote-api/effect/hello`,
+    );
+    expect(effectResponse.status).toBe(200);
+    expect(effectResponse.json).toEqual({
+      message: 'Hello from remote Effect API',
+      runtime: 'remote',
+    });
 
-    const initialCount = await getHostCount();
+    const lambdaResponse = await fetchJson(
+      `http://localhost:${REMOTE_PORT}/remote-api/legacy`,
+    );
+    expect(lambdaResponse.status).toBe(200);
+    expect(lambdaResponse.json).toEqual({
+      message: 'Hello from remote lambda in effect mode',
+    });
 
-    await page.click('[data-testid="remote-fetcher-submit"]');
-    await page.waitForFunction(
-      expected =>
-        document.querySelector('#host-mf-count')?.textContent ===
-        `host-mf-count:${expected}`,
-      {},
-      initialCount + 2,
+    const openapiResponse = await fetchJson(
+      `http://localhost:${REMOTE_PORT}/remote-api/openapi.json`,
+    );
+    expect(openapiResponse.status).toBe(200);
+    expect(openapiResponse.json.paths['/effect/hello']).toBeDefined();
+  });
+
+  test('remote2 app exposes effect bff endpoints in mf setup', async () => {
+    const effectResponse = await fetchJson(
+      `http://localhost:${REMOTE_TWO_PORT}/remote2-api/effect/hello`,
+    );
+    expect(effectResponse.status).toBe(200);
+    expect(effectResponse.json).toEqual({
+      message: 'Hello from remote2 Effect API',
+      runtime: 'remote2',
+    });
+
+    const lambdaResponse = await fetchJson(
+      `http://localhost:${REMOTE_TWO_PORT}/remote2-api/legacy`,
+    );
+    expect(lambdaResponse.status).toBe(200);
+    expect(lambdaResponse.json).toEqual({
+      message: 'Hello from remote2 lambda in effect mode',
+    });
+  });
+
+  test('supports remote component fetcher with host loader/action', async () => {
+    await assertRemoteComponentInteraction(page, HOST_PORT, errors);
+  });
+
+  test('emits tree-shaking metadata for shared modules', async () => {
+    await assertSharedTreeShakingStats(HOST_PORT);
+    await assertSharedTreeShakingStats(REMOTE_PORT);
+    await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
+  });
+
+  test('captures browser -> host -> remote distributed otel trace', async () => {
+    await assertDistributedTraceFromBrowser(
+      page,
+      HOST_PORT,
+      REMOTE_PORT,
+      errors,
+    );
+  });
+});
+
+describe('routes-tanstack-mf serve mode', () => {
+  let remoteApp: unknown;
+  let remoteTwoApp: unknown;
+  let hostApp: unknown;
+  let browser: Browser;
+  let page: Page;
+  const errors: string[] = [];
+
+  beforeAll(async () => {
+    jest.setTimeout(1000 * 60 * 8);
+
+    runTypecheck(remoteDir, 'tsconfig.typecheck.json');
+    runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
+    runTypecheck(hostDir, 'tsconfig.typecheck.json');
+
+    await modernBuild(remoteDir);
+    await modernBuild(remoteTwoDir);
+    await modernBuild(hostDir);
+
+    remoteApp = await modernServe(remoteDir, REMOTE_PORT);
+    await waitForAppReady(`http://localhost:${REMOTE_PORT}/mf-manifest.json`);
+
+    remoteTwoApp = await modernServe(remoteTwoDir, REMOTE_TWO_PORT);
+    await waitForAppReady(
+      `http://localhost:${REMOTE_TWO_PORT}/mf-manifest.json`,
     );
 
-    await page.click('[data-testid="remote-fetcher-load"]');
-    await page.waitForFunction(
-      expected =>
-        document.querySelector('#remote-fetcher-data')?.textContent ===
-        `remote-fetcher:${expected}`,
-      {},
-      initialCount + 2,
-    );
-    expect(page.url()).toBe(`http://localhost:${HOST_PORT}/mf`);
+    hostApp = await modernServe(hostDir, HOST_PORT);
+    await waitForAppReady(`http://localhost:${HOST_PORT}/`);
 
-    const remoteFetcherState = await page.$eval(
-      '#remote-fetcher-state',
-      el => el.textContent,
+    browser = await puppeteer.launch(launchOptions as any);
+    page = await browser.newPage();
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text());
+      }
+    });
+  });
+
+  afterAll(async () => {
+    if (browser) {
+      await browser.close();
+    }
+    if (hostApp) {
+      await killApp(hostApp);
+    }
+    if (remoteTwoApp) {
+      await killApp(remoteTwoApp);
+    }
+    if (remoteApp) {
+      await killApp(remoteApp);
+    }
+  });
+
+  test('serves module federation assets as static files', async () => {
+    await assertModuleFederationAssets(REMOTE_PORT);
+    await assertModuleFederationAssets(REMOTE_TWO_PORT);
+  });
+
+  test('supports remote component fetcher with host loader/action in serve mode', async () => {
+    await assertRemoteComponentInteraction(page, HOST_PORT, errors);
+  });
+
+  test('serves tree-shaking metadata for shared modules in serve mode', async () => {
+    await assertSharedTreeShakingStats(HOST_PORT);
+    await assertSharedTreeShakingStats(REMOTE_PORT);
+    await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
+  });
+
+  test('captures browser -> host -> remote distributed otel trace in serve mode', async () => {
+    await assertDistributedTraceFromBrowser(
+      page,
+      HOST_PORT,
+      REMOTE_PORT,
+      errors,
     );
-    expect(remoteFetcherState).toBe('idle');
-    expect(errors).toEqual([]);
   });
 });

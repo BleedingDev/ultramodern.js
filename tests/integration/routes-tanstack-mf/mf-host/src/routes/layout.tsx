@@ -1,4 +1,4 @@
-import { Link, Outlet, useMatch } from '@modern-js/runtime/tanstack-router';
+import { Link, Outlet, useMatch } from '@tanstack/react-router';
 
 export default function Layout() {
   const match = useMatch({ from: '__root__' });

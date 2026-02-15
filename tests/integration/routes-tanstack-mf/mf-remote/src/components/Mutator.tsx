@@ -1,4 +1,5 @@
 import { useFetcher } from '@modern-js/runtime/tanstack-router';
+import './Mutator.css';
 
 export default function Mutator() {
   const fetcher = useFetcher();
