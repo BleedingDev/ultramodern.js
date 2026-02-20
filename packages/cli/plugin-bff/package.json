@@ -115,9 +115,7 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@effect/opentelemetry": "^0.61.0",
-    "@effect/platform": "^0.94.3",
-    "@effect/rpc": "^0.73.0",
+    "@effect/opentelemetry": "^4.0.0-beta.7",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
@@ -125,7 +123,7 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.17",
-    "effect": "^3.19.16",
+    "effect": "^4.0.0-beta.7",
     "qs": "^6.14.1",
     "type-is": "^1.6.18"
   },

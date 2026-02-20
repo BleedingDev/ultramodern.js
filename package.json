@@ -119,7 +119,7 @@
       "trim": "0.0.1"
     },
     "patchedDependencies": {
-      "@module-federation/dts-plugin@0.0.0-feat-modern-3-0-20260130025803": "patches/@module-federation__dts-plugin.patch",
+      "@module-federation/dts-plugin@2.0.0": "patches/@module-federation__dts-plugin.patch",
       "@rspack/core@2.0.0-beta.0": "patches/@rspack__core.beta0.patch",
       "@rspack/core@2.0.0-beta.2": "patches/@rspack__core.beta2.patch"
     }

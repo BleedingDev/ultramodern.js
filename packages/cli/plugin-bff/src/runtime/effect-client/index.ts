@@ -1,27 +1,27 @@
-import { FetchHttpClient, HttpApiClient } from '@effect/platform';
-import type * as HttpApi from '@effect/platform/HttpApi';
-import type * as HttpApiGroup from '@effect/platform/HttpApiGroup';
-import type * as Rpc from '@effect/rpc/Rpc';
-import * as RpcClient from '@effect/rpc/RpcClient';
-import type * as RpcGroup from '@effect/rpc/RpcGroup';
-import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
+import { FetchHttpClient } from 'effect/unstable/http';
+import {
+  HttpApi,
+  HttpApiClient,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  HttpApiSchema,
+} from 'effect/unstable/httpapi';
+import {
+  Rpc,
+  RpcClient,
+  RpcGroup,
+  RpcSchema,
+  RpcSerialization,
+} from 'effect/unstable/rpc';
 
-export * as HttpApi from '@effect/platform/HttpApi';
-export * as HttpApiClient from '@effect/platform/HttpApiClient';
-export * as HttpApiEndpoint from '@effect/platform/HttpApiEndpoint';
-export * as HttpApiGroup from '@effect/platform/HttpApiGroup';
-export * as HttpApiSchema from '@effect/platform/HttpApiSchema';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
-export * as Rpc from '@effect/rpc/Rpc';
-export * as RpcClient from '@effect/rpc/RpcClient';
-export * as RpcGroup from '@effect/rpc/RpcGroup';
-export * as RpcSchema from '@effect/rpc/RpcSchema';
-export * as RpcSerialization from '@effect/rpc/RpcSerialization';
+export { HttpApi, HttpApiClient, HttpApiEndpoint, HttpApiGroup, HttpApiSchema };
+export { Rpc, RpcClient, RpcGroup, RpcSchema, RpcSerialization };
 
 export type EffectHttpApiClientOptions = {
   baseUrl?: URL | string;
@@ -73,7 +73,20 @@ export type EffectRpcSerialization =
   | 'ndJsonRpc'
   | 'msgPack';
 
-export type EffectRpcClientOptions<Flatten extends boolean = false> = {
+type EffectRpcMiddlewareLayerOption<Rpcs extends Rpc.Any> = [
+  Rpc.MiddlewareClient<Rpcs>,
+] extends [never]
+  ? {
+      middlewareLayer?: Layer.Layer<Rpc.MiddlewareClient<Rpcs>, never, never>;
+    }
+  : {
+      middlewareLayer: Layer.Layer<Rpc.MiddlewareClient<Rpcs>, unknown, never>;
+    };
+
+export type EffectRpcClientOptions<
+  Rpcs extends Rpc.Any,
+  Flatten extends boolean = false,
+> = EffectRpcMiddlewareLayerOption<Rpcs> & {
   url: string;
   flatten?: Flatten;
   serialization?: EffectRpcSerialization;
@@ -162,13 +175,8 @@ function getRpcSerializationLayer(
 
 export function makeEffectHttpApiClient<
   ApiId extends string,
-  Groups extends HttpApiGroup.HttpApiGroup.Any,
-  ApiError,
-  ApiR,
->(
-  api: HttpApi.HttpApi<ApiId, Groups, ApiError, ApiR>,
-  options?: EffectHttpApiClientOptions,
-) {
+  Groups extends HttpApiGroup.Any,
+>(api: HttpApi.HttpApi<ApiId, Groups>, options?: EffectHttpApiClientOptions) {
   return HttpApiClient.make(api, {
     baseUrl: options?.baseUrl,
   }).pipe(Effect.provide(FetchHttpClient.layer));
@@ -177,33 +185,49 @@ export function makeEffectHttpApiClient<
 export function makeEffectRpcClient<
   Rpcs extends Rpc.Any,
   const Flatten extends boolean = false,
->(group: RpcGroup.RpcGroup<Rpcs>, options: EffectRpcClientOptions<Flatten>) {
-  const runtimeLayer = Layer.provide(
-    Layer.mergeAll(
-      RpcClient.layerProtocolHttp({
-        url: options.url,
-      }),
-      Layer.scope,
-    ),
+>(
+  group: RpcGroup.RpcGroup<Rpcs>,
+  options: EffectRpcClientOptions<Rpcs, Flatten>,
+) {
+  const protocolLayer = Layer.provide(
+    RpcClient.layerProtocolHttp({
+      url: options.url,
+    }),
     Layer.mergeAll(
       getRpcSerializationLayer(options.serialization),
       FetchHttpClient.layer,
     ),
   );
+  const middlewareLayer = options.middlewareLayer ?? Layer.empty;
+  const runtimeLayer = Layer.mergeAll(protocolLayer, middlewareLayer);
 
   return Effect.tryPromise({
     try: async () => {
       const runtime = ManagedRuntime.make(runtimeLayer);
-      const client = await runtime.runPromise(
-        RpcClient.make(group, {
-          flatten: options.flatten,
-        }),
-      );
-      return Object.assign(client, {
-        dispose: () => runtime.dispose(),
-      }) as EffectRpcClientHandle<Rpcs, Flatten>;
+      try {
+        const client = await runtime.runPromise(
+          Effect.scoped(
+            RpcClient.make(group, {
+              flatten: options.flatten,
+            }),
+          ),
+        );
+        const clientWithDispose: EffectRpcClientHandle<Rpcs, Flatten> =
+          Object.assign(client, {
+            dispose: () => runtime.dispose(),
+          });
+        return clientWithDispose;
+      } catch (error) {
+        try {
+          await runtime.dispose();
+        } catch {
+          // ignore disposal errors and preserve the original construction error
+        }
+        throw error;
+      }
     },
-    catch: error => (error instanceof Error ? error : new Error(String(error))),
+    catch: (error: unknown) =>
+      error instanceof Error ? error : new Error(String(error)),
   });
 }
 

@@ -18,7 +18,7 @@ const greetingsLayer = HttpApiBuilder.group(
     ),
 );
 
-const layer = HttpApiBuilder.api(remoteTwoEffectApi).pipe(
+const layer = HttpApiBuilder.layer(remoteTwoEffectApi).pipe(
   Layer.provide(greetingsLayer),
 );
 

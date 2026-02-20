@@ -1,5 +1,4 @@
 import path from 'path';
-import type * as HttpApi from '@effect/platform/HttpApi';
 import { type APIHandlerInfo, ApiRouter } from '@modern-js/bff-core';
 import type {
   Context,
@@ -17,7 +16,8 @@ import {
   isProd,
   logger,
 } from '@modern-js/utils';
-import type * as EffectContext from 'effect/Context';
+import type * as ServiceMap from 'effect/ServiceMap';
+import { HttpApi } from 'effect/unstable/httpapi';
 import createHonoRoutes from '../../utils/createHonoRoutes';
 import { createHttpApiHandler } from './index';
 import type {
@@ -56,7 +56,7 @@ type ContextWithJson = Context & {
 
 type RequestHandler = (
   request: Request,
-  context?: EffectContext.Context<never> | EffectRequestContext,
+  context?: ServiceMap.ServiceMap<never> | EffectRequestContext,
 ) => Promise<Response> | Response;
 
 type EffectApiModule = {
@@ -130,14 +130,23 @@ function includesRuntimeExports(value: Record<string, unknown>) {
   );
 }
 
+function isHttpApiWithProps(value: unknown): value is HttpApi.AnyWithProps {
+  return (
+    HttpApi.isHttpApi(value) &&
+    isRecord(value) &&
+    typeof value.identifier === 'string' &&
+    isRecord(value.groups)
+  );
+}
+
 function isEffectApiDefinition(module: EffectApiModule): module is {
-  api: HttpApi.HttpApi.Any;
+  api: HttpApi.AnyWithProps;
   layer: EffectRuntimeLayer;
   handler?: RequestHandler;
   createHandler?: EffectHandlerFactory;
   default?: unknown;
 } {
-  return module.api !== undefined && module.layer !== undefined;
+  return isHttpApiWithProps(module.api) && module.layer !== undefined;
 }
 
 export class EffectAdapter {

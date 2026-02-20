@@ -44,6 +44,17 @@ import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
 
 `bff.effect` is only effective when `bff.runtimeFramework` is set to `'effect'`.
 
+For Effect v4, TypeScript should use export-map aware module resolution.
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  }
+}
+```
+
 ## bff.effect.entry
 
 - **Type:** `string`
@@ -115,6 +126,8 @@ export default defineConfig({
 - **Default:** `{ enabled: true }`
 
 Configure request-envelope validation for Effect runtime.
+
+Generated Effect client requests batching against `${bff.prefix}${batch.endpoint}` (for example, `/bff-api/_data/batch`).
 
 When `validateOrigin` is enabled, runtime compares envelope origin with request `Origin` header first, then falls back to request URL origin.
 

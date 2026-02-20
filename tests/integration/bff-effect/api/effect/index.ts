@@ -4,7 +4,6 @@ import {
   HttpTraceContext,
   Layer,
   OpenTelemetry,
-  Option,
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
 import { bffEffectApi } from '../../shared/effect-api';
@@ -70,10 +69,10 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledUserById = handledHello.handle(
       'userById',
-      ({ path, urlParams }) =>
+      ({ params, query }) =>
         Effect.succeed({
-          id: path.id,
-          source: urlParams.source ?? 'unknown',
+          id: params.id,
+          source: query.source ?? 'unknown',
         }),
     );
 
@@ -86,9 +85,7 @@ const greetingsLayer = HttpApiBuilder.group(
     const handledTraceRun = handledEcho.handle(
       'traceRun',
       ({ headers, request }) => {
-        const parentSpan = Option.getOrUndefined(
-          HttpTraceContext.w3c(request.headers),
-        );
+        const parentSpan = HttpTraceContext.w3c(request.headers);
         return Effect.gen(function* () {
           if (headers.traceparent) {
             yield* Effect.annotateCurrentSpan(
@@ -120,9 +117,9 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceSpans = handledTraceRun.handle(
       'traceSpans',
-      ({ urlParams }) =>
+      ({ query }) =>
         Effect.succeed({
-          spans: getTraceSpans(urlParams.traceId),
+          spans: getTraceSpans(query.traceId),
         }),
     );
 
@@ -143,7 +140,7 @@ const greetingsLayer = HttpApiBuilder.group(
   },
 );
 
-const layer = HttpApiBuilder.api(bffEffectApi).pipe(
+const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
   Layer.provide(greetingsLayer),
   Layer.provideMerge(
     OpenTelemetry.NodeSdk.layer(() => ({

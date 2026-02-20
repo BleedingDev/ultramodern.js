@@ -18,24 +18,21 @@ describe('effect runtime data-platform validation', () => {
   const api = HttpApi.make('TestEffectApi').add(
     HttpApiGroup.make('greetings')
       .add(
-        HttpApiEndpoint.get('ping')`/ping`.addSuccess(
-          Schema.Struct({
+        HttpApiEndpoint.get('ping', '/ping', {
+          success: Schema.Struct({
             ok: Schema.Boolean,
           }),
-        ),
+        }),
       )
       .add(
-        HttpApiEndpoint.get('traceHeader')`/trace-header`
-          .setHeaders(
-            Schema.Struct({
-              traceparent: Schema.optional(Schema.String),
-            }),
-          )
-          .addSuccess(
-            Schema.Struct({
-              traceparent: Schema.optional(Schema.String),
-            }),
-          ),
+        HttpApiEndpoint.get('traceHeader', '/trace-header', {
+          headers: {
+            traceparent: Schema.optional(Schema.String),
+          },
+          success: Schema.Struct({
+            traceparent: Schema.optional(Schema.String),
+          }),
+        }),
       ),
   );
 
@@ -53,7 +50,7 @@ describe('effect runtime data-platform validation', () => {
       ),
   );
 
-  const layer = HttpApiBuilder.api(api).pipe(Layer.provide(groupLayer));
+  const layer = HttpApiBuilder.layer(api).pipe(Layer.provide(groupLayer));
 
   const createEnvelope = (input: {
     endpoint: string;
@@ -388,6 +385,78 @@ describe('effect runtime data-platform validation', () => {
       },
     ).toEqual({
       traceparent: '00-11111111111111111111111111111111-2222222222222222-01',
+    });
+
+    await handler.dispose();
+  });
+
+  test('normalizes prefixed batch item paths using mounted context path', async () => {
+    const handler = createHttpApiHandler({
+      api,
+      layer,
+      dataPlatform: {
+        requireEnvelope: true,
+        expectedNamespace: 'test-app',
+        batch: {
+          enabled: true,
+          maxBatchSize: 8,
+        },
+      },
+    });
+
+    const payload = {
+      protocolVersion: 1,
+      batchId: 'batch-prefixed',
+      sentAt: Date.now(),
+      items: [
+        {
+          id: 'ping-prefixed',
+          path: '/bff-api/ping',
+          method: 'GET',
+          headers: {
+            [DEFAULT_DATA_ENVELOPE_HEADER]: encodeRequestEnvelopeHeader(
+              createEnvelope({
+                endpoint: 'ping',
+                routePath: '/ping',
+              }),
+            ),
+          },
+        },
+      ],
+    };
+
+    const response = await handler.handler(
+      new Request('http://localhost/_data/batch', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+      {
+        path: '/bff-api/_data/batch',
+        method: 'POST',
+        env: {},
+      } as unknown as Parameters<typeof handler.handler>[1],
+    );
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      items: Array<{
+        id: string;
+        status: number;
+        body?: string;
+      }>;
+    };
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0]?.id).toBe('ping-prefixed');
+    expect(json.items[0]?.status).toBe(200);
+    expect(
+      JSON.parse(String(json.items[0]?.body)) as {
+        ok: boolean;
+      },
+    ).toEqual({
+      ok: true,
     });
 
     await handler.dispose();

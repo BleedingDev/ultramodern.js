@@ -43,7 +43,9 @@ import {
 
 export const bffEffectApi = HttpApi.make('MyApi').add(
   HttpApiGroup.make('hello').add(
-    HttpApiEndpoint.get('ping')`/effect/ping`.addSuccess(Schema.String),
+    HttpApiEndpoint.get('ping', '/effect/ping', {
+      success: Schema.String,
+    }),
   ),
 );
 ```
@@ -52,18 +54,53 @@ Implement your Effect BFF entry at `api/effect/index.ts`:
 
 ```ts title="api/effect/index.ts"
 import {
+  Schema,
+  Effect,
   HttpApiBuilder,
   defineEffectBff,
-  Effect,
   Layer,
+  ServiceMap,
 } from '@modern-js/plugin-bff/effect-server';
 import { bffEffectApi } from '../../shared/effect/api';
 
+class GreetingUnavailableError extends Schema.TaggedError<GreetingUnavailableError>()(
+  'GreetingUnavailableError',
+  {
+    message: Schema.String,
+  },
+) {}
+
+class GreetingService extends ServiceMap.Service<GreetingService>()('GreetingService', {
+  make: Effect.succeed({
+    hello: Effect.fn('GreetingService.hello')(function* () {
+      if (Date.now() < 0) {
+        return yield* Effect.fail(
+          new GreetingUnavailableError({
+            message: 'Greeting service is unavailable',
+          }),
+        );
+      }
+      return yield* Effect.succeed('pong');
+    }),
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make);
+}
+
 const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
-  handlers.handle('ping', () => Effect.succeed('pong')),
+  handlers.handle('ping', () =>
+    GreetingService.use(service => service.hello()).pipe(
+      Effect.catchTag('GreetingUnavailableError', error =>
+        Effect.succeed(error.message),
+      ),
+    ),
+  ),
 );
 
-const layer = HttpApiBuilder.api(bffEffectApi).pipe(Layer.provide(group));
+const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
+  Layer.provide(group),
+  Layer.provide(GreetingService.layer),
+);
 
 export default defineEffectBff({ api: bffEffectApi, layer });
 ```
