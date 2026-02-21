@@ -1,0 +1,59 @@
+---
+title: UltraModern.js
+sidebar_position: 2
+---
+
+# UltraModern.js v3 与 Modern.js v3 对比
+
+本文对比 **UltraModern.js v3** 与 **Modern.js v3**（基线：`v3.0.2`）。
+
+UltraModern.js 的定位是“兼容优先”的发行版：尽量保持与上游 Modern.js 一致，只在 Super App / ERP 场景补充少量平台级契约能力。
+
+## 设计原则
+
+- 差异要小且明确。
+- 默认优先沿用上游 API 与行为。
+- 仅在跨团队稳定性场景增加平台契约。
+- 保持可持续的上游合并/回灌能力。
+
+## 兼容性承诺
+
+UltraModern.js v3 保持以下不变：
+
+- Modern.js 的应用/配置/插件心智模型。
+- 既有项目结构与命令使用方式。
+- 渐进式接入路径（应用无需大规模重构）。
+
+UltraModern 的增强能力尽量以可选或向后兼容方式提供。
+
+## 有意引入的差异（v3 线）
+
+| 领域 | Modern.js v3 基线 | UltraModern.js v3 |
+| --- | --- | --- |
+| BFF 运行时与契约 | 提供标准 BFF 运行时与客户端生成能力 | 增加 Effect-first 运行时 / data-platform 路径，并强化跨项目契约 |
+| 跨项目 Producer 启动方式 | 多仓场景下 producer 绑定约束相对宽松 | 增加 `requestId` 维度 bootstrap/runtime 行为与 fail-fast 守卫 |
+| Telemetry 标准化 | 可观测链路通常由业务侧自行拼装 | 增加框架级 telemetry 管线，并内置 OTLP 与 VictoriaMetrics 导出器 |
+| 应用级 MF SSR 协议 | 没有以 super-app 为重点的应用级协议开关 | 增加应用级 MF SSR alpha 合约开关，支持可控灰度 |
+| MF 远程加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加共享的远程加载可靠性契约，降低重复实现成本 |
+
+## 我们刻意不做的事情
+
+- 不将核心架构分叉成另一套不兼容框架模型。
+- 不强制替换普通 Modern.js 团队已稳定使用的默认行为。
+- 除非稳定性硬需求，否则避免引入破坏性 API 变更。
+
+## 迁移建议
+
+如果你已经在使用 Modern.js v3：
+
+1. 保持现有应用结构不变。
+2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR alpha 合约）。
+3. 持续跟进上游 Modern.js 更新，UltraModern 即按该模式设计。
+
+## 相关文档
+
+- [BFF 运行时框架](/guides/advanced-features/bff/frameworks)
+- [BFF Data Platform](/guides/advanced-features/bff/data-platform)
+- [BFF Effect 运行时配置](/configure/app/bff/effect)
+- [Module Federation SSR](/guides/topic-detail/module-federation/ssr)
+- [performance.rsdoctor](/configure/app/performance/rsdoctor)
