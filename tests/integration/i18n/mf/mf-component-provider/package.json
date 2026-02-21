@@ -9,11 +9,11 @@
   "dependencies": {
     "@modern-js/plugin-i18n": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@module-federation/modern-js-v3": "2.0.0",
-    "i18next": "25.7.4",
+    "@module-federation/modern-js-v3": "2.0.1",
+    "i18next": "25.8.13",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-i18next": "15.7.4"
+    "react-i18next": "16.5.4"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",

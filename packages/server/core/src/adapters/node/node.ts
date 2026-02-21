@@ -57,7 +57,7 @@ export const createWebRequest = (
     } else {
       const stream = cloneableReq!.clone();
 
-      init.body = Readable.toWeb(stream) as unknown as BodyInit;
+      init.body = Readable.toWeb(stream as any) as unknown as BodyInit;
     }
     (init as { duplex: 'half' }).duplex = 'half';
   }
@@ -150,7 +150,8 @@ const handleResponseError = (e: unknown, res: NodeResponse) => {
   } else {
     console.error(e);
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'text/plain');
     }
     res.end(`Error: ${err.message}`);
     res.destroy(err);

@@ -57,17 +57,17 @@
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.17"
+    "@swc/helpers": "^0.5.18"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.19.5",
+    "@rslib/core": "0.19.6",
     "@scripts/rstest-config": "workspace:*",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^20",
-    "lint-staged": "~13.3.0",
-    "typescript": "^5"
+    "@types/node": "^25.3.0",
+    "lint-staged": "~16.2.7",
+    "typescript": "^5.9.3"
   },
   "sideEffects": [],
   "engines": {

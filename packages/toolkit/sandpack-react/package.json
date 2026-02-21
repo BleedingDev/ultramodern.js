@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
-    "@swc/helpers": "^0.5.17",
+    "@swc/helpers": "^0.5.18",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
@@ -49,14 +49,14 @@
     "@modern-js/codesmith-utils": "2.6.9",
     "@modern-js/create": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.19.5",
-    "@types/node": "^20",
+    "@rslib/core": "0.19.6",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/recursive-readdir": "^2.2.4",
     "recursive-readdir": "^2.2.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "sideEffects": false,
   "publishConfig": {

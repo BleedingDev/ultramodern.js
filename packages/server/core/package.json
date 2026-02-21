@@ -72,25 +72,25 @@
     "@modern-js/plugin": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.17",
+    "@swc/helpers": "^0.5.18",
     "@web-std/fetch": "^4.2.1",
     "@web-std/file": "^3.0.3",
     "@web-std/stream": "^1.0.3",
     "cloneable-readable": "^3.0.0",
     "flatted": "^3.3.3",
-    "hono": "^4.11.7",
+    "hono": "^4.12.1",
     "ts-deepmerge": "7.0.3"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.19.5",
+    "@rslib/core": "0.19.6",
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^20",
-    "http-proxy-middleware": "^2.0.9",
-    "typescript": "^5"
+    "@types/node": "^25.3.0",
+    "http-proxy-middleware": "^3.0.5",
+    "typescript": "^5.9.3"
   },
   "sideEffects": false,
   "publishConfig": {

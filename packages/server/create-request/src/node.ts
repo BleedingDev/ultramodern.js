@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from 'http';
 import { storage } from '@modern-js/runtime-utils/node';
-import { type Key, compile, pathToRegexp } from 'path-to-regexp';
+import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
 import type {
@@ -19,6 +19,9 @@ const realRequest: Map<string, Fetch> = new Map();
 const realAllowedHeaders: Map<string, string[]> = new Map();
 
 const domainMap: Map<string, string> = new Map();
+
+const extractPathParamNames = (path: string): string[] =>
+  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).map(([, key]) => key);
 
 const originFetch = (...params: Parameters<Fetch>) => {
   const [, init] = params;
@@ -89,8 +92,7 @@ export const createRequest: RequestCreator<Fetch> = ({
   requestId = 'default',
 }) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
-  const keys: Key[] = [];
-  pathToRegexp(path, keys);
+  const keyNames = extractPathParamNames(path);
 
   const sender: Sender = (...args) => {
     let webRequestHeaders = [] as unknown as IncomingHttpHeaders;
@@ -116,12 +118,12 @@ export const createRequest: RequestCreator<Fetch> = ({
       // 这种场景下是使用 schema，所以 params 要从 args[0] 中获取
       if (typeof requestParams === 'object' && requestParams.params) {
         const { params } = requestParams;
-        keys.forEach(key => {
-          payload.params![key.name] = params[key.name];
+        keyNames.forEach(keyName => {
+          payload.params![keyName] = params[keyName];
         });
       } else {
-        keys.forEach((key, index) => {
-          payload.params![key.name] = args[index];
+        keyNames.forEach((keyName, index) => {
+          payload.params![keyName] = args[index];
         });
       }
 

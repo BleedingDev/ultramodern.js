@@ -14,8 +14,8 @@
     "@rsbuild/plugin-babel": "1.1.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "styled-components": "^5.3.1",
-    "tailwindcss": "^3.4.19",
+    "styled-components": "^6.3.11",
+    "tailwindcss": "^4.2.0",
     "twin.macro": "^3.4.1"
   },
   "devDependencies": {

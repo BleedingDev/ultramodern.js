@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-     "@modern-js/server-runtime": "workspace:*",
+    "@modern-js/server-runtime": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
@@ -16,6 +16,6 @@
     "@modern-js/tsconfig": "workspace:*",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

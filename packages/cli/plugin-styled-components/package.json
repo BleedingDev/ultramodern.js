@@ -31,18 +31,18 @@
   },
   "dependencies": {
     "@rsbuild/plugin-styled-components": "1.6.1",
-    "@swc/helpers": "^0.5.17"
+    "@swc/helpers": "^0.5.18"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.19.5",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^20",
+    "@rslib/core": "0.19.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
     "@types/styled-components": "^5.1.36",
-    "styled-components": "^5.3.1",
-    "typescript": "^5.3.3"
+    "styled-components": "^6.3.11",
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "styled-components": "^5.3.1"

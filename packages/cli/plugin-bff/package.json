@@ -115,17 +115,17 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@effect/opentelemetry": "^4.0.0-beta.7",
+    "@effect/opentelemetry": "4.0.0-beta.9",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "effect": "^4.0.0-beta.7",
-    "qs": "^6.14.1",
-    "type-is": "^1.6.18"
+    "@swc/helpers": "^0.5.18",
+    "effect": "4.0.0-beta.9",
+    "qs": "^6.15.0",
+    "type-is": "^2.0.1"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -135,14 +135,14 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@rsbuild/core": "2.0.0-beta.4",
-    "@rslib/core": "0.19.5",
+    "@rslib/core": "0.19.6",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^20",
+    "@types/node": "^25.3.0",
     "@types/qs": "^6.14.0",
     "@types/type-is": "^1.6.7",
-    "memfs": "^3.5.3",
-    "typescript": "^5",
-    "zod": "^3.25.76"
+    "memfs": "^4.56.10",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
   },
   "sideEffects": false,
   "publishConfig": {

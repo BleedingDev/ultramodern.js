@@ -36,22 +36,22 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.17",
+    "@swc/helpers": "^0.5.18",
     "koa-compose": "^4.1.0",
     "reflect-metadata": "^0.2.2",
-    "type-fest": "2.19.0"
+    "type-fest": "5.4.4"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.19.5",
+    "@rslib/core": "0.19.6",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
-    "@types/node": "^20",
+    "@types/node": "^25.3.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5",
-    "zod": "^3.25.76"
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "ts-node": "^10.9.2",

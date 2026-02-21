@@ -14,21 +14,21 @@
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
-    "hono": "^4.11.7",
+    "hono": "^4.12.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "3.15.0",
-    "zod": "^3.25.76"
+    "tsconfig-paths": "4.2.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^20",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "tsconfig-paths": "~3.15.0",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "exports": {
     "./context/index": {
