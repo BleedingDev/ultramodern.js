@@ -1,10 +1,10 @@
 import context from 'bff-api-app/api/context/index';
 import hello, { postHello } from 'bff-api-app/api/index';
 import getUser from 'bff-api-app/api/user/[id]';
-import { configure } from 'bff-api-app/runtime';
+import { initProducerClient } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
 
-configure({
+initProducerClient({
   interceptor(request) {
     return async (url, params) => {
       const urlString = typeof url === 'string' ? url : url.toString();

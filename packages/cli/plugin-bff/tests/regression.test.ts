@@ -6,6 +6,7 @@ import { EffectAdapter } from '../src/runtime/effect/adapter';
 import clientGenerator, {
   type APILoaderOptions,
 } from '../src/utils/clientGenerator';
+import runtimeGenerator from '../src/utils/runtimeGenerator';
 
 describe('plugin-bff regressions', () => {
   test('effect adapter strips API prefix in enableHandleWeb mode', async () => {
@@ -91,6 +92,89 @@ describe('plugin-bff regressions', () => {
       };
 
       await expect(clientGenerator(options)).resolves.toBeUndefined();
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runtime generator exposes initProducerClient alias', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-runtime-'),
+    );
+
+    try {
+      await fs.promises.writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: 'runtime-app', version: '1.0.0' }, null, 2),
+      );
+      await runtimeGenerator({
+        runtime: '@modern-js/plugin-bff/client',
+        appDirectory: appDir,
+        relativeDistPath: '.modern-js',
+      });
+
+      const runtimeCode = await fs.promises.readFile(
+        path.join(appDir, '.modern-js', 'runtime', 'index.js'),
+        'utf8',
+      );
+      const runtimeTypes = await fs.promises.readFile(
+        path.join(appDir, '.modern-js', 'runtime', 'index.d.ts'),
+        'utf8',
+      );
+
+      expect(runtimeCode).toContain('const initProducerClient = (options)');
+      expect(runtimeCode).toContain('const configure = initProducerClient;');
+      expect(runtimeCode).toContain("requestId: 'runtime-app'");
+      expect(runtimeTypes).toContain('initProducerClient');
+      expect(runtimeTypes).toContain(
+        'export declare const configure: typeof initProducerClient;',
+      );
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('client generator fails fast on package export collisions', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-collision-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const lambdaDir = path.join(apiDir, 'lambda');
+      await fs.promises.mkdir(apiDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify(
+          {
+            name: 'collision-app',
+            version: '1.0.0',
+            exports: {
+              './api/*': {
+                import: './custom/api/*.js',
+                types: './custom/api/*.d.ts',
+              },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const options: APILoaderOptions = {
+        prefix: '/api',
+        appDir,
+        apiDir,
+        lambdaDir,
+        existLambda: false,
+        port: 8080,
+        relativeDistPath: '.modern-js',
+        relativeApiPath: './api',
+      };
+
+      await expect(clientGenerator(options)).rejects.toThrow(
+        /package\.json exports conflict/,
+      );
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

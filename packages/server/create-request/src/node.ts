@@ -30,6 +30,30 @@ const originFetch = (...params: Parameters<Fetch>) => {
   return fetch(...params).then(handleRes);
 };
 
+export class ProducerClientNotInitializedError extends Error {
+  readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
+
+  constructor(requestId: string) {
+    super(
+      `Producer client "${requestId}" is not initialized. Call initProducerClient() (or configure()) before using generated APIs for this requestId.`,
+    );
+    this.name = 'ProducerClientNotInitializedError';
+  }
+}
+
+const getConfiguredRequest = (requestId: string, fallback: Fetch) => {
+  const configuredRequest = realRequest.get(requestId);
+  if (configuredRequest) {
+    return configuredRequest;
+  }
+
+  if (requestId !== 'default') {
+    throw new ProducerClientNotInitializedError(requestId);
+  }
+
+  return fallback;
+};
+
 export const configure = (options: IOptions<Fetch>) => {
   const {
     request,
@@ -141,7 +165,7 @@ export const createRequest: RequestCreator<Fetch> = ({
       url = `${configDomain || `http://127.0.0.1:${port}`}${finalPath}`;
     }
 
-    const fetcher = realRequest.get(requestId) || originFetch;
+    const fetcher = getConfiguredRequest(requestId, fetch);
 
     if (method.toLowerCase() === 'get') {
       body = undefined;
@@ -160,7 +184,7 @@ export const createUploader: UploadCreator = ({
   requestId = 'default',
 }) => {
   const sender: Sender = (...args) => {
-    const fetcher = realRequest.get(requestId) || originFetch;
+    const fetcher = getConfiguredRequest(requestId, originFetch);
     const { body, headers } = getUploadPayload(args);
 
     const configDomain = domainMap.get(requestId);

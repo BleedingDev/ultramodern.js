@@ -20,6 +20,20 @@ import runtimeGenerator from './utils/runtimeGenerator';
 
 const TS_CONFIG_FILENAME = 'tsconfig.json';
 const RUNTIME_CREATE_REQUEST = '@modern-js/plugin-bff/client';
+const WATCHABLE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mts',
+  '.cts',
+  '.mjs',
+  '.cjs',
+  '.json',
+];
+
+const isWatchableBffFile = (filename: string) =>
+  WATCHABLE_EXTENSIONS.some(ext => filename.endsWith(ext));
 
 export const bffPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-bff',
@@ -315,7 +329,9 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       const config = api.getNormalizedConfig();
 
       if (config?.bff?.crossProject) {
-        return [appContext.apiDirectory];
+        return [appContext.apiDirectory, appContext.sharedDirectory].filter(
+          Boolean,
+        ) as string[];
       } else {
         return [];
       }
@@ -323,13 +339,23 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
 
     api.onFileChanged(async e => {
       const { filename, eventType, isPrivate } = e;
-      const { appDirectory, apiDirectory } = api.getAppContext();
+      const { appDirectory, apiDirectory, sharedDirectory } =
+        api.getAppContext();
       const relativeApiPath = path.relative(appDirectory, apiDirectory);
+      const relativeSharedPath = sharedDirectory
+        ? path.relative(appDirectory, sharedDirectory)
+        : '';
+      const isApiFile = filename.startsWith(`${relativeApiPath}/`);
+      const isSharedFile = relativeSharedPath
+        ? filename.startsWith(`${relativeSharedPath}/`)
+        : false;
       if (
         !isPrivate &&
-        (eventType === 'change' || eventType === 'unlink') &&
-        filename.startsWith(`${relativeApiPath}/`) &&
-        (filename.endsWith('.ts') || filename.endsWith('.js'))
+        (eventType === 'add' ||
+          eventType === 'change' ||
+          eventType === 'unlink') &&
+        (isApiFile || isSharedFile) &&
+        isWatchableBffFile(filename)
       ) {
         await handleCrossProjectInvocation();
       }

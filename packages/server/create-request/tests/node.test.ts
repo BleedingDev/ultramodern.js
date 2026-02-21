@@ -1,6 +1,11 @@
 import { storage } from '@modern-js/runtime-utils/node';
 import nock from 'nock';
-import { configure, createRequest } from '../src/node';
+import {
+  ProducerClientNotInitializedError,
+  configure,
+  createRequest,
+  createUploader,
+} from '../src/node';
 
 describe('configure', () => {
   const url = 'http://127.0.0.1:8080';
@@ -226,5 +231,29 @@ describe('configure', () => {
         expect(data).toStrictEqual(response);
       },
     );
+  });
+
+  test('should throw when non-default requestId is used before bootstrap', () => {
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+      requestId: 'producer-app',
+    });
+
+    expect(() => request()).toThrow(ProducerClientNotInitializedError);
+  });
+
+  test('uploader should throw when non-default requestId is not bootstrapped', () => {
+    const uploader = createUploader({
+      path,
+      requestId: 'producer-app',
+    });
+
+    expect(() =>
+      uploader({
+        files: { file: 'demo' },
+      }),
+    ).toThrow(ProducerClientNotInitializedError);
   });
 });

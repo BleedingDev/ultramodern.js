@@ -41,13 +41,14 @@ async function runtimeGenerator({
     'default';
 
   const source = `import { configure as _configure } from '${runtime}'
-    const configure = (options) => {
+    const initProducerClient = (options) => {
       return _configure({
         ...options,
         requestId: '${requestId}',
       });
     }
-    export { configure }
+    const configure = initProducerClient;
+    export { initProducerClient, configure }
   `;
   const pluginPath = path.join(pluginDir, 'index.js');
   await fs.ensureFile(pluginPath);
@@ -63,7 +64,8 @@ async function runtimeGenerator({
     }) => string;
     requestId?: string;
   };
-  export declare const configure: (options: IOptions) => void;`;
+  export declare const initProducerClient: (options: IOptions) => void;
+  export declare const configure: typeof initProducerClient;`;
   const pluginTypePath = path.join(pluginDir, 'index.d.ts');
   await fs.ensureFile(pluginTypePath);
   await fs.writeFile(pluginTypePath, tsSource);

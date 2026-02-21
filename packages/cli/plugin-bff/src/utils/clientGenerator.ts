@@ -61,6 +61,7 @@ const CLIENT_DIR = 'client';
 
 const EXPORT_PREFIX = `./${API_DIR}/`;
 const TYPE_PREFIX = `${API_DIR}/`;
+const GENERATED_RUNTIME_DIRS = [CLIENT_DIR, PLUGIN_DIR, RUNTIME_DIR];
 
 const toPosixPath = (p: string) => p.replace(/\\/g, '/');
 const posixJoin = (...args: string[]) => toPosixPath(path.join(...args));
@@ -159,25 +160,117 @@ function mergePackageJson(
       types?: string;
     }
   >,
+  relativeDistPath: string,
 ) {
-  packageJson.files = [...new Set([...(packageJson.files || []), ...files])];
+  const distPrefix = toPosixPath(`./${relativeDistPath}/`);
+  const generatedPrefixes = GENERATED_RUNTIME_DIRS.map(dir =>
+    toPosixPath(`${distPrefix}${dir}/`),
+  );
+  const isManagedExportEntry = (
+    value:
+      | {
+          import?: string;
+          require?: string;
+          types?: string;
+        }
+      | undefined,
+  ) => {
+    if (!value) {
+      return false;
+    }
+    const values = [value.import, value.require, value.types].filter(
+      Boolean,
+    ) as string[];
+    return values.every(entry =>
+      generatedPrefixes.some(prefix => entry.startsWith(prefix)),
+    );
+  };
+  const isManagedTypeEntry = (value: string[] | undefined) =>
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(entry =>
+      generatedPrefixes.some(prefix => entry.startsWith(prefix)),
+    );
+  const normalizedFiles = [...new Set(files.map(file => toPosixPath(file)))];
+  const currentFiles = packageJson.files || [];
+  packageJson.files = [
+    ...new Set([
+      ...currentFiles.map(file => toPosixPath(file)),
+      ...normalizedFiles,
+    ]),
+  ];
 
   packageJson.typesVersions ??= {};
   const typesVersions = packageJson.typesVersions;
   const starTypes = typesVersions['*'] || {};
-  Object.keys(starTypes).forEach(
-    k => k.startsWith(TYPE_PREFIX) && delete starTypes[k],
-  );
+  const generatedTypeEntries = typesVersion['*'] || {};
+  const generatedTypeKeys = new Set(Object.keys(generatedTypeEntries));
+  const typeConflicts = Object.entries(starTypes)
+    .filter(([key, value]) => {
+      if (!generatedTypeKeys.has(key) && !key.startsWith(TYPE_PREFIX)) {
+        return false;
+      }
+
+      const generatedValue = generatedTypeEntries[key];
+      if (generatedValue) {
+        return (
+          JSON.stringify(value) !== JSON.stringify(generatedValue) &&
+          !isManagedTypeEntry(value)
+        );
+      }
+
+      return !isManagedTypeEntry(value);
+    })
+    .map(([key]) => key);
+
+  if (typeConflicts.length > 0) {
+    throw new Error(
+      `[plugin-bff] package.json typesVersions conflict on keys: ${typeConflicts.sort().join(', ')}. Rename these keys or move them outside "${TYPE_PREFIX}" namespace.`,
+    );
+  }
+
+  Object.keys(starTypes).forEach(key => {
+    if (generatedTypeKeys.has(key) || key.startsWith(TYPE_PREFIX)) {
+      delete starTypes[key];
+    }
+  });
   typesVersions['*'] = {
     ...starTypes,
-    ...(typesVersion['*'] || {}),
+    ...generatedTypeEntries,
   };
 
   packageJson.exports ??= {};
   const packageExports = packageJson.exports;
-  Object.keys(packageExports).forEach(
-    k => k.startsWith(EXPORT_PREFIX) && delete packageExports[k],
-  );
+  const generatedExportKeys = new Set(Object.keys(exports));
+  const exportConflicts = Object.entries(packageExports)
+    .filter(([key, value]) => {
+      if (!generatedExportKeys.has(key) && !key.startsWith(EXPORT_PREFIX)) {
+        return false;
+      }
+
+      const generatedValue = exports[key];
+      if (generatedValue) {
+        return (
+          JSON.stringify(value) !== JSON.stringify(generatedValue) &&
+          !isManagedExportEntry(value)
+        );
+      }
+
+      return !isManagedExportEntry(value);
+    })
+    .map(([key]) => key);
+
+  if (exportConflicts.length > 0) {
+    throw new Error(
+      `[plugin-bff] package.json exports conflict on keys: ${exportConflicts.sort().join(', ')}. Rename these exports or move them outside "${EXPORT_PREFIX}" namespace.`,
+    );
+  }
+
+  Object.keys(packageExports).forEach(key => {
+    if (generatedExportKeys.has(key) || key.startsWith(EXPORT_PREFIX)) {
+      delete packageExports[key];
+    }
+  });
   Object.assign(packageExports, exports);
 }
 
@@ -195,83 +288,88 @@ async function setPackage(
   appDirectory: string,
   relativeDistPath: string,
 ) {
-  try {
-    const packagePath = path.resolve(appDirectory, './package.json');
-    const packageContent = await fs.readFile(packagePath, 'utf8');
-    const packageJson = JSON.parse(packageContent) as PackageJsonLike;
+  const packagePath = path.resolve(appDirectory, './package.json');
+  const packageContent = await fs.readFile(packagePath, 'utf8');
+  const packageJson = JSON.parse(packageContent) as PackageJsonLike;
+  const sortedFiles = [...files].sort((a, b) =>
+    a.exportKey.localeCompare(b.exportKey),
+  );
 
-    const addFiles = [
-      posixJoin(relativeDistPath, CLIENT_DIR, '**', '*'),
-      posixJoin(relativeDistPath, RUNTIME_DIR, '**', '*'),
-      posixJoin(relativeDistPath, PLUGIN_DIR, '**', '*'),
-    ];
+  const addFiles = [
+    posixJoin(relativeDistPath, CLIENT_DIR, '**', '*'),
+    posixJoin(relativeDistPath, RUNTIME_DIR, '**', '*'),
+    posixJoin(relativeDistPath, PLUGIN_DIR, '**', '*'),
+  ];
 
-    const typesVersions = {
-      '*': files.reduce(
-        (acc, file) => {
-          const typeFilePath = toPosixPath(`./${file.targetDir}`).replace(
-            'js',
-            'd.ts',
-          );
-          return {
-            ...acc,
-            [toPosixPath(`${TYPE_PREFIX}${file.exportKey}`)]: [typeFilePath],
-          };
-        },
-        {
-          [`${API_DIR}/*`]: [
-            toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.d.ts`),
-          ],
-          [RUNTIME_DIR]: [
-            toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.d.ts`),
-          ],
-          [PLUGIN_DIR]: [
-            toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.d.ts`),
-          ],
-        },
-      ),
-    };
-
-    const exports = files.reduce(
+  const typesVersions = {
+    '*': sortedFiles.reduce(
       (acc, file) => {
-        const exportKey = `${EXPORT_PREFIX}${file.exportKey}`;
-        const jsFilePath = toPosixPath(`./${file.targetDir}`);
-
+        const typeFilePath = toPosixPath(`./${file.targetDir}`).replace(
+          /\.js$/,
+          '.d.ts',
+        );
         return {
           ...acc,
-          [toPosixPath(exportKey)]: {
-            import: jsFilePath,
-            types: toPosixPath(jsFilePath.replace(/\.js$/, '.d.ts')),
-          },
+          [toPosixPath(`${TYPE_PREFIX}${file.exportKey}`)]: [typeFilePath],
         };
       },
       {
-        [toPosixPath(`./${API_DIR}/*`)]: {
-          import: toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.js`),
-          types: toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.d.ts`),
-        },
-        [toPosixPath(`./${PLUGIN_DIR}`)]: {
-          import: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.js`),
-          require: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.js`),
-          types: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.d.ts`),
-        },
-        [toPosixPath(`./${RUNTIME_DIR}`)]: {
-          import: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.js`),
-          require: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.js`),
-          types: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.d.ts`),
-        },
+        [`${API_DIR}/*`]: [
+          toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.d.ts`),
+        ],
+        [RUNTIME_DIR]: [
+          toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.d.ts`),
+        ],
+        [PLUGIN_DIR]: [
+          toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.d.ts`),
+        ],
       },
-    );
+    ),
+  };
 
-    mergePackageJson(packageJson, addFiles, typesVersions, exports);
+  const exports = sortedFiles.reduce(
+    (acc, file) => {
+      const exportKey = `${EXPORT_PREFIX}${file.exportKey}`;
+      const jsFilePath = toPosixPath(`./${file.targetDir}`);
 
-    await fs.promises.writeFile(
-      packagePath,
-      JSON.stringify(packageJson, null, 2),
-    );
-  } catch (error) {
-    logger.error(`package.json update failed: ${error}`);
-  }
+      return {
+        ...acc,
+        [toPosixPath(exportKey)]: {
+          import: jsFilePath,
+          types: toPosixPath(jsFilePath.replace(/\.js$/, '.d.ts')),
+        },
+      };
+    },
+    {
+      [toPosixPath(`./${API_DIR}/*`)]: {
+        import: toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.js`),
+        types: toPosixPath(`./${relativeDistPath}/${CLIENT_DIR}/*.d.ts`),
+      },
+      [toPosixPath(`./${PLUGIN_DIR}`)]: {
+        import: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.js`),
+        require: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.js`),
+        types: toPosixPath(`./${relativeDistPath}/${PLUGIN_DIR}/index.d.ts`),
+      },
+      [toPosixPath(`./${RUNTIME_DIR}`)]: {
+        import: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.js`),
+        require: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.js`),
+        types: toPosixPath(`./${relativeDistPath}/${RUNTIME_DIR}/index.d.ts`),
+      },
+    },
+  );
+
+  mergePackageJson(
+    packageJson,
+    addFiles,
+    typesVersions,
+    exports,
+    relativeDistPath,
+  );
+
+  await fs.promises.writeFile(
+    packagePath,
+    JSON.stringify(packageJson, null, 2),
+  );
 }
 
 export async function copyFiles(from: string, to: string) {
@@ -281,6 +379,13 @@ export async function copyFiles(from: string, to: string) {
 }
 
 async function clientGenerator(draftOptions: APILoaderOptions) {
+  const generatedClientDir = path.resolve(
+    draftOptions.appDir,
+    draftOptions.relativeDistPath,
+    CLIENT_DIR,
+  );
+  await fs.remove(generatedClientDir);
+
   const lambdaSourceList = draftOptions.existLambda
     ? await readDirectoryFiles(
         draftOptions.appDir,
