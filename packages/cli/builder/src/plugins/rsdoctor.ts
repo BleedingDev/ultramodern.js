@@ -17,6 +17,20 @@ const isRsdoctorEnabled = (
   return defaultEnabled;
 };
 
+const getRsdoctorPluginOptions = (
+  config: RsdoctorUserConfig | undefined,
+): { disableClientServer: boolean } => {
+  if (config && typeof config === 'object') {
+    return {
+      disableClientServer: config.disableClientServer ?? true,
+    };
+  }
+
+  return {
+    disableClientServer: true,
+  };
+};
+
 export const pluginRsdoctor = (
   config: RsdoctorUserConfig | undefined,
   defaultEnabled: boolean,
@@ -25,6 +39,8 @@ export const pluginRsdoctor = (
     return null;
   }
 
+  const pluginOptions = getRsdoctorPluginOptions(config);
+
   return {
     name: 'builder:rsdoctor',
     setup(api) {
@@ -32,7 +48,7 @@ export const pluginRsdoctor = (
         const { RsdoctorRspackPlugin } = await import(
           '@rsdoctor/rspack-plugin'
         );
-        chain.plugin('rsdoctor').use(RsdoctorRspackPlugin);
+        chain.plugin('rsdoctor').use(RsdoctorRspackPlugin, [pluginOptions]);
       });
     },
   };

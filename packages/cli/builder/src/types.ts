@@ -122,6 +122,11 @@ export type RsdoctorUserConfig =
        * By default, Modern.js enables Rsdoctor in production builds.
        */
       enabled?: boolean;
+      /**
+       * Disable Rsdoctor client server and ensure build process exits after report generation.
+       * @default true
+       */
+      disableClientServer?: boolean;
     };
 
 export type BuilderExtraConfig = {
