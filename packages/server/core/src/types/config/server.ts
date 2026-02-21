@@ -19,6 +19,12 @@ export type SSR =
       inlineScript?: boolean;
       unsafeHeaders?: string[];
       loaderFailureMode?: 'clientRender' | 'errorBoundary';
+      /**
+       * Enable app-level Module Federation SSR bridge path in alpha mode.
+       * This flag should be enabled in both host and remote applications.
+       * @default false
+       */
+      moduleFederationAppSSRAlpha?: boolean;
     };
 
 export type SSRByEntries = Record<string, SSR>;

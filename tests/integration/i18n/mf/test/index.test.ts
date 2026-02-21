@@ -5,7 +5,12 @@ import {
   launchApp,
   launchOptions,
 } from '../../../../utils/modernTestUtils';
-import { clearI18nTestState, conditionalTest } from '../../test-utils';
+import {
+  clearI18nTestState,
+  conditionalTest,
+  gotoWithSSRRetry,
+  waitForHydration,
+} from '../../test-utils';
 
 async function waitForAppReady(port: number, maxRetries = 30) {
   for (let i = 0; i < maxRetries; i++) {
@@ -34,6 +39,24 @@ const consumerDir = path.resolve(__dirname, '../mf-consumer');
 const COMPONENT_PROVIDER_PORT = 3006;
 const APP_PROVIDER_PORT = 3005;
 const CONSUMER_PORT = 3007;
+const APP_MF_SSR_ALPHA_ENV = {
+  MODERN_MF_APP_SSR_ALPHA: 'true',
+  MODERN_FAST_TEST: 'true',
+};
+
+async function fetchHtml(port: number, pathname: string) {
+  const response = await fetch(`http://localhost:${port}${pathname}`, {
+    headers: {
+      'accept-language': 'en-US,en;q=0.9',
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+
+  return {
+    status: response.status,
+    html: await response.text(),
+  };
+}
 
 describe('mf-i18n-tests', () => {
   let componentProviderApp: unknown;
@@ -51,7 +74,12 @@ describe('mf-i18n-tests', () => {
     );
     await waitForAppReady(COMPONENT_PROVIDER_PORT);
 
-    appProviderApp = await launchApp(appProviderDir, APP_PROVIDER_PORT);
+    appProviderApp = await launchApp(
+      appProviderDir,
+      APP_PROVIDER_PORT,
+      {},
+      APP_MF_SSR_ALPHA_ENV,
+    );
     await waitForAppReady(APP_PROVIDER_PORT);
 
     componentProviderBrowser = await puppeteer.launch(launchOptions as any);
@@ -248,7 +276,12 @@ describe('mf-i18n-tests', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 3);
-      consumerApp = await launchApp(consumerDir, CONSUMER_PORT);
+      consumerApp = await launchApp(
+        consumerDir,
+        CONSUMER_PORT,
+        {},
+        APP_MF_SSR_ALPHA_ENV,
+      );
       await waitForAppReady(CONSUMER_PORT);
 
       browser = await puppeteer.launch(launchOptions as any);
@@ -352,7 +385,12 @@ describe('mf-i18n-tests', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 3);
-      consumerApp = await launchApp(consumerDir, CONSUMER_PORT);
+      consumerApp = await launchApp(
+        consumerDir,
+        CONSUMER_PORT,
+        {},
+        APP_MF_SSR_ALPHA_ENV,
+      );
       await waitForAppReady(CONSUMER_PORT);
 
       browser = await puppeteer.launch(launchOptions as any);
@@ -374,6 +412,37 @@ describe('mf-i18n-tests', () => {
         await killApp(consumerApp);
       }
     });
+
+    conditionalTest(
+      'should server render app-level remote route when alpha SSR is enabled',
+      async () => {
+        const { status, html } = await fetchHtml(CONSUMER_PORT, '/en/remote-2');
+        expect(status).toBe(200);
+        expect(html).toContain('data-mf-app-loading="app-remote-custom"');
+        expect(html).not.toContain('__modern_ssr_fallback_reason__');
+      },
+    );
+
+    conditionalTest(
+      'should keep app-level remote SSR content stable after hydration',
+      async () => {
+        const ssrResponse = await gotoWithSSRRetry(
+          page,
+          `http://localhost:${CONSUMER_PORT}/en/remote-2`,
+        );
+        expect(ssrResponse).toBeTruthy();
+        expect(ssrResponse).toContain(
+          'data-mf-app-loading="app-remote-custom"',
+        );
+        await waitForHydration(page, '#key');
+        const remoteKey = await page.$('#key');
+        const remoteText = await page.evaluate(
+          el => el?.textContent,
+          remoteKey,
+        );
+        expect(remoteText?.trim()).toEqual('Hello World(provider-custom)');
+      },
+    );
 
     conditionalTest('should load remote app correctly', async () => {
       await page.goto(`http://localhost:${CONSUMER_PORT}/en/remote`, {
@@ -436,5 +505,41 @@ describe('mf-i18n-tests', () => {
       const remoteText = await page.evaluate(el => el?.textContent, remoteKey);
       expect(remoteText?.trim()).toEqual('你好，世界(provider-custom)');
     });
+  });
+
+  describe('mf-consumer with unavailable app-level remote', () => {
+    let consumerApp: unknown;
+
+    beforeAll(async () => {
+      jest.setTimeout(1000 * 60 * 2);
+      consumerApp = await launchApp(
+        consumerDir,
+        CONSUMER_PORT,
+        {},
+        APP_MF_SSR_ALPHA_ENV,
+      );
+      await waitForAppReady(CONSUMER_PORT);
+    });
+
+    afterAll(async () => {
+      if (consumerApp) {
+        await killApp(consumerApp);
+      }
+    });
+
+    conditionalTest(
+      'should fallback to client boundary when app-level remote is unavailable',
+      async () => {
+        const { status, html } = await fetchHtml(
+          CONSUMER_PORT,
+          '/en/remote-unavailable',
+        );
+        expect(status).toBe(200);
+        expect(html).toContain('data-mf-app-loading="app-remote-unavailable"');
+        expect(html).toContain(
+          'Switched to client rendering because the server rendering errored',
+        );
+      },
+    );
   });
 });

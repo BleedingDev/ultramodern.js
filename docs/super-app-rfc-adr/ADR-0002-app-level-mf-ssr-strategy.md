@@ -1,6 +1,6 @@
 # ADR-0002: App-Level Module Federation SSR Strategy
 
-- Status: Proposed
+- Status: Implemented (Alpha)
 - Date: 2026-02-21
 - Decision Type: Runtime architecture
 
@@ -67,3 +67,16 @@ Adopt a phased SSR strategy for app-level MF:
 - Feature-flagged app-level MF SSR path works in dev and serve.
 - No critical hydration regressions in test matrix.
 - Remote SSR failure gracefully degrades to CSR with observability signals.
+
+## 9. Implementation Notes (2026-02-21)
+
+- Added alpha config flag: `server.ssr.moduleFederationAppSSRAlpha`.
+- Added runtime define: `process.env.MODERN_MF_APP_SSR_ALPHA`.
+- Added i18n MF integration coverage for:
+  - dev SSR shell + hydration consistency.
+  - remote-unavailable fallback boundary behavior.
+  - serve-mode SSR shell + fallback boundary behavior.
+- Added provider routing hardening for manifest endpoints by ignoring i18n locale redirect on:
+  - `/mf-manifest.json`
+  - `/mf-stats.json`
+  - `/remoteEntry.js`
