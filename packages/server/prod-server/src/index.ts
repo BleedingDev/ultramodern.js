@@ -8,6 +8,13 @@ export { createProxyHandler } from './libs/proxy';
 export * from './type';
 export * from './constants';
 export { createRenderHandler } from './libs/render';
+export {
+  TelemetryRegistry,
+  createOtlpTelemetryExporter,
+  createVictoriaMetricsTelemetryExporter,
+  createTelemetryAwareMetrics,
+  hasEnabledTelemetryExporters,
+} from './libs/telemetry';
 
 export default (options: ModernServerOptions): Promise<Server> => {
   if (options == null) {

@@ -28,6 +28,13 @@ import {
 } from '../type';
 import { metrics as defaultMetrics } from '../libs/metrics';
 import {
+  TelemetryRegistry,
+  createOtlpTelemetryExporter,
+  createTelemetryAwareMetrics,
+  createVictoriaMetricsTelemetryExporter,
+  hasEnabledTelemetryExporters,
+} from '../libs/telemetry';
+import {
   loadConfig,
   getServerConfigPath,
   requireConfig,
@@ -47,6 +54,8 @@ export class Server {
   private runner!: ServerHookRunner;
 
   private serverConfig: ServerConfig;
+
+  private telemetryRegistry?: TelemetryRegistry;
 
   constructor(options: ModernServerOptions) {
     options.logger = options.logger || createLogger({ level: 'warn' });
@@ -88,6 +97,7 @@ export class Server {
 
     // init config and execute config hook
     await this.initConfig(this.runner, options);
+    await this.initTelemetry(options);
 
     await this.injectContext(this.runner, options);
 
@@ -172,8 +182,68 @@ export class Server {
     });
   }
 
+  private async initTelemetry(options: ModernServerOptions) {
+    const telemetryConfig = options.config.server?.telemetry;
+    if (!telemetryConfig) {
+      return;
+    }
+
+    const hasEnabledExporters = hasEnabledTelemetryExporters(telemetryConfig);
+    if (telemetryConfig.enabled !== true && !hasEnabledExporters) {
+      return;
+    }
+
+    if (!hasEnabledExporters) {
+      return;
+    }
+
+    const registry = new TelemetryRegistry({
+      service:
+        telemetryConfig.service || options.appContext?.metaName || 'modern-js',
+      module: telemetryConfig.module || 'server',
+      environment:
+        telemetryConfig.environment ||
+        process.env.MODERN_ENV ||
+        process.env.NODE_ENV ||
+        'development',
+      samplingRate: telemetryConfig.samplingRate,
+      flushIntervalMs: telemetryConfig.flushIntervalMs,
+      maxBatchSize: telemetryConfig.maxBatchSize,
+      maxQueueSize: telemetryConfig.maxQueueSize,
+      redactionKeys: telemetryConfig.redactionKeys,
+    });
+
+    if (telemetryConfig.exporters?.otlp?.enabled) {
+      await registry.register(
+        createOtlpTelemetryExporter(telemetryConfig.exporters.otlp),
+      );
+    }
+
+    if (telemetryConfig.exporters?.victoriaMetrics?.enabled) {
+      await registry.register(
+        createVictoriaMetricsTelemetryExporter(
+          telemetryConfig.exporters.victoriaMetrics,
+        ),
+      );
+    }
+
+    options.metrics = createTelemetryAwareMetrics(
+      options.metrics || defaultMetrics,
+      registry,
+    );
+    this.telemetryRegistry = registry;
+  }
+
   public async close() {
-    this.app.close();
+    if (this.telemetryRegistry) {
+      await this.telemetryRegistry.shutdown();
+    }
+    if (!this.app) {
+      return;
+    }
+    await new Promise<void>(resolve => {
+      this.app.close(() => resolve());
+    });
   }
 
   public listen<T extends number | ListenOptions | undefined>(

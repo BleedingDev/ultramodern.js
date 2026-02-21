@@ -272,26 +272,42 @@ describe('test measure', () => {
 
   it('should metrics work correctly', () => {
     let code = -1;
+    let counterTags: Record<string, unknown> | null = null;
+    let timerTags: Record<string, unknown> | null = null;
     const metrics = createMetrics(
       {
         entryName: '',
         request: {
           pathname: '/',
+          headers: {
+            traceparent:
+              '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+          },
         },
       } as any,
       {
-        emitCounter() {
+        emitCounter(_name, _value, tags) {
           code = 0;
+          counterTags = tags;
         },
-        emitTimer() {
+        emitTimer(_name, _value, tags) {
           code = 2;
+          timerTags = tags;
         },
       } as any,
     );
 
     metrics.emitCounter('msg', 1);
     expect(code).toBe(0);
+    expect(counterTags).toMatchObject({
+      trace_id: '4bf92f3577b34da6a3ce929d0e0e4736',
+      span_id: '00f067aa0ba902b7',
+    });
     metrics.emitTimer('msg', 1);
     expect(code).toBe(2);
+    expect(timerTags).toMatchObject({
+      trace_id: '4bf92f3577b34da6a3ce929d0e0e4736',
+      span_id: '00f067aa0ba902b7',
+    });
   });
 });

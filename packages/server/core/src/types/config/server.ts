@@ -35,15 +35,94 @@ export type SSRPreload = {
 
 export type SSR =
   | boolean
-  | {
-      forceCSR?: boolean;
-      mode?: SSRMode;
-      preload?: boolean | SSRPreload;
-      inlineScript?: boolean;
-      disablePrerender?: boolean;
-    };
+    | {
+        forceCSR?: boolean;
+        mode?: SSRMode;
+        preload?: boolean | SSRPreload;
+        inlineScript?: boolean;
+        disablePrerender?: boolean;
+        /**
+         * Enable app-level Module Federation SSR bridge path in alpha mode.
+         * This flag should be enabled in both host and remote applications.
+         * @default false
+         */
+        moduleFederationAppSSRAlpha?: boolean;
+      };
 
 export type SSRByEntries = Record<string, SSR>;
+
+export interface ServerTelemetryExporterOptions {
+  enabled?: boolean;
+  endpoint?: string;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+}
+
+export interface ServerTelemetryVictoriaMetricsOptions
+  extends ServerTelemetryExporterOptions {
+  metricPrefix?: string;
+}
+
+export interface ServerTelemetryUserConfig {
+  /**
+   * Enable framework telemetry envelopes.
+   *
+   * @default false
+   */
+  enabled?: boolean;
+  /**
+   * Service name in telemetry envelopes.
+   *
+   * @default server.metaName
+   */
+  service?: string;
+  /**
+   * Module name in telemetry envelopes.
+   *
+   * @default "server"
+   */
+  module?: string;
+  /**
+   * Environment name in telemetry envelopes.
+   *
+   * @default process.env.MODERN_ENV || process.env.NODE_ENV || "development"
+   */
+  environment?: string;
+  /**
+   * Sampling rate for telemetry events.
+   *
+   * @default 1
+   */
+  samplingRate?: number;
+  /**
+   * Flush interval in milliseconds.
+   *
+   * @default 1000
+   */
+  flushIntervalMs?: number;
+  /**
+   * Maximum envelopes in one emitted batch.
+   *
+   * @default 50
+   */
+  maxBatchSize?: number;
+  /**
+   * Maximum in-memory queue size.
+   *
+   * @default 1000
+   */
+  maxQueueSize?: number;
+  /**
+   * Envelope attribute keys to redact.
+   */
+  redactionKeys?: string[];
+  exporters?: {
+    /** OpenTelemetry HTTP exporter. */
+    otlp?: ServerTelemetryExporterOptions;
+    /** VictoriaMetrics Prometheus import exporter. */
+    victoriaMetrics?: ServerTelemetryVictoriaMetricsOptions;
+  };
+}
 
 export interface ServerUserConfig {
   routes?: Routes;
@@ -54,6 +133,7 @@ export interface ServerUserConfig {
   port?: number;
   logger?: boolean | Record<string, any>;
   metrics?: boolean | Record<string, any>;
+  telemetry?: ServerTelemetryUserConfig;
   enableMicroFrontendDebug?: boolean;
   watchOptions?: WatchOptions;
   compiler?: 'babel' | 'typescript';

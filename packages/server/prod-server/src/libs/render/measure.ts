@@ -2,12 +2,34 @@
 import { BaseSSRServerContext, Logger, Metrics } from '@modern-js/types';
 import { headersWithoutCookie } from '../../utils';
 
+const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
+
+const parseTraceparent = (
+  value: string | string[] | undefined,
+): { traceId: string; spanId: string } | null => {
+  const traceparent = Array.isArray(value) ? value[0] : value;
+  if (!traceparent) {
+    return null;
+  }
+
+  const match = traceparent.trim().match(TRACEPARENT_REGEX);
+  if (!match?.[1] || !match?.[2]) {
+    return null;
+  }
+
+  return {
+    traceId: match[1].toLowerCase(),
+    spanId: match[2].toLowerCase(),
+  };
+};
+
 export const createMetrics = (
   context: BaseSSRServerContext,
   metrics: Metrics,
 ) => {
   const { entryName: entry, request } = context;
-  const { pathname = '' } = request || {};
+  const { pathname = '', headers = {} } = request || {};
+  const traceContext = parseTraceparent(headers.traceparent);
 
   const emitTimer = (
     name: string,
@@ -15,9 +37,15 @@ export const createMetrics = (
     tags: Record<string, unknown> = {},
   ) => {
     metrics.emitTimer(name, cost, {
-      ...tags,
       pathname,
       entry,
+      ...(traceContext
+        ? {
+            trace_id: traceContext.traceId,
+            span_id: traceContext.spanId,
+          }
+        : {}),
+      ...tags,
     });
   };
 
@@ -27,9 +55,15 @@ export const createMetrics = (
     tags: Record<string, unknown> = {},
   ) => {
     metrics.emitCounter(name, counter, {
-      ...tags,
       pathname,
       entry,
+      ...(traceContext
+        ? {
+            trace_id: traceContext.traceId,
+            span_id: traceContext.spanId,
+          }
+        : {}),
+      ...tags,
     });
   };
 
