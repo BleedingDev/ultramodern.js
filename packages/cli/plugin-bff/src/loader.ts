@@ -12,6 +12,7 @@ export type APILoaderOptions = {
   port: number;
   fetcher?: string;
   requestCreator?: string;
+  requestId?: string;
   target: string;
   httpMethodDecider?: HttpMethodDecider;
 };
@@ -62,6 +63,9 @@ async function loader(this: LoaderContext<APILoaderOptions>, source: string) {
 
   if (draftOptions.requestCreator) {
     options.requestCreator = draftOptions.requestCreator;
+  }
+  if (draftOptions.requestId) {
+    options.requestId = draftOptions.requestId;
   }
 
   options.requireResolve = require.resolve;

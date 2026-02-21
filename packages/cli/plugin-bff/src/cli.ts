@@ -33,6 +33,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
                 },
                 fetcher: { type: 'string' },
                 proxy: { type: 'object' },
+                requestId: { type: 'string' },
               },
             },
           },
@@ -82,6 +83,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
                   target: name,
                   // Internal field
                   requestCreator: (bff as any)?.requestCreator,
+                  requestId: (bff as any)?.requestId,
                   httpMethodDecider,
                 });
 

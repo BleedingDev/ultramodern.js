@@ -60,4 +60,28 @@ describe('client', () => {
     expect(result.isOk).toBeTruthy();
     expect(result.value).toMatchSnapshot();
   });
+
+  test('generateClient should append requestId when provided', async () => {
+    const prefix = '/api';
+    const port = 3000;
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/[id]/origin/foo.ts',
+    );
+    const source = await fs.readFile(resourcePath, 'utf-8');
+
+    const result = await generateClient({
+      prefix,
+      port,
+      resourcePath,
+      source,
+      apiDir: PWD,
+      lambdaDir: path.join(PWD, './lambda'),
+      requestId: 'producer-sdk',
+      requireResolve: ((input: any) => input) as any,
+    });
+
+    expect(result.isOk).toBeTruthy();
+    expect(result.value).toContain(`'producer-sdk'`);
+  });
 });

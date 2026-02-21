@@ -3,7 +3,11 @@
  */
 import nock from 'nock';
 import 'isomorphic-fetch';
-import { configure, createRequest } from '../src/browser';
+import {
+  configure,
+  createRequest,
+  ProducerClientNotInitializedError,
+} from '../src/browser';
 
 describe('configure', () => {
   const url = 'http://localhost:8080';
@@ -146,5 +150,68 @@ describe('configure', () => {
     const data = await res.json();
     expect(res instanceof Response).toBe(true);
     expect(data).toStrictEqual(response);
+  });
+
+  test('should throw for non-default requestId when producer client is not initialized', async () => {
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      'missing-producer',
+    );
+
+    await expect(request()).rejects.toBeInstanceOf(
+      ProducerClientNotInitializedError,
+    );
+  });
+
+  test('should isolate custom request by requestId', async () => {
+    const producerA = 'producer-a';
+    const producerB = 'producer-b';
+    const urlA = 'http://localhost:9081';
+    const urlB = 'http://localhost:9082';
+
+    nock(urlA).get(path).reply(200, response);
+    nock(urlB).get(path).reply(200, response);
+
+    const customRequestA = jest.fn((requestPath: RequestInfo) => {
+      const finalUrl = `${urlA}${requestPath as string}`;
+      return fetch(finalUrl);
+    });
+
+    const customRequestB = jest.fn((requestPath: RequestInfo) => {
+      const finalUrl = `${urlB}${requestPath as string}`;
+      return fetch(finalUrl);
+    });
+
+    configure({ request: customRequestA, requestId: producerA });
+    configure({ request: customRequestB, requestId: producerB });
+
+    const requestA = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producerA,
+    );
+    const requestB = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producerB,
+    );
+
+    const resA = await requestA();
+    const resB = await requestB();
+
+    expect(customRequestA).toHaveBeenCalledTimes(1);
+    expect(customRequestB).toHaveBeenCalledTimes(1);
+    expect(resA instanceof Response).toBe(true);
+    expect(resB instanceof Response).toBe(true);
   });
 });
