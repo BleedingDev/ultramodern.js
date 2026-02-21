@@ -18,6 +18,7 @@ export type GenClientOptions = {
   target?: string;
   requireResolve?: typeof require.resolve;
   httpMethodDecider?: HttpMethodDecider;
+  requestId?: string;
 };
 
 export const DEFAULT_CLIENT_REQUEST_CREATOR = '@modern-js/create-request';
@@ -34,6 +35,7 @@ export const generateClient = async ({
   fetcher,
   requireResolve = require.resolve,
   httpMethodDecider,
+  requestId,
 }: GenClientOptions): Promise<GenClientResult> => {
   if (!requestCreator) {
     // eslint-disable-next-line no-param-reassign
@@ -76,19 +78,22 @@ export const generateClient = async ({
     const upperHttpMethod = httpMethod.toUpperCase();
 
     const routeName = routePath;
+    const optionalArgs = [
+      fetcher ? 'fetch' : undefined,
+      requestId ? `'${requestId}'` : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    const tailArgs = optionalArgs ? `, ${optionalArgs}` : ' ';
     if (target === 'server') {
       handlersCode += `export ${exportStatement} createRequest('${routeName}', '${upperHttpMethod}', process.env.PORT || ${String(
         port,
-      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}' ${
-        fetcher ? `, fetch` : ''
-      });
+      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}'${tailArgs});
       `;
     } else {
       handlersCode += `export ${exportStatement} createRequest('${routeName}', '${upperHttpMethod}', ${String(
         port,
-      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}' ${
-        fetcher ? `, fetch` : ''
-      });
+      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}'${tailArgs});
       `;
     }
   }

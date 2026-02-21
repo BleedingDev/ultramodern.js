@@ -8,9 +8,9 @@ import type {
   IOptions,
 } from './types';
 
-let realRequest: typeof fetch;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-let realAllowedHeaders: string[];
+const realRequest: Map<string, typeof fetch> = new Map();
+const realAllowedHeaders: Map<string, string[]> = new Map();
+const domainMap: Map<string, string> = new Map();
 
 const originFetch = (...params: Parameters<typeof fetch>) => {
   const [url, init] = params;
@@ -22,15 +22,55 @@ const originFetch = (...params: Parameters<typeof fetch>) => {
   return fetch(url, init).then(handleRes);
 };
 
+export class ProducerClientNotInitializedError extends Error {
+  readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
+
+  constructor(requestId: string) {
+    super(
+      `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
+    );
+    this.name = 'ProducerClientNotInitializedError';
+  }
+}
+
+const getConfiguredRequest = (requestId: string, fallback: typeof fetch) => {
+  const configuredRequest = realRequest.get(requestId);
+  if (configuredRequest) {
+    return configuredRequest;
+  }
+
+  if (requestId !== 'default') {
+    throw new ProducerClientNotInitializedError(requestId);
+  }
+
+  return fallback;
+};
+
 export const configure = (options: IOptions) => {
-  const { request, interceptor, allowedHeaders } = options;
-  realRequest = request || originFetch;
+  const {
+    request,
+    interceptor,
+    allowedHeaders,
+    setDomain,
+    requestId = 'default',
+  } = options;
+  let configuredRequest = request || originFetch;
   if (interceptor && !request) {
-    realRequest = interceptor(fetch);
+    configuredRequest = interceptor(fetch);
   }
   if (Array.isArray(allowedHeaders)) {
-    realAllowedHeaders = allowedHeaders;
+    realAllowedHeaders.set(requestId, allowedHeaders);
   }
+  if (setDomain) {
+    domainMap.set(
+      requestId,
+      setDomain({
+        target: 'browser',
+        requestId,
+      }),
+    );
+  }
+  realRequest.set(requestId, configuredRequest);
 };
 
 export const createRequest: RequestCreator = (
@@ -41,13 +81,14 @@ export const createRequest: RequestCreator = (
   // 后续可能要修改，暂时先保留
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetch = originFetch,
+  requestId = 'default',
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keys: Key[] = [];
   pathToRegexp(path, keys);
 
   const sender: Sender = async (...args) => {
-    const fetcher = realRequest || originFetch;
+    const fetcher = getConfiguredRequest(requestId, fetch);
     let body;
     let finalURL: string;
     let headers: Record<string, any>;
@@ -120,6 +161,8 @@ export const createRequest: RequestCreator = (
     }
 
     headers.accept = `application/json,*/*;q=0.8`;
+    const configDomain = domainMap.get(requestId);
+    finalURL = `${configDomain || ''}${finalURL}`;
 
     return fetcher(finalURL, {
       method,

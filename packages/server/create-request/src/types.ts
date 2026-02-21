@@ -21,10 +21,16 @@ export type RequestCreator<F = typeof fetch> = (
   port: number,
   httpMethodDecider: HttpMethodDecider,
   fetch?: F,
+  requestId?: string,
 ) => Sender;
 
 export type IOptions<F = typeof fetch> = {
   request?: F;
   interceptor?: (request: F) => F;
   allowedHeaders?: string[];
+  setDomain?: (ops?: {
+    target: 'server' | 'browser';
+    requestId: string;
+  }) => string;
+  requestId?: string;
 };

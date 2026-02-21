@@ -12,8 +12,10 @@ import type {
 
 type Fetch = typeof nodeFetch;
 
-let realRequest: Fetch;
-let realAllowedHeaders: string[] = [];
+const realRequest: Map<string, Fetch> = new Map();
+const realAllowedHeaders: Map<string, string[]> = new Map();
+const domainMap: Map<string, string> = new Map();
+
 const originFetch = (...params: Parameters<typeof nodeFetch>) => {
   const [, init] = params;
 
@@ -24,15 +26,55 @@ const originFetch = (...params: Parameters<typeof nodeFetch>) => {
   return nodeFetch(...params).then(handleRes);
 };
 
+export class ProducerClientNotInitializedError extends Error {
+  readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
+
+  constructor(requestId: string) {
+    super(
+      `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
+    );
+    this.name = 'ProducerClientNotInitializedError';
+  }
+}
+
+const getConfiguredRequest = (requestId: string, fallback: Fetch) => {
+  const configuredRequest = realRequest.get(requestId);
+  if (configuredRequest) {
+    return configuredRequest;
+  }
+
+  if (requestId !== 'default') {
+    throw new ProducerClientNotInitializedError(requestId);
+  }
+
+  return fallback;
+};
+
 export const configure = (options: IOptions<typeof nodeFetch>) => {
-  const { request, interceptor, allowedHeaders } = options;
-  realRequest = (request as Fetch) || originFetch;
+  const {
+    request,
+    interceptor,
+    allowedHeaders,
+    setDomain,
+    requestId = 'default',
+  } = options;
+  let configuredRequest = (request as Fetch) || originFetch;
   if (interceptor && !request) {
-    realRequest = interceptor(nodeFetch);
+    configuredRequest = interceptor(nodeFetch);
   }
   if (Array.isArray(allowedHeaders)) {
-    realAllowedHeaders = allowedHeaders;
+    realAllowedHeaders.set(requestId, allowedHeaders);
   }
+  if (setDomain) {
+    domainMap.set(
+      requestId,
+      setDomain({
+        target: 'server',
+        requestId,
+      }),
+    );
+  }
+  realRequest.set(requestId, configuredRequest);
 };
 
 export const createRequest: RequestCreator<typeof nodeFetch> = (
@@ -43,13 +85,17 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
   // 后续可能要修改，暂时先保留
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetch = nodeFetch,
+  requestId = 'default',
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keys: Key[] = [];
   pathToRegexp(path, keys);
 
   const sender: Sender = (...args) => {
-    const webRequestHeaders = useHeaders();
+    let webRequestHeaders = {} as Record<string, any>;
+    if (requestId === 'default') {
+      webRequestHeaders = useHeaders();
+    }
     let body;
     let headers: Record<string, any>;
     let url: string;
@@ -83,7 +129,8 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
         ? `${plainPath}?${stringify(payload.query)}`
         : plainPath;
       headers = payload.headers || {};
-      for (const key of realAllowedHeaders) {
+      const targetAllowedHeaders = realAllowedHeaders.get(requestId) || [];
+      for (const key of targetAllowedHeaders) {
         if (typeof webRequestHeaders[key] !== 'undefined') {
           headers[key] = webRequestHeaders[key];
         }
@@ -113,10 +160,11 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
         }
       }
 
-      url = `http://127.0.0.1:${port}${finalPath}`;
+      const configDomain = domainMap.get(requestId);
+      url = `${configDomain || `http://127.0.0.1:${port}`}${finalPath}`;
     }
 
-    const fetcher = realRequest || originFetch;
+    const fetcher = getConfiguredRequest(requestId, fetch);
 
     if (method.toLowerCase() === 'get') {
       body = undefined;

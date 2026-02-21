@@ -6,7 +6,11 @@ import { run } from '@modern-js/runtime-utils/node';
 // 如果通过 default 引入会报 "Property exprName of TSTypeQuery expected node to be of a type ["TSEntityName","TSImportType"] but instead got "MemberExpression"
 import * as fetch from 'node-fetch';
 import { Response } from 'node-fetch';
-import { configure, createRequest } from '../src/node';
+import {
+  configure,
+  createRequest,
+  ProducerClientNotInitializedError,
+} from '../src/node';
 
 describe('configure', () => {
   const url = 'http://127.0.0.1:8080';
@@ -198,5 +202,67 @@ describe('configure', () => {
       expect(data).toStrictEqual(response);
       done();
     });
+  });
+
+  test('should throw for non-default requestId when producer client is not initialized', async () => {
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      'missing-producer',
+    );
+
+    expect(() => request()).toThrow(ProducerClientNotInitializedError);
+  });
+
+  test('should isolate custom request by requestId', async () => {
+    const producerA = 'producer-a';
+    const producerB = 'producer-b';
+    const urlA = 'http://127.0.0.1:9081';
+    const urlB = 'http://127.0.0.1:9082';
+
+    nock(urlA).get(path).reply(200, response);
+    nock(urlB).get(path).reply(200, response);
+
+    const customRequestA = jest.fn((requestPath: any) => fetch(requestPath));
+    const customRequestB = jest.fn((requestPath: any) => fetch(requestPath));
+
+    configure({
+      request: customRequestA as unknown as typeof fetch,
+      requestId: producerA,
+    });
+    configure({
+      request: customRequestB as unknown as typeof fetch,
+      requestId: producerB,
+    });
+
+    const requestA = createRequest(
+      path,
+      method,
+      9081,
+      undefined,
+      undefined,
+      producerA,
+    );
+    const requestB = createRequest(
+      path,
+      method,
+      9082,
+      undefined,
+      undefined,
+      producerB,
+    );
+
+    const resA = await requestA();
+    const resB = await requestB();
+    const dataA = await resA.json();
+    const dataB = await resB.json();
+
+    expect(customRequestA).toHaveBeenCalledTimes(1);
+    expect(customRequestB).toHaveBeenCalledTimes(1);
+    expect(dataA).toStrictEqual(response);
+    expect(dataB).toStrictEqual(response);
   });
 });
