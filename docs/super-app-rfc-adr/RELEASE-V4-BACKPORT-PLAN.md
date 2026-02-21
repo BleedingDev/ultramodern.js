@@ -69,4 +69,5 @@ Instead, run a dedicated backport program with explicit stream-by-stream cherry-
   - `routes-tanstack-mf` reliability fixture/runtime path from source branch is not available in release-v4.
 - Stream E: Partial backport.
   - Added alpha config/env contracts (`server.ssr.moduleFederationAppSSRAlpha`, `process.env.MODERN_MF_APP_SSR_ALPHA`).
+  - Added runtime unit tests for alpha contract/global-var injection and updated SSR config docs (EN/ZH).
   - Full app-level MF SSR runtime path requires architecture not present in release-v4.

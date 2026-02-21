@@ -26,7 +26,7 @@
 | EPIC-2 | Cross-Project BFF Hardening | ADR-0005 | BFF Platform | L | Parallel | None | Implemented (Release-v4 subset) |
 | EPIC-3 | Telemetry Standardization + Exporters | ADR-0004 | Observability Platform | L | Parallel | None | Implemented (Release-v4 adapted) |
 | EPIC-4 | Effect-Only MF Data-Fetch Reliability | ADR-0003 | Runtime Federation + QA Infra | L | Parallel-start, partial sequential | EPIC-2 (partial) | Deferred on release-v4 |
-| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Partial on release-v4 |
+| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Partial on release-v4 (contracts + docs/tests) |
 
 ## Progress Snapshot (2026-02-21)
 
@@ -34,7 +34,7 @@
 - EPIC-2 complete on release-v4 subset: cross-project BFF request contracts are hardened with request-id aware bootstrap/runtime.
 - EPIC-3 complete on release-v4 adaptation: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are integrated in `prod-server`.
 - EPIC-4 deferred on release-v4: source branch MF reliability fixture/runtime path is not available in release-v4.
-- EPIC-5 partial on release-v4: alpha config/env contracts backported; full app-level MF SSR runtime integration deferred.
+- EPIC-5 partial on release-v4: alpha config/env contracts backported with runtime unit coverage and SSR config docs; full app-level MF SSR runtime integration deferred.
 
 ## EPIC-1: RsDoctor Default-On (ADR-0001)
 
