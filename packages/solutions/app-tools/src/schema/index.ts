@@ -72,6 +72,7 @@ const server = {
   port: { type: 'number' },
   logger: { type: ['boolean', 'object'] },
   metrics: { type: ['boolean', 'object'] },
+  telemetry: { type: 'object' },
   enableMicroFrontendDebug: { type: 'boolean' },
   watchOptions: { type: 'object' },
   compiler: { type: 'string' },

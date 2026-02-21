@@ -47,6 +47,30 @@ const checkUseStringSSR = (config: AppNormalizedConfig): boolean => {
   return Boolean(output?.ssg) || hasStringSSREntry(config);
 };
 
+export const isModuleFederationAppSSRAlphaEnabled = (
+  userConfig: AppNormalizedConfig,
+): boolean => {
+  const isEnabled = (ssr: ServerUserConfig['ssr']) =>
+    Boolean(
+      ssr &&
+        typeof ssr === 'object' &&
+        ssr.moduleFederationAppSSRAlpha === true,
+    );
+
+  if (isEnabled(userConfig.server?.ssr)) {
+    return true;
+  }
+
+  if (
+    userConfig.server?.ssrByEntries &&
+    typeof userConfig.server.ssrByEntries === 'object'
+  ) {
+    return Object.values(userConfig.server.ssrByEntries).some(isEnabled);
+  }
+
+  return false;
+};
+
 export const ssrPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-ssr',
 
@@ -112,10 +136,15 @@ export const ssrPlugin = (): CliPlugin<AppTools> => ({
               '@modern-js/runtime/plugins': pluginsExportsUtils.getPath(),
             },
             globalVars: (values, { target }) => {
+              const userConfig = api.useResolvedConfigContext();
               values['process.env.MODERN_TARGET'] =
                 target === 'node' || target === 'service-worker'
                   ? 'node'
                   : 'browser';
+              values['process.env.MODERN_MF_APP_SSR_ALPHA'] =
+                isModuleFederationAppSSRAlphaEnabled(userConfig)
+                  ? 'true'
+                  : 'false';
             },
           },
           tools: {
