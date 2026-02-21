@@ -176,7 +176,10 @@ async function waitForTraceSpansWithFallback(
 ) {
   try {
     return {
-      spans: await waitForTraceSpans(`${baseUrl}?traceId=${traceId}`, expectedNames),
+      spans: await waitForTraceSpans(
+        `${baseUrl}?traceId=${traceId}`,
+        expectedNames,
+      ),
       strictTracePropagation: true,
     };
   } catch {
@@ -391,6 +394,8 @@ async function assertDistributedTraceFromBrowser(
   remotePort: number,
   errors: string[],
 ) {
+  const initialErrorCount = errors.length;
+
   await page.goto(`http://localhost:${hostPort}/mf`, {
     waitUntil: ['networkidle0'],
     timeout: 50000,
@@ -465,7 +470,10 @@ async function assertDistributedTraceFromBrowser(
     hostSpans,
     'mf.host.trace.remote.call',
   );
-  const remoteRunSpan = findLatestSpanByName(remoteSpans, 'mf.remote.trace.run');
+  const remoteRunSpan = findLatestSpanByName(
+    remoteSpans,
+    'mf.remote.trace.run',
+  );
   const remoteDbSpan = findLatestSpanByName(
     remoteSpans,
     'mf.remote.trace.db.query',
@@ -503,7 +511,7 @@ async function assertDistributedTraceFromBrowser(
     }
   }
 
-  expect(errors).toEqual([]);
+  expect(errors.slice(initialErrorCount)).toEqual([]);
 }
 
 describe('routes-tanstack-mf', () => {
@@ -666,17 +674,14 @@ describe('routes-tanstack-mf', () => {
     await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
   });
 
-  test.skip(
-    'captures browser -> host -> remote distributed otel trace',
-    async () => {
-      await assertDistributedTraceFromBrowser(
-        page,
-        HOST_PORT,
-        REMOTE_PORT,
-        errors,
-      );
-    },
-  );
+  test('captures browser -> host -> remote distributed otel trace', async () => {
+    await assertDistributedTraceFromBrowser(
+      page,
+      HOST_PORT,
+      REMOTE_PORT,
+      errors,
+    );
+  });
 });
 
 describe('routes-tanstack-mf serve mode', () => {
@@ -759,15 +764,12 @@ describe('routes-tanstack-mf serve mode', () => {
     await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
   });
 
-  test.skip(
-    'captures browser -> host -> remote distributed otel trace in serve mode',
-    async () => {
-      await assertDistributedTraceFromBrowser(
-        page,
-        HOST_PORT,
-        REMOTE_PORT,
-        errors,
-      );
-    },
-  );
+  test('captures browser -> host -> remote distributed otel trace in serve mode', async () => {
+    await assertDistributedTraceFromBrowser(
+      page,
+      HOST_PORT,
+      REMOTE_PORT,
+      errors,
+    );
+  });
 });
