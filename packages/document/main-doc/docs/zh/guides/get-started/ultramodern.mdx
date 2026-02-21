@@ -1,0 +1,73 @@
+---
+title: UltraModern.js
+sidebar_position: 6
+---
+
+# UltraModern.js 与 Modern.js 的差异
+
+UltraModern.js 是构建在 Modern.js 之上的兼容增强发行版，目标是服务于大型、可独立部署的 Super App / ERP 场景。
+
+它保留 Modern.js 的开发模型，同时在以下方面提供更严格的平台默认行为与契约：
+
+- 大规模诊断能力，
+- 跨项目 API 安全性，
+- 可观测性标准化，
+- 以及分阶段推进的 Module Federation SSR 能力。
+
+## 为什么需要 UltraModern.js
+
+Modern.js 是优秀的通用框架。UltraModern.js 额外解决的是平台化团队的共性问题：
+
+- 多模块独立部署，
+- 跨仓库类型安全协作，
+- 以及统一运维可观测能力。
+
+## 差异矩阵
+
+| 领域 | Modern.js 基线 | UltraModern.js 行为 | 原因 | 收益 |
+| --- | --- | --- | --- | --- |
+| 构建诊断 | RsDoctor 在很多项目中是可选项 | 生产构建默认开启 RsDoctor，保留显式关闭能力 | 大团队与编码代理需要稳定诊断数据 | 更快定位瓶颈，沉淀可复现构建证据 |
+| 跨项目 BFF | Producer/Consumer 契约可用但约束较松 | 强化契约：请求 ID 级 bootstrap/runtime 守卫与 fail-fast | 避免跨仓库运行时漂移 | 降低集成回归风险 |
+| Telemetry / 导出器 | 监控信号存在，但导出标准常由业务自行实现 | 统一 telemetry envelope + 队列 + OTLP/VictoriaMetrics 导出器 | 建立统一、后端无关的可观测链路 | 减少重复胶水代码，统一看板口径 |
+| 应用级 MF SSR | 标准 MF + SSR 路径，应用级 SSR bridge 不是稳定默认契约 | 显式 alpha 契约（`server.ssr.moduleFederationAppSSRAlpha` + `process.env.MODERN_MF_APP_SSR_ALPHA`） | 受控灰度而非隐式耦合 | 能安全试点、可明确回滚 |
+| MF 数据获取可靠性 | 依赖业务侧测试规范 | Effect-first 可靠性策略（失败注入与契约测试路线） | 让远程数据行为在失败场景下可预测 | 提升联邦模块的韧性 |
+
+## 当前可用性
+
+以下状态以 **2026-02-21** 为准：
+
+| 能力 | UltraModern 主线 | release-v4 兼容回灌 |
+| --- | --- | --- |
+| RsDoctor 默认开启 | 已支持 | 已支持 |
+| 跨项目 BFF 强化 | 已支持 | 已支持（release-v4 兼容子集） |
+| Telemetry 标准化 + OTLP/VictoriaMetrics | 已支持 | 已支持（release-v4 适配） |
+| 应用级 MF SSR | Alpha 路径 | 部分支持（仅契约与环境变量） |
+| Effect-only MF 数据获取可靠性矩阵 | 主线路线中可推进 | release-v4 因运行时依赖差异暂缓 |
+
+## 哪些保持不变
+
+UltraModern.js **不是**重写 Modern.js。它保留：
+
+- Modern.js 的应用与运行时模型，
+- 插件体系与配置方式，
+- 渐进式迁移路径。
+
+它增加的是平台化场景所需的“更严格默认值 + 更明确契约”。
+
+## 从 Modern.js 迁移建议
+
+如果你已在使用 Modern.js：
+
+1. 保持现有应用架构不变。
+2. 渐进接入 UltraModern.js 默认能力：
+   - 默认保留 RsDoctor（仅在特殊场景关闭），
+   - 接入标准化 telemetry 导出器，
+   - 使用强化后的跨项目 BFF bootstrap/runtime 契约。
+3. 在目标运行时明确支持完整 bridge 前，将应用级 MF SSR 视为 alpha 能力。
+
+## 相关公开文档
+
+- [RsDoctor 配置](/configure/app/performance/rsdoctor)
+- [SSR 配置](/configure/app/server/ssr)
+- [BFF 指南](/guides/advanced-features/bff/index)
+- [微前端指南](/guides/topic-detail/micro-frontend/c01-introduction)

@@ -1,0 +1,73 @@
+---
+title: UltraModern.js
+sidebar_position: 6
+---
+
+# UltraModern.js vs Modern.js
+
+UltraModern.js is a compatibility-first distribution built on top of Modern.js for large, independently deployable super-app and ERP-style systems.
+
+It keeps the Modern.js developer model, while adding stricter platform defaults and contracts for:
+
+- diagnostics at scale,
+- cross-project API safety,
+- observability standardization,
+- and staged Module Federation SSR evolution.
+
+## Why this exists
+
+Modern.js is a strong general-purpose framework. UltraModern.js adds opinionated platform behavior for teams that need:
+
+- many independently deployed modules,
+- shared type-safe contracts across projects,
+- and centralized operational visibility without per-app reinvention.
+
+## Difference Matrix
+
+| Area | Modern.js baseline | UltraModern.js behavior | Why | Benefits |
+| --- | --- | --- | --- | --- |
+| Build diagnostics | RsDoctor is optional/manual in many setups | RsDoctor enabled by default in production build, opt-out available | Always-on diagnostics for large teams and coding agents | Faster bottleneck detection, repeatable artifact trails |
+| Cross-project BFF | Valid but looser producer/consumer bootstrap/runtime assumptions | Hardened contracts: request-id aware bootstrap/runtime guards and safer fail-fast behavior | Avoid hidden runtime contract drift across repos | Fewer cross-project integration regressions |
+| Telemetry/exporters | Monitoring signals exist, but exporter standardization is app-dependent | Canonical telemetry envelope + queue + OTLP/VictoriaMetrics exporters | Standard, backend-agnostic operational pipeline | Lower per-app telemetry glue, consistent dashboards |
+| App-level MF SSR | Standard MF + SSR paths, app-level SSR bridge is not a stable default contract | Explicit alpha contract (`server.ssr.moduleFederationAppSSRAlpha` + `process.env.MODERN_MF_APP_SSR_ALPHA`) | Controlled rollout instead of accidental coupling | Safe experimentation with clear boundaries |
+| MF data-fetch reliability | Depends on app-level test rigor and conventions | Effect-first reliability strategy with failure-injection and contract testing roadmap | Make remote data behavior deterministic under failure | Better resiliency posture for federated modules |
+
+## Current Availability
+
+Status snapshot as of **2026-02-21**:
+
+| Capability | UltraModern mainline | release-v4 compatibility backport |
+| --- | --- | --- |
+| RsDoctor default-on | Available | Available |
+| Cross-project BFF hardening | Available | Available (subset adapted to release-v4 contracts) |
+| Telemetry standardization + OTLP/VictoriaMetrics | Available | Available (release-v4 adapted in prod-server) |
+| App-level MF SSR | Alpha path | Partial (contracts/env only) |
+| Effect-only MF data-fetch reliability matrix | Available in mainline roadmap stream | Deferred on release-v4 due runtime dependency gaps |
+
+## What stays compatible
+
+UltraModern.js does **not** replace Modern.js architecture. It keeps:
+
+- Modern.js application/runtime model,
+- plugin and configuration style,
+- incremental adoption path.
+
+It adds stricter defaults and platform contracts where operational scale requires them.
+
+## Migration guidance
+
+If you already use Modern.js:
+
+1. Keep your app architecture unchanged.
+2. Adopt UltraModern defaults gradually:
+   - keep RsDoctor on (opt out only for exceptional cases),
+   - wire telemetry through standardized exporters,
+   - adopt hardened cross-project BFF bootstrap/runtime contracts.
+3. Treat app-level MF SSR as alpha unless your target runtime explicitly supports the full bridge path.
+
+## Related Public Docs
+
+- [RsDoctor config](/configure/app/performance/rsdoctor)
+- [SSR config](/configure/app/server/ssr)
+- [BFF guide](/guides/advanced-features/bff/index)
+- [Micro-frontend guide](/guides/topic-detail/micro-frontend/c01-introduction)
