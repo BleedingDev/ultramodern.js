@@ -5,6 +5,7 @@ import type {
   RsbuildPlugin,
 } from '@rsbuild/core';
 import { getRscPlugins } from './plugins/rscConfig';
+import { pluginRsdoctor } from './plugins/rsdoctor';
 import { parseCommonConfig } from './shared/parseCommonConfig';
 import { rscClientBrowserFallbackPlugin } from './shared/rsc/rscClientBrowserFallback';
 import type {
@@ -23,10 +24,8 @@ export async function parseConfig(
   builderConfig.performance ??= {};
   builderConfig.performance.buildCache ??= true;
 
-  const { rsbuildConfig, rsbuildPlugins } = await parseCommonConfig(
-    builderConfig,
-    options,
-  );
+  const { rsbuildConfig, rsbuildPlugins, rsdoctorConfig } =
+    await parseCommonConfig(builderConfig, options);
 
   const { sri } = builderConfig.security || {};
   if (sri) {
@@ -62,6 +61,14 @@ export async function parseConfig(
     rsbuildPlugins.push(...rscPlugins);
   } else {
     rsbuildPlugins.push(rscClientBrowserFallbackPlugin());
+  }
+
+  const rsdoctorPlugin = pluginRsdoctor(
+    rsdoctorConfig,
+    process.env.NODE_ENV === 'production',
+  );
+  if (rsdoctorPlugin) {
+    rsbuildPlugins.push(rsdoctorPlugin);
   }
 
   return {

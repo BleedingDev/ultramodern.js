@@ -40,7 +40,11 @@ describe('builder rspack', () => {
 
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
-      config: {},
+      config: {
+        performance: {
+          rsdoctor: false,
+        },
+      },
       cwd: join(__dirname, '..'),
     });
 
@@ -57,6 +61,9 @@ describe('builder rspack', () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {
+        performance: {
+          rsdoctor: false,
+        },
         environments: {
           server: {
             output: {
@@ -81,6 +88,9 @@ describe('builder rspack', () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {
+        performance: {
+          rsdoctor: false,
+        },
         environments: {
           workerSSR: {
             output: {

@@ -1,0 +1,39 @@
+---
+title: rsdoctor
+---
+
+# performance.rsdoctor
+
+- **Type:**
+
+```ts
+type RsdoctorConfig =
+  | boolean
+  | {
+      enabled?: boolean;
+    };
+```
+
+- **Default:** `true` in production build, `false` in development mode.
+
+Configure Rsdoctor diagnostics in Modern.js build.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: false,
+  },
+});
+```
+
+You can also use object form:
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: {
+      enabled: true,
+    },
+  },
+});
+```

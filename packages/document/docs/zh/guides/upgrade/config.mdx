@@ -334,7 +334,7 @@ export default {
 
 ### tools.rsdoctor
 
-**变更内容**：该配置已废弃，请参考 [Rsdoctor 文档](/guides/basic-features/debug/rsdoctor)，使用 Rspack 的 [Rsdoctor 插件](https://rsdoctor.dev/)来启用支持。
+**变更内容**：该配置已废弃。v3 中 Modern.js 会在生产构建默认启用 Rsdoctor。可通过 [`performance.rsdoctor`](/configure/app/performance/rsdoctor) 进行配置或关闭。
 
 **迁移示例**：
 
@@ -348,22 +348,11 @@ tools: {
 },
 
 // v3
-import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
-
 export default {
-  // ...
-  tools: {
-    bundlerChain(chain) {
-      // 仅在 RSDOCTOR 为 true 时注册插件，因为插件会增加构建耗时
-      if (process.env.RSDOCTOR) {
-        chain.plugin('rsdoctor').use(RsdoctorRspackPlugin, [
-          {
-            // 插件选项
-            disableClientServer: true,
-            features: ['bundle', 'loader', 'plugins', 'resolver'],
-          },
-        ]);
-      }
+  performance: {
+    // 生产构建默认启用
+    rsdoctor: {
+      enabled: true,
     },
   },
 };

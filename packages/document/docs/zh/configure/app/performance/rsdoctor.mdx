@@ -1,0 +1,39 @@
+---
+title: rsdoctor
+---
+
+# performance.rsdoctor
+
+- **类型：**
+
+```ts
+type RsdoctorConfig =
+  | boolean
+  | {
+      enabled?: boolean;
+    };
+```
+
+- **默认值：** 生产构建时为 `true`，开发模式下为 `false`。
+
+用于配置 Modern.js 构建过程中的 Rsdoctor 诊断能力。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: false,
+  },
+});
+```
+
+你也可以使用对象形式：
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: {
+      enabled: true,
+    },
+  },
+});
+```

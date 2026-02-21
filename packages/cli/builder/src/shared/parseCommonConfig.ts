@@ -15,7 +15,11 @@ import { pluginEnvironmentDefaults } from '../plugins/environmentDefaults';
 import { pluginGlobalVars } from '../plugins/globalVars';
 import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
 import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
-import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
+import type {
+  BuilderConfig,
+  CreateBuilderCommonOptions,
+  RsdoctorUserConfig,
+} from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
 import { NODE_MODULES_REGEX } from './utils';
 
@@ -46,13 +50,14 @@ export async function parseCommonConfig(
 ): Promise<{
   rsbuildConfig: RsbuildConfig;
   rsbuildPlugins: RsbuildPlugin[];
+  rsdoctorConfig: RsdoctorUserConfig | undefined;
 }> {
   const frameworkConfigPath = options?.frameworkConfigPath;
 
   const {
     plugins: [...plugins] = [],
     splitChunks,
-    performance: { ...performanceConfig } = {},
+    performance: { rsdoctor: rsdoctorConfig, ...performanceConfig } = {},
     output: {
       module = false,
       enableCssModuleTSDeclaration,
@@ -307,5 +312,6 @@ export async function parseCommonConfig(
   return {
     rsbuildConfig: mergeRsbuildConfig(rsbuildConfig, extraConfig),
     rsbuildPlugins,
+    rsdoctorConfig,
   };
 }

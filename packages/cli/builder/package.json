@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
+    "@rsdoctor/rspack-plugin": "^1.5.2",
     "@rsbuild/core": "2.0.0-beta.4",
     "@rsbuild/plugin-assets-retry": "1.5.1",
     "@rsbuild/plugin-check-syntax": "1.6.1",
