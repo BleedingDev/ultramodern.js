@@ -1,5 +1,13 @@
 import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 import * as React from 'react';
+import {
+  type LoadRemoteModuleBaseOptions,
+  RemoteComponentContractError,
+  RemoteLoadError,
+  RemoteLoadTimeoutError,
+  loadRemoteModuleWithRetryBase,
+  resolveRemoteComponentBase,
+} from './remoteLoaderCore';
 
 type RemoteModuleMap = {
   'remote/Widget': typeof import('remote/Widget');
@@ -9,149 +17,101 @@ type RemoteModuleMap = {
 
 type RemoteModuleKey = keyof RemoteModuleMap;
 
-type LoadRemoteModuleOptions = {
-  timeoutMs?: number;
-  retries?: number;
-  retryDelayMs?: number;
+type LoadRemoteModuleOptions<TRemote extends RemoteModuleKey> = Omit<
+  LoadRemoteModuleBaseOptions<RemoteModuleMap[TRemote]>,
+  'loadRemoteImpl'
+> & {
+  loadRemoteImpl?: (remote: TRemote) => Promise<RemoteModuleMap[TRemote]>;
 };
 
 type LazyRemoteComponentOptions<
   TRemote extends RemoteModuleKey,
   TExport extends keyof RemoteModuleMap[TRemote],
-> = LoadRemoteModuleOptions & {
+> = LoadRemoteModuleOptions<TRemote> & {
   exportName?: TExport;
 };
 
-const DEFAULT_REMOTE_TIMEOUT_MS = 4000;
-const DEFAULT_REMOTE_RETRIES = 1;
-const DEFAULT_REMOTE_RETRY_DELAY_MS = 200;
+export {
+  RemoteComponentContractError,
+  RemoteLoadError,
+  RemoteLoadTimeoutError,
+};
 
-export class RemoteLoadTimeoutError extends Error {
-  constructor(remote: string, timeoutMs: number) {
-    super(`Loading remote "${remote}" timed out after ${timeoutMs}ms`);
-    this.name = 'RemoteLoadTimeoutError';
-  }
-}
-
-export class RemoteLoadError extends Error {
-  readonly remote: string;
-  readonly attempts: number;
-  readonly causeError: Error;
-
-  constructor(remote: string, attempts: number, causeError: Error) {
-    super(
-      `Unable to load remote "${remote}" after ${attempts} attempt${attempts > 1 ? 's' : ''}: ${causeError.message}`,
-    );
-    this.name = 'RemoteLoadError';
-    this.remote = remote;
-    this.attempts = attempts;
-    this.causeError = causeError;
-  }
-}
-
-export class RemoteComponentContractError extends Error {
-  constructor(remote: string, exportName: string) {
-    super(
-      `Remote "${remote}" export "${exportName}" is not a valid React component`,
-    );
-    this.name = 'RemoteComponentContractError';
-  }
-}
-
-function wait(ms: number) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function toError(error: unknown) {
-  if (error instanceof Error) {
-    return error;
-  }
-  return new Error(
-    typeof error === 'string' ? error : 'Unknown remote load error',
-  );
-}
-
-function withTimeout<T>(
-  promise: Promise<T>,
-  remote: string,
-  timeoutMs: number,
-) {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutHandle = setTimeout(() => {
-      reject(new RemoteLoadTimeoutError(remote, timeoutMs));
-    }, timeoutMs);
-
-    promise.then(
-      value => {
-        clearTimeout(timeoutHandle);
-        resolve(value);
-      },
-      error => {
-        clearTimeout(timeoutHandle);
-        reject(error);
-      },
-    );
-  });
-}
-
-function isRetryableRemoteError(error: Error) {
-  if (error instanceof RemoteLoadTimeoutError) {
-    return true;
-  }
-  return /network|fetch|script|timeout|chunk|loading/i.test(error.message);
-}
-
-function isComponentType(
-  value: unknown,
-): value is React.ComponentType<Record<string, never>> {
-  if (typeof value === 'function') {
-    return true;
-  }
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  return '$$typeof' in value;
-}
-
-async function loadRemoteModuleWithRetry<TRemote extends RemoteModuleKey>(
+export async function loadRemoteModuleWithRetry<
+  TRemote extends RemoteModuleKey,
+>(
   remote: TRemote,
-  {
-    retries = DEFAULT_REMOTE_RETRIES,
-    timeoutMs = DEFAULT_REMOTE_TIMEOUT_MS,
-    retryDelayMs = DEFAULT_REMOTE_RETRY_DELAY_MS,
-  }: LoadRemoteModuleOptions = {},
+  options: LoadRemoteModuleOptions<TRemote> = {},
 ): Promise<RemoteModuleMap[TRemote]> {
-  const attempts = retries + 1;
-  let lastError: Error = new Error(`Unknown remote load error for "${remote}"`);
+  const loadRemoteImpl =
+    options.loadRemoteImpl ||
+    ((target: TRemote) =>
+      loadRemote(target) as Promise<RemoteModuleMap[TRemote]>);
 
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const module = await withTimeout(loadRemote(remote), remote, timeoutMs);
-      return module as RemoteModuleMap[TRemote];
-    } catch (error) {
-      lastError = toError(error);
-      const canRetry = attempt < attempts && isRetryableRemoteError(lastError);
-      if (!canRetry) {
-        break;
-      }
-      await wait(retryDelayMs * attempt);
-    }
-  }
-
-  throw new RemoteLoadError(remote, attempts, lastError);
+  return loadRemoteModuleWithRetryBase(remote, {
+    ...options,
+    loadRemoteImpl: () => loadRemoteImpl(remote),
+  });
 }
 
-function resolveRemoteComponent<
+export function resolveRemoteComponent<
   TRemote extends RemoteModuleKey,
   TExport extends keyof RemoteModuleMap[TRemote],
 >(remote: TRemote, module: RemoteModuleMap[TRemote], exportName: TExport) {
-  const component = module[exportName];
-  if (!isComponentType(component)) {
-    throw new RemoteComponentContractError(remote, String(exportName));
+  return resolveRemoteComponentBase(
+    remote,
+    module as unknown as Record<string, unknown>,
+    String(exportName),
+  ) as RemoteModuleMap[TRemote][TExport];
+}
+
+function getFailureInjectionOptions<TRemote extends RemoteModuleKey>(
+  remote: TRemote,
+): LoadRemoteModuleOptions<TRemote> {
+  if (typeof window === 'undefined') {
+    return {};
   }
-  return component;
+
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mfRemoteFailure');
+  const target = params.get('mfRemoteTarget');
+  if (!mode || (target && target !== remote)) {
+    return {};
+  }
+
+  if (mode === 'timeout') {
+    return {
+      timeoutMs: 30,
+      retries: 0,
+      loadRemoteImpl: () =>
+        new Promise<RemoteModuleMap[TRemote]>(() => {
+          // Keep pending to trigger timeout branch deterministically.
+        }),
+    };
+  }
+
+  if (mode === 'network') {
+    return {
+      retries: 0,
+      loadRemoteImpl: async () => {
+        throw new Error('network failure injection');
+      },
+    };
+  }
+
+  if (mode === 'contract') {
+    return {
+      retries: 0,
+      loadRemoteImpl: async () =>
+        ({
+          default: {
+            unexpected: true,
+          },
+        }) as unknown as RemoteModuleMap[TRemote],
+    };
+  }
+
+  return {};
 }
 
 export function lazyRemoteComponent<
@@ -160,9 +120,17 @@ export function lazyRemoteComponent<
 >(remote: TRemote, options: LazyRemoteComponentOptions<TRemote, TExport> = {}) {
   const { exportName = 'default' as TExport, ...loadOptions } = options;
   return React.lazy(async () => {
-    const module = await loadRemoteModuleWithRetry(remote, loadOptions);
+    const module = await loadRemoteModuleWithRetry(remote, {
+      ...loadOptions,
+      ...getFailureInjectionOptions(remote),
+    });
+    const component = resolveRemoteComponent(
+      remote,
+      module,
+      exportName,
+    ) as React.ComponentType<any>;
     return {
-      default: resolveRemoteComponent(remote, module, exportName),
+      default: component,
     };
   });
 }
