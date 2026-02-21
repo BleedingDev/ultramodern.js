@@ -33,7 +33,7 @@
 - EPIC-1 complete on release-v4: RsDoctor defaults are enabled in production with opt-out and non-blocking plugin defaults.
 - EPIC-2 complete on release-v4 subset: cross-project BFF request contracts are hardened with request-id aware bootstrap/runtime.
 - EPIC-3 complete on release-v4 adaptation: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are integrated in `prod-server`.
-- EPIC-4 deferred on release-v4: source branch MF reliability fixture/runtime path is not available in release-v4.
+- EPIC-4 deferred on release-v4: direct fixture backport fails against release-v4 contracts (`@tanstack/react-router` and `@module-federation/modern-js-v3/runtime` are unavailable and `Response.json` static helper assumptions mismatch release-v4 runtime/types).
 - EPIC-5 partial on release-v4: alpha config/env contracts backported with runtime unit coverage and SSR config docs; full app-level MF SSR runtime integration deferred.
 
 ## EPIC-1: RsDoctor Default-On (ADR-0001)

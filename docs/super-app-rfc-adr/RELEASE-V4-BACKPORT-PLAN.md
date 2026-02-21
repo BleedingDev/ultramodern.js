@@ -66,7 +66,8 @@ Instead, run a dedicated backport program with explicit stream-by-stream cherry-
   - Added telemetry envelope registry, OTLP exporter, and VictoriaMetrics exporter in `prod-server`.
   - Added server telemetry config surface and tests.
 - Stream D: Deferred on release-v4.
-  - `routes-tanstack-mf` reliability fixture/runtime path from source branch is not available in release-v4.
+  - Full `routes-tanstack-mf` fixture backport was attempted and fails on release-v4 type/runtime contracts.
+  - Hard blockers observed in typecheck: missing `@tanstack/react-router`, missing `@module-federation/modern-js-v3/runtime`, and `Response.json` static helper mismatch.
 - Stream E: Partial backport.
   - Added alpha config/env contracts (`server.ssr.moduleFederationAppSSRAlpha`, `process.env.MODERN_MF_APP_SSR_ALPHA`).
   - Added runtime unit tests for alpha contract/global-var injection and updated SSR config docs (EN/ZH).
