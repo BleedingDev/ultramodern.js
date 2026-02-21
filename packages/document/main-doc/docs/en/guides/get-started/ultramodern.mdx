@@ -1,73 +1,179 @@
 ---
-title: UltraModern.js
+title: UltraModern.js V4
 sidebar_position: 6
 ---
 
-# UltraModern.js vs Modern.js
+# UltraModern.js V4 vs Modern.js V4
 
-UltraModern.js is a compatibility-first distribution built on top of Modern.js for large, independently deployable super-app and ERP-style systems.
+UltraModern.js V4 is a compatibility-first distribution built on top of Modern.js V4 for large, independently deployable super-app and ERP-style systems.
 
-It keeps the Modern.js developer model, while adding stricter platform defaults and contracts for:
+This page is the complete public difference reference for the published V4 line.
 
-- diagnostics at scale,
-- cross-project API safety,
-- observability standardization,
-- and staged Module Federation SSR evolution.
+## Scope (V4 Only)
 
-## Why this exists
+- Baseline: Modern.js `release-v4.0.0`.
+- Scope: all user-visible differences shipped in UltraModern.js V4.
+- Excluded: roadmap/mainline-only work that is not shipped to V4.
 
-Modern.js is a strong general-purpose framework. UltraModern.js adds opinionated platform behavior for teams that need:
+## Complete Difference Matrix (V4)
 
-- many independently deployed modules,
-- shared type-safe contracts across projects,
-- and centralized operational visibility without per-app reinvention.
-
-## Difference Matrix
-
-| Area | Modern.js baseline | UltraModern.js behavior | Why | Benefits |
+| Area | Modern.js V4 baseline | UltraModern.js V4 difference | Status in V4 | Notes |
 | --- | --- | --- | --- | --- |
-| Build diagnostics | RsDoctor is optional/manual in many setups | RsDoctor enabled by default in production build, opt-out available | Always-on diagnostics for large teams and coding agents | Faster bottleneck detection, repeatable artifact trails |
-| Cross-project BFF | Valid but looser producer/consumer bootstrap/runtime assumptions | Hardened contracts: request-id aware bootstrap/runtime guards and safer fail-fast behavior | Avoid hidden runtime contract drift across repos | Fewer cross-project integration regressions |
-| Telemetry/exporters | Monitoring signals exist, but exporter standardization is app-dependent | Canonical telemetry envelope + queue + OTLP/VictoriaMetrics exporters | Standard, backend-agnostic operational pipeline | Lower per-app telemetry glue, consistent dashboards |
-| App-level MF SSR | Standard MF + SSR paths, app-level SSR bridge is not a stable default contract | Explicit alpha contract (`server.ssr.moduleFederationAppSSRAlpha` + `process.env.MODERN_MF_APP_SSR_ALPHA`) | Controlled rollout instead of accidental coupling | Safe experimentation with clear boundaries |
-| MF data-fetch reliability | Depends on app-level test rigor and conventions | Effect-first reliability strategy with failure-injection and contract testing roadmap | Make remote data behavior deterministic under failure | Better resiliency posture for federated modules |
+| Build diagnostics default | RsDoctor usage is opt-in in most projects | Rspack production build enables RsDoctor by default | Implemented | Can be disabled via `performance.rsdoctor` |
+| Build diagnostics config surface | No `performance.rsdoctor` option in framework docs | Adds `performance.rsdoctor` (`boolean` or `{ enabled, disableClientServer }`) | Implemented | `disableClientServer` defaults to `true` |
+| BFF producer contract wiring | `bff` config does not include producer identity | Adds `bff.requestId` and carries it through client generation | Implemented | Enables explicit producer scoping |
+| Generated BFF client call shape | `createRequest(...)` optional args stop at `fetch` | Generated client appends `requestId` to `createRequest(...)` when configured | Implemented | Keeps legacy call path when no `requestId` |
+| `create-request` runtime isolation | Single mutable request config path | Per-`requestId` request/domain/header config maps | Implemented | Supports multiple producer clients in one app |
+| Uninitialized producer behavior | Missing config may silently fall back | Non-default `requestId` now throws `ProducerClientNotInitializedError` | Implemented | Fail-fast contract for cross-project BFF |
+| Node header forwarding behavior | Header forwarding is global | Incoming headers are forwarded only for `requestId === 'default'` | Implemented | Avoids accidental header bleed across producers |
+| Server telemetry config | No standardized `server.telemetry` contract | Adds `server.telemetry` with sampling/batching/redaction/exporter settings | Implemented | Added to app-tools schema and server types |
+| Telemetry exporters | Export pipeline is app-defined | Built-in OTLP and VictoriaMetrics exporters | Implemented | Exporters are non-fatal on failure |
+| Telemetry backpressure contract | No standard queue policy | Registry queue with max size, dropped-event counter, periodic flush | Implemented | Emits `telemetry.queue.dropped` on pressure |
+| Metrics/trace correlation | SSR metrics tags do not parse W3C trace context | `traceparent` is parsed and emits `trace_id` / `span_id` tags | Implemented | Improves cross-system observability joins |
+| App-level MF SSR contract flag | No dedicated app-level MF SSR alpha switch | Adds `server.ssr.moduleFederationAppSSRAlpha` and env injection | Implemented (alpha contract) | Sets `process.env.MODERN_MF_APP_SSR_ALPHA` |
+| App-level MF SSR runtime bridge | Not a stable default bridge path | V4 exposes contract/env only, full bridge remains alpha rollout | Partial by design | Use behind controlled rollout |
+| Contract test coverage | No tests for these new contracts in V4 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR alpha env wiring | Implemented | Reduces regression risk in super-app scenarios |
+| Public docs surface | No UltraModern V4 comparison page | Adds dedicated V4 difference page and linked config docs | Implemented | This page is the canonical V4 reference |
 
-## Current Availability
+## Detailed V4 Differences
 
-Status snapshot as of **2026-02-21**:
+### 1) `performance.rsdoctor` and default-on diagnostics
 
-| Capability | UltraModern mainline | release-v4 compatibility backport |
-| --- | --- | --- |
-| RsDoctor default-on | Available | Available |
-| Cross-project BFF hardening | Available | Available (subset adapted to release-v4 contracts) |
-| Telemetry standardization + OTLP/VictoriaMetrics | Available | Available (release-v4 adapted in prod-server) |
-| App-level MF SSR | Alpha path | Partial (contracts/env only) |
-| Effect-only MF data-fetch reliability matrix | Available in mainline roadmap stream | Deferred on release-v4 due runtime dependency gaps |
+UltraModern.js V4 extends performance config with:
 
-## What stays compatible
+- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean }`
+- Rspack + production: enabled by default.
+- Rspack + development: disabled by default (unless explicitly enabled).
+- Webpack builds: no RsDoctor injection.
 
-UltraModern.js does **not** replace Modern.js architecture. It keeps:
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: {
+      enabled: true,
+      disableClientServer: true,
+    },
+  },
+});
+```
 
-- Modern.js application/runtime model,
-- plugin and configuration style,
-- incremental adoption path.
+### 2) Cross-project BFF hardening with `requestId`
 
-It adds stricter defaults and platform contracts where operational scale requires them.
+UltraModern.js V4 adds explicit producer identity across the BFF toolchain:
 
-## Migration guidance
+- `bff.requestId` in plugin config.
+- Loader/client generation passes `requestId` to `createRequest(...)`.
+- `create-request` now keeps isolated runtime state per `requestId`.
 
-If you already use Modern.js:
+```ts
+configure({
+  requestId: 'erp-inventory',
+  request: customFetch,
+  setDomain: ({ target, requestId }) =>
+    target === 'server'
+      ? `http://inventory-bff.internal`
+      : `https://inventory.example.com`,
+});
+```
 
-1. Keep your app architecture unchanged.
-2. Adopt UltraModern defaults gradually:
-   - keep RsDoctor on (opt out only for exceptional cases),
-   - wire telemetry through standardized exporters,
-   - adopt hardened cross-project BFF bootstrap/runtime contracts.
-3. Treat app-level MF SSR as alpha unless your target runtime explicitly supports the full bridge path.
+Contract behavior in V4:
+
+- Non-default producer calls without prior `configure({ requestId })` throw `ProducerClientNotInitializedError`.
+- `allowedHeaders` / `request` / `setDomain` are isolated by `requestId`.
+- In Node runtime, incoming request headers are only forwarded for the legacy `default` producer path.
+
+### 3) `server.telemetry` standardization and exporters
+
+UltraModern.js V4 adds a unified telemetry contract:
+
+- Config surface in `server.telemetry`.
+- Internal registry with sampling, batching, redaction, backpressure handling.
+- Built-in exporters for OTLP and VictoriaMetrics.
+- Metrics wrapper that mirrors `emitCounter` / `emitTimer` into telemetry envelopes.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    telemetry: {
+      enabled: true,
+      service: 'erp-gateway',
+      module: 'server',
+      environment: 'production',
+      samplingRate: 1,
+      flushIntervalMs: 1000,
+      maxBatchSize: 50,
+      maxQueueSize: 1000,
+      redactionKeys: ['authorization', 'token'],
+      exporters: {
+        otlp: {
+          enabled: true,
+          endpoint: 'http://otel-collector:4318/v1/logs',
+        },
+        victoriaMetrics: {
+          enabled: true,
+          endpoint: 'http://vm:8428/api/v1/import/prometheus',
+          metricPrefix: 'ultramodern',
+        },
+      },
+    },
+  },
+});
+```
+
+Important V4 behavior:
+
+- If no exporter is enabled, telemetry pipeline is not initialized.
+- Exporter failures are treated as non-fatal for request handling.
+
+### 4) Trace tags in SSR metrics
+
+When an incoming request contains W3C `traceparent`, UltraModern.js V4 parses and injects:
+
+- `trace_id`
+- `span_id`
+
+into SSR metric tags, improving correlation between app metrics and distributed tracing backends.
+
+### 5) App-level MF SSR alpha contract (`server.ssr.moduleFederationAppSSRAlpha`)
+
+UltraModern.js V4 adds:
+
+- `server.ssr.moduleFederationAppSSRAlpha` (also works under `server.ssrByEntries`).
+- Global compile-time env: `process.env.MODERN_MF_APP_SSR_ALPHA` (`'true' | 'false'`).
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    ssr: {
+      moduleFederationAppSSRAlpha: true,
+    },
+  },
+});
+```
+
+:::warning
+In UltraModern.js V4, this flag provides contract/env wiring only. The full app-level Module Federation SSR runtime bridge is still an alpha rollout item.
+:::
+
+### 6) Contract-level test hardening in V4
+
+UltraModern.js V4 adds dedicated coverage for:
+
+- RsDoctor default behavior and opt-out semantics.
+- BFF `requestId` generation/runtime isolation and fail-fast checks.
+- Telemetry redaction/backpressure/exporter behavior.
+- SSR alpha contract detection and env injection.
+
+## Not Part of UltraModern.js V4
+
+The following are intentionally out of scope for this published V4 line:
+
+- Full app-level MF SSR runtime bridge as a stable default.
+- Effect-only data-fetch runtime standardization as a built-in framework layer.
 
 ## Related Public Docs
 
-- [RsDoctor config](/configure/app/performance/rsdoctor)
-- [SSR config](/configure/app/server/ssr)
+- [performance.rsdoctor](/configure/app/performance/rsdoctor)
+- [server.ssr](/configure/app/server/ssr)
 - [BFF guide](/guides/advanced-features/bff/index)
 - [Micro-frontend guide](/guides/topic-detail/micro-frontend/c01-introduction)

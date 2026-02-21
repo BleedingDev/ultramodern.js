@@ -1,73 +1,179 @@
 ---
-title: UltraModern.js
+title: UltraModern.js V4
 sidebar_position: 6
 ---
 
-# UltraModern.js 与 Modern.js 的差异
+# UltraModern.js V4 与 Modern.js V4 的完整差异
 
-UltraModern.js 是构建在 Modern.js 之上的兼容增强发行版，目标是服务于大型、可独立部署的 Super App / ERP 场景。
+UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目标是服务于大型、可独立部署的 Super App / ERP 场景。
 
-它保留 Modern.js 的开发模型，同时在以下方面提供更严格的平台默认行为与契约：
+本文是已发布 V4 线的完整公开差异文档。
 
-- 大规模诊断能力，
-- 跨项目 API 安全性，
-- 可观测性标准化，
-- 以及分阶段推进的 Module Federation SSR 能力。
+## 范围（仅 V4）
 
-## 为什么需要 UltraModern.js
+- 基线版本：Modern.js `release-v4.0.0`。
+- 覆盖范围：UltraModern.js V4 已落地的全部用户可见差异。
+- 不包含：未进入 V4 发布线的主线路线图能力。
 
-Modern.js 是优秀的通用框架。UltraModern.js 额外解决的是平台化团队的共性问题：
+## 完整差异矩阵（V4）
 
-- 多模块独立部署，
-- 跨仓库类型安全协作，
-- 以及统一运维可观测能力。
-
-## 差异矩阵
-
-| 领域 | Modern.js 基线 | UltraModern.js 行为 | 原因 | 收益 |
+| 领域 | Modern.js V4 基线 | UltraModern.js V4 差异 | V4 状态 | 备注 |
 | --- | --- | --- | --- | --- |
-| 构建诊断 | RsDoctor 在很多项目中是可选项 | 生产构建默认开启 RsDoctor，保留显式关闭能力 | 大团队与编码代理需要稳定诊断数据 | 更快定位瓶颈，沉淀可复现构建证据 |
-| 跨项目 BFF | Producer/Consumer 契约可用但约束较松 | 强化契约：请求 ID 级 bootstrap/runtime 守卫与 fail-fast | 避免跨仓库运行时漂移 | 降低集成回归风险 |
-| Telemetry / 导出器 | 监控信号存在，但导出标准常由业务自行实现 | 统一 telemetry envelope + 队列 + OTLP/VictoriaMetrics 导出器 | 建立统一、后端无关的可观测链路 | 减少重复胶水代码，统一看板口径 |
-| 应用级 MF SSR | 标准 MF + SSR 路径，应用级 SSR bridge 不是稳定默认契约 | 显式 alpha 契约（`server.ssr.moduleFederationAppSSRAlpha` + `process.env.MODERN_MF_APP_SSR_ALPHA`） | 受控灰度而非隐式耦合 | 能安全试点、可明确回滚 |
-| MF 数据获取可靠性 | 依赖业务侧测试规范 | Effect-first 可靠性策略（失败注入与契约测试路线） | 让远程数据行为在失败场景下可预测 | 提升联邦模块的韧性 |
+| 构建诊断默认行为 | 大多数项目中 RsDoctor 为显式开启 | Rspack 生产构建默认开启 RsDoctor | 已实现 | 可通过 `performance.rsdoctor` 关闭 |
+| 构建诊断配置面 | 框架文档无 `performance.rsdoctor` | 新增 `performance.rsdoctor`（`boolean` 或 `{ enabled, disableClientServer }`） | 已实现 | `disableClientServer` 默认 `true` |
+| BFF Producer 契约标识 | `bff` 配置不包含 producer 身份 | 新增 `bff.requestId`，并打通到客户端生成链路 | 已实现 | 支持显式 producer 隔离 |
+| BFF 生成客户端签名 | `createRequest(...)` 可选参数到 `fetch` 结束 | 配置 `requestId` 时，生成代码会附加 `requestId` 参数 | 已实现 | 未配置时保持兼容旧路径 |
+| `create-request` 运行时隔离 | 单一可变请求配置 | 以 `requestId` 为维度隔离 request/domain/header 配置 | 已实现 | 支持同一应用多 producer |
+| 未初始化 producer 行为 | 缺失配置时可能隐式 fallback | 非默认 `requestId` 未初始化会抛 `ProducerClientNotInitializedError` | 已实现 | 跨项目 BFF fail-fast |
+| Node 侧透传 Header 行为 | Header 透传是全局路径 | 仅 `requestId === 'default'` 会透传入站请求头 | 已实现 | 避免 producer 间请求头串扰 |
+| 服务端 Telemetry 配置 | 缺少统一 `server.telemetry` 契约 | 新增 `server.telemetry`（采样/批处理/脱敏/导出器） | 已实现 | 同步扩展 app-tools schema 与 server types |
+| Telemetry 导出器 | 导出链路依赖业务自建 | 内置 OTLP 与 VictoriaMetrics 导出器 | 已实现 | 导出失败不会中断请求链路 |
+| Telemetry 背压契约 | 无统一队列策略 | 内置队列上限、丢弃计数、定时 flush | 已实现 | 背压时上报 `telemetry.queue.dropped` |
+| Metrics 与 Trace 关联 | SSR metrics 不解析 W3C trace 上下文 | 解析 `traceparent` 并注入 `trace_id` / `span_id` 标签 | 已实现 | 提升跨系统观测关联度 |
+| 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR alpha 开关 | 新增 `server.ssr.moduleFederationAppSSRAlpha` + 环境变量注入 | 已实现（alpha 合约） | 注入 `process.env.MODERN_MF_APP_SSR_ALPHA` |
+| 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V4 仅提供合约/环境变量，完整桥接仍在 alpha 推进 | 设计上部分支持 | 需受控灰度 |
+| 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR alpha 的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
+| 公开文档面 | 无 UltraModern V4 差异总览页 | 新增 V4 专用差异页并补齐关联配置文档 | 已实现 | 本页为 V4 权威基准 |
 
-## 当前可用性
+## V4 详细差异说明
 
-以下状态以 **2026-02-21** 为准：
+### 1) `performance.rsdoctor` 与默认开启诊断
 
-| 能力 | UltraModern 主线 | release-v4 兼容回灌 |
-| --- | --- | --- |
-| RsDoctor 默认开启 | 已支持 | 已支持 |
-| 跨项目 BFF 强化 | 已支持 | 已支持（release-v4 兼容子集） |
-| Telemetry 标准化 + OTLP/VictoriaMetrics | 已支持 | 已支持（release-v4 适配） |
-| 应用级 MF SSR | Alpha 路径 | 部分支持（仅契约与环境变量） |
-| Effect-only MF 数据获取可靠性矩阵 | 主线路线中可推进 | release-v4 因运行时依赖差异暂缓 |
+UltraModern.js V4 扩展了性能配置：
 
-## 哪些保持不变
+- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean }`
+- Rspack + 生产环境：默认开启。
+- Rspack + 开发环境：默认关闭（可显式开启）。
+- Webpack 构建：不会注入 RsDoctor 插件。
 
-UltraModern.js **不是**重写 Modern.js。它保留：
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: {
+      enabled: true,
+      disableClientServer: true,
+    },
+  },
+});
+```
 
-- Modern.js 的应用与运行时模型，
-- 插件体系与配置方式，
-- 渐进式迁移路径。
+### 2) 通过 `requestId` 强化跨项目 BFF 契约
 
-它增加的是平台化场景所需的“更严格默认值 + 更明确契约”。
+UltraModern.js V4 在 BFF 工具链中引入显式 producer 身份：
 
-## 从 Modern.js 迁移建议
+- `bff.requestId` 配置项。
+- Loader/客户端生成链路将 `requestId` 传递给 `createRequest(...)`。
+- `create-request` 运行时以 `requestId` 为粒度隔离状态。
 
-如果你已在使用 Modern.js：
+```ts
+configure({
+  requestId: 'erp-inventory',
+  request: customFetch,
+  setDomain: ({ target, requestId }) =>
+    target === 'server'
+      ? `http://inventory-bff.internal`
+      : `https://inventory.example.com`,
+});
+```
 
-1. 保持现有应用架构不变。
-2. 渐进接入 UltraModern.js 默认能力：
-   - 默认保留 RsDoctor（仅在特殊场景关闭），
-   - 接入标准化 telemetry 导出器，
-   - 使用强化后的跨项目 BFF bootstrap/runtime 契约。
-3. 在目标运行时明确支持完整 bridge 前，将应用级 MF SSR 视为 alpha 能力。
+V4 合约行为：
+
+- 非默认 `requestId` 若未先 `configure({ requestId })`，会抛出 `ProducerClientNotInitializedError`。
+- `allowedHeaders` / `request` / `setDomain` 都按 `requestId` 隔离。
+- Node 运行时仅在 legacy 的 `default` producer 路径透传入站请求头。
+
+### 3) `server.telemetry` 标准化与导出器
+
+UltraModern.js V4 新增统一 telemetry 契约：
+
+- 在 `server.telemetry` 提供配置面。
+- 内置 registry，支持采样、批处理、脱敏、背压控制。
+- 内置 OTLP 与 VictoriaMetrics 导出器。
+- 对 `emitCounter` / `emitTimer` 自动镜像 telemetry envelope。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    telemetry: {
+      enabled: true,
+      service: 'erp-gateway',
+      module: 'server',
+      environment: 'production',
+      samplingRate: 1,
+      flushIntervalMs: 1000,
+      maxBatchSize: 50,
+      maxQueueSize: 1000,
+      redactionKeys: ['authorization', 'token'],
+      exporters: {
+        otlp: {
+          enabled: true,
+          endpoint: 'http://otel-collector:4318/v1/logs',
+        },
+        victoriaMetrics: {
+          enabled: true,
+          endpoint: 'http://vm:8428/api/v1/import/prometheus',
+          metricPrefix: 'ultramodern',
+        },
+      },
+    },
+  },
+});
+```
+
+V4 重要行为：
+
+- 若没有启用任何导出器，telemetry 管线不会初始化。
+- 导出器异常按非致命处理，不会阻断请求主链路。
+
+### 4) SSR metrics 的 Trace 标签注入
+
+当请求携带 W3C `traceparent` 时，UltraModern.js V4 会在 SSR metrics 标签中注入：
+
+- `trace_id`
+- `span_id`
+
+用于提升应用指标与分布式追踪系统之间的关联能力。
+
+### 5) 应用级 MF SSR alpha 合约（`server.ssr.moduleFederationAppSSRAlpha`）
+
+UltraModern.js V4 新增：
+
+- `server.ssr.moduleFederationAppSSRAlpha`（`server.ssrByEntries` 同样生效）。
+- 编译期全局变量：`process.env.MODERN_MF_APP_SSR_ALPHA`（`'true' | 'false'`）。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    ssr: {
+      moduleFederationAppSSRAlpha: true,
+    },
+  },
+});
+```
+
+:::warning
+在 UltraModern.js V4 中，该开关当前只提供配置/环境变量合约。完整的应用级 Module Federation SSR 运行时桥接仍处于 alpha 推进阶段。
+:::
+
+### 6) V4 的合约级测试加固
+
+UltraModern.js V4 新增了以下关键测试覆盖：
+
+- RsDoctor 默认行为与显式开关。
+- BFF `requestId` 生成与运行时隔离、fail-fast 行为。
+- Telemetry 脱敏、背压与导出器行为。
+- SSR alpha 合约识别与环境变量注入。
+
+## 不属于 UltraModern.js V4 的能力
+
+以下能力刻意不纳入当前发布的 V4 线：
+
+- 作为稳定默认能力的应用级 MF SSR 完整运行时桥接。
+- 以 Effect-only 为内建框架层的数据获取标准化运行时。
 
 ## 相关公开文档
 
-- [RsDoctor 配置](/configure/app/performance/rsdoctor)
-- [SSR 配置](/configure/app/server/ssr)
+- [performance.rsdoctor](/configure/app/performance/rsdoctor)
+- [server.ssr](/configure/app/server/ssr)
 - [BFF 指南](/guides/advanced-features/bff/index)
 - [微前端指南](/guides/topic-detail/micro-frontend/c01-introduction)
