@@ -33,11 +33,11 @@ describe('effect client generator data-platform integration', () => {
 
 const api = HttpApi.make('CodegenTestApi').add(
   HttpApiGroup.make('greetings').add(
-    HttpApiEndpoint.get('ping')\`/effect/ping\`.addSuccess(
-      Schema.Struct({
+    HttpApiEndpoint.get('ping', '/effect/ping', {
+      success: Schema.Struct({
         ok: Schema.Boolean,
       }),
-    ),
+    }),
   ),
 );
 
@@ -70,7 +70,7 @@ module.exports = { api };
       expect(generated).toContain('encodeRequestEnvelopeHeader');
       expect(generated).toContain('createDataBatchTransport');
       expect(generated).toContain('__DEFAULT_BATCH_CONFIG');
-      expect(generated).toContain('/_data/custom-batch');
+      expect(generated).toContain('/api/_data/custom-batch');
       expect(generated).toContain('operationManifest');
       expect(generated).toContain('dataPlatform');
       expect(generated).toContain('allowCrossOriginEnvelope');

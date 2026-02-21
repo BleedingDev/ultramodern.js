@@ -15,46 +15,40 @@ const traceSpanSchema = Schema.Struct({
 export const hostEffectApi = HttpApi.make('HostEffectApi').add(
   HttpApiGroup.make('greetings')
     .add(
-      HttpApiEndpoint.get('hello')`/effect/hello`.addSuccess(
-        Schema.Struct({
+      HttpApiEndpoint.get('hello', '/effect/hello', {
+        success: Schema.Struct({
           message: Schema.String,
           runtime: Schema.Literal('host'),
         }),
-      ),
+      }),
     )
     .add(
-      HttpApiEndpoint.get('traceRun')`/effect/trace/run`
-        .setHeaders(
-          Schema.Struct({
-            traceparent: Schema.optional(Schema.String),
-          }),
-        )
-        .addSuccess(
-          Schema.Struct({
-            status: Schema.Literal('ok'),
-            traceparent: Schema.optional(Schema.String),
-            remoteStatus: Schema.Literal('ok'),
-          }),
-        ),
+      HttpApiEndpoint.get('traceRun', '/effect/trace/run', {
+        headers: {
+          traceparent: Schema.optional(Schema.String),
+        },
+        success: Schema.Struct({
+          status: Schema.Literal('ok'),
+          traceparent: Schema.optional(Schema.String),
+          remoteStatus: Schema.Literal('ok'),
+        }),
+      }),
     )
     .add(
-      HttpApiEndpoint.get('traceSpans')`/effect/trace/spans`
-        .setUrlParams(
-          Schema.Struct({
-            traceId: Schema.optional(Schema.String),
-          }),
-        )
-        .addSuccess(
-          Schema.Struct({
-            spans: Schema.Array(traceSpanSchema),
-          }),
-        ),
+      HttpApiEndpoint.get('traceSpans', '/effect/trace/spans', {
+        query: {
+          traceId: Schema.optional(Schema.String),
+        },
+        success: Schema.Struct({
+          spans: Schema.Array(traceSpanSchema),
+        }),
+      }),
     )
     .add(
-      HttpApiEndpoint.post('traceReset')`/effect/trace/reset`.addSuccess(
-        Schema.Struct({
+      HttpApiEndpoint.post('traceReset', '/effect/trace/reset', {
+        success: Schema.Struct({
           ok: Schema.Boolean,
         }),
-      ),
+      }),
     ),
 );

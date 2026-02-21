@@ -1,7 +1,11 @@
 import path from 'path';
-import * as HttpApi from '@effect/platform/HttpApi';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, compatibleRequire, findExists, logger } from '@modern-js/utils';
+import {
+  HttpApi,
+  type HttpApiEndpoint,
+  type HttpApiGroup,
+} from 'effect/unstable/httpapi';
 
 const JS_OR_TS_EXTS = [
   '.js',
@@ -60,6 +64,37 @@ function normalizePrefix(prefix: string) {
   return ensureLeadingSlash(prefix || '/api');
 }
 
+function isAbsoluteUrl(value: string) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveBatchEndpoint(prefix: string, endpoint: string | undefined) {
+  const value = endpoint || '/_data/batch';
+  if (isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  const normalizedPrefix = normalizePrefix(prefix);
+  const normalizedEndpoint = ensureLeadingSlash(value);
+  if (!normalizedPrefix) {
+    return normalizedEndpoint;
+  }
+
+  if (
+    normalizedEndpoint === normalizedPrefix ||
+    normalizedEndpoint.startsWith(`${normalizedPrefix}/`)
+  ) {
+    return normalizedEndpoint;
+  }
+
+  return `${normalizedPrefix}${normalizedEndpoint === '/' ? '' : normalizedEndpoint}`;
+}
+
 function getRoutePath(prefix: string, endpointPath: string) {
   const normalizedPrefix = normalizePrefix(prefix);
   const normalizedEndpointPath = ensureLeadingSlash(endpointPath);
@@ -93,9 +128,9 @@ function getPackageName(appDir: string): string | undefined {
   }
 }
 
-function resolveApiId(api: HttpApi.HttpApi.Any): string {
+function resolveApiId(api: HttpApi.Any): string {
   const fallback = 'EffectHttpApi';
-  const maybeApi = api as HttpApi.HttpApi.AnyWithProps & {
+  const maybeApi = api as HttpApi.AnyWithProps & {
     identifier?: unknown;
   };
   if (
@@ -108,14 +143,20 @@ function resolveApiId(api: HttpApi.HttpApi.Any): string {
   return fallback;
 }
 
-function collectEffectEndpoints(api: HttpApi.HttpApi.Any, prefix: string) {
+function collectEffectEndpoints(api: HttpApi.Any, prefix: string) {
   const endpoints: EffectEndpointMeta[] = [];
   const apiId = resolveApiId(api);
-  HttpApi.reflect(api as HttpApi.HttpApi.AnyWithProps, {
+  HttpApi.reflect(api as HttpApi.AnyWithProps, {
     onGroup: () => {
       // no-op
     },
-    onEndpoint: ({ group, endpoint }) => {
+    onEndpoint: ({
+      group,
+      endpoint,
+    }: {
+      group: HttpApiGroup.AnyWithProps;
+      endpoint: HttpApiEndpoint.AnyWithProps;
+    }) => {
       endpoints.push({
         apiId,
         groupName: String(group.identifier),
@@ -192,9 +233,13 @@ function renderEffectClientCode(
       ? packageName || process.env.npm_package_name
       : undefined;
   const batchConfig = options.dataPlatformBatch;
+  const batchEndpoint = resolveBatchEndpoint(
+    options.prefix,
+    batchConfig?.endpoint,
+  );
   const batchConfigCode = JSON.stringify({
     enabled: batchConfig?.enabled ?? true,
-    endpoint: batchConfig?.endpoint || '/_data/batch',
+    endpoint: batchEndpoint,
     flushIntervalMs: batchConfig?.flushIntervalMs ?? 8,
     maxBatchSize: batchConfig?.maxBatchSize ?? 16,
     maxBatchBytes: batchConfig?.maxBatchBytes ?? 64 * 1024,

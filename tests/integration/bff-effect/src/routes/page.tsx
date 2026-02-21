@@ -34,8 +34,8 @@ export default function Page() {
     });
 
     const userByIdRequest = effectBff.client.greetings.userById({
-      path: { id: '42' },
-      urlParams: { source: 'browser' },
+      params: { id: '42' },
+      query: { source: 'browser' },
     });
 
     userByIdRequest.then(data => {

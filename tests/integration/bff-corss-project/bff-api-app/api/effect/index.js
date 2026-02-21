@@ -22,7 +22,7 @@ const greetingsLayer = HttpApiBuilder.group(
 export const api = bffCrossProjectEffectApi;
 
 /** @type {any} */
-export const layer = HttpApiBuilder.api(bffCrossProjectEffectApi).pipe(
+export const layer = HttpApiBuilder.layer(bffCrossProjectEffectApi).pipe(
   Layer.provide(greetingsLayer),
 );
 // Keep a value export so the module shape aligns with other Effect entries.

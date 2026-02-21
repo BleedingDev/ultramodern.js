@@ -56,7 +56,7 @@ export default function TracePage() {
 
       for (let attempt = 0; attempt < 20; attempt++) {
         const { spans } = await effectBff.client.greetings.traceSpans({
-          urlParams: { traceId },
+          query: { traceId },
         });
         const runSpan = spans.find(
           span => span.name === 'bff.effect.trace.run',

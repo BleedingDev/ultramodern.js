@@ -1,14 +1,18 @@
-import { HttpApiBuilder, HttpServer } from '@effect/platform';
-import type * as HttpApi from '@effect/platform/HttpApi';
-import type * as HttpApiClient from '@effect/platform/HttpApiClient';
-import type * as HttpApiGroup from '@effect/platform/HttpApiGroup';
-import type * as HttpRouter from '@effect/platform/HttpRouter';
-import type * as Rpc from '@effect/rpc/Rpc';
-import type * as RpcGroup from '@effect/rpc/RpcGroup';
-import * as RpcSerialization from '@effect/rpc/RpcSerialization';
-import * as RpcServer from '@effect/rpc/RpcServer';
 import type * as EffectType from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
+import {
+  type HttpApi,
+  type HttpApiClient,
+  type HttpApiGroup,
+  OpenApi,
+} from 'effect/unstable/httpapi';
+import {
+  type Rpc,
+  type RpcGroup,
+  RpcSerialization,
+  RpcServer,
+} from 'effect/unstable/rpc';
 import {
   DEFAULT_DATA_BATCH_ENDPOINT,
   DEFAULT_DATA_BATCH_HEADER,
@@ -21,8 +25,9 @@ import {
   validateSelectionPlan,
 } from '../data-platform';
 
-export * from '@effect/platform';
-export * from '@effect/rpc';
+export * from 'effect/unstable/http';
+export * from 'effect/unstable/httpapi';
+export * from 'effect/unstable/rpc';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
@@ -30,7 +35,7 @@ export * as Config from 'effect/Config';
 export * as Option from 'effect/Option';
 export * as OpenTelemetry from '@effect/opentelemetry';
 
-export type EffectRuntimeLayer = Layer.Layer<HttpApi.Api, unknown, never>;
+export type EffectRuntimeLayer = Layer.Layer<any, unknown, any>;
 export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
@@ -39,7 +44,11 @@ export type EffectRpcSerialization =
   | 'msgPack';
 
 export type EffectRpcRuntimeLayer<TRpcs extends Rpc.Any = Rpc.Any> =
-  Layer.Layer<Rpc.ToHandler<TRpcs> | Rpc.Middleware<TRpcs>, unknown, never>;
+  Layer.Layer<
+    Rpc.ToHandler<TRpcs> | Rpc.Middleware<TRpcs> | Rpc.ServicesServer<TRpcs>,
+    unknown,
+    never
+  >;
 
 export type EffectRpcBffDefinition<
   TRpcs extends Rpc.Any = Rpc.Any,
@@ -74,10 +83,7 @@ type EffectApiPromiseClient<TClient> = {
         ? (
             ...args: TArgs
           ) => Promise<
-            Exclude<
-              EffectType.Effect.Success<TResult>,
-              readonly [unknown, unknown]
-            >
+            Exclude<EffectType.Success<TResult>, readonly [unknown, unknown]>
           >
         : never
       : never;
@@ -85,26 +91,17 @@ type EffectApiPromiseClient<TClient> = {
 };
 
 export type EffectApiClientFromApi<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
-> = TApi extends HttpApi.HttpApi<
-  infer _ApiId,
-  infer Groups,
-  infer ApiError,
-  infer _ApiR
->
-  ? HttpApiClient.Client<
-      Extract<Groups, HttpApiGroup.HttpApiGroup.Any>,
-      ApiError,
-      never
-    >
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+> = TApi extends HttpApi.HttpApi<infer _ApiId, infer Groups>
+  ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, unknown, never>
   : never;
 
 export type EffectApiPromiseClientFromApi<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
 > = EffectApiPromiseClient<EffectApiClientFromApi<TApi>>;
 
 export type EffectBffDefinition<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
   TRpcs extends Rpc.Any = Rpc.Any,
 > = {
@@ -205,7 +202,7 @@ export type EffectDataPlatformValidationOptions = {
 };
 
 export type EffectBffHandlerFactory<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
 > = (options?: {
   openapi?: EffectBffOpenApiConfig;
@@ -214,7 +211,7 @@ export type EffectBffHandlerFactory<
 }) => ReturnType<typeof createHttpApiHandler>;
 
 export type EffectBffRuntime<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
 > = {
   createHandler: EffectBffHandlerFactory<TApi, TLayer>;
@@ -413,6 +410,66 @@ function getRequestPathname(request: Request) {
   }
 }
 
+function normalizeMountPrefix(prefix: string) {
+  if (!prefix || prefix === '/') {
+    return '';
+  }
+  return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+}
+
+function getMountedPrefixFromContext(
+  request: Request,
+  context: unknown,
+): string {
+  if (!isPlainObject(context) || typeof context.path !== 'string') {
+    return '';
+  }
+
+  const contextPath = normalizeMountPrefix(context.path);
+  const requestPath = normalizeMountPrefix(getRequestPathname(request));
+
+  if (
+    !contextPath ||
+    !requestPath ||
+    contextPath === requestPath ||
+    !contextPath.endsWith(requestPath)
+  ) {
+    return '';
+  }
+
+  return normalizeMountPrefix(
+    contextPath.slice(0, contextPath.length - requestPath.length),
+  );
+}
+
+function removeMountedPrefixFromBatchPath(
+  pathWithQuery: string,
+  prefix: string,
+) {
+  const normalizedPrefix = normalizeMountPrefix(prefix);
+  if (!normalizedPrefix) {
+    return pathWithQuery;
+  }
+
+  const [pathname, ...queryParts] = pathWithQuery.split('?');
+  if (!pathname) {
+    return pathWithQuery;
+  }
+
+  let nextPathname = pathname;
+  if (pathname === normalizedPrefix) {
+    nextPathname = '/';
+  } else if (pathname.startsWith(`${normalizedPrefix}/`)) {
+    const sliced = pathname.slice(normalizedPrefix.length);
+    nextPathname = sliced.startsWith('/') ? sliced : `/${sliced}`;
+  }
+
+  if (queryParts.length === 0) {
+    return nextPathname;
+  }
+  return `${nextPathname}?${queryParts.join('?')}`;
+}
+
 function getRequestOrigin(request: Request) {
   try {
     return new URL(request.url).origin;
@@ -454,26 +511,45 @@ function getRpcSerializationLayer(
 function createRpcApiHandler<TRpcs extends Rpc.Any = Rpc.Any>(
   options: EffectRpcBffDefinition<TRpcs>,
 ) {
-  const rpcLayer = Layer.mergeAll(
-    options.layer,
-    HttpServer.layerContext,
-    getRpcSerializationLayer(options.serialization),
+  const rpcPath = normalizeRpcPath(options.path);
+  const rpcLayer = Layer.provide(
+    RpcServer.layerHttp({
+      group: options.group,
+      path: rpcPath,
+      protocol: 'http',
+      disableTracing: options.disableTracing,
+      spanPrefix: options.spanPrefix,
+      spanAttributes: options.spanAttributes,
+    }),
+    Layer.mergeAll(
+      options.layer,
+      getRpcSerializationLayer(options.serialization),
+    ),
   );
 
-  return RpcServer.toWebHandler(options.group, {
-    layer: rpcLayer as Layer.Layer<
-      | Rpc.ToHandler<TRpcs>
-      | Rpc.Middleware<TRpcs>
-      | RpcSerialization.RpcSerialization
-      | HttpRouter.HttpRouter.DefaultServices,
-      unknown,
-      never
-    >,
-    disableTracing: options.disableTracing,
-    spanPrefix: options.spanPrefix,
-    spanAttributes: options.spanAttributes,
-    disableFatalDefects: options.disableFatalDefects,
-  });
+  return HttpRouter.toWebHandler<
+    never,
+    unknown,
+    HttpRouter.HttpRouter,
+    never,
+    never
+  >(rpcLayer);
+}
+
+function createOpenApiLayer(
+  api: HttpApi.AnyWithProps,
+  openapi: EffectBffOpenApiConfig | undefined,
+) {
+  const openApiOptions = getOpenApiOptions(openapi);
+  if (!openApiOptions) {
+    return null;
+  }
+
+  return HttpRouter.add(
+    'GET',
+    openApiOptions.path,
+    HttpServerResponse.jsonUnsafe(OpenApi.fromApi(api)),
+  );
 }
 
 function createInvalidEnvelopeResponse(message: string, errors?: string[]) {
@@ -589,7 +665,7 @@ function mergeDataPlatformOptions(
 }
 
 export function defineEffectBff<
-  TApi extends HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps,
   TLayer extends EffectRuntimeLayer,
   TRpcs extends Rpc.Any = Rpc.Any,
 >(definition: {
@@ -654,7 +730,7 @@ export function defineEffectRpcBff<
 }
 
 export function createHttpApiHandler<
-  TApi extends HttpApi.HttpApi.Any = HttpApi.HttpApi.Any,
+  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
   TRpcs extends Rpc.Any = Rpc.Any,
 >(options: {
   api: TApi;
@@ -664,19 +740,11 @@ export function createHttpApiHandler<
   dataPlatform?: EffectDataPlatformValidationOptions;
 }) {
   const apiLayer = options.layer;
-  const baseLayer = Layer.mergeAll(apiLayer, HttpServer.layerContext);
-  const openApiLayer = options.openapi
-    ? Layer.provide(
-        HttpApiBuilder.middlewareOpenApi(getOpenApiOptions(options.openapi)),
-        apiLayer,
-      )
-    : null;
+  const openApiLayer = createOpenApiLayer(options.api, options.openapi);
   const mergedLayer = openApiLayer
-    ? Layer.mergeAll(baseLayer, openApiLayer)
-    : baseLayer;
-  const httpApiHandler = HttpApiBuilder.toWebHandler(
-    mergedLayer as Layer.Layer<unknown, unknown, never>,
-  );
+    ? Layer.mergeAll(apiLayer, openApiLayer)
+    : apiLayer;
+  const httpApiHandler = HttpRouter.toWebHandler(mergedLayer);
   const dataPlatformBatchOptions = options.dataPlatform?.batch;
   const batchEnabled = dataPlatformBatchOptions?.enabled !== false;
   const batchPath = normalizeBatchPath(dataPlatformBatchOptions?.endpoint);
@@ -721,6 +789,7 @@ export function createHttpApiHandler<
     request: Request,
     context?: Parameters<typeof httpApiHandler.handler>[1],
   ) => {
+    const mountedPrefix = getMountedPrefixFromContext(request, context);
     const method = normalizeItemMethod(request.method);
     if (method !== 'POST') {
       return createBatchValidationResponse(
@@ -799,7 +868,12 @@ export function createHttpApiHandler<
           );
         }
 
-        const itemPathname = rawItem.path.split('?')[0] || rawItem.path;
+        const normalizedItemPath = removeMountedPrefixFromBatchPath(
+          rawItem.path,
+          mountedPrefix,
+        );
+        const itemPathname =
+          normalizedItemPath.split('?')[0] || normalizedItemPath;
         if (
           itemPathname === batchPath ||
           itemPathname.startsWith(`${batchPath}/`)
@@ -884,7 +958,7 @@ export function createHttpApiHandler<
           }
         }
 
-        const targetUrl = new URL(rawItem.path, request.url);
+        const targetUrl = new URL(normalizedItemPath, request.url);
         const requestHeaders = new Headers(normalizedHeaders);
         const body =
           itemMethod === 'GET' || itemMethod === 'HEAD'
@@ -989,10 +1063,7 @@ export function createHttpApiHandler<
       if (isRpcRequest(request, rpcPath)) {
         return rpcHandler.handler(request, context);
       }
-      return handleHttpApiRequest(
-        request,
-        context as Parameters<typeof httpApiHandler.handler>[1],
-      );
+      return handleHttpApiRequest(request);
     },
     dispose: async () => {
       await Promise.all([httpApiHandler.dispose(), rpcHandler.dispose()]);

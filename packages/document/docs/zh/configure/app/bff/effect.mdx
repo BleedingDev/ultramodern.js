@@ -44,6 +44,17 @@ import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 
 仅当 `bff.runtimeFramework` 设置为 `'effect'` 时，`bff.effect` 才会生效。
 
+对于 Effect v4，TypeScript 需要使用支持 `exports` 映射的模块解析方式。
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  }
+}
+```
+
 ## bff.effect.entry
 
 - **类型：** `string`
@@ -115,6 +126,8 @@ export default defineConfig({
 - **默认值：** `{ enabled: true }`
 
 用于配置 Effect 运行时的数据请求信封（envelope）校验策略。
+
+生成的 Effect 客户端会将批处理请求发送到 `${bff.prefix}${batch.endpoint}`（例如 `/bff-api/_data/batch`）。
 
 当 `validateOrigin` 开启时，运行时会优先将 envelope 中的 origin 与请求 `Origin` 头比对；若请求无 `Origin`，则回退到请求 URL 的 origin。
 

@@ -99,9 +99,9 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceSpans = handledTraceChild.handle(
       'traceSpans',
-      ({ urlParams }) =>
+      ({ query }) =>
         Effect.succeed({
-          spans: getTraceSpans(urlParams.traceId),
+          spans: getTraceSpans(query.traceId),
         }),
     );
 
@@ -116,7 +116,7 @@ const greetingsLayer = HttpApiBuilder.group(
   },
 );
 
-const layer = HttpApiBuilder.api(remoteEffectApi).pipe(
+const layer = HttpApiBuilder.layer(remoteEffectApi).pipe(
   Layer.provide(greetingsLayer),
   Layer.provide(
     OpenTelemetry.NodeSdk.layer(() => ({
