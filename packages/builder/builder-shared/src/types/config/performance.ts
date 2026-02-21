@@ -37,6 +37,21 @@ export interface PreloadOrPreFetchOption {
   exclude?: Filter;
 }
 
+export type RsdoctorConfig =
+  | boolean
+  | {
+      /**
+       * Force enable / disable Rsdoctor.
+       * By default, Modern.js enables Rsdoctor in production builds.
+       */
+      enabled?: boolean;
+      /**
+       * Disable Rsdoctor client server and ensure build process exits after report generation.
+       * @default true
+       */
+      disableClientServer?: boolean;
+    };
+
 export interface SharedPerformanceConfig {
   /**
    * Whether to remove `console.xx` in production build.
@@ -102,6 +117,11 @@ export interface SharedPerformanceConfig {
    * same as the [profile](https://webpack.js.org/configuration/other-options/#profile) config of webpack.
    */
   profile?: boolean;
+
+  /**
+   * Configure Rsdoctor diagnostics for build.
+   */
+  rsdoctor?: RsdoctorConfig;
 }
 
 export interface NormalizedSharedPerformanceConfig

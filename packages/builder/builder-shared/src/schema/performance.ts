@@ -1,6 +1,7 @@
 import {
   BuildCacheOptions,
   ConsoleType,
+  RsdoctorConfig,
   SharedPerformanceConfig,
   SplitBySize,
   SplitCustom,
@@ -63,6 +64,14 @@ const preloadSchema = z.union([
   }),
 ]);
 
+const rsdoctorSchema: ZodType<RsdoctorConfig> = z.union([
+  z.boolean(),
+  z.object({
+    enabled: z.boolean().optional(),
+    disableClientServer: z.boolean().optional(),
+  }),
+]);
+
 export const sharedPerformanceConfigSchema = z.partialObj({
   removeConsole: z.union([z.boolean(), z.array(ConsoleTypeSchema)]),
   removeMomentLocale: z.boolean(),
@@ -82,6 +91,7 @@ export const sharedPerformanceConfigSchema = z.partialObj({
   ),
   preload: preloadSchema,
   prefetch: preloadSchema,
+  rsdoctor: rsdoctorSchema,
 });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
