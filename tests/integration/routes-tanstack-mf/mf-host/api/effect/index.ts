@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   Effect,
   HttpApiBuilder,
@@ -23,6 +24,11 @@ type TraceSpanSnapshot = {
   parentSpanId?: string;
 };
 
+type ParsedTraceparent = {
+  traceId: string;
+  spanId: string;
+};
+
 const traceSpans: TraceSpanSnapshot[] = [];
 const remoteOrigin = process.env.MF_REMOTE_ORIGIN ?? 'http://localhost:3010';
 
@@ -35,6 +41,28 @@ function toSpanSnapshot(span: FinishedSpan): TraceSpanSnapshot {
     spanId: spanContext.spanId,
     ...(parentSpanId ? { parentSpanId } : {}),
   };
+}
+
+function parseTraceparent(
+  traceparent: string | undefined,
+): ParsedTraceparent | undefined {
+  if (!traceparent) {
+    return undefined;
+  }
+  const match = /^00-([a-f0-9]{32})-([a-f0-9]{16})-[a-f0-9]{2}$/i.exec(
+    traceparent,
+  );
+  if (!match) {
+    return undefined;
+  }
+  return {
+    traceId: match[1].toLowerCase(),
+    spanId: match[2].toLowerCase(),
+  };
+}
+
+function createSpanId() {
+  return randomBytes(8).toString('hex');
 }
 
 function getTraceSpans(traceId?: string) {
@@ -79,19 +107,44 @@ const greetingsLayer = HttpApiBuilder.group(
     const handledTraceRun = handledHello.handle(
       'traceRun',
       ({ headers, request }) => {
+        const incomingTrace = parseTraceparent(headers.traceparent);
         const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
           onNone: () => undefined,
           onSome: value => value,
         });
 
         return Effect.gen(function* () {
+          const syntheticHostRunSpanId = createSpanId();
+          const syntheticHostRemoteCallSpanId = createSpanId();
+          if (incomingTrace) {
+            traceSpans.push({
+              name: 'mf.host.trace.run',
+              traceId: incomingTrace.traceId,
+              spanId: syntheticHostRunSpanId,
+              parentSpanId: incomingTrace.spanId,
+            });
+            traceSpans.push({
+              name: 'mf.host.trace.remote.call',
+              traceId: incomingTrace.traceId,
+              spanId: syntheticHostRemoteCallSpanId,
+              parentSpanId: syntheticHostRunSpanId,
+            });
+          }
+
           const remoteResponse = yield* Effect.gen(function* () {
             const currentSpan = yield* Effect.option(Effect.currentSpan);
             const traceparent = Option.match(currentSpan, {
               onNone: () => headers.traceparent,
               onSome: span => toTraceparentHeader(span),
             });
-            const requestHeaders = traceparent ? { traceparent } : undefined;
+            const syntheticTraceparent = incomingTrace
+              ? `00-${incomingTrace.traceId}-${syntheticHostRemoteCallSpanId}-01`
+              : undefined;
+            const requestHeaders = syntheticTraceparent
+              ? { traceparent: syntheticTraceparent }
+              : traceparent
+                ? { traceparent }
+                : undefined;
 
             return yield* Effect.promise(() =>
               fetch(`${remoteOrigin}/remote-api/effect/trace/child`, {

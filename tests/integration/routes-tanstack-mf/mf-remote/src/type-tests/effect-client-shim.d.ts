@@ -5,14 +5,8 @@ declare module '@modern-js/plugin-bff/effect-client' {
     make: (name: string) => any;
   };
   export const HttpApiEndpoint: {
-    get: (name: string) => (input: TemplateStringsArray) => {
-      setHeaders: AnyFn;
-      setUrlParams: AnyFn;
-      addSuccess: AnyFn;
-    };
-    post: (name: string) => (input: TemplateStringsArray) => {
-      addSuccess: AnyFn;
-    };
+    get: (...args: any[]) => any;
+    post: (...args: any[]) => any;
   };
   export const HttpApiGroup: {
     make: (name: string) => any;

@@ -1,6 +1,6 @@
 # ADR-0004: Telemetry Standardization and Multi-Exporter Support
 
-- Status: Proposed
+- Status: Implemented
 - Date: 2026-02-21
 - Decision Type: Observability architecture
 
@@ -75,3 +75,14 @@ Introduce a framework telemetry standardization layer with pluggable exporters.
 - Multiple exporters can run together or independently.
 - VictoriaMetrics exporter passes integration tests.
 - Telemetry overhead remains within agreed budget in perf tests.
+
+## 9. Implementation Notes (2026-02-21)
+
+- Canonical telemetry envelope, batching queue, redaction, and exporter registry are implemented in server core.
+- First-party exporters are implemented and tested:
+  - OTLP exporter.
+  - VictoriaMetrics exporter.
+- Framework config surface is available under `server.telemetry` with exporter-specific options.
+- Validation coverage:
+  - `packages/server/core/tests/plugins/telemetry.test.ts`
+  - `pnpm --filter @modern-js/server-core test -- telemetry.test.ts`

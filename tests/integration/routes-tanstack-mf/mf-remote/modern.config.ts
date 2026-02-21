@@ -18,7 +18,9 @@ export default defineConfig({
     prefix: '/remote-api',
     runtimeFramework: 'effect',
     effect: {
-      openapi: true,
+      openapi: {
+        path: '/openapi.json',
+      },
     },
   },
   plugins: [appTools(), bffPlugin(), moduleFederationPlugin()],

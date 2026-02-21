@@ -1,6 +1,6 @@
 # ADR-0005: Cross-Project BFF Hardening
 
-- Status: Proposed
+- Status: Implemented
 - Date: 2026-02-21
 - Decision Type: Reliability and DX hardening
 
@@ -55,3 +55,16 @@ Harden cross-project BFF with fail-fast validation, safer generation, and explic
 - Consumer API usage before bootstrap fails with clear typed error.
 - Metadata collision is detected and surfaced deterministically.
 - Regeneration updates SDK reliably for supported source changes.
+
+## 7. Implementation Notes (2026-02-21)
+
+- Prefix mismatch is now a hard validation error in cross-project BFF plugin wiring.
+- Runtime framework compatibility mismatch (`hono` vs `effect`) is validated early and fails fast.
+- Generated runtime exposes explicit `initProducerClient` bootstrap API (with `configure` alias).
+- Package metadata merge now performs deterministic conflict checks for `exports` and `typesVersions`.
+- Consumer pre-bootstrap request usage is guarded by runtime `create-request` checks and tested.
+- Validation coverage:
+  - `packages/cli/plugin-bff/tests/cross-project-api-plugin.test.ts`
+  - `packages/cli/plugin-bff/tests/regression.test.ts`
+  - `packages/server/create-request/tests/node.test.ts`
+  - `pnpm --filter @modern-js/plugin-bff test -- cross-project-api-plugin.test.ts regression.test.ts`

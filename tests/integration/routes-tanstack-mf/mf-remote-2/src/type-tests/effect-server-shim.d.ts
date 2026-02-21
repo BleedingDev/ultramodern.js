@@ -14,6 +14,9 @@ declare module '@modern-js/plugin-bff/effect-server' {
       groupName: string,
       setup: (handlers: HandlerCollection) => HandlerCollection,
     ) => any;
+    layer: (api: any) => {
+      pipe: AnyFn;
+    };
     api: (api: any) => {
       pipe: AnyFn;
     };

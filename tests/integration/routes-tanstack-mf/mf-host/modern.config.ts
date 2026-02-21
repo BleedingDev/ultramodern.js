@@ -18,7 +18,9 @@ export default defineConfig({
     prefix: '/host-api',
     runtimeFramework: 'effect',
     effect: {
-      openapi: true,
+      openapi: {
+        path: '/openapi.json',
+      },
     },
   },
   plugins: [appTools(), bffPlugin(), moduleFederationPlugin()],

@@ -1,6 +1,6 @@
 # ADR-0001: RsDoctor Default-On in Normal Builds
 
-- Status: Proposed
+- Status: Implemented
 - Date: 2026-02-21
 - Decision Type: Framework default behavior
 
@@ -55,3 +55,12 @@ Enable RsDoctor by default for standard build flows in framework templates and r
 - Disabling via config fully removes plugin behavior.
 - Existing builds remain functionally correct.
 - Docs clearly explain defaults and override knobs.
+
+## 9. Implementation Notes (2026-02-21)
+
+- Builder now enables RsDoctor by default in production build mode.
+- `performance.rsdoctor = false` remains the explicit opt-out.
+- RsDoctor plugin defaults `disableClientServer` to `true` to keep diagnostics non-blocking for local and CI flows.
+- Validation coverage:
+  - `packages/cli/builder/tests/rsdoctor.test.ts`
+  - `pnpm --filter @modern-js/builder test -- rsdoctor.test.ts`
