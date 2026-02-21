@@ -6,7 +6,7 @@ export const PREFIX = '{prefix}';
 export const API_DIR = '{apiDirectory}';
 export const LAMBDA_DIR = '{lambdaDirectory}';
 export const DIST_DIR = '{distDirectory}';
-export const RUNTIME_FRAMEWORK = '{runtimeFramework}';
+export const RUNTIME_FRAMEWORK: string = '{runtimeFramework}';
 
 const NODE_MODULES = 'node_modules';
 
@@ -29,10 +29,25 @@ export const crossProjectApiPlugin = (): CliPlugin<AppTools> => ({
         bffRuntimeFramework: RUNTIME_FRAMEWORK as 'hono' | 'effect',
       });
       const config = api.getConfig();
-      if (config?.bff?.prefix) {
-        console.warn(
-          `[WARNING] Detected bff.prefix configuration: "${config.bff.prefix}".
-When using cross-project BFF, you should not configure bff.prefix as it may cause API path conflicts or access issues. Please remove the bff.prefix configuration.`,
+      const configuredPrefix = config?.bff?.prefix;
+      if (configuredPrefix) {
+        const isSamePrefix = Array.isArray(configuredPrefix)
+          ? configuredPrefix.length === 1 && configuredPrefix[0] === PREFIX
+          : configuredPrefix === PREFIX;
+        if (!isSamePrefix) {
+          throw new Error(
+            `[${PACKAGE_NAME}] Invalid bff.prefix for cross-project BFF. Detected "${configuredPrefix}", expected "${PREFIX}". Remove bff.prefix from the consumer app, or set it exactly to "${PREFIX}".`,
+          );
+        }
+      }
+
+      const configuredRuntimeFramework = config?.bff?.runtimeFramework;
+      if (
+        configuredRuntimeFramework &&
+        configuredRuntimeFramework !== RUNTIME_FRAMEWORK
+      ) {
+        throw new Error(
+          `[${PACKAGE_NAME}] Runtime framework mismatch for cross-project BFF. Detected "${configuredRuntimeFramework}", but producer SDK requires "${RUNTIME_FRAMEWORK}".`,
         );
       }
       resolvedConfig.bff.prefix = PREFIX;

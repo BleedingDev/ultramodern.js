@@ -1,5 +1,10 @@
 import nock from 'nock';
-import { configure, createRequest } from '../src/browser';
+import {
+  ProducerClientNotInitializedError,
+  configure,
+  createRequest,
+  createUploader,
+} from '../src/browser';
 
 describe('configure', () => {
   const url = 'http://localhost:8080';
@@ -165,5 +170,31 @@ describe('configure', () => {
     const data = await res.json();
     expect(res instanceof Response).toBe(true);
     expect(data).toStrictEqual(response);
+  });
+
+  test('should throw when non-default requestId is used before bootstrap', async () => {
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+      requestId: 'producer-app',
+    });
+
+    await expect(request()).rejects.toBeInstanceOf(
+      ProducerClientNotInitializedError,
+    );
+  });
+
+  test('uploader should throw when non-default requestId is not bootstrapped', () => {
+    const uploader = createUploader({
+      path,
+      requestId: 'producer-app',
+    });
+
+    expect(() =>
+      uploader({
+        files: { file: 'demo' },
+      }),
+    ).toThrow(ProducerClientNotInitializedError);
   });
 });

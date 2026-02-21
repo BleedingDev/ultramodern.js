@@ -158,6 +158,30 @@ const hasServerRenderingConfig = (
   return false;
 };
 
+const isModuleFederationAppSSRAlphaEnabled = (
+  userConfig: AppToolsNormalizedConfig,
+): boolean => {
+  const isEnabled = (ssr: ServerUserConfig['ssr']) =>
+    Boolean(
+      ssr &&
+        typeof ssr === 'object' &&
+        ssr.moduleFederationAppSSRAlpha === true,
+    );
+
+  if (isEnabled(userConfig.server?.ssr)) {
+    return true;
+  }
+
+  if (
+    userConfig.server?.ssrByEntries &&
+    typeof userConfig.server.ssrByEntries === 'object'
+  ) {
+    return Object.values(userConfig.server.ssrByEntries).some(isEnabled);
+  }
+
+  return false;
+};
+
 /**
  * Check if any entry uses string SSR mode.
  * Returns true if at least one entry uses 'string' SSR mode.
@@ -226,9 +250,12 @@ const ssrBuilderPlugin = (
       const isServerEnvironment =
         config.output.target === 'node' || name === 'workerSSR';
       const userConfig = modernAPI.getNormalizedConfig();
+      const isModuleFederationAppSSRAlpha =
+        isModuleFederationAppSSRAlphaEnabled(userConfig);
       const useModuleFederationNodeOutput =
         hasServerRenderingConfig(userConfig) &&
-        shouldUseModuleFederationNodeOutput(config);
+        (shouldUseModuleFederationNodeOutput(config) ||
+          (isModuleFederationAppSSRAlpha && config.output.target === 'node'));
 
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =
@@ -270,6 +297,9 @@ const ssrBuilderPlugin = (
               ? JSON.stringify('node')
               : JSON.stringify('browser'),
             'process.env.MODERN_SSR_ENV': JSON.stringify(ssrEnv),
+            'process.env.MODERN_MF_APP_SSR_ALPHA': JSON.stringify(
+              isModuleFederationAppSSRAlpha,
+            ),
           },
         },
         output: outputConfig,

@@ -166,8 +166,30 @@ async function assertModuleFederationAssets(remotePort: number) {
         path?: string;
         name?: string;
       };
+      prefetchInterface?: boolean;
     };
+    exposes?: Array<{
+      name?: string;
+      path?: string;
+      assets?: {
+        js?: {
+          sync?: string[];
+          async?: string[];
+        };
+      };
+    }>;
   };
+  expect(typeof manifest.metaData?.prefetchInterface).toBe('boolean');
+  const exposes = manifest.exposes || [];
+  expect(exposes.length).toBeGreaterThan(0);
+  for (const expose of exposes) {
+    expect(expose.path).toMatch(/^\.\//);
+    expect((expose.assets?.js?.sync || []).length).toBeGreaterThan(0);
+  }
+  const mutatorExpose = exposes.find(expose => expose.name === 'Mutator');
+  if (mutatorExpose) {
+    expect((mutatorExpose.assets?.js?.async || []).length).toBeGreaterThan(0);
+  }
   const remoteEntryName = manifest.metaData?.remoteEntry?.name;
   expect(remoteEntryName).toBeTruthy();
   if (!remoteEntryName) {
@@ -191,6 +213,44 @@ async function assertModuleFederationAssets(remotePort: number) {
 
   const remoteEntryCode = await remoteEntryResponse.text();
   expect(remoteEntryCode.startsWith('<!DOCTYPE html>')).toBe(false);
+}
+
+async function assertRemoteLoadFailureFallback(input: {
+  page: Page;
+  hostPort: number;
+  mode: 'timeout' | 'network' | 'contract';
+  target: 'remote/Widget' | 'remote/Mutator' | 'remote2/Panel';
+  fallbackSelector:
+    | '#remote-error'
+    | '#remote-mutator-error'
+    | '#remote2-error';
+  expectedErrorName: 'RemoteLoadError' | 'RemoteComponentContractError';
+}) {
+  const url = new URL(`http://localhost:${input.hostPort}/mf`);
+  url.searchParams.set('mfRemoteFailure', input.mode);
+  url.searchParams.set('mfRemoteTarget', input.target);
+
+  await input.page.goto(url.toString(), {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+  await input.page.waitForSelector(input.fallbackSelector, {
+    timeout: 50000,
+  });
+
+  const fallbackText = await input.page.$eval(
+    input.fallbackSelector,
+    el => el.textContent || '',
+  );
+  expect(fallbackText).toContain(
+    `remote-load-error:${input.expectedErrorName}`,
+  );
+
+  const hostLoaderText = await input.page.$eval(
+    '#host-loader',
+    el => el.textContent || '',
+  );
+  expect(hostLoaderText).toBe('host-mf-loader');
 }
 
 async function assertRemoteComponentInteraction(
@@ -528,6 +588,25 @@ describe('routes-tanstack-mf', () => {
     await assertRemoteComponentInteraction(page, HOST_PORT, errors);
   });
 
+  test('supports deterministic remote failure injection fallbacks', async () => {
+    await assertRemoteLoadFailureFallback({
+      page,
+      hostPort: HOST_PORT,
+      mode: 'timeout',
+      target: 'remote/Widget',
+      fallbackSelector: '#remote-error',
+      expectedErrorName: 'RemoteLoadError',
+    });
+    await assertRemoteLoadFailureFallback({
+      page,
+      hostPort: HOST_PORT,
+      mode: 'contract',
+      target: 'remote/Widget',
+      fallbackSelector: '#remote-error',
+      expectedErrorName: 'RemoteComponentContractError',
+    });
+  });
+
   test('emits tree-shaking metadata for shared modules', async () => {
     await assertSharedTreeShakingStats(HOST_PORT);
     await assertSharedTreeShakingStats(REMOTE_PORT);
@@ -605,6 +684,17 @@ describe('routes-tanstack-mf serve mode', () => {
 
   test('supports remote component fetcher with host loader/action in serve mode', async () => {
     await assertRemoteComponentInteraction(page, HOST_PORT, errors);
+  });
+
+  test('supports deterministic remote network fallback in serve mode', async () => {
+    await assertRemoteLoadFailureFallback({
+      page,
+      hostPort: HOST_PORT,
+      mode: 'network',
+      target: 'remote2/Panel',
+      fallbackSelector: '#remote2-error',
+      expectedErrorName: 'RemoteLoadError',
+    });
   });
 
   test('serves tree-shaking metadata for shared modules in serve mode', async () => {

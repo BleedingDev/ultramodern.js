@@ -21,7 +21,22 @@ export default defineConfig({
 For better performance, we only support using this capability combination in Streaming SSR scenarios.
 
 :::warning
-Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) do not support server-side rendering (SSR). If you need to use SSR functionality, please use component-level module export methods instead.
+Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) are available for SSR in **alpha mode**.
+
+Enable it explicitly in both host and remote apps:
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    ssr: {
+      mode: 'stream',
+      moduleFederationAppSSRAlpha: true,
+    },
+  },
+});
+```
+
+For production rollout, make sure you keep fallback boundaries for remote load failures and monitor fallback markers in logs/telemetry.
 :::
 
 ## Node SSR Bundle Compatibility

@@ -13,6 +13,7 @@ import {
   injectRenderHandlerPlugin,
 } from './render';
 import { injectRoutePlugin } from './route';
+import { injectTelemetryPlugin } from './telemetry';
 
 export type CreateDefaultPluginsOptions = InjectRenderHandlerOptions & {
   logger?: Logger | false;
@@ -38,6 +39,7 @@ export function createDefaultPlugins(
     compatPlugin(),
     logPlugin(),
     initMonitorsPlugin(),
+    injectTelemetryPlugin(),
     injectRenderHandlerPlugin(options),
     injectloggerPlugin(options.logger ? options.logger : createSilenceLogger()),
     injectServerTiming(),
