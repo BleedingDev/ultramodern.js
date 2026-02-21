@@ -11,6 +11,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0004-telemetry-standardization-and-exporters.md`
 - `ADR-0005-cross-project-bff-hardening.md`
 - `IMPLEMENTATION-BACKLOG.md`
+- `RELEASE-V4-BACKPORT-PLAN.md`
 
 ## Execution Matrix
 
