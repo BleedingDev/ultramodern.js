@@ -62,6 +62,7 @@
   "dependencies": {
     "@modern-js/builder-shared": "workspace:*",
     "@modern-js/utils": "workspace:*",
+    "@rsdoctor/rspack-plugin": "0.4.11",
     "@rsbuild/monorepo-utils": "0.0.7",
     "@svgr/webpack": "8.0.1",
     "@swc/helpers": "0.5.1",
