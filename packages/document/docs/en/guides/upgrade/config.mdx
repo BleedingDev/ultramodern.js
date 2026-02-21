@@ -334,7 +334,7 @@ export default {
 
 ### tools.rsdoctor
 
-**Change**: This configuration has been deprecated, please refer to the [Rsdoctor documentation](/guides/basic-features/debug/rsdoctor) and use Rspack's [Rsdoctor plugin](https://rsdoctor.dev/) to enable support.
+**Change**: This configuration has been deprecated. In v3, Modern.js enables Rsdoctor by default in production build. Use [`performance.rsdoctor`](/configure/app/performance/rsdoctor) to configure or disable it.
 
 **Migration Example**:
 
@@ -348,22 +348,11 @@ tools: {
 },
 
 // v3
-import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
-
 export default {
-  // ...
-  tools: {
-    bundlerChain(chain) {
-      // Only register the plugin when RSDOCTOR is true, as the plugin will increase build time
-      if (process.env.RSDOCTOR) {
-        chain.plugin('rsdoctor').use(RsdoctorRspackPlugin, [
-          {
-            // Plugin options
-            disableClientServer: true,
-            features: ['bundle', 'loader', 'plugins', 'resolver'],
-          },
-        ]);
-      }
+  performance: {
+    // enabled by default in production build
+    rsdoctor: {
+      enabled: true,
     },
   },
 };

@@ -114,6 +114,16 @@ export type ToolsDevServerConfig = ConfigChain<{
 
 export type ToolsAutoprefixerConfig = ConfigChain<AutoprefixerOptions>;
 
+export type RsdoctorUserConfig =
+  | boolean
+  | {
+      /**
+       * Force enable / disable Rsdoctor.
+       * By default, Modern.js enables Rsdoctor in production builds.
+       */
+      enabled?: boolean;
+    };
+
 export type BuilderExtraConfig = {
   tools?: {
     /**
@@ -166,6 +176,12 @@ export type BuilderExtraConfig = {
       proxy?: ServerConfig['proxy'];
       watch?: boolean;
     };
+  };
+  performance?: {
+    /**
+     * Configure Rsdoctor diagnostics for build.
+     */
+    rsdoctor?: RsdoctorUserConfig;
   };
   source?: {
     transformImport?: SourceConfig['transformImport'] | false;
