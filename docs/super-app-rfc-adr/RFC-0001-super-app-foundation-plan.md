@@ -1,6 +1,6 @@
 # RFC-0001: Super App Foundation Plan
 
-- Status: Proposed
+- Status: Implemented (Phases A/B complete, Phase C alpha)
 - Date: 2026-02-21
 - Scope: Modern.js framework-level capability roadmap
 
@@ -77,5 +77,17 @@ This RFC defines a framework roadmap to make Modern.js super-app-ready while pre
 ## 8. Deliverables
 
 - RFC + ADR set in this folder.
-- Implementation tracking issues per ADR (to be created).
-- CI matrix updates for new tests and diagnostics gates (to be created).
+- Implementation tracking backlog per ADR (`IMPLEMENTATION-BACKLOG.md`).
+- CI matrix updates for diagnostics and integration gates.
+
+## 9. Implementation Snapshot (2026-02-21)
+
+- Phase A complete:
+  - RsDoctor is enabled by default in production builds with explicit opt-out and non-blocking defaults.
+  - Cross-project BFF hardening landed (prefix/runtime validation, safer runtime bootstrap contract, deterministic package metadata merge with collision checks).
+  - Server telemetry standardization landed with OTLP and VictoriaMetrics exporters.
+- Phase B complete:
+  - Effect-only MF data-fetch reliability coverage landed with deterministic failure injection and typed fallback contracts.
+  - Distributed trace continuity checks are active in routes MF integration (build and serve modes).
+- Phase C in progress (alpha complete):
+  - App-level MF SSR alpha flag and integration coverage landed, including serve-mode fallback behavior.

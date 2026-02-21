@@ -1,6 +1,6 @@
 # ADR-0003: Effect-Only Module Federation Data-Fetch Reliability
 
-- Status: Proposed
+- Status: Implemented
 - Date: 2026-02-21
 - Decision Type: Data contract and testing strategy
 
@@ -54,3 +54,13 @@ Standardize federated data-fetch integration around Effect runtime and Effect Sc
 - Failure-injection scenarios produce deterministic and typed fallbacks.
 - Effect-only schema paths are enforced in test fixtures.
 - No Zod dependency introduced by this stream.
+
+## 8. Implementation Notes (2026-02-21)
+
+- Routes MF reliability fixtures and deterministic failure injection are active for timeout/network/contract error paths.
+- Distributed OTEL trace continuity checks are enabled in both build and serve integration modes.
+- Effect-only typed contracts remain enforced; this stream introduced no Zod dependency.
+- Validation coverage:
+  - `tests/integration/routes-tanstack-mf/test/index.test.ts`
+  - `tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts`
+  - `pnpm --dir tests test:framework -- integration/routes-tanstack-mf/test/index.test.ts --runInBand`
