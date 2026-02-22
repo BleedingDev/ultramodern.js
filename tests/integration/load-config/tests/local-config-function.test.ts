@@ -1,5 +1,5 @@
-import path from 'path';
 import { existsSync } from 'fs';
+import path from 'path';
 import { getPort, killApp, launchApp } from '../../../utils/modernTestUtils';
 
 describe('local config', () => {
@@ -11,7 +11,7 @@ describe('local config', () => {
     const app = await launchApp(appDir, appPort);
 
     expect(
-      existsSync(path.join(appDir, 'dist/bar/html/main/index.html')),
+      existsSync(path.join(appDir, 'dist/bar/html/index/index.html')),
     ).toBeTruthy();
     await killApp(app);
   });

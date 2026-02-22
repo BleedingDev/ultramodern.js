@@ -1,0 +1,30 @@
+---
+title: dataUriLimit
+---
+
+# output.dataUriLimit
+
+- **类型：**
+
+```ts
+type DataUriLimitConfig =
+  | number
+  | {
+      svg?: number;
+      font?: number;
+      image?: number;
+      media?: number;
+    };
+```
+
+- **默认值：**
+
+```js
+const defaultDatUriLimit = 10000;
+```
+
+设置图片、字体、媒体等静态资源被自动内联为 base64 的体积阈值。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="output.dataUriLimit" />

@@ -1,38 +1,31 @@
 {
-  "private": true,
   "name": "@e2e/builder",
-  "version": "2.9.0",
+  "version": "2.66.0",
+  "private": true,
   "scripts": {
-    "test": "pnpm run test:webpack && pnpm run test:rspack",
-    "test:webpack": "playwright test",
-    "test:rspack": "PROVIDE_TYPE=rspack playwright test",
-    "test:webpack-swc": "playwright test swc"
+    "test": "playwright test"
   },
   "dependencies": {
-    "lodash": "^4.17.21",
-    "react": "^18",
-    "react-dom": "^18",
-    "react-router-dom": "^6.8.1",
-    "vue": "^3.3.4"
+    "lodash": "^4.17.23",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "7.13.0",
+    "vue": "^3.5.28"
   },
   "devDependencies": {
     "@modern-js/builder": "workspace:*",
-    "@modern-js/builder-plugin-image-compress": "workspace:*",
-    "@modern-js/builder-plugin-node-polyfill": "workspace:*",
-    "@modern-js/builder-plugin-stylus": "workspace:*",
-    "@modern-js/builder-plugin-swc": "workspace:*",
-    "@modern-js/builder-plugin-vue": "workspace:*",
-    "@modern-js/builder-plugin-vue2": "workspace:*",
-    "@modern-js/builder-rspack-provider": "workspace:*",
-    "@modern-js/builder-shared": "workspace:*",
-    "@modern-js/builder-webpack-provider": "workspace:*",
-    "@modern-js/e2e": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@types/node": "^14",
-    "@types/lodash": "^4.14.195",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "@playwright/test": "1.33.0",
-    "typescript": "^5"
+    "@playwright/test": "1.58.2",
+    "@rsbuild/core": "2.0.0-beta.4",
+    "@types/connect": "^3.4.38",
+    "@types/lodash": "^4.17.23",
+    "@types/node": "^25.3.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/serve-static": "^2.2.0",
+    "connect": "^3.7.0",
+    "serve-static": "^2.2.1",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^5.9.3"
   }
 }

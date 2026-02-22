@@ -1,6 +1,6 @@
 import { promisify } from 'util';
-import type { LoaderContext } from 'webpack';
-import { logger } from '@modern-js/utils/logger';
+import { logger } from '@modern-js/utils';
+import type { Rspack } from '@rsbuild/core';
 import { generateClient } from './generateClient';
 
 type Context = {
@@ -10,18 +10,28 @@ type Context = {
   action: boolean;
   inline: boolean;
   routeId: string;
+  retain: boolean;
 };
 
 export default async function loader(
-  this: LoaderContext<Context>,
+  this: Rspack.LoaderContext<Context>,
   source: string,
 ) {
   this.cacheable();
   const target = this._compiler?.options.target;
-  if (target === 'node') {
-    return source;
-  }
-  if (target === 'webworker') {
+
+  const shouldSkip = (compileTarget: string) => {
+    return (
+      target === compileTarget ||
+      (Array.isArray(target) && (target as string[]).includes(compileTarget))
+    );
+  };
+
+  if (
+    shouldSkip('node') ||
+    shouldSkip('webworker') ||
+    shouldSkip('async-node')
+  ) {
     return source;
   }
 
@@ -30,16 +40,19 @@ export default async function loader(
   const options = resourceQuery
     .slice(1)
     .split('&')
-    .reduce((pre, cur) => {
-      const [key, value] = cur.split('=');
-      if (key && value) {
-        // eslint-disable-next-line no-nested-ternary
-        pre[key] = value === 'true' ? true : value === 'false' ? false : value;
-      }
-      return pre;
-    }, {} as Record<string, any>);
+    .reduce(
+      (pre, cur) => {
+        const [key, value] = cur.split('=');
+        if (key && value) {
+          pre[key] =
+            value === 'true' ? true : value === 'false' ? false : value;
+        }
+        return pre;
+      },
+      {} as Record<string, any>,
+    );
 
-  if (!options.loaderId) {
+  if (!options.loaderId || options.retain) {
     return source;
   }
 
@@ -49,6 +62,8 @@ export default async function loader(
       const clientDataPath = this.resourcePath.includes('.loader.')
         ? this.resourcePath.replace('.loader.', '.data.client.')
         : this.resourcePath.replace('.data.', '.data.client.');
+
+      this.addDependency(clientDataPath);
 
       const clientDataContent = await readFile(clientDataPath);
       return clientDataContent;

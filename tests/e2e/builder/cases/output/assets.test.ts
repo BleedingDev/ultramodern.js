@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
 
 const fixtures = __dirname;
@@ -38,11 +38,6 @@ const cases = [
   {
     name: 'assets-url',
     cwd: join(fixtures, 'assets-url'),
-    expected: 'url',
-  },
-  {
-    name: 'assets-no-inline',
-    cwd: join(fixtures, 'assets-no-inline'),
     expected: 'url',
   },
   {

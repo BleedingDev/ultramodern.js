@@ -1,1 +1,1 @@
-export { defineServerConfig as defineConfig } from '../utils/config';
+export type { ServerPlugin } from '@modern-js/server-core';

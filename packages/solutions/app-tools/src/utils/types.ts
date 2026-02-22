@@ -8,6 +8,7 @@ export type DevOptions = {
 export type BuildOptions = {
   config?: string;
   analyze?: boolean;
+  watch?: boolean;
 };
 
 export type DeployOptions = {
@@ -23,4 +24,9 @@ export type InspectOptions = {
   env: string;
   output: string;
   verbose?: boolean;
+};
+
+export type InfoOptions = {
+  config?: string;
+  json?: boolean;
 };

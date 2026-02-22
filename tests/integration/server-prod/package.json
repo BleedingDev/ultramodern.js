@@ -1,6 +1,6 @@
 {
   "name": "server-prod",
-  "version": "2.9.0",
+  "version": "2.66.0",
   "private": true,
   "scripts": {
     "new": "modern new",
@@ -8,28 +8,21 @@
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
-    "test": "modern test",
+    "test": "jest",
     "preview": "modern deploy --mode preview",
     "deploy": "modern deploy"
   },
-  "engines": {
-    "node": ">=14.17.6"
-  },
-  "eslintIgnore": [
-    "node_modules/",
-    "dist/",
-    ".rpt2_cache/"
-  ],
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "axios": "^1.2.1",
-    "express": "^4.17.1",
-    "react": "^18",
-    "react-dom": "^18"
+    "axios": "^1.13.5",
+    "express": "^5.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14"
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
+    "jest": "^30.2.0"
   }
 }

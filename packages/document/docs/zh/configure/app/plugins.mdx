@@ -1,0 +1,59 @@
+# plugins
+
+- **类型：** `CliPlugin[]`
+- **默认值：** `[]`
+
+用于配置自定义的 Modern.js 框架 CLI 插件。自定义 CLI 插件的编写方式请参考 [如何编写 CLI 插件](/plugin/introduction.html#cli-插件)。
+
+## 注意事项
+
+该选项**用于配置框架 CLI 插件**，如果你需要配置其他类型的插件，请选择对应的配置方式：
+
+- 配置 Rsbuild 插件，请使用 [builderPlugins](/configure/app/builder-plugins) 配置项。
+- 配置 Rspack 插件，请使用 [tools.bundlerChain](/configure/app/tools/bundler-chain) 配置项。
+- 配置框架 Runtime 插件，请使用 [runtime 配置文件 plugins](/configure/app/runtime/plugins) 配置项。
+
+## 示例
+
+下面是 CLI 插件的使用示例。
+
+### 使用 npm 上的插件
+
+使用 npm 上的插件，需要通过包管理器安装插件，并通过 import 引入。
+
+```ts title="modern.config.ts"
+import { myPlugin } from 'my-plugin';
+
+export default defineConfig({
+  plugins: [myPlugin()],
+});
+```
+
+### 使用本地插件
+
+使用本地代码仓库中的插件，直接通过相对路径 import 引入即可。
+
+```ts title="modern.config.ts"
+import { myPlugin } from './config/plugin/myPlugin';
+
+export default defineConfig({
+  plugins: [myPlugin()],
+});
+```
+
+### 插件配置项
+
+如果插件提供了一些自定义的配置项，可以通过插件函数的参数传入配置。
+
+```ts title="modern.config.ts"
+import { myPlugin } from 'my-plugin';
+
+export default defineConfig({
+  plugins: [
+    myPlugin({
+      foo: 1,
+      bar: 2,
+    }),
+  ],
+});
+```

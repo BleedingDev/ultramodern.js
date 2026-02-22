@@ -1,11 +1,12 @@
 import path, { isAbsolute } from 'path';
 import { findExists } from '@modern-js/utils';
-import { AppNormalizedConfig, IAppContext } from '../../types';
+import type { AppNormalizedConfig } from '../../types';
+import type { AppToolsContext } from '../../types/plugin';
 
 export function initHtmlConfig(
-  config: AppNormalizedConfig<'shared'>,
-  appContext: IAppContext,
-) {
+  config: AppNormalizedConfig,
+  appContext: AppToolsContext,
+): AppNormalizedConfig['html'] {
   const ICON_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg', 'ico'];
   config.html.appIcon = createBuilderAppIcon(config, appContext);
   config.html.favicon = createBuilderFavicon(config, appContext);
@@ -13,104 +14,71 @@ export function initHtmlConfig(
   return config.html;
 
   function createBuilderAppIcon(
-    config: AppNormalizedConfig<'shared'>,
-    appContext: IAppContext,
+    config: AppNormalizedConfig,
+    appContext: AppToolsContext,
   ) {
+    const { appIcon } = config.html;
     const { configDir } = config.source;
-    const appIcon = findExists(
-      ICON_EXTENSIONS.map(ext =>
-        path.resolve(
-          appContext.appDirectory,
-          configDir || './config',
-          `icon.${ext}`,
+    const getDefaultAppIcon = () => {
+      const appIconPath = findExists(
+        ICON_EXTENSIONS.map(ext =>
+          path.resolve(
+            appContext.appDirectory,
+            configDir || './config',
+            `icon.${ext}`,
+          ),
         ),
-      ),
-    );
-    return typeof appIcon === 'string' ? appIcon : undefined;
+      );
+      return appIconPath
+        ? { icons: [{ src: appIconPath, size: 180 }] }
+        : undefined;
+    };
+    return appIcon || getDefaultAppIcon() || undefined;
   }
   function createBuilderFavicon(
-    config: AppNormalizedConfig<'shared'>,
-    appContext: IAppContext,
+    config: AppNormalizedConfig,
+    appContext: AppToolsContext,
   ) {
     const { configDir } = config.source;
     const { favicon } = config.html;
-    const defaultFavicon = findExists(
-      ICON_EXTENSIONS.map(ext =>
-        path.resolve(
-          appContext.appDirectory,
-          configDir || './config',
-          `favicon.${ext}`,
+    const getDefaultFavicon = () =>
+      findExists(
+        ICON_EXTENSIONS.map(ext =>
+          path.resolve(
+            appContext.appDirectory,
+            configDir || './config',
+            `favicon.${ext}`,
+          ),
         ),
-      ),
-    );
-    return favicon || defaultFavicon || undefined;
+      );
+    return favicon || getDefaultFavicon() || undefined;
   }
 }
 
 export function initSourceConfig(
-  config: AppNormalizedConfig<'shared'>,
-  appContext: IAppContext,
-  bundler: 'webpack' | 'rspack',
+  config: AppNormalizedConfig,
+  appContext: AppToolsContext,
 ) {
   config.source.include = createBuilderInclude(config, appContext);
+}
 
-  if (bundler === 'webpack') {
-    (config as AppNormalizedConfig).source.moduleScopes =
-      createBuilderModuleScope(config as AppNormalizedConfig);
-  }
-
-  function createBuilderInclude(
-    config: AppNormalizedConfig<'shared'>,
-    appContext: IAppContext,
-  ) {
-    const { include } = config.source;
-    const defaultInclude = [appContext.internalDirectory];
-    const transformInclude = (include || [])
-      .map((include: string | RegExp) => {
-        if (typeof include === 'string') {
-          if (isAbsolute(include)) {
-            return include;
-          }
-          return new RegExp(include);
+function createBuilderInclude(
+  config: AppNormalizedConfig,
+  appContext: AppToolsContext,
+) {
+  const { include } = config.source;
+  const defaultInclude = [appContext.internalDirectory];
+  const transformInclude = (include || [])
+    .map(include => {
+      if (typeof include === 'string') {
+        if (isAbsolute(include)) {
+          return include;
         }
-        return include;
-      })
-      .concat(defaultInclude); // concat default Include
-
-    return transformInclude;
-  }
-
-  function createBuilderModuleScope(config: AppNormalizedConfig<'webpack'>) {
-    const { moduleScopes } = config.source;
-    if (moduleScopes) {
-      let builderModuleScope: any[] = [];
-      const DEFAULT_SCOPES: Array<string | RegExp> = [
-        './src',
-        './shared',
-        /node_modules/,
-      ];
-      if (Array.isArray(moduleScopes)) {
-        if (isPrimitiveScope(moduleScopes)) {
-          builderModuleScope = DEFAULT_SCOPES.concat(moduleScopes);
-        } else {
-          builderModuleScope = [DEFAULT_SCOPES, ...moduleScopes];
-        }
-      } else {
-        builderModuleScope = [DEFAULT_SCOPES, moduleScopes];
+        return new RegExp(include);
       }
-      return builderModuleScope;
-    } else {
-      return undefined;
-    }
+      return include;
+    })
+    .concat(defaultInclude); // concat default Include
 
-    function isPrimitiveScope(
-      items: unknown[],
-    ): items is Array<string | RegExp> {
-      return items.every(
-        item =>
-          typeof item === 'string' ||
-          Object.prototype.toString.call(item) === '[object RegExp]',
-      );
-    }
-  }
+  return transformInclude;
 }

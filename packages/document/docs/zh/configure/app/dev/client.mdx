@@ -1,0 +1,45 @@
+---
+title: client
+---
+
+# dev.client
+
+- **类型：**
+
+```ts
+type Client = {
+  // WebSocket 请求的协议名称
+  protocol?: 'ws' | 'wss';
+  // WebSocket 请求的路径
+  path?: string;
+  // WebSocket 请求的端口号
+  port?: string | number;
+  // WebSocket 请求的 host
+  host?: string;
+  // WebSocket 请求断开后的最大重连次数
+  reconnect?: number;
+  // 当出现编译错误时，是否在浏览器中显示 error overlay
+  overlay?: boolean;
+};
+```
+
+- **默认值：**
+
+```js
+const defaultConfig = {
+  path: '/webpack-hmr',
+  port: '<port>',
+  // 默认为 "location.hostname"
+  host: '',
+  // 默认为 "location.protocol === 'https:' ? 'wss' : 'ws'""
+  protocol: undefined,
+  reconnect: 100,
+  overlay: false,
+};
+```
+
+配置 Modern.js 在开发过程中注入的 client 代码，可以用于设置热更新对应的 WebSocket URL。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="dev.client" />

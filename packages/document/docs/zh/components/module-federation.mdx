@@ -1,0 +1,7 @@
+模块联邦（Module Federation，简称 MF）是一种让多个 JavaScript 应用可以共享代码和资源的技术方案。它类似于服务端的微服务架构，允许你将大型应用拆分成多个独立的小应用，这些小应用可以独立开发、测试和部署，同时还能在运行时动态加载其他应用的模块。
+
+使用模块联邦可以解决多个前端应用之间代码重复的问题。传统方式下，如果多个应用需要使用相同的组件或工具函数，需要在每个应用中重复安装这些代码，导致代码重复、维护成本高、应用体积变大。使用模块联邦后，你可以将公共代码放在一个应用中，其他应用按需动态加载，实现代码共享，减少重复。
+
+Module Federation 2.0 支持 [Rspack](https://rspack.rs/) 构建工具，并提供了动态类型提示、Manifest、Federation Runtime、运行时插件系统和 Chrome Devtools 等增强功能，提供更好的开发体验和调试能力。你可以访问 [Module Federation 官方文档](https://module-federation.io/zh/index.html) 了解更多信息。
+
+Modern.js 提供了一个 Module Federation 的示例项目，请参考 [module-federation-examples - modernjs](https://github.com/module-federation/module-federation-examples/tree/db5bdbeee56f779999a2c591fc553eb94eb20b36/modernjs)。

@@ -1,4 +1,3 @@
-import type { SSGMultiEntryOptions } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '../constants';
 import { isEmpty } from './type';
 
@@ -32,11 +31,18 @@ export const isSSR = (config: any): boolean => {
 
 export const isUseSSRBundle = (config: any): boolean => {
   const { output } = config;
-  if (output?.ssg) {
+  if (
+    output?.ssg ||
+    (output?.ssgByEntries && Object.keys(output?.ssgByEntries).length > 0)
+  ) {
     return true;
   }
 
   return isSSR(config);
+};
+
+export const isUseRsc = (config: any): boolean => {
+  return config?.server?.rsc;
 };
 
 /**
@@ -55,28 +61,31 @@ export const isServiceWorker = (config: any): boolean => {
   return false;
 };
 
-export const isRouterV5 = (config: {
-  runtime?: { router?: { mode?: string } | boolean };
-}) =>
-  typeof config.runtime?.router !== 'boolean' &&
-  config?.runtime?.router?.mode === 'react-router-5';
-
 export const isSSGEntry = (
   config: any,
   entryName: string,
   entrypoints: EntryPoint[],
 ) => {
-  const ssgConfig = config.output.ssg;
-  const useSSG = isSingleEntry(entrypoints, config.source?.mainEntryName)
-    ? Boolean(ssgConfig)
-    : ssgConfig === true ||
-      typeof (ssgConfig as Array<unknown>)?.[0] === 'function' ||
-      Boolean((ssgConfig as SSGMultiEntryOptions)?.[entryName]);
+  const { output, source } = config;
+  const single = isSingleEntry(entrypoints, source?.mainEntryName);
 
-  return useSSG;
+  if (single) {
+    const byEntries = output?.ssgByEntries;
+    return Boolean(output?.ssg) || (byEntries && !isEmpty(byEntries));
+  }
+
+  const byEntries = output?.ssgByEntries;
+  if (!byEntries || isEmpty(byEntries)) {
+    return false;
+  }
+
+  return Boolean(byEntries[entryName]);
 };
 
 export const isSingleEntry = (
   entrypoints: EntryPoint[],
   mainEntryName = MAIN_ENTRY_NAME,
-) => entrypoints.length === 1 && entrypoints[0].entryName === mainEntryName;
+) => {
+  const firstEntry = entrypoints[0];
+  return entrypoints.length === 1 && firstEntry?.entryName === mainEntryName;
+};

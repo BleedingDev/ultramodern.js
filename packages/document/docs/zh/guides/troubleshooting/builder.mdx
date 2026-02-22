@@ -1,0 +1,134 @@
+---
+sidebar_position: 3
+---
+
+# 构建相关问题
+
+如果你遇到了构建相关的问题，可以参考当前文档进行排查。
+
+---
+
+### Rsbuild FAQ
+
+Modern.js 内部基于 [Rsbuild](https://v2.rsbuild.rs/) 封装了自身的构建工具，因此你可以直接参考 Rsbuild 的 FAQ 文档：
+
+- [Rsbuild - 功能类问题](https://v2.rsbuild.rs/zh/guide/faq/features)
+- [Rsbuild - 异常类问题](https://v2.rsbuild.rs/zh/guide/faq/exceptions)
+- [Rsbuild - 热更新问题](https://v2.rsbuild.rs/zh/guide/faq/hmr)
+
+---
+
+### 如何查看最终生成的 Rspack 配置?
+
+Modern.js 提供 [inspect 命令](/apis/app/commands.html) 用于查看项目最终生成的 Modern.js 配置以及 Rspack 配置。
+
+```bash
+➜ npx modern inspect
+
+Inspect config succeed, open following files to view the content:
+
+  - Rsbuild Config: /root/my-project/dist/rsbuild.config.mjs
+  - Rspack Config (web): /root/my-project/dist/rspack.config.web.mjs
+```
+
+### 在 Monorepo 中引用其他模块，代码没有被正确编译？
+
+出于编译性能的考虑，默认情况下，Modern.js 不会编译 `node_modules` 下的文件，也不会编译当前工程目录外部的文件。
+
+因此，当你引用其他子项目的源代码时，可能会遇到类似 `You may need an additional loader to handle the result of these loaders.` 的报错。
+
+这个问题有以下解决方法：
+
+1. 你可以开启源码构建模式来编译 monorepo 中的其他子项目，参考[「源码构建模式」](/guides/advanced-features/source-build.html)。
+2. 你可以添加 `source.include` 配置项，指定需要额外进行编译的目录或模块，参考 [source.include 用法介绍](/configure/app/source/include.html)。
+3. 你可以预先构建需要引用的子项目，生成对应的构建产物，并在当前项目引用构建产物，而不是引用源代码。
+
+---
+
+### 打开页面后报错，提示 exports is not defined？
+
+如果编译正常，但是打开页面后出现 `exports is not defined` 报错，通常是因为在项目中使用 Babel 编译了一个 CommonJS 模块，导致 Babel 出现异常。
+
+在正常情况下，Modern.js 是不会使用 Babel 来编译 CommonJS 模块的。如果项目中使用了 [source.include](/configure/app/source/include.html) 配置项，则可能会把一些 CommonJS 模块加入到 Babel 编译中。
+
+该问题有两种解决方法：
+
+1. 避免将 CommonJS 模块加入到 Babel 编译中。
+2. 将 Babel 的 `sourceType` 配置项设置为 `unambiguous`。将 `sourceType` 设置为 `unambiguous` 可能会产生一些其他影响，请参考 [Babel 官方文档](https://babeljs.io/docs/en/options#sourcetype)。
+
+---
+
+### 编译时报错 "Error: ES Modules may not assign module.exports or exports.\*, Use ESM export syntax"？
+
+如果编译时出现以下报错，通常也是因为在项目中使用 Babel 编译了一个 CommonJS 模块，解决方法与上述的 `exports is not defined` 问题一致。
+
+```bash
+Error: ES Modules may not assign module.exports or exports.*, Use ESM export syntax, instead: 581
+```
+
+更多信息请参考 issue：[babel#12731](https://github.com/babel/babel/issues/12731)。
+
+---
+
+### 编译进度条卡死，但终端无 Error 日志？
+
+当编译进度条卡死，但终端无 Error 日志时，通常是因为编译过程中出现了异常。在某些情况下，当 Error 被构建工具或其他模块捕获后，错误日志不会被正确输出。最为常见的场景是 Babel 配置出现异常，抛出 Error 后被构建工具捕获，而构建工具在个别情况下吞掉了 Error。
+
+**解决方法：**
+
+如果你修改 Babel 配置后出现此问题，建议检查是否有以下错误用法：
+
+1. 配置了一个不存在的 plugin 或 preset，可能是名称拼写错误，或是未正确安装。
+2. 是否配置了多个 babel-plugin-import，但是没有在数组的第三项声明每一个 babel-plugin-import 的名称。
+
+---
+
+### 从 lodash 中引用类型后出现编译报错？
+
+当你的项目中安装了 `@types/lodash` 包时，你可能会从 `lodash` 中引用一些类型，比如引用 `DebouncedFunc` 类型：
+
+```ts
+import { debounce, DebouncedFunc } from 'lodash';
+```
+
+上述代码会在编译后产生如下报错：
+
+```bash
+SyntaxError: /project/src/index.ts: The 'lodash' method `DebouncedFunc` is not a known module.
+Please report bugs to https://github.com/lodash/babel-plugin-lodash/issues.
+```
+
+这个问题的原因是 Modern.js 默认开启了 [babel-plugin-lodash](https://github.com/lodash/babel-plugin-lodash) 插件来优化 lodash 产物体积，但 Babel 无法区别「值」和「类型」，导致编译后的代码出现异常。
+
+解决方法是使用 TypeScript 的 `import type` 语法，对 `DebouncedFunc` 类型进行显式声明：
+
+```ts
+import { debounce } from 'lodash';
+import type { DebouncedFunc } from 'lodash';
+```
+
+:::tip
+在任意情况下，我们都推荐使用 `import type` 来引用类型，这对于编译器识别类型会有很大帮助。
+:::
+
+---
+
+### 升级 Modern.js 版本后，检查出新的 TypeScript 类型错误？
+
+Modern.js 优化了 Type Checker 的检查范围。在之前的版本中，Type Checker 只输出 src 目录的类型错误，导致其他目录的类型错误无法被正确输出。
+
+在新版本中，Modern.js 的 Type Checker 对齐了原生 tsc 的类型检查范围（即 tsconfig.json 的 `include` 和 `exclude` 字段定义的范围），能够完整输出项目中的类型错误。
+
+如果你希望保持之前的行为，只输出 src 目录的类型错误，可以添加以下配置：
+
+```ts title="modern.config.ts"
+export default {
+  tools: {
+    tsChecker: {
+      issue: {
+        include: [{ file: '**/src/**/*' }],
+      },
+    },
+  },
+};
+```

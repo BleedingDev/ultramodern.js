@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "name": "i18n-mf-consumer",
+  "version": "2.66.0",
+  "scripts": {
+    "dev": "modern dev",
+    "build": "modern build"
+  },
+  "dependencies": {
+    "@modern-js/plugin-i18n": "workspace:*",
+    "@modern-js/runtime": "workspace:*",
+    "@module-federation/modern-js-v3": "2.0.1",
+    "@module-federation/runtime": "2.0.1",
+    "i18next": "25.8.13",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-i18next": "16.5.4"
+  },
+  "devDependencies": {
+    "@modern-js/app-tools": "workspace:*",
+    "@modern-js/plugin-ssg": "workspace:*"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "name": "@modern-js/i18n-utils",
+  "description": "A Progressive React Framework for modern web development.",
+  "homepage": "https://modernjs.dev",
+  "bugs": "https://github.com/web-infra-dev/modern.js/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/modern.js",
+    "directory": "packages/cli/plugin-i18n"
+  },
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "framework",
+    "modern",
+    "modern.js"
+  ],
+  "version": "3.0.2",
+  "types": "./src/index.ts",
+  "main": "./dist/cjs/index.js",
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts"
+      ],
+      "language-detector": [
+        "./dist/types/languageDetector.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "modern:source": "./src/index.ts",
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    },
+    "./language-detector": {
+      "types": "./dist/types/languageDetector.d.ts",
+      "node": {
+        "modern:source": "./src/languageDetector.ts",
+        "import": "./dist/esm-node/languageDetector.mjs",
+        "require": "./dist/cjs/languageDetector.js"
+      },
+      "default": "./dist/cjs/languageDetector.js"
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "only-allow-pnpm",
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
+  },
+  "dependencies": {
+    "@modern-js/utils": "workspace:*",
+    "@swc/helpers": "^0.5.18"
+  },
+  "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^25.3.0",
+    "typescript": "^5.9.3"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/types/index.d.ts",
+        "node": {
+          "import": "./dist/esm-node/index.mjs",
+          "require": "./dist/cjs/index.js"
+        },
+        "default": "./dist/cjs/index.js"
+      },
+      "./language-detector": {
+        "types": "./dist/types/languageDetector.d.ts",
+        "node": {
+          "import": "./dist/esm-node/languageDetector.mjs",
+          "require": "./dist/cjs/languageDetector.js"
+        },
+        "default": "./dist/cjs/languageDetector.js"
+      }
+    }
+  }
+}

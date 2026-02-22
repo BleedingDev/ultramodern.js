@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 type DocumentStructureContextProps = {
   hasSetHead?: boolean;
@@ -6,6 +6,7 @@ type DocumentStructureContextProps = {
   hasSetLinks?: boolean;
   hasSetBody?: boolean;
   hasSetRoot?: boolean;
+  hasSetTitle?: boolean;
   docChild?: ReactNode;
 };
 
@@ -16,4 +17,5 @@ export const DocumentStructureContext =
     hasSetBody: false,
     hasSetRoot: false,
     hasSetLinks: false,
+    hasSetTitle: false,
   });

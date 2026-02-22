@@ -1,0 +1,521 @@
+---
+sidebar_position: 2
+---
+
+# 路由基础
+
+Modern.js 的约定式路由支持基于 [React Router 7](https://reactrouter.com/en/main) 和 [TanStack Router](https://tanstack.com/router) 两套框架，提供基于文件约定的路由能力，并支持业界流行的约定式路由模式：**嵌套路由**。当入口被识别为 [约定式路由](/guides/concept/entries.html#约定式路由) 时，Modern.js 会自动基于文件系统，生成对应的路由结构。
+
+:::note
+
+本小节提到的路由，都是约定式路由。
+
+:::
+
+:::tip
+本页示例默认使用 React Router 的导出路径（`@modern-js/runtime/router`）。  
+如果你的项目通过 `--router tanstack` 创建，请改用 `@modern-js/runtime/tanstack-router`。
+:::
+
+## 什么是嵌套路由
+
+嵌套路由是一种将 URL 分段与组件层次结构和数据耦合起来的路由模式。通常，URL 段会决定：
+
+- 页面上要渲染的布局
+- 这些布局的数据依赖
+
+因此，使用嵌套路由时，页面的路由与 UI 结构是相呼应的，我们将会详细介绍这种路由模式。
+
+```bash
+/user/johnny/profile                  /user/johnny/posts
++------------------+                  +-----------------+
+| User             |                  | User            |
+| +--------------+ |                  | +-------------+ |
+| | Profile      | |  +------------>  | | Posts       | |
+| |              | |                  | |             | |
+| +--------------+ |                  | +-------------+ |
++------------------+                  +-----------------+
+```
+
+## 路由文件约定
+
+在 `routes/` 目录下，子目录名会作为路由 URL 的映射，Modern.js 有两个文件约定 `layout.tsx` 和 `page.tsx`。这两个文件决定了应用的布局层次，其中：
+
+- `page.tsx` 为内容组件，所在目录下存在该文件时，对应的路由 URL 可访问。
+- `layout.tsx` 为布局组件，控制所在目录下所有子路由的布局，使用 `<Outlet>` 表示子组件。
+
+:::tip
+`.ts`、`.js`、`.jsx` 或 `.tsx` 文件扩展名可用于上述约定文件。
+:::
+
+### Page
+
+`<Page>` 组件是指 `routes/` 目录下所有 `page.tsx` 文件，也是所有路由的叶子组件。除了通配路由外，任何路由都应该由 `<Page>` 组件结束。
+
+```tsx title=routes/page.tsx
+export default () => {
+  return <div>Hello world</div>;
+};
+```
+
+当应用中存在以下目录结构时：
+
+```bash
+.
+└── routes
+    ├── page.tsx
+    └── user
+        └── page.tsx
+```
+
+会产出下面两条路由：
+
+- `/`
+- `/user`
+
+### Layout
+
+`<Layout>` 组件是指 `routes/` 目录下所有 `layout.tsx` 文件，它们表示对应路由片段的布局，使用 `<Outlet>` 表示子组件。
+
+```tsx title=routes/layout.tsx
+import { Link, Outlet, useLoaderData } from '@modern-js/runtime/router';
+
+export default () => {
+  return (
+    <>
+      <Outlet></Outlet>
+    </>
+  );
+};
+```
+
+:::note
+
+`<Outlet>` 是 React Router v7 中提供的 API，详情可以查看 [Outlet](https://reactrouter.com/en/main/components/outlet#outlet)。
+
+:::
+
+不同目录结构下，`<Outlet>` 所代表的组件也不同。为了方便介绍 `<Layout>` 与 `<Outlet>` 的关系，以下面的文件目录举例：
+
+```bash
+.
+└── routes
+    ├── blog
+    │   └── page.tsx
+    ├── layout.tsx
+    ├── page.tsx
+    └── user
+        ├── layout.tsx
+        └── page.tsx
+```
+
+1. 当路由为 `/` 时，`routes/layout.tsx` 中的 `<Outlet>` 代表的是 `routes/page.tsx` 中导出的组件，路由的 UI 结构为：
+
+```tsx
+<Layout>
+  <Page />
+</Layout>
+```
+
+2. 当路由为 `/blog` 时，`routes/layout.tsx` 中的 `<Outlet>` 代表的是 `routes/blog/page.tsx` 中导出的组件，路由的 UI 结构为：
+
+```tsx
+<Layout>
+  <BlogPage />
+</Layout>
+```
+
+3. 当路由为 `/user` 时，`routes/layout.tsx` 中的 `<Outlet>` 代表的是 `routes/user/layout.tsx` 中导出的组件。`routes/user/layout.tsx` 中的 `<Outlet>` 代表的是 `routes/user/page.tsx` 中导出的组件，路由的 UI 结构为：
+
+```tsx
+<Layout>
+  <UserLayout>
+    <UserPage />
+  </UserLayout>
+</Layout>
+```
+
+总结而言，如果子路由的文件目录下存在 `layout.tsx`，上一级 `layout.tsx` 中的 `<Outlet>` 即为子路由文件目录下的 `layout.tsx` ，否则为子路由文件目录下的 `page.tsx`。
+
+## 动态路由
+
+通过 `[]` 命名的文件目录，生成的路由会作为动态路由。例如以下文件目录：
+
+```bash
+.
+└── routes
+    ├── [id]
+    │   └── page.tsx
+    ├── blog
+    │   └── page.tsx
+    └── page.tsx
+```
+
+`routes/[id]/page.tsx` 文件会转为 `/:id` 路由。除了可以确切匹配的 `/blog` 路由，其他所有 `/xxx` 都会匹配到该路由。
+
+在组件中，可以通过 [useParams](/apis/app/runtime/router/router#useparams) 获取对应命名的参数。
+
+```tsx
+import { useParams } from '@modern-js/runtime/router';
+
+function Blog() {
+  const { id } = useParams();
+  return <div>current blog ID is: {id}</div>;
+}
+export default Blog;
+```
+
+## 动态可选路由
+
+通过 `[$]` 命名的文件目录，生成的路由会作为动态可选路由。例如以下文件目录：
+
+```bash
+.
+└── routes
+    ├── blog
+    │   └── [id$]
+    │       └── page.tsx
+    └── page.tsx
+```
+
+`routes/blog/[id$]/page.tsx` 文件会转为 `/blog/:id?` 路由。`/blog` 下的所有路由都会匹配到该路由，并且 `id` 参数可选存在。通常在区分**创建**与**编辑**时，可以使用该路由。
+
+```tsx
+import { useParams } from '@modern-js/runtime/router';
+
+function Blog() {
+  const { id } = useParams();
+  if (id) {
+    return <div>current blog ID is: {id}</div>;
+  }
+
+  return <div>create new blog</div>;
+}
+export default Blog;
+```
+
+## 通配路由
+
+如果在某个子目录下存在 `$.tsx` 文件，该文件会作为通配路由组件，当没有匹配的路由时，会渲染该路由组件。
+
+:::note
+
+`$.tsx` 可以认为是一种特殊的 `<Page>` 组件，如果路由无法匹配，则 `$.tsx` 会作为 `<Layout>` 的子组件渲染。
+
+:::
+
+:::warning
+
+如果当前目录下不存在 `<Layout>` 组件时，则 `$.tsx` 不会生效。
+
+:::
+
+例如以下目录结构：
+
+```bash
+.
+└── routes
+    ├── blog
+    │   ├── $.tsx
+    │   └── layout.tsx
+    ├── layout.tsx
+    └── page.tsx
+```
+
+当你访问 `/blog/a` 时，无法匹配到任意路由，则页面会渲染 `routes/blog/$.tsx` 组件，路由的 UI 结构为：
+
+```tsx
+<RootLayout>
+  <BlogLayout>
+    <$></$>
+  </BlogLayout>
+</RootLayout>
+```
+
+如果希望访问 `/blog` 时，也匹配到 `blog/$.tsx` 文件，需要删除同目录下的 `blog/layout.tsx` 文件，同时保证 `blog` 下面没有其他子路由。
+
+同样，`$.tsx` 中可以使用 [useParams](/apis/app/runtime/router/router#useparams) 捕获 url 的剩余部分。
+
+```ts title="$.tsx"
+import { useParams } from '@modern-js/runtime/router';
+
+function Blog() {
+  // 当 path 是 `/blog/aaa/bbb` 时
+  const params = useParams();
+  console.log(params); // ---> { '*': 'aaa/bbb' }
+
+  return <div>current blog URL is {params['*']}</div>;
+}
+export default Blog;
+```
+
+### 定制 404 页面
+
+通配路由可以被添加到 `routes/` 目录下的任意子目录中，一种常见的使用场景是通过 `$.tsx` 文件去定制任意层级的 404 内容。
+
+例如你需要对所有未匹配到的路由，都展示一个 404 页面，可以添加 `routes/$.tsx` 文件：
+
+```bash
+.
+└── routes
+    ├── $.tsx
+    ├── blog
+    │   └── [id$]
+    │       └── page.tsx
+    ├── layout.tsx
+    └── page.tsx
+```
+
+```tsx
+function Page404() {
+  return <div>404 Not Found</div>;
+}
+export default Page404;
+```
+
+此时，当访问除了 `/` 或 `/blog/*` 以外的路由时，都会匹配到 `routes/$.tsx` 组件，展示 404 页面。
+
+## 路由句柄配置
+
+某些场景下，每个路由会拥有属于自己的数据，应用需要在其他组件中获取匹配到的路由的这些数据。一个常见的例子是在布局中获取到匹配路由的面包屑信息。
+
+Modern.js 提供了独立的约定，每个 `Layout`, `$` 或 `Page` 文件都可以定义一个自己的 `config` 文件，如 `page.config.ts`，该文件中我们约定了一个具名导出 `handle`，这个字段中你可以定义任意属性：
+
+```ts title="routes/page.config.ts"
+export const handle = {
+  breadcrumbName: 'profile',
+};
+```
+
+定义的这些属性可以通过 [`useMatches`](https://reactrouter.com/en/main/hooks/use-matches) hook 获取。
+
+```ts title="routes/layout.ts"
+export default () => {
+  const matches = useMatches();
+  const breadcrumbs = matches.map(
+    matchedRoute => matchedRoute?.handle?.breadcrumbName,
+  );
+  return <Breadcrumb names={breadcrumbs}></Breadcrumb>;
+};
+```
+
+## 无路径布局
+
+当目录名以 `__` 开头时，对应的目录名不会转换为实际的路由路径，例如以下文件目录：
+
+```bash
+.
+└── routes
+    ├── __auth
+    │   ├── layout.tsx
+    │   ├── login
+    │   │   └── page.tsx
+    │   └── sign
+    │       └── page.tsx
+    ├── layout.tsx
+    └── page.tsx
+```
+
+Modern.js 会生成 `/login` 和 `/sign` 两条路由，`__auth/layout.tsx` 组件会作为 `login/page.tsx` 和 `sign/page.tsx` 的布局组件，但`__auth` 不会作为路由路径片段出现在用户访问的 URL 中。
+
+当需要为某些类型的路由，做独立的布局，或是想要将路由做归类时，这一功能非常有用。
+
+## 无布局路径
+
+有些情况下，项目需要较为复杂的路由，但这些路由又不存在独立的 UI 布局，如果像普通文件目录那样创建路由会导致目录层级较深。
+
+因此 Modern.js 支持了通过 `.` 来分割路由片段，代替文件目录。例如，当需要 `/user/profile/2022/edit` 时，可以直接创建如下文件：
+
+```bash
+└── routes
+    ├── user.profile.[id].edit
+    │      └── page.tsx
+    ├── layout.tsx
+    └── page.tsx
+```
+
+访问路由时，将得到如下 UI 布局：
+
+```tsx
+<RootLayout>
+  {/* routes/user.profile.[id].edit/page.tsx */}
+  <UserProfileEdit />
+</RootLayout>
+```
+
+## 路由重定向
+
+某些应用中，可能需要根据用户的身份信息，或是其他数据条件，选择重定向到其他路由。在 Modern.js 中，你可以使用 [`Data Loader`](/guides/basic-features/data/data-fetch) 文件来获取数据，或是和传统 React 组件那样，在 `useEffect` 中请求数据。
+
+### 在 Data Loader 中重定向
+
+在任意的 `page.tsx` 同级目录中创建，`page.data.ts` 文件，这个文件就是该路由的 Data Loader。在 Data Loader 中，你可以通过调用 `redirect` API 来完成路由的重定向。
+
+```ts title="routes/user/page.data.ts"
+import { redirect } from '@modern-js/runtime/router';
+
+export const loader = async () => {
+  const user = await getUser();
+  if (!user) {
+    return redirect('/login');
+  }
+  return null;
+};
+```
+
+### 在组件中重定向
+
+在组件内做重定向，则可以通过 `useNavigate` hook，示例如下：
+
+```ts title="routes/user/page.ts"
+import { useNavigate } from '@modern-js/runtime/router';
+import { useEffect } from 'react';
+
+export default () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    getUser().then(user => {
+      if (!user) {
+        navigate('/login');
+      }
+    });
+  });
+
+  return <div>Hello World</div>;
+};
+```
+
+## 错误处理
+
+`routes/` 下每一层目录中，开发者同样可以定义一个 `error.tsx` 文件，默认导出一个 `<ErrorBoundary>` 组件。当路由目录下存在该组件时，组件渲染出错会被 `ErrorBoundary` 组件捕获。
+
+`<ErrorBoundary>` 可以返回出错时的 UI 视图，当前层级未声明 `<ErrorBoundary>` 组件时，错误会向上冒泡到更上层的组件，直到被捕获或抛出错误。同时，当组件出错时，只会影响捕获到该错误的路由组件及子组件，其他组件的状态和视图不受影响，可以继续交互。
+
+{/* Todo API 路由 */}
+
+在 `<ErrorBoundary>` 组件内，可以使用 [useRouteError](/apis/app/runtime/router/router#userouteerror) 获取的错误的具体信息：
+
+```tsx
+import { useRouteError } from '@modern-js/runtime/router';
+
+const ErrorBoundary = () => {
+  const error = useRouteError();
+  return (
+    <div>
+      <h1>{error.status}</h1>
+      <h2>{error.message}</h2>
+    </div>
+  );
+};
+export default ErrorBoundary;
+```
+
+## Loading (Experimental)
+
+:::info Experimental
+此功能当前是实验性功能，后续 API 可能有调整。
+:::
+
+在约定式路由下， Modern.js 会根据路由，自动地对路由进行分片（每一个路由都作为单独的 JS Chunk 进行加载），当用户访问具体的路由时，再自动加载对应的分片。这样可以有效地减少首屏加载的时间。但这也带来了一个问题，当用户访问一个路由时，如果该路由对应的分片还未加载完成，就会出现白屏的情况。
+
+Modern.js 支持通过 `loading.tsx` 文件来解决这个问题，`routes/` 下每一层目录中，都可以创建 `loading.tsx` 文件，默认导出一个 `<Loading>` 组件。
+
+:::warning
+如果当前目录下不存在 `<Layout>` 组件时，则 `loading.tsx` 不会生效。为了保证用户体验，Modern.js 推荐每个应用添加根 Loading 组件。
+:::
+
+当路由目录下同时存在该组件和 `layout` 组件时，这一级路由下所有的子路由切换时，会先展示 `loading.tsx` 中导出的组件 UI，直到对应的 JS Chunk 加载完成。例如以下文件目录：
+
+```bash
+.
+└── routes
+    ├── blog
+    │   ├── [id]
+    │   │   └── page.tsx
+    │   └── page.tsx
+    ├── layout.tsx
+    ├── loading.tsx
+    └── page.tsx
+```
+
+当定义 `loading.tsx` 时，当路由从 `/` 跳转到 `/blog`，或从 `/blog` 跳转到 `/blog/123` 时，如果路由对应的 JS Chunk 还未加载，都会先展示 `loading.tsx` 中导出的组件 UI。相当于最终的 UI 结构如下：
+
+```tsx title=当路由为 "/" 时
+<Layout>
+  <Suspense fallback={<Loading />}>
+    <Page />
+  </Suspense>
+</Layout>
+```
+
+```tsx title=当路由为 "/blog" 时
+<Layout>
+  <Suspense fallback={<Loading />}>
+    <BlogPage />
+  </Suspense>
+</Layout>
+```
+
+```tsx title=当路由为 "/blog/123" 时
+<Layout>
+  <Suspense fallback={<Loading />}>
+    <BlogIdPage />
+  </Suspense>
+</Layout>
+```
+
+## 预加载
+
+大多数切换路由时白屏的情况，都可以通过定义 `<Loading>` 组件来优化体验。Modern.js 也支持在 `<Link>` 组件上定义 `prefetch` 属性，提前对静态资源和数据进行加载。
+
+对于有更高性能要求的应用，预加载可以进一步提升用户体验，减少展示 `<Loading>` 组件的时间：
+
+```tsx
+<Link prefetch="intent" to="page">
+```
+
+:::tip
+
+对数据的预加载目前只会预加载 SSR 项目中 [Data Loader](/guides/basic-features/data/data-fetch) 中返回的数据。
+
+:::
+
+`prefetch` 属性有三个可选值：
+
+- `none`， 默认值，不会做 prefetch，没有任何额外的行为。
+- `intent`，这是我们推荐大多数场景下使用的值，当你把鼠标放在 Link 上时，会自动开始加载对应的分片和 Data Loader 中定义的数据，当鼠标移开时，会自动取消加载。在我们的测试中，即使是快速点击，也能减少大约 200ms 的加载时间。
+- `render`，当 `<Link>` 组件渲染时，就会加载对应的分片和 Data Loader 中定义的数据。
+
+:::details 值为 render 和不做路由分片的区别
+
+- `render` 加载路由分片的时机是可控的，只有在 `<Link>` 组件进入视窗时才触发，可以通过控制 `<Link>` 组件的渲染位置来控制分片加载时机。
+- `render` 仅在空闲时对静态资源进行加载，不占用重要模块的加载时间。
+- 除了预加载路由分片，`render` 在 SSR 项目中还会发起数据预取。
+
+:::
+
+import Motivation from '@site-docs/components/convention-routing-motivation';
+
+<Motivation />
+
+## 常见问题
+
+1. 为什么要通过 `@modern-js/runtime/router` 或 `@modern-js/runtime/tanstack-router` 引入 API？
+
+Modern.js 提供了按路由框架区分的运行时导出：
+
+- React Router 模式使用 `@modern-js/runtime/router`。
+- TanStack Router 模式使用 `@modern-js/runtime/tanstack-router`。
+
+建议优先使用与当前路由方案对应的 Modern.js 运行时导出，而不是直接从上游路由包中引入。这样可以避免依赖重复，并确保与 Modern.js 的路由生成和运行时行为保持一致。
+
+如果遇到 API 使用问题，可以分别参考上游文档：
+
+- `@modern-js/runtime/router` 对应 React Router 文档。
+- `@modern-js/runtime/tanstack-router` 对应 TanStack Router 文档。
+
+:::note
+
+如果应用中必须直接使用 React Router 包的 API，例如部分路由行为被封装在统一的 npm 包中，那应用可以通过设置 [`source.alias`](/configure/app/source/alias)，将 `react-router` 和 `react-router-dom` 统一指向项目的依赖，避免两个版本的 React Router 同时存在的问题。
+
+:::

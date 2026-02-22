@@ -1,67 +1,95 @@
-import type {
-  BuilderProvider,
-  BuilderInstance,
-} from '@modern-js/builder-shared';
-import { createBuilder } from '@modern-js/builder';
-import { BuilderOptions } from '../shared';
-import { Bundler } from '../../types';
+import {
+  type BuilderInstance,
+  type BundlerType,
+  createBuilder,
+} from '@modern-js/builder';
+import { type EnvironmentConfig, mergeRsbuildConfig } from '@rsbuild/core';
+import type { BuilderOptions } from '../shared';
+import {
+  builderPluginAdapterBasic,
+  builderPluginAdapterHooks,
+  builderPluginAdapterHtml,
+  builderPluginAdapterPrecompress,
+  builderPluginAdapterSSR,
+} from '../shared/builderPlugins';
+import { builderPluginAdapterCopy } from './adapterCopy';
 import { createBuilderProviderConfig } from './createBuilderProviderConfig';
-import { getBuilderTargets } from './getBuilderTargets';
-import { createBuilderOptions } from './createBuilderOptions';
-
-export type GenerateProvider = (c: { builderConfig: any }) => BuilderProvider;
+import { getBuilderEnvironments } from './getBuilderEnvironments';
 
 /**
  * @param options BuilderOptions
- * @param generateProvider GenerateProvider
+ * @param bundlerType BundlerType
  * @returns BuilderInstance
  */
-export async function generateBuilder<B extends Bundler>(
-  options: BuilderOptions<B>,
-  generateProvider: GenerateProvider,
+export async function generateBuilder(
+  options: BuilderOptions,
+  bundlerType: BundlerType,
 ) {
   const { normalizedConfig, appContext } = options;
 
   // create provider
-  const builderConfig = createBuilderProviderConfig<B>(
+  const tempBuilderConfig = createBuilderProviderConfig(
     normalizedConfig,
     appContext,
   );
 
-  const provider = generateProvider({
-    builderConfig,
-  });
+  const { environments, builderConfig } = getBuilderEnvironments(
+    normalizedConfig,
+    appContext,
+    tempBuilderConfig,
+  );
 
-  const target = getBuilderTargets(normalizedConfig);
-  const builderOptions = createBuilderOptions(target, appContext);
-  const builder = await createBuilder(provider, builderOptions);
+  if (builderConfig.environments) {
+    const mergedEnvironments: Record<string, EnvironmentConfig> = {
+      ...environments,
+    };
+
+    for (const name in builderConfig.environments) {
+      if (environments[name]) {
+        mergedEnvironments[name] = mergeRsbuildConfig(
+          environments[name],
+          builderConfig.environments[name],
+        );
+      } else {
+        mergedEnvironments[name] = builderConfig.environments[name];
+      }
+    }
+
+    builderConfig.environments = mergedEnvironments;
+  } else {
+    builderConfig.environments = environments;
+  }
+
+  const builder = await createBuilder({
+    cwd: appContext.appDirectory,
+    rscClientRuntimePath: `@${appContext.metaName}/runtime/rsc/client`,
+    rscServerRuntimePath: `@${appContext.metaName}/runtime/rsc/server`,
+    internalDirectory: appContext.internalDirectory,
+    frameworkConfigPath: appContext.configFile || undefined,
+    bundlerType,
+    config: builderConfig,
+  });
 
   await applyBuilderPlugins(builder, options);
 
   return builder;
 }
 
-async function applyBuilderPlugins<B extends Bundler>(
+async function applyBuilderPlugins(
   builder: BuilderInstance,
-  options: BuilderOptions<B>,
+  options: BuilderOptions,
 ) {
-  const {
-    builderPluginAdapterBasic,
-    builderPluginAdapterHtml,
-    builderPluginAdapterSSR,
-  } = await import('../shared/builderPlugins');
-
   builder.addPlugins([
-    builderPluginAdapterBasic(),
+    builderPluginAdapterBasic(options),
     builderPluginAdapterSSR(options),
     builderPluginAdapterHtml(options),
+    builderPluginAdapterPrecompress(options),
+    builderPluginAdapterHooks(options),
   ]);
 
+  builder.addPlugins([builderPluginAdapterCopy(options)], {
+    environment: 'client',
+  });
+
   const { normalizedConfig } = options;
-  if (!normalizedConfig.output.disableNodePolyfill) {
-    const { builderPluginNodePolyfill } = await import(
-      '@modern-js/builder-plugin-node-polyfill'
-    );
-    builder.addPlugins([builderPluginNodePolyfill()]);
-  }
 }

@@ -1,6 +1,6 @@
 import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
 import { fs } from '@modern-js/utils';
+import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
 
 const fixtures = __dirname;
@@ -27,29 +27,10 @@ test.describe('html configure multi', () => {
     builder.close();
   });
 
-  test('mountId', async ({ page }) => {
-    await page.goto(getHrefByEntryName('main', builder.port));
-
-    const test = page.locator('#test');
-    await expect(test).toHaveText('Hello Builder!');
-  });
-
   test('title default', async ({ page }) => {
     await page.goto(getHrefByEntryName('main', builder.port));
 
     await expect(page.evaluate(`document.title`)).resolves.toBe('');
-  });
-
-  test('inject default (head)', async () => {
-    const pagePath = join(builder.distPath, 'html/main/index.html');
-    const content = await fs.readFile(pagePath, 'utf-8');
-
-    expect(
-      /<head>[\s\S]*<script[\s\S]*>[\s\S]*<\/head>/.test(content),
-    ).toBeTruthy();
-    expect(
-      /<body>[\s\S]*<script[\s\S]*>[\s\S]*<\/body>/.test(content),
-    ).toBeFalsy();
   });
 });
 
@@ -72,8 +53,6 @@ test.describe('html element set', () => {
             description: 'a description of the page',
           },
           inject: 'body',
-          crossorigin: 'anonymous',
-          appIcon: './src/assets/icon.png',
           favicon: './src/assets/icon.png',
         },
       },
@@ -93,34 +72,6 @@ test.describe('html element set', () => {
     builder.close();
   });
 
-  test('appicon', async () => {
-    const [, iconRelativePath] =
-      /<link.*rel="apple-touch-icon".*href="(.*?)">/.exec(mainContent) || [];
-
-    expect(iconRelativePath).toBeDefined();
-
-    const iconPath = join(builder.distPath, iconRelativePath);
-    expect(fs.existsSync(iconPath)).toBeTruthy();
-
-    // should work on all page
-    expect(
-      /<link.*rel="apple-touch-icon".*href="(.*?)">/.test(fooContent),
-    ).toBeTruthy();
-  });
-
-  test('favicon', async () => {
-    const [, iconRelativePath] =
-      /<link.*rel="icon".*href="(.*?)">/.exec(mainContent) || [];
-
-    expect(iconRelativePath).toBeDefined();
-
-    const iconPath = join(builder.distPath, iconRelativePath);
-    expect(fs.existsSync(iconPath)).toBeTruthy();
-
-    // should work on all page
-    expect(/<link.*rel="icon".*href="(.*?)">/.test(fooContent)).toBeTruthy();
-  });
-
   test('custom inject', async () => {
     expect(
       /<head>[\s\S]*<script[\s\S]*>[\s\S]*<\/head>/.test(mainContent),
@@ -131,19 +82,14 @@ test.describe('html element set', () => {
   });
 
   test('custom meta', async () => {
-    expect(
-      /<meta name="description" content="a description of the page">/.test(
-        mainContent,
-      ),
-    ).toBeTruthy();
-  });
+    const metaContent =
+      '<meta name="description" content="a description of the page">';
 
-  test('custom crossorigin', async () => {
-    const allScripts = /(<script [\s\S]*?>)/g.exec(mainContent);
-
-    expect(
-      allScripts?.every(data => data.includes('crossorigin="anonymous"')),
-    ).toBeTruthy();
+    // only insert once
+    expect(mainContent.indexOf(metaContent)).toBeGreaterThan(0);
+    expect(mainContent.indexOf(metaContent)).toBe(
+      mainContent.lastIndexOf(metaContent),
+    );
   });
 });
 
@@ -168,7 +114,7 @@ test('custom title', async ({ page }) => {
   builder.close();
 });
 
-test('template & templateParameters', async ({ page }) => {
+test('outputStructrue flat', async ({ page }) => {
   const builder = await build({
     cwd: join(fixtures, 'template'),
     entry: {
@@ -177,122 +123,7 @@ test('template & templateParameters', async ({ page }) => {
     runServer: true,
     builderConfig: {
       html: {
-        template: './static/index.html',
-        templateParameters: {
-          foo: 'bar',
-        },
-      },
-    },
-  });
-
-  await page.goto(getHrefByEntryName('main', builder.port));
-
-  await expect(page.evaluate(`document.title`)).resolves.toBe(
-    'custom template',
-  );
-
-  const testTemplate = page.locator('#test-template');
-  await expect(testTemplate).toHaveText('xxx');
-
-  const testEl = page.locator('#test');
-  await expect(testEl).toHaveText('Hello Builder!');
-
-  await expect(page.evaluate(`window.foo`)).resolves.toBe('bar');
-
-  builder.close();
-});
-
-test('templateByEntries & templateParametersByEntries', async ({ page }) => {
-  const builder = await build({
-    cwd: join(fixtures, 'template'),
-    entry: {
-      main: join(fixtures, 'template/src/index.ts'),
-      foo: join(fixtures, 'template/src/index.ts'),
-      bar: join(fixtures, 'template/src/index.ts'),
-    },
-    runServer: true,
-    builderConfig: {
-      html: {
-        templateByEntries: {
-          foo: './static/foo.html',
-          bar: './static/bar.html',
-        },
-        templateParametersByEntries: {
-          foo: {
-            type: 'foo',
-          },
-          bar: {
-            type: 'bar',
-          },
-        },
-      },
-    },
-  });
-
-  await page.goto(getHrefByEntryName('foo', builder.port));
-
-  const testTemplate = page.locator('#test-template');
-  await expect(testTemplate).toHaveText('foo');
-  await expect(page.evaluate(`window.type`)).resolves.toBe('foo');
-
-  await page.goto(getHrefByEntryName('bar', builder.port));
-
-  await expect(testTemplate).toHaveText('bar');
-  await expect(page.evaluate(`window.type`)).resolves.toBe('bar');
-
-  builder.close();
-});
-
-test('title & titleByEntries & templateByEntries', async ({ page }) => {
-  // priority: template title > titleByEntries > title
-  const builder = await build({
-    cwd: join(fixtures, 'template'),
-    entry: {
-      main: join(fixtures, 'template/src/index.ts'),
-      foo: join(fixtures, 'template/src/index.ts'),
-      bar: join(fixtures, 'template/src/index.ts'),
-    },
-    runServer: true,
-    builderConfig: {
-      html: {
-        title: 'custom title',
-        titleByEntries: {
-          foo: 'Tiktok',
-        },
-        templateByEntries: {
-          bar: './static/index.html',
-        },
-        templateParameters: {
-          foo: 'bar',
-        },
-      },
-    },
-  });
-
-  await page.goto(getHrefByEntryName('main', builder.port));
-  await expect(page.evaluate(`document.title`)).resolves.toBe('custom title');
-
-  await page.goto(getHrefByEntryName('foo', builder.port));
-  await expect(page.evaluate(`document.title`)).resolves.toBe('Tiktok');
-
-  await page.goto(getHrefByEntryName('bar', builder.port));
-  await expect(page.evaluate(`document.title`)).resolves.toBe(
-    'custom template',
-  );
-
-  builder.close();
-});
-
-test('disableHtmlFolder', async ({ page }) => {
-  const builder = await build({
-    cwd: join(fixtures, 'template'),
-    entry: {
-      main: join(join(fixtures, 'template'), 'src/index.ts'),
-    },
-    runServer: true,
-    builderConfig: {
-      html: {
-        disableHtmlFolder: true,
+        outputStructure: 'flat',
       },
     },
   });
@@ -300,6 +131,29 @@ test('disableHtmlFolder', async ({ page }) => {
   await page.goto(getHrefByEntryName('main', builder.port));
 
   const pagePath = join(builder.distPath, 'html/main.html');
+
+  expect(fs.existsSync(pagePath)).toBeTruthy();
+
+  builder.close();
+});
+
+test('outputStructrue nested', async ({ page }) => {
+  const builder = await build({
+    cwd: join(fixtures, 'template'),
+    entry: {
+      main: join(join(fixtures, 'template'), 'src/index.ts'),
+    },
+    runServer: true,
+    builderConfig: {
+      html: {
+        outputStructure: 'nested',
+      },
+    },
+  });
+
+  await page.goto(getHrefByEntryName('main', builder.port));
+
+  const pagePath = join(builder.distPath, 'html/main/index.html');
 
   expect(fs.existsSync(pagePath)).toBeTruthy();
 

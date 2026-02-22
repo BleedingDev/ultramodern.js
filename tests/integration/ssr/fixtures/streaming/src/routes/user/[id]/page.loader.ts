@@ -1,4 +1,4 @@
-import { defer, type LoaderFunctionArgs } from '@modern-js/runtime/router';
+import { type LoaderFunctionArgs, defer } from '@modern-js/runtime/router';
 import type { User } from './page';
 
 export default ({ params }: LoaderFunctionArgs) => {
@@ -10,7 +10,7 @@ export default ({ params }: LoaderFunctionArgs) => {
         name: `user${userId}`,
         age: 18,
       });
-    }, 200);
+    }, 1000);
   });
 
   return defer({ data: user });

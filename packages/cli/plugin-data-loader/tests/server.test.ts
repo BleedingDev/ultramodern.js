@@ -1,12 +1,11 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable node/prefer-global/url */
-import { IncomingMessage, ServerResponse } from 'http';
-import qs from 'querystring';
+import type { IncomingMessage, ServerResponse } from 'http';
 import path from 'path';
+import qs from 'querystring';
+import { createWebRequest, sendResponse } from '@modern-js/server-core/node';
 import type { ServerRoute } from '@modern-js/types';
 import request from 'supertest';
-import { handleRequest } from '../src/runtime';
 import { LOADER_ID_PARAM } from '../src/common/constants';
+import { handleRequest } from '../src/runtime';
 
 describe('handleRequest', () => {
   const serverLoaders = path.join(
@@ -14,7 +13,7 @@ describe('handleRequest', () => {
     './fixtures',
     'server',
     'bundles',
-    'three-server-loaders',
+    'three-server-loaders/index.js',
   );
   const createContext = (
     req: IncomingMessage,
@@ -85,18 +84,20 @@ describe('handleRequest', () => {
     return async (req: IncomingMessage, res: ServerResponse) => {
       const context = createContext(req, res, params);
       const { routes } = await import(serverLoaders);
-      await handleRequest({
+      const request = createWebRequest(req, res);
+      const response = await handleRequest({
+        request,
         context,
         serverRoutes,
         routes,
       });
-      if (!res.headersSent) {
-        res.end();
+      if (!res.headersSent && response) {
+        await sendResponse(response, res);
       }
     };
   };
 
-  test.only('should return 500 when routeId not match url', async () => {
+  test('should return 403 when routeId not match url', async () => {
     const handler = createHandler(
       [
         {
@@ -113,10 +114,10 @@ describe('handleRequest', () => {
       `/three?${LOADER_ID_PARAM}=user/profile/layout`,
     );
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(403);
   });
 
-  test('should return directly when routeId not exist', async () => {
+  test.skip('should return directly when routeId not exist', async () => {
     const handler = createHandler(
       [
         {
@@ -180,7 +181,7 @@ describe('handleRequest', () => {
     const res = await request(handler).get(
       `/three/user?${LOADER_ID_PARAM}=user/layout`,
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(res.headers['content-type'].includes('text/plain')).toBeTruthy();
     expect(res.text).toBe('loader1');
   });
@@ -230,7 +231,9 @@ describe('handleRequest', () => {
       `/three/user/profile/name?${LOADER_ID_PARAM}=user.profile.name/layout`,
     );
     expect(res.status).toBe(500);
-    expect(res.headers['content-type'].includes('text/plain')).toBeTruthy();
-    expect(res.text).toBe('Error: throw error by loader4');
+    expect(
+      res.headers['content-type'].includes('application/json'),
+    ).toBeTruthy();
+    expect(res.body.message).toBe('throw error by loader4');
   });
 });

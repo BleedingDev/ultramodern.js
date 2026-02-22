@@ -1,7 +1,7 @@
-import nodeFetch from 'node-fetch';
-import { compile, pathToRegexp, Key } from 'path-to-regexp';
-import { useHeaders } from '@modern-js/runtime-utils/node';
-import { stringify } from 'query-string';
+import type { IncomingHttpHeaders } from 'http';
+import { storage } from '@modern-js/runtime-utils/node';
+import { compile } from 'path-to-regexp';
+import { stringify } from 'qs';
 import { handleRes } from './handleRes';
 import { executeWithResilience } from './transport';
 import type {
@@ -16,10 +16,12 @@ import type {
   ResolveHeaders,
   TransportResilienceOptions,
 } from './types';
+import { getUploadPayload } from './utiles';
 
-type Fetch = typeof nodeFetch;
+type Fetch = typeof fetch;
 
 const realRequest: Map<string, Fetch> = new Map();
+
 const realAllowedHeaders: Map<string, string[]> = new Map();
 const realResolveHeaders: Map<string, ResolveHeaders> = new Map();
 const realRequireEnvelope: Map<string, boolean> = new Map();
@@ -125,14 +127,17 @@ const resolveSourceOrigin = (headers: Record<string, any>) => {
   return `${proto}://${host}`;
 };
 
-const originFetch = (...params: Parameters<typeof nodeFetch>) => {
+const extractPathParamNames = (path: string): string[] =>
+  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).map(([, key]) => key);
+
+const originFetch = (...params: Parameters<Fetch>) => {
   const [, init] = params;
 
   if (init?.method?.toLowerCase() === 'get') {
     init.body = undefined;
   }
 
-  return nodeFetch(...params).then(handleRes);
+  return fetch(...params).then(handleRes);
 };
 
 const buildOperationContext = ({
@@ -194,7 +199,7 @@ export class ProducerClientNotInitializedError extends Error {
 
   constructor(requestId: string) {
     super(
-      `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
+      `Producer client "${requestId}" is not initialized. Call initProducerClient() (or configure()) before using generated APIs for this requestId.`,
     );
     this.name = 'ProducerClientNotInitializedError';
   }
@@ -249,7 +254,7 @@ const getConfiguredRequest = (requestId: string, fallback: Fetch) => {
   return fallback;
 };
 
-export const configure = (options: IOptions<typeof nodeFetch>) => {
+export const configure = (options: IOptions<Fetch>) => {
   const {
     request,
     interceptor,
@@ -270,7 +275,7 @@ export const configure = (options: IOptions<typeof nodeFetch>) => {
 
   let configuredRequest = (request as Fetch) || originFetch;
   if (interceptor && !request) {
-    configuredRequest = interceptor(nodeFetch);
+    configuredRequest = interceptor(fetch);
   }
   if (Array.isArray(allowedHeaders)) {
     realAllowedHeaders.set(requestId, allowedHeaders);
@@ -308,20 +313,17 @@ export const configure = (options: IOptions<typeof nodeFetch>) => {
   realRequest.set(requestId, configuredRequest);
 };
 
-export const createRequest: RequestCreator<typeof nodeFetch> = (
-  path: string,
-  method: string,
-  port: number,
-  httpMethodDecider = 'functionName',
-  // 后续可能要修改，暂时先保留
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  fetch = nodeFetch,
+export const createRequest: RequestCreator<Fetch> = ({
+  path,
+  method,
+  port,
+  httpMethodDecider = 'functionName', // 后续可能要修改，暂时先保留
+  fetch = originFetch,
   requestId = 'default',
   operationContext,
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
-  const keys: Key[] = [];
-  pathToRegexp(path, keys);
+  const keyNames = extractPathParamNames(path);
 
   const sender: Sender = (...args) => {
     const fetcher = getConfiguredRequest(requestId, fetch);
@@ -356,12 +358,12 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
       // 这种场景下是使用 schema，所以 params 要从 args[0] 中获取
       if (typeof requestParams === 'object' && requestParams.params) {
         const { params } = requestParams;
-        keys.forEach(key => {
-          payload.params![key.name] = params[key.name];
+        keyNames.forEach(keyName => {
+          payload.params![keyName] = params[keyName];
         });
       } else {
-        keys.forEach((key, index) => {
-          payload.params![key.name] = args[index];
+        keyNames.forEach((keyName, index) => {
+          payload.params![keyName] = args[index];
         });
       }
 
@@ -465,7 +467,6 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
             : payload.body;
       } else if (payload.body) {
         headers['Content-Type'] = 'text/plain';
-        // eslint-disable-next-line prefer-destructuring
         body = payload.body;
       } else if (payload.formData) {
         body = payload.formData;
@@ -480,7 +481,6 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
           body = payload.formUrlencoded;
         }
       }
-
       const configDomain = domainMap.get(requestId);
       if (requestId !== 'default' && isEmptyDomain(configDomain)) {
         throw new ProducerDomainNotConfiguredError(requestId);
@@ -590,6 +590,23 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
       fetcher,
       transport: realTransportResilience.get(requestId),
     });
+  };
+
+  return sender;
+};
+
+export const createUploader: UploadCreator = ({
+  path,
+  requestId = 'default',
+}) => {
+  const sender: Sender = (...args) => {
+    const fetcher = getConfiguredRequest(requestId, originFetch);
+    const { body, headers } = getUploadPayload(args);
+
+    const configDomain = domainMap.get(requestId);
+    const finalURL = `${configDomain || ''}${path}`;
+
+    return fetcher(finalURL, { method: 'POST', body, headers });
   };
 
   return sender;

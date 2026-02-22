@@ -1,0 +1,30 @@
+---
+title: useBackendContext
+---
+# useBackendContext
+
+Used to obtain backend request context in an integrated BFF function.
+
+## Usage
+
+```ts
+import { useBackendContext } from '@modern-js/server-runtime';
+```
+
+## Function Signature
+
+`function useBackendContext(): Context`
+
+## Example
+
+Developers can use `context` to obtain more request information, such as setting response headers:
+
+```ts
+import { useBackendContext } from '@modern-js/server-runtime';
+
+export async function get() {
+  const c = useBackendContext();
+  c.res.headers.set('x-bff-api', 'true');
+  // ...
+}
+```

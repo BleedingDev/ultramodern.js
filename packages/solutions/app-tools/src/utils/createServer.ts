@@ -1,41 +1,17 @@
-import { Server, ModernDevServerOptions } from '@modern-js/server';
-import type { InternalPlugins } from '@modern-js/types';
+import type { Server } from 'node:http';
+import type { Http2SecureServer } from 'node:http2';
 
-let server: Server | null = null;
+let server: Server | Http2SecureServer | null = null;
 
 export const getServer = () => server;
 
-export const setServer = (newServer: Server) => {
+export const setServer = (newServer: Server | Http2SecureServer) => {
   server = newServer;
 };
 
 export const closeServer = async () => {
   if (server) {
-    await server.close();
+    server.close();
     server = null;
   }
-};
-
-export const createServer = async (options: ModernDevServerOptions) => {
-  if (server) {
-    await server.close();
-  }
-  server = new Server(options);
-
-  const app = await server.init();
-
-  return app;
-};
-
-export const injectDataLoaderPlugin = (internalPlugins: InternalPlugins) => {
-  const DataLoaderPlugin = require.resolve(
-    '@modern-js/plugin-data-loader/server',
-  );
-  return {
-    ...internalPlugins,
-    '@modern-js/plugin-data-loader': {
-      path: DataLoaderPlugin,
-      forced: true,
-    },
-  };
 };

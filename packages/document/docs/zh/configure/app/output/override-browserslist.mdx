@@ -1,0 +1,26 @@
+---
+title: overrideBrowserslist
+---
+
+# output.overrideBrowserslist
+
+- **类型：** `string[] | undefined`
+- **默认值：**
+
+```ts
+const defaultBrowserListMap: Record<RsbuildTarget, string[]> = {
+  web: ['chrome >= 87', 'edge >= 88', 'firefox >= 78', 'safari >= 14'],
+  node: ['node >= 14'],
+  'web-worker': ['chrome >= 87', 'edge >= 88', 'firefox >= 78', 'safari >= 14'],
+};
+```
+
+指定项目兼容的目标浏览器范围。
+
+该值会被 [SWC](https://github.com/swc-project/swc) 和 [autoprefixer](https://github.com/postcss/autoprefixer) 用来确定需要转换的 JavaScript 语法特性和需要添加的 CSS 浏览器前缀。
+
+其他配置方式和配置优先级请参考 [Browserslist 配置](/guides/advanced-features/compatibility.html)。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="output.overrideBrowserslist" />

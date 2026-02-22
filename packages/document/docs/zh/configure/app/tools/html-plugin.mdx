@@ -1,0 +1,45 @@
+---
+title: htmlPlugin
+---
+
+# tools.htmlPlugin
+
+- **类型：** `boolean | Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  meta, // 对应 `html.meta` 配置
+  title, // 对应 `html.title` 配置
+  inject, // 对应 `html.inject` 配置
+  favicon, // 对应 `html.favicon` 配置
+  template, // 对应 `html.template` 配置
+  filename, // 基于 `output.distPath` 和 `entryName` 生成
+  templateParameters, // 对应 `html.templateParameters` 配置
+  chunks: [entryName],
+  minify: {
+    // 基于 `output.minify` 生成
+    removeComments: false,
+    useShortDoctype: true,
+    keepClosingSlash: true,
+    collapseWhitespace: true,
+    removeRedundantAttributes: true,
+    removeScriptTypeAttributes: true,
+    removeStyleLinkTypeAttributes: true,
+    removeEmptyAttributes: true,
+    minifyJS, // 基于 `output.charset`、`output.legalComments` 和 `performance.removeConsole` 生成
+    minifyCSS: true,
+    minifyURLs: true,
+  },
+};
+```
+
+:::warning
+SSR 应用请勿启用 `minify.removeComments` 配置项，否则会导致 SSR 渲染失败。
+:::
+
+通过 `tools.htmlPlugin` 可以修改 [html-rspack-plugin](https://github.com/rspack-contrib/html-rspack-plugin) 的配置项。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="tools.htmlPlugin" />

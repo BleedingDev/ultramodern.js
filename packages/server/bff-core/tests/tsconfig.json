@@ -6,5 +6,6 @@
     "declaration": false,
     "isolatedModules": true,
     "strict": true,
+    "types": ["@rstest/core/globals"]
   }
 }

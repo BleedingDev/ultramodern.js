@@ -1,13 +1,15 @@
-import { ModernServerOptions } from './type';
-import { Server } from './server';
+import { createServerBase } from '@modern-js/server-core';
+import {
+  createNodeServer,
+  loadServerCliConfig,
+  loadServerEnv,
+  loadServerRuntimeConfig,
+} from '@modern-js/server-core/node';
+import { applyPlugins } from './apply';
+import type { BaseEnv, ProdServerOptions } from './types';
 
-export { Server };
-export type { ServerConfig } from '@modern-js/server-core';
-export { ModernServer } from './server/modernServer';
-export { createProxyHandler } from './libs/proxy';
-export * from './type';
-export * from './constants';
-export { createRenderHandler } from './libs/render';
+export { applyPlugins, type ApplyPlugins } from './apply';
+
 export {
   TelemetryRegistry,
   TelemetryCanaryOrchestrator,
@@ -23,12 +25,44 @@ export type {
   TelemetryQueueStats,
 } from './libs/telemetry';
 
-export default (options: ModernServerOptions): Promise<Server> => {
-  if (options == null) {
-    throw new Error('can not start mserver without options');
+export type { ServerPlugin } from '@modern-js/server-core';
+
+export type { ProdServerOptions, BaseEnv } from './types';
+
+export const createProdServer = async (options: ProdServerOptions) => {
+  await loadServerEnv(options);
+
+  const serverBaseOptions = options;
+
+  const serverCliConfig =
+    process.env.NODE_ENV === 'production'
+      ? loadServerCliConfig(options.pwd, options.config)
+      : options.config;
+
+  if (serverCliConfig) {
+    serverBaseOptions.config = serverCliConfig;
   }
 
-  const server = new Server(options);
+  const serverRuntimeConfig = await loadServerRuntimeConfig(
+    options.serverConfigPath,
+  );
 
-  return server.init();
+  if (serverRuntimeConfig) {
+    serverBaseOptions.serverConfig = serverRuntimeConfig;
+    serverBaseOptions.plugins = [
+      ...(serverRuntimeConfig.plugins || []),
+      ...(options.plugins || []),
+    ];
+  }
+
+  const server = createServerBase<BaseEnv>(serverBaseOptions);
+
+  // load env file.
+  const nodeServer = await createNodeServer(server.handle.bind(server));
+
+  await applyPlugins(server, options, nodeServer);
+
+  await server.init();
+
+  return nodeServer;
 };

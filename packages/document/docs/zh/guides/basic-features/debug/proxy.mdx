@@ -1,0 +1,25 @@
+---
+sidebar_position: 6
+---
+
+# 本地代理
+
+Modern.js 在 [`dev.server.proxy`](/configure/app/dev/server) 中提供了配置开发环境代理的方式。
+
+例如，将本地开发接口代理到其他地址：
+
+```ts title="modern.config.ts"
+import { defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  dev: {
+    server: {
+      proxy: {
+        // http://localhost:8080/api -> https://example.com/api
+        // http://localhost:8080/api/foo -> https://example.com/api/foo
+        '/api': 'https://example.com',
+      },
+    },
+  },
+});
+```

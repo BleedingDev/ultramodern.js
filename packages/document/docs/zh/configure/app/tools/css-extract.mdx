@@ -1,0 +1,34 @@
+---
+title: cssExtract
+---
+
+# tools.cssExtract
+
+- **类型：**
+
+```ts
+type CSSExtractOptions = {
+  pluginOptions?: Rspack.CssExtractRspackPluginOptions;
+  loaderOptions?: Rspack.CssExtractRspackLoaderOptions;
+};
+```
+
+- **默认值：**
+
+```js
+const defaultOptions = {
+  pluginOptions: {
+    ignoreOrder: true,
+    // 默认值由 Rsbuild 的 output.distPath 和 output.filename 选项决定
+    filename: 'static/css/[name].css',
+    chunkFilename: 'static/css/async/[name].css',
+  },
+  loaderOptions: {},
+};
+```
+
+通过 `tools.cssExtract` 可以更改 [CssExtractRspackPlugin](https://rspack.rs/zh/plugins/rspack/css-extract-rspack-plugin) 的配置。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="tools.cssExtract" />

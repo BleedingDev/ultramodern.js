@@ -1,13 +1,13 @@
-const { Response } = require('@remix-run/node');
-
 const loader0 = async () => {
-  return {
+  return Response.json({
     message: 'loader0',
-  };
+  });
 };
 
 const loader1 = async () => {
-  return new Response('loader1');
+  return new Response('loader1', {
+    status: 404,
+  });
 };
 
 const loader3 = async ({ params }) => {
@@ -16,7 +16,6 @@ const loader3 = async ({ params }) => {
 
 const loader4 = () => {
   throw new Error('throw error by loader4');
-  // eslint-disable-next-line no-unreachable
   return new Response('loader4');
 };
 

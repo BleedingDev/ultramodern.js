@@ -1,24 +1,18 @@
 import path from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
-import { build } from '@scripts/shared';
-import type { SharedBuilderConfig } from '@modern-js/builder-shared';
+import { expect, test } from '@playwright/test';
+import type { RsbuildConfig } from '@rsbuild/core';
+import { build, proxyConsole } from '@scripts/shared';
 
-function getCommonBuildConfig(cwd: string): SharedBuilderConfig {
+function getCommonBuildConfig(cwd: string): RsbuildConfig {
   return {
     source: {
       exclude: [path.resolve(cwd, './src/test.js')],
-    },
-    tools: {
-      // @ts-expect-error
-      rspack: config => {
-        config.target = ['web'];
-        config.builtins.presetEnv = undefined;
-      },
     },
   };
 }
 
 test('should throw error when exist syntax errors', async () => {
+  const { restore } = proxyConsole();
   const cwd = path.join(__dirname, 'fixtures/basic');
   await expect(
     build({
@@ -29,9 +23,13 @@ test('should throw error when exist syntax errors', async () => {
         security: {
           checkSyntax: true,
         },
+        output: {
+          overrideBrowserslist: ['> 0.01%', 'not dead', 'not op_mini all'],
+        },
       },
     }),
-  ).rejects.toThrowError('[Syntax Checker]');
+  ).rejects.toThrowError('incompatible syntax');
+  restore();
 });
 
 test('should not throw error when the file is excluded', async () => {
@@ -72,6 +70,7 @@ test('should not throw error when the targets are support es6', async () => {
 });
 
 test('should throw error when using optional chaining and target is es6 browsers', async () => {
+  const { restore } = proxyConsole();
   const cwd = path.join(__dirname, 'fixtures/esnext');
 
   await expect(
@@ -87,7 +86,9 @@ test('should throw error when using optional chaining and target is es6 browsers
         },
       },
     }),
-  ).rejects.toThrowError('[Syntax Checker]');
+  ).rejects.toThrowError('incompatible syntax');
+
+  restore();
 });
 
 test('should not throw error when using optional chaining and ecmaVersion is 2020', async () => {

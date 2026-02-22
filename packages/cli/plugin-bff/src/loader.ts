@@ -1,7 +1,12 @@
-import { generateClient, GenClientOptions } from '@modern-js/bff-core';
+import path from 'path';
+import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
-import type { LoaderContext } from 'webpack';
 import { logger } from '@modern-js/utils';
+import type { Rspack } from '@rsbuild/core';
+import {
+  generateEffectClientCode,
+  resolveEffectEntryFile,
+} from './utils/effectClientGenerator';
 
 export type APILoaderOptions = {
   prefix: string;
@@ -12,12 +17,25 @@ export type APILoaderOptions = {
   port: number;
   fetcher?: string;
   requestCreator?: string;
-  requestId?: string;
   target: string;
   httpMethodDecider?: HttpMethodDecider;
+  bffRuntimeFramework?: 'hono' | 'effect';
+  effectEntry?: string;
+  effectDataPlatformBatch?: {
+    enabled?: boolean;
+    endpoint?: string;
+    flushIntervalMs?: number;
+    maxBatchSize?: number;
+    maxBatchBytes?: number;
+    requestTimeoutMs?: number;
+    allowedMethods?: string[];
+  };
 };
 
-async function loader(this: LoaderContext<APILoaderOptions>, source: string) {
+async function loader(
+  this: Rspack.LoaderContext<APILoaderOptions>,
+  source: string,
+) {
   this.cacheable();
 
   const { resourcePath } = this;
@@ -27,6 +45,42 @@ async function loader(this: LoaderContext<APILoaderOptions>, source: string) {
   const callback = this.async();
 
   const draftOptions = this.getOptions();
+  const effectEntryFile = resolveEffectEntryFile({
+    appDir: draftOptions.appDir,
+    apiDir: draftOptions.apiDir,
+    effectEntry: draftOptions.effectEntry,
+  });
+
+  if (
+    draftOptions.bffRuntimeFramework === 'effect' &&
+    effectEntryFile &&
+    path.resolve(effectEntryFile) === path.resolve(resourcePath)
+  ) {
+    const code = await generateEffectClientCode({
+      appDir: draftOptions.appDir,
+      apiDir: draftOptions.apiDir,
+      resourcePath,
+      prefix: (Array.isArray(draftOptions.prefix)
+        ? draftOptions.prefix[0]
+        : draftOptions.prefix) as string,
+      port: Number(draftOptions.port),
+      target: draftOptions.target,
+      requestCreator: draftOptions.requestCreator,
+      httpMethodDecider: draftOptions.httpMethodDecider,
+      dataPlatformBatch: draftOptions.effectDataPlatformBatch,
+    });
+
+    if (code) {
+      callback(undefined, code);
+      return;
+    }
+
+    callback(
+      undefined,
+      `throw new Error('Failed to generate Effect client for ${resourcePath}')`,
+    );
+    return;
+  }
 
   const warning = `The file ${resourcePath} is not allowd to be imported in src directory, only API definition files are allowed.`;
 
@@ -63,9 +117,6 @@ async function loader(this: LoaderContext<APILoaderOptions>, source: string) {
 
   if (draftOptions.requestCreator) {
     options.requestCreator = draftOptions.requestCreator;
-  }
-  if (draftOptions.requestId) {
-    options.requestId = draftOptions.requestId;
   }
 
   options.requireResolve = require.resolve;

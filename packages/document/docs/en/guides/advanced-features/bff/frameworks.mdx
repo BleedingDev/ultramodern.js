@@ -1,0 +1,118 @@
+---
+sidebar_position: 3
+title: Runtime Framework
+---
+
+# Runtime Framework
+
+Modern.js supports two BFF runtime frameworks:
+
+- `hono` (default): use file-convention BFF functions and Hono ecosystem middleware.
+- `effect`: use [Effect HttpApi](https://effect.website/) as the primary BFF runtime.
+
+When `effect` mode is enabled, file-convention BFF APIs in `api/lambda/**` still work for compatibility.
+
+## Switch to Effect runtime
+
+```ts title="modern.config.ts"
+import { bffPlugin } from '@modern-js/plugin-bff';
+import { defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  plugins: [bffPlugin()],
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: {
+        path: '/openapi.json',
+      },
+    },
+  },
+});
+```
+
+Define a shared Effect HttpApi contract (for type-safe client + server):
+
+```ts title="shared/effect/api.ts"
+import {
+  HttpApi,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Schema,
+} from '@modern-js/plugin-bff/effect-client';
+
+export const bffEffectApi = HttpApi.make('MyApi').add(
+  HttpApiGroup.make('hello').add(
+    HttpApiEndpoint.get('ping', '/effect/ping', {
+      success: Schema.String,
+    }),
+  ),
+);
+```
+
+Implement your Effect BFF entry at `api/effect/index.ts`:
+
+```ts title="api/effect/index.ts"
+import {
+  Schema,
+  Effect,
+  HttpApiBuilder,
+  defineEffectBff,
+  Layer,
+  ServiceMap,
+} from '@modern-js/plugin-bff/effect-server';
+import { bffEffectApi } from '../../shared/effect/api';
+
+class GreetingUnavailableError extends Schema.TaggedError<GreetingUnavailableError>()(
+  'GreetingUnavailableError',
+  {
+    message: Schema.String,
+  },
+) {}
+
+class GreetingService extends ServiceMap.Service<GreetingService>()('GreetingService', {
+  make: Effect.succeed({
+    hello: Effect.fn('GreetingService.hello')(function* () {
+      if (Date.now() < 0) {
+        return yield* Effect.fail(
+          new GreetingUnavailableError({
+            message: 'Greeting service is unavailable',
+          }),
+        );
+      }
+      return yield* Effect.succeed('pong');
+    }),
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make);
+}
+
+const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
+  handlers.handle('ping', () =>
+    GreetingService.use(service => service.hello()).pipe(
+      Effect.catchTag('GreetingUnavailableError', error =>
+        Effect.succeed(error.message),
+      ),
+    ),
+  ),
+);
+
+const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
+  Layer.provide(group),
+  Layer.provide(GreetingService.layer),
+);
+
+export default defineEffectBff({ api: bffEffectApi, layer });
+```
+
+Call Effect endpoints from the browser via `@api/effect/index`:
+
+```ts title="src/routes/page.tsx"
+import effectBff from '@api/effect/index';
+
+const response = await effectBff.client.hello.ping({});
+```
+
+import Hono from '@site-docs-en/components/hono';
+
+<Hono />

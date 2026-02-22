@@ -9,7 +9,7 @@ export default function Layout() {
     <div>
       {data?.message}
       <Link to="/" className="root-btn" prefetch="intent">
-        /user
+        /home
       </Link>
       <Link to="user" className="user-btn" prefetch="intent">
         /user
@@ -19,6 +19,13 @@ export default function Layout() {
       </Link>
       <Link to="error/loader" className="loader-error-btn" prefetch="intent">
         /error/loader
+      </Link>
+      <Link
+        to="error/response"
+        className="loader-error-response"
+        prefetch="intent"
+      >
+        /error/response
       </Link>
       <Link to="redirect" className="redirect-btn" prefetch="intent">
         /redirect

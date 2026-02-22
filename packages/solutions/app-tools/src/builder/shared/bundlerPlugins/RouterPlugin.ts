@@ -1,11 +1,8 @@
 import { createHash } from 'crypto';
-import { mergeWith } from '@modern-js/utils/lodash';
 import { ROUTE_MANIFEST_FILE } from '@modern-js/utils';
+import { merge, mergeWith } from '@modern-js/utils/lodash';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
-import type { webpack } from '@modern-js/builder-webpack-provider';
-import type { Rspack } from '@modern-js/builder-rspack-provider';
-import type HtmlWebpackPlugin from '@modern-js/builder-webpack-provider/html-webpack-plugin';
-import type { ScriptLoading } from '@modern-js/builder-shared';
+import type { Rspack, ScriptLoading } from '@rsbuild/core';
 
 const PLUGIN_NAME = 'ModernjsRoutePlugin';
 
@@ -17,13 +14,13 @@ export interface RouteAssets {
   };
 }
 
-type Compiler = webpack.Compiler | Rspack.Compiler;
-type Compilation = webpack.Compilation | Rspack.Compilation;
-type Chunks = webpack.StatsChunk[];
+type Compiler = Rspack.Compiler;
+type Compilation = Rspack.Compilation;
+type Chunks = Rspack.StatsChunk[];
 
 type Options = {
-  HtmlBundlerPlugin: typeof HtmlWebpackPlugin;
-  staticJsDir: string;
+  HtmlBundlerPlugin: typeof Rspack.HtmlRspackPlugin;
+  staticJsDir?: string;
   enableInlineRouteManifests: boolean;
   disableFilenameHash?: boolean;
   scriptLoading?: ScriptLoading;
@@ -37,7 +34,7 @@ const generateContentHash = (content: string) => {
 export class RouterPlugin {
   readonly name: string = 'RouterPlugin';
 
-  private HtmlBundlerPlugin: typeof HtmlWebpackPlugin;
+  private HtmlBundlerPlugin: typeof Rspack.HtmlRspackPlugin;
 
   private enableInlineRouteManifests: boolean;
 
@@ -105,8 +102,8 @@ export class RouterPlugin {
       return;
     }
 
-    const { webpack } = compiler;
-    const { Compilation, sources } = webpack;
+    const { rspack } = compiler;
+    const { Compilation, sources } = rspack;
     const { RawSource } = sources;
 
     const normalizePath = (path: string): string => {
@@ -122,8 +119,8 @@ export class RouterPlugin {
     const placeholder = `<!--<?- ${ROUTE_MANIFEST_HOLDER} ?>-->`;
 
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, compilation => {
-      this.HtmlBundlerPlugin.getHooks(
-        compilation as webpack.Compilation,
+      this.HtmlBundlerPlugin.getCompilationHooks(
+        compilation,
       ).beforeEmit.tapAsync('RouterManifestPlugin', (data, callback) => {
         const { outputName } = data;
         const { chunks } = data.plugin.options!;
@@ -151,7 +148,7 @@ export class RouterPlugin {
             publicPath,
             chunks = [],
             namedChunkGroups,
-          } = stats as webpack.StatsCompilation;
+          } = stats as Rspack.StatsCompilation;
           const routeAssets: RouteAssets = {};
 
           if (!namedChunkGroups) {
@@ -165,7 +162,12 @@ export class RouterPlugin {
           const prevManifest: { routeAssets: RouteAssets } =
             JSON.parse(prevManifestStr);
 
+          const asyncEntryNames = [];
           for (const [name, chunkGroup] of Object.entries(namedChunkGroups)) {
+            if (name.startsWith('async-')) {
+              asyncEntryNames.push(name);
+            }
+
             type ChunkGroupLike = {
               assets: { name: string; [prop: string]: any }[];
               [prop: string]: any;
@@ -200,14 +202,25 @@ export class RouterPlugin {
             }
           }
 
+          // Ensure that the corresponding sync resources have been processed, so wo merge here
+          if (asyncEntryNames.length > 0) {
+            for (const asyncEntryName of asyncEntryNames) {
+              const syncEntryName = asyncEntryName.replace('async-', '');
+              const syncEntry = routeAssets[syncEntryName];
+              const asyncEntry = routeAssets[asyncEntryName];
+              merge(syncEntry, asyncEntry);
+            }
+          }
+
           const manifest = {
             routeAssets,
           };
 
           const entryNames = Array.from(compilation.entrypoints.keys());
-          const entryChunks = this.getEntryChunks(compilation, chunks);
-          const entryChunkFiles = this.getEntryChunkFiles(entryChunks);
+          let entryChunks = [];
+          entryChunks = this.getEntryChunks(compilation, chunks);
 
+          const entryChunkFiles = this.getEntryChunkFiles(entryChunks);
           const entryChunkFileIds = entryChunks.map(chunk => chunk.id);
           for (let i = 0; i < entryChunkFiles.length; i++) {
             const entryName = entryNames[i];
@@ -238,16 +251,16 @@ export class RouterPlugin {
             const injectedContent = `
             ;(function(){
               window.${ROUTE_MANIFEST} = ${JSON.stringify(manifest, (k, v) => {
-              if (
-                (k === 'assets' || k === 'referenceCssAssets') &&
-                Array.isArray(v)
-              ) {
-                return v.map(item => {
-                  return item.replace(publicPath, '');
-                });
-              }
-              return v;
-            })};
+                if (
+                  (k === 'assets' || k === 'referenceCssAssets') &&
+                  Array.isArray(v)
+                ) {
+                  return v.map(item => {
+                    return item.replace(publicPath, '');
+                  });
+                }
+                return v;
+              })};
             })();
           `;
 
@@ -287,8 +300,7 @@ export class RouterPlugin {
                         `<script ${nonceAttr}>${injectedContent}</script>`,
                       ),
                   ),
-                  // FIXME: The arguments third of updatgeAsset is a optional function in webpack.
-                  undefined as any,
+                  undefined,
                 );
               } else {
                 const scriptPath = `${staticJsDir}/${ROUTE_MANIFEST_HOLDER}-${entryName}${
@@ -300,12 +312,11 @@ export class RouterPlugin {
                 const scriptUrl = `${publicPath}${scriptPath}`;
 
                 const scriptLoadingAttr =
-                  // eslint-disable-next-line no-nested-ternary
                   scriptLoading === 'defer'
                     ? scriptLoading
                     : scriptLoading === 'module'
-                    ? `type="module"`
-                    : '';
+                      ? `type="module"`
+                      : '';
 
                 const script = `<script ${scriptLoadingAttr} ${nonceAttr} src="${scriptUrl}"></script>`;
 
@@ -314,8 +325,7 @@ export class RouterPlugin {
                   new RawSource(
                     oldHtml.source().toString().replace(placeholder, script),
                   ),
-                  // FIXME: The arguments third of updatgeAsset is a optional function in webpack.
-                  undefined as any,
+                  undefined,
                 );
                 compilation.emitAsset(
                   scriptPath,
@@ -329,8 +339,7 @@ export class RouterPlugin {
             compilation.updateAsset(
               ROUTE_MANIFEST_FILE,
               new RawSource(JSON.stringify(manifest, null, 2)),
-              // FIXME: The arguments third of updatgeAsset is a optional function in webpack.
-              undefined as any,
+              undefined,
             );
           } else {
             compilation.emitAsset(

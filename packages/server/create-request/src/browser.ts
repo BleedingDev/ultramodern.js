@@ -1,5 +1,5 @@
-import { compile, pathToRegexp, Key } from 'path-to-regexp';
-import { stringify } from 'query-string';
+import { compile } from 'path-to-regexp';
+import { stringify } from 'qs';
 import { handleRes } from './handleRes';
 import { executeWithResilience } from './transport';
 import type {
@@ -13,8 +13,10 @@ import type {
   IOptions,
   TransportResilienceOptions,
 } from './types';
+import { getUploadPayload } from './utiles';
 
 const realRequest: Map<string, typeof fetch> = new Map();
+
 const realAllowedHeaders: Map<string, string[]> = new Map();
 const realRequireEnvelope: Map<string, boolean> = new Map();
 const realAllowCrossOriginEnvelope: Map<string, AllowCrossOriginEnvelope> =
@@ -100,13 +102,15 @@ const parseTraceparent = (value: unknown) => {
   };
 };
 
+const extractPathParamNames = (path: string): string[] =>
+  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).map(([, key]) => key);
+
 const originFetch = (...params: Parameters<typeof fetch>) => {
   const [url, init] = params;
 
   if (init?.method?.toLowerCase() === 'get') {
     init.body = undefined;
   }
-
   return fetch(url, init).then(handleRes);
 };
 
@@ -169,7 +173,7 @@ export class ProducerClientNotInitializedError extends Error {
 
   constructor(requestId: string) {
     super(
-      `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
+      `Producer client "${requestId}" is not initialized. Call initProducerClient() (or configure()) before using generated APIs for this requestId.`,
     );
     this.name = 'ProducerClientNotInitializedError';
   }
@@ -276,29 +280,29 @@ export const configure = (options: IOptions) => {
       domainMap.set(requestId, resolvedDomain);
     }
   }
-  realRequest.set(requestId, configuredRequest);
+  realRequest.set(requestId, configuredRequest as any);
 };
 
-export const createRequest: RequestCreator = (
+export const createRequest: RequestCreator = ({
   path,
   method,
   port,
-  httpMethodDecider = 'functionName',
-  // 后续可能要修改，暂时先保留
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  httpMethodDecider = 'functionName', // 后续可能要修改，暂时先保留
   fetch = originFetch,
+  domain,
   requestId = 'default',
   operationContext,
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
-  const keys: Key[] = [];
-  pathToRegexp(path, keys);
+  const keyNames = extractPathParamNames(path);
 
   const sender: Sender = async (...args) => {
     const fetcher = getConfiguredRequest(requestId, fetch);
+
     let body;
     let finalURL: string;
     let headers: Record<string, any>;
+
     if (httpMethodDecider === 'inputParams') {
       finalURL = path;
       body = JSON.stringify({
@@ -316,12 +320,12 @@ export const createRequest: RequestCreator = (
       // 这种场景下是使用 schema，所以 params 要从 args[0] 中获取
       if (typeof requestParams === 'object' && requestParams.params) {
         const { params } = requestParams;
-        keys.forEach(key => {
-          payload.params![key.name] = params[key.name];
+        keyNames.forEach(keyName => {
+          payload.params![keyName] = params[keyName];
         });
       } else {
-        keys.forEach((key, index) => {
-          payload.params![key.name] = args[index];
+        keyNames.forEach((keyName, index) => {
+          payload.params![keyName] = args[index];
         });
       }
 
@@ -400,7 +404,6 @@ export const createRequest: RequestCreator = (
             : payload.body;
       } else if (payload.body) {
         headers['Content-Type'] = 'text/plain';
-        // eslint-disable-next-line prefer-destructuring
         body = payload.body;
       } else if (payload.formData) {
         body = payload.formData;
@@ -422,6 +425,7 @@ export const createRequest: RequestCreator = (
     }
 
     headers.accept = `application/json,*/*;q=0.8`;
+
     const configDomain = domainMap.get(requestId);
     if (requestId !== 'default' && isEmptyDomain(configDomain)) {
       throw new ProducerDomainNotConfiguredError(requestId);
@@ -515,6 +519,31 @@ export const createRequest: RequestCreator = (
       },
       fetcher,
       transport: realTransportResilience.get(requestId),
+    });
+  };
+
+  return sender;
+};
+
+export const createUploader: UploadCreator = ({
+  path,
+  domain,
+  requestId = 'default',
+}) => {
+  const getFinalPath = compile(path, { encode: encodeURIComponent });
+  const sender: Sender = (...args) => {
+    const fetcher = getConfiguredRequest(requestId, originFetch);
+
+    const { body, headers, params } = getUploadPayload(args);
+    const finalPath = getFinalPath(params);
+
+    const configDomain = domainMap.get(requestId);
+    const finalURL = `${configDomain || domain || ''}${finalPath}`;
+
+    return fetcher(finalURL, {
+      method: 'POST',
+      body,
+      headers,
     });
   };
 

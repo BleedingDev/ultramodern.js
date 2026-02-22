@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { fs } from '@modern-js/utils';
-import { expect, test } from '@modern-js/e2e/playwright';
-import { dev, getHrefByEntryName } from '@scripts/shared';
+import { expect, test } from '@playwright/test';
+import { build, dev, getHrefByEntryName } from '@scripts/shared';
 
 const fixtures = __dirname;
 
@@ -14,12 +14,10 @@ test.skip('default & hmr (default true)', async ({ page }) => {
       main: join(fixtures, 'hmr', 'test-src/index.ts'),
     },
     builderConfig: {
-      tools: {
-        devServer: {
-          client: {
-            host: '',
-            port: '',
-          },
+      dev: {
+        client: {
+          host: '',
+          port: '',
         },
       },
     },
@@ -73,15 +71,15 @@ test.skip('default & hmr (default true)', async ({ page }) => {
   await builder.server.close();
 });
 
-test('dev.port & output.distPath', async ({ page }) => {
-  const builder = await dev({
+test('output.distPath', async ({ page }) => {
+  const builder = await build({
     cwd: join(fixtures, 'basic'),
     entry: {
       main: join(fixtures, 'basic', 'src/index.ts'),
     },
     builderConfig: {
       dev: {
-        port: 3000,
+        port: 3030,
       },
       output: {
         distPath: {
@@ -92,22 +90,11 @@ test('dev.port & output.distPath', async ({ page }) => {
     },
   });
 
-  await page.goto(getHrefByEntryName('main', builder.port));
-
-  expect(builder.port).toBe(3000);
-
   expect(
     fs.existsSync(join(fixtures, 'basic/dist-1/html/main/index.html')),
   ).toBeTruthy();
 
   expect(fs.existsSync(join(fixtures, 'basic/dist-1/aa/js'))).toBeTruthy();
-
-  const locator = page.locator('#test');
-  await expect(locator).toHaveText('Hello Builder!');
-
-  await builder.server.close();
-
-  await fs.remove(join(fixtures, 'basic/dist-1'));
 });
 
 test.skip('hmr should work when setting dev.port & serverOptions.dev.client', async ({
@@ -123,10 +110,6 @@ test.skip('hmr should work when setting dev.port & serverOptions.dev.client', as
     builderConfig: {
       dev: {
         port: 3001,
-      },
-    },
-    serverOptions: {
-      dev: {
         client: {
           host: '',
         },

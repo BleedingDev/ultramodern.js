@@ -1,9 +1,10 @@
 import path from 'path';
 import pkgUp from '../../../compiled/pkg-up';
-import { getArgv } from '../commands';
 import { fs, minimist, semver } from '../../compiled';
+import { getArgv } from '../commands';
 import { createDebugger } from '../common';
 import { ensureArray } from '../ensure';
+import { tryResolve } from '../require';
 
 const debug = createDebugger('judge-depExists');
 
@@ -20,7 +21,7 @@ export const isDepExists = (appDirectory: string, name: string): boolean => {
     debug(`can't find package.json under: %s`, appDirectory);
     return false;
   }
-  const json = require(pkgPath);
+  const json = fs.readJSONSync(pkgPath);
 
   const { dependencies = {}, devDependencies = {} } = json;
 
@@ -37,7 +38,7 @@ export const isPackageInstalled = (
   resolvePaths: string | string[],
 ) => {
   try {
-    require.resolve(name, { paths: ensureArray(resolvePaths) });
+    tryResolve(name, ...ensureArray(resolvePaths));
     return true;
   } catch (err) {
     return false;
@@ -79,7 +80,11 @@ export const isWebOnly = async () => {
   return Boolean(options['web-only']);
 };
 
-export const isBeyondReact17 = (cwd: string) => {
+export const isVersionBeyond17 = (version: string): boolean => {
+  return semver.gte(semver.minVersion(version)!, '17.0.0');
+};
+
+export const getReactVersion = (cwd: string): string | false => {
   const pkgPath = pkgUp.sync({ cwd });
 
   if (!pkgPath) {
@@ -95,28 +100,46 @@ export const isBeyondReact17 = (cwd: string) => {
   if (typeof deps.react !== 'string') {
     return false;
   }
+  try {
+    const reactPath = tryResolve('react/package.json', cwd);
 
-  return semver.satisfies(semver.minVersion(deps.react)!, '>=17.0.0');
+    const reactVersion = JSON.parse(fs.readFileSync(reactPath, 'utf8')).version;
+
+    return reactVersion;
+  } catch (error) {
+    console.error('Failed to resolve React version:', error);
+    return false;
+  }
+};
+/**
+ * @deprecated Use {@link isSupportAutomaticJsx} to check if the project supports automatic JSX instead.
+ */
+export const isBeyondReact17 = (cwd: string) => {
+  const reactVersion = getReactVersion(cwd);
+
+  if (!reactVersion) {
+    return false;
+  }
+  return isVersionBeyond17(reactVersion);
 };
 
-export const isReact18 = (cwd: string) => {
-  const pkgPath = path.join(cwd, 'package.json');
+export const isSupportAutomaticJsx = (cwd: string) => {
+  const reactVersion = getReactVersion(cwd);
 
-  if (!fs.existsSync(pkgPath)) {
+  if (!reactVersion) {
     return false;
   }
 
-  const pkgInfo = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-  const deps = {
-    ...pkgInfo.devDependencies,
-    ...pkgInfo.dependencies,
-  };
+  return semver.satisfies(semver.minVersion(reactVersion)!, '>=16.14.0');
+};
 
-  if (typeof deps.react !== 'string') {
+export const isReact18 = (cwd: string = process.cwd()) => {
+  const reactVersion = getReactVersion(cwd);
+
+  if (!reactVersion) {
     return false;
   }
-
-  return semver.satisfies(semver.minVersion(deps.react)!, '>=18.0.0');
+  return semver.gte(semver.minVersion(reactVersion)!, '18.0.0');
 };
 
 /**

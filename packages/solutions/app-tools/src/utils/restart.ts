@@ -1,23 +1,15 @@
-import { cli, ToRunners } from '@modern-js/core';
-import {
-  chalk,
-  clearConsole,
-  getFullArgv,
-  logger,
-  program,
-} from '@modern-js/utils';
-import { AppToolsHooks } from '../types/hooks';
+import { cli } from '@modern-js/plugin/cli';
+import { chalk, clearConsole, getFullArgv, logger } from '@modern-js/utils';
+import { program } from '@modern-js/utils/commander';
+import type { AppToolsHooks } from '../types/plugin';
 
-export async function restart(
-  hooksRunner: ToRunners<AppToolsHooks>,
-  filename: string,
-) {
+export async function restart(hooks: AppToolsHooks, filename: string) {
   clearConsole();
   logger.info(`Restart because ${chalk.yellow(filename)} is changed...\n`);
 
   let hasGetError = false;
 
-  await hooksRunner.beforeRestart();
+  await hooks.onBeforeRestart.call();
 
   try {
     await cli.init(cli.getPrevInitOptions());

@@ -1,0 +1,145 @@
+# 服务端渲染
+
+`@module-federation/modern-js-v3` 提供了非常强大的能力，开发者可以非常方便的在 Modern.js 应用中，组合使用 Module Federation 和服务端渲染（SSR）的能力。
+
+## 开启 SSR
+
+我们以 [使用模块联邦](/guides/topic-detail/module-federation/usage) 创建的应用为例，只需要在生产者和消费者上，都添加 `server.ssr` 配置即可：
+
+```ts title="modern.config.ts"
+import { appTools, defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  server: {
+    ssr: {
+      mode: 'stream',
+    },
+  },
+});
+```
+
+为更好的性能体验，我们仅支持 Streaming SSR 情况使用这种能力组合。
+
+:::warning
+应用级别模块（使用 `createBridgeComponent` 和 `createRemoteAppComponent` 的模块）在 **alpha 模式** 下可启用 SSR。
+
+请在 host 和 remote 两侧都显式开启：
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    ssr: {
+      mode: 'stream',
+      moduleFederationAppSSRAlpha: true,
+    },
+  },
+});
+```
+
+建议在生产环境保留远程加载失败的 fallback 边界，并在日志 / 监控中跟踪 fallback 标记。
+:::
+
+## Node SSR 打包兼容性
+
+当开启 Module Federation 并同时开启 `server.ssr` 时，Modern.js 会自动将 Node SSR 构建切换到 Module Federation 兼容模式：
+
+- `target: 'async-node'`
+- `output.module: false`
+- `output.chunkFormat: 'commonjs'`
+- `output.chunkLoading: 'async-node'`
+- `output.library.type: 'commonjs-module'`
+
+这样可以避免 ESM 服务端产物与 `@module-federation/node` 运行时之间的兼容性问题，并保证 host / remote 在 SSR 与 SSG 场景下的 hydration 行为一致。
+
+## 数据获取
+
+:::tip
+目前该功能为实验性功能，功能还未经过充分实践，请谨慎使用。
+:::
+
+Module Federation 在新版本中支持了[数据获取](https://module-federation.io/zh/guide/basic/data-fetch/index.html#%E7%AE%80%E4%BB%8B)的能力。每个生产者文件都可以有一个对应的数据获取文件，文件名格式为 `[name].data.ts`。
+
+在 Modern.js 中，数据获取可以配合 SSR 使用。我们以前面章节的 Demo 为例子，创建一个数据获取文件：
+
+```ts title="src/components/Button.data.ts"
+import type { DataFetchParams } from '@module-federation/modern-js-v3/react';
+
+export type Data = {
+  data: string;
+};
+
+export const fetchData = async (params: DataFetchParams): Promise<Data> => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({
+        data: `data: ${new Date()}`,
+      });
+    }, 1000);
+  });
+};
+```
+
+在 Button 中，我们从 `Props` 中获取到数据：
+
+```ts title="src/components/Button.tsx"
+import React from 'react';
+import type { Data } from './Button.data';
+
+export const Button = (props: { mfData: Data }) => {
+  const { mfData } = props;
+  return (
+    <button type="button" className="test">
+      Remote Button {mfData?.data}
+    </button>
+  );
+};
+```
+
+## 消费组件
+
+消费者必须使用 [`createLazyComponent`](https://module-federation.io/zh/practice/bridge/react-bridge/load-component.html#createlazycomponent-api-%E5%8F%82%E8%80%83) 的方式加载远程组件，并指定 export 为 'default'。
+
+```tsx title="src/routes/page.tsx"
+import type { JSX } from 'react';
+import { getInstance } from '@module-federation/modern-js-v3/runtime';
+import {
+  ERROR_TYPE,
+  lazyLoadComponentPlugin,
+} from '@module-federation/modern-js-v3/react';
+
+const instance = getInstance();
+instance!.registerPlugins([lazyLoadComponentPlugin()]);
+
+const Button = instance!.createLazyComponent({
+  loader: () => {
+    return import('remote/Button');
+  },
+  loading: 'loading...',
+  export: 'Button', // 这里需要配置为远程组件的 export 名称
+  fallback: ({ error, errorType, dataFetchMapKey }) => {
+    console.error(error);
+    if (errorType === ERROR_TYPE.LOAD_REMOTE) {
+      return <div>load remote failed</div>;
+    }
+    if (errorType === ERROR_TYPE.DATA_FETCH) {
+      return (
+        <div>
+          data fetch failed, the dataFetchMapKey key is: {dataFetchMapKey}
+        </div>
+      );
+    }
+    return <div>error type is unknown</div>;
+  },
+});
+
+const Index = (): JSX.Element => {
+  return (
+    <div>
+      <h1>Basic usage with data fetch</h1>
+      <Button />
+    </div>
+  );
+};
+
+export default Index;
+```

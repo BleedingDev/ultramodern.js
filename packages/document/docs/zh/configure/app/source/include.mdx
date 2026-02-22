@@ -1,0 +1,40 @@
+---
+title: include
+---
+
+# source.include
+
+- **类型：** [RuleSetCondition[]](https://rspack.rs/zh/config/module#condition)
+- **默认值：**
+
+```ts
+const defaultInclude = [
+  [{ not: /[\\/]node_modules[\\/]/ }, /\.(?:ts|tsx|jsx|mts|cts)$/],
+];
+```
+
+`source.include` 用于指定额外需要编译的 JavaScript 文件。默认情况下，会编译以下文件：
+
+- 任意目录下的 TypeScript 和 JSX 文件，匹配的文件后缀为 `.ts`、`.tsx`、`.jsx`、`.mts`、`.cts`。
+- 非 `node_modules` 目录下的 JavaScript 文件，匹配的文件后缀为 `.js`、`.mjs`、`.cjs`。
+
+:::tip
+在 Rsbuild 1.4 版本前，`source.include` 的默认值为：
+
+```ts
+const defaultInclude = [
+  [
+    {
+      and: [APP_ROOT, { not: /[\\/]node_modules[\\/]/ }],
+    },
+    /\.(?:ts|tsx|jsx|mts|cts)$/,
+  ],
+];
+```
+
+与新版本的差异是，非当前项目目录的 `.js`、`.mjs`、`.cjs` 文件不会被编译。
+:::
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="source.include" />

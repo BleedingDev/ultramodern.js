@@ -1,15 +1,16 @@
-import type { PluginAPI } from '@modern-js/core';
+import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { AppTools } from '../types';
-import { getServerInternalPlugins } from '../utils/getServerInternalPlugins';
+import { getServerPlugins } from '../utils/loadPlugins';
 
-export const deploy = async (
-  api: PluginAPI<AppTools<'shared'>>,
-  options: any,
-) => {
-  const hookRunners = api.useHookRunners();
+export const deploy = async (api: CLIPluginAPI<AppTools>, options: any) => {
+  const hooks = api.getHooks();
+
+  const { metaName } = api.getAppContext();
+
   // deploy command need get all plugins
-  await getServerInternalPlugins(api);
+  await getServerPlugins(api, metaName);
 
-  await hookRunners.beforeDeploy(options);
-  await hookRunners.afterDeploy(options);
+  await hooks.onBeforeDeploy.call(options);
+  await hooks.deploy.call();
+  await hooks.onAfterDeploy.call(options);
 };

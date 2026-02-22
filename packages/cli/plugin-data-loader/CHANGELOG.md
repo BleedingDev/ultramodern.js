@@ -1,6 +1,788 @@
 # @modern-js/plugin-data-loader
 
-## 4.0.0
+## 3.0.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.0.2
+- @modern-js/utils@3.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.0.1
+- @modern-js/utils@3.0.1
+
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [ecd247c]
+  - @modern-js/runtime-utils@3.0.0
+  - @modern-js/utils@3.0.0
+
+## 3.0.0-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [ecd247c]
+  - @modern-js/runtime-utils@3.0.0-alpha.2
+  - @modern-js/utils@3.0.0-alpha.2
+
+## 3.0.0-alpha.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.0.0-alpha.1
+- @modern-js/utils@3.0.0-alpha.1
+
+## 3.0.0-alpha.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.0.0-alpha.0
+- @modern-js/utils@3.0.0-alpha.0
+
+## 2.68.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.68.1
+- @modern-js/utils@2.68.1
+
+## 2.68.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.68.0
+- @modern-js/utils@2.68.0
+
+## 2.67.11
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.11
+- @modern-js/utils@2.67.11
+
+## 2.67.10
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.10
+- @modern-js/utils@2.67.10
+
+## 2.67.9
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.9
+- @modern-js/utils@2.67.9
+
+## 2.67.8
+
+### Patch Changes
+
+- Updated dependencies [23c8201]
+  - @modern-js/utils@2.67.8
+  - @modern-js/runtime-utils@2.67.8
+
+## 2.67.7
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.7
+- @modern-js/utils@2.67.7
+
+## 2.67.6
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.6
+- @modern-js/utils@2.67.6
+
+## 2.67.5
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.5
+- @modern-js/utils@2.67.5
+
+## 2.67.4
+
+### Patch Changes
+
+- b00922e: feat: support plugin-router-v7
+  feat: support plugin-router-v7
+- Updated dependencies [3a66335]
+- Updated dependencies [03cf233]
+- Updated dependencies [446939a]
+- Updated dependencies [446939a]
+- Updated dependencies [b00922e]
+- Updated dependencies [446939a]
+  - @modern-js/runtime-utils@2.67.4
+  - @modern-js/utils@2.67.4
+
+## 2.67.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.3
+- @modern-js/utils@2.67.3
+
+## 2.67.2
+
+### Patch Changes
+
+- Updated dependencies [8f97aae]
+  - @modern-js/runtime-utils@2.67.2
+  - @modern-js/utils@2.67.2
+
+## 2.67.1
+
+### Patch Changes
+
+- Updated dependencies [1d96265]
+  - @modern-js/utils@2.67.1
+  - @modern-js/runtime-utils@2.67.1
+
+## 2.67.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.67.0
+- @modern-js/utils@2.67.0
+
+## 2.66.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.66.0
+- @modern-js/utils@2.66.0
+
+## 2.65.5
+
+### Patch Changes
+
+- Updated dependencies [90a3c1c]
+- Updated dependencies [58a1afd]
+  - @modern-js/runtime-utils@2.65.5
+  - @modern-js/utils@2.65.5
+
+## 2.65.4
+
+### Patch Changes
+
+- Updated dependencies [0d47cb8]
+- Updated dependencies [f1cd095]
+  - @modern-js/utils@2.65.4
+  - @modern-js/runtime-utils@2.65.4
+
+## 2.65.3
+
+### Patch Changes
+
+- Updated dependencies [087ae7c]
+  - @modern-js/runtime-utils@2.65.3
+  - @modern-js/utils@2.65.3
+
+## 2.65.2
+
+### Patch Changes
+
+- 793be44: feat: support get monitors in Data Loader and Component
+  feat: 在 Data Loader 和组件中支持获取 monitors
+- 1fe923c: chore: use monitors instead of reporter to report Data Loader cost
+  chore: 使用 monitors 代替 reporter 来上报 Data Loader 耗时
+- 8837b85: feat(runtime): support cache function & getRequest function
+  feat(runtime): 支持 cache 函数 和 getRequest 函数
+- Updated dependencies [793be44]
+- Updated dependencies [1fe923c]
+- Updated dependencies [8837b85]
+- Updated dependencies [1f83d96]
+  - @modern-js/runtime-utils@2.65.2
+  - @modern-js/utils@2.65.2
+
+## 2.65.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.65.1
+- @modern-js/utils@2.65.1
+
+## 2.65.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.65.0
+- @modern-js/utils@2.65.0
+
+## 2.64.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.64.3
+- @modern-js/utils@2.64.3
+
+## 2.64.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.64.2
+- @modern-js/utils@2.64.2
+
+## 2.64.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.64.1
+- @modern-js/utils@2.64.1
+
+## 2.64.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.64.0
+- @modern-js/utils@2.64.0
+
+## 2.63.7
+
+### Patch Changes
+
+- 09a91c2: feat: unify the response logic of the Loader in SSR
+  feat: 统一 SSR 中 Loader 的响应逻辑
+  - @modern-js/runtime-utils@2.63.7
+  - @modern-js/utils@2.63.7
+
+## 2.63.6
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.6
+- @modern-js/utils@2.63.6
+
+## 2.63.5
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.5
+- @modern-js/utils@2.63.5
+
+## 2.63.4
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.4
+- @modern-js/utils@2.63.4
+
+## 2.63.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.3
+- @modern-js/utils@2.63.3
+
+## 2.63.2
+
+### Patch Changes
+
+- Updated dependencies [5fc95f7]
+- Updated dependencies [53e3ae0]
+  - @modern-js/utils@2.63.2
+  - @modern-js/runtime-utils@2.63.2
+
+## 2.63.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.1
+- @modern-js/utils@2.63.1
+
+## 2.63.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.63.0
+- @modern-js/utils@2.63.0
+
+## 2.62.1
+
+### Patch Changes
+
+- 86213ae: chore: add a server directory for universal server utils
+  chore: 添加一个 server 目录用于存放通用的服务端工具函数
+- Updated dependencies [86213ae]
+  - @modern-js/runtime-utils@2.62.1
+  - @modern-js/utils@2.62.1
+
+## 2.62.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.62.0
+- @modern-js/utils@2.62.0
+
+## 2.61.0
+
+### Patch Changes
+
+- Updated dependencies [45230e2]
+  - @modern-js/utils@2.61.0
+  - @modern-js/runtime-utils@2.61.0
+
+## 2.60.6
+
+### Patch Changes
+
+- Updated dependencies [c4894e6]
+  - @modern-js/runtime-utils@2.60.6
+  - @modern-js/utils@2.60.6
+
+## 2.60.5
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.60.5
+- @modern-js/utils@2.60.5
+
+## 2.60.4
+
+### Patch Changes
+
+- a9e3eb7: fix(server): should get context from unstable middleware correctly
+  fix(server): 应该正确地获取到 loaderContext
+- Updated dependencies [c87813e]
+  - @modern-js/runtime-utils@2.60.4
+  - @modern-js/utils@2.60.4
+
+## 2.60.3
+
+### Patch Changes
+
+- Updated dependencies [303331c]
+  - @modern-js/utils@2.60.3
+  - @modern-js/runtime-utils@2.60.3
+
+## 2.60.2
+
+### Patch Changes
+
+- Updated dependencies [8a709bc]
+  - @modern-js/utils@2.60.2
+  - @modern-js/runtime-utils@2.60.2
+
+## 2.60.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.60.1
+- @modern-js/utils@2.60.1
+
+## 2.60.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.60.0
+- @modern-js/utils@2.60.0
+
+## 2.59.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.59.0
+- @modern-js/utils@2.59.0
+
+## 2.58.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.58.3
+- @modern-js/utils@2.58.3
+
+## 2.58.2
+
+### Patch Changes
+
+- Updated dependencies [7715b6d]
+- Updated dependencies [44c1bc4]
+- Updated dependencies [a1a9373]
+  - @modern-js/runtime-utils@2.58.2
+  - @modern-js/utils@2.58.2
+
+## 2.58.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.58.1
+- @modern-js/utils@2.58.1
+
+## 2.58.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.58.0
+- @modern-js/utils@2.58.0
+
+## 2.57.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.57.1
+- @modern-js/utils@2.57.1
+
+## 2.57.0
+
+### Patch Changes
+
+- 2515b00: feat(ssr): support server.ssrByRouteIds
+  feat(ssr): 支持 server.ssrByRouteIds
+- ce9c43a: fix: data loader support async-node target
+- Updated dependencies [2515b00]
+- Updated dependencies [916559a]
+- Updated dependencies [dc736ef]
+  - @modern-js/utils@2.57.0
+  - @modern-js/runtime-utils@2.57.0
+
+## 2.56.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.56.2
+- @modern-js/utils@2.56.2
+
+## 2.56.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.56.1
+- @modern-js/utils@2.56.1
+
+## 2.56.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.56.0
+- @modern-js/utils@2.56.0
+
+## 2.55.0
+
+### Patch Changes
+
+- Updated dependencies [bbcf55a]
+  - @modern-js/utils@2.55.0
+  - @modern-js/runtime-utils@2.55.0
+
+## 2.54.6
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.6
+- @modern-js/utils@2.54.6
+
+## 2.54.5
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.5
+- @modern-js/utils@2.54.5
+
+## 2.54.4
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.4
+- @modern-js/utils@2.54.4
+
+## 2.54.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.3
+- @modern-js/utils@2.54.3
+
+## 2.54.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.2
+- @modern-js/utils@2.54.2
+
+## 2.54.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.54.1
+- @modern-js/utils@2.54.1
+
+## 2.54.0
+
+### Minor Changes
+
+- a8d8f0c: feat: support new server plugin & discard server plugin some hooks
+  feat: 支持新 server plugin & 减少 server plugin 钩子
+- 9da873c: feat(ssr): support for loaderFailureMode configure
+  feat(ssr): 支持 loaderFailureMode 配置
+
+### Patch Changes
+
+- Updated dependencies [15a090c]
+- Updated dependencies [a8d8f0c]
+- Updated dependencies [09798ac]
+  - @modern-js/utils@2.54.0
+  - @modern-js/runtime-utils@2.54.0
+
+## 2.53.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.53.0
+- @modern-js/utils@2.53.0
+
+## 2.52.0
+
+### Minor Changes
+
+- 85ac453: feat: support control status code by data loader
+  feat: 支持通过 data loader 控制页面状态码
+
+### Patch Changes
+
+- Updated dependencies [85ac453]
+  - @modern-js/runtime-utils@2.52.0
+  - @modern-js/utils@2.52.0
+
+## 2.51.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.51.0
+- @modern-js/utils@2.51.0
+
+## 2.50.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.50.0
+- @modern-js/utils@2.50.0
+
+## 2.49.4
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.49.4
+- @modern-js/utils@2.49.4
+
+## 2.49.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.49.3
+- @modern-js/utils@2.49.3
+
+## 2.49.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.49.2
+- @modern-js/utils@2.49.2
+
+## 2.49.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.49.1
+- @modern-js/utils@2.49.1
+
+## 2.49.0
+
+### Minor Changes
+
+- e8c8c5d: refactor: refactor server
+  refactor: 重构 server
+
+### Patch Changes
+
+- Updated dependencies [e8c8c5d]
+  - @modern-js/runtime-utils@2.49.0
+  - @modern-js/utils@2.49.0
+
+## 2.48.6
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.48.6
+- @modern-js/utils@2.48.6
+
+## 2.48.5
+
+### Patch Changes
+
+- Updated dependencies [4ca9f4c]
+  - @modern-js/utils@2.48.5
+  - @modern-js/runtime-utils@2.48.5
+
+## 2.48.4
+
+### Patch Changes
+
+- Updated dependencies [7d2d433]
+  - @modern-js/utils@2.48.4
+  - @modern-js/runtime-utils@2.48.4
+
+## 2.48.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.48.3
+- @modern-js/utils@2.48.3
+
+## 2.48.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.48.2
+- @modern-js/utils@2.48.2
+
+## 2.48.1
+
+### Patch Changes
+
+- Updated dependencies [8942b90]
+- Updated dependencies [ce426f7]
+- Updated dependencies [74749ae]
+  - @modern-js/utils@2.48.1
+  - @modern-js/runtime-utils@2.48.1
+
+## 2.48.0
+
+### Patch Changes
+
+- Updated dependencies [c323a23]
+  - @modern-js/utils@2.48.0
+  - @modern-js/runtime-utils@2.48.0
+
+## 2.47.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.47.1
+- @modern-js/utils@2.47.1
+
+## 2.47.0
+
+### Patch Changes
+
+- Updated dependencies [a5386ab]
+- Updated dependencies [9464c9c]
+  - @modern-js/utils@2.47.0
+  - @modern-js/runtime-utils@2.47.0
+
+## 2.46.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.46.1
+- @modern-js/utils@2.46.1
+
+## 2.46.0
+
+### Patch Changes
+
+- Updated dependencies [78e2722]
+  - @modern-js/runtime-utils@2.46.0
+  - @modern-js/utils@2.46.0
+
+## 2.45.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.45.0
+- @modern-js/utils@2.45.0
+
+## 2.44.0
+
+### Patch Changes
+
+- Updated dependencies [0ed968c]
+  - @modern-js/runtime-utils@2.44.0
+  - @modern-js/utils@2.44.0
+
+## 2.43.0
+
+### Patch Changes
+
+- Updated dependencies [9e749d8]
+- Updated dependencies [d959200]
+  - @modern-js/runtime-utils@2.43.0
+  - @modern-js/utils@2.43.0
+
+## 2.42.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.42.2
+- @modern-js/utils@2.42.2
+
+## 2.42.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.42.1
+- @modern-js/utils@2.42.1
+
+## 2.42.0
+
+### Patch Changes
+
+- Updated dependencies [103cf92]
+  - @modern-js/runtime-utils@2.42.0
+  - @modern-js/utils@2.42.0
+
+## 2.41.0
+
+### Patch Changes
+
+- c4d396a: chore(swc): bump swc and helpers
+  chore(swc): 升级 swc 以及 helpers
+- Updated dependencies [c4d396a]
+  - @modern-js/runtime-utils@2.41.0
+  - @modern-js/utils@2.41.0
+
+## 2.40.0
+
+### Patch Changes
+
+- ce7d45c: fix: add client data into dependencies
+  fix: 添加 client data 文件到 dependencies 中
+- Updated dependencies [95f15d2]
+  - @modern-js/utils@2.40.0
+  - @modern-js/runtime-utils@2.40.0
+
+## 2.39.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.39.2
+- @modern-js/utils@2.39.2
+
+## 2.39.1
+
+### Patch Changes
+
+- f397649: chore: upgrade react-router and remix
+  chore: 更新 react-router 和 remix
+- Updated dependencies [f397649]
+  - @modern-js/runtime-utils@2.39.1
+  - @modern-js/utils@2.39.1
+
+## 2.39.0
+
+### Patch Changes
+
+- @modern-js/runtime-utils@2.39.0
+- @modern-js/utils@2.39.0
+
+## 2.38.0
 
 ### Patch Changes
 
@@ -8,8 +790,8 @@
 
   chore(deps): 升级 @babel/core 至 v7.23.2
 
-  - @modern-js/runtime-utils@4.0.0
-  - @modern-js/utils@4.0.0
+  - @modern-js/runtime-utils@2.38.0
+  - @modern-js/utils@2.38.0
 
 ## 2.37.2
 

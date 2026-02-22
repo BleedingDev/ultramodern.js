@@ -1,0 +1,23 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "jsx": "preserve",
+    "baseUrl": "./",
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "remote/*": ["./@mf-types/remote/*"],
+      "remote2/*": ["./@mf-types/remote2/*"]
+    }
+  },
+  "include": [
+    "@mf-types/**/*.d.ts",
+    "src/type-tests/api-shim.d.ts",
+    "src/routes/mf/remoteLoader.tsx",
+    "src/routes/mf/page.tsx",
+    "src/routes/mf/page.data.ts",
+    "src/type-tests/module-federation.tsx"
+  ]
+}

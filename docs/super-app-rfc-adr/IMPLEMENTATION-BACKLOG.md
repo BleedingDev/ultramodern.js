@@ -1,6 +1,6 @@
 # Super App Implementation Backlog
 
-- Status: Active (release-v4 subset backport in progress)
+- Status: Active (Phases A/B complete, Phase C alpha)
 - Date: 2026-02-21
 - Source docs:
   - `RFC-0001-super-app-foundation-plan.md`
@@ -23,18 +23,18 @@
 | Epic ID | Epic | ADR | Suggested Owner | Effort | Parallelization | Depends On | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-1 | RsDoctor Default-On | ADR-0001 | Platform Build | M | Parallel | None | Implemented |
-| EPIC-2 | Cross-Project BFF Hardening | ADR-0005 | BFF Platform | L | Parallel | None | Implemented (Release-v4 subset) |
-| EPIC-3 | Telemetry Standardization + Exporters | ADR-0004 | Observability Platform | L | Parallel | None | Implemented (Release-v4 adapted) |
-| EPIC-4 | Effect-Only MF Data-Fetch Reliability | ADR-0003 | Runtime Federation + QA Infra | L | Parallel-start, partial sequential | EPIC-2 (partial) | Deferred on release-v4 |
-| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Partial on release-v4 (contracts + docs/tests) |
+| EPIC-2 | Cross-Project BFF Hardening | ADR-0005 | BFF Platform | L | Parallel | None | Implemented |
+| EPIC-3 | Telemetry Standardization + Exporters | ADR-0004 | Observability Platform | L | Parallel | None | Implemented |
+| EPIC-4 | Effect-Only MF Data-Fetch Reliability | ADR-0003 | Runtime Federation + QA Infra | L | Parallel-start, partial sequential | EPIC-2 (partial) | Implemented |
+| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Implemented (Alpha) |
 
 ## Progress Snapshot (2026-02-21)
 
-- EPIC-1 complete on release-v4: RsDoctor defaults are enabled in production with opt-out and non-blocking plugin defaults.
-- EPIC-2 complete on release-v4 subset: cross-project BFF request contracts are hardened with request-id aware bootstrap/runtime.
-- EPIC-3 complete on release-v4 adaptation: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are integrated in `prod-server`.
-- EPIC-4 deferred on release-v4: direct fixture backport fails against release-v4 contracts (`@tanstack/react-router` and `@module-federation/modern-js-v3/runtime` are unavailable and `Response.json` static helper assumptions mismatch release-v4 runtime/types).
-- EPIC-5 partial on release-v4: alpha config/env contracts backported with runtime unit coverage and SSR config docs; full app-level MF SSR runtime integration deferred.
+- EPIC-1 complete: RsDoctor defaults are enabled in production with opt-out and non-blocking plugin defaults.
+- EPIC-2 complete: cross-project BFF now enforces prefix/runtime compatibility and generated runtime/bootstrap contracts.
+- EPIC-3 complete: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are in framework core.
+- EPIC-4 complete: routes MF reliability and distributed trace assertions are active in both build and serve integration suites.
+- EPIC-5 alpha complete: app-level MF SSR path is feature-flagged and covered by i18n MF integration tests.
 
 ## EPIC-1: RsDoctor Default-On (ADR-0001)
 

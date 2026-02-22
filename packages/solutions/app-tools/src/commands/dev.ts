@@ -1,54 +1,75 @@
-import { PluginAPI, ResolvedConfigContext } from '@modern-js/core';
-import { DEFAULT_DEV_HOST } from '@modern-js/utils';
-import { printInstructions } from '../utils/printInstructions';
+import path from 'node:path';
+import type { CLIPluginAPI } from '@modern-js/plugin';
+import { applyPlugins } from '@modern-js/prod-server';
 import {
-  setServer,
-  createServer,
-  injectDataLoaderPlugin,
-} from '../utils/createServer';
+  type ApplyPlugins,
+  type ModernDevServerOptions,
+  createDevServer,
+} from '@modern-js/server';
+import {
+  type Alias,
+  DEFAULT_DEV_HOST,
+  SERVER_DIR,
+  getMeta,
+  logger,
+} from '@modern-js/utils';
+import type { ConfigChain } from '@rsbuild/core';
+import type { AppNormalizedConfig, AppTools } from '../types';
+import { setServer } from '../utils/createServer';
+import { loadServerPlugins } from '../utils/loadPlugins';
+import { printInstructions } from '../utils/printInstructions';
+import { setupTsRuntime } from '../utils/register';
 import { generateRoutes } from '../utils/routes';
-import { DevOptions } from '../utils/types';
-import { buildServerConfig } from '../utils/config';
-import type { AppTools } from '../types';
-import { getServerInternalPlugins } from '../utils/getServerInternalPlugins';
+import type { DevOptions } from '../utils/types';
 
-export interface ExtraServerOptions {
-  useSSRWorker?: boolean;
+interface ExtraServerOptions {
+  applyPlugins?: ApplyPlugins;
 }
 
 export const dev = async (
-  api: PluginAPI<AppTools<'shared'>>,
+  api: CLIPluginAPI<AppTools>,
   options: DevOptions,
-  devServerOptions: ExtraServerOptions = {},
+  devServerOptions?: ExtraServerOptions,
 ) => {
   if (options.analyze) {
     // Builder will read this env var to enable bundle analyzer
     process.env.BUNDLE_ANALYZE = 'true';
   }
-  let normalizedConfig = api.useResolvedConfigContext();
-  const appContext = api.useAppContext();
-  const hookRunners = api.useHookRunners();
+  const normalizedConfig = api.getNormalizedConfig();
+  const appContext = api.getAppContext();
+  const hooks = api.getHooks();
 
-  normalizedConfig = { ...normalizedConfig, cliOptions: options };
-  ResolvedConfigContext.set(normalizedConfig);
+  const combinedAlias = ([] as unknown[])
+    .concat(normalizedConfig?.resolve?.alias ?? [])
+    .concat(normalizedConfig?.source?.alias ?? []) as ConfigChain<Alias>;
 
-  const {
+  // Register Node.js module hooks for ESM TypeScript support
+  if (appContext.moduleType && appContext.moduleType === 'module') {
+    const { registerModuleHooks } = await import('../esm/register-esm.mjs');
+    await registerModuleHooks({
+      appDir: appContext.appDirectory,
+      distDir: appContext.distDirectory,
+      alias: {},
+    });
+  }
+
+  // Setup ts-node and tsconfig-paths for TypeScript runtime support
+  await setupTsRuntime(
+    appContext.appDirectory,
+    appContext.distDirectory,
+    combinedAlias,
+  );
+
+  const { appDirectory, port, apiOnly, metaName, serverRoutes } = appContext;
+
+  const meta = getMeta(metaName);
+  const serverConfigPath = path.resolve(
     appDirectory,
-    distDirectory,
-    port,
-    apiOnly,
-    serverConfigFile,
-    metaName,
-  } = appContext;
+    SERVER_DIR,
+    `${meta}.server`,
+  );
 
-  await buildServerConfig({
-    appDirectory,
-    distDirectory,
-    configFile: serverConfigFile,
-    watch: true,
-  });
-
-  await hookRunners.beforeDev();
+  await hooks.onBeforeDev.call();
 
   if (!appContext.builder && !apiOnly) {
     throw new Error(
@@ -57,54 +78,81 @@ export const dev = async (
   }
 
   await generateRoutes(appContext);
-  const serverInternalPlugins = await getServerInternalPlugins(api);
 
-  const serverOptions = {
+  const pluginInstances = await loadServerPlugins(api, appDirectory, metaName);
+
+  const serverOptions: ModernDevServerOptions = {
+    metaName,
     dev: {
-      port,
       https: normalizedConfig.dev.https,
-      host: normalizedConfig.dev.host,
-      ...normalizedConfig.tools?.devServer,
+      setupMiddlewares: normalizedConfig.dev.setupMiddlewares,
     },
     appContext: {
-      metaName,
-      appDirectory: appContext.appDirectory,
-      sharedDirectory: appContext.sharedDirectory,
+      appDirectory,
+      internalDirectory: appContext.internalDirectory,
       apiDirectory: appContext.apiDirectory,
       lambdaDirectory: appContext.lambdaDirectory,
+      sharedDirectory: appContext.sharedDirectory,
+      bffRuntimeFramework: appContext.bffRuntimeFramework,
     },
+    serverConfigPath,
+    routes: serverRoutes,
     pwd: appDirectory,
-    config: normalizedConfig,
-    serverConfigFile,
-    internalPlugins: injectDataLoaderPlugin(serverInternalPlugins),
+    config: normalizedConfig as any,
+    plugins: pluginInstances,
     ...devServerOptions,
   };
 
+  const host = normalizedConfig.dev?.host || DEFAULT_DEV_HOST;
+
   if (apiOnly) {
-    const app = await createServer({
-      ...(serverOptions as any),
-      compiler: null,
-    });
+    const { server } = await createDevServer(
+      {
+        ...serverOptions,
+        runCompile: false,
+      },
+      devServerOptions?.applyPlugins || applyPlugins,
+    );
 
-    const host = normalizedConfig.dev?.host || DEFAULT_DEV_HOST;
-
-    app.listen(
+    server.listen(
       {
         port,
         host,
       },
-      async (err: Error) => {
-        if (err) {
-          throw err;
-        }
-        printInstructions(hookRunners, appContext, normalizedConfig);
+      () => {
+        printInstructions(
+          hooks,
+          appContext,
+          normalizedConfig as AppNormalizedConfig,
+        );
       },
     );
+    setServer(server);
   } else {
-    const { server } = await appContext.builder!.startDevServer({
-      printURLs: false,
-      serverOptions: serverOptions as any,
-    });
+    const { server, afterListen } = await createDevServer(
+      {
+        ...serverOptions,
+        builder: appContext.builder,
+      },
+      devServerOptions?.applyPlugins || applyPlugins,
+    );
+
+    server.listen(
+      {
+        port,
+        host,
+      },
+      async (err?: Error) => {
+        if (err) {
+          logger.error('Occur error %s, when start dev server', err);
+        }
+
+        logger.debug('listen dev server done');
+
+        await afterListen();
+      },
+    );
+
     setServer(server);
   }
 };

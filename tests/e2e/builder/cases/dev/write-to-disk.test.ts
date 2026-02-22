@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import { expect, test } from '@playwright/test';
 import { dev, getHrefByEntryName } from '@scripts/shared';
 
 const fixtures = __dirname;
@@ -11,12 +11,10 @@ test('writeToDisk default', async ({ page }) => {
       main: join(fixtures, 'basic', 'src/index.ts'),
     },
     builderConfig: {
-      tools: {
-        devServer: {
-          client: {
-            host: '',
-            port: '',
-          },
+      dev: {
+        client: {
+          host: '',
+          port: '',
         },
       },
     },
@@ -37,12 +35,8 @@ test('writeToDisk false', async ({ page }) => {
       main: join(fixtures, 'basic', 'src/index.ts'),
     },
     builderConfig: {
-      tools: {
-        devServer: {
-          devMiddleware: {
-            writeToDisk: false,
-          },
-        },
+      dev: {
+        writeToDisk: false,
       },
     },
   });
@@ -62,12 +56,8 @@ test('writeToDisk true', async ({ page }) => {
       main: join(fixtures, 'basic', 'src/index.ts'),
     },
     builderConfig: {
-      tools: {
-        devServer: {
-          devMiddleware: {
-            writeToDisk: true,
-          },
-        },
+      dev: {
+        writeToDisk: true,
       },
     },
   });

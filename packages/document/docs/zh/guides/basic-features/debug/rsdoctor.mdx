@@ -1,0 +1,48 @@
+# 使用 Rsdoctor
+
+Rsdoctor 是一个 Rspack 构建分析工具。在 Modern.js 中，我们推荐使用 Rsdoctor 来对构建过程与构建产物进行诊断和分析。
+
+Modern.js 默认会在生产构建中开启 Rsdoctor。
+
+## 执行构建
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    // 在 production build 默认启用
+    rsdoctor: true,
+  },
+});
+```
+
+```bash
+npm run build
+```
+
+## 关闭 Rsdoctor
+
+如果你希望关闭 Rsdoctor：
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: false,
+  },
+});
+```
+
+你也可以使用对象形式：
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  performance: {
+    rsdoctor: {
+      enabled: true,
+    },
+  },
+});
+```
+
+## 相关文档
+
+更多内容请查阅 [Rsdoctor 官网文档](https://rsdoctor.rs/)。

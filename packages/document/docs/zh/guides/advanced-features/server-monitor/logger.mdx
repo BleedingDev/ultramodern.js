@@ -1,0 +1,21 @@
+# 日志事件
+
+日志事件是由 Modern.js 分发的，类型为 `log` 的事件。
+
+## 内置事件
+
+基于服务端运行逻辑，Modern.js 在内部提供了以下日志事件：
+
+| 阶段          | 消息                                         | Level |
+| ------------- | -------------------------------------------- | ----- |
+| RENDER_HTML   | App Render To HTML                           | error |
+| RENDER_STREAM | An error occurs during streaming SSR         | error |
+| RENDER_SHELL  | An error occurs during streaming render shell | error |
+
+## 内置 Monitor
+
+import InternalLogger from '@site-docs/components/internal-logger.mdx';
+
+<InternalLogger />
+
+

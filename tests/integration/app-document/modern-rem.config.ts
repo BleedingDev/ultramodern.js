@@ -1,21 +1,13 @@
-import { routerPlugin } from '@modern-js/plugin-router-v5';
 import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 export default applyBaseConfig({
-  runtime: {
-    router: {
-      mode: 'react-router-5',
-    },
-    state: true,
-  },
-  source: {
-    entries: {
-      sub: './src/sub/App.tsx',
-      test: './src/test/App.tsx',
-    },
-  },
   html: {
     favicon: './static/a.icon',
+  },
+  source: {
+    alias: {
+      '@aliasTest': './src/utils/aliasModule',
+    },
   },
   output: {
     distPath: {
@@ -28,5 +20,4 @@ export default applyBaseConfig({
   performance: {
     buildCache: false,
   },
-  plugins: [routerPlugin()],
 });

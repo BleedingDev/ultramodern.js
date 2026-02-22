@@ -1,6 +1,15 @@
-import { createWaterfall } from '@modern-js/plugin';
-import { RouteObject } from '@modern-js/runtime-utils/router';
+import { createAsyncInterruptHook, createSyncHook } from '@modern-js/plugin';
+import type { RouteObject } from '@modern-js/runtime-utils/router';
+import type { TRuntimeContext } from '../../core/context/runtime';
 
-const modifyRoutes = createWaterfall<RouteObject[]>();
+// only for inhouse use
+const modifyRoutes = createSyncHook<(routes: RouteObject[]) => RouteObject[]>();
+const onBeforeCreateRoutes =
+  createSyncHook<(context: TRuntimeContext) => void>();
 
-export { modifyRoutes };
+export { modifyRoutes, onBeforeCreateRoutes };
+
+export type RouterExtendsHooks = {
+  modifyRoutes: typeof modifyRoutes;
+  onBeforeCreateRoutes: typeof onBeforeCreateRoutes;
+};

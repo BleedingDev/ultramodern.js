@@ -15,50 +15,87 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
-  "jsnext:source": "./src/index.ts",
+  "version": "3.0.2",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
+      "modern:source": "./src/index.ts",
       "node": {
-        "jsnext:source": "./src/index.ts",
-        "import": "./dist/esm/index.js",
+        "import": "./dist/esm-node/index.mjs",
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
+    },
+    "./node": {
+      "types": "./dist/types/adapters/node/index.d.ts",
+      "modern:source": "./src/adapters/node/index.ts",
+      "node": {
+        "import": "./dist/esm-node/adapters/node/index.mjs",
+        "require": "./dist/cjs/adapters/node/index.js"
+      },
+      "default": "./dist/cjs/adapters/node/index.js"
+    },
+    "./hono": {
+      "types": "./dist/types/hono.d.ts",
+      "node": {
+        "import": "./dist/esm-node/hono.mjs",
+        "require": "./dist/cjs/hono.js"
+      },
+      "default": "./dist/cjs/hono.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts"
+      ],
+      "node": [
+        "./dist/types/adapters/node/index.d.ts"
+      ],
+      "hono": [
+        "./dist/types/hono.d.ts"
+      ]
     }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "new": "modern-lib new",
-    "dev": "modern-lib build --watch",
-    "build": "modern-lib build",
-    "test": "jest --passWithNoTests"
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@modern-js/plugin": "workspace:*",
+    "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "0.5.1"
+    "@swc/helpers": "^0.5.18",
+    "@web-std/fetch": "^4.2.1",
+    "@web-std/file": "^3.0.3",
+    "@web-std/stream": "^1.0.3",
+    "cloneable-readable": "^3.0.0",
+    "flatted": "^3.3.3",
+    "hono": "^4.12.1",
+    "ts-deepmerge": "7.0.3"
   },
   "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@scripts/build": "workspace:*",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "http-proxy-middleware": "^2.0.4",
-    "jest": "^29",
-    "ts-jest": "^29.1.0",
-    "typescript": "^5"
+    "@rslib/core": "0.19.6",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/cloneable-readable": "^2.0.3",
+    "@types/merge-deep": "^3.0.3",
+    "@types/node": "^25.3.0",
+    "http-proxy-middleware": "^3.0.5",
+    "typescript": "^5.9.3"
   },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
     "types": "./dist/types/index.d.ts"
   }
 }

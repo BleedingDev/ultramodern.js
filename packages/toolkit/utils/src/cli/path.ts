@@ -1,6 +1,6 @@
-import path from 'path';
-import os from 'os';
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { nanoid, upath } from '../compiled';
 
 export const isPathString = (test: string): boolean =>
@@ -44,6 +44,6 @@ export const removeTailSlash = (s: string): string => s.replace(/\/+$/, '');
 export const removeSlash = (s: string): string =>
   removeLeadingSlash(removeTailSlash(s));
 
-export const cutNameByHyphen = (s: string) => {
-  return s.split(/[-_]/)[0];
-};
+export function formatImportPath(str: string) {
+  return str.replace(/\\/g, '/');
+}

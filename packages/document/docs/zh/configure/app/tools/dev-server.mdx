@@ -1,0 +1,121 @@
+---
+title: devServer
+---
+
+# tools.devServer
+
+- **类型：** `Object`
+- **默认值：** `{}`
+
+通过 `tools.devServer` 可以修改开发环境服务器的配置。
+
+:::tip
+Modern.js 中并没有直接使用 [webpack-dev-server](https://webpack.js.org/api/webpack-dev-server/) 或 [@rspack/dev-server](https://rspack.rs/guide/dev-server.html), 而是基于 [webpack-dev-middleware](https://github.com/webpack/webpack-dev-middleware) 实现 DevServer。
+:::
+
+### 选项
+
+#### compress
+
+:::warning
+**Deprecated**：该配置已废弃，请使用 [dev.server.compress](/configure/app/dev/server) 代替。
+:::
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否对静态资源启用 gzip 压缩。
+
+如果你需要禁用 gzip 压缩，可以将 `compress` 设置为 `false`：
+
+```ts
+export default {
+  tools: {
+    devServer: {
+      compress: false,
+    },
+  },
+};
+```
+
+#### headers
+
+:::warning
+**Deprecated**：该配置已废弃，请使用 [dev.server.headers](/configure/app/dev/server) 代替。
+:::
+
+- **类型：** `Record<string, string>`
+- **默认值：** `undefined`
+
+设置自定义响应头。
+
+```js
+export default {
+  tools: {
+    devServer: {
+      headers: {
+        'X-Custom-Foo': 'bar',
+      },
+    },
+  },
+};
+```
+
+#### historyApiFallback
+
+:::warning
+**Deprecated**：该配置已废弃，请使用 [dev.server.historyApiFallback](/configure/app/dev/server) 代替。
+:::
+
+- **类型：** `boolean | ConnectHistoryApiFallbackOptions`
+- **默认值：** `false`
+
+在需要对一些 404 响应或其他请求提供替代页面的场景，可通过 `devServer.historyApiFallback` 进行设置：
+
+```js
+export default {
+  tools: {
+    devServer: {
+      historyApiFallback: true,
+    },
+  },
+};
+```
+
+更多选项和详细信息可参考 [connect-history-api-fallback](https://github.com/bripkens/connect-history-api-fallback) 文档。
+
+#### proxy
+
+:::warning
+**Deprecated**：该配置已废弃，请使用 [dev.server.proxy](/configure/app/dev/server) 代替。
+:::
+
+- **类型：** `ProxyOptions[] | Record<string, string | ProxyOptions>`
+- **默认值：** `undefined`
+
+为开发服务器配置代理规则，把请求转发到指定服务。
+
+```js
+export default {
+  tools: {
+    devServer: {
+      proxy: {
+        // http://localhost:8080/api -> https://example.com/api
+        // http://localhost:8080/api/foo -> https://example.com/api/foo
+        '/api': 'https://example.com',
+      },
+    },
+  },
+};
+```
+
+#### watch
+
+:::warning
+**Deprecated**：该配置已废弃，请使用 [dev.server.watch](/configure/app/dev/server) 代替。
+:::
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否监听 `mock/`、`server/`、`api/` 等目录的文件变化。

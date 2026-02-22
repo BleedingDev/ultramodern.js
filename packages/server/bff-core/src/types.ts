@@ -1,12 +1,12 @@
-import { Merge } from 'type-fest';
+type Merge<T, U> = T & Omit<U, keyof T>;
 
 export enum OperatorType {
-  Trigger,
-  Middleware,
+  Trigger = 0,
+  Middleware = 1,
 }
 
 export enum TriggerType {
-  Http,
+  Http = 0,
 }
 
 export enum HttpMetadata {
@@ -16,12 +16,13 @@ export enum HttpMetadata {
   Params = 'PARAMS',
   Headers = 'HEADERS',
   Response = 'RESPONSE',
+  Files = 'Files',
 }
 
 export enum ResponseMetaType {
-  StatusCode,
-  Redirect,
-  Headers,
+  StatusCode = 0,
+  Redirect = 1,
+  Headers = 2,
 }
 
 export enum HttpMethod {
@@ -42,6 +43,7 @@ export type InputSchemaMeata = Extract<
   | HttpMetadata.Query
   | HttpMetadata.Headers
   | HttpMetadata.Params
+  | HttpMetadata.Files
 >;
 
 export type ExecuteFunc<Outputs> = (
@@ -91,13 +93,12 @@ export type ExtractOuputType<T> = {
 
 // fork from https://github.com/midwayjs/hooks/blob/main/packages/hooks-core/src/api/type.ts
 // license at https://github.com/midwayjs/hooks/blob/main/LICENSE
-// eslint-disable-next-line @typescript-eslint/ban-types
 export type ArrayToObject<T, R = {}> = T extends [infer First, ...infer Rest]
   ? First extends PromiseLike<infer PromiseValue>
     ? PromiseValue
     : First extends object
-    ? Merge<First, ArrayToObject<Rest, R>>
-    : ArrayToObject<Rest, R>
+      ? Merge<First, ArrayToObject<Rest, R>>
+      : ArrayToObject<Rest, R>
   : R;
 
 export type AsyncFunction = (...args: any[]) => Promise<any>;

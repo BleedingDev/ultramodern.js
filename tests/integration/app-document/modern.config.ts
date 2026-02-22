@@ -1,44 +1,35 @@
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
-import { routerPlugin } from '@modern-js/plugin-router-v5';
 import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 export const tmpTest = (): CliPlugin<AppTools> => ({
   name: 'tmpTest',
-  setup: () => {
-    return {
-      htmlPartials({ entrypoint, partials }) {
-        if (entrypoint.entryName === 'sub') {
-          partials.top.push('<script>window.abc = "hjk"</script>');
-          partials.head.push('<script>console.log("abc")</script>');
-          partials.body.push('<script>console.log(abc)</script>');
-        }
-
-        return { partials, entrypoint };
-      },
-    };
+  setup: api => {
+    api.modifyHtmlPartials(({ entrypoint, partials }) => {
+      if (entrypoint.entryName === 'sub') {
+        partials.top.append('<script>window.abc = "hjk"</script>');
+        partials.head.append('<script>console.log("abc")</script>');
+        partials.body.append('<script>console.log(abc)</script>');
+      }
+    });
   },
 });
 
 export default applyBaseConfig({
-  runtime: {
-    router: {
-      mode: 'react-router-5',
-    },
-    state: true,
-  },
   source: {
-    entries: {
-      sub: './src/sub/App.tsx',
-      test: './src/test/App.tsx',
+    alias: {
+      '@aliasTest': './src/utils/aliasModule',
     },
   },
   server: {
     ssrByEntries: {
-      test: true,
+      test: {
+        mode: 'string',
+      },
     },
   },
   html: {
     favicon: './static/a.icon',
+    title: 'test-title',
   },
-  plugins: [routerPlugin(), tmpTest()],
+  plugins: [tmpTest()],
 });

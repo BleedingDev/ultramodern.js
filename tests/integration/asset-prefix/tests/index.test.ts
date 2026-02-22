@@ -1,10 +1,10 @@
-import path from 'path';
 import { readFileSync } from 'fs';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import path from 'path';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
-  launchApp,
-  killApp,
   getPort,
+  killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
@@ -25,7 +25,7 @@ describe('asset prefix', () => {
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
     page.on('pageerror', error => {
-      errors.push(error.message);
+      errors.push((error as Error).message);
     });
   });
   afterAll(async () => {
@@ -35,7 +35,7 @@ describe('asset prefix', () => {
   });
   test(`should generate assetPrefix correctly when dev.assetPrefix is true`, async () => {
     const HTML = readFileSync(
-      path.join(appDir, 'dist/html/main/index.html'),
+      path.join(appDir, 'dist/html/index/index.html'),
       'utf-8',
     );
     expect(
@@ -47,7 +47,7 @@ describe('asset prefix', () => {
     const expected = `http://${DEFAULT_DEV_HOST}:${appPort}`;
 
     const mainJs = readFileSync(
-      path.join(appDir, 'dist/static/js/main.js'),
+      path.join(appDir, 'dist/static/js/index.js'),
       'utf-8',
     );
 
@@ -63,5 +63,15 @@ describe('asset prefix', () => {
     });
 
     expect(assetPrefix).toEqual(expected);
+  });
+
+  test(`should access the file which create by writeFile correctly`, async () => {
+    const url = `http://${DEFAULT_DEV_HOST}:${appPort}/static/test.js`;
+    const resp = await page.goto(url, {
+      waitUntil: ['networkidle0'],
+      timeout: 50000,
+    });
+    const content = await resp?.text();
+    expect(content).toMatch('console.log("test")');
   });
 });

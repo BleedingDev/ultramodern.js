@@ -1,0 +1,88 @@
+{
+  "name": "@modern-js/server-runtime",
+  "description": "Runtime for server",
+  "homepage": "https://modernjs.dev",
+  "bugs": "https://github.com/web-infra-dev/modern.js/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/modern.js",
+    "directory": "packages/server/server-runtime"
+  },
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "framework",
+    "modern",
+    "modern.js"
+  ],
+  "version": "3.0.2",
+  "types": "./src/index.ts",
+  "main": "./dist/cjs/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "modern:source": "./src/index.ts",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    },
+    "./cache": {
+      "types": "./dist/types/cache.d.ts",
+      "node": {
+        "module": "./dist/esm/cache.mjs",
+        "import": "./dist/esm-node/cache.mjs",
+        "require": "./dist/cjs/cache.js"
+      },
+      "default": "./dist/esm/cache.mjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts"
+      ],
+      "cache": [
+        "./dist/types/cache.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "only-allow-pnpm",
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
+  },
+  "dependencies": {
+    "@modern-js/runtime-utils": "workspace:*",
+    "@modern-js/server-core": "workspace:*",
+    "@modern-js/types": "workspace:*",
+    "@swc/helpers": "^0.5.18"
+  },
+  "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^25.3.0",
+    "typescript": "^5.9.3"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/types/index.d.ts",
+        "import": "./dist/esm-node/index.mjs",
+        "default": "./dist/cjs/index.js"
+      },
+      "./cache": {
+        "types": "./dist/types/cache.d.ts",
+        "import": "./dist/esm-node/cache.mjs",
+        "default": "./dist/cjs/cache.js"
+      }
+    }
+  }
+}

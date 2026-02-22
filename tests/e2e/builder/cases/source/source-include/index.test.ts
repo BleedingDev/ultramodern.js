@@ -1,25 +1,29 @@
 import path from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
-import { build } from '@scripts/shared';
-import { webpackOnlyTest } from '@scripts/helper';
+import { expect, test } from '@playwright/test';
+import { build, proxyConsole } from '@scripts/shared';
 
-// TODO: needs builtin:swc-loader
-webpackOnlyTest(
-  'should not compile file which outside of project by default',
-  async () => {
-    await expect(
-      build({
-        cwd: __dirname,
-        entry: { index: path.resolve(__dirname, './src/index.js') },
-        builderConfig: {
-          security: {
-            checkSyntax: true,
-          },
+test('should not compile file which outside of project by default', async () => {
+  const { restore } = proxyConsole();
+  await expect(
+    build({
+      cwd: __dirname,
+      entry: { index: path.resolve(__dirname, './src/index.js') },
+      builderConfig: {
+        source: {
+          exclude: [path.resolve(__dirname, '../test.js')],
         },
-      }),
-    ).rejects.toThrowError('[Syntax Checker]');
-  },
-);
+        output: {
+          overrideBrowserslist: ['> 0.01%', 'not dead', 'not op_mini all'],
+        },
+        security: {
+          checkSyntax: true,
+        },
+      },
+    }),
+  ).rejects.toThrowError('incompatible syntax');
+
+  restore();
+});
 
 test('should compile specified file when source.include', async () => {
   await expect(

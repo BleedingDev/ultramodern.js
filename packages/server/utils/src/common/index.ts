@@ -13,9 +13,8 @@ export interface Pattern {
 
 export interface IConfig {
   alias?: SourceNormalizedConfig['alias'];
-  babelConfig?: ToolsNormalizedConfig['babel'];
-  server: {
-    compiler?: 'babel' | 'typescript';
+  server?: {
+    compiler?: 'typescript';
   };
 }
 
@@ -23,6 +22,8 @@ export interface CompileOptions {
   sourceDirs: string[];
   distDir: string;
   tsconfigPath?: string;
+  moduleType?: 'module' | 'commonjs';
+  throwErrorInsteadOfExit?: boolean;
 }
 
 export type CompileFunc = (
@@ -60,14 +61,6 @@ export const compile: CompileFunc = async (
   );
   validateAbsolutePath(distDir, `dist dir ${distDir} is not an absolute path.`);
 
-  const compiler = modernConfig?.server?.compiler;
-
-  const isTsProject = tsconfigPath && (await fs.pathExists(tsconfigPath));
-  if (!isTsProject || compiler === 'babel') {
-    const { compileByBabel } = await import('../compilers/babel');
-    await compileByBabel(appDirectory, modernConfig, compileOptions);
-  } else {
-    const { compileByTs } = await import('../compilers/typescript');
-    await compileByTs(appDirectory, modernConfig, compileOptions);
-  }
+  const { compileByTs } = await import('../compilers/typescript');
+  await compileByTs(appDirectory, modernConfig, compileOptions);
 };

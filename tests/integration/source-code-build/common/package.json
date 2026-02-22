@@ -1,7 +1,7 @@
 {
   "name": "@source-code-build/common",
   "private": true,
-  "version": "2.9.0",
+  "version": "2.66.0",
   "types": "./src/index.ts",
   "source": "./src/index.ts",
   "main": "./dist/lib/index.js",
@@ -19,12 +19,5 @@
       ]
     }
   },
-  "dependencies": {},
-  "engines": {
-    "node": ">=14.17.6"
-  },
-  "eslintIgnore": [
-    "node_modules/",
-    "dist/"
-  ]
+  "dependencies": {}
 }

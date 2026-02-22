@@ -15,12 +15,10 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
-  "jsnext:source": "./src/node.ts",
+  "version": "3.0.2",
+  "modern:source": "./src/node.ts",
   "types": "./src/browser.ts",
   "main": "./dist/cjs/node.js",
-  "module": "./dist/esm/node.js",
-  "browser": "./dist/esm/browser.js",
   "files": [
     "dist",
     "hook.d.ts"
@@ -28,28 +26,25 @@
   "exports": {
     ".": {
       "types": "./dist/types/browser.d.ts",
-      "node": "./dist/esm/node.js",
-      "default": "./dist/esm/browser.js"
+      "modern:source": "./src/browser.ts",
+      "node": "./dist/esm/node.mjs",
+      "default": "./dist/esm/browser.mjs"
     },
     "./client": {
       "types": "./dist/types/browser.d.ts",
-      "jsnext:source": "./src/browser.ts",
-      "default": "./dist/esm/browser.js"
-    },
-    "./modern": {
-      "jsnext:source": "./src/browser.ts",
-      "default": "./dist/esm-node/browser.js"
+      "modern:source": "./src/browser.ts",
+      "default": "./dist/esm/browser.mjs"
     },
     "./server": {
       "types": "./dist/types/node.d.ts",
-      "jsnext:source": "./src/node.ts",
-      "default": "./dist/cjs/node.js"
+      "modern:source": "./src/node.ts",
+      "default": "./dist/esm/node.mjs"
     }
   },
   "typesVersions": {
     "*": {
       ".": [
-        "./dist/types/index.d.ts"
+        "./dist/types/browser.d.ts"
       ],
       "client": [
         "./dist/types/browser.d.ts"
@@ -61,36 +56,32 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "new": "modern-lib new",
-    "dev": "modern-lib build --watch",
-    "build": "modern-lib build",
-    "test": "jest --passWithNoTests"
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@modern-js/utils": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
-    "node-fetch": "^2.6.1",
-    "path-to-regexp": "^6.2.0",
-    "query-string": "^7.1.1",
-    "@swc/helpers": "0.5.1"
+    "@modern-js/utils": "workspace:*",
+    "@swc/helpers": "^0.5.18",
+    "encoding": "^0.1.13",
+    "path-to-regexp": "^8.3.0",
+    "qs": "^6.15.0"
   },
   "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@scripts/build": "workspace:*",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "@types/node-fetch": "^2.6.1",
-    "isomorphic-fetch": "^3.0.0",
-    "jest": "^29",
-    "nock": "^13.2.1",
-    "typescript": "^5"
+    "@rslib/core": "0.19.6",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^25.3.0",
+    "@types/qs": "^6.14.0",
+    "nock": "^14.0.11",
+    "typescript": "^5.9.3"
   },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
-    "types": "./dist/types/index.d.ts"
+    "types": "./dist/types/browser.d.ts"
   }
 }

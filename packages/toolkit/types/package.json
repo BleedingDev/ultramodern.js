@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
+  "version": "3.0.2",
   "types": "./index.d.ts",
   "exports": {
     ".": {
@@ -24,7 +24,6 @@
     },
     "./server": {
       "types": "./server/index.d.ts",
-      "jsnext:source": "./server/index.d.ts",
       "default": "./server/index.d.ts"
     }
   },
@@ -33,31 +32,26 @@
       ".": [
         "./index.d.ts"
       ],
-      "hoist-non-react-statics": [
-        "./packages/hoist-non-react-statics.d.ts"
+      "server": [
+        "./server/index.d.ts"
       ]
     }
   },
   "devDependencies": {
-    "@scripts/build": "workspace:*",
-    "@types/babel__core": "^7.20.0",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "http-proxy-middleware": "^2.0.4",
-    "jest": "^29",
-    "type-fest": "2.15.0"
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^25.3.0",
+    "http-proxy-middleware": "^3.0.5",
+    "type-fest": "5.4.4"
   },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
     "main": "",
     "types": "./index.d.ts"
   },
   "scripts": {
-    "test": "jest --passWithNoTests",
+    "test": "rstest --passWithNoTests",
     "prepublishOnly": "only-allow-pnpm"
   }
 }

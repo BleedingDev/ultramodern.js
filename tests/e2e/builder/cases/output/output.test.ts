@@ -1,5 +1,5 @@
 import { join, dirname } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import { expect, test } from '@playwright/test';
 import { fs } from '@modern-js/utils';
 import { build } from '@scripts/shared';
 
@@ -103,7 +103,7 @@ test('cleanDistPath disable', async () => {
   builder.clean();
 });
 
-test('disableSourcemap', async () => {
+test('sourceMap', async () => {
   const builder = await build({
     cwd: join(fixtures, 'rem'),
     entry: {
@@ -114,7 +114,7 @@ test('disableSourcemap', async () => {
         distPath: {
           root: 'dist-3',
         },
-        disableSourceMap: true,
+        sourceMap: false,
       },
     },
   });

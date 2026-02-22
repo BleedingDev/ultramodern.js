@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "name": "entries-integration",
+  "version": "2.66.0",
+  "dependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
+    "axios": "^1.13.5"
+  }
+}

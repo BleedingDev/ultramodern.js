@@ -3,7 +3,7 @@ import { fs } from '@modern-js/utils';
 import { compile } from '../src';
 
 describe('typescript', () => {
-  it.skip('compile typescript', async () => {
+  it('compile typescript', async () => {
     const example = path.join(__dirname, './fixtures', './ts-example');
     const tsconfigPath = path.join(example, './tsconfig.json');
     const distDir = path.join(example, './dist');
@@ -20,7 +20,6 @@ describe('typescript', () => {
               sharedDir,
               './runtime/server',
             ),
-            '@modern-js/runtime': '@modern-js/core',
           },
         } as any,
         {

@@ -4,7 +4,7 @@ name: Integration Test(Linux)
 on:
   # Triggers the workflow on pull request events but only for the main branch
   push:
-    branches: [main, update-rspack-**]
+    branches: [main, renovate/main-rsbuild]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -13,17 +13,22 @@ on:
 jobs:
   integration-test-linux:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+      - name: Print runner context
+        env:
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
+        run: echo "$RUNNER_CONTEXT"
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
       - name: Install Pnpm
-        run: corepack enable
+        uses: pnpm/action-setup@v4
 
       - name: Check skip CI
         run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"
@@ -32,17 +37,17 @@ jobs:
       - name: Log skip CI result
         run: echo "${{steps.skip-ci.outputs.RESULT}}"
 
-      - name: Setup Node.js 18.x
+      - name: Setup Node.js 22.x
         uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: 22.x
           cache: 'pnpm'
 
       - name: Nx Cache
         id: nx-cache
         uses: actions/cache@v3
         with:
-          path: .nx-cache
+          path: .nx/cache
           key: nx-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
             nx-${{ github.ref_name }}-
@@ -62,4 +67,4 @@ jobs:
 
       - name: Test
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: cd ./tests && pnpm run test
+        run: pnpm run test:framework

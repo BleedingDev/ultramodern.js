@@ -1,0 +1,134 @@
+---
+sidebar_position: 12
+---
+
+# 提升构建性能
+
+Modern.js 默认对构建性能进行了充分优化，但是随着业务场景变复杂、项目代码量变大，你可能会遇到一些构建性能的问题。
+
+本文档提供了一些可选的提速策略，**开发者可以根据实际场景选取其中的部分策略**，从而进一步提升构建速度。
+
+:::tip 📢 注意
+在[优化产物体积](/guides/advanced-features/page-performance/optimize-bundle)一文中介绍的策略也可以用于提升构建性能，这里不再重复介绍。
+:::
+
+## 通用优化策略
+
+以下是一些通用的优化策略，对开发环境和生产环境均有提速效果，其中部分策略对包体积也有优化。
+
+### 升级 Node.js 版本
+
+通常来说，将 Node.js 更新到最新的 [LTS 版本](https://github.com/nodejs/release#release-schedule)，有助于提升构建性能。
+
+Modern.js 要求 Node.js 版本 >= 20.19.5，我们强烈推荐使用最新的 LTS 版本（如 Node.js 22 LTS）以获得最佳构建性能。
+
+你可以通过以下步骤来切换到最新的 LTS 版本：
+
+```bash
+# 安装最新的 LTS 版本（例如 Node.js 22）
+nvm install --lts
+
+# 切换到最新 LTS 版本
+nvm use --lts
+
+# 将最新 LTS 版本设置为默认版本
+nvm alias default lts/*
+
+# 查看 Node 版本
+node -v
+```
+
+或者指定安装 Node.js 22 LTS：
+
+```bash
+# 安装 Node.js 22 LTS
+nvm install 22 --lts
+
+# 切换到 Node.js 22
+nvm use 22
+
+# 将 Node.js 22 设置为默认版本
+nvm alias default 22
+
+# 查看 Node 版本
+node -v
+```
+
+## 开发环境优化策略
+
+以下是针对开发环境进行提速的策略。
+
+### 调整 Source Map 格式
+
+为了提供良好的调试体验，Modern.js 在开发环境下默认使用 `cheap-module-source-map` 格式 Source Map，这是一种高质量的 Source Map 格式，会带来一定的性能开销。
+
+你可以通过调整开发环境的 Source Map 格式来提升构建速度。
+
+比如禁用 Source Map：
+
+```js
+export default {
+  tools: {
+    bundlerChain(chain, { env }) {
+      if (env === 'development') {
+        chain.devtool(false);
+      }
+    },
+  },
+};
+```
+
+或是把开发环境的 Source Map 格式设置为开销最小的 `eval` 格式：
+
+```js
+export default {
+  tools: {
+    bundlerChain(chain, { env }) {
+      if (env === 'development') {
+        chain.devtool('eval');
+      }
+    },
+  },
+};
+```
+
+> 关于不同 Source Map 格式之间的详细差异，请查看 [rspack - devtool](https://rspack.rs/zh/config/devtool)。
+
+### 调整 Browserslist 范围
+
+这项优化的原理与[「提升 Browserslist 范围」](/guides/advanced-features/page-performance/optimize-bundle#提升-browserslist-范围)类似，区别在于，我们可以为开发环境和生产环境设置不同的 browserslist，从而减少开发环境下的编译开销。
+
+比如，你可以在 `package.json` 中添加以下配置，表示在开发环境下只兼容最新的浏览器，在生产环境下兼容实际需要的浏览器：
+
+```json
+{
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
+```
+
+注意，这项优化策略会导致开发环境与生产环境的构建产物存在一定差异。
+
+## 生产环境优化策略
+
+以下是针对生产环境进行提速的策略。
+
+### 禁用 Source Map
+
+如果项目在生产环境下不需要 Source Map，可以通过 `sourceMap` 配置项关闭，从而提升 build 构建的速度。
+
+```js
+export default {
+  output: {
+    sourceMap: false,
+  },
+};
+```
+
+详见 [output.sourceMap](/configure/app/output/source-map.html)。

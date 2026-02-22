@@ -1,28 +1,27 @@
 import {
+  type AppNormalizedConfig,
+  type AppUserConfig,
+  type UserConfigExport,
   appTools,
+  defineConfig,
   mergeConfig,
-  type AppTools,
-  type UserConfig,
 } from '@modern-js/app-tools';
 
-export const applyBaseConfig = (
-  config: UserConfig<AppTools<'rspack'>> = {},
-) => {
-  return mergeConfig([
+export const applyBaseConfig = (config = defineConfig({})) => {
+  return mergeConfig<
+    UserConfigExport<AppUserConfig>,
+    UserConfigExport<AppNormalizedConfig>
+  >([
     {
       output: {
         // disable polyfill and ts checker to make test faster
         polyfill: 'off',
         disableTsChecker: true,
       },
-      plugins: [
-        appTools({
-          bundler:
-            process.env.BUNDLER === 'webpack'
-              ? 'webpack'
-              : 'experimental-rspack',
-        }),
-      ],
+      performance: {
+        buildCache: false,
+      },
+      plugins: [appTools()],
     },
     config,
   ]);

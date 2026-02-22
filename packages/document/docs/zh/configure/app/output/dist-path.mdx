@@ -1,0 +1,50 @@
+---
+title: distPath
+---
+
+# output.distPath
+
+import CommentTips from '@site-docs/components/output-distpath-warning';
+
+<CommentTips />
+
+- **类型：**
+
+```ts
+type DistPathConfig = {
+  root?: string;
+  html?: string;
+  js?: string;
+  css?: string;
+  svg?: string;
+  font?: string;
+  wasm?: string;
+  image?: string;
+  media?: string;
+  worker?: string;
+  assets?: string;
+};
+```
+
+- **默认值：**
+
+```js
+const defaultDistPath = {
+  root: 'dist',
+  css: 'static/css',
+  svg: 'static/svg',
+  font: 'static/font',
+  html: 'html',
+  wasm: 'static/wasm',
+  image: 'static/image',
+  media: 'static/media',
+  js: 'static/js',
+  assets: 'static/assets',
+};
+```
+
+设置构建产物的输出目录，Modern.js 会根据产物的类型输出到对应的子目录下。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="output.distPath" />

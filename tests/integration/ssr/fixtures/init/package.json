@@ -1,14 +1,15 @@
 {
   "private": true,
   "name": "init",
-  "version": "2.9.0",
+  "version": "2.66.0",
   "scripts": {
     "dev": "modern dev"
   },
   "dependencies": {
-    "react": "^18",
-    "react-dom": "^18",
+    "@modern-js/app-tools": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@modern-js/app-tools": "workspace:*"
+    "@modern-js/tsconfig": "workspace:*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

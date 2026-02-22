@@ -1,12 +1,16 @@
-import {
+import type {
+  Server as HttpServer,
+  IncomingHttpHeaders,
   IncomingMessage,
   ServerResponse,
-  IncomingHttpHeaders,
-  Server as HttpServer,
 } from 'http';
-import qs from 'querystring';
+import type qs from 'querystring';
 import type { SSRMode } from 'common';
-import { Metrics, Logger, Reporter, ServerTiming } from './utils';
+import type { Logger, Metrics, Reporter, ServerTiming } from './utils';
+
+export interface RequestPayload {
+  [key: string]: unknown;
+}
 
 export interface ModernServerContext {
   req: IncomingMessage;
@@ -65,38 +69,26 @@ export interface BaseResponseLike {
 }
 
 export type BaseSSRServerContext<T extends 'node' | 'worker' = 'node'> = {
+  baseUrl: string;
   request: {
     params: Record<string, string>;
     pathname: string;
     query: Record<string, string>;
     headers: IncomingHttpHeaders;
     host: string;
-    [propsName: string]: any;
+    url: string;
+    referer?: string;
+    userAgent?: string;
+    cookie?: string;
+    cookieMap?: Record<string, string>;
   };
   response: BaseResponseLike;
-  redirection: { url?: string; status?: number };
   loadableStats: Record<string, any>;
   routeManifest?: Record<string, any>;
   template: string;
   entryName: string;
-  logger: {
-    error: (message: string, e: Error | string) => void;
-    debug: (message: string, ...args: any[]) => void;
-    info: (message: string, ...args: any[]) => void;
-  };
-  metrics: {
-    emitTimer: (
-      name: string,
-      cost: number,
-      tags: Record<string, unknown> = {},
-    ) => void;
-    emitCounter: (
-      name: string,
-      counter: number,
-      tags: Record<string, unknown> = {},
-    ) => void;
-  };
-  reporter: Reporter;
+  loaderContext: Map<string, unknown>;
+  logger: Logger;
   serverTiming: ServerTiming;
   cacheConfig?: any;
 
@@ -105,26 +97,10 @@ export type BaseSSRServerContext<T extends 'node' | 'worker' = 'node'> = {
   unsafeHeaders?: string[];
 
   nonce?: string;
-
-  req: T extends 'worker' ? Request : ModernServerContext['req'];
-
-  res: T extends 'worker' ? BaseResponseLike : ModernServerContext['res'];
-
-  mode?: SSRMode; // ssr type
+  /** SSR type  */
+  mode?: SSRMode;
 };
 
 export interface ServerInitHookContext {
   app?: HttpServer;
-  server: ModernServerInterface;
-}
-
-export interface ISAppContext {
-  appDirectory: string;
-  distDirectory: string;
-  sharedDirectory: string;
-  plugins: {
-    server?: any;
-    serverPkg?: any;
-  }[];
-  [key: string]: unknown;
 }

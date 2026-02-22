@@ -2,28 +2,25 @@ import path from 'path';
 import { fs, logger } from '@modern-js/utils';
 import 'reflect-metadata';
 import type { HttpMethodDecider } from '@modern-js/types';
-import { HttpMethod, httpMethods, OperatorType, TriggerType } from '../types';
-import { debug, INPUT_PARAMS_DECIDER } from '../utils';
+import { HttpMethod, OperatorType, TriggerType, httpMethods } from '../types';
+import { INPUT_PARAMS_DECIDER, debug } from '../utils';
 import {
-  APIMode,
-  FRAMEWORK_MODE_LAMBDA_DIR,
   API_FILE_RULES,
   FRAMEWORK_MODE_APP_DIR,
+  FRAMEWORK_MODE_LAMBDA_DIR,
 } from './constants';
+import type { APIHandlerInfo, ApiHandler, ModuleInfo } from './types';
 import {
   getFiles,
   getPathFromFilename,
   requireHandlerModule,
   sortRoutes,
 } from './utils';
-import { ModuleInfo, ApiHandler, APIHandlerInfo } from './types';
 
 export * from './types';
 export * from './constants';
 
 export class ApiRouter {
-  private apiMode: APIMode;
-
   private appDir?: string;
 
   private apiDir: string;
@@ -64,50 +61,13 @@ export class ApiRouter {
     this.apiDir = apiDir;
     this.httpMethodDecider = httpMethodDecider;
     this.isBuild = isBuild;
-    this.apiMode = this.getExactApiMode(apiDir, lambdaDir);
     this.lambdaDir = this.getExactLambdaDir(this.apiDir, lambdaDir);
     this.existLambdaDir = fs.existsSync(this.lambdaDir);
     debug(`apiDir:`, this.apiDir, `lambdaDir:`, this.lambdaDir);
-    this.enableRegister();
-  }
-
-  private enableRegister() {
-    // eslint-disable-next-line node/no-deprecated-api
-    const existTsLoader = Boolean(require.extensions['.ts']);
-    if (
-      !existTsLoader &&
-      (process.env.NODE_ENV !== 'production' || this.isBuild)
-    ) {
-      try {
-        const projectSearchDir = this.appDir || this.apiDir;
-        const tsNode: typeof import('ts-node') = require('ts-node');
-        tsNode.register({
-          projectSearchDir,
-          compilerOptions: {
-            allowJs: false,
-          },
-          scope: true,
-          transpileOnly: true,
-          ignore: ['(?:^|/)node_modules/'],
-        });
-        const tsConfigPaths: typeof import('tsconfig-paths') = require('tsconfig-paths');
-        const loaderRes = tsConfigPaths.loadConfig(projectSearchDir);
-        if (loaderRes.resultType === 'success') {
-          tsConfigPaths.register({
-            baseUrl: loaderRes.absoluteBaseUrl,
-            paths: loaderRes.paths,
-          });
-        }
-      } catch (error) {}
-    }
   }
 
   public isExistLambda() {
     return this.existLambdaDir;
-  }
-
-  public getApiMode() {
-    return this.apiMode;
   }
 
   public getLambdaDir() {
@@ -121,8 +81,8 @@ export class ApiRouter {
     return false;
   }
 
-  public getSingleModuleHandlers(filename: string) {
-    const moduleInfo = this.getModuleInfo(filename);
+  public async getSingleModuleHandlers(filename: string) {
+    const moduleInfo = await this.getModuleInfo(filename);
     if (moduleInfo) {
       return this.getModuleHandlerInfos(moduleInfo);
     }
@@ -134,17 +94,25 @@ export class ApiRouter {
     originFuncName: string,
     handler: ApiHandler,
   ): APIHandlerInfo | null {
-    const httpMethod = this.getHttpMethod(originFuncName, handler);
+    const httpMethod = this.getHttpMethod(
+      originFuncName,
+      handler,
+    ) as HttpMethod;
     const routeName = this.getRouteName(filename, handler);
+    const action = this.getAction(handler);
+    const responseObj: APIHandlerInfo = {
+      handler,
+      name: originFuncName,
+      httpMethod,
+      routeName,
+      filename,
+      routePath: this.getRoutePath(this.prefix, routeName),
+    };
+    if (action) {
+      responseObj.action = action;
+    }
     if (httpMethod && routeName) {
-      return {
-        handler,
-        name: originFuncName,
-        httpMethod,
-        routeName,
-        filename,
-        routePath: this.getRoutePath(this.prefix, routeName),
-      };
+      return responseObj;
     }
     return null;
   }
@@ -233,11 +201,19 @@ export class ApiRouter {
     }
   }
 
+  public getAction(handler?: ApiHandler): string | undefined {
+    if (handler) {
+      const trigger = Reflect.getMetadata(OperatorType.Trigger, handler);
+      if (trigger?.action) {
+        return trigger.action;
+      }
+    }
+  }
+
   public loadApiFiles() {
     if (!this.existLambdaDir) {
       return [];
     }
-    // eslint-disable-next-line no-multi-assign
     const apiFiles = (this.apiFiles = getFiles(this.lambdaDir, API_FILE_RULES));
     return apiFiles;
   }
@@ -252,9 +228,9 @@ export class ApiRouter {
     return this.loadApiFiles();
   }
 
-  public getApiHandlers() {
+  public async getApiHandlers() {
     const filenames = this.getApiFiles();
-    const moduleInfos = this.getModuleInfos(filenames);
+    const moduleInfos = await this.getModuleInfos(filenames);
     const apiHandlers = this.getHandlerInfos(moduleInfos);
     debug('apiHandlers', apiHandlers.length, apiHandlers);
     return apiHandlers;
@@ -277,44 +253,24 @@ export class ApiRouter {
     }
   }
 
-  private getExactApiMode = (apiDir: string, lambdaDir?: string): APIMode => {
-    const exist = this.createExistChecker(apiDir);
-    const existLambdaDir =
-      (lambdaDir && fs.pathExistsSync(lambdaDir)) ||
-      exist(FRAMEWORK_MODE_LAMBDA_DIR);
-    const existAppDir = exist(FRAMEWORK_MODE_APP_DIR);
-    const existAppFile = exist('app.ts') || exist('app.js');
-
-    if (existLambdaDir || existAppDir || existAppFile) {
-      return APIMode.FARMEWORK;
-    }
-
-    return APIMode.FUNCTION;
-  };
-
-  private createExistChecker = (base: string) => (target: string) =>
-    fs.pathExistsSync(path.resolve(base, target));
-
   private getExactLambdaDir = (
     apiDir: string,
     originLambdaDir?: string,
   ): string => {
-    if (this.apiMode === APIMode.FUNCTION) {
-      return apiDir;
-    }
-
     return originLambdaDir || path.join(apiDir, FRAMEWORK_MODE_LAMBDA_DIR);
   };
 
-  private getModuleInfos(filenames: string[]): ModuleInfo[] {
-    return filenames
-      .map(filename => this.getModuleInfo(filename))
-      .filter(moduleInfo => Boolean(moduleInfo)) as ModuleInfo[];
+  private async getModuleInfos(filenames: string[]): Promise<ModuleInfo[]> {
+    return Promise.all(
+      filenames
+        .map(filename => this.getModuleInfo(filename))
+        .filter(moduleInfo => Boolean(moduleInfo)),
+    ) as unknown as ModuleInfo[];
   }
 
-  private getModuleInfo(filename: string) {
+  private async getModuleInfo(filename: string) {
     try {
-      const module = requireHandlerModule(filename);
+      const module = await requireHandlerModule(filename);
       return {
         filename,
         module,

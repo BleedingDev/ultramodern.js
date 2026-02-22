@@ -1,16 +1,17 @@
 {
   "private": true,
   "name": "ssg-fixtures-web-server",
-  "version": "2.9.0",
+  "version": "2.66.0",
   "scripts": {
-    "build": "modern build"
+    "build": "modern build",
+    "dev": "modern dev"
   },
   "dependencies": {
-    "react": "^18",
-    "react-dom": "^18",
-    "@modern-js/runtime": "workspace:*",
-    "@modern-js/plugin-server": "workspace:*",
+    "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-ssg": "workspace:*",
-    "@modern-js/app-tools": "workspace:*"
+    "@modern-js/runtime": "workspace:*",
+    "@modern-js/server-runtime": "workspace:*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

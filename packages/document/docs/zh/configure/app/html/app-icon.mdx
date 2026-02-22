@@ -1,0 +1,32 @@
+---
+title: appIcon
+---
+
+# html.appIcon
+
+- **类型：**
+
+```ts
+type AppIconItem = {
+  src: string;
+  size: number;
+  target?: 'apple-touch-icon' | 'web-app-manifest';
+};
+
+type AppIcon = {
+  name?: string;
+  icons: AppIconItem[];
+  filename?: string;
+};
+```
+
+- **默认值：** `undefined`
+
+设置 Web 应用的图标，用于在添加到移动设备的主屏幕时显示：
+
+- 生成 web app manifest 文件和其中的 `icons` 字段。
+- 生成 HTML 文件中的 `apple-touch-icon` 标签和 `manifest` 标签。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="html.appIcon" />

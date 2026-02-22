@@ -1,36 +1,10 @@
+import type { BuilderConfig } from '@modern-js/builder';
 import type { JestConfig } from '@modern-js/types';
-import type { PluginSwcOptions } from '@modern-js/builder-plugin-swc';
-import type { PluginEsbuildOptions } from '@modern-js/builder-plugin-esbuild';
-import type { SharedToolsConfig as BuilderSharedToolsConfig } from '@modern-js/builder-shared';
 import type { UnwrapBuilderConfig } from '../utils';
-import type {
-  WebpackBuilderConfig,
-  RspackBuilderConfig,
-} from '../../builder/shared';
 
-export type BuilderToolsConfig = UnwrapBuilderConfig<
-  WebpackBuilderConfig,
-  'tools'
-> & {
-  esbuild?: PluginEsbuildOptions;
-};
-export type RsBuilderToolsConfig = UnwrapBuilderConfig<
-  RspackBuilderConfig,
-  'tools'
->;
-export type Tailwindcss =
-  | Record<string, any>
-  | ((options: Record<string, any>) => Record<string, any> | void);
+type BuilderToolsConfig = UnwrapBuilderConfig<BuilderConfig, 'tools'>;
 
-export interface SharedToolsConfig extends BuilderSharedToolsConfig {
-  /**
-   * Used to custom Tailwind CSS configurations.
-   * @requires `tailwindcss` plugin.
-   * The configuration of `tools.tailwindcss` is provided by `tailwindcss` plugin.
-   * Please use `yarn new` or `pnpm new` to enable the corresponding capability.
-   */
-  tailwindcss?: Tailwindcss;
-
+export interface ToolsUserConfig extends Omit<BuilderToolsConfig, 'swc'> {
   /**
    * Used to custom Jest configurations.
    * @requires `test` plugin.
@@ -45,13 +19,5 @@ export interface SharedToolsConfig extends BuilderSharedToolsConfig {
    * The configuration of `swc` is provided by `swc` plugin.
    * Please use `yarn new` or `pnpm new` to enable the corresponding capability.
    */
-  swc?: PluginSwcOptions<'outer'>;
+  swc?: BuilderToolsConfig['swc'];
 }
-
-export interface ToolsUserConfig
-  extends BuilderToolsConfig,
-    SharedToolsConfig {}
-
-export interface RsToolsUserConfig
-  extends SharedToolsConfig,
-    RsBuilderToolsConfig {}

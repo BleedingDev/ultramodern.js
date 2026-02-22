@@ -1,10 +1,10 @@
 import dns from 'node:dns';
 import path, { join } from 'path';
-import puppeteer, { Page, Browser } from 'puppeteer';
+import puppeteer, { type Page, type Browser } from 'puppeteer';
 import {
-  launchApp,
   getPort,
   killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
@@ -48,5 +48,24 @@ describe('Traditional SSR', () => {
 
   test(`basic usage`, async () => {
     await basicUsage(page, appPort);
+  });
+
+  test(`usage with custom middlware`, async () => {
+    const response = await page.goto(
+      `http://localhost:${appPort}/?fallback=true`,
+      {
+        waitUntil: ['networkidle0'],
+      },
+    );
+    const text = await response!.text();
+    expect(text).toMatch('<!--<?- html ?>-->');
+  });
+
+  test(`usage with custom middlware`, async () => {
+    const response = await page.goto(`http://localhost:${appPort}/?csr=true`, {
+      waitUntil: ['networkidle0'],
+    });
+    const text = await response!.text();
+    expect(text).toMatch('<!--<?- html ?>-->');
   });
 });

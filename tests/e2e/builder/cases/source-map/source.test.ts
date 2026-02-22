@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import { expect, test } from '@playwright/test';
 import { build } from '@scripts/shared';
 import sourceMap from 'source-map';
 
@@ -35,11 +35,7 @@ test('source-map', async () => {
       output: {
         legalComments: 'none',
       },
-      performance: {
-        chunkSplit: {
-          strategy: 'all-in-one',
-        },
-      },
+      splitChunks: false,
     },
   });
 
@@ -72,15 +68,15 @@ test('source-map', async () => {
   }));
 
   expect(originalPositions[0]).toEqual({
-    source: 'src/App.jsx',
+    source: '../../../src/App.jsx',
     line: 2,
     column: 24,
     name: null,
   });
 
   expect(originalPositions[1]).toEqual({
-    source: 'src/index.js',
-    line: 6,
+    source: '../../../src/index.js',
+    line: 5,
     column: 0,
     name: 'window',
   });

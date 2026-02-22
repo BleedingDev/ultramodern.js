@@ -1,0 +1,27 @@
+---
+title: runtimeFramework
+---
+
+# bff.runtimeFramework
+
+- **Type:** `'hono' | 'effect'`
+- **Default:** `'hono'`
+
+import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
+
+<EnableBFFCaution />
+
+Controls which runtime framework Modern.js uses for BFF routing.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+  },
+});
+```
+
+- Set to `'hono'` to use file-convention BFF handlers as the primary runtime.
+- Set to `'effect'` to mount Effect HttpApi runtime from `api/effect/index`.
+
+When using `'effect'`, file-convention BFF handlers under `api/lambda/**` are still available for compatibility.

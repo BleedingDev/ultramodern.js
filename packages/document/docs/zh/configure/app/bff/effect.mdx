@@ -1,0 +1,152 @@
+---
+title: effect
+---
+
+# bff.effect
+
+- **类型：**
+
+```ts
+type BffEffectUserConfig = {
+  entry?: string;
+  openapi?: boolean | { path?: string };
+  dataPlatform?: {
+    enabled?: boolean;
+    requireEnvelope?: boolean;
+    envelopeHeader?: string;
+    expectedNamespace?: string;
+    validateOrigin?: boolean;
+    requireTraceContext?: boolean;
+    selection?: {
+      maxDepth?: number;
+      maxFields?: number;
+      allowedLeafPaths?: string[];
+    };
+    batch?: {
+      enabled?: boolean;
+      endpoint?: `/${string}`;
+      maxBatchSize?: number;
+      maxBatchBytes?: number;
+      flushIntervalMs?: number;
+      maxConcurrency?: number;
+      requestTimeoutMs?: number;
+      allowedMethods?: string[];
+    };
+  };
+};
+```
+
+- **默认值：** `{}`
+
+import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
+
+<EnableBFFCaution />
+
+仅当 `bff.runtimeFramework` 设置为 `'effect'` 时，`bff.effect` 才会生效。
+
+对于 Effect v4，TypeScript 需要使用支持 `exports` 映射的模块解析方式。
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  }
+}
+```
+
+## bff.effect.entry
+
+- **类型：** `string`
+- **默认值：** `<apiDirectory>/effect/index`
+
+用于指定 Effect HttpApi 运行时入口模块。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      entry: './api/effect/index',
+    },
+  },
+});
+```
+
+## bff.effect.openapi
+
+- **类型：** `boolean | { path?: string }`
+- **默认值：** `false`
+
+为 Effect HttpApi 运行时开启 OpenAPI 接口描述生成。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: {
+        path: '/openapi.json',
+      },
+    },
+  },
+});
+```
+
+## bff.effect.dataPlatform
+
+- **类型：**
+
+```ts
+{
+  enabled?: boolean;
+  requireEnvelope?: boolean;
+  envelopeHeader?: string;
+  expectedNamespace?: string;
+  validateOrigin?: boolean;
+  requireTraceContext?: boolean;
+  selection?: {
+    maxDepth?: number;
+    maxFields?: number;
+    allowedLeafPaths?: string[];
+  };
+  batch?: {
+    enabled?: boolean;
+    endpoint?: `/${string}`;
+    maxBatchSize?: number;
+    maxBatchBytes?: number;
+    flushIntervalMs?: number;
+    maxConcurrency?: number;
+    requestTimeoutMs?: number;
+    allowedMethods?: string[];
+  };
+}
+```
+
+- **默认值：** `{ enabled: true }`
+
+用于配置 Effect 运行时的数据请求信封（envelope）校验策略。
+
+生成的 Effect 客户端会将批处理请求发送到 `${bff.prefix}${batch.endpoint}`（例如 `/bff-api/_data/batch`）。
+
+当 `validateOrigin` 开启时，运行时会优先将 envelope 中的 origin 与请求 `Origin` 头比对；若请求无 `Origin`，则回退到请求 URL 的 origin。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      dataPlatform: {
+        requireEnvelope: true,
+        expectedNamespace: 'my-app',
+        selection: {
+          maxDepth: 6,
+          maxFields: 200,
+        },
+      },
+    },
+  },
+});
+```
+
+`batch.flushIntervalMs` 用于控制生成的 Effect 客户端微批处理窗口；`maxConcurrency` 与 `requestTimeoutMs` 由服务端批处理网关用于内部请求分发。

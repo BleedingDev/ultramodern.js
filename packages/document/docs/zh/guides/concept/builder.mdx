@@ -1,0 +1,60 @@
+---
+sidebar_position: 2
+---
+
+# 构建工具
+
+Modern.js 构建是基于 [Rsbuild](https://v2.rsbuild.rs/) 实现的，使用 Rspack 作为打包工具。
+
+:::tip 什么是 Rsbuild
+Rsbuild 是基于 Rspack 的构建工具，是一个增强版的 Rspack CLI，更易用、开箱即用。
+:::
+
+## 构建架构
+
+从构建的角度看，Modern.js 分为三层架构，从上到下依次是：
+
+- 研发框架：Modern.js。
+- 构建工具：Rsbuild。
+- 打包工具：Rspack。
+
+import Mermaid from '@site/src/components/Mermaid';
+
+<Mermaid>
+{`
+flowchart TD
+    Framework("研发框架: Modern.js")
+    BuildTool("构建工具: Rsbuild")
+    Bundler("打包工具: Rspack")
+
+    Framework --> BuildTool
+    BuildTool --> Bundler
+
+    style Framework fill:#FDE68A,stroke:#F59E0B,stroke-width:2px
+    style BuildTool fill:#86EFAC,stroke:#10B981,stroke-width:2px
+    style Bundler fill:#93C5FD,stroke:#3B82F6,stroke-width:2px
+
+`}
+
+</Mermaid>
+
+## 构建文档
+
+Rsbuild 的文档地址为：https://v2.rsbuild.rs/
+
+在该文档中，你可以了解到 Rsbuild 的详细介绍，同时也可以找到各个构建能力的完整使用指南。
+
+如果你想要了解某些构建配置的使用，建议你优先阅读 Modern.js 文档，因为 Modern.js 中的构建配置和默认值与 Rsbuild 并不完全相同。
+
+## 构建插件
+
+在 Modern.js 中，你可以注册 Rspack 插件或 Rsbuild 插件：
+
+- Rspack 插件：通过 [tools.bundlerChain](/configure/app/tools/bundler-chain) 配置。
+- Rsbuild 插件：通过 [builderPlugins](/configure/app/builder-plugins) 配置。
+
+## 构建能力
+
+Rsbuild 提供了丰富的构建能力，包括 JavaScript 编译、CSS 编译、静态资源处理、代码热更新、代码压缩、TS 类型检查等几十种能力。
+
+我们推荐你阅读 [「Rsbuild - 功能导航」](https://v2.rsbuild.rs/zh/guide/start/features) 来了解 Rsbuild 提供的所有构建能力。

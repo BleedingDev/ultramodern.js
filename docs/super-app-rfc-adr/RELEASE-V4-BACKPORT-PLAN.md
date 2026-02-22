@@ -1,6 +1,6 @@
 # Release v4.0.0 Backport Plan (Super-App Streams)
 
-- Status: Active (stream-by-stream backport)
+- Status: Proposed (separate program)
 - Date: 2026-02-21
 - Scope: Backport feasibility and staged execution from `codex/effect-v4-readiness` to `release-v4.0.0`
 
@@ -55,20 +55,3 @@ Instead, run a dedicated backport program with explicit stream-by-stream cherry-
   - passing targeted tests on backport branch.
   - explicit changelog notes for behavior differences versus `codex/effect-v4-readiness`.
 - No broad merge commit from `codex/effect-v4-readiness` to `release-v4.0.0`.
-
-## 7. Stream Progress (2026-02-21)
-
-- Stream A: Implemented.
-  - Backported default-on RsDoctor config and wiring with passing builder tests.
-- Stream B: Implemented (release-v4-compatible subset).
-  - Backported request-id scoped cross-project BFF/create-request hardening.
-- Stream C: Implemented (release-v4-adapted).
-  - Added telemetry envelope registry, OTLP exporter, and VictoriaMetrics exporter in `prod-server`.
-  - Added server telemetry config surface and tests.
-- Stream D: Deferred on release-v4.
-  - Full `routes-tanstack-mf` fixture backport was attempted and fails on release-v4 type/runtime contracts.
-  - Hard blockers observed in typecheck: missing `@tanstack/react-router`, missing `@module-federation/modern-js-v3/runtime`, and `Response.json` static helper mismatch.
-- Stream E: Partial backport.
-  - Added alpha config/env contracts (`server.ssr.moduleFederationAppSSRAlpha`, `process.env.MODERN_MF_APP_SSR_ALPHA`).
-  - Added runtime unit tests for alpha contract/global-var injection and updated SSR config docs (EN/ZH).
-  - Full app-level MF SSR runtime path requires architecture not present in release-v4.

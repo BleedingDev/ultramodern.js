@@ -1,0 +1,58 @@
+# 介绍
+
+Modern.js 的运行时（Runtime）配置需集中在 `src/modern.runtime.ts` 文件中声明。
+
+:::info
+如果项目中还没有此文件，请执行以下命令创建：
+
+```bash
+touch src/modern.runtime.ts
+```
+
+:::
+
+## 基本配置
+
+```tsx
+import { defineRuntimeConfig } from '@modern-js/runtime';
+
+export default defineRuntimeConfig({
+  router: {
+    // 路由配置
+  },
+  // 其他运行时模块...
+});
+```
+
+## 多入口配置
+
+对于多入口应用，`defineRuntimeConfig` 函数可以根据入口名称返回特定的配置：
+
+```tsx
+import { defineRuntimeConfig } from '@modern-js/runtime';
+
+export default defineRuntimeConfig(entryName => {
+  if (entryName === 'main') {
+    return {
+      router: {
+        // "main" 入口的路由配置
+      },
+    };
+  }
+
+  // 其他入口的配置
+  return {
+    router: {
+      // 其他入口的路由配置
+    },
+  };
+});
+```
+
+:::tip
+使用 `src/modern.runtime.ts` 配置方式不支持导出异步函数，这与 Modern.js 的渲染方式有关。如果需要添加异步逻辑，请使用 **[Runtime 插件 (Runtime Plugin)](/plugin/introduction.html#runtime-插件)**。
+:::
+
+import RuntimeCliConfig from '@site-docs/components/runtime-cli-config';
+
+<RuntimeCliConfig />

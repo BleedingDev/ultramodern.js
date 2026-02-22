@@ -1,5 +1,5 @@
-import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import path, { join } from 'path';
+import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
 
 const fixtures = __dirname;
@@ -41,50 +41,6 @@ test.describe('source configure multi', () => {
     // test order
     await expect(page.evaluate(`window.aa`)).resolves.toBe(2);
   });
-});
-
-// todo: moduleScopes not work when buildCache is false ???
-test.skip('module-scopes', async ({ page }) => {
-  const buildOpts = {
-    cwd: join(fixtures, 'module-scopes'),
-    entry: {
-      main: join(fixtures, 'module-scopes/src/index.js'),
-    },
-  };
-
-  await expect(
-    build({
-      ...buildOpts,
-      builderConfig: {
-        source: {
-          moduleScopes: ['./src'],
-        },
-      },
-    }),
-  ).rejects.toThrowError('webpack build failed!');
-
-  let builder = await build({
-    ...buildOpts,
-    runServer: true,
-  });
-
-  await page.goto(getHrefByEntryName('main', builder.port));
-
-  await expect(page.innerHTML('#test')).resolves.toBe('Hello Builder! 1');
-
-  builder.close();
-
-  // should not throw
-  builder = await build({
-    ...buildOpts,
-    builderConfig: {
-      source: {
-        moduleScopes: ['./src', './common'],
-      },
-    },
-  });
-
-  builder.close();
 });
 
 test('global-vars', async ({ page }) => {
@@ -177,6 +133,8 @@ test('tsconfig paths should not work when aliasStrategy is "prefer-alias"', asyn
         alias: {
           '@/common': './src/common2',
         },
+      },
+      resolve: {
         aliasStrategy: 'prefer-alias',
       },
     },

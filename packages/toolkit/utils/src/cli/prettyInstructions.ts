@@ -1,7 +1,8 @@
+import { isIPv6 } from 'net';
 import os from 'os';
 import { chalk } from '../compiled';
-import { isDev, isSingleEntry } from './is';
 import { DEFAULT_DEV_HOST } from './constants';
+import { isDev, isSingleEntry } from './is';
 
 // TODO: type
 interface EntryPoint {
@@ -35,7 +36,15 @@ const getIpv4Interfaces = () => {
 
 export type AddressUrl = { label: string; url: string };
 
+const getHostInUrl = (host: string) => {
+  if (isIPv6(host)) {
+    return host === '::' ? '[::1]' : `[${host}]`;
+  }
+  return host;
+};
+
 export const getAddressUrls = (
+  // biome-ignore lint/style/useDefaultParameterLast: <explanation>
   protocol = 'http',
   port: number,
   host?: string,
@@ -48,7 +57,7 @@ export const getAddressUrls = (
     return [
       {
         label: isLocalhost(host) ? LOCAL_LABEL : NETWORK_LABEL,
-        url: `${protocol}://${host}:${port}`,
+        url: `${protocol}://${getHostInUrl(host)}:${port}`,
       },
     ];
   }
@@ -81,7 +90,8 @@ export const prettyInstructions = (appContext: any, config: any) => {
       checkedEntries: string[];
     };
 
-  const isHttps = isDev() && appContext.builder?.context.devServer?.https;
+  const isHttps =
+    isDev() && (config?.dev?.https || config?.tools?.devServer?.https);
 
   const urls = getAddressUrls(
     isHttps ? 'https' : 'http',
@@ -96,11 +106,12 @@ export const prettyInstructions = (appContext: any, config: any) => {
   let message = '\n';
 
   if (isSingleEntry(entrypoints, config.source?.mainEntryName) || apiOnly) {
+    const defaultRoutePath = routes[0]?.urlPath ?? '';
     message += urls
       .map(
         ({ label, url }) =>
           `  ${chalk.bold(`> ${label.padEnd(10)}`)}${chalk.cyanBright(
-            normalizeUrl(`${url}/${routes[0].urlPath}`),
+            normalizeUrl(`${url}/${defaultRoutePath}`),
           )}\n`,
       )
       .join('');
@@ -131,6 +142,12 @@ export const prettyInstructions = (appContext: any, config: any) => {
     message += chalk.cyanBright(
       '  ○ (Static) client-side renders as static HTML\n',
     );
+  }
+
+  if (config.dev?.cliShortcuts) {
+    message += `  ${chalk.dim('> press')} ${chalk.bold(
+      'h + enter',
+    )} ${chalk.dim('to show shortcuts')}\n`;
   }
 
   return message;

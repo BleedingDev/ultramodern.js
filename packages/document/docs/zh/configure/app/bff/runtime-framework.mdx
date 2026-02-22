@@ -1,0 +1,27 @@
+---
+title: runtimeFramework
+---
+
+# bff.runtimeFramework
+
+- **类型：** `'hono' | 'effect'`
+- **默认值：** `'hono'`
+
+import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
+
+<EnableBFFCaution />
+
+用于控制 Modern.js BFF 路由使用的运行时框架。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+  },
+});
+```
+
+- 设置为 `'hono'` 时，使用文件约定 BFF 处理函数作为主要运行时。
+- 设置为 `'effect'` 时，挂载 `api/effect/index` 中定义的 Effect HttpApi 运行时。
+
+使用 `'effect'` 时，`api/lambda/**` 下的文件约定 BFF 处理函数仍可继续使用，用于兼容迁移。

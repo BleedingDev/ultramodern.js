@@ -1,5 +1,5 @@
 import path from 'path';
-import { normalizeOutputPath, MAIN_ENTRY_NAME } from '@modern-js/utils';
+import { MAIN_ENTRY_NAME, normalizeOutputPath } from '@modern-js/utils';
 
 const sourceDefaults = {
   entries: undefined,
@@ -10,7 +10,6 @@ const sourceDefaults = {
   apiDir: './api',
   envVars: [],
   alias: undefined,
-  moduleScopes: undefined,
   include: [],
 };
 
@@ -22,7 +21,6 @@ const outputDefaults = {
   mediaPath: 'static/media',
   path: 'dist',
   title: '',
-  titleByEntries: undefined,
   meta: {
     charset: { charset: 'utf-8' },
     viewport:
@@ -34,32 +32,19 @@ const outputDefaults = {
     'wap-font-scale': 'no',
     'format-detection': 'telephone=no',
   },
-  metaByEntries: undefined,
   inject: 'head',
-  injectByEntries: undefined,
   mountId: 'root',
   favicon: '',
-  faviconByEntries: undefined,
   copy: undefined,
   scriptExt: undefined,
-  disableHtmlFolder: false,
   disableCssModuleExtension: false,
-  disableCssExtract: false,
   enableCssModuleTSDeclaration: false,
-  disableMinimize: false,
-  enableInlineStyles: false,
-  enableInlineScripts: false,
-  disableSourceMap: false,
   disableInlineRuntimeChunk: false,
   disableAssetsCache: false,
-  enableLatestDecorators: false,
   polyfill: 'entry',
   dataUriLimit: 10000,
   templateParameters: {},
-  templateParametersByEntries: undefined,
-  cssModuleLocalIdentName: '[name]__[local]--[hash:base64:5]',
   federation: undefined,
-  disableNodePolyfill: false,
   enableTsLoader: false,
 };
 
@@ -81,14 +66,11 @@ const deployDefaults = {
 };
 
 const toolsDefaults = {
-  webpack: undefined,
-  babel: undefined,
   postcss: undefined,
   autoprefixer: undefined,
   lodash: undefined,
   devServer: undefined,
   tsLoader: undefined,
-  terser: undefined,
   minifyCss: undefined,
 };
 

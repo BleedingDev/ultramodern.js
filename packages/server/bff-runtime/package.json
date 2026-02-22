@@ -15,46 +15,40 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
-  "jsnext:source": "./src/index.ts",
+  "version": "3.0.2",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "node": {
-        "jsnext:source": "./src/index.ts",
-        "import": "./dist/esm-node/index.js",
+        "import": "./dist/esm-node/index.mjs",
         "require": "./dist/cjs/index.js"
       },
-      "default": "./dist/esm/index.js"
+      "default": "./dist/cjs/index.js"
     }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "new": "modern-lib new",
-    "build": "modern-lib build",
-    "test": "jest --passWithNoTests"
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "farrow-api": "^1.10.8",
-    "farrow-pipeline": "^1.10.6",
-    "farrow-schema": "^1.10.8",
-    "@swc/helpers": "0.5.1"
+    "@swc/helpers": "^0.5.18",
+    "farrow-api": "^2.3.1",
+    "farrow-pipeline": "^2.3.0",
+    "farrow-schema": "^2.3.3"
   },
   "devDependencies": {
-    "@scripts/build": "workspace:*",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "jest": "^29",
-    "ts-jest": "^29.1.0",
-    "typescript": "^5"
+    "@modern-js/rslib": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@types/node": "^25.3.0",
+    "typescript": "^5.9.3"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
     "types": "./dist/types/index.d.ts"
   }
 }

@@ -1,0 +1,349 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+/* === Header Start === */
+.header {
+  display: flex;
+  justify-content: center;
+  background-size: cover;
+  background-position: center bottom;
+  background-origin: border-box;
+}
+
+.heroBanner {
+  display: flex;
+  width: 80vw;
+  max-width: 1200px;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+  box-sizing: border-box;
+  align-items: center;
+  text-align: center;
+  padding-top: 12vh;
+  padding-bottom: 16vh;
+}
+
+.announcement {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    150.85deg,
+    rgba(124, 178, 250, 0.15) 3%,
+    rgba(124, 178, 250, 0.08) 97.17%
+  );
+  border: 1px solid rgba(124, 178, 250, 0.4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+
+  &:hover {
+    background: linear-gradient(
+      150.85deg,
+      rgba(124, 178, 250, 0.25) 3%,
+      rgba(124, 178, 250, 0.15) 97.17%
+    );
+    border-color: rgba(124, 178, 250, 0.55);
+    text-decoration: none;
+  }
+}
+
+:global(.dark) .announcement {
+  background: linear-gradient(
+    150.85deg,
+    rgba(124, 178, 250, 0.18) 3%,
+    rgba(124, 178, 250, 0.08) 97.17%
+  );
+  border-color: rgba(124, 178, 250, 0.25);
+
+  &:hover {
+    background: linear-gradient(
+      150.85deg,
+      rgba(124, 178, 250, 0.28) 3%,
+      rgba(124, 178, 250, 0.14) 97.17%
+    );
+    border-color: rgba(124, 178, 250, 0.4);
+  }
+}
+
+.announcementLabel {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--edenx-home-hero-name-background);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+  line-height: 1.6;
+}
+
+.announcementText {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+:global(.dark) .announcementText {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.announcementArrow {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.45);
+  transition: transform 0.3s ease;
+
+  .announcement:hover & {
+    transform: translateX(2px);
+  }
+}
+
+:global(.dark) .announcementArrow {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.title {
+  font-style: normal;
+  font-weight: bold;
+  font-size: 3.75rem;
+  line-height: 1.6;
+}
+
+.mainTitle {
+  font-size: 125%;
+}
+
+.mask {
+  position: absolute;
+  background-image: conic-gradient(
+    from 180deg at 50%50%,
+    var(--edenx-primary-color) 0deg,
+    180deg,
+    hsl(198deg, 100%, 50%) 0deg
+  );
+  max-width: 500px;
+  width: 100%;
+  height: 450px;
+  border-radius: 100%;
+  mixblendmode: normal;
+  filter: blur(80px);
+  opacity: 0.1;
+  top: 100px;
+  left: 50%;
+  z-index: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+:global(.dark) .mask {
+  opacity: 0.15;
+}
+
+.titleGradient {
+  background: var(--edenx-home-hero-name-background);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.buttons {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.4rem;
+}
+
+.slogan {
+  font-size: 40%;
+  font-weight: normal;
+  opacity: 0.7;
+  margin-top: 1.2rem;
+}
+
+.leftButton,
+.rightButton {
+  width: 142px;
+  font-weight: bold;
+
+  &:hover {
+    opacity: 0.7;
+    text-decoration: none;
+  }
+
+  &:active {
+    opacity: 0.4;
+  }
+}
+
+.leftButton {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  line-height: 48px;
+  height: 48px;
+  background: var(--edenx-home-hero-name-background);
+  box-shadow: 0px 1px 8px rgba(133, 250, 202, 0.34);
+  border-radius: 39px;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+
+  &:hover {
+    color: #fff;
+  }
+}
+
+.rightButton {
+  display: flex;
+  height: 49px;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid var(--edenx-primary-color);
+  box-sizing: border-box;
+  border-radius: 39px;
+  margin-left: 32px;
+  cursor: pointer;
+  color: var(--edenx-primary-color);
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 1600px) {
+  .logo {
+    width: 420px;
+  }
+
+  .title {
+    font-size: 3.6rem;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .heroBanner {
+    align-items: center;
+  }
+  .title {
+    font-size: 7vw;
+    text-align: center;
+  }
+  .announcement {
+    padding: 4px 14px 4px 4px;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .announcementText {
+    font-size: 12px;
+  }
+  .buttons {
+    width: 65%;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    margin-top: 50px;
+  }
+  .leftButton,
+  .rightButton {
+    width: 100%;
+  }
+  .rightButton {
+    margin-left: 0;
+    margin-top: 32px;
+  }
+  .singleImg {
+    max-width: 100%;
+  }
+}
+
+@media screen and (max-width: 540px) {
+  .title {
+    font-size: 8vw;
+  }
+}
+
+/* === Header End === */
+
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+// .homepage-main {
+//   background-color: #0d0d0d;
+// }
+
+.flowContainer {
+  position: relative;
+  width: 1021px;
+  max-width: 100%;
+  margin: 0 auto;
+  height: 1261px;
+  overflow-y: hidden;
+}
+
+.flowLine {
+  position: absolute;
+  width: 95px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.flowLineMobile {
+  left: 30px;
+  width: 37.5px;
+}
+
+.singleImgWrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 48px;
+  border: 1px solid #6f6f6f;
+  border-radius: 8px;
+}
+
+.singleImg {
+  max-width: 910px;
+  object-fit: contain;
+}
+
+.singleImgCard {
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.singleImgCard:hover {
+  background: rgba(78, 202, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+@media screen and (max-width: 700px) {
+  .section-title {
+    font-size: 1rem;
+    font-size: 4vw;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+  .singleImg {
+    max-width: 100%;
+  }
+}
+
+@media screen and (max-width: 1100px) {
+  .flowContainer {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+:global(.rspress-logo) {
+  width: auto !important;
+}

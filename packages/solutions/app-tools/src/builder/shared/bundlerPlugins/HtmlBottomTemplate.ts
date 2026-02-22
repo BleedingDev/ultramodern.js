@@ -1,9 +1,7 @@
-import type { webpack } from '@modern-js/builder-webpack-provider';
-import type { Rspack } from '@modern-js/builder-rspack-provider';
-import type HtmlWebpackPlugin from '@modern-js/builder-webpack-provider/html-webpack-plugin';
+import type { Rspack } from '@modern-js/builder';
 
 export class BottomTemplatePlugin {
-  htmlWebpackPlugin: typeof HtmlWebpackPlugin;
+  htmlPlugin: typeof Rspack.HtmlRspackPlugin;
 
   bottomTemplateReg: RegExp = /<!--<\?-\s*bottomTemplate\s*\?>-->/;
 
@@ -11,15 +9,15 @@ export class BottomTemplatePlugin {
 
   name: string;
 
-  constructor(htmlWebpackPlugin: typeof HtmlWebpackPlugin) {
-    this.htmlWebpackPlugin = htmlWebpackPlugin;
+  constructor(htmlPlugin: typeof Rspack.HtmlRspackPlugin) {
+    this.htmlPlugin = htmlPlugin;
     this.name = 'bottom-template';
   }
 
-  apply(compiler: Rspack.Compiler | webpack.Compiler) {
+  apply(compiler: Rspack.Compiler) {
     compiler.hooks.compilation.tap(this.name, compilation => {
-      this.htmlWebpackPlugin
-        .getHooks(compilation as any)
+      this.htmlPlugin
+        .getCompilationHooks(compilation as any)
         .beforeEmit.tap(this.name, data => {
           if (!data.plugin.options?.__internal__) {
             return data;

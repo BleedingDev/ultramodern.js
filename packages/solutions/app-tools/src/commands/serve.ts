@@ -1,17 +1,39 @@
-import { logger, isApiOnly, getTargetDir } from '@modern-js/utils';
-import type { PluginAPI } from '@modern-js/core';
-import server from '@modern-js/prod-server';
+import path from 'path';
+import type { CLIPluginAPI } from '@modern-js/plugin';
+import { createProdServer } from '@modern-js/prod-server';
+import {
+  SERVER_DIR,
+  getMeta,
+  getTargetDir,
+  isApiOnly,
+  logger,
+} from '@modern-js/utils';
+import type { AppNormalizedConfig, AppTools } from '../types';
+import { loadServerPlugins } from '../utils/loadPlugins';
 import { printInstructions } from '../utils/printInstructions';
-import type { AppTools } from '../types';
-import { injectDataLoaderPlugin } from '../utils/createServer';
-import { getServerInternalPlugins } from '../utils/getServerInternalPlugins';
 
-export const start = async (api: PluginAPI<AppTools<'shared'>>) => {
-  const appContext = api.useAppContext();
-  const userConfig = api.useResolvedConfigContext();
-  const hookRunners = api.useHookRunners();
+type ExtraServerOptions = {
+  launcher?: typeof createProdServer;
+};
 
-  const { appDirectory, port, serverConfigFile, metaName } = appContext;
+export const serve = async (
+  api: CLIPluginAPI<AppTools>,
+  serverOptions?: ExtraServerOptions,
+) => {
+  const appContext = api.getAppContext();
+  const userConfig = api.getNormalizedConfig();
+  const hooks = api.getHooks();
+
+  const {
+    distDirectory,
+    appDirectory,
+    internalDirectory,
+    port,
+    metaName,
+    serverRoutes,
+  } = appContext;
+
+  const { isCrossProjectServer } = (userConfig?.bff as any) || {};
 
   logger.info(`Starting production server...`);
   const apiOnly = await isApiOnly(
@@ -19,45 +41,69 @@ export const start = async (api: PluginAPI<AppTools<'shared'>>) => {
     userConfig?.source?.entriesDir,
     appContext.apiDirectory,
   );
-  const serverInternalPlugins = await getServerInternalPlugins(api);
 
-  const app = await server({
-    pwd: appDirectory,
+  let runMode: 'apiOnly' | undefined;
+  if (apiOnly) {
+    runMode = 'apiOnly';
+  }
+
+  const meta = getMeta(metaName);
+  const serverConfigPath = path.resolve(
+    distDirectory,
+    SERVER_DIR,
+    `${meta}.server`,
+  );
+
+  const pluginInstances = await loadServerPlugins(api, appDirectory, metaName);
+
+  const app = await (serverOptions?.launcher || createProdServer)({
+    metaName,
+    pwd: distDirectory,
     config: {
       ...userConfig,
       dev: userConfig.dev as any,
+      tools: userConfig.tools as any,
+      // server-core can't get RegExp & Function output.inlineScripts by JSON.stringy;
       output: {
         path: userConfig.output.distPath?.root,
         ...(userConfig.output || {}),
-      },
+      } as any,
     },
+    routes: serverRoutes,
+    plugins: pluginInstances,
+    serverConfigPath,
     appContext: {
-      metaName,
+      appDirectory,
+      internalDirectory,
       sharedDirectory: getTargetDir(
         appContext.sharedDirectory,
         appContext.appDirectory,
         appContext.distDirectory,
       ),
-      apiDirectory: getTargetDir(
-        appContext.apiDirectory,
-        appContext.appDirectory,
-        appContext.distDirectory,
-      ),
-      lambdaDirectory: getTargetDir(
-        appContext.lambdaDirectory,
-        appContext.appDirectory,
-        appContext.distDirectory,
-      ),
+      apiDirectory: isCrossProjectServer
+        ? appContext.apiDirectory
+        : getTargetDir(
+            appContext.apiDirectory,
+            appContext.appDirectory,
+            appContext.distDirectory,
+          ),
+      lambdaDirectory: isCrossProjectServer
+        ? appContext.lambdaDirectory
+        : getTargetDir(
+            appContext.lambdaDirectory,
+            appContext.appDirectory,
+            appContext.distDirectory,
+          ),
+      bffRuntimeFramework: appContext.bffRuntimeFramework,
     },
-    serverConfigFile,
-    internalPlugins: injectDataLoaderPlugin(serverInternalPlugins),
-    apiOnly,
+    runMode,
   });
 
-  app.listen(port, async (err: Error) => {
-    if (err) {
-      throw err;
-    }
-    await printInstructions(hookRunners, appContext, userConfig);
+  app.listen(port, async () => {
+    await printInstructions(
+      hooks,
+      appContext,
+      userConfig as AppNormalizedConfig,
+    );
   });
 };

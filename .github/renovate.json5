@@ -1,0 +1,139 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":disableDependencyDashboard"],
+  "baseBranch": ["main", "v2"],
+ "rangeStrategy": "bump",
+ "updateLockFiles": true,
+  "schedule": ["every weekend"],
+  "ignorePaths": ["**/node_modules/**", "packages/toolkit/utils/tests/fixtures/plugin"],
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "ignoreScripts": false,
+  "packageRules": [
+    // ignore all major update
+    {
+      "matchUpdateTypes": ["lockFileMaintenance", "pin", "digest"],
+      "enabled": false
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "matchPackageNames": [
+        "@rspress/**",
+        "rspress",
+      ],
+      "groupName": "rspress monorepo",
+      "groupSlug": "rspress",
+    },
+    {
+      "matchPackageNames": [
+        "@rsbuild/**",
+      ],
+      "updateTypes": ["minor", "patch"],
+      "groupName": "rsbuild monorepo",
+      "groupSlug": "rsbuild",
+      "schedule": ["at any time"]
+    },
+    {
+      "matchPackageNames": [
+        "@rsdoctor/**",
+      ],
+      "groupName": "rsdoctor monorepo",
+      "groupSlug": "rsdoctor",
+    },
+    {
+      "matchPackageNames": [
+        "@modern-js/codesmith",
+        "@modern-js/codesmith-**",
+      ],
+      "groupName": "codesmith monorepo",
+      "groupSlug": "codesmith",
+      "schedule": ["at any time"]
+    },
+    {
+      "matchPackageNames": [
+        "@remix-run/**",
+      ],
+      "groupName": "remix monorepo",
+      "groupSlug": "remix",
+      "enabled": false,
+    },
+    {
+      "matchPackageNames": [
+        "@changesets/**",
+      ],
+      "groupName": "changesets monorepo",
+      "groupSlug": "changesets",
+    },
+    {
+      "matchPackageNames": [
+        "@loadable/**",
+      ],
+      "groupName": "loadable monorepo",
+      "groupSlug": "loadable",
+    },
+    {
+      "groupName": "types",
+      "matchPackageNames": [
+        "@types/**",
+      ],
+      "groupSlug": "types",
+    },
+    {
+      "matchPackageNames": [
+        "actions/**",
+      ],
+      "groupName": "actions",
+      "groupSlug": "actions",
+    },
+    {
+      "matchPackageNames": [
+        "@modern-js/**",
+      ],
+      "groupName": "modern",
+      "groupSlug": "modern",
+    },
+  ],
+  "ignoreDeps": [
+    // manually update some packages
+    "pnpm",
+    "esbuild",
+    "typescript",
+    // related to the SWC version built into Rspack
+    "@swc/helpers",
+    // pure esm packages can not be used now
+    "globby",
+    "open",
+    "strip-ansi",
+    // align Node.js version minimum requirements
+    "@types/node",
+    "node",
+    // server core hono dependency can not bump
+    "hono",
+    "@types/history",
+    "history",
+    "@types/lru-cache",
+    "@types/testing-library__jest-dom",
+    "pkg-up",
+    "styled-components",
+    "webpack",
+    // need node 18
+    "http-compression",
+    "@biomejs/biome",
+    "caniuse-lite",
+    "@vercel/nft",
+    "vitest",
+    "@rsbuild-image/react",
+    "@rsbuild/plugin-styled-components",
+    "@rspress/shared",
+    "@rspress/plugin-llms",
+    "rspress",
+    "@module-federation/modern-js-v3",
+    "@module-federation/bridge-react",
+    "@module-federation/runtime",
+    "@rsbuild/webpack"
+  ]
+}

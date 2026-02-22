@@ -17,6 +17,7 @@ export const EN_LOCALE = {
     },
     build: {
       describe: 'build the app for production',
+      watch: 'turn on watch mode, watch for changes and rebuild',
     },
     serve: { describe: 'preview the production build locally' },
     deploy: { describe: 'deploy the application' },
@@ -32,6 +33,9 @@ export const EN_LOCALE = {
       env: 'specify env mode',
       output: 'specify inspect content output path',
       verbose: 'show full function definitions in output',
+    },
+    info: {
+      describe: 'show project information',
     },
   },
 };

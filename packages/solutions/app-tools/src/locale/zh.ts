@@ -16,6 +16,7 @@ export const ZH_LOCALE = {
     },
     build: {
       describe: '构建生产环境产物',
+      watch: '开启 watch 模式, 监听文件变更并重新构建',
     },
     serve: { describe: '启动生产环境服务' },
     deploy: { describe: '部署应用' },
@@ -31,6 +32,9 @@ export const ZH_LOCALE = {
       env: '查看指定环境下的配置',
       output: '指定在 dist 目录下输出的路径',
       verbose: '在结果中展示函数的完整内容',
+    },
+    info: {
+      describe: '展示项目信息',
     },
   },
 };

@@ -1,0 +1,55 @@
+{
+  "name": "@modern-js/image",
+  "version": "3.0.2",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.cjs"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/index.d.ts"
+      ],
+      "runtime": [
+        "./dist/runtime.d.ts"
+      ],
+      "types": [
+        "./dist/types.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rslib build",
+    "dev": "rslib build --watch"
+  },
+  "dependencies": {
+    "@rsbuild-image/core": "0.0.1-next.36",
+    "@rsbuild-image/react": "0.0.1-next.36",
+    "ipx": "^3.1.1",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@modern-js/app-tools": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@types/node": "^25.3.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.9.3"
+  }
+}

@@ -30,12 +30,12 @@ jobs:
             fetch-depth: 1
 
       - name: Install Pnpm
-        run: corepack enable
+        run: npm i -g --force corepack && corepack enable
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js 22
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: "22"
           cache: 'pnpm'
 
       - name: Install Dependencies
@@ -45,7 +45,7 @@ jobs:
         run: pnpm run lint:package-json
 
       - name: Lint
-        run: pnpm run fast-lint
+        run: pnpm run lint
 
       - name: Check Changeset
         run: pnpm run check-changeset

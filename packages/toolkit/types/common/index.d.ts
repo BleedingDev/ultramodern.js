@@ -6,4 +6,11 @@ export type InternalPlugins = Record<
   string | { path: string; forced?: boolean }
 >;
 
-export type SSRMode = 'string' | 'stream';
+export type ServerPlugin = {
+  /** The plugin package.json's name  */
+  name: string;
+
+  options?: Record<string, any>;
+};
+
+export type SSRMode = 'string' | 'stream' | false;

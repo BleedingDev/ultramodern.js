@@ -1,0 +1,59 @@
+---
+title: UltraModern.js
+sidebar_position: 2
+---
+
+# UltraModern.js v3 vs Modern.js v3
+
+This page compares **UltraModern.js v3** with **Modern.js v3** (baseline: `v3.0.2`).
+
+UltraModern.js is intentionally a compatibility-first distribution. The goal is to stay close to upstream Modern.js while adding a small set of platform contracts for super-app and ERP-scale systems.
+
+## Design Principles
+
+- Keep deltas small and explicit.
+- Prefer upstream APIs and behavior by default.
+- Add only platform-level contracts that improve cross-team reliability.
+- Preserve easy upstream merge/rebase flow.
+
+## Compatibility Contract
+
+UltraModern.js v3 keeps:
+
+- Modern.js app/config/plugin mental model.
+- Existing project structure and command flow.
+- Progressive adoption path (apps can stay mostly unchanged).
+
+UltraModern additions are designed to be optional or backward-compatible wherever possible.
+
+## Intentional Differences (v3 line)
+
+| Area | Modern.js v3 baseline | UltraModern.js v3 |
+| --- | --- | --- |
+| BFF runtime and contracts | Standard BFF runtimes and generated clients | Adds Effect-first runtime/data-platform path and stricter cross-project contracts |
+| Cross-project producer bootstrap | Producer wiring can be loosely coupled in multi-repo setups | Adds `requestId`-aware bootstrap/runtime behavior and fail-fast guardrails |
+| Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP and VictoriaMetrics exporters |
+| App-level MF SSR handshake | No dedicated super-app app-level contract focus | Adds explicit app-level MF SSR alpha contract flags for controlled rollout |
+| MF remote reliability | App teams usually implement retry/fallback patterns independently | Adds stronger shared reliability contracts for remote loading paths |
+
+## What We Intentionally Do Not Change
+
+- We do not fork core architecture into a separate framework model.
+- We do not replace normal Modern.js defaults for teams that do not need super-app contracts.
+- We avoid incompatible API changes unless there is a hard reliability requirement.
+
+## Practical Guidance
+
+If you are already on Modern.js v3:
+
+1. Keep your existing app structure.
+2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR alpha contract).
+3. Keep tracking upstream Modern.js updates; UltraModern is designed for that workflow.
+
+## Related Docs
+
+- [BFF Runtime Frameworks](/guides/advanced-features/bff/frameworks)
+- [BFF Data Platform](/guides/advanced-features/bff/data-platform)
+- [BFF Effect Runtime Config](/configure/app/bff/effect)
+- [Module Federation SSR](/guides/topic-detail/module-federation/ssr)
+- [performance.rsdoctor](/configure/app/performance/rsdoctor)

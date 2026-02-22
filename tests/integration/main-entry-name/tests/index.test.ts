@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import {
-  launchApp,
-  killApp,
   getPort,
-  modernBuild,
+  killApp,
+  launchApp,
   launchOptions,
+  modernBuild,
 } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');
@@ -23,7 +23,7 @@ describe('test dev', () => {
     const browser = await puppeteer.launch(launchOptions as any);
     const page = await browser.newPage();
     page.on('pageerror', error => {
-      errors.push(error.message);
+      errors.push((error as Error).message);
     });
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],

@@ -1,0 +1,22 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "jsx": "preserve",
+    "baseUrl": "./",
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/type-tests/env-shim.d.ts",
+    "src/type-tests/runtime-router-shim.d.ts",
+    "src/type-tests/runtime-shim.d.ts",
+    "src/type-tests/effect-client-shim.d.ts",
+    "src/type-tests/effect-server-shim.d.ts",
+    "src/components/**/*.tsx",
+    "src/routes/**/*.tsx",
+    "api/**/*.ts",
+    "shared/**/*.ts"
+  ]
+}

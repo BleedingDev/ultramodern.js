@@ -1,6 +1,6 @@
 import path from 'path';
 import readChangesets from '@changesets/read';
-import { getPackages, Package } from '@manypkg/get-packages';
+import { type Package, getPackages } from '@manypkg/get-packages';
 
 type VersionType = 'major' | 'minor' | 'patch' | 'none';
 type Release = {
@@ -19,7 +19,7 @@ function checkChangeset(packages: Package[], changesets: NewChangeset[]) {
   for (const changeset of changesets) {
     const { id, releases } = changeset;
     releases.forEach(release => {
-      if (release.type === 'major') {
+      if (!id.includes('modern-3') && release.type === 'major') {
         throw Error(
           `packages ${release.name} not allow bump major version in ${id}.md file`,
         );
@@ -63,6 +63,5 @@ async function run() {
 
 run().catch(e => {
   console.error(e);
-  // eslint-disable-next-line no-process-exit
   process.exit(1);
 });

@@ -1,10 +1,752 @@
 # @modern-js/plugin-ssg
 
-## 4.0.0
+## 3.0.2
 
 ### Patch Changes
 
-- @modern-js/utils@4.0.0
+- @modern-js/prod-server@3.0.2
+- @modern-js/utils@3.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @modern-js/prod-server@3.0.1
+- @modern-js/utils@3.0.1
+
+## 3.0.0
+
+### Patch Changes
+
+- @modern-js/prod-server@3.0.0
+- @modern-js/utils@3.0.0
+
+## 3.0.0-alpha.2
+
+### Patch Changes
+
+- @modern-js/prod-server@3.0.0-alpha.2
+- @modern-js/utils@3.0.0-alpha.2
+
+## 3.0.0-alpha.1
+
+### Patch Changes
+
+- @modern-js/prod-server@3.0.0-alpha.1
+- @modern-js/utils@3.0.0-alpha.1
+
+## 3.0.0-alpha.0
+
+### Patch Changes
+
+- @modern-js/prod-server@3.0.0-alpha.0
+- @modern-js/utils@3.0.0-alpha.0
+
+## 2.68.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.68.1
+- @modern-js/utils@2.68.1
+
+## 2.68.0
+
+### Patch Changes
+
+- Updated dependencies [992194b]
+  - @modern-js/prod-server@2.68.0
+  - @modern-js/utils@2.68.0
+
+## 2.67.11
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.11
+- @modern-js/utils@2.67.11
+
+## 2.67.10
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.10
+- @modern-js/utils@2.67.10
+
+## 2.67.9
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.9
+- @modern-js/utils@2.67.9
+
+## 2.67.8
+
+### Patch Changes
+
+- 532bbcb: fix: 修复 SSG 报错时没有中断构建的问题
+  fix: fix the issue that the build will not be interrupted when an error occurs in SSG
+- Updated dependencies [532bbcb]
+- Updated dependencies [23c8201]
+  - @modern-js/prod-server@2.67.8
+  - @modern-js/utils@2.67.8
+
+## 2.67.7
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.7
+- @modern-js/utils@2.67.7
+
+## 2.67.6
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.6
+- @modern-js/utils@2.67.6
+
+## 2.67.5
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.5
+- @modern-js/utils@2.67.5
+
+## 2.67.4
+
+### Patch Changes
+
+- Updated dependencies [35e9786]
+  - @modern-js/prod-server@2.67.4
+  - @modern-js/utils@2.67.4
+
+## 2.67.3
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.3
+- @modern-js/utils@2.67.3
+
+## 2.67.2
+
+### Patch Changes
+
+- @modern-js/prod-server@2.67.2
+- @modern-js/utils@2.67.2
+
+## 2.67.1
+
+### Patch Changes
+
+- 1d96265: feat(ssr): support streaming ssr to work with http2
+  feat(ssr): 支持 streaming ssr 和 http2 协议一起工作
+- Updated dependencies [1d96265]
+  - @modern-js/prod-server@2.67.1
+  - @modern-js/utils@2.67.1
+
+## 2.67.0
+
+### Patch Changes
+
+- 759d92d: fix: ssg should concat buffer first, then stringify buffer
+  fix: ssg 应该先拼接 buffer, 再将 buffer 处理成字符串
+  - @modern-js/prod-server@2.67.0
+  - @modern-js/utils@2.67.0
+
+## 2.66.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.66.0
+- @modern-js/utils@2.66.0
+
+## 2.65.5
+
+### Patch Changes
+
+- @modern-js/prod-server@2.65.5
+- @modern-js/utils@2.65.5
+
+## 2.65.4
+
+### Patch Changes
+
+- Updated dependencies [0d47cb8]
+  - @modern-js/utils@2.65.4
+  - @modern-js/prod-server@2.65.4
+
+## 2.65.3
+
+### Patch Changes
+
+- @modern-js/prod-server@2.65.3
+- @modern-js/utils@2.65.3
+
+## 2.65.2
+
+### Patch Changes
+
+- Updated dependencies [1f83d96]
+  - @modern-js/utils@2.65.2
+  - @modern-js/prod-server@2.65.2
+
+## 2.65.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.65.1
+- @modern-js/utils@2.65.1
+
+## 2.65.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.65.0
+- @modern-js/utils@2.65.0
+
+## 2.64.3
+
+### Patch Changes
+
+- @modern-js/prod-server@2.64.3
+- @modern-js/utils@2.64.3
+
+## 2.64.2
+
+### Patch Changes
+
+- Updated dependencies [4ae943d]
+- Updated dependencies [c73217b]
+- Updated dependencies [02ca983]
+  - @modern-js/prod-server@2.64.2
+  - @modern-js/utils@2.64.2
+
+## 2.64.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.64.1
+- @modern-js/utils@2.64.1
+
+## 2.64.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.64.0
+- @modern-js/utils@2.64.0
+
+## 2.63.7
+
+### Patch Changes
+
+- 86d2edc: fix(ssg): unable to render huge list of routes
+  fix(ssg): 无法渲染大量路由列表
+  - @modern-js/prod-server@2.63.7
+  - @modern-js/utils@2.63.7
+
+## 2.63.6
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.6
+- @modern-js/utils@2.63.6
+
+## 2.63.5
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.5
+- @modern-js/utils@2.63.5
+
+## 2.63.4
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.4
+- @modern-js/utils@2.63.4
+
+## 2.63.3
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.3
+- @modern-js/utils@2.63.3
+
+## 2.63.2
+
+### Patch Changes
+
+- Updated dependencies [5fc95f7]
+- Updated dependencies [53e3ae0]
+  - @modern-js/utils@2.63.2
+  - @modern-js/prod-server@2.63.2
+
+## 2.63.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.1
+- @modern-js/utils@2.63.1
+
+## 2.63.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.63.0
+- @modern-js/utils@2.63.0
+
+## 2.62.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.62.1
+- @modern-js/utils@2.62.1
+
+## 2.62.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.62.0
+- @modern-js/utils@2.62.0
+
+## 2.61.0
+
+### Patch Changes
+
+- Updated dependencies [45230e2]
+  - @modern-js/utils@2.61.0
+  - @modern-js/prod-server@2.61.0
+
+## 2.60.6
+
+### Patch Changes
+
+- 0e612b7: feat: print ssg subprocess log
+
+  feat: 输出 ssg 子进程日志
+
+- Updated dependencies [e6daf22]
+  - @modern-js/prod-server@2.60.6
+  - @modern-js/utils@2.60.6
+
+## 2.60.5
+
+### Patch Changes
+
+- @modern-js/prod-server@2.60.5
+- @modern-js/utils@2.60.5
+
+## 2.60.4
+
+### Patch Changes
+
+- 983e802: fix: remove ssg stdout listener, only stderr
+  fix: 移除 ssg 的 stdout 监听，只保留 stderr
+- c87813e: fix: upgrade react-router & log in debug mode only
+  fix: 更新 react-router 到最新版 & 只在 debug 模式下打印日志
+  - @modern-js/prod-server@2.60.4
+  - @modern-js/utils@2.60.4
+
+## 2.60.3
+
+### Patch Changes
+
+- Updated dependencies [303331c]
+  - @modern-js/utils@2.60.3
+  - @modern-js/prod-server@2.60.3
+
+## 2.60.2
+
+### Patch Changes
+
+- Updated dependencies [8a709bc]
+  - @modern-js/utils@2.60.2
+  - @modern-js/prod-server@2.60.2
+
+## 2.60.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.60.1
+- @modern-js/utils@2.60.1
+
+## 2.60.0
+
+### Patch Changes
+
+- Updated dependencies [28f0101]
+  - @modern-js/prod-server@2.60.0
+  - @modern-js/utils@2.60.0
+
+## 2.59.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.59.0
+- @modern-js/utils@2.59.0
+
+## 2.58.3
+
+### Patch Changes
+
+- @modern-js/prod-server@2.58.3
+- @modern-js/utils@2.58.3
+
+## 2.58.2
+
+### Patch Changes
+
+- Updated dependencies [a1a9373]
+  - @modern-js/utils@2.58.2
+  - @modern-js/prod-server@2.58.2
+
+## 2.58.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.58.1
+- @modern-js/utils@2.58.1
+
+## 2.58.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.58.0
+- @modern-js/utils@2.58.0
+
+## 2.57.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.57.1
+- @modern-js/utils@2.57.1
+
+## 2.57.0
+
+### Patch Changes
+
+- 2515b00: feat(ssr): support server.ssrByRouteIds
+  feat(ssr): 支持 server.ssrByRouteIds
+- a9807e5: feat(ssg): support ssg with bff.enableHandleWeb
+  feat(ssg): 支持 ssg 和 bff.enableHandleWeb 一起使用
+- Updated dependencies [2515b00]
+- Updated dependencies [0e906a1]
+- Updated dependencies [604ad3a]
+  - @modern-js/utils@2.57.0
+  - @modern-js/prod-server@2.57.0
+
+## 2.56.2
+
+### Patch Changes
+
+- @modern-js/prod-server@2.56.2
+- @modern-js/utils@2.56.2
+
+## 2.56.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.56.1
+- @modern-js/utils@2.56.1
+
+## 2.56.0
+
+### Patch Changes
+
+- Updated dependencies [bedbbb3]
+  - @modern-js/prod-server@2.56.0
+  - @modern-js/utils@2.56.0
+
+## 2.55.0
+
+### Patch Changes
+
+- 86a6333: fix: make sure that BFF run products of the dist when building with ssg
+  fix: make sure that BFF run products of the dist when building with ssg
+- Updated dependencies [35cddd7]
+- Updated dependencies [bbcf55a]
+  - @modern-js/prod-server@2.55.0
+  - @modern-js/utils@2.55.0
+
+## 2.54.6
+
+### Patch Changes
+
+- @modern-js/prod-server@2.54.6
+- @modern-js/utils@2.54.6
+
+## 2.54.5
+
+### Patch Changes
+
+- Updated dependencies [5525a23]
+  - @modern-js/prod-server@2.54.5
+  - @modern-js/utils@2.54.5
+
+## 2.54.4
+
+### Patch Changes
+
+- @modern-js/prod-server@2.54.4
+- @modern-js/utils@2.54.4
+
+## 2.54.3
+
+### Patch Changes
+
+- Updated dependencies [b50d7ec]
+- Updated dependencies [c5644c9]
+  - @modern-js/prod-server@2.54.3
+  - @modern-js/utils@2.54.3
+
+## 2.54.2
+
+### Patch Changes
+
+- @modern-js/prod-server@2.54.2
+- @modern-js/utils@2.54.2
+
+## 2.54.1
+
+### Patch Changes
+
+- @modern-js/prod-server@2.54.1
+- @modern-js/utils@2.54.1
+
+## 2.54.0
+
+### Minor Changes
+
+- a8d8f0c: feat: support new server plugin & discard server plugin some hooks
+  feat: 支持新 server plugin & 减少 server plugin 钩子
+
+### Patch Changes
+
+- Updated dependencies [15a090c]
+- Updated dependencies [a8d8f0c]
+- Updated dependencies [09798ac]
+  - @modern-js/utils@2.54.0
+  - @modern-js/prod-server@2.54.0
+
+## 2.53.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.53.0
+- @modern-js/utils@2.53.0
+
+## 2.52.0
+
+### Patch Changes
+
+- @modern-js/prod-server@2.52.0
+- @modern-js/utils@2.52.0
+
+## 2.51.0
+
+### Patch Changes
+
+- c462b7e: fix(plugin-ssg): prod-server should be dependencies in ssg plugin
+  fix(plugin-ssg): prod-server 应该是生产依赖在 ssg 插件里
+  - @modern-js/prod-server@2.51.0
+  - @modern-js/utils@2.51.0
+
+## 2.50.0
+
+### Patch Changes
+
+- @modern-js/utils@2.50.0
+
+## 2.49.4
+
+### Patch Changes
+
+- @modern-js/utils@2.49.4
+
+## 2.49.3
+
+### Patch Changes
+
+- @modern-js/utils@2.49.3
+
+## 2.49.2
+
+### Patch Changes
+
+- @modern-js/utils@2.49.2
+
+## 2.49.1
+
+### Patch Changes
+
+- @modern-js/utils@2.49.1
+
+## 2.49.0
+
+### Minor Changes
+
+- e8c8c5d: refactor: refactor server
+  refactor: 重构 server
+
+### Patch Changes
+
+- Updated dependencies [e8c8c5d]
+  - @modern-js/utils@2.49.0
+
+## 2.48.6
+
+### Patch Changes
+
+- @modern-js/utils@2.48.6
+
+## 2.48.5
+
+### Patch Changes
+
+- Updated dependencies [4ca9f4c]
+  - @modern-js/utils@2.48.5
+
+## 2.48.4
+
+### Patch Changes
+
+- Updated dependencies [7d2d433]
+  - @modern-js/utils@2.48.4
+
+## 2.48.3
+
+### Patch Changes
+
+- @modern-js/utils@2.48.3
+
+## 2.48.2
+
+### Patch Changes
+
+- @modern-js/utils@2.48.2
+
+## 2.48.1
+
+### Patch Changes
+
+- Updated dependencies [8942b90]
+- Updated dependencies [ce426f7]
+  - @modern-js/utils@2.48.1
+
+## 2.48.0
+
+### Patch Changes
+
+- Updated dependencies [c323a23]
+  - @modern-js/utils@2.48.0
+
+## 2.47.1
+
+### Patch Changes
+
+- @modern-js/utils@2.47.1
+
+## 2.47.0
+
+### Patch Changes
+
+- 9464c9c: chore: upgrade react-router and export all react-router APIs
+  chore: 升级 react-router 相关依赖，并导出所有 react-router API
+- Updated dependencies [a5386ab]
+  - @modern-js/utils@2.47.0
+
+## 2.46.1
+
+### Patch Changes
+
+- @modern-js/utils@2.46.1
+
+## 2.46.0
+
+### Patch Changes
+
+- @modern-js/utils@2.46.0
+
+## 2.45.0
+
+### Patch Changes
+
+- @modern-js/utils@2.45.0
+
+## 2.44.0
+
+### Patch Changes
+
+- @modern-js/utils@2.44.0
+
+## 2.43.0
+
+### Patch Changes
+
+- @modern-js/utils@2.43.0
+
+## 2.42.2
+
+### Patch Changes
+
+- @modern-js/utils@2.42.2
+
+## 2.42.1
+
+### Patch Changes
+
+- @modern-js/utils@2.42.1
+
+## 2.42.0
+
+### Patch Changes
+
+- @modern-js/utils@2.42.0
+
+## 2.41.0
+
+### Patch Changes
+
+- c4d396a: chore(swc): bump swc and helpers
+  chore(swc): 升级 swc 以及 helpers
+- Updated dependencies [c4d396a]
+  - @modern-js/utils@2.41.0
+
+## 2.40.0
+
+### Minor Changes
+
+- 95f15d2: chore: remove ajv schema verification of configuration
+  chore: 移除 ajv 对项目配置的校验
+
+### Patch Changes
+
+- Updated dependencies [95f15d2]
+  - @modern-js/utils@2.40.0
+
+## 2.39.2
+
+### Patch Changes
+
+- @modern-js/utils@2.39.2
+
+## 2.39.1
+
+### Patch Changes
+
+- f397649: chore: upgrade react-router and remix
+  chore: 更新 react-router 和 remix
+  - @modern-js/utils@2.39.1
+
+## 2.39.0
+
+### Patch Changes
+
+- @modern-js/utils@2.39.0
+
+## 2.38.0
+
+### Patch Changes
+
+- @modern-js/utils@2.38.0
 
 ## 2.37.2
 

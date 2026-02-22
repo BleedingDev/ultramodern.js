@@ -11,28 +11,6 @@ type Route =
     };
 export type Routes = Record<string, Route>;
 
-type PreloadLink = { url: string; as?: string; rel?: string };
-type PreloadInclude = Array<string | PreloadLink>;
-interface PreloadAttributes {
-  script?: Record<string, boolean | string>;
-  style?: Record<string, boolean | string>;
-  image?: Record<string, boolean | string>;
-  font?: Record<string, boolean | string>;
-}
-export type SSRPreload = {
-  /** Include external preload links to enhance the page's performance by preloading additional resources. */
-  include?: PreloadInclude;
-
-  /** Utilize string matching to exclude specific preload links. */
-  exclude?: RegExp | string;
-
-  /** Disable preload when the User-Agent is matched.  */
-  userAgentFilter?: RegExp | string;
-
-  /** Include additional attributes to the Header Link.  */
-  attributes?: PreloadAttributes;
-};
-
 export type SSR =
   | boolean
     | {
@@ -155,55 +133,47 @@ export interface ServerTelemetryCanaryUserConfig {
 
 export interface ServerTelemetryUserConfig {
   /**
-   * Enable framework telemetry envelopes.
-   *
+   * Enable framework telemetry envelope emission.
    * @default false
    */
   enabled?: boolean;
   /**
-   * Service name in telemetry envelopes.
-   *
+   * Logical service name attached to every telemetry envelope.
    * @default server.metaName
    */
   service?: string;
   /**
-   * Module name in telemetry envelopes.
-   *
+   * Logical module name attached to every telemetry envelope.
    * @default "server"
    */
   module?: string;
   /**
-   * Environment name in telemetry envelopes.
-   *
-   * @default process.env.MODERN_ENV || process.env.NODE_ENV || "development"
+   * Environment attached to every telemetry envelope.
+   * @default process.env.NODE_ENV || "development"
    */
   environment?: string;
   /**
-   * Sampling rate for telemetry events.
-   *
+   * Sampling rate for monitor events.
    * @default 1
    */
   samplingRate?: number;
   /**
-   * Flush interval in milliseconds.
-   *
+   * Flush window in milliseconds for exporter batches.
    * @default 1000
    */
   flushIntervalMs?: number;
   /**
    * Maximum envelopes in one emitted batch.
-   *
    * @default 50
    */
   maxBatchSize?: number;
   /**
-   * Maximum in-memory queue size.
-   *
+   * Maximum envelopes buffered before backpressure drops oldest.
    * @default 1000
    */
   maxQueueSize?: number;
   /**
-   * Envelope attribute keys to redact.
+   * Envelope attribute keys that should be redacted.
    */
   redactionKeys?: string[];
   /**
@@ -225,27 +195,44 @@ export interface ServerTelemetryUserConfig {
    */
   canary?: ServerTelemetryCanaryUserConfig;
   exporters?: {
-    /** OpenTelemetry HTTP exporter. */
+    /**
+     * OpenTelemetry HTTP exporter.
+     */
     otlp?: ServerTelemetryExporterOptions;
-    /** VictoriaMetrics Prometheus import exporter. */
+    /**
+     * VictoriaMetrics Prometheus import exporter.
+     */
     victoriaMetrics?: ServerTelemetryVictoriaMetricsOptions;
   };
 }
 
 export interface ServerUserConfig {
+  publicDir?: string | string[];
   routes?: Routes;
+  /**
+   * Experimenal, it is not recommended to use it now
+   */
+  ssrByRouteIds?: string[];
   publicRoutes?: Record<string, string>;
   ssr?: SSR;
   ssrByEntries?: SSRByEntries;
+  rsc?: boolean;
   baseUrl?: string | string[];
   port?: number;
-  logger?: boolean | Record<string, any>;
-  metrics?: boolean | Record<string, any>;
-  telemetry?: ServerTelemetryUserConfig;
-  enableMicroFrontendDebug?: boolean;
   watchOptions?: WatchOptions;
-  compiler?: 'babel' | 'typescript';
-  enableFrameworkExt?: boolean;
+  compiler?: 'typescript';
+  /**
+   * @description use json script tag instead of inline script
+   * @default false
+   */
+  useJsonScript?: boolean;
+  logger?: boolean | Record<string, unknown>;
+  telemetry?: ServerTelemetryUserConfig;
+  /**
+   * @description disable hook middleware for performance
+   * @default false
+   */
+  disableHook?: boolean;
 }
 
 export type ServerNormalizedConfig = ServerUserConfig;

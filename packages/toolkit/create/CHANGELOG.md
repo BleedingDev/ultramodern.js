@@ -1,6 +1,264 @@
 # @modern-js/create
 
-## 4.0.0
+## 3.0.2
+
+### Patch Changes
+
+- 14d408f: fix(create): skip "enter project directory" step when project is created in current directory
+
+  fix(create): 当项目创建在当前目录时，不再提示执行 cd 进入项目目录
+
+## 3.0.1
+
+## 3.0.0
+
+## 3.0.0-alpha.2
+
+## 3.0.0-alpha.1
+
+## 3.0.0-alpha.0
+
+## 2.68.1
+
+## 2.68.0
+
+## 2.67.11
+
+## 2.67.10
+
+## 2.67.9
+
+## 2.67.8
+
+## 2.67.7
+
+## 2.67.6
+
+## 2.67.5
+
+## 2.67.4
+
+## 2.67.3
+
+## 2.67.2
+
+## 2.67.1
+
+## 2.67.0
+
+## 2.66.0
+
+## 2.65.5
+
+## 2.65.4
+
+## 2.65.3
+
+## 2.65.2
+
+## 2.65.1
+
+## 2.65.0
+
+## 2.64.3
+
+## 2.64.2
+
+## 2.64.1
+
+## 2.64.0
+
+## 2.63.7
+
+## 2.63.6
+
+## 2.63.5
+
+## 2.63.4
+
+## 2.63.3
+
+## 2.63.2
+
+## 2.63.1
+
+## 2.63.0
+
+## 2.62.1
+
+### Patch Changes
+
+- 6203806: fix: new and upgrade command run error
+
+  fix: 修复 new 命令和 upgrade 命令执行报错
+
+## 2.62.0
+
+## 2.61.0
+
+### Minor Changes
+
+- 2c95681: feat: create tools and new command not support Module project
+
+  feat: create 工具和 new 命令不再支持模块项目
+
+## 2.60.6
+
+## 2.60.5
+
+## 2.60.4
+
+### Patch Changes
+
+- d6986c5: feat: optimize generator download
+
+  feat: 优化生成器下载
+
+## 2.60.3
+
+## 2.60.2
+
+### Patch Changes
+
+- 0b6d335: feat: create tools support --time option
+
+  feat: create 工具支持 --time 选项
+
+- 0b6d335: feat: Optimize generator log information
+
+  feat: 优化生成器日志信息
+
+## 2.60.1
+
+## 2.60.0
+
+### Patch Changes
+
+- 65b2922: feat: generator update json add endWithNewLine params
+
+  feat: 生成器更新 json 文件增加 endWithNewLine 参数
+
+## 2.59.0
+
+## 2.58.3
+
+## 2.58.2
+
+### Patch Changes
+
+- 7715b6d: feat: update codesmith version
+
+  feat: 更新 codesmith 版本
+
+## 2.58.1
+
+## 2.58.0
+
+## 2.57.1
+
+## 2.57.0
+
+## 2.56.2
+
+## 2.56.1
+
+## 2.56.0
+
+## 2.55.0
+
+## 2.54.6
+
+## 2.54.5
+
+## 2.54.4
+
+## 2.54.3
+
+## 2.54.2
+
+## 2.54.1
+
+## 2.54.0
+
+## 2.53.0
+
+### Minor Changes
+
+- f0aa3d3: feat: @modern-js/create not support create Monorepo Project
+
+  feat: @modern-js/create 移除创建 Monorepo 项目
+
+## 2.52.0
+
+## 2.51.0
+
+## 2.50.0
+
+## 2.49.4
+
+## 2.49.3
+
+## 2.49.2
+
+## 2.49.1
+
+## 2.49.0
+
+## 2.48.6
+
+## 2.48.5
+
+## 2.48.4
+
+## 2.48.3
+
+## 2.48.2
+
+## 2.48.1
+
+## 2.48.0
+
+## 2.47.1
+
+## 2.47.0
+
+## 2.46.1
+
+## 2.46.0
+
+## 2.45.0
+
+## 2.44.0
+
+## 2.43.0
+
+## 2.42.2
+
+### Patch Changes
+
+- fa731a7: chore: bump codesmith to 2.3.2
+  chore: 升级 codesmith 版本到 2.3.2
+
+## 2.42.1
+
+## 2.42.0
+
+### Patch Changes
+
+- b182eb2: chore: bump codesmith v2.3.1 to show timing
+  chore: 升级 codesmith 到 v2.3.1, 用于展示执行时间
+
+## 2.41.0
+
+## 2.40.0
+
+## 2.39.2
+
+## 2.39.1
+
+## 2.39.0
+
+## 2.38.0
 
 ### Patch Changes
 

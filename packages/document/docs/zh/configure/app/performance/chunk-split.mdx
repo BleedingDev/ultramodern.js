@@ -1,0 +1,44 @@
+---
+title: chunkSplit
+---
+
+# performance.chunkSplit
+
+- **类型：** `Object`
+- **默认值：** `{ strategy: 'split-by-experience' }`
+
+`performance.chunkSplit` 用于配置 Modern.js 的拆包策略。配置项的类型 `ChunkSplit` 如下:
+
+```ts
+type ForceSplitting = RegExp[] | Record<string, RegExp>;
+
+interface BaseChunkSplit {
+  strategy?:
+    | 'split-by-module'
+    | 'split-by-experience'
+    | 'all-in-one'
+    | 'single-vendor';
+  override?: SplitChunks;
+  forceSplitting?: ForceSplitting;
+}
+
+interface SplitBySize {
+  strategy?: 'split-by-size';
+  minSize?: number;
+  maxSize?: number;
+  override?: SplitChunks;
+  forceSplitting?: ForceSplitting;
+}
+
+interface SplitCustom {
+  strategy?: 'custom';
+  splitChunks?: SplitChunks;
+  forceSplitting?: ForceSplitting;
+}
+
+export type ChunkSplit = BaseChunkSplit | SplitBySize | SplitCustom;
+```
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="performance.chunkSplit" />

@@ -1,13 +1,13 @@
 {
   "private": true,
   "name": "integration-basic-local-config",
-  "version": "2.9.0",
+  "version": "2.66.0",
   "scripts": {
     "build": "modern build"
   },
   "dependencies": {
-    "react": "^18",
-    "react-dom": "^18"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*"

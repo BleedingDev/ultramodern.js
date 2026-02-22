@@ -16,6 +16,10 @@ export type DependencyConfig = {
   packageJsonField?: string[];
   /** Whether to ignore type definitions */
   ignoreDts?: boolean;
+  /** Whether to emit type definitions */
+  emitDts?: boolean;
+  /** Whether to clear distPath */
+  clear?: boolean;
   /* Callback before bundle. */
   beforeBundle?: (task: ParsedTask) => void | Promise<void>;
   /* Callback after bundle. */
@@ -31,10 +35,13 @@ export type TaskConfig = {
 export type ParsedTask = {
   depPath: string;
   depEntry: string;
+  depEsmEntry?: string;
   distPath: string;
   importPath: string;
   packageDir: string;
   ignoreDts?: boolean;
+  emitDts?: boolean;
+  clear?: boolean;
   packagePath: string;
   packageName: string;
   minify: NonNullable<DependencyConfig['minify']>;

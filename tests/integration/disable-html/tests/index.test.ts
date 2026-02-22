@@ -1,5 +1,5 @@
-import path from 'path';
 import { existsSync } from 'fs';
+import path from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 test(`should not generate html files when tools.htmlPlugin is false`, async () => {
@@ -8,6 +8,6 @@ test(`should not generate html files when tools.htmlPlugin is false`, async () =
   await modernBuild(appDir);
 
   expect(
-    existsSync(path.resolve(appDir, `dist/html/main/index.html`)),
+    existsSync(path.resolve(appDir, `dist/html/index/index.html`)),
   ).toBeFalsy();
 });

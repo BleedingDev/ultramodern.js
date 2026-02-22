@@ -1,10 +1,10 @@
-import path from 'path';
 import fs from 'fs';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import path from 'path';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
-  launchApp,
-  killApp,
   getPort,
+  killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
@@ -35,7 +35,7 @@ describe('test dev', () => {
   test(`should render csr page with memory correctly`, async () => {
     const errors = [];
     page.on('pageerror', error => {
-      errors.push(error.message);
+      errors.push((error as Error).message);
     });
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
@@ -49,6 +49,6 @@ describe('test dev', () => {
 
   test('should not get production in dist', async () => {
     expect(existsSync('route.json')).toBeTruthy();
-    expect(existsSync('html/main/index.html')).toBeFalsy();
+    expect(existsSync('html/index/index.html')).toBeFalsy();
   });
 });

@@ -1,109 +1,97 @@
 import path from 'path';
-import { IAppContext } from '@modern-js/core';
-import { getFileSystemEntry } from '../../src/analyze/getFileSystemEntry';
-import { AppNormalizedConfig } from '../../src/types';
+import { type Plugin, createPluginManager } from '@modern-js/plugin';
+import { createContext, initPluginAPI } from '@modern-js/plugin/cli';
+import { runtimePlugin } from '../../../../runtime/plugin-runtime/src/cli';
+import { appTools } from '../../src';
+import { handleSetupResult } from '../../src/compat/hooks';
+import { getFileSystemEntry } from '../../src/plugins/analyze/getFileSystemEntry';
+import type {
+  AppNormalizedConfig,
+  AppTools,
+  AppToolsContext,
+} from '../../src/types';
 
 describe('get entrypoints from file system', () => {
+  let pluginAPI: any;
+  const config = { source: { entriesDir: './src' } };
   const fixtures = path.resolve(__dirname, './fixtures/entries');
 
-  const config = { source: { entriesDir: './src' } };
+  const setup = async ({ appDirectory }: { appDirectory: string }) => {
+    const pluginManager = createPluginManager();
+    pluginManager.addPlugins([appTools() as Plugin, runtimePlugin() as Plugin]);
+    const plugins = pluginManager.getPlugins();
+    const context = await createContext<AppTools>({
+      appContext: {
+        metaName: 'modern-js',
+        appDirectory,
+        plugins,
+      } as any,
+      config: {},
+      normalizedConfig: { plugins: [] } as any,
+    });
+    pluginAPI = initPluginAPI<AppTools>({
+      context,
+      pluginManager,
+    });
+    context.pluginAPI = pluginAPI;
+    for (const plugin of plugins) {
+      const setupResult = (await plugin.setup!(pluginAPI)) as any;
+      if (setupResult) {
+        await handleSetupResult(setupResult, pluginAPI);
+      }
+    }
+  };
 
-  test('should have one entry include src/App', () => {
+  test('should have one entry include src/App', async () => {
     const appContext = {
       appDirectory: path.resolve(fixtures, './single-entry'),
     };
-
+    await setup(appContext);
     expect(
-      getFileSystemEntry(
-        appContext as IAppContext,
-        config as AppNormalizedConfig<'shared'>,
+      await getFileSystemEntry(
+        await pluginAPI.getHooks(),
+        appContext as AppToolsContext,
+        config as AppNormalizedConfig,
       ),
     ).toMatchObject([
       {
         entryName: 'src',
-        entry: path.resolve(fixtures, './single-entry/src/App'),
+        entry: path.resolve(fixtures, './single-entry/src/App.tsx'),
         isAutoMount: true,
-        customBootstrap: false,
       },
     ]);
   });
 
-  test(`should have one entry include src/pages`, () => {
+  test(`should have one build entry with isAutoMount false`, async () => {
     const appContext = {
-      appDirectory: path.resolve(fixtures, './file-system-routes'),
+      appDirectory: path.resolve(fixtures, './build-entry'),
     };
+    await setup(appContext);
 
     expect(
-      getFileSystemEntry(
-        appContext as IAppContext,
-        config as AppNormalizedConfig<'shared'>,
+      await getFileSystemEntry(
+        await pluginAPI.getHooks(),
+        appContext as AppToolsContext,
+        config as AppNormalizedConfig,
       ),
     ).toMatchObject([
       {
         entryName: 'src',
-        entry: path.resolve(fixtures, './file-system-routes/src/pages'),
-        isAutoMount: true,
-        customBootstrap: false,
-        fileSystemRoutes: {
-          globalApp: path.resolve(
-            fixtures,
-            './file-system-routes/src/pages/_app.ts',
-          ),
-        },
-      },
-    ]);
-  });
-
-  test(`should have one index entry with isAutoMount false`, () => {
-    const appContext = {
-      appDirectory: path.resolve(fixtures, './index-entry'),
-    };
-
-    expect(
-      getFileSystemEntry(
-        appContext as IAppContext,
-        config as AppNormalizedConfig<'shared'>,
-      ),
-    ).toMatchObject([
-      {
-        entryName: 'src',
-        entry: path.resolve(appContext.appDirectory, './src/index.jsx'),
+        entry: path.resolve(appContext.appDirectory, './src/entry.jsx'),
         isAutoMount: false,
       },
     ]);
   });
 
-  test(`should have one entry with custom bootstrap function`, () => {
-    const appContext = {
-      appDirectory: path.resolve(fixtures, './custom-bootstrap'),
-    };
-
-    expect(
-      getFileSystemEntry(
-        appContext as IAppContext,
-        config as AppNormalizedConfig<'shared'>,
-      ),
-    ).toMatchObject([
-      {
-        entryName: 'src',
-        entry: path.resolve(appContext.appDirectory, './src/App'),
-        isAutoMount: true,
-        customBootstrap: path.resolve(
-          appContext.appDirectory,
-          './src/index.tsx',
-        ),
-      },
-    ]);
-  });
-
-  test(`should have no entry`, () => {
+  test(`should have no entry`, async () => {
     const appContext = { appDirectory: path.resolve(fixtures, './no-entry') };
-
-    expect(
+    await setup(appContext);
+    await expect(
       getFileSystemEntry(
-        appContext as IAppContext,
-        config as AppNormalizedConfig<'shared'>,
-      ).length,
-    ).toBe(0);
+        await pluginAPI.getHooks(),
+        appContext as AppToolsContext,
+        config as AppNormalizedConfig,
+      ),
+    ).rejects.toThrow('There is no valid entry point in the current project!');
   });
 });

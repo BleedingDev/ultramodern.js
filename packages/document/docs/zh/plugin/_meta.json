@@ -1,0 +1,25 @@
+[
+  "introduction",
+  "plugin-system",
+  {
+    "type": "dir",
+    "name": "cli-plugins",
+    "label": "cli-plugins"
+  },
+  {
+    "type": "dir",
+    "name": "runtime-plugins",
+    "label": "runtime-plugins"
+  },
+  {
+    "type": "dir",
+    "name": "server-plugins",
+    "label": "server-plugins"
+  },
+  {
+    "type": "dir",
+    "name": "official",
+    "label": "official-plugins",
+    "collapsed": true
+  }
+]

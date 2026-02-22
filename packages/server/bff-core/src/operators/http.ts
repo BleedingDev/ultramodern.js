@@ -1,14 +1,14 @@
 import type { z } from 'zod';
+import { ValidationError } from '../errors/http';
 import {
   HttpMetadata,
-  Operator,
-  OperatorType,
   HttpMethod,
-  TriggerType,
+  type MetadataHelper,
+  type Operator,
+  OperatorType,
   ResponseMetaType,
-  MetadataHelper,
+  TriggerType,
 } from '../types';
-import { ValidationError } from '../errors/http';
 
 export interface ResponseMeta {
   type: ResponseMetaType;
@@ -21,9 +21,8 @@ const validateInput = async <Schema extends z.ZodType>(
 ): Promise<z.output<Schema>> => {
   try {
     return await schema.parseAsync(input);
-  } catch (error) {
-    const { z: zod } = await import('zod');
-    if (error instanceof zod.ZodError) {
+  } catch (error: any) {
+    if ('name' in error && error.name === 'ZodError') {
       throw new ValidationError(400, error.message);
     }
     throw error;
@@ -77,7 +76,7 @@ export const Data = <Schema extends z.ZodType>(
 
       helper.inputs = {
         ...helper.inputs,
-        data: await validateInput(schema, data),
+        data: await validateInput(schema, data as z.input<Schema>),
       };
       return next();
     },
@@ -106,7 +105,7 @@ export const Query = <Schema extends z.ZodType>(
 
       helper.inputs = {
         ...helper.inputs,
-        query: await validateInput(schema, query),
+        query: await validateInput(schema, query as z.input<Schema>),
       };
       return next();
     },
@@ -135,7 +134,7 @@ export const Params = <Schema extends z.ZodType>(
 
       helper.inputs = {
         ...helper.inputs,
-        params: await validateInput(schema, params),
+        params: await validateInput(schema, params as z.input<Schema>),
       };
       return next();
     },
@@ -164,7 +163,7 @@ export const Headers = <Schema extends z.ZodType>(
 
       helper.inputs = {
         ...helper.inputs,
-        headers: await validateInput(schema, headers),
+        headers: await validateInput(schema, headers as z.input<Schema>),
       };
       return next();
     },
@@ -211,6 +210,46 @@ export const Redirect = (url: string): Operator<void> => {
     name: 'Redirect',
     metadata(helper) {
       setResponseMeta(helper, ResponseMetaType.Redirect, url);
+    },
+  };
+};
+
+export const Upload = <Schema extends z.ZodType>(
+  urlPath: string,
+  schema?: Schema,
+): Operator<
+  {
+    files: z.input<Schema>;
+  },
+  {
+    formData: z.output<Schema>;
+  }
+> => {
+  return {
+    name: 'Upload',
+    metadata({ setMetadata }) {
+      setMetadata(OperatorType.Trigger, {
+        type: TriggerType.Http,
+        path: urlPath,
+        method: HttpMethod.Post,
+        action: 'upload',
+      });
+      setMetadata(HttpMetadata.Files, schema);
+    },
+    async validate(helper, next) {
+      if (!schema) {
+        return next();
+      }
+
+      const {
+        inputs: { formData: files },
+      } = helper;
+
+      (helper.inputs as any) = {
+        ...helper.inputs,
+        files: await validateInput(schema, files as z.input<Schema>),
+      };
+      return next();
     },
   };
 };

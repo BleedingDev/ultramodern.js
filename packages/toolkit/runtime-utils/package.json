@@ -15,85 +15,110 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
+  "version": "3.0.2",
   "_comment": "Provide ESM and CJS exports, ESM is used by runtime package, for treeshaking",
   "exports": {
     "./router": {
-      "jsnext:source": "./src/router.ts",
-      "require": "./dist/cjs/router.js",
-      "default": "./dist/esm/router.js"
+      "types": "./dist/types/router.d.ts",
+      "modern:source": "./src/router.ts",
+      "default": "./dist/esm/router.mjs"
     },
-    "./remix-router": {
-      "jsnext:source": "./src/remixRouter.ts",
-      "require": "./dist/cjs/remixRouter.js",
-      "default": "./dist/esm/remixRouter.js"
+    "./router/rsc": {
+      "types": "./dist/types/rsc.d.ts",
+      "modern:source": "./src/rsc.ts",
+      "default": "./dist/esm/rsc.mjs"
     },
     "./browser": {
-      "jsnext:source": "./src/browser/index.ts",
-      "require": "./dist/cjs/browser/index.js",
-      "default": "./dist/esm/browser/index.js"
+      "types": "./dist/types/browser/index.d.ts",
+      "modern:source": "./src/browser/index.ts",
+      "default": "./dist/esm/browser/index.mjs"
     },
     "./node": {
-      "jsnext:source": "./src/node/index.ts",
-      "require": "./dist/cjs/node/index.js",
-      "default": "./dist/esm/node/index.js"
+      "types": "./dist/types/node/index.d.ts",
+      "modern:source": "./src/node/index.ts",
+      "default": "./dist/esm/node/index.mjs"
     },
-    "./node/router": {
-      "jsnext:source": "./src/node/router.ts",
-      "require": "./dist/cjs/node/router.js",
-      "default": "./dist/esm/node/router.js"
+    "./server": {
+      "types": "./dist/types/server/index.d.ts",
+      "modern:source": "./src/server/index.ts",
+      "node": {
+        "module": "./dist/esm/server/index.mjs",
+        "import": "./dist/esm-node/server/index.mjs",
+        "require": "./dist/cjs/server/index.js"
+      },
+      "default": "./dist/esm/server/index.mjs"
     },
     "./time": {
-      "jsnext:source": "./src/time.ts",
-      "require": "./dist/cjs/time.js",
-      "default": "./dist/esm/time.js"
+      "types": "./dist/types/time.d.ts",
+      "modern:source": "./src/time.ts",
+      "node": {
+        "module": "./dist/esm/time.mjs",
+        "import": "./dist/esm-node/time.mjs",
+        "require": "./dist/cjs/time.js"
+      },
+      "default": "./dist/esm/time.mjs"
+    },
+    "./universal/request": {
+      "types": "./dist/types/universal/request.d.ts",
+      "modern:source": "./src/universal/request.ts",
+      "default": "./dist/esm/universal/request.mjs"
+    },
+    "./parsed": {
+      "types": "./dist/types/parsed.d.ts",
+      "modern:source": "./src/parsed.ts",
+      "default": "./dist/esm/parsed.mjs"
+    },
+    "./storer": {
+      "types": "./dist/types/node/storer/index.d.ts",
+      "modern:source": "./src/node/storer/index.ts",
+      "node": {
+        "import": "./dist/esm-node/node/storer/index.mjs",
+        "require": "./dist/cjs/node/storer/index.js"
+      },
+      "default": "./dist/cjs/node/storer/index.js"
+    },
+    "./fileReader": {
+      "types": "./dist/types/node/fileReader.d.ts",
+      "modern:source": "./src/node/fileReader.ts",
+      "node": {
+        "import": "./dist/esm-node/node/fileReader.mjs",
+        "require": "./dist/cjs/node/fileReader.js"
+      },
+      "default": "./dist/cjs/node/fileReader.js"
+    },
+    "./url": {
+      "types": "./dist/types/url.d.ts",
+      "modern:source": "./src/url.ts",
+      "default": "./dist/esm/url.mjs"
+    },
+    "./merge": {
+      "types": "./dist/types/merge.d.ts",
+      "modern:source": "./src/merge.ts",
+      "default": "./dist/esm/merge.mjs"
+    },
+    "./cache": {
+      "types": "./dist/types/universal/cache.d.ts",
+      "modern:source": "./src/universal/cache.ts",
+      "node": {
+        "module": "./dist/esm/universal/cache.mjs",
+        "import": "./dist/esm-node/universal/cache.mjs",
+        "require": "./dist/cjs/universal/cache.js"
+      },
+      "default": "./dist/esm/universal/cache.mjs"
     }
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
-    "types": "./dist/types/index.d.ts",
-    "exports": {
-      "./router": {
-        "types": "./dist/types/router.d.ts",
-        "require": "./dist/cjs/router.js",
-        "default": "./dist/esm/router.js"
-      },
-      "./remix-router": {
-        "types": "./dist/types/remixRouter.d.ts",
-        "require": "./dist/cjs/remixRouter.js",
-        "default": "./dist/esm/remixRouter.js"
-      },
-      "./browser": {
-        "jsnext:source": "./src/browser/index.d.ts",
-        "require": "./dist/cjs/browser/index.js",
-        "default": "./dist/esm/browser/index.js"
-      },
-      "./node": {
-        "types": "./dist/types/node/index.d.ts",
-        "require": "./dist/cjs/node/index.js",
-        "default": "./dist/esm/node/index.js"
-      },
-      "./node/router": {
-        "types": "./dist/types/node/router.d.ts",
-        "require": "./dist/cjs/node/router.js",
-        "default": "./dist/esm/node/router.js"
-      },
-      "./time": {
-        "types": "./dist/types/time.d.ts",
-        "require": "./dist/cjs/time.js",
-        "default": "./dist/esm/time.js"
-      }
-    }
+    "types": "./dist/types/index.d.ts"
   },
   "typesVersions": {
     "*": {
       "router": [
         "./dist/types/router.d.ts"
       ],
-      "remix-router": [
-        "./dist/types/remixRouter.d.ts"
+      "router/rsc": [
+        "./dist/types/rsc.d.ts"
       ],
       "browser": [
         "./dist/types/browser/index.d.ts"
@@ -101,31 +126,52 @@
       "node": [
         "./dist/types/node/index.d.ts"
       ],
-      "node/router": [
-        "./dist/types/node/router.d.ts"
+      "server": [
+        "./dist/types/server/index.d.ts"
+      ],
+      "universal/request": [
+        "./dist/types/universal/request.d.ts"
       ],
       "time": [
         "./dist/types/time.d.ts"
+      ],
+      "parsed": [
+        "./dist/types/parsed.d.ts"
+      ],
+      "storer": [
+        "./dist/types/node/storer/index.d.ts"
+      ],
+      "fileReader": [
+        "./dist/types/node/fileReader.d.ts"
+      ],
+      "url": [
+        "./dist/types/url.d.ts"
+      ],
+      "merge": [
+        "./dist/types/merge.d.ts"
+      ],
+      "cache": [
+        "./dist/types/universal/cache.d.ts"
       ]
     }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "new": "modern-lib new",
-    "dev": "modern-lib build --watch",
-    "build": "modern-lib build",
-    "test": "jest --passWithNoTests"
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests"
   },
   "dependencies": {
+    "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "serialize-javascript": "^6.0.0",
-    "react-router-dom": "6.15.0",
-    "@remix-run/router": "1.8.0",
-    "@swc/helpers": "0.5.1"
+    "@swc/helpers": "^0.5.18",
+    "lru-cache": "^11.2.6",
+    "react-router": "7.13.0",
+    "serialize-javascript": "^7.0.2"
   },
   "peerDependencies": {
-    "react": ">=17.0.0",
-    "react-dom": ">=17.0.0"
+    "react": ">=17.0.2",
+    "react-dom": ">=17.0.2"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -136,16 +182,16 @@
     }
   },
   "devDependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@modern-js/types": "workspace:*",
-    "@scripts/build": "workspace:*",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "jest": "^29",
-    "typescript": "^5",
-    "@types/serialize-javascript": "^5.0.1"
+    "@modern-js/rslib": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/ioredis-mock": "^8.2.6",
+    "@types/node": "^25.3.0",
+    "@types/serialize-javascript": "^5.0.4",
+    "ioredis-mock": "^8.13.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.9.3"
   },
   "sideEffects": false
 }

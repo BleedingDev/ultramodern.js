@@ -11,9 +11,11 @@ export interface OutputUserConfig {
     server?: string;
   };
   enableInlineRouteManifests?: boolean;
-  path?: string;
+  disableInlineRouteManifests?: boolean;
   assetPrefix?: string;
   polyfill?: 'entry' | 'usage' | 'ua' | 'off';
+  inlineScripts?: boolean;
+  inlineStyles?: boolean;
 }
 
 export type OutputNormalizedConfig = OutputUserConfig;

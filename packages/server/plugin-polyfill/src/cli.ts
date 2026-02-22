@@ -1,29 +1,24 @@
-import type { CliPlugin } from '@modern-js/core';
-import type { AppTools } from '@modern-js/app-tools';
+import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import { defaultPolyfill } from './const';
 
 export const polyfillPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-polyfill',
 
-  setup: api => ({
-    htmlPartials({ entrypoint, partials }: any) {
-      const resolvedConfig = api.useResolvedConfigContext();
+  setup: api => {
+    api.modifyHtmlPartials(async ({ entrypoint, partials }) => {
+      const resolvedConfig = api.getNormalizedConfig();
       if (resolvedConfig.output.polyfill === 'ua') {
-        partials.top.push(
+        partials.top.append(
           `<script src="${defaultPolyfill}" crossorigin></script>`,
         );
       }
+    });
 
-      return { partials, entrypoint };
-    },
-
-    collectServerPlugins({ plugins }) {
-      plugins.push({
-        '@modern-js/plugin-polyfill': '@modern-js/plugin-polyfill/server',
-      });
+    api._internalServerPlugins(async ({ plugins }) => {
+      plugins.push({ name: '@modern-js/plugin-polyfill/server' });
       return { plugins };
-    },
-  }),
+    });
+  },
 });
 
 export default polyfillPlugin;

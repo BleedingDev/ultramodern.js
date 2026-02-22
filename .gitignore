@@ -2,8 +2,6 @@
 
 .pnp
 .pnp.js
-.env.local
-.env.*.local
 .history
 *.log*
 
@@ -13,6 +11,7 @@ node_modules/
 .eslintcache
 
 dist/
+dist-ssg/
 doc_build/
 !**/compiled/**/dist
 coverage/
@@ -37,6 +36,9 @@ local-test-project/*
 # Dynamically generated
 .runtime-exports/
 
+# Generated TanStack Router type files (Modern.js TanStack integration)
+modern-tanstack/
+
 # website
 .docusaurus
 website/main/build
@@ -44,6 +46,7 @@ website/**/.temp
 
 .wireit/
 .nx-cache/
+.nx/
 playground/
 
 # Local Netlify folder

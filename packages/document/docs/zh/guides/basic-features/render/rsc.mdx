@@ -1,0 +1,613 @@
+---
+title: React Server Components (RSC)
+---
+
+# React Server Components (RSC)
+
+React Server Components (RSC) 是一种新的组件类型，允许在服务端环境中渲染组件，为现代 Web 应用带来更好的性能和开发体验。
+
+## 核心优势
+
+- **零客户端 JavaScript**：Server Components 的代码不会被打包到客户端，显著减少客户端 bundle 体积
+- **直接访问服务端资源**：可以直接访问数据库、文件系统、内部 API 等服务端资源，无需额外的 API 层
+- **更好的性能**：数据获取更接近数据源，减少客户端数据瀑布流，提升首屏加载速度
+- **自动代码分割**：基于实际渲染的数据进行代码分割，而不仅仅是路由，实现更精细的代码优化
+- **更高的内聚性**：与数据、权限、缓存等紧密相关的逻辑可以留在 Server Component 中，组件内聚度更高，减少状态上浮和跨层级传递
+
+:::tip 前置阅读
+在开始之前，建议你阅读 React 官方的 [Server Components 文档](https://react.dev/reference/rsc/server-components)，对 Server Component 有一个基本的了解。
+
+:::
+
+## 快速开始
+
+1. **确保 React 和 React DOM 升级到 19 版本**（建议 19.2.4 以上版本）
+
+2. **安装 `react-server-dom-rspack@0.0.1-beta.0` 依赖**
+
+```bash
+npm install react-server-dom-rspack@0.0.1-beta.0
+```
+
+:::warning 注意事项
+
+1. 目前暂不支持在 SPA 项目中使用 [Server Functions](https://react.dev/reference/rsc/server-functions)
+2. 目前在 Rspack 构建时，产物分片和体积还未达到最优状态，我们将在近期进一步优化
+
+:::
+
+3. 设置 [`server.rsc`](/configure/app/server/rsc) 为 `true`：
+
+```ts title="modern.config.ts"
+import { defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  server: {
+    rsc: true,
+  },
+});
+```
+
+:::info 旧 CSR 项目迁移
+如果是 CSR 项目，且项目中使用了 Modern.js 的 Data Loader，开启 RSC 后，Data Loader 默认会在服务端执行。
+详细的迁移指南请参考 [CSR 项目迁移到 RSC](#csr-项目迁移到-rsc)。
+
+:::
+
+## 使用指南
+
+### 默认行为
+
+默认情况下，当开启 RSC 时，Modern.js 中的所有组件默认是 **Server Component**。Server Component 允许你在服务端获取数据并渲染 UI。当需要交互性（如事件处理、状态管理）或使用浏览器 API 时，你可以使用 `"use client"` 指令将组件标记为 **Client Component**。
+
+### 组件类型选择
+
+#### 何时使用 Client Component
+
+当组件需要以下功能时，你需要使用 `"use client"` 指令将其标记为 Client Component：
+
+- **交互性**：使用 [State](https://react.dev/learn/managing-state) 和 [event handlers](https://react.dev/learn/responding-to-events)，例如 `onClick`、`onChange`、`onSubmit`
+- **生命周期**：使用[生命周期](https://react.dev/learn/lifecycle-of-reactive-effects)相关的 hook，例如 `useEffect`、`useLayoutEffect`
+- **浏览器 API**：使用浏览器的 API（如 `window`、`document`、`localStorage`、`navigator` 等）
+- **自定义 Hook**：使用[自定义 hook](https://react.dev/learn/reusing-logic-with-custom-hooks)，特别是那些依赖客户端特性的 hook
+
+#### 何时使用 Server Component
+
+以下场景应该使用 Server Component（默认行为，无需额外标记）：
+
+1. **访问服务端资源**：使用服务端才有的 API（如 Node.js 的 API、文件系统、consul、RPC 等）
+2. **数据获取**：在服务端获取数据以优化性能，减少客户端请求
+3. **安全性**：访问私密的环境变量或 API 密钥，避免暴露给客户端
+4. **减少 bundle 体积**：使用大型依赖库，这些库不需要包含在客户端 bundle 中
+5. **静态内容**：渲染静态或变化频率低的内容
+
+### Client Boundary（客户端边界）
+
+一旦一个文件被标记为 `"use client"`，那么它所导入的所有其他模块（如果它们还没有被标记为 `"use client"`）也会被认为是客户端代码，并被包含在客户端的 JavaScript 包中。这就是 **Client Boundary** 的概念。
+
+:::tip 理解 Client Boundary
+`"use client"` 指令创建了一个边界：边界内的所有代码都会被打包到客户端。这意味着即使 `Button` 和 `Tooltip` 组件本身没有 `"use client"` 指令，它们也会因为被 `InteractiveCard` 导入而成为客户端代码。
+
+:::
+
+```tsx title="components/InteractiveCard.tsx"
+'use client'; // <--- 这里是 Client Boundary 的起点
+
+import { useState } from 'react';
+import Button from './Button'; // Button.tsx 没有 "use client"，但会被包含在客户端 bundle 中
+import Tooltip from './Tooltip'; // Tooltip.tsx 也没有 "use client"，同样会被包含
+
+export default function InteractiveCard() {
+  const [isActive, setIsActive] = useState(false);
+
+  return (
+    <div onClick={() => setIsActive(!isActive)}>
+      <p>Click me!</p>
+      <Button />
+      <Tooltip text="This is a card" />
+    </div>
+  );
+}
+```
+
+### 如何组合两种组件
+
+Server Component 和 Client Component 并非孤立存在，它们需要协同工作。请记住以下两条规则：
+
+#### Server Component 可以导入 Client Component
+
+这是最常见的模式，你的页面主体是一个 Server Component，负责获取数据和布局，而在其中需要交互的部分，则嵌入 Client Component。
+
+```tsx title="routes/page.tsx"
+// Server Component（默认，无需标记）
+import CounterButton from './CounterButton'; // 这是一个 Client Component
+
+async function getPageData() {
+  // 在服务端获取数据
+  const res = await fetch('https://api.example.com/data');
+  return res.json();
+}
+
+export default async function Page() {
+  const data = await getPageData();
+
+  return (
+    <div>
+      <h1>{data.title}</h1> {/* 服务端渲染 */}
+      <p>This part is static.</p>
+      {/* Client Component 可以无缝嵌入 Server Component */}
+      <CounterButton />
+    </div>
+  );
+}
+```
+
+```tsx title="routes/CounterButton.tsx"
+'use client'; // Client Component
+
+import { useState } from 'react';
+
+export default function CounterButton() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(c => c + 1)}>Count: {count}</button>;
+}
+```
+
+#### Client Component 不能直接导入 Server Component
+
+这一点初看起来可能有些违反直觉。原因在于：Server Component 的代码根本不存在于客户端。当一个 Client Component 在浏览器中渲染时，它无法去执行一个只存在于服务器上的函数。
+
+但是，有两种模式可以绕过这个限制：
+
+**1. 通过 `children` Prop 传递 Server Component**
+
+你可以将 Server Components 作为 `children` Prop 传递给一个 Client Component。假设一个带动画的 Tabs 组件，Tabs 的切换逻辑本身是客户端的，但每个标签页的内容可能是静态的、从服务器获取的。
+
+```tsx title="app/components/Tabs.tsx"
+'use client'; // Client Component
+
+import React, { useState } from 'react';
+
+interface TabsProps {
+  tabLabels: string[];
+  children: React.ReactNode;
+}
+
+export default function Tabs({ tabLabels, children }: TabsProps) {
+  const [activeTab, setActiveTab] = useState(0);
+
+  return (
+    <div>
+      <nav>
+        {tabLabels.map((label, index) => (
+          <button key={label} onClick={() => setActiveTab(index)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+      {/* React.Children.toArray 会确保只渲染活跃的子组件 */}
+      <div>{React.Children.toArray(children)[activeTab]}</div>
+    </div>
+  );
+}
+```
+
+```tsx title="app/dashboard/page.tsx"
+// Server Component（默认）
+import Tabs from '../components/Tabs';
+import Analytics from '../components/Analytics'; // Server Component
+import UserSettings from '../components/UserSettings'; // Server Component
+
+export default function DashboardPage() {
+  const labels = ['Analytics', 'Settings'];
+
+  return (
+    <main>
+      <h1>Dashboard</h1>
+      {/*
+        这里，Tabs 是 Client Component（负责交互逻辑），
+        但 Analytics 和 UserSettings 是在服务端渲染好的 Server Component，
+        它们作为 children prop 传递给 Tabs 组件。
+        这样既保持了交互性，又最大化利用了服务端渲染的优势。
+      */}
+      <Tabs tabLabels={labels}>
+        <Analytics />
+        <UserSettings />
+      </Tabs>
+    </main>
+  );
+}
+```
+
+通过这种模式，你可以在保持交互性的同时，最大限度地将组件保留在服务端，从而获得极致的性能。这是 RSC 中最强大的组合模式之一。
+
+**2. 路由组件可以独立选择组件类型**
+
+每一级的路由组件（如 `layout.tsx`、`page.tsx`）可以独立选择是 Client Component 还是 Server Component：
+
+```bash
+- routes
+    - layout.tsx  // 可以是 Client Component
+    - page.tsx    // 可以是 Server Component
+```
+
+例如，假设 `layout.tsx` 是一个 Client Component（需要客户端交互），你仍然可以将 `page.tsx` 设置为 Server Component（用于数据获取和渲染）。这种方式提供了极大的灵活性，也使非 RSC 项目可以渐进式地迁移至 RSC 项目。
+
+## Server Component 与 Data Loader
+
+在 RSC 项目中，你有两种方式获取数据：在 Server Component 中直接获取，或使用 [Data Loader](/guides/basic-features/data/data-fetch)。两种方式各有优势，可以根据场景灵活选择。
+
+### 两种数据获取方式对比
+
+| 特性 | Server Component 中获取 | Data Loader 中获取 |
+| --- | --- | --- |
+| 避免请求瀑布 | 需要手动优化 | ✅ 自动并行执行 |
+| 组件内聚性 | ✅ 数据和 UI 在同一处 | 数据逻辑分离到单独文件 |
+| 维护性 | ✅ 更易理解和维护 | 需要维护额外文件 |
+| 类型安全 | ✅ 天然类型推断 | 需要手动管理类型 |
+
+**一般情况下，我们推荐在 Server Component 中获取数据**，因为在服务端瀑布请求对性能的影响较小，这种方式使组件更加内聚，数据获取逻辑和 UI 渲染在同一处，更易于理解和维护。但如果你的页面有多个独立的数据源，且希望完全避免请求瀑布问题，Data Loader 的并行执行特性会更有优势。
+
+### RSC 项目中 Data Loader 的执行环境
+
+在 RSC 项目中，Data Loader 的执行环境与文件命名有关：
+
+- **`*.data.ts`**：只在**服务端**执行，Client Component 和 Server Component 都可以消费其数据
+- **`*.data.client.ts`**：只在**客户端**执行
+
+```bash
+.
+└── routes
+    └── user
+        ├── page.tsx           # 路由组件（可以是 Server 或 Client Component）
+        ├── page.data.ts       # 服务端执行，数据可被任何组件消费
+        └── page.data.client.ts # 客户端执行
+```
+
+在 Modern.js RSC 项目中，Server Component 可以通过 `loaderData` prop 接收 Data Loader 返回的数据：
+
+```tsx title="routes/user/page.tsx"
+// Server Component 通过 props 接收 loaderData
+export default function UserPage({ loaderData }: { loaderData: { name: string } }) {
+  return <div>Welcome, {loaderData.name}</div>;
+}
+```
+
+```tsx title="routes/user/page.tsx"
+'use client';
+// Client Component 同样可以通过 props 接收 loaderData
+export default function UserPage({ loaderData }: { loaderData: { name: string } }) {
+  return <div>Welcome, {loaderData.name}</div>;
+}
+```
+
+### Data Loader 返回 Server Component
+
+在 Modern.js RSC 项目中，Data Loader 有一个强大的特性：**可以返回 Server Component**。这对于渐进式迁移非常有帮助，允许你在 Client Component 中渲染服务端生成的内容。
+
+```tsx title="routes/user/layout.data.tsx"
+// Server Component 定义在 data loader 文件中
+function UserProfile() {
+  return <div>User Profile (Server Rendered)</div>;
+}
+
+export const loader = async () => {
+  const userData = await fetchUserData();
+
+  return {
+    user: userData,
+    // 返回一个 Server Component 作为数据的一部分
+    ProfileComponent: <UserProfile />,
+  };
+};
+```
+
+```tsx title="routes/user/layout.tsx"
+'use client';
+import { Outlet } from '@modern-js/runtime/router';
+
+export default function UserLayout({
+  loaderData,
+}: {
+  loaderData: { user: any; ProfileComponent: React.ReactNode };
+}) {
+  const { user, ProfileComponent } = loaderData;
+
+  return (
+    <div>
+      {/* 在 Client Component 中直接渲染 Server Component */}
+      {ProfileComponent}
+      <div>User: {user.name}</div>
+      <Outlet />
+    </div>
+  );
+}
+```
+
+## Server Component API
+
+在 RSC 场景下，Modern.js 提供了一系列服务端 API，允许你在 Server Component 中直接操作 HTTP 请求和响应。这些 API 只能在 Server Component 中使用。
+
+### getRequest
+
+获取当前请求的 `Request` 对象，用于访问请求信息（如 URL、查询参数、请求头等）。
+
+```tsx title="routes/page.tsx"
+import { getRequest } from '@modern-js/runtime';
+
+export default async function Page() {
+  const request = getRequest();
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+  const query = searchParams.get('q');
+
+  return <div>Search query: {query}</div>;
+}
+```
+
+### setHeaders
+
+设置 HTTP 响应头。可以用于设置自定义响应头，如缓存控制、CORS 等。
+
+```tsx title="routes/page.tsx"
+import { setHeaders } from '@modern-js/runtime';
+
+export default async function Page() {
+  setHeaders({
+    'X-Custom-Header': 'custom-value',
+    'Cache-Control': 'public, max-age=3600',
+  });
+
+  return <div>Page content</div>;
+}
+```
+
+### setStatus
+
+设置 HTTP 响应状态码。常用于返回错误状态码（如 404、500）或成功状态码（如 201）。
+
+```tsx title="routes/page.tsx"
+import { setStatus } from '@modern-js/runtime';
+
+export default async function Page() {
+  setStatus(201);
+  return <div>Resource created</div>;
+}
+```
+
+### redirect
+
+执行 HTTP 重定向。可以指定重定向的状态码（默认为 307）和额外的响应头。
+
+```tsx title="routes/page.tsx"
+import { redirect } from '@modern-js/runtime';
+
+export default async function Page() {
+  // 简单重定向，使用默认状态码 307
+  redirect('/new-path');
+
+  // 指定状态码
+  redirect('/new-path', 301);
+
+  // 指定状态码和响应头
+  redirect('/new-path', {
+    status: 301,
+    headers: {
+      'X-Redirect-From': '/old-path',
+    },
+  });
+
+  return null; // redirect 后不会执行到这里
+}
+```
+
+:::warning 注意事项
+
+1. 这些 API 只能在 **Server Component** 中使用，在 Client Component 中调用不会产生任何效果
+2. `redirect` 会立即终止当前组件的渲染，后续代码不会执行
+3. 这些 API 应该在组件的顶层调用，而不是在条件分支或循环中调用，以确保行为可预测
+
+:::
+
+## CSR 项目迁移指南
+
+Modern.js 的 RSC 能力，不仅支持 SSR 项目也支持 CSR 项目。对于现有的 CSR 项目，如果希望渐进式迁移到 RSC，推荐按照以下步骤：
+
+1. **开启 RSC 配置**
+
+```ts title="modern.config.ts"
+import { defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  server: {
+    rsc: true,
+  },
+});
+```
+
+2. **将所有路由组件标记为 `'use client'`**
+
+这确保现有组件的行为不变，它们仍然作为 Client Component 运行。
+
+```tsx title="routes/page.tsx"
+'use client';
+
+export default function Page() {
+  // 现有的客户端逻辑保持不变
+}
+```
+
+3. **将所有 `*.data.ts` 重命名为 `*.data.client.ts`**
+
+由于 RSC 项目中 `*.data.ts` 默认在服务端执行，为了保持与 CSR 项目一致的行为（Data Loader 在客户端执行），需要将文件重命名。
+
+```bash
+# 重命名前
+routes/user/page.data.ts
+
+# 重命名后
+routes/user/page.data.client.ts
+```
+
+完成以上步骤后，你可以逐步将组件迁移为 Server Component，享受 RSC 带来的性能优势。
+
+## 注意事项
+
+### 使用 Streaming SSR 的项目
+
+如果你同时使用了 Streaming SSR 和 RSC，在 react19 中需要通过使用 `use`，而不再需要使用 `Await` 组件：
+
+```ts
+function NonCriticalUI({ p }: { p: Promise<string> }) {
+  let value = React.use(p);
+  return <h3>Non critical value {value}</h3>;
+}
+
+<React.Suspense fallback={<div>Loading...</div>}>
+  <NonCriticalUI p={nonCriticalData} />
+</React.Suspense>
+```
+
+## 最佳实践
+
+### 获取数据
+
+1. 不管是 SSR 还是 RSC 项目，建议在服务端执行的数据获取逻辑默认使用 Modern.js 提供的 `cache` 函数，这样每一次服务端渲染，不管调用该函数多少次，只会执行一次。
+
+> 这也是 react.js 推荐的用法，为此 react.js 提供了 [cache](https://react.dev/reference/react/cache), Modern.js 的 [cache](/guides/basic-features/data/data-cache.html) 可以视作其超集。
+
+```typescript
+import { cache } from '@modern-js/runtime/cache';
+
+const getCriticalCached = cache(getCritical);
+```
+
+- 在使用 `cache` 函数的基础上，你不再需要通过 `props`，`context` 等管理服务端的状态，我们推荐哪个组件需要数据就在最近的 Server Component 中获取数据，通过 cache 函数，即使多次调用同一个函数，这样可以使项目的状态管理，业务逻辑，性能优化更简单。
+
+```typescript
+// layout.tsx
+export default async function Layout() {
+  const criticalData = await getCriticalCached();
+}
+
+export default async function Page() {
+  const criticalData = await getCriticalCached();
+}
+```
+
+### 最佳性能
+
+为了发挥 RSC 或 Streaming SSR 的优势，我们需要使尽可能多的组件流动起来，一个核心原则是使 Suspense 包裹的区域尽可能地小（这也是我们推荐使用 `cache` 函数的原因之一）
+
+对于直接消费数据的 Server Component，我们推荐在其上层包裹 Suspense：
+
+> 这种场景下 Server Component 往往是异步的，还有一种情况 Server Component 为同步的，由 Client Component 消费数据，在下面进行描述
+
+```javascript
+// profile/components/PostsList.tsx
+export default async function PostsList() {
+  const posts = await getUserPosts();
+
+  return (
+    <ul>
+      {posts.map(post => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```javascript
+// profile/page.tsx
+import { Suspense } from 'react';
+import UserInfo from './components/UserInfo';
+import PostsList from './components/PostsList';
+import PostsSkeleton from './components/PostsSkeleton';
+
+export default function ProfilePage() {
+  return (
+    <div>
+      <UserInfo />
+
+      <hr />
+
+      {/*
+        我们将慢速的 PostsList 包裹在 Suspense 中。
+        当 PostsList 正在获取数据时，用户会看到 PostsSkeleton。
+        一旦 PostsList 的数据准备就绪，它会自动替换掉骨架屏。
+      */}
+      <Suspense fallback={<PostsSkeleton />}>
+        <PostsList posts={postsPromise} />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+还有一种场景是在 Client Component 中消费数据，此时我们应避免在 Server Component 中使用 `await`，避免阻塞渲染：
+
+```javascript
+// profile/components/PostsList.tsx
+'use client';
+export default function PostsList({ postsPromise }) {
+  const posts = use(postsPromise);
+
+  return (
+    <ul>
+      {posts.map(post => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```javascript
+// profile/page.tsx
+import { Suspense } from 'react';
+import UserInfo from './components/UserInfo';
+import PostsList from './components/PostsList'; // 现在是 Client Component
+import PostsSkeleton from './components/PostsSkeleton';
+import { getUserPosts } from '../lib/data'; // 导入数据获取函数
+
+// 注意：这个组件不是 async 的
+export default function ProfilePage() {
+  // 1. 在服务端调用数据获取函数，但不 await 它
+  // 这会立即返回一个 Promise
+  const postsPromise = getUserPosts();
+
+  return (
+    <div>
+      <UserInfo />
+
+      <hr />
+
+      {/* 2. Suspense 边界依然是必需的。它会捕获
+          由 PostsList 内部的 `use` 钩子抛出的 Promise */}
+      <Suspense fallback={<PostsSkeleton />}>
+        {/* 3. 将 Promise 对象本身作为 prop 传递给客户端组件 */}
+        <PostsList postsPromise={postsPromise} />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+### Helmet
+
+当使用 react19 时，无需再使用 Helmet，推荐直接使用 react 提供的[组件](https://react.dev/reference/react-dom/components)。
+
+## 常见问题
+
+### `This entry point is not yet supported outside of experimental channels`
+
+项目中的 bundle 引入了非 19 的 react 版本，常见于 monorepo。请确保所有依赖都使用 React 19 版本。
+
+## 相关链接
+
+- [React Server Components 官方文档](https://react.dev/reference/rsc/server-components)
+- [React Server Functions 文档](https://react.dev/reference/rsc/server-functions)
+- [数据缓存](/guides/basic-features/data/data-cache)
+- [服务端渲染（SSR）](/guides/basic-features/render/ssr)
+- [Streaming SSR](/guides/basic-features/render/streaming-ssr)

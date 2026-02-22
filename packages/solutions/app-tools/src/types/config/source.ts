@@ -1,11 +1,4 @@
-import type { SharedSourceConfig as BuilderSharedSourceConfig } from '@modern-js/builder-shared';
-import type {
-  WebpackBuilderConfig,
-  RspackBuilderConfig,
-} from '../../builder/shared';
-
-export type BuilderSourceConfig = NonNullable<WebpackBuilderConfig['source']>;
-export type RsBuilderSourceConfig = NonNullable<RspackBuilderConfig['source']>;
+import type { BuilderConfig } from '@modern-js/builder';
 
 export type Entry =
   | string
@@ -19,14 +12,14 @@ export type Entry =
        */
       disableMount?: boolean;
       /**
-       * Specify the file path of custom bootstrap.
+       * use src/{entryName}/entry.tsx to custom entry
        */
-      customBootstrap?: string;
+      customEntry?: boolean;
     };
 
 export type Entries = Record<string, Entry>;
 
-export interface SharedSourceConfig extends BuilderSharedSourceConfig {
+export interface SourceUserConfig extends NonNullable<BuilderConfig['source']> {
   /**
    * Used to configure custom page entries.
    */
@@ -53,21 +46,7 @@ export interface SharedSourceConfig extends BuilderSharedSourceConfig {
    */
   entriesDir?: string;
   /**
-   * By default, framework identifies the application entry point based on the `src` directory.
-   * You can use this option to prevent some directories from being recognized as application entry points.
-   */
-  disableEntryDirs?: string[];
-  /**
    * Customize the directory of the framework configuration files.
    */
   configDir?: string;
-  /**
-   * @deprecated designSystem is no longer required.
-   * If you are using Tailwind CSS, you can now use the `theme` option of Tailwind CSS, they are the same.
-   */
-  designSystem?: Record<string, any>;
 }
-
-export type SourceUserConfig = BuilderSourceConfig & SharedSourceConfig;
-
-export type RsSourceUserConfig = RsBuilderSourceConfig & SharedSourceConfig;

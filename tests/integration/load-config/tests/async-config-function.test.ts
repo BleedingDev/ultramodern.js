@@ -1,5 +1,5 @@
-import path from 'path';
 import { existsSync } from 'fs';
+import path from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 const fixtures = path.resolve(__dirname, '../fixtures');
@@ -10,7 +10,7 @@ describe('local config', () => {
     await modernBuild(appDir);
 
     expect(
-      existsSync(path.join(appDir, 'dist/foo/html/main/index.html')),
+      existsSync(path.join(appDir, 'dist/foo/html/index/index.html')),
     ).toBeTruthy();
   });
 });

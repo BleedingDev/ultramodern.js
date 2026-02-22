@@ -1,21 +1,10 @@
-import type {
-  RouteProps,
-  RouteObject,
-  Params,
-} from '@modern-js/runtime-utils/router';
-import { PageRoute, NestedRoute } from '@modern-js/types';
 import type { RequestContext } from '@modern-js/runtime-utils/node';
-
-declare global {
-  interface Window {
-    _SERVER_DATA?: {
-      router: {
-        baseUrl: string;
-        params: Record<string, string>;
-      };
-    };
-  }
-}
+import type {
+  Params,
+  RouteObject,
+  RouteProps,
+} from '@modern-js/runtime-utils/router';
+import type { NestedRoute, PageRoute } from '@modern-js/types';
 
 export type SingleRouteConfig = RouteProps & {
   redirect?: string;
@@ -34,10 +23,15 @@ export type SingleRouteConfig = RouteProps & {
 };
 
 export type RouterConfig = {
-  mode?: 'react-router-5';
+  /**
+   * Select the router implementation used by Modern.js conventional routing.
+   * - `react-router` (default): React Router v7 based integration
+   * - `tanstack`: TanStack Router integration
+   */
+  framework?: 'react-router' | 'tanstack';
   routesConfig: {
     globalApp?: React.ComponentType<any>;
-    routes: (NestedRoute | PageRoute)[];
+    routes?: (NestedRoute | PageRoute)[];
   };
   /**
    * You should not use it
@@ -47,6 +41,13 @@ export type RouterConfig = {
   supportHtml5History?: boolean;
   basename?: string;
   createRoutes?: () => RouteObject[];
+  future?: Partial<{
+    v7_startTransition: boolean;
+  }>;
+  /**
+   * An unstable feature, which will reload the page when the current browser URL and the SSR Context URL do not match.
+   */
+  unstable_reloadOnURLMismatch?: boolean;
 };
 
 export type Routes = RouterConfig['routesConfig']['routes'];
@@ -70,10 +71,14 @@ interface DataFunctionArgs<D = any> {
   context?: D;
 }
 
-export type LoaderFunctionArgs = DataFunctionArgs<RequestContext>;
+export type LoaderFunctionArgs<
+  P extends Record<string, unknown> = Record<string, unknown>,
+> = DataFunctionArgs<RequestContext<P>>;
 
 declare type DataFunctionValue = Response | NonNullable<unknown> | null;
 
-export type LoaderFunction = (
-  args: LoaderFunctionArgs,
+export type LoaderFunction = <
+  P extends Record<string, unknown> = Record<string, unknown>,
+>(
+  args: LoaderFunctionArgs<P>,
 ) => Promise<DataFunctionValue> | DataFunctionValue;

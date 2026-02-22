@@ -1,11 +1,11 @@
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import axios from 'axios';
 import {
-  modernBuild,
-  modernServe,
   getPort,
   killApp,
+  modernBuild,
+  modernServe,
 } from '../../../utils/modernTestUtils';
 
 const appPath = path.resolve(__dirname, '../');
@@ -33,7 +33,7 @@ describe('test basic usage', () => {
     expect(fs.existsSync(favicon1)).toBe(true);
     expect(fs.existsSync(appIcon)).toBe(true);
 
-    const mainEntry = path.resolve(appPath, './dist/html/main/index.html');
+    const mainEntry = path.resolve(appPath, './dist/html/index/index.html');
     const activityEntry = path.resolve(
       appPath,
       './dist/html/activity/index.html',
@@ -41,15 +41,16 @@ describe('test basic usage', () => {
     expect(fs.readFileSync(mainEntry, 'utf-8')).toMatch(
       '<link rel="icon" href="/favicon.ico">',
     );
-    const mediaPath = path.join('static', 'image', 'icon.png');
+    const mediaPath = `static/image/icon.png`;
+
     expect(fs.readFileSync(mainEntry, 'utf-8')).toMatch(
-      `<link rel="apple-touch-icon" sizes="180*180" href="/${mediaPath}">`,
+      `<link rel="apple-touch-icon" sizes="180x180" href="/${mediaPath}">`,
     );
     expect(fs.readFileSync(activityEntry, 'utf-8')).toMatch(
       '<link rel="icon" href="/favicon.ico">',
     );
     expect(fs.readFileSync(activityEntry, 'utf-8')).toMatch(
-      `<link rel="apple-touch-icon" sizes="180*180" href="/${mediaPath}">`,
+      `<link rel="apple-touch-icon" sizes="180x180" href="/${mediaPath}">`,
     );
   });
 
@@ -87,5 +88,13 @@ describe('test basic usage', () => {
     );
     expect(status).toBe(successStatus);
     expect(headers['content-type']).toBe('image/png');
+  });
+
+  test(`should serve static file with special characters in filename`, async () => {
+    const { status, data } = await axios.get(
+      `http://localhost:${appPort}/test(bug.txt`,
+    );
+    expect(status).toBe(successStatus);
+    expect(data.trim()).toBe('test');
   });
 });

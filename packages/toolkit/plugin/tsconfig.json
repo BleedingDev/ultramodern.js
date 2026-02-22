@@ -5,10 +5,8 @@
     "jsx": "preserve",
     "baseUrl": "./",
     "isolatedModules": true,
-    "target": "ES5",
-    "esModuleInterop": true,
     "paths": {},
-    "types": ["node", "jest"]
+    "types": ["node", "@rstest/core/globals"]
   },
   "include": ["src"]
 }

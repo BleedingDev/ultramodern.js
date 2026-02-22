@@ -1,11 +1,12 @@
 import dns from 'node:dns';
 import path, { join } from 'path';
-import puppeteer, { Browser, Page } from 'puppeteer';
 import { fs } from '@modern-js/utils';
+import axios from 'axios';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
-  launchApp,
   getPort,
   killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
@@ -17,11 +18,15 @@ async function basicUsage(page: Page, appPort: number) {
     waitUntil: ['networkidle0'],
   });
   await (expect(page) as any).toMatchTextContent('user1-18');
+
+  const content = await page.content();
+  await (expect(content) as any).toMatch('"headers":{"host":');
 }
 
 async function errorThrown(page: Page, appPort: number) {
   await page.goto(`http://localhost:${appPort}/error`, {
     waitUntil: ['networkidle0'],
+    timeout: 50000,
   });
 
   await (expect(page) as any).toMatchTextContent(/error occurs/);
@@ -33,9 +38,10 @@ async function errorThrownInClientNavigation(page: Page, appPort: number) {
   });
 
   await page.click('#error-btn');
-  await (expect(page) as any).toMatchTextContent(
-    /{"status":500,"statusText":"Internal Server Error","internal":false,"data":"Error: error occurs"}/,
-  );
+  await page.waitForSelector('.error');
+  const element = await page.$('.error');
+  const elementContent = await page.evaluate(el => el?.textContent, element);
+  expect(elementContent).toMatchSnapshot();
 }
 
 async function redirectInLoader(page: Page, appPort: number) {
@@ -50,7 +56,7 @@ async function redirectInLoader(page: Page, appPort: number) {
 
 async function checkIsPassChunkLoadingGlobal() {
   const modernJsDir = join(fixtureDir, 'base', 'node_modules', '.modern-js');
-  const entryFilePath = join(modernJsDir, 'main', 'index.jsx');
+  const entryFilePath = join(modernJsDir, 'index', 'index.jsx');
   const content = await fs.readFile(entryFilePath, 'utf-8');
   expect(content).toMatch(/chunkLoadingGlobal/);
 }
@@ -83,7 +89,8 @@ describe('Traditional SSR', () => {
     await basicUsage(page, appPort);
   });
 
-  test(`should pass chunkLoadingGlobal`, async () => {
+  // We will not add chunkLoadingGlobal to entry(index.jsx)
+  test.skip(`should pass chunkLoadingGlobal`, async () => {
     await checkIsPassChunkLoadingGlobal();
   });
 
@@ -105,5 +112,46 @@ describe('Traditional SSR', () => {
 
   test('redirect in loader', async () => {
     await redirectInLoader(page, appPort);
+  });
+
+  test('ssr cache on 5000ms', async () => {
+    await page.goto(`http://localhost:${appPort}`, {
+      waitUntil: ['networkidle0'],
+    });
+    const content = await page.content();
+    const result = content.match(/count:(\d+)/)![0];
+
+    // twice visit, because the cache, the count still same.
+    await page.goto(`http://localhost:${appPort}`, {
+      waitUntil: ['networkidle0'],
+    });
+    const content1 = await page.content();
+    expect(content1).toMatch(result);
+
+    await page.goto(`http://localhost:${appPort}/?no-cache=1`);
+    const content2 = await page.content();
+    expect(content2).not.toMatch(result);
+  });
+
+  test('x-render-cache http header', async () => {
+    const response = await axios.get(`http://localhost:${appPort}`);
+
+    const { headers } = response;
+    expect(Boolean(headers['x-render-cache'])).toBeTruthy();
+  });
+
+  test('no ssr cache', async () => {
+    await page.goto(`http://localhost:${appPort}/no-ssr-cache`, {
+      waitUntil: ['networkidle0'],
+    });
+    const content = await page.content();
+    const result = content.match(/count:(\d+)/)![0];
+
+    // twice visit, because the no-ssr-cache, the count is different.
+    await page.goto(`http://localhost:${appPort}/no-ssr-cache`, {
+      waitUntil: ['networkidle0'],
+    });
+    const content1 = await page.content();
+    expect(content1).not.toMatch(result);
   });
 });

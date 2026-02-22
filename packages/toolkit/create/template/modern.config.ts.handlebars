@@ -1,0 +1,18 @@
+import { appTools, defineConfig } from '@modern-js/app-tools';
+{{#if enableBff}}import { bffPlugin } from '@modern-js/plugin-bff';
+{{/if}}
+
+// https://modernjs.dev/en/configure/app/usage
+export default defineConfig({
+  plugins: [appTools(){{#if enableBff}}, bffPlugin(){{/if}}],
+{{#if enableBff}}
+  bff: {
+    runtimeFramework: '{{bffRuntime}}',
+{{#if useEffectBff}}
+    effect: {
+      openapi: true,
+    },
+{{/if}}
+  },
+{{/if}}
+});

@@ -1,20 +1,19 @@
-import React from 'react';
-import { Route, isRouteErrorResponse } from '@modern-js/runtime-utils/router';
-import type {
-  Reporter,
-  NestedRoute,
-  PageRoute,
-  SSRMode,
-} from '@modern-js/types';
-import {
-  ErrorResponse,
-  type StaticHandlerContext,
-  type Router,
-} from '@modern-js/runtime-utils/remix-router';
 import { renderNestedRoute } from '@modern-js/runtime-utils/browser';
-import { RouterConfig } from './types';
+import {
+  UNSAFE_ErrorResponseImpl as ErrorResponseImpl,
+  type StaticHandlerContext,
+} from '@modern-js/runtime-utils/router';
+import type { DataRouter } from '@modern-js/runtime-utils/router';
+import {
+  Route,
+  type RouteObject,
+  isRouteErrorResponse,
+} from '@modern-js/runtime-utils/router';
+import type { NestedRoute, PageRoute, SSRMode } from '@modern-js/types';
+import React from 'react';
 import { DefaultNotFound } from './DefaultNotFound';
 import DeferredDataScripts from './DeferredDataScripts';
+import type { RouterConfig } from './types';
 
 export function getRouteComponents(
   routes: (NestedRoute | PageRoute)[],
@@ -22,12 +21,10 @@ export function getRouteComponents(
     globalApp,
     ssrMode,
     props,
-    reporter,
   }: {
-    globalApp?: React.ComponentType<any>;
+    globalApp?: React.ComponentType<GlobalAppProps>;
     ssrMode?: SSRMode;
-    props?: Record<string, any>;
-    reporter?: Reporter;
+    props?: Record<string, unknown>;
   },
 ) {
   const Layout = ({ Component, ...props }: any) => {
@@ -45,7 +42,6 @@ export function getRouteComponents(
         DeferredDataComponent:
           ssrMode === 'stream' ? DeferredDataScripts : undefined,
         props,
-        reporter,
       });
       routeElements.push(routeElement);
     } else {
@@ -59,20 +55,139 @@ export function getRouteComponents(
       routeElements.push(routeElement);
     }
   }
-  routeElements.push(<Route key="*" path="*" element={<DefaultNotFound />} />);
+  routeElements.push(
+    <Route
+      key="*"
+      path="*"
+      element={<DefaultNotFound />}
+      loader={() => new Response('404', { status: 404 })}
+    />,
+  );
   return routeElements;
+}
+
+interface LayoutWrapperProps {
+  [key: string]: unknown;
+}
+
+interface GlobalAppProps {
+  Component: React.ComponentType;
+  [key: string]: unknown;
+}
+
+export function getRouteObjects(
+  routes: (NestedRoute | PageRoute)[],
+  {
+    globalApp,
+    ssrMode,
+    props,
+  }: {
+    globalApp?: React.ComponentType<GlobalAppProps>;
+    ssrMode?: SSRMode;
+    props?: Record<string, unknown>;
+  },
+) {
+  const createLayoutElement = (
+    Component: React.ComponentType,
+  ): React.ComponentType => {
+    const GlobalLayout = globalApp;
+    if (!GlobalLayout) {
+      return Component;
+    }
+
+    const LayoutWrapper = (props: LayoutWrapperProps) => {
+      const LayoutComponent = GlobalLayout;
+      return <LayoutComponent Component={Component} {...props} />;
+    };
+
+    return LayoutWrapper;
+  };
+
+  const routeObjects: RouteObject[] = [];
+
+  for (const route of routes) {
+    if (route.type === 'nested') {
+      const nestedRouteObject = {
+        path: route.path,
+        id: route.id,
+        loader: route.loader,
+        action: route.action,
+        hasErrorBoundary: route.hasErrorBoundary,
+        shouldRevalidate: route.shouldRevalidate,
+        handle: {
+          ...route.handle,
+          ...(typeof route.config === 'object' ? route.config?.handle : {}),
+        },
+        index: route.index,
+        hasClientLoader: !!route.clientData,
+        Component: route.component ? route.component : undefined,
+        errorElement: route.error ? <route.error /> : undefined,
+        children: route.children
+          ? route.children.map(
+              child =>
+                getRouteObjects([child], { globalApp, ssrMode, props })[0],
+            )
+          : undefined,
+      } as RouteObject;
+
+      routeObjects.push(nestedRouteObject);
+    } else {
+      if (
+        typeof route.component === 'function' ||
+        typeof route.component === 'object'
+      ) {
+        const LayoutComponent = createLayoutElement(
+          route.component as React.ComponentType,
+        );
+        const routeObject: RouteObject = {
+          path: route.path,
+          element: React.createElement(LayoutComponent),
+        };
+
+        routeObjects.push(routeObject);
+      }
+    }
+  }
+
+  routeObjects.push({
+    path: '*',
+    element: <DefaultNotFound />,
+  });
+
+  return routeObjects;
+}
+
+export function createRouteObjectsFromConfig({
+  routesConfig,
+  props,
+  ssrMode,
+}: {
+  routesConfig: RouterConfig['routesConfig'];
+  props?: Record<string, unknown>;
+  ssrMode?: SSRMode;
+}): RouteObject[] | null {
+  if (!routesConfig) {
+    return null;
+  }
+  const { routes, globalApp } = routesConfig;
+  if (!routes) {
+    return null;
+  }
+  return getRouteObjects(routes, {
+    globalApp,
+    ssrMode,
+    props,
+  });
 }
 
 export function renderRoutes({
   routesConfig,
   props,
   ssrMode,
-  reporter,
 }: {
   routesConfig: RouterConfig['routesConfig'];
-  props?: Record<string, any>;
+  props?: Record<string, unknown>;
   ssrMode?: SSRMode;
-  reporter?: Reporter;
 }) {
   if (!routesConfig) {
     return null;
@@ -85,14 +200,14 @@ export function renderRoutes({
     globalApp,
     ssrMode,
     props,
-    reporter,
   });
   return routeElements;
 }
 
-export function getLocation(serverContext: any): string {
-  const { pathname, url }: { [p: string]: string } =
-    serverContext?.request || {};
+export function getLocation(
+  serverContext: { request?: { pathname?: string; url?: string } } | undefined,
+): string {
+  const { pathname = '', url = '' } = serverContext?.request || {};
 
   const cleanUrl = url?.replace('http://', '')?.replace('https://', '');
 
@@ -164,18 +279,18 @@ export function serializeErrors(
  * license at https://github.com/remix-run/remix/blob/main/LICENSE.md
  */
 export function deserializeErrors(
-  errors: Router['state']['errors'],
-): Router['state']['errors'] {
+  errors: DataRouter['state']['errors'],
+): DataRouter['state']['errors'] {
   if (!errors) {
     return null;
   }
   const entries = Object.entries(errors);
-  const serialized: Router['state']['errors'] = {};
+  const serialized: DataRouter['state']['errors'] = {};
   for (const [key, val] of entries) {
     // Hey you!  If you change this, please change the corresponding logic in
     // serializeErrors
     if (val && val.__type === 'RouteErrorResponse') {
-      serialized[key] = new ErrorResponse(
+      serialized[key] = new ErrorResponseImpl(
         val.status,
         val.statusText,
         val.data,

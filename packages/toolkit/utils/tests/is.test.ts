@@ -1,6 +1,9 @@
-import { isSSR, isTest, isEmpty, isUseSSRBundle, isSSGEntry } from '../src';
+import { isEmpty, isSSGEntry, isSSR, isTest, isUseSSRBundle } from '../src';
 
 describe('validate', () => {
+  afterEach(() => {
+    rstest.unstubAllEnvs();
+  });
   it('should validate empty object correctly', () => {
     expect(isEmpty({})).toBeTruthy();
     expect(isEmpty({ foo: 'bar' })).toBeFalsy();
@@ -49,15 +52,11 @@ describe('validate', () => {
   });
 
   it('should validate test env correctly', () => {
-    const { NODE_ENV } = process.env;
-
-    process.env.NODE_ENV = 'test';
+    rs.stubEnv('NODE_ENV', 'test');
     expect(isTest()).toBeTruthy();
 
-    process.env.NODE_ENV = 'production';
+    rs.stubEnv('NODE_ENV', 'production');
     expect(isTest()).toBeFalsy();
-
-    process.env.NODE_ENV = NODE_ENV;
   });
 
   it('should detect ssg config correctly', () => {
@@ -72,14 +71,14 @@ describe('validate', () => {
     expect(useSSG1).toBeTruthy();
 
     const useSSG2 = isSSGEntry(
-      { output: { ssg: { home: false } } } as any,
+      { output: { ssgByEntries: { home: false } } } as any,
       'home',
       [{ entryName: 'main' }, { entryName: 'home' }],
     );
     expect(useSSG2).toBeFalsy();
 
     const useSSG3 = isSSGEntry(
-      { output: { ssg: { home: {} } } } as any,
+      { output: { ssgByEntries: { home: {} } } } as any,
       'home',
       [{ entryName: 'main' }, { entryName: 'home' }],
     );

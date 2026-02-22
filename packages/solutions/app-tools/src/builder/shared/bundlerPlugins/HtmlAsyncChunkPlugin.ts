@@ -1,35 +1,52 @@
-import type { webpack } from '@modern-js/builder-webpack-provider';
-import type { Rspack } from '@modern-js/builder-rspack-provider';
-import type HtmlWebpackPlugin from '@modern-js/builder-webpack-provider/html-webpack-plugin';
+import type { Rspack } from '@modern-js/builder';
+import { RUNTIME_CHUNK_REGEX } from '@modern-js/builder';
 
 export class HtmlAsyncChunkPlugin {
   name: string;
 
-  htmlWebpackPlugin: typeof HtmlWebpackPlugin;
+  htmlPlugin: typeof Rspack.HtmlRspackPlugin;
 
-  constructor(htmlWebpackPlugin: typeof HtmlWebpackPlugin) {
+  constructor(htmlPlugin: typeof Rspack.HtmlRspackPlugin) {
     this.name = 'HtmlAsyncChunkPlugin';
-    this.htmlWebpackPlugin = htmlWebpackPlugin;
+    this.htmlPlugin = htmlPlugin;
   }
 
-  apply(compiler: webpack.Compiler | Rspack.Compiler) {
+  apply(compiler: Rspack.Compiler) {
     compiler.hooks.compilation.tap(this.name, compilation => {
-      const hooks = this.htmlWebpackPlugin.getHooks(compilation as any);
+      const hooks = this.htmlPlugin.getCompilationHooks(compilation as any);
 
       hooks.alterAssetTagGroups.tap(this.name, assets => {
-        const tags = [...assets.headTags, ...assets.bodyTags];
+        const headTags: typeof assets.headTags = [];
+        const bodyTags: typeof assets.bodyTags = [];
 
-        for (const tag of tags) {
+        const processScriptTag = (tag: (typeof assets.headTags)[0]) => {
+          const { attributes } = tag;
+
+          // Convert defer to async
+          if (attributes && attributes.defer === true) {
+            attributes.async = true;
+            delete attributes.defer;
+          }
+
+          const src = attributes?.src as string | undefined;
+          const isRuntimeChunk = src && RUNTIME_CHUNK_REGEX.test(src);
+
+          return isRuntimeChunk ? bodyTags : headTags;
+        };
+
+        for (const tag of [...assets.headTags, ...assets.bodyTags]) {
           if (tag.tagName === 'script') {
-            const { attributes } = tag;
-            if (attributes && attributes.defer === true) {
-              attributes.async = true;
-              delete attributes.defer;
-            }
+            processScriptTag(tag).push(tag);
+          } else {
+            (assets.headTags.includes(tag) ? headTags : bodyTags).push(tag);
           }
         }
 
-        return assets;
+        return {
+          ...assets,
+          headTags,
+          bodyTags,
+        };
       });
     });
   }

@@ -69,7 +69,7 @@ const universalBuildConfig = [
   {
     buildType: 'bundleless',
     format: 'esm',
-    target: 'es5',
+    target: 'es2019',
     dts: false,
     outDir: './dist/esm',
     externalHelpers,
@@ -83,6 +83,7 @@ const universalBuildConfig = [
     outDir: './dist/esm-node',
     externalHelpers,
     transformLodash,
+    autoExtension: true,
   },
   skipDts
     ? null
@@ -151,6 +152,18 @@ const extendUniversalBuildConfig = extendConfig => {
   });
 };
 
+const bundleConfig = {
+  buildType: 'bundle',
+  format: 'cjs',
+  target: 'es2019',
+  outDir: './dist',
+  dts: skipDts
+    ? false
+    : {
+        respectExternal: false,
+      },
+};
+
 const tscLikeBuildConfig = [
   {
     buildType: 'bundleless',
@@ -164,22 +177,41 @@ const tscLikeBuildConfig = [
 ];
 
 const generatorBuildConfig = {
-  target: 'es2019',
   autoExternal: false,
-  alias: {
-    chalk: '@modern-js/utils/chalk',
-  },
   dts: false,
-  externals: [
-    '@modern-js/utils',
-    '@modern-js/utils/lodash',
-    '@modern-js/utils/fs-extra',
-    '@modern-js/utils/chalk',
-  ],
+  sideEffects: false,
+};
+
+const generatorBuildUmdConfig = {
+  format: 'umd',
+  autoExternal: false,
+  dts: false,
+  umdGlobals: {
+    '@modern-js/codesmith': 'codesmith',
+    '@modern-js/codesmith-api-app': 'codesmithApiApp',
+    '@modern-js/codesmith-api-git': 'codesmithApiGit',
+    '@modern-js/codesmith-api-npm': 'codesmithApiNpm',
+    '@modern-js/codesmith-api-ejs': 'codesmithApiEjs',
+    '@modern-js/codesmith-api-fs': 'codesmithApiFs',
+    '@modern-js/codesmith-api-handlebars': 'codesmithApiHandlebars',
+    '@modern-js/codesmith-api-json': 'codesmithApiJson',
+    '@modern-js/codesmith-formily': 'codesmithFormily',
+    '@modern-js/codesmith-utils': 'codesmithUtils',
+    '@modern-js/codesmith-utils/lodash': 'codesmithLodashUtils',
+    '@modern-js/codesmith-utils/glob': 'codesmithGlobUtils',
+    '@modern-js/codesmith-utils/fs-extra': 'codesmithFsUtils',
+    '@modern-js/codesmith-utils/chalk': 'codesmithChalkUtils',
+    '@modern-js/codesmith-utils/execa': 'codesmithExecaUtils',
+    '@modern-js/codesmith-utils/npm': 'codesmithNpmUtils',
+    '@modern-js/codesmith-utils/ora': 'codesmithOraUtils',
+    '@modern-js/codesmith-utils/semver': 'codesmithSemverUtils',
+    '@modern-js/i18n-utils': 'pluginI18N',
+  },
 };
 
 module.exports = {
   skipDts,
+  bundleConfig,
   dtsConfig,
   nodeBuildConfig,
   tscLikeBuildConfig,
@@ -188,4 +220,5 @@ module.exports = {
   extendUniversalBuildConfig,
   universalBuildConfigWithBundle,
   generatorBuildConfig,
+  generatorBuildUmdConfig,
 };

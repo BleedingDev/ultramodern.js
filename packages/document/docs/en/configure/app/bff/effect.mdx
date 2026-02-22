@@ -1,0 +1,152 @@
+---
+title: effect
+---
+
+# bff.effect
+
+- **Type:**
+
+```ts
+type BffEffectUserConfig = {
+  entry?: string;
+  openapi?: boolean | { path?: string };
+  dataPlatform?: {
+    enabled?: boolean;
+    requireEnvelope?: boolean;
+    envelopeHeader?: string;
+    expectedNamespace?: string;
+    validateOrigin?: boolean;
+    requireTraceContext?: boolean;
+    selection?: {
+      maxDepth?: number;
+      maxFields?: number;
+      allowedLeafPaths?: string[];
+    };
+    batch?: {
+      enabled?: boolean;
+      endpoint?: `/${string}`;
+      maxBatchSize?: number;
+      maxBatchBytes?: number;
+      flushIntervalMs?: number;
+      maxConcurrency?: number;
+      requestTimeoutMs?: number;
+      allowedMethods?: string[];
+    };
+  };
+};
+```
+
+- **Default:** `{}`
+
+import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
+
+<EnableBFFCaution />
+
+`bff.effect` is only effective when `bff.runtimeFramework` is set to `'effect'`.
+
+For Effect v4, TypeScript should use export-map aware module resolution.
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  }
+}
+```
+
+## bff.effect.entry
+
+- **Type:** `string`
+- **Default:** `<apiDirectory>/effect/index`
+
+Specifies the entry module for Effect HttpApi runtime.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      entry: './api/effect/index',
+    },
+  },
+});
+```
+
+## bff.effect.openapi
+
+- **Type:** `boolean | { path?: string }`
+- **Default:** `false`
+
+Enable OpenAPI endpoint generation for Effect HttpApi runtime.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      openapi: {
+        path: '/openapi.json',
+      },
+    },
+  },
+});
+```
+
+## bff.effect.dataPlatform
+
+- **Type:**
+
+```ts
+{
+  enabled?: boolean;
+  requireEnvelope?: boolean;
+  envelopeHeader?: string;
+  expectedNamespace?: string;
+  validateOrigin?: boolean;
+  requireTraceContext?: boolean;
+  selection?: {
+    maxDepth?: number;
+    maxFields?: number;
+    allowedLeafPaths?: string[];
+  };
+  batch?: {
+    enabled?: boolean;
+    endpoint?: `/${string}`;
+    maxBatchSize?: number;
+    maxBatchBytes?: number;
+    flushIntervalMs?: number;
+    maxConcurrency?: number;
+    requestTimeoutMs?: number;
+    allowedMethods?: string[];
+  };
+}
+```
+
+- **Default:** `{ enabled: true }`
+
+Configure request-envelope validation for Effect runtime.
+
+Generated Effect client requests batching against `${bff.prefix}${batch.endpoint}` (for example, `/bff-api/_data/batch`).
+
+When `validateOrigin` is enabled, runtime compares envelope origin with request `Origin` header first, then falls back to request URL origin.
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  bff: {
+    runtimeFramework: 'effect',
+    effect: {
+      dataPlatform: {
+        requireEnvelope: true,
+        expectedNamespace: 'my-app',
+        selection: {
+          maxDepth: 6,
+          maxFields: 200,
+        },
+      },
+    },
+  },
+});
+```
+
+`batch.flushIntervalMs` controls client-side micro-batch window in generated Effect client. `maxConcurrency` and `requestTimeoutMs` are applied by the server batch gateway when dispatching items.

@@ -1,0 +1,62 @@
+---
+title: filename
+---
+
+# output.filename
+
+:::warning
+
+在 Modern.js 开发阶段，或是使用 Modern.js 服务器部署应用时，应避免使用该配置修改 html 产物文件名，会导致页面 404。
+
+:::
+
+- **类型：**
+
+```ts
+type FilenameConfig = {
+  html?: string;
+  js?:
+    | string
+    | ((pathData: Rspack.PathData, assetInfo: Rspack.JsAssetInfo) => string);
+  css?: string;
+  svg?: string;
+  font?: string;
+  image?: string;
+  media?: string;
+  assets?: string;
+};
+```
+
+- **默认值：**
+
+```js
+// 开发模式构建
+const devDefaultFilename = {
+  html: '[name].html',
+  js: '[name].js',
+  css: '[name].css',
+  svg: '[name].[contenthash:8].svg',
+  font: '[name].[contenthash:8][ext]',
+  image: '[name].[contenthash:8][ext]',
+  media: '[name].[contenthash:8][ext]',
+  assets: '[name].[contenthash:8][ext]',
+};
+
+// 生产模式构建
+const prodDefaultFilename = {
+  html: '[name].html',
+  js: output.target === 'node' ? '[name].js' : '[name].[contenthash:8].js',
+  css: '[name].[contenthash:8].css',
+  svg: '[name].[contenthash:8].svg',
+  font: '[name].[contenthash:8][ext]',
+  image: '[name].[contenthash:8][ext]',
+  media: '[name].[contenthash:8][ext]',
+  assets: '[name].[contenthash:8][ext]',
+};
+```
+
+设置构建产物的名称。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="output.filename" />

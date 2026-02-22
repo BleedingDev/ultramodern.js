@@ -1,25 +1,35 @@
-/* eslint-disable max-lines */
 import path from 'path';
-import puppeteer, { Browser } from 'puppeteer';
 import { fs, ROUTE_MANIFEST_FILE } from '@modern-js/utils';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
+import puppeteer, { type Browser } from 'puppeteer';
 
-import type {
-  // Browser,
-  Page,
-} from 'puppeteer';
+import type { Page } from 'puppeteer';
 import {
-  launchApp,
-  killApp,
   getPort,
+  killApp,
+  launchApp,
+  launchOptions,
   modernBuild,
   modernServe,
-  launchOptions,
+  runModernCommand,
 } from '../../../utils/modernTestUtils';
 
-// declare const browser: Browser;
-
 const appDir = path.resolve(__dirname, '../');
+
+const findRouteByPath = (routes: any[], targetPath: string): any => {
+  for (const route of routes) {
+    if (route.path === targetPath) {
+      return route;
+    }
+    if (route.children && route.children.length > 0) {
+      const found = findRouteByPath(route.children, targetPath);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+};
 
 const renderSelfRoute = async (
   page: Page,
@@ -32,131 +42,6 @@ const renderSelfRoute = async (
   const description = await page.$('.description');
   const targetText = await page.evaluate(el => el?.textContent, description);
   expect(targetText?.trim()).toEqual('Get started by editing src/App.tsx');
-  expect(errors.length).toEqual(0);
-};
-
-const renderPageRoute = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/two/user`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element = await page.$('.user');
-  const targetText = await page.evaluate(el => el?.textContent, element);
-  expect(targetText?.trim()).toEqual('user');
-  expect(errors.length).toEqual(0);
-};
-
-const renderDynamicRoute = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/two/item/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element = await page.$('.item');
-  const targetText = await page.evaluate(el => el?.textContent, element);
-  expect(targetText?.trim()).toEqual('1234');
-  expect(errors.length).toEqual(0);
-};
-
-const renderOptionalParamsRoute = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/two/act/bar`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element = await page.$('.item');
-  const targetText = await page.evaluate(el => el?.textContent, element);
-  expect(targetText?.trim()).toEqual('bid exist');
-  expect(errors.length).toEqual(0);
-
-  await page.goto(`http://localhost:${appPort}/two/act/bar/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element1 = await page.$('.item');
-  const targetText1 = await page.evaluate(el => el?.textContent, element1);
-  expect(targetText1?.trim()).toEqual('1234 bid exist');
-  expect(errors.length).toEqual(0);
-
-  await page.goto(`http://localhost:${appPort}/two/act/foo`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element3 = await page.$('.item');
-  const targetText3 = await page.evaluate(el => el?.textContent, element3);
-  expect(targetText3?.trim()).toEqual('uid exist');
-  expect(errors.length).toEqual(0);
-
-  await page.goto(`http://localhost:${appPort}/two/act/foo/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element4 = await page.$('.item');
-  const targetText4 = await page.evaluate(el => el?.textContent, element4);
-  expect(targetText4?.trim()).toEqual('1234 uid exist');
-  expect(errors.length).toEqual(0);
-
-  await page.goto(`http://localhost:${appPort}/two/act/bar/detail`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element5 = await page.$('.item');
-  const targetText5 = await page.evaluate(el => el?.textContent, element5);
-  expect(targetText5?.trim()).toEqual('bid detail');
-  expect(errors.length).toEqual(0);
-
-  await page.goto(`http://localhost:${appPort}/two/act/bar/1234/detail`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element6 = await page.$('.item');
-  const targetText6 = await page.evaluate(el => el?.textContent, element6);
-  expect(targetText6?.trim()).toEqual('bid detail 1234');
-  expect(errors.length).toEqual(0);
-};
-
-const supportGlobalLayout = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/two/user`, {
-    waitUntil: ['networkidle0'],
-  });
-  const element = await page.$('.global-layout');
-  const targetText = await page.evaluate(
-    el => el?.firstChild?.textContent,
-    element,
-  );
-  expect(targetText?.startsWith('global layout'));
-  expect(targetText?.trim()).toEqual('global layout');
-  expect(errors.length).toEqual(0);
-};
-
-const supportLayout = async (page: Page, errors: string[], appPort: number) => {
-  await page.goto(`http://localhost:${appPort}/two/shop`, {
-    waitUntil: ['networkidle0'],
-  });
-  const globalLayoutElm = await page.$('.global-layout');
-  const text = await page.evaluate(
-    el => el?.firstChild?.textContent,
-    globalLayoutElm,
-  );
-  expect(text?.trim()).toEqual('global layout');
-
-  const shopLayoutElm = await globalLayoutElm!.$('.shop-layout');
-  const text1 = await page.evaluate(
-    el => el?.firstChild?.textContent,
-    shopLayoutElm,
-  );
-  expect(text1?.trim()).toEqual('shop layout');
-
-  const shopElm = await shopLayoutElm!.$('.shop');
-  const text2 = await page.evaluate(el => el?.textContent, shopElm);
-  expect(text2?.trim()).toEqual('shop');
-
   expect(errors.length).toEqual(0);
 };
 
@@ -260,58 +145,6 @@ const supportPathWithoutLayout = async (
   expect(errors.length).toEqual(0);
 };
 
-const nestedRouteOverPage = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/four`, {
-    waitUntil: ['networkidle0'],
-  });
-  const rootElm = await page.$('#root');
-  const text = await page.evaluate(el => el?.textContent, rootElm);
-  expect(text?.includes('root layout')).toBeTruthy();
-  expect(text?.includes('page index')).toBeFalsy();
-  expect(errors.length).toEqual(0);
-};
-
-const supportNestedRouteAndPage = async (
-  page: Page,
-  _errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://localhost:${appPort}/four/item/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const rootElm = await page.$('#root');
-  const text = await page.evaluate(el => el?.textContent, rootElm);
-  expect(text?.includes('root layout')).toBeFalsy();
-  expect(text?.includes('1234')).toBeTruthy();
-
-  await page.goto(`http://localhost:${appPort}/four/user/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const rootElm1 = await page.$('#root');
-  const text1 = await page.evaluate(el => el?.textContent, rootElm1);
-  expect(text1?.includes('root layout')).toBeTruthy();
-  expect(text1?.includes('1234')).toBeTruthy();
-
-  await page.goto(`http://localhost:${appPort}/four/act`, {
-    waitUntil: ['networkidle0'],
-  });
-  const rootElm2 = await page.$('.act');
-  const text2 = await page.evaluate(el => el?.textContent, rootElm2);
-  expect(text2?.includes('act page, param is')).toBeTruthy();
-  expect(text2?.includes('1234')).toBeFalsy();
-
-  await page.goto(`http://localhost:${appPort}/four/act/1234`, {
-    waitUntil: ['networkidle0'],
-  });
-  const rootElm3 = await page.$('.act');
-  const text3 = await page.evaluate(el => el?.textContent, rootElm3);
-  expect(text3?.includes('act page, param is 1234')).toBeTruthy();
-};
-
 const supportHandleLoaderError = async (
   page: Page,
   errors: string[],
@@ -320,13 +153,16 @@ const supportHandleLoaderError = async (
   await page.goto(`http://localhost:${appPort}/three`, {
     waitUntil: ['domcontentloaded'],
   });
+
+  await page.waitForSelector('.loader-error-btn');
+
   await Promise.all([
     page.click('.loader-error-btn'),
-    page.waitForSelector('.error-case'),
+    page.waitForSelector('.error-loader-page'),
   ]);
-  const errorElm = await page.$('.error-case');
+  const errorElm = await page.$('.error-loader-page');
   const text = await page.evaluate(el => el?.textContent, errorElm);
-  expect(text?.includes('loader error')).toBeTruthy();
+  expect(text).toBe('render by client loader');
   expect(errors.length).toBe(0);
 };
 
@@ -350,7 +186,6 @@ const supportHandleConfig = async (page: Page, appPort: number) => {
 };
 
 const supportLoader = async (page: Page, errors: string[], appPort: number) => {
-  // const page = await browser.newPage();
   await page.goto(`http://localhost:${appPort}/three/user`, {
     waitUntil: ['domcontentloaded'],
   });
@@ -364,6 +199,67 @@ const supportLoader = async (page: Page, errors: string[], appPort: number) => {
   expect(errors.length).toBe(0);
 };
 
+const supportThrowError = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  const response = await page.goto(
+    `http://localhost:${appPort}/three/error/response?type=throw_error`,
+    {
+      waitUntil: ['domcontentloaded'],
+    },
+  );
+  expect(response?.status()).toBe(200);
+  await page.waitForSelector('.error-content');
+  const errorStatusElm = await page.$('.error-content');
+  const text = await page.evaluate(el => el?.textContent, errorStatusElm);
+  expect(text?.includes('500')).toBeFalsy();
+  expect(text?.includes("can't found the user")).toBeTruthy();
+};
+
+const supportThrowResponse = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+  code: number,
+) => {
+  const response = await page.goto(
+    `http://localhost:${appPort}/three/error/response?type=throw_response&code=${code}`,
+    {
+      waitUntil: ['domcontentloaded'],
+    },
+  );
+  expect(response?.status()).toBe(200);
+  await page.waitForSelector('.response-status');
+  const errorStatusElm = await page.$('.response-status');
+  const text = await page.evaluate(el => el?.textContent, errorStatusElm);
+  expect(text?.includes(`${code}`)).toBeTruthy();
+  const errorContentElm = await page.$('.response-content');
+  const text1 = await page.evaluate(el => el?.textContent, errorContentElm);
+  expect(text1?.includes("can't found the user")).toBeTruthy();
+  expect(errors.length).toBe(0);
+};
+
+const supportReturnResponse = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+  code: number,
+) => {
+  const response = await page.goto(
+    `http://localhost:${appPort}/three/error/response?type=return_response&code=${code}`,
+    {
+      waitUntil: ['domcontentloaded'],
+    },
+  );
+  expect(response?.status()).toBe(code);
+  await page.waitForSelector('.response-content');
+  const el = await page.$('.response-content');
+  const text = await page.evaluate(el => el?.textContent, el);
+  expect(text?.includes('Response Page')).toBeTruthy();
+};
+
 const supportLoaderForSSRAndCSR = async (
   page: Page,
   errors: string[],
@@ -372,7 +268,9 @@ const supportLoaderForSSRAndCSR = async (
   await page.goto(`http://localhost:${appPort}/three`, {
     waitUntil: ['domcontentloaded'],
   });
-  await page.click('.user-btn');
+  await page.waitForSelector('.user-btn');
+  const button = await page.$('.user-btn');
+  await button?.click();
   await page.waitForSelector('.user-layout');
   const userLayout = await page.$(`.user-layout`);
   const text = await page.evaluate(el => {
@@ -426,20 +324,6 @@ const supportRedirectForCSR = async (
   expect(errors.length).toBe(0);
 };
 
-const supportDefineInit = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  await page.goto(`http://127.0.0.1:${appPort}/four/user`, {
-    waitUntil: ['networkidle0'],
-  });
-  const isBrowser = await page.evaluate(() => (window as any).__isBrowser);
-
-  expect(isBrowser).toBeTruthy();
-  expect(errors.length).toBe(0);
-};
-
 const supportClientLoader = async (
   page: Page,
   errors: string[],
@@ -454,8 +338,9 @@ const supportClientLoader = async (
   ]);
   const clientLoaderLayout = await page.$('.client-loader-layout');
   const text = await page.evaluate(el => el?.textContent, clientLoaderLayout);
-  expect(text?.includes('layout from client loader')).toBeTruthy();
+  expect(text).toBe('layout from client loader');
 
+  await page.waitForSelector('.client-loader-page', { timeout: 5000 });
   const clientLoaderPage = await page.$('.client-loader-page');
   const text1 = await page.evaluate(el => el?.textContent, clientLoaderPage);
   expect(text1?.includes('page from server loader')).toBeTruthy();
@@ -527,7 +412,7 @@ const supportActionInCSR = async (
   });
   const rootElm = await page.$('#root');
   await page.click('.action-btn');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await page.waitForSelector('.data-wrapper');
   const text = await page.evaluate(el => el?.textContent, rootElm);
   expect(text?.includes('profile page')).toBeTruthy();
   expect(text?.includes('modern_four_action')).toBeTruthy();
@@ -544,7 +429,7 @@ const supportActionInSSR = async (
   });
   const rootElm = await page.$('#root');
   await page.click('.action-btn');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await page.waitForSelector('.data-wrapper');
   const text = await page.evaluate(el => el?.textContent, rootElm);
   expect(text?.includes('modern_three_action')).toBeTruthy();
 };
@@ -559,12 +444,12 @@ const supportShouldRevalidateInSSR = async (
     waitUntil: ['networkidle0'],
   });
   await page.click('.should-revalidate');
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await page.waitForSelector('.item-page', { timeout: 5000 });
   const rootElm = await page.$('#root');
   const text = await page.evaluate(el => el?.textContent, rootElm);
   expect(text?.includes('param is 111')).toBeTruthy();
   await page.click('.should-not-revalidate');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await page.waitForSelector('.item-page', { timeout: 5000 });
   const text1 = await page.evaluate(el => el?.textContent, rootElm);
   expect(text1?.includes('param is 111')).toBeTruthy();
 };
@@ -582,7 +467,7 @@ const supportShouldRevalidateInCSR = async (
   const text = await page.evaluate(el => el?.textContent, rootElm);
   expect(text?.includes('param is 111')).toBeTruthy();
   await page.click('.should-not-revalidate');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 400));
   const text1 = await page.evaluate(el => el?.textContent, rootElm);
   expect(text1?.includes('param is 111')).toBeTruthy();
 };
@@ -622,8 +507,11 @@ const supportPrefetchInIntentMode = async (
       isRequestProfilePageData = true;
     }
   });
+
+  await page.waitForSelector('.user-profile-btn');
+
   await page.hover('.user-profile-btn');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 400));
   expect(isRequestJS).toBe(true);
   expect(isRequestProfileLayoutData).toBe(true);
   expect(isRequestProfilePageData).toBe(true);
@@ -641,7 +529,7 @@ const supportPrefetchWithShouldRevalidate = async (
   // make sure assets have been loaded
   await new Promise(resolve => setTimeout(resolve, 800));
   await page.click('.root-btn');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 400));
 
   let isRequestLayoutData = false;
   let isRequestPageData = false;
@@ -657,12 +545,176 @@ const supportPrefetchWithShouldRevalidate = async (
     }
   });
   await page.hover('.should-not-revalidate');
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 400));
   expect(isRequestLayoutData).toBe(true);
   expect(isRequestPageData).toBe(false);
 };
 
-describe('dev', () => {
+// config-only routes (entry "two")
+const supportConfigOnlyRoutesRender = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/two`, {
+    waitUntil: ['networkidle0'],
+  });
+  const rootElm = await page.$('#root');
+  const text = await page.evaluate(el => el?.textContent, rootElm);
+  expect(text?.includes('two root layout')).toBeTruthy();
+  const home = await page.$('.two-home');
+  const homeText = await page.evaluate(el => el?.textContent, home);
+  expect(homeText).toBe('two home');
+  expect(errors.length).toBe(0);
+};
+
+const supportConfigOnlyCatchAll = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/two/unknown/path`, {
+    waitUntil: ['networkidle0'],
+  });
+  const rootElm = await page.$('#root');
+  const text = await page.evaluate(el => el?.textContent, rootElm);
+  expect(text?.includes('two root layout')).toBeTruthy();
+  const catchAll = await page.$('.two-catch-all');
+  const catchAllText = await page.evaluate(el => el?.textContent, catchAll);
+  expect(catchAllText).toBe('catch all route');
+  expect(errors.length).toBe(0);
+};
+
+const supportConfigOnlyErrorBoundary = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/two/boom`, {
+    waitUntil: ['domcontentloaded'],
+  });
+  await page.waitForSelector('.two-error');
+  const el = await page.$('.two-error');
+  const text = await page.evaluate(el => el?.textContent, el);
+  expect(text?.includes('boom test')).toBeTruthy();
+  expect(errors.length).toBe(0);
+};
+
+const supportConfigOnlyRoutesLoader = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/two/user/567`, {
+    waitUntil: ['networkidle0'],
+  });
+  const rootElm = await page.$('#root');
+  const text = await page.evaluate(el => el?.textContent, rootElm);
+  expect(text?.includes('two root layout')).toBeTruthy();
+  const user = await page.$('.two-user');
+  const userText = await page.evaluate(el => el?.textContent, user);
+  expect(userText?.includes('user id: 567')).toBeTruthy();
+  expect(errors.length).toBe(0);
+};
+
+// Hybrid routes test functions
+const supportConfigOverridesConventional = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/three/shop`, {
+    waitUntil: ['networkidle0'],
+  });
+  const shopElm = await page.$('.config-shop');
+  const text = await page.evaluate(el => el?.textContent, shopElm);
+  expect(text).toBe('config shop page');
+  const conventionalShop = await page.$('.conventional-shop');
+  expect(conventionalShop).toBeNull();
+  expect(errors.length).toBe(0);
+};
+
+const supportConfigSupplementsConventional = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/three/settings`, {
+    waitUntil: ['networkidle0'],
+  });
+  const settingsElm = await page.$('.settings-page');
+  const text = await page.evaluate(el => el?.textContent, settingsElm);
+  expect(text).toBe('settings page from config route');
+  expect(errors.length).toBe(0);
+};
+
+const supportMixedNestedRoutes = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  await page.goto(`http://localhost:${appPort}/three/user/custom-tab`, {
+    waitUntil: ['networkidle0'],
+  });
+  const rootElm = await page.$('#root');
+  const text = await page.evaluate(el => el?.textContent, rootElm);
+  // Should include conventional 'user' layout content
+  expect(text?.includes('user layout')).toBeTruthy();
+  // Should include config 'custom-tab' page content
+  const customTab = await page.$('.custom-tab');
+  const tabText = await page.evaluate(el => el?.textContent, customTab);
+  expect(tabText).toBe('custom tab from config route');
+  expect(errors.length).toBe(0);
+};
+
+const supportConfigWithCompanionFiles = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  // Should load data via server loader
+  await page.goto(`http://localhost:${appPort}/three/product/123`, {
+    waitUntil: ['networkidle0'],
+  });
+  const productPage = await page.$('.product-page');
+  expect(productPage).not.toBeNull();
+  const productId = await page.$('.product-id');
+  const idText = await page.evaluate(el => el?.textContent, productId);
+  expect(idText).toBe('product id: 123');
+  const productName = await page.$('.product-name');
+  const nameText = await page.evaluate(el => el?.textContent, productName);
+  expect(nameText).toBe('product name: Product 123');
+
+  // Should render error boundary when loader throws
+  await page.goto(`http://localhost:${appPort}/three/product/error`, {
+    waitUntil: ['domcontentloaded'],
+  });
+  await page.waitForSelector('.product-error');
+  const errorElm = await page.$('.product-error');
+  const errorText = await page.evaluate(el => el?.textContent, errorElm);
+  expect(errorText?.includes('Product Error Boundary')).toBeTruthy();
+  expect(errorText?.includes('Product load error')).toBeTruthy();
+};
+
+const supportDeepFileRoutesManipulation = async (
+  page: Page,
+  errors: string[],
+  appPort: number,
+) => {
+  // Ensure that 'client-loader' route has been removed
+  const response = await page.goto(
+    `http://localhost:${appPort}/three/client-loader`,
+    {
+      waitUntil: ['domcontentloaded'],
+    },
+  );
+  // After removal, it should be 404 or unmatched.
+  // Since catch-all may exist, ensure no client-loader content is shown.
+  const clientLoaderLayout = await page.$('.client-loader-layout');
+  expect(clientLoaderLayout).toBeNull();
+};
+
+describe('dev with rspack', () => {
   let app: unknown;
   let appPort: number;
   let page: Page;
@@ -670,35 +722,24 @@ describe('dev', () => {
   const errors: string[] = [];
   beforeAll(async () => {
     appPort = await getPort();
-    app = await launchApp(appDir, appPort, {}, {});
+    app = await launchApp(
+      appDir,
+      appPort,
+      {},
+      {
+        BUNDLER: 'rspack',
+      },
+    );
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
-    await page.setRequestInterception(true);
-    page.on('request', interceptedRequest => {
-      interceptedRequest.continue();
-    });
     page.on('pageerror', error => {
-      console.log(error.message);
-      errors.push(error.message);
+      errors.push((error as Error).message);
     });
   });
 
   describe('self control route', () => {
     test('should render correctly', async () =>
       renderSelfRoute(page, errors, appPort));
-  });
-
-  describe('pages routes', () => {
-    test('render pages route correctly', async () =>
-      renderPageRoute(page, errors, appPort));
-
-    test('render dynamic pages route correctly', async () =>
-      renderDynamicRoute(page, errors, appPort));
-
-    test('support global layout', async () =>
-      supportGlobalLayout(page, errors, appPort));
-
-    test('support _layout', async () => supportLayout(page, errors, appPort));
   });
 
   describe('nested routes', () => {
@@ -728,14 +769,6 @@ describe('dev', () => {
       supportHandleLoaderError(page, errors, appPort));
   });
 
-  describe('support both page route and nested route', () => {
-    test('nested route has higher priority', async () =>
-      nestedRouteOverPage(page, errors, appPort));
-
-    test('support works together', async () =>
-      supportNestedRouteAndPage(page, errors, appPort));
-  });
-
   describe('loader', () => {
     test('support loader', async () => supportLoader(page, errors, appPort));
     test('support loader for ssr and csr', async () =>
@@ -747,11 +780,16 @@ describe('dev', () => {
       supportRedirectForSSR(page, errors, appPort));
     test('support redirect for csr', () =>
       supportRedirectForCSR(page, errors, appPort));
-  });
-
-  describe('global configuration', () => {
-    test('support app init', async () =>
-      await supportDefineInit(page, errors, appPort));
+    test('support throw error', async () =>
+      supportThrowError(page, errors, appPort));
+    test('support throw response', async () => {
+      await supportThrowResponse(page, errors, appPort, 500);
+      await supportThrowResponse(page, errors, appPort, 200);
+    });
+    test('support return response', async () => {
+      await supportReturnResponse(page, errors, appPort, 500);
+      await supportReturnResponse(page, errors, appPort, 200);
+    });
   });
 
   describe('router plugin', () => {
@@ -770,7 +808,6 @@ describe('dev', () => {
     test('support action in CSR', async () => {
       await supportActionInCSR(page, errors, appPort);
     });
-
     test('support action in SSR', async () => {
       await supportActionInSSR(page, errors, appPort);
     });
@@ -794,6 +831,17 @@ describe('dev', () => {
     });
   });
 
+  describe('config-only routes (two)', () => {
+    test('render correctly', async () =>
+      supportConfigOnlyRoutesRender(page, errors, appPort));
+    test('loader works', async () =>
+      supportConfigOnlyRoutesLoader(page, errors, appPort));
+    test('catch all route works', async () =>
+      supportConfigOnlyCatchAll(page, errors, appPort));
+    test('error boundary works', async () =>
+      supportConfigOnlyErrorBoundary(page, errors, appPort));
+  });
+
   afterAll(async () => {
     await killApp(app);
     await page.close();
@@ -801,45 +849,37 @@ describe('dev', () => {
   });
 });
 
-describe('build', () => {
+describe('build with rspack', () => {
   let appPort: number;
   let app: unknown;
   let page: Page;
   let browser: Browser;
   const errors: string[] = [];
-
   beforeAll(async () => {
     appPort = await getPort();
-    await modernBuild(appDir);
+    const buildResult = await modernBuild(appDir, [], {
+      env: {
+        BUNDLER: 'rspack',
+      },
+    });
+
+    if (buildResult.code !== 0) {
+      console.log('ut test build failed, err: ', buildResult.stderr);
+      console.log('ut test build failed, output: ', buildResult.stdout);
+    }
     app = await modernServe(appDir, appPort, {
       cwd: appDir,
     });
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
     page.on('pageerror', error => {
-      errors.push(error.message);
+      errors.push((error as Error).message);
     });
   });
 
   describe('self control route', () => {
     test('should render correctly', async () =>
       renderSelfRoute(page, errors, appPort));
-  });
-
-  describe('pages routes', () => {
-    test('render pages route correctly', async () =>
-      renderPageRoute(page, errors, appPort));
-
-    test('render dynamic pages route correctly', async () =>
-      renderDynamicRoute(page, errors, appPort));
-
-    test('render options params pages route correctly', async () =>
-      renderOptionalParamsRoute(page, errors, appPort));
-
-    test('support global layout', async () =>
-      supportGlobalLayout(page, errors, appPort));
-
-    test('support _layout', async () => supportLayout(page, errors, appPort));
   });
 
   describe('nested routes', () => {
@@ -864,14 +904,6 @@ describe('build', () => {
       supportHandleLoaderError(page, errors, appPort));
   });
 
-  describe('suppot both page route and nested route', () => {
-    test('nested route has higher priority', async () =>
-      nestedRouteOverPage(page, errors, appPort));
-
-    test('support works together', async () =>
-      supportNestedRouteAndPage(page, errors, appPort));
-  });
-
   describe('loader', () => {
     test('support loader', async () => supportLoader(page, errors, appPort));
     test('support loader for ssr and csr', async () =>
@@ -883,11 +915,16 @@ describe('build', () => {
       supportRedirectForSSR(page, errors, appPort));
     test('support redirect for csr', () =>
       supportRedirectForCSR(page, errors, appPort));
-  });
-
-  describe('global configuration', () => {
-    test('support app init', async () =>
-      await supportDefineInit(page, errors, appPort));
+    test('support throw error', async () =>
+      supportThrowError(page, errors, appPort));
+    test('support throw response', async () => {
+      await supportThrowResponse(page, errors, appPort, 500);
+      await supportThrowResponse(page, errors, appPort, 200);
+    });
+    test('support return response', async () => {
+      await supportReturnResponse(page, errors, appPort, 500);
+      await supportReturnResponse(page, errors, appPort, 200);
+    });
   });
 
   describe('router plugin', () => {
@@ -931,6 +968,28 @@ describe('build', () => {
     });
   });
 
+  describe('config-only routes (two)', () => {
+    test('render correctly', async () =>
+      supportConfigOnlyRoutesRender(page, errors, appPort));
+    test('loader works', async () =>
+      supportConfigOnlyRoutesLoader(page, errors, appPort));
+    test('catch all route works', async () =>
+      supportConfigOnlyCatchAll(page, errors, appPort));
+    test('error boundary works', async () =>
+      supportConfigOnlyErrorBoundary(page, errors, appPort));
+  });
+
+  describe('hybrid routes (three)', () => {
+    test('config route overrides conventional route', async () =>
+      supportConfigOverridesConventional(page, errors, appPort));
+    test('config route supplements conventional routes', async () =>
+      supportConfigSupplementsConventional(page, errors, appPort));
+    test('mixed nested routes work correctly', async () =>
+      supportMixedNestedRoutes(page, errors, appPort));
+    test('config route with auto-discovered companion files', async () =>
+      supportConfigWithCompanionFiles(page, errors, appPort));
+  });
+
   afterAll(async () => {
     await killApp(app);
     await page.close();
@@ -938,144 +997,98 @@ describe('build', () => {
   });
 });
 
-describe('dev with rspack', () => {
-  let app: unknown;
-  let appPort: number;
-  let page: Page;
-  let browser: Browser;
-  const errors: string[] = [];
+describe('routes inspect report', () => {
   beforeAll(async () => {
-    appPort = await getPort();
-    app = await launchApp(
-      appDir,
-      appPort,
-      {},
-      {
-        BUNDLER: 'rspack',
-      },
+    const distDir = path.join(appDir, './dist');
+    if (await fs.pathExists(distDir)) {
+      await fs.remove(distDir);
+    }
+
+    await runModernCommand(['routes'], {
+      cwd: appDir,
+      stdout: true,
+      stderr: true,
+    });
+  });
+  test('should generate correct routes inspect report', async () => {
+    const reportPath = path.join(appDir, './dist/routes-inspect.json');
+
+    expect(await fs.pathExists(reportPath)).toBeTruthy();
+
+    const report = await fs.readJSON(reportPath);
+
+    expect(report).toHaveProperty('four');
+    expect(report).toHaveProperty('three');
+    expect(report.four).toHaveProperty('routes');
+    expect(report.three).toHaveProperty('routes');
+
+    const fourRoutes = report.four.routes;
+    expect(fourRoutes).toHaveLength(1);
+
+    const fourRoot = fourRoutes[0];
+    expect(fourRoot.path).toBe('/');
+    expect(fourRoot.component).toContain('@_modern_js_src/four/routes/layout');
+    expect(fourRoot.children).toBeDefined();
+
+    const fourChildren = fourRoot.children!;
+    expect(fourChildren.length).toBeGreaterThan(0);
+
+    const dynamicRoute = findRouteByPath(fourChildren, ':id');
+    expect(dynamicRoute).toBeDefined();
+    expect(dynamicRoute?.params).toEqual(['id']);
+    expect(dynamicRoute?.data).toContain(
+      '@_modern_js_src/four/routes/user/[id]/page.data',
     );
-    browser = await puppeteer.launch(launchOptions as any);
-    page = await browser.newPage();
-    page.on('pageerror', error => {
-      errors.push(error.message);
-    });
-  });
 
-  describe('self control route', () => {
-    test('should render correctly', async () =>
-      renderSelfRoute(page, errors, appPort));
-  });
+    const catchAllRoute = findRouteByPath(fourChildren, '*');
+    expect(catchAllRoute).toBeDefined();
 
-  describe('pages routes', () => {
-    test('render pages route correctly', async () =>
-      renderPageRoute(page, errors, appPort));
+    const optionalRoute = findRouteByPath(fourChildren, 'act/:bid?');
+    expect(optionalRoute).toBeDefined();
+    expect(optionalRoute?.params).toEqual(['bid?']);
 
-    test('render dynamic pages route correctly', async () =>
-      renderDynamicRoute(page, errors, appPort));
+    const threeRoutes = report.three.routes;
+    expect(threeRoutes).toHaveLength(1);
 
-    test('support global layout', async () =>
-      supportGlobalLayout(page, errors, appPort));
+    const threeRoot = threeRoutes[0];
+    expect(threeRoot.path).toBe('/');
+    expect(threeRoot.component).toContain(
+      '@_modern_js_src/three/routes/layout',
+    );
+    expect(threeRoot.error).toContain('@_modern_js_src/three/routes/error');
+    expect(threeRoot.loading).toContain('@_modern_js_src/three/routes/loading');
+    expect(threeRoot.config).toContain(
+      '@_modern_js_src/three/routes/layout.config',
+    );
 
-    test('support _layout', async () => supportLayout(page, errors, appPort));
-  });
+    const threeChildren = threeRoot.children!;
 
-  describe('nested routes', () => {
-    test('basic usage', async () => supportNestedRoutes(page, errors, appPort));
+    const authShopRoute = findRouteByPath(threeChildren, 'item');
+    expect(authShopRoute).toBeDefined();
+    expect(authShopRoute?.component).toContain(
+      '@_modern_js_src/three/routes/__auth/__shop/item/page',
+    );
 
-    test('dynamic path', async () =>
-      supportDynamaicPaths(page, errors, appPort));
+    const clientLoaderRoute = findRouteByPath(threeChildren, 'client-loader');
+    expect(clientLoaderRoute).toBeDefined();
+    expect(clientLoaderRoute?.data).toContain(
+      '@_modern_js_src/three/routes/client-loader/layout.data',
+    );
+    expect(clientLoaderRoute?.clientData).toContain(
+      '@_modern_js_src/three/routes/client-loader/layout.data.client',
+    );
 
-    test('support catch all', async () =>
-      supportCatchAll(page, errors, appPort));
+    const errorRoute = findRouteByPath(threeChildren, 'error');
+    expect(errorRoute).toBeDefined();
+    expect(errorRoute?.component).toBe('');
 
-    test('no layout dir', async () =>
-      supportNoLayoutDir(page, errors, appPort));
-
-    test('pathless layout', async () =>
-      supportPathLessLayout(page, errors, appPort));
-
-    test('path without layout', async () =>
-      supportPathWithoutLayout(page, errors, appPort));
-
-    test('support load chunks Parallelly', supportLoadChunksParallelly);
-
-    test('support handle config', async () =>
-      supportHandleConfig(page, appPort));
-
-    // FIXME: skip the test
-    test('support handle loader error', async () =>
-      supportHandleLoaderError(page, errors, appPort));
-  });
-
-  describe('support both page route and nested route', () => {
-    test('nested route has higher priority', async () =>
-      nestedRouteOverPage(page, errors, appPort));
-
-    test('support works together', async () =>
-      supportNestedRouteAndPage(page, errors, appPort));
-  });
-
-  describe('loader', () => {
-    test('support loader', async () => supportLoader(page, errors, appPort));
-    test('support loader for ssr and csr', async () =>
-      supportLoaderForSSRAndCSR(page, errors, appPort));
-
-    test('support loader for csr', () =>
-      supportLoaderForCSR(page, errors, appPort));
-    test('support redirect for ssr', () =>
-      supportRedirectForSSR(page, errors, appPort));
-    test('support redirect for csr', () =>
-      supportRedirectForCSR(page, errors, appPort));
-  });
-
-  describe('global configuration', () => {
-    test('support app init', async () =>
-      await supportDefineInit(page, errors, appPort));
-  });
-
-  describe('router plugin', () => {
-    test('basic usage', async () => {
-      await testRouterPlugin(appDir);
-    });
-  });
-
-  describe('client data', () => {
-    test('support client data', async () => {
-      await supportClientLoader(page, errors, appPort);
-    });
-  });
-
-  describe('support action', () => {
-    test('support action in CSR', async () => {
-      await supportActionInCSR(page, errors, appPort);
-    });
-    test('support action in SSR', async () => {
-      await supportActionInSSR(page, errors, appPort);
-    });
-  });
-
-  describe('prefetch', () => {
-    test('suppport prefetch', async () => {
-      await supportPrefetchInIntentMode(page, errors, appPort);
-    });
-    test('support prefetch with shouldRevalidate', async () => {
-      await supportPrefetchWithShouldRevalidate(page, errors, appPort);
-    });
-  });
-
-  describe('support shouldRevalidate', () => {
-    test('support shouldRevalidate in ssr', async () => {
-      await supportShouldRevalidateInSSR(page, errors, appPort);
-    });
-    test('support shouldRevalidate in csr', async () => {
-      await supportShouldRevalidateInCSR(page, errors, appPort);
-    });
-  });
-
-  afterAll(async () => {
-    await killApp(app);
-    await page.close();
-    await browser.close();
+    const dotRoute = findRouteByPath(threeChildren, 'user/profile/name');
+    expect(dotRoute).toBeDefined();
+    expect(dotRoute?.component).toContain(
+      '@_modern_js_src/three/routes/user.profile.name/layout',
+    );
+    expect(dotRoute?.config).toContain(
+      '@_modern_js_src/three/routes/user.profile.name/layout.config',
+    );
   });
 });
-/* eslint-enable max-lines */

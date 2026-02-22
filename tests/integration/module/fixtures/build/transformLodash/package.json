@@ -1,7 +1,0 @@
-{
-  "name": "transform-lodash",
-  "version": "1.0.0",
-  "dependencies": {
-    "lodash": "^4"
-  }
-}

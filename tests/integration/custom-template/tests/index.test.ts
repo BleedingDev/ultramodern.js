@@ -1,5 +1,5 @@
-import path from 'path';
 import { readFileSync } from 'fs';
+import path from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 describe('custom template', () => {
@@ -9,7 +9,7 @@ describe('custom template', () => {
     await modernBuild(appDir);
 
     expect(
-      readFileSync(path.resolve(appDir, `dist/html/main/index.html`), 'utf8'),
+      readFileSync(path.resolve(appDir, `dist/html/index/index.html`), 'utf8'),
     ).toMatchSnapshot();
   });
 });

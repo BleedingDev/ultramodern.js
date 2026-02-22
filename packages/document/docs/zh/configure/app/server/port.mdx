@@ -1,0 +1,23 @@
+---
+title: port
+---
+
+# server.port
+
+- **类型：** `number`
+- **默认值：** `8080`
+
+Modern.js 在执行 `dev` 和 `serve` 命令时，会以 `8080` 为默认端口启动，并会在端口被占用时自动递增端口号。你可以通过该配置来修改 Server 启动的端口号：
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    port: 3000,
+  },
+});
+```
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="server.port" />
+```

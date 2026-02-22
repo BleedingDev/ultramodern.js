@@ -1,6 +1,1137 @@
 # @modern-js/plugin-bff
 
-## 4.0.0
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [dcf43b8]
+- Updated dependencies [28cf50a]
+  - @modern-js/builder@3.0.2
+  - @modern-js/bff-core@3.0.2
+  - @modern-js/server-core@3.0.2
+  - @modern-js/create-request@3.0.2
+  - @modern-js/server-utils@3.0.2
+  - @modern-js/utils@3.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [7a278a6]
+  - @modern-js/builder@3.0.1
+  - @modern-js/bff-core@3.0.1
+  - @modern-js/server-core@3.0.1
+  - @modern-js/create-request@3.0.1
+  - @modern-js/server-utils@3.0.1
+  - @modern-js/utils@3.0.1
+
+## 3.0.0
+
+### Minor Changes
+
+- ecd247c: feat: esm runtime
+
+### Patch Changes
+
+- 96b5424: fix: dev hono context error
+  fix: 修复 dev 环境 hono context
+- Updated dependencies [96b5424]
+- Updated dependencies [eecb927]
+- Updated dependencies [ecd247c]
+- Updated dependencies [952f6fe]
+- Updated dependencies [e21ac60]
+- Updated dependencies [79f0efd]
+  - @modern-js/server-core@3.0.0
+  - @modern-js/bff-core@3.0.0
+  - @modern-js/create-request@3.0.0
+  - @modern-js/server-utils@3.0.0
+  - @modern-js/builder@3.0.0
+  - @modern-js/utils@3.0.0
+
+## 3.0.0-alpha.2
+
+### Minor Changes
+
+- ecd247c: feat: esm runtime
+
+### Patch Changes
+
+- 96b5424: fix: dev hono context error
+  fix: 修复 dev 环境 hono context
+- Updated dependencies [96b5424]
+- Updated dependencies [eecb927]
+- Updated dependencies [ecd247c]
+- Updated dependencies [952f6fe]
+- Updated dependencies [e21ac60]
+- Updated dependencies [79f0efd]
+  - @modern-js/server-core@3.0.0-alpha.2
+  - @modern-js/bff-core@3.0.0-alpha.2
+  - @modern-js/create-request@3.0.0-alpha.2
+  - @modern-js/server-utils@3.0.0-alpha.2
+  - @modern-js/builder@3.0.0-alpha.2
+  - @modern-js/utils@3.0.0-alpha.2
+
+## 3.0.0-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [eecb927]
+- Updated dependencies [952f6fe]
+- Updated dependencies [79f0efd]
+  - @modern-js/server-core@3.0.0-alpha.1
+  - @modern-js/server-utils@3.0.0-alpha.1
+  - @modern-js/builder@3.0.0-alpha.1
+  - @modern-js/bff-core@3.0.0-alpha.1
+  - @modern-js/create-request@3.0.0-alpha.1
+  - @modern-js/utils@3.0.0-alpha.1
+
+## 3.0.0-alpha.0
+
+### Patch Changes
+
+- Updated dependencies [eecb927]
+- Updated dependencies [952f6fe]
+  - @modern-js/server-core@3.0.0-alpha.0
+  - @modern-js/server-utils@3.0.0-alpha.0
+  - @modern-js/builder@3.0.0-alpha.0
+  - @modern-js/bff-core@3.0.0-alpha.0
+  - @modern-js/create-request@3.0.0-alpha.0
+  - @modern-js/utils@3.0.0-alpha.0
+
+## 2.68.1
+
+### Patch Changes
+
+- e64d5f9: feat: hono bff supports return custom res
+  feat: hono bff 支持返回自定义响应
+- Updated dependencies [e64d5f9]
+- Updated dependencies [0d98723]
+- Updated dependencies [0d98723]
+  - @modern-js/create-request@2.68.1
+  - @modern-js/server-core@2.68.1
+  - @modern-js/server-utils@2.68.1
+  - @modern-js/bff-core@2.68.1
+  - @modern-js/utils@2.68.1
+
+## 2.68.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.68.0
+- @modern-js/server-core@2.68.0
+- @modern-js/create-request@2.68.0
+- @modern-js/server-utils@2.68.0
+- @modern-js/utils@2.68.0
+
+## 2.67.11
+
+### Patch Changes
+
+- @modern-js/bff-core@2.67.11
+- @modern-js/server-core@2.67.11
+- @modern-js/create-request@2.67.11
+- @modern-js/server-utils@2.67.11
+- @modern-js/utils@2.67.11
+
+## 2.67.10
+
+### Patch Changes
+
+- @modern-js/bff-core@2.67.10
+- @modern-js/server-core@2.67.10
+- @modern-js/create-request@2.67.10
+- @modern-js/server-utils@2.67.10
+- @modern-js/utils@2.67.10
+
+## 2.67.9
+
+### Patch Changes
+
+- 8a07b69: fix: hono bff params order
+  fix: 修复 hono 运行是框架获取 params 顺序问题
+  - @modern-js/server-core@2.67.9
+  - @modern-js/server-utils@2.67.9
+  - @modern-js/bff-core@2.67.9
+  - @modern-js/create-request@2.67.9
+  - @modern-js/utils@2.67.9
+
+## 2.67.8
+
+### Patch Changes
+
+- Updated dependencies [23c8201]
+  - @modern-js/utils@2.67.8
+  - @modern-js/bff-core@2.67.8
+  - @modern-js/server-core@2.67.8
+  - @modern-js/create-request@2.67.8
+  - @modern-js/server-utils@2.67.8
+
+## 2.67.7
+
+### Patch Changes
+
+- @modern-js/bff-core@2.67.7
+- @modern-js/server-core@2.67.7
+- @modern-js/create-request@2.67.7
+- @modern-js/server-utils@2.67.7
+- @modern-js/utils@2.67.7
+
+## 2.67.6
+
+### Patch Changes
+
+- Updated dependencies [67a21da]
+- Updated dependencies [e67b6d0]
+  - @modern-js/server-core@2.67.6
+  - @modern-js/server-utils@2.67.6
+  - @modern-js/bff-core@2.67.6
+  - @modern-js/create-request@2.67.6
+  - @modern-js/utils@2.67.6
+
+## 2.67.5
+
+### Patch Changes
+
+- @modern-js/bff-core@2.67.5
+- @modern-js/server-core@2.67.5
+- @modern-js/create-request@2.67.5
+- @modern-js/server-utils@2.67.5
+- @modern-js/utils@2.67.5
+
+## 2.67.4
+
+### Patch Changes
+
+- Updated dependencies [35e9786]
+- Updated dependencies [2b65e0c]
+  - @modern-js/server-core@2.67.4
+  - @modern-js/server-utils@2.67.4
+  - @modern-js/create-request@2.67.4
+  - @modern-js/bff-core@2.67.4
+  - @modern-js/utils@2.67.4
+
+## 2.67.3
+
+### Patch Changes
+
+- f6b81dd: feat: bff supports hono runtime framework
+  feat: bff 支持 hono 运行时框架
+- Updated dependencies [f6b81dd]
+- Updated dependencies [f6b81dd]
+  - @modern-js/create-request@2.67.3
+  - @modern-js/server-core@2.67.3
+  - @modern-js/server-utils@2.67.3
+  - @modern-js/bff-core@2.67.3
+  - @modern-js/utils@2.67.3
+
+## 2.67.2
+
+### Patch Changes
+
+- Updated dependencies [b310249]
+- Updated dependencies [23a111f]
+- Updated dependencies [6a5f36c]
+- Updated dependencies [c964f07]
+  - @modern-js/server-core@2.67.2
+  - @modern-js/create-request@2.67.2
+  - @modern-js/server-utils@2.67.2
+  - @modern-js/bff-core@2.67.2
+  - @modern-js/utils@2.67.2
+
+## 2.67.1
+
+### Patch Changes
+
+- Updated dependencies [1d96265]
+  - @modern-js/utils@2.67.1
+  - @modern-js/server-core@2.67.1
+  - @modern-js/bff-core@2.67.1
+  - @modern-js/create-request@2.67.1
+  - @modern-js/server-utils@2.67.1
+
+## 2.67.0
+
+### Patch Changes
+
+- Updated dependencies [7503f22]
+  - @modern-js/server-core@2.67.0
+  - @modern-js/server-utils@2.67.0
+  - @modern-js/bff-core@2.67.0
+  - @modern-js/create-request@2.67.0
+  - @modern-js/utils@2.67.0
+
+## 2.66.0
+
+### Minor Changes
+
+- e48a5ae: feat: server plugin use plugin v2
+
+  feat: server 插件使用 plugin v2 实现
+
+### Patch Changes
+
+- Updated dependencies [e48a5ae]
+  - @modern-js/server-core@2.66.0
+  - @modern-js/server-utils@2.66.0
+  - @modern-js/bff-core@2.66.0
+  - @modern-js/create-request@2.66.0
+  - @modern-js/utils@2.66.0
+
+## 2.65.5
+
+### Patch Changes
+
+- Updated dependencies [fb6bf9e]
+  - @modern-js/server-core@2.65.5
+  - @modern-js/server-utils@2.65.5
+  - @modern-js/create-request@2.65.5
+  - @modern-js/bff-core@2.65.5
+  - @modern-js/utils@2.65.5
+
+## 2.65.4
+
+### Patch Changes
+
+- Updated dependencies [0d47cb8]
+- Updated dependencies [f1cd095]
+  - @modern-js/utils@2.65.4
+  - @modern-js/server-core@2.65.4
+  - @modern-js/bff-core@2.65.4
+  - @modern-js/create-request@2.65.4
+  - @modern-js/server-utils@2.65.4
+
+## 2.65.3
+
+### Patch Changes
+
+- @modern-js/bff-core@2.65.3
+- @modern-js/server-core@2.65.3
+- @modern-js/create-request@2.65.3
+- @modern-js/utils@2.65.3
+- @modern-js/server-utils@2.65.3
+
+## 2.65.2
+
+### Patch Changes
+
+- Updated dependencies [793be44]
+- Updated dependencies [1fe923c]
+- Updated dependencies [f3fc1db]
+- Updated dependencies [1f83d96]
+  - @modern-js/create-request@2.65.2
+  - @modern-js/server-core@2.65.2
+  - @modern-js/utils@2.65.2
+  - @modern-js/bff-core@2.65.2
+  - @modern-js/server-utils@2.65.2
+
+## 2.65.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.65.1
+- @modern-js/server-core@2.65.1
+- @modern-js/create-request@2.65.1
+- @modern-js/server-utils@2.65.1
+- @modern-js/utils@2.65.1
+
+## 2.65.0
+
+### Patch Changes
+
+- b43988e: feat: BFF 跨项目调用支持配置域名，补充文档
+  feat: BFF cross-project-invocation supports configuration of domain, add doc
+- b854d7b: fix(bff): fixed path issue of generating package.json attribute
+  fix(bff): 修复生成 package.json 属性的路径问题
+- Updated dependencies [b43988e]
+- Updated dependencies [4c0aca6]
+  - @modern-js/create-request@2.65.0
+  - @modern-js/server-core@2.65.0
+  - @modern-js/server-utils@2.65.0
+  - @modern-js/bff-core@2.65.0
+  - @modern-js/utils@2.65.0
+
+## 2.64.3
+
+### Patch Changes
+
+- Updated dependencies [d77a6df]
+  - @modern-js/server-core@2.64.3
+  - @modern-js/server-utils@2.64.3
+  - @modern-js/bff-core@2.64.3
+  - @modern-js/create-request@2.64.3
+  - @modern-js/utils@2.64.3
+
+## 2.64.2
+
+### Patch Changes
+
+- Updated dependencies [4ae943d]
+- Updated dependencies [02ca983]
+  - @modern-js/server-core@2.64.2
+  - @modern-js/server-utils@2.64.2
+  - @modern-js/bff-core@2.64.2
+  - @modern-js/create-request@2.64.2
+  - @modern-js/utils@2.64.2
+
+## 2.64.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.64.1
+- @modern-js/server-core@2.64.1
+- @modern-js/create-request@2.64.1
+- @modern-js/server-utils@2.64.1
+- @modern-js/utils@2.64.1
+
+## 2.64.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.64.0
+- @modern-js/server-core@2.64.0
+- @modern-js/create-request@2.64.0
+- @modern-js/server-utils@2.64.0
+- @modern-js/utils@2.64.0
+
+## 2.63.7
+
+### Patch Changes
+
+- fdcb0ee: feat: bff support independent project
+
+  feat: bff 支持跨项目调用
+
+- Updated dependencies [39f955f]
+- Updated dependencies [fdcb0ee]
+  - @modern-js/bff-core@2.63.7
+  - @modern-js/create-request@2.63.7
+  - @modern-js/server-core@2.63.7
+  - @modern-js/server-utils@2.63.7
+  - @modern-js/utils@2.63.7
+
+## 2.63.6
+
+### Patch Changes
+
+- Updated dependencies [a7a4573]
+  - @modern-js/server-core@2.63.6
+  - @modern-js/server-utils@2.63.6
+  - @modern-js/bff-core@2.63.6
+  - @modern-js/create-request@2.63.6
+  - @modern-js/utils@2.63.6
+
+## 2.63.5
+
+### Patch Changes
+
+- @modern-js/bff-core@2.63.5
+- @modern-js/server-core@2.63.5
+- @modern-js/create-request@2.63.5
+- @modern-js/server-utils@2.63.5
+- @modern-js/utils@2.63.5
+
+## 2.63.4
+
+### Patch Changes
+
+- Updated dependencies [95b026d]
+  - @modern-js/server-core@2.63.4
+  - @modern-js/server-utils@2.63.4
+  - @modern-js/bff-core@2.63.4
+  - @modern-js/create-request@2.63.4
+  - @modern-js/utils@2.63.4
+
+## 2.63.3
+
+### Patch Changes
+
+- Updated dependencies [5c97ec2]
+- Updated dependencies [e5b16df]
+  - @modern-js/server-core@2.63.3
+  - @modern-js/server-utils@2.63.3
+  - @modern-js/bff-core@2.63.3
+  - @modern-js/create-request@2.63.3
+  - @modern-js/utils@2.63.3
+
+## 2.63.2
+
+### Patch Changes
+
+- Updated dependencies [5fc95f7]
+- Updated dependencies [524d6af]
+- Updated dependencies [53e3ae0]
+- Updated dependencies [3d2bf55]
+- Updated dependencies [bc1670a]
+- Updated dependencies [30f89d5]
+  - @modern-js/utils@2.63.2
+  - @modern-js/server-core@2.63.2
+  - @modern-js/bff-core@2.63.2
+  - @modern-js/create-request@2.63.2
+  - @modern-js/server-utils@2.63.2
+
+## 2.63.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.63.1
+- @modern-js/server-core@2.63.1
+- @modern-js/create-request@2.63.1
+- @modern-js/server-utils@2.63.1
+- @modern-js/utils@2.63.1
+
+## 2.63.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.63.0
+- @modern-js/server-core@2.63.0
+- @modern-js/create-request@2.63.0
+- @modern-js/server-utils@2.63.0
+- @modern-js/utils@2.63.0
+
+## 2.62.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.62.1
+- @modern-js/server-core@2.62.1
+- @modern-js/create-request@2.62.1
+- @modern-js/server-utils@2.62.1
+- @modern-js/utils@2.62.1
+
+## 2.62.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.62.0
+- @modern-js/server-core@2.62.0
+- @modern-js/create-request@2.62.0
+- @modern-js/server-utils@2.62.0
+- @modern-js/utils@2.62.0
+
+## 2.61.0
+
+### Patch Changes
+
+- Updated dependencies [8bd7799]
+- Updated dependencies [45230e2]
+- Updated dependencies [a7ff13f]
+  - @modern-js/bff-core@2.61.0
+  - @modern-js/utils@2.61.0
+  - @modern-js/server-core@2.61.0
+  - @modern-js/create-request@2.61.0
+  - @modern-js/server-utils@2.61.0
+
+## 2.60.6
+
+### Patch Changes
+
+- Updated dependencies [2beacbb]
+- Updated dependencies [e6daf22]
+  - @modern-js/create-request@2.60.6
+  - @modern-js/bff-core@2.60.6
+  - @modern-js/server-core@2.60.6
+  - @modern-js/server-utils@2.60.6
+  - @modern-js/utils@2.60.6
+
+## 2.60.5
+
+### Patch Changes
+
+- @modern-js/bff-core@2.60.5
+- @modern-js/server-core@2.60.5
+- @modern-js/create-request@2.60.5
+- @modern-js/server-utils@2.60.5
+- @modern-js/utils@2.60.5
+
+## 2.60.4
+
+### Patch Changes
+
+- Updated dependencies [518b783]
+- Updated dependencies [a4160c7]
+- Updated dependencies [a9e3eb7]
+- Updated dependencies [75ff77f]
+  - @modern-js/server-core@2.60.4
+  - @modern-js/bff-core@2.60.4
+  - @modern-js/server-utils@2.60.4
+  - @modern-js/create-request@2.60.4
+  - @modern-js/utils@2.60.4
+
+## 2.60.3
+
+### Patch Changes
+
+- Updated dependencies [303331c]
+  - @modern-js/utils@2.60.3
+  - @modern-js/bff-core@2.60.3
+  - @modern-js/server-core@2.60.3
+  - @modern-js/create-request@2.60.3
+  - @modern-js/server-utils@2.60.3
+
+## 2.60.2
+
+### Patch Changes
+
+- Updated dependencies [8a709bc]
+- Updated dependencies [0a31d31]
+  - @modern-js/utils@2.60.2
+  - @modern-js/server-core@2.60.2
+  - @modern-js/bff-core@2.60.2
+  - @modern-js/create-request@2.60.2
+  - @modern-js/server-utils@2.60.2
+
+## 2.60.1
+
+### Patch Changes
+
+- Updated dependencies [3a973a2]
+  - @modern-js/server-utils@2.60.1
+  - @modern-js/bff-core@2.60.1
+  - @modern-js/server-core@2.60.1
+  - @modern-js/create-request@2.60.1
+  - @modern-js/utils@2.60.1
+
+## 2.60.0
+
+### Patch Changes
+
+- Updated dependencies [d6e0118]
+  - @modern-js/server-core@2.60.0
+  - @modern-js/server-utils@2.60.0
+  - @modern-js/bff-core@2.60.0
+  - @modern-js/create-request@2.60.0
+  - @modern-js/utils@2.60.0
+
+## 2.59.0
+
+### Patch Changes
+
+- Updated dependencies [539d72b]
+- Updated dependencies [ef1ec44]
+- Updated dependencies [80237dc]
+  - @modern-js/server-core@2.59.0
+  - @modern-js/bff-core@2.59.0
+  - @modern-js/create-request@2.59.0
+  - @modern-js/utils@2.59.0
+  - @modern-js/server-utils@2.59.0
+
+## 2.58.3
+
+### Patch Changes
+
+- Updated dependencies [36ccad3]
+- Updated dependencies [0b581a4]
+- Updated dependencies [610554c]
+- Updated dependencies [59fba90]
+- Updated dependencies [9e82b00]
+  - @modern-js/server-core@2.58.3
+  - @modern-js/server-utils@2.58.3
+  - @modern-js/bff-core@2.58.3
+  - @modern-js/create-request@2.58.3
+  - @modern-js/utils@2.58.3
+
+## 2.58.2
+
+### Patch Changes
+
+- Updated dependencies [1ff0304]
+- Updated dependencies [a1a9373]
+  - @modern-js/server-core@2.58.2
+  - @modern-js/utils@2.58.2
+  - @modern-js/server-utils@2.58.2
+  - @modern-js/create-request@2.58.2
+  - @modern-js/bff-core@2.58.2
+
+## 2.58.1
+
+### Patch Changes
+
+- Updated dependencies [c904ee2]
+- Updated dependencies [a214ea8]
+  - @modern-js/server-core@2.58.1
+  - @modern-js/bff-core@2.58.1
+  - @modern-js/create-request@2.58.1
+  - @modern-js/utils@2.58.1
+  - @modern-js/server-utils@2.58.1
+
+## 2.58.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.58.0
+- @modern-js/server-core@2.58.0
+- @modern-js/create-request@2.58.0
+- @modern-js/server-utils@2.58.0
+- @modern-js/utils@2.58.0
+
+## 2.57.1
+
+### Patch Changes
+
+- Updated dependencies [bc565cd]
+  - @modern-js/server-core@2.57.1
+  - @modern-js/server-utils@2.57.1
+  - @modern-js/bff-core@2.57.1
+  - @modern-js/create-request@2.57.1
+  - @modern-js/utils@2.57.1
+
+## 2.57.0
+
+### Patch Changes
+
+- 0e906a1: feat: inject renderHandler to appContext & add default serverPlugins
+  feat: 注入 renderHandler 到 appContext & 新增默认 serverPlugins
+- Updated dependencies [2515b00]
+- Updated dependencies [0e906a1]
+- Updated dependencies [6cec127]
+- Updated dependencies [b5a48a8]
+- Updated dependencies [203c9eb]
+- Updated dependencies [604ad3a]
+  - @modern-js/utils@2.57.0
+  - @modern-js/server-core@2.57.0
+  - @modern-js/bff-core@2.57.0
+  - @modern-js/create-request@2.57.0
+  - @modern-js/server-utils@2.57.0
+
+## 2.56.2
+
+### Patch Changes
+
+- @modern-js/bff-core@2.56.2
+- @modern-js/server-core@2.56.2
+- @modern-js/create-request@2.56.2
+- @modern-js/server-utils@2.56.2
+- @modern-js/utils@2.56.2
+
+## 2.56.1
+
+### Patch Changes
+
+- Updated dependencies [e0e29b3]
+  - @modern-js/server-core@2.56.1
+  - @modern-js/server-utils@2.56.1
+  - @modern-js/bff-core@2.56.1
+  - @modern-js/create-request@2.56.1
+  - @modern-js/utils@2.56.1
+
+## 2.56.0
+
+### Patch Changes
+
+- Updated dependencies [bedbbb3]
+- Updated dependencies [9eee52a]
+  - @modern-js/server-core@2.56.0
+  - @modern-js/bff-core@2.56.0
+  - @modern-js/create-request@2.56.0
+  - @modern-js/utils@2.56.0
+  - @modern-js/server-utils@2.56.0
+
+## 2.55.0
+
+### Patch Changes
+
+- 380c4a3: fix: add bff/tailwindcss/swc plugin exported types
+  fix: 添加 bff/tailwindcss/swc 插件的导出类型
+- Updated dependencies [bbcf55a]
+- Updated dependencies [e0c2384]
+  - @modern-js/utils@2.55.0
+  - @modern-js/server-core@2.55.0
+  - @modern-js/bff-core@2.55.0
+  - @modern-js/create-request@2.55.0
+  - @modern-js/server-utils@2.55.0
+
+## 2.54.6
+
+### Patch Changes
+
+- @modern-js/bff-core@2.54.6
+- @modern-js/server-core@2.54.6
+- @modern-js/create-request@2.54.6
+- @modern-js/server-utils@2.54.6
+- @modern-js/utils@2.54.6
+
+## 2.54.5
+
+### Patch Changes
+
+- Updated dependencies [5525a23]
+  - @modern-js/server-core@2.54.5
+  - @modern-js/server-utils@2.54.5
+  - @modern-js/bff-core@2.54.5
+  - @modern-js/create-request@2.54.5
+  - @modern-js/utils@2.54.5
+
+## 2.54.4
+
+### Patch Changes
+
+- @modern-js/bff-core@2.54.4
+- @modern-js/server-core@2.54.4
+- @modern-js/create-request@2.54.4
+- @modern-js/server-utils@2.54.4
+- @modern-js/utils@2.54.4
+
+## 2.54.3
+
+### Patch Changes
+
+- b9ca86d: fix: move @modern-js/server-core to bff/koa/express plugin dependencies
+  fix: 将 @modern-js/server-core 作为 bff/koa/express 插件的 dependencies
+- Updated dependencies [b50d7ec]
+  - @modern-js/server-core@2.54.3
+  - @modern-js/server-utils@2.54.3
+  - @modern-js/bff-core@2.54.3
+  - @modern-js/create-request@2.54.3
+  - @modern-js/utils@2.54.3
+
+## 2.54.2
+
+### Patch Changes
+
+- @modern-js/bff-core@2.54.2
+- @modern-js/create-request@2.54.2
+- @modern-js/server-utils@2.54.2
+- @modern-js/utils@2.54.2
+
+## 2.54.1
+
+### Patch Changes
+
+- @modern-js/server-utils@2.54.1
+- @modern-js/bff-core@2.54.1
+- @modern-js/create-request@2.54.1
+- @modern-js/utils@2.54.1
+
+## 2.54.0
+
+### Minor Changes
+
+- a8d8f0c: feat: support new server plugin & discard server plugin some hooks
+  feat: 支持新 server plugin & 减少 server plugin 钩子
+
+### Patch Changes
+
+- Updated dependencies [15a090c]
+- Updated dependencies [a8d8f0c]
+- Updated dependencies [09798ac]
+  - @modern-js/utils@2.54.0
+  - @modern-js/bff-core@2.54.0
+  - @modern-js/create-request@2.54.0
+  - @modern-js/server-utils@2.54.0
+
+## 2.53.0
+
+### Patch Changes
+
+- @modern-js/server-utils@2.53.0
+- @modern-js/bff-core@2.53.0
+- @modern-js/create-request@2.53.0
+- @modern-js/utils@2.53.0
+
+## 2.52.0
+
+### Patch Changes
+
+- @modern-js/create-request@2.52.0
+- @modern-js/server-utils@2.52.0
+- @modern-js/bff-core@2.52.0
+- @modern-js/utils@2.52.0
+
+## 2.51.0
+
+### Patch Changes
+
+- @modern-js/server-utils@2.51.0
+- @modern-js/bff-core@2.51.0
+- @modern-js/create-request@2.51.0
+- @modern-js/utils@2.51.0
+
+## 2.50.0
+
+### Patch Changes
+
+- @modern-js/server-utils@2.50.0
+- @modern-js/bff-core@2.50.0
+- @modern-js/create-request@2.50.0
+- @modern-js/utils@2.50.0
+
+## 2.49.4
+
+### Patch Changes
+
+- @modern-js/server-utils@2.49.4
+- @modern-js/bff-core@2.49.4
+- @modern-js/create-request@2.49.4
+- @modern-js/utils@2.49.4
+
+## 2.49.3
+
+### Patch Changes
+
+- @modern-js/server-utils@2.49.3
+- @modern-js/bff-core@2.49.3
+- @modern-js/create-request@2.49.3
+- @modern-js/utils@2.49.3
+
+## 2.49.2
+
+### Patch Changes
+
+- @modern-js/bff-core@2.49.2
+- @modern-js/create-request@2.49.2
+- @modern-js/server-utils@2.49.2
+- @modern-js/utils@2.49.2
+
+## 2.49.1
+
+### Patch Changes
+
+- @modern-js/server-utils@2.49.1
+- @modern-js/bff-core@2.49.1
+- @modern-js/create-request@2.49.1
+- @modern-js/utils@2.49.1
+
+## 2.49.0
+
+### Minor Changes
+
+- e8c8c5d: refactor: refactor server
+  refactor: 重构 server
+
+### Patch Changes
+
+- Updated dependencies [e8c8c5d]
+- Updated dependencies [805e021]
+  - @modern-js/utils@2.49.0
+  - @modern-js/bff-core@2.49.0
+  - @modern-js/server-utils@2.49.0
+  - @modern-js/create-request@2.49.0
+
+## 2.48.6
+
+### Patch Changes
+
+- @modern-js/bff-core@2.48.6
+- @modern-js/create-request@2.48.6
+- @modern-js/server-utils@2.48.6
+- @modern-js/utils@2.48.6
+
+## 2.48.5
+
+### Patch Changes
+
+- Updated dependencies [4ca9f4c]
+  - @modern-js/utils@2.48.5
+  - @modern-js/bff-core@2.48.5
+  - @modern-js/create-request@2.48.5
+  - @modern-js/server-utils@2.48.5
+
+## 2.48.4
+
+### Patch Changes
+
+- Updated dependencies [7d2d433]
+  - @modern-js/utils@2.48.4
+  - @modern-js/bff-core@2.48.4
+  - @modern-js/create-request@2.48.4
+  - @modern-js/server-utils@2.48.4
+
+## 2.48.3
+
+### Patch Changes
+
+- @modern-js/bff-core@2.48.3
+- @modern-js/create-request@2.48.3
+- @modern-js/server-utils@2.48.3
+- @modern-js/utils@2.48.3
+
+## 2.48.2
+
+### Patch Changes
+
+- Updated dependencies [ac586f1]
+  - @modern-js/create-request@2.48.2
+  - @modern-js/bff-core@2.48.2
+  - @modern-js/server-utils@2.48.2
+  - @modern-js/utils@2.48.2
+
+## 2.48.1
+
+### Patch Changes
+
+- Updated dependencies [8942b90]
+- Updated dependencies [488ec21]
+- Updated dependencies [ce426f7]
+  - @modern-js/utils@2.48.1
+  - @modern-js/bff-core@2.48.1
+  - @modern-js/create-request@2.48.1
+  - @modern-js/server-utils@2.48.1
+
+## 2.48.0
+
+### Patch Changes
+
+- Updated dependencies [c323a23]
+  - @modern-js/utils@2.48.0
+  - @modern-js/bff-core@2.48.0
+  - @modern-js/create-request@2.48.0
+  - @modern-js/server-utils@2.48.0
+
+## 2.47.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.47.1
+- @modern-js/create-request@2.47.1
+- @modern-js/server-utils@2.47.1
+- @modern-js/utils@2.47.1
+
+## 2.47.0
+
+### Patch Changes
+
+- Updated dependencies [a5386ab]
+  - @modern-js/utils@2.47.0
+  - @modern-js/server-utils@2.47.0
+  - @modern-js/bff-core@2.47.0
+  - @modern-js/create-request@2.47.0
+
+## 2.46.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.46.1
+- @modern-js/create-request@2.46.1
+- @modern-js/server-utils@2.46.1
+- @modern-js/utils@2.46.1
+
+## 2.46.0
+
+### Patch Changes
+
+- Updated dependencies [00b4639]
+- Updated dependencies [4699e22]
+  - @modern-js/create-request@2.46.0
+  - @modern-js/server-utils@2.46.0
+  - @modern-js/bff-core@2.46.0
+  - @modern-js/utils@2.46.0
+
+## 2.45.0
+
+### Patch Changes
+
+- @modern-js/server-utils@2.45.0
+- @modern-js/bff-core@2.45.0
+- @modern-js/create-request@2.45.0
+- @modern-js/utils@2.45.0
+
+## 2.44.0
+
+### Patch Changes
+
+- @modern-js/create-request@2.44.0
+- @modern-js/bff-core@2.44.0
+- @modern-js/utils@2.44.0
+- @modern-js/server-utils@2.44.0
+
+## 2.43.0
+
+### Patch Changes
+
+- 4b4d08a: chore: remove Rsbuild unsupported CHAIN_ID
+
+  chore: 移除在 Rsbuild 中不支持的 CHAIN_ID
+
+  - @modern-js/create-request@2.43.0
+  - @modern-js/bff-core@2.43.0
+  - @modern-js/utils@2.43.0
+  - @modern-js/server-utils@2.43.0
+
+## 2.42.2
+
+### Patch Changes
+
+- Updated dependencies [07c56c0]
+  - @modern-js/server-utils@2.42.2
+  - @modern-js/bff-core@2.42.2
+  - @modern-js/create-request@2.42.2
+  - @modern-js/utils@2.42.2
+
+## 2.42.1
+
+### Patch Changes
+
+- @modern-js/bff-core@2.42.1
+- @modern-js/create-request@2.42.1
+- @modern-js/server-utils@2.42.1
+- @modern-js/utils@2.42.1
+
+## 2.42.0
+
+### Patch Changes
+
+- Updated dependencies [a3f2269]
+  - @modern-js/bff-core@2.42.0
+  - @modern-js/create-request@2.42.0
+  - @modern-js/server-utils@2.42.0
+  - @modern-js/utils@2.42.0
+
+## 2.41.0
+
+### Patch Changes
+
+- c4d396a: chore(swc): bump swc and helpers
+  chore(swc): 升级 swc 以及 helpers
+- Updated dependencies [c4d396a]
+  - @modern-js/create-request@2.41.0
+  - @modern-js/bff-core@2.41.0
+  - @modern-js/utils@2.41.0
+  - @modern-js/server-utils@2.41.0
+
+## 2.40.0
+
+### Minor Changes
+
+- 95f15d2: chore: remove ajv schema verification of configuration
+  chore: 移除 ajv 对项目配置的校验
+
+### Patch Changes
+
+- Updated dependencies [95f15d2]
+  - @modern-js/utils@2.40.0
+  - @modern-js/bff-core@2.40.0
+  - @modern-js/create-request@2.40.0
+  - @modern-js/server-utils@2.40.0
+
+## 2.39.2
+
+### Patch Changes
+
+- @modern-js/bff-core@2.39.2
+- @modern-js/create-request@2.39.2
+- @modern-js/server-utils@2.39.2
+- @modern-js/utils@2.39.2
+
+## 2.39.1
+
+### Patch Changes
+
+- @modern-js/create-request@2.39.1
+- @modern-js/bff-core@2.39.1
+- @modern-js/server-utils@2.39.1
+- @modern-js/utils@2.39.1
+
+## 2.39.0
+
+### Patch Changes
+
+- @modern-js/bff-core@2.39.0
+- @modern-js/create-request@2.39.0
+- @modern-js/server-utils@2.39.0
+- @modern-js/utils@2.39.0
+
+## 2.38.0
 
 ### Patch Changes
 
@@ -9,10 +1140,10 @@
   chore(deps): 升级 @babel/core 至 v7.23.2
 
 - Updated dependencies [3304d33]
-  - @modern-js/server-utils@4.0.0
-  - @modern-js/bff-core@4.0.0
-  - @modern-js/create-request@4.0.0
-  - @modern-js/utils@4.0.0
+  - @modern-js/server-utils@2.38.0
+  - @modern-js/bff-core@2.38.0
+  - @modern-js/create-request@2.38.0
+  - @modern-js/utils@2.38.0
 
 ## 2.37.2
 

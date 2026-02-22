@@ -1,13 +1,16 @@
+import dns from 'node:dns';
 import path, { join } from 'path';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
-  launchApp,
   getPort,
   killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
 const fixtureDir = path.resolve(__dirname, '../fixtures');
+
+dns.setDefaultResultOrder('ipv4first');
 
 jest.setTimeout(1000 * 20);
 
@@ -35,8 +38,17 @@ describe('init with SSR', () => {
     }
   });
 
-  // FIXME: Skipped because this test often times out
-  test.skip(`use ssr init data`, async () => {
+  test('should apply entry.server.jsx correctly', async () => {
+    const res = await page.goto(`http://localhost:${appPort}`);
+
+    expect(res?.headers()).toHaveProperty('x-custom-value', 'abc');
+
+    const body = await res?.text();
+
+    expect(body).toMatch('Byte-Dance');
+  });
+
+  test(`use ssr init data`, async () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
@@ -46,8 +58,7 @@ describe('init with SSR', () => {
     expect(targetText).toMatch('server');
   });
 
-  // FIXME: Skipped because this test often times out
-  test.skip(`use ssr init data`, async () => {
+  test(`use ssr init data`, async () => {
     await page.goto(`http://localhost:${appPort}?browser=true`, {
       waitUntil: ['networkidle0'],
     });

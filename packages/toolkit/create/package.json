@@ -15,52 +15,42 @@
     "modern",
     "modern.js"
   ],
-  "version": "4.0.0",
-  "jsnext:source": "./src/index.ts",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "version": "3.0.2",
   "types": "./src/index.ts",
+  "modern:source": "./src/index.ts",
   "main": "./dist/index.js",
   "bin": {
     "create": "./bin/run.js"
   },
-  "files": [
-    "/bin",
-    "/dist/index.js"
-  ],
   "exports": {
-    ".": {
-      "node": {
-        "jsnext:source": "./src/index.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.js"
-      },
-      "default": "./dist/index.js"
-    }
+    ".": "./dist/index.js"
   },
+  "files": [
+    "template",
+    "dist",
+    "bin.js"
+  ],
   "scripts": {
-    "prepublishOnly": "only-allow-pnpm",
-    "new": "modern-lib new",
-    "build": "modern-lib build",
-    "test": "jest --passWithNoTests"
+    "build": "rslib build",
+    "dev": "rslib build -w",
+    "start": "node ./dist/index.js"
   },
   "devDependencies": {
-    "@modern-js/codesmith": "2.3.0",
-    "@modern-js/generator-plugin-plugin": "workspace:*",
-    "@modern-js/plugin-i18n": "workspace:*",
-    "@modern-js/repo-generator": "workspace:*",
-    "@modern-js/utils": "workspace:*",
-    "@scripts/build": "workspace:*",
-    "@scripts/jest-config": "workspace:*",
-    "@types/jest": "^29",
-    "@types/node": "^14",
-    "jest": "^29",
-    "ts-node": "^10.9.1",
-    "typescript": "^5"
+    "@modern-js/i18n-utils": "workspace:*",
+    "@modern-js/rslib": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@types/node": "^25.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "publishConfig": {
     "main": "./dist/index.js",
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true,
     "types": "./dist/types/index.d.ts"
   }
 }

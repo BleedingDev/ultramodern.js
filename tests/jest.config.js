@@ -3,13 +3,11 @@ module.exports = {
   preset: 'jest-puppeteer',
   rootDir: __dirname,
   setupFilesAfterEnv: ['./utils/jest.setup.js'],
-  testMatch: ['<rootDir>/integration/**/*.(spec|test).[tj]s?(x)'],
-  testPathIgnorePatterns: [
-    '/node_modules/',
-    '/api-service-koa/api/',
-    '/api-service-koa/dist',
-    '/api/tests',
+  testMatch: [
+    '<rootDir>/integration/**/*.(spec|test).[tj]s?(x)',
+    '!**/module/**/*.(spec|test).[tj]s?(x)',
   ],
+  testPathIgnorePatterns: ['/node_modules/', '/api/tests'],
   transform: {
     '^.+.tsx?$': 'ts-jest',
   },
@@ -17,4 +15,7 @@ module.exports = {
   globalSetup: './utils/setup.js',
   globalTeardown: './utils/teardown.js',
   testSequencer: './utils/custom-sequencer.js',
+  moduleNameMapper: {
+    '^import-meta-resolve$': '<rootDir>/utils/mock-import-meta-resolve.js',
+  },
 };

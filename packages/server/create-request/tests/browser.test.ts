@@ -1,9 +1,6 @@
-/**
- * @jest-environment jsdom
- */
 import nock from 'nock';
-import 'isomorphic-fetch';
 import {
+  ProducerClientNotInitializedError,
   configure,
   CrossOriginEnvelopePolicyError,
   createRequest,
@@ -35,13 +32,17 @@ describe('configure', () => {
   test('should support custom request', async () => {
     nock(url).get(path).reply(200, response);
 
-    const customRequest = jest.fn((requestPath: RequestInfo) => {
+    const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
     });
 
     configure({ request: customRequest });
-    const request = createRequest(path, method, 8080, undefined);
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+    });
     const res = await request();
     const data = await res.json();
 
@@ -58,13 +59,17 @@ describe('configure', () => {
       })
       .reply(200, response);
 
-    const customRequest = jest.fn((requestPath: RequestInfo) => {
+    const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
     });
 
     configure({ request: customRequest });
-    const request = createRequest(path, method, 8080, undefined);
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+    });
     const res = await request({
       query: {
         users: ['foo', 'bar'],
@@ -79,13 +84,17 @@ describe('configure', () => {
   test('should support interceptor', async () => {
     nock(url).get(path).reply(200, response);
 
-    const interceptor = jest.fn(request => (requestPath: RequestInfo) => {
+    const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
     });
 
     configure({ interceptor });
-    const request = createRequest(path, method, 8080, undefined);
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+    });
     const res = await request();
     const data = await res.json();
 
@@ -96,18 +105,22 @@ describe('configure', () => {
   test('should has correct order', async () => {
     nock(url).get(path).reply(200, response);
 
-    const customRequest = jest.fn((requestPath: RequestInfo) => {
+    const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
     });
 
-    const interceptor = jest.fn(request => (requestPath: RequestInfo) => {
+    const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
     });
 
     configure({ request: customRequest, interceptor });
-    const request = createRequest(path, method, 8080, undefined);
+    const request = createRequest({
+      path,
+      method,
+      port: 8080,
+    });
     const res = await request();
     const data = await res.json();
 
@@ -120,14 +133,17 @@ describe('configure', () => {
   test('should support params', async () => {
     nock(url).get(`${path}/modernjs`).reply(200, response);
 
-    const interceptor = jest.fn(request => (requestPath: RequestInfo) => {
+    const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
     });
 
     configure({ interceptor });
-
-    const request = createRequest(`${path}/:id`, method, 8080, undefined);
+    const request = createRequest({
+      path: `${path}/:id`,
+      method,
+      port: 8080,
+    });
     const res = await request('modernjs');
     const data = await res.json();
     expect(res instanceof Response).toBe(true);
@@ -137,14 +153,18 @@ describe('configure', () => {
   test('should support params with schema', async () => {
     nock(url).get(`${path}/modernjs`).reply(200, response);
 
-    const interceptor = jest.fn(request => (requestPath: RequestInfo) => {
+    const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
     });
 
     configure({ interceptor });
 
-    const request = createRequest(`${path}/:id`, method, 8080, undefined);
+    const request = createRequest({
+      path: `${path}/:id`,
+      method,
+      port: 8080,
+    });
     const res = await request({
       params: {
         id: 'modernjs',
@@ -155,15 +175,13 @@ describe('configure', () => {
     expect(data).toStrictEqual(response);
   });
 
-  test('should throw for non-default requestId when producer client is not initialized', async () => {
-    const request = createRequest(
+  test('should throw when non-default requestId is used before bootstrap', async () => {
+    const request = createRequest({
       path,
       method,
-      8080,
-      undefined,
-      undefined,
-      'missing-producer',
-    );
+      port: 8080,
+      requestId: 'producer-app',
+    });
 
     await expect(request()).rejects.toBeInstanceOf(
       ProducerClientNotInitializedError,

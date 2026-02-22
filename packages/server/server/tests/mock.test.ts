@@ -1,203 +1,188 @@
 import path from 'path';
-import { compatRequire } from '@modern-js/utils';
-import { createMockHandler } from '../src/dev-tools/mock';
-import getMockData, { getMatched } from '../src/dev-tools/mock/getMockData';
-import { noop } from './helper';
+import {
+  type ServerPlugin,
+  compatPlugin,
+  createServerBase,
+} from '@modern-js/server-core';
+import { getMockMiddleware } from '../src/helpers';
+
+function getDefaultConfig() {
+  return {
+    html: {},
+    output: {},
+    source: {},
+    tools: {},
+    server: {},
+    bff: {},
+    dev: {},
+    security: {},
+  };
+}
+
+function getDefaultAppContext() {
+  return {
+    apiDirectory: '',
+    lambdaDirectory: '',
+  };
+}
+
+function createMockPlugin(pwd: string): ServerPlugin {
+  return {
+    name: 'mock-plugin',
+    setup(api) {
+      api.onPrepare(async () => {
+        const mockMiddleware = await getMockMiddleware(pwd);
+        const { middlewares } = api.getServerContext();
+
+        middlewares.push({
+          name: 'mock',
+          handler: mockMiddleware,
+        });
+      });
+    },
+  };
+}
 
 describe('should mock middleware work correctly', () => {
   const pwd = path.join(__dirname, './fixtures/mock');
 
-  it('should return null if cjs mock dir', async () => {
-    const middleware = createMockHandler({ pwd: path.join(pwd, 'cjs') });
-
-    expect(middleware).not.toBeNull();
-
-    let response: any;
-    const context: any = {
-      path: '/api/getInfo',
-      method: 'get',
-      res: {
-        setHeader: noop,
-        end: (data: any) => {
-          response = JSON.parse(data);
-        },
-      },
-    };
-    await middleware?.(context, noop);
-    expect(response).toEqual({
-      data: [1, 2, 3, 4],
-    });
-  });
-
-  it('should return null if no config mock dir', () => {
-    expect(createMockHandler({ pwd: path.join(pwd, 'empty') })).toBeNull();
-  });
-
-  it('should return null if no api dir', () => {
-    expect(createMockHandler({ pwd: path.join(pwd, 'zero') })).toBeNull();
-  });
-
-  it('should return middleware if mock api exist', async () => {
-    const middleware = createMockHandler({ pwd: path.join(pwd, 'exist') });
-
-    expect(middleware).not.toBeNull();
-
-    let response: any;
-    const context: any = {
-      path: '/api/getInfo',
-      method: 'get',
-      res: {
-        setHeader: noop,
-        end: (data: any) => {
-          response = JSON.parse(data);
-        },
-      },
-    };
-    await middleware?.(context, noop);
-    expect(response).toEqual({
-      data: [1, 2, 3, 4],
-    });
-  });
-
-  it('should not return middleware if mock api not exist', async () => {
-    const middleware = createMockHandler({ pwd: path.join(pwd, 'exist') });
-
-    expect(middleware).not.toBeNull();
-
-    let response: any;
-    const context: any = {
-      path: '/api/getInfp',
-      method: 'get',
-      res: {
-        setHeader: noop,
-        end: (data: any) => {
-          response = JSON.parse(data);
-        },
-      },
-    };
-    await middleware?.(context, noop);
-    expect(response).toBeUndefined();
-  });
-
-  it('should not return middleware if mock disable', async () => {
-    const middleware = createMockHandler({
-      pwd: path.join(pwd, 'disable'),
+  it('should not handle if no config mock dir', async () => {
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      appContext: getDefaultAppContext(),
+      pwd: '',
     });
 
-    expect(middleware).toBeNull();
-  });
-
-  it('should not return response if mock disable runtime', async () => {
-    const middleware = createMockHandler({
-      pwd: path.join(pwd, 'disable-runtime'),
-    });
-
-    expect(middleware).not.toBeNull();
-
-    let response: any;
-    const context: any = {
-      path: '/api/getInfo',
-      method: 'get',
-      res: {
-        setHeader: noop,
-        end: (data: any) => {
-          response = JSON.parse(data);
-        },
-      },
-    };
-    await middleware?.(context, noop);
-    expect(response).toBeUndefined();
-  });
-
-  it('should get api list correctly', resolve => {
-    const { default: mockModule } = compatRequire(
-      path.join(pwd, 'exist/config/mock/index.ts'),
-      false,
-    );
-    const apiList = getMockData(mockModule);
-    expect(apiList.length).toBe(3);
-
-    const pathList = apiList.map(api => api.path);
-    expect(pathList).toEqual([
-      '/api/getInfo',
-      '/api/getExample',
-      '/api/addInfo',
+    server.addPlugins([
+      compatPlugin(),
+      createMockPlugin(path.join(pwd, 'empty')),
     ]);
 
-    let response: any;
-    const context: any = {
-      res: {
-        setHeader: noop,
-        end: (data: any) => {
-          try {
-            response = JSON.parse(data);
-          } catch (e) {
-            response = data;
-          }
-        },
-      },
-    };
+    await server.init();
 
-    apiList[0].handler(context, noop as any);
-    expect(response).toEqual({
+    const response = await server.request('/api/getInfo');
+    expect(response.status).toBe(404);
+  });
+
+  it('support post method', async () => {
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      appContext: getDefaultAppContext(),
+      pwd: '',
+    });
+
+    server.addPlugins([
+      compatPlugin(),
+      createMockPlugin(path.join(pwd, 'exist')),
+    ]);
+
+    await server.init();
+
+    const response = await server.request('/api/getInfo', {
+      method: 'post',
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data).toEqual({
       data: [1, 2, 3, 4],
     });
-    apiList[1].handler(context, noop as any);
-    expect(response).toEqual({ id: 1 });
-
-    apiList[2].handler(context, noop as any);
-    setTimeout(() => {
-      expect(response).toBe('delay 2000ms');
-      resolve();
-    }, 3000);
   });
 
-  it('should match api correctly', () => {
-    const apiList = [
-      {
-        method: 'get',
-        path: '/api/getInfo',
-        handler: noop,
-      },
-      {
-        method: 'get',
-        path: '/api/getExample',
-        handler: noop,
-      },
-      {
-        method: 'get',
-        path: '/api/addInfo',
-        handler: noop,
-      },
-    ];
-    const matched = getMatched(
-      { path: '/api/getInfo', method: 'get' } as any,
-      apiList,
-    );
-    expect(matched).toBe(apiList[0]);
+  it('should return 404 if mock api not exist', async () => {
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      pwd: '',
+      appContext: getDefaultAppContext(),
+    });
 
-    const missMethod = getMatched(
-      { path: '/api/getModern', method: 'post' } as any,
-      apiList,
-    );
-    expect(missMethod).toBeUndefined();
+    server.addPlugins([
+      compatPlugin(),
+      createMockPlugin(path.join(pwd, 'exist')),
+    ]);
+
+    await server.init();
+
+    const response = await server.request('/api/xxx');
+    expect(response.status).toBe(404);
   });
 
-  it('should throw error if get mock file fail', resolve => {
+  it('should not return 404 if mock disable', async () => {
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      pwd: '',
+      appContext: getDefaultAppContext(),
+    });
+
+    server.addPlugins([
+      compatPlugin(),
+      createMockPlugin(path.join(pwd, 'disable')),
+    ]);
+
+    await server.init();
+
+    const response = await server.request('/api/getInfo');
+    expect(response.status).toBe(404);
+  });
+
+  it('should not return 404 if enable is a function', async () => {
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      pwd: '',
+      appContext: getDefaultAppContext(),
+    });
+
+    server.addPlugins([
+      compatPlugin(),
+      createMockPlugin(path.join(pwd, 'disable-runtime')),
+    ]);
+
+    await server.init();
+
+    const response = await server.request('/api/getInfo', undefined, {
+      node: {
+        req: {},
+        res: {},
+      },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('should throw error if get mock file fail', async () => {
     try {
-      createMockHandler({ pwd: path.join(pwd, 'module-error') });
+      const server = createServerBase({
+        config: getDefaultConfig(),
+        pwd: '',
+        appContext: getDefaultAppContext(),
+      });
+
+      server.addPlugins([
+        compatPlugin(),
+        createMockPlugin(path.join(pwd, 'module-error')),
+      ]);
+
+      await server.init();
     } catch (e: any) {
       expect(e.message).toMatch('parsed failed!');
-      resolve();
     }
   });
 
-  it('should throw error if get mock api has wrong type', resolve => {
+  it('should throw error if get mock api has wrong type', async () => {
     try {
-      createMockHandler({ pwd: path.join(pwd, 'type-error') });
+      const server = createServerBase({
+        config: getDefaultConfig(),
+        pwd: '',
+        appContext: getDefaultAppContext(),
+      });
+
+      server.addPlugins([
+        compatPlugin(),
+        createMockPlugin(path.join(pwd, 'type-error')),
+      ]);
+
+      await server.init();
     } catch (e: any) {
       expect(e.message).toMatch('should be object or function, but got string');
-      resolve();
     }
   });
 });

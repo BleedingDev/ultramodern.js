@@ -1,0 +1,90 @@
+{
+  "name": "@modern-js/plugin-styled-components",
+  "description": "A Modern.js plugin for styled-components.",
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "framework",
+    "modern",
+    "modern.js"
+  ],
+  "version": "3.0.2",
+  "types": "./src/index.ts",
+  "main": "./dist/cjs/index.js",
+  "export": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/types/runtime.d.ts",
+      "default": "./dist/esm/runtime.mjs"
+    }
+  },
+  "scripts": {
+    "dev": "rslib build --watch",
+    "build": "rslib build"
+  },
+  "dependencies": {
+    "@rsbuild/plugin-styled-components": "1.6.1",
+    "@swc/helpers": "^0.5.18"
+  },
+  "devDependencies": {
+    "@modern-js/app-tools": "workspace:*",
+    "@modern-js/rslib": "workspace:*",
+    "@modern-js/runtime": "workspace:*",
+    "@rslib/core": "0.19.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
+    "@types/styled-components": "^5.1.36",
+    "styled-components": "^6.3.11",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "styled-components": "^5.3.1"
+  },
+  "peerDependenciesMeta": {
+    "styled-components": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/types/runtime.d.ts",
+      "default": "./dist/esm/runtime.mjs"
+    },
+    "./styled": {
+      "types": "./dist/types/styled.d.ts",
+      "default": "./dist/esm/styled.mjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts"
+      ],
+      "runtime": [
+        "./dist/types/runtime.d.ts"
+      ],
+      "styled": [
+        "./dist/types/styled.d.ts"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

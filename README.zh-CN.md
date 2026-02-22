@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://modernjs.dev" target="blank"><img src="https://lf3-static.bytednsdoc.com/obj/eden-cn/ylaelkeh7nuhfnuhf/modernjs-cover.png" width="260" alt="Modern.js Logo" /></a>
+  <a href="https://modernjs.dev" target="blank"><img src="./assets/modernjs-banner.png" width="260" alt="Modern.js Logo" /></a>
 </p>
 
 <h1 align="center">Modern.js</h1>
@@ -18,36 +18,30 @@
 
 ## 介绍
 
-Modern.js 是字节跳动 Web 工程体系的开源版本，包含以下解决方案：
+Modern.js 框架是一个基于 React 的渐进式 Web 开发框架。在字节跳动内部，我们将 Modern.js 封装为上层框架，并支撑了数千个 Web 应用的研发。
 
-- 🦄 [Modern.js Framework](https://modernjs.dev/)：基于 React 的渐进式 Web 开发框架。
-- 🐧 [Modern.js Module](https://modernjs.dev/module-tools)：简单、高性能的 npm 包开发方案。
-- 🐈 [Modern.js Builder](https://modernjs.dev/builder/)：基于 Rspack 的 Web 构建工具。
+在开发 React 应用过程中，开发者通常需要去为某些功能去设计实现方案，或是使用其他的库、框架来解决这些问题。Modern.js 支持 React 应用所需要的所有配置和工具，并内置额外的功能和优化。开发者可以使用 React 构建应用的 UI，然后逐步采用 Modern.js 的功能来解决常见的应用需求，如路由、数据获取、状态管理等。
 
 ## 快速上手
 
-- 使用 [Modern.js Framework](https://modernjs.dev/guides/get-started/quick-start) 来开发一个 Web 应用。
-- 使用 [Modern.js Module](https://modernjs.dev/module-tools/guide/intro/getting-started.html) 来开发一个 npm 包。
-- 使用 [Modern.js Builder](https://modernjs.dev/builder/guide/quick-start.html) 来为你的 Web 框架提供构建能力。
+参考 [快速上手](https://modernjs.dev/zh/guides/get-started/quick-start)。
 
 ## 生态
 
 Modern.js 生态提供了以下解决方案和底层库：
 
 - 🦀 [Rspack](https://github.com/web-infra-dev/rspack)：基于 Rust 的高性能模块打包工具。
-- 🐬 [Rsbuild](https://github.com/web-infra-dev/rsbuild)：基于 Rspack 的 Web 构建工具，由 Modern.js Builder 演变而来。
+- 🐬 [Rsbuild](https://github.com/web-infra-dev/rsbuild)：基于 Rspack 的 Web 构建工具。
 - 🐹 [Rspress](https://github.com/web-infra-dev/rspress)：基于 Rspack 的静态站点生成器。
-- 🐟 [Garfish](https://github.com/web-infra-dev/garfish)：一站式微前端解决方案。
-- 🦆 [Reduck](https://github.com/web-infra-dev/reduck)：基于 Redux 的状态管理库。
-- 🐴 [SWC Plugins](https://github.com/web-infra-dev/swc-plugins)：Modern.js 的 SWC 插件。
+- 🦄 [Rslib](https://github.com/web-infra-dev/rslib)：基于 Rspack 的 Library 开发工具。
 
 ## Benchmark
 
-我们通过 [Modern.js Benchmark](https://web-infra-dev.github.io/modern-js-benchmark/) 来观测核心指标的变化情况，比如 bundle size、compile speed 和 install size。
+我们通过 [Modern.js Benchmark](https://web-infra-qos.netlify.app/) 来观测核心指标的变化情况，比如 bundle size、compile speed 和 install size。
 
 ## Roadmap
 
-请参阅 [Modern.js Roadmap](https://github.com/web-infra-dev/modern.js/issues/4741)。我们将在每个季度更新 Roadmap 的内容。
+请参阅 [Modern.js Roadmap](https://github.com/web-infra-dev/modern.js/issues/4741)。我们将定期更新 Roadmap 的内容。
 
 ## 示例
 
@@ -71,16 +65,21 @@ Modern.js 提供了一系列开箱即用的示例项目，你可以在 [modern-j
   <img src="https://opencollective.com/modernjs/contributors.svg?width=890&button=false" alt="contributors">
 </a>
 
+## 社区
+
+欢迎加入我们的 [Discord](https://discord.gg/qPCqYg38De) 交流频道！Modern.js 团队和用户都在那里活跃，并且我们一直期待着各种贡献。
+
+你也可以加入[飞书群](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=d21hc667-9403-48a9-ba32-bc1440a80279) 与大家一起交流。
+
 ## Credits
 
-Modern.js 中的部分代码是参考社区中的其他项目实现的，比如 [create-react-app](https://github.com/facebook/create-react-app)，[remix](https://github.com/vuejs/remix)，[jest](https://github.com/facebook/jest) 和 [bundle-require](https://github.com/egoist/bundle-require) 等，感谢这些项目：
+Modern.js 中的部分代码是参考社区中的其他项目实现的，比如 [create-react-app](https://github.com/facebook/create-react-app)，[remix](https://github.com/remix-run/remix)，[jest](https://github.com/facebook/jest) 和 [bundle-require](https://github.com/egoist/bundle-require) 等，感谢这些项目：
 
 - `@modern-js/bundle-require`：修改自 [bundle-require](https://github.com/egoist/bundle-require)。
 - `@modern-js/plugin`：hook API 的实现参考了 [farrow-pipeline](https://github.com/farrow-js/farrow/tree/master/packages/farrow-pipeline)。
-- `@modern-js/builder`：moduleScope 和 fileSize 插件参考了 [create-react-app](https://github.com/facebook/create-react-app)，generateMetaTags 函数参考了 [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin)。
-- `@modern-js/plugin-testing`：jest runner 参考了 [jest-cli](https://github.com/facebook/jest/blob/fdc74af37235354e077edeeee8aa2d1a4a863032/packages/jest-cli/src/cli/index.ts#L21)。
 - `@modern-js/plugin-data-loader`：部分实现参考了 [remix](https://github.com/remix-run/remix)。
 - `@modern-js/babel-plugin-module-resolver`: 修改自 [babel-plugin-module-resolver](https://github.com/tleunen/babel-plugin-module-resolver)。
+- [Netlify](https://www.netlify.com/) 为官网提供托管服务，感谢其优质的服务与对开源的支持
 
 ## License
 

@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { expect, test } from '@modern-js/e2e/playwright';
+import { expect, test } from '@playwright/test';
 import { build } from '@scripts/shared';
 
 const fixtures = __dirname;
@@ -15,11 +15,7 @@ test('enableAssetManifest', async () => {
         enableAssetManifest: true,
         legalComments: 'none',
       },
-      performance: {
-        chunkSplit: {
-          strategy: 'all-in-one',
-        },
-      },
+      splitChunks: false,
     },
   });
 

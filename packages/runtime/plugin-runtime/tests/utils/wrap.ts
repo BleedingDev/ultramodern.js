@@ -1,6 +1,7 @@
 import React from 'react';
-import { runtime, Plugin } from '../../src/core/plugin';
-import { RuntimeReactContext } from '../../src/runtimeContext';
+import { getInitialContext } from '../../src/core/context/runtime';
+import { type Plugin, runtime } from '../../src/core/plugin';
+import { wrapRuntimeContextProvider } from '../../src/core/react/wrapper';
 
 export type WrapOptions = Record<string, unknown>;
 
@@ -13,38 +14,36 @@ export const initialWrapper = (plugins: Plugin[], manager = runtime) => {
   ) => wrap(App, config, manager);
 };
 
+export const wrapRuntimeProvider = (
+  App: React.ComponentType<any>,
+  manager = runtime,
+) => {
+  return (props: any) =>
+    wrapRuntimeContextProvider(
+      React.createElement(App, props),
+      getInitialContext(manager.init()),
+    );
+};
+
 export const wrap = <P = Record<string, unknown>>(
-  App: React.ComponentType<P>,
-  // eslint-disable-next-line no-empty-pattern
+  App: React.ComponentType<any>,
+  // biome-ignore lint/correctness/noEmptyPattern: <explanation>
   {}: WrapOptions,
   manager = runtime,
 ) => {
   const runner = manager.init();
 
   const WrapperComponent: React.ComponentType<P> = props => {
-    const element = React.createElement(App, { ...props }, props.children);
-
-    return runner.provide(
-      { element, props: { ...props }, context: {} as any },
-      {
-        onLast: ({ element }) => element,
-      },
+    const element = React.createElement(
+      App,
+      { ...props },
+      (props as any).children,
     );
+    return element;
   };
 
-  return runner.hoc(
-    { App: WrapperComponent },
-    {
-      onLast: ({ App }) => {
-        const WrapComponent = ({ context, ...props }: any) =>
-          React.createElement(
-            RuntimeReactContext.Provider,
-            { value: context },
-            React.createElement(App, props),
-          );
+  const WrapperRoot = runner.wrapRoot(WrapperComponent);
 
-        return WrapComponent;
-      },
-    },
-  );
+  return (props: any) =>
+    React.createElement(wrapRuntimeProvider(WrapperRoot, runtime), props);
 };

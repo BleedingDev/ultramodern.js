@@ -1,0 +1,90 @@
+---
+title: 快速上手
+sidebar_position: 2
+---
+
+# 快速上手
+
+## 环境准备
+
+import Prerequisites from '@site-docs/components/prerequisites';
+
+<Prerequisites />
+
+## 创建项目
+
+import InitApp from '@site-docs/components/init-app';
+
+<InitApp />
+
+## 启动项目
+
+import DebugApp from '@site-docs/components/debug-app';
+
+<DebugApp />
+
+## 使用配置
+
+通过 `@modern-js/create` 创建的 Modern.js 项目中，会默认生成 `modern.config.ts` 文件。
+
+你可以通过该配置文件修改配置，覆盖 Modern.js 的默认行为。例如添加如下配置，开启 SSR：
+
+```ts title="modern.config.ts"
+import { appTools, defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  server: {
+    ssr: true,
+  },
+  plugins: [appTools()],
+});
+```
+
+重新执行 `pnpm run dev`，在浏览器 Network 菜单中，可以发现项目已经在服务端完成了页面渲染。
+
+## 核心 npm 包
+
+在新创建的工程中，默认会安装 `@modern-js/app-tools` npm 包，它是 Modern.js 框架的核心包，主要提供以下能力：
+
+- 提供 `modern dev`, `modern build` 等常用的 CLI 命令。
+- 集成 Rsbuild，提供构建能力。
+- 集成 Modern.js Server，提供开发和生产服务器相关能力。
+
+`@modern-js/app-tools` 是基于 Modern.js 的插件体系实现的，本质上是一个插件，因此你需要在配置文件的 `plugins` 字段中注册 `appTools`：
+
+```ts title="modern.config.ts"
+import { appTools, defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  plugins: [appTools()],
+});
+```
+
+## 构建项目
+
+import BuildOutput from '@site-docs/components/build-output';
+
+<BuildOutput />
+
+## 本地验证
+
+在项目中执行 `pnpm run serve` 即可在本地验证构建产物是否正常运行：
+
+```bash
+$ pnpm run serve
+
+  Modern.js Framework
+
+info    Starting production server...
+
+  > Local:    http://localhost:8080/
+  > Network:  http://192.168.0.1:8080/
+```
+
+在浏览器中打开 `http://localhost:8080/`，内容应该和 `pnpm run dev` 时一致。
+
+## 部署
+
+import Deploy from '@site-docs/components/deploy';
+
+<Deploy />

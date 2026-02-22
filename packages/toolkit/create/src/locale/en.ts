@@ -1,25 +1,64 @@
 export const EN_LOCALE = {
-  command: {
-    description: 'create Modern.js solution project',
-    mwa: 'create mwa application using default config',
-    module: 'create module application using default config',
-    monorepo: 'create monorepo application using default config',
-    config: 'set default project config(json string)',
-    packages: 'set project specific dependency version information',
-    distTag: `use specified tag version for it's generator`,
-    registry: 'set npm registry url to run npm command',
-    debug: 'using debug mode to log something',
-    generator: 'run custom generator',
-    plugin:
-      'use generator plugin to create new solution or customize Modern.js solution',
-    noNeedInstall: 'not run install command',
-    version: 'show create tools version',
-    lang: 'set create tools language(en or zh)',
-    cleanCache: 'clean locale generator cache',
+  prompt: {
+    projectName: 'Please enter project name: ',
   },
-  tooltip: {
-    dir_entry: `you can execute 'cd {dirName}' to entry the project directory`,
-    dir_exists: `directory '{dirName}' already exists`,
-    clean_cache_success: 'Clean generator cache success!',
+  error: {
+    projectNameEmpty: 'Error: Project name cannot be empty',
+    directoryExists:
+      'Error: Directory "{projectName}" already exists and is not empty',
+    invalidRouter:
+      'Error: Unsupported router "{router}". Use "react-router" or "tanstack".',
+    invalidBffRuntime:
+      'Error: Unsupported BFF runtime "{runtime}". Use "hono" or "effect".',
+    createFailed: 'Error creating project:',
+  },
+  message: {
+    welcome: '🚀 Welcome to Modern.js',
+    creating: '📦 Creating project "{projectName}"...',
+    success: '\n✨ Project created successfully! 🎉',
+    nextSteps: '\n📋 Next steps:',
+    step1Desc: '📁 Enter the project directory:',
+    step1: '  cd {projectName}',
+    step2Desc: '🔧 Initialize Git repository:',
+    step2: '  git init',
+    step3Desc: '📥 Install dependencies:',
+    step3: '  pnpm install',
+    step4Desc: '⚡ Start the development server:',
+    step4: '  pnpm start',
+    divider: '─'.repeat(50),
+  },
+  help: {
+    title: '🚀 Modern.js Project Creator',
+    description: 'Create a new Modern.js project with ease',
+    usage: '📖 Usage:',
+    usageExample: '  create [project-name] [options]',
+    options: '⚙️  Options:',
+    optionHelp: '  -h, --help     Display this help message',
+    optionVersion: '  -v, --version  Display version information',
+    optionLang: '  -l, --lang     Set the language (zh or en)',
+    optionRouter:
+      '  -r, --router   Select router framework (react-router or tanstack)',
+    optionBff: '      --bff      Enable BFF scaffold (default runtime: hono)',
+    optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
+    optionTailwind:
+      '      --tailwind Enable Tailwind CSS v4 scaffold (PostCSS + starter styles)',
+    optionWorkspace:
+      '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
+    optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
+    examples: '💡 Examples:',
+    example1: '  create my-app',
+    example2: '  create my-app --lang zh',
+    example3: '  create my-app --sub',
+    example4: '  create --help',
+    example5: '  create my-app --router tanstack',
+    example6: '  create my-app --router tanstack --tailwind',
+    example7: '  create my-app --bff',
+    example8: '  create my-app --router tanstack --bff-runtime effect',
+    example9:
+      '  create my-app --router tanstack --bff-runtime effect --workspace',
+    moreInfo: '📚 Learn more: https://modernjs.dev',
+  },
+  version: {
+    message: '@modern-js/create version: {version}',
   },
 };

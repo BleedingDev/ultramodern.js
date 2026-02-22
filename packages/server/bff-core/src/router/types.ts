@@ -1,4 +1,4 @@
-import { HttpMethod } from '../types';
+import type { HttpMethod } from '../types';
 
 export type ModuleInfo = {
   filename: string;
@@ -20,4 +20,5 @@ export type APIHandlerInfo = {
   routeName: string;
   // prefix+ routeName
   routePath: string;
+  action?: string;
 };

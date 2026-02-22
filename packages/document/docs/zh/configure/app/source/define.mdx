@@ -1,0 +1,20 @@
+---
+title: define
+---
+
+# source.define
+
+- **类型：** `Record<string, unknown>`
+- **默认值：**
+
+```ts
+const defaultDefine = {
+  'process.env.MODERN_TARGET': '"browser"',
+};
+```
+
+构建时将代码中的变量替换成其它值或者表达式，可以用于在代码逻辑中区分开发环境与生产环境等场景。
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="source.define" />

@@ -1,8 +1,8 @@
 import { join } from 'path';
 import ncc from '@vercel/ncc';
 import { Package as DtsPacker } from 'dts-packer';
-import fs from 'fs-extra';
 import fastGlob from 'fast-glob';
+import fs from 'fs-extra';
 import { DEFAULT_EXTERNALS } from './constant';
 import { pick, replaceFileContent } from './helper';
 import type { ParsedTask } from './types';
@@ -19,6 +19,11 @@ function emitAssets(
 
 function emitIndex(code: string, distPath: string) {
   const distIndex = join(distPath, 'index.js');
+  fs.outputFileSync(distIndex, code);
+}
+
+function emitESMIndex(code: string, distPath: string) {
+  const distIndex = join(distPath, 'index.mjs');
   fs.outputFileSync(distIndex, code);
 }
 
@@ -42,6 +47,10 @@ function fixTypeExternalPath(
 }
 
 function emitDts(task: ParsedTask) {
+  if (!task.emitDts) {
+    return;
+  }
+
   if (task.ignoreDts) {
     fs.writeFileSync(join(task.distPath, 'index.d.ts'), 'export = any;\n');
     return;
@@ -148,20 +157,36 @@ export async function prebundle(task: ParsedTask) {
 
   console.log(`==== Start prebundle "${task.depName}" ====`);
 
-  fs.removeSync(task.distPath);
+  if (task.clear) {
+    fs.removeSync(task.distPath);
+  }
 
   if (task.beforeBundle) {
     await task.beforeBundle(task);
   }
 
   const { code, assets } = await ncc(task.depEntry, {
-    minify: task.minify,
     externals: {
       ...DEFAULT_EXTERNALS,
       ...task.externals,
     },
     assetBuilds: false,
+    minify: task.minify,
+    esm: false,
   });
+
+  if (task.depEsmEntry) {
+    const { code: esmCode } = await ncc(task.depEsmEntry, {
+      externals: {
+        ...DEFAULT_EXTERNALS,
+        ...task.externals,
+      },
+      assetBuilds: false,
+      minify: task.minify,
+      esm: true,
+    });
+    emitESMIndex(esmCode, task.distPath);
+  }
 
   emitIndex(code, task.distPath);
   emitAssets(assets, task.distPath);

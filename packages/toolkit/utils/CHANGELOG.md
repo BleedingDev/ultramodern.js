@@ -1,6 +1,321 @@
 # @modern-js/utils
 
-## 4.0.0
+## 3.0.2
+
+## 3.0.1
+
+## 3.0.0
+
+## 3.0.0-alpha.2
+
+## 3.0.0-alpha.1
+
+## 3.0.0-alpha.0
+
+## 2.68.1
+
+## 2.68.0
+
+## 2.67.11
+
+## 2.67.10
+
+## 2.67.9
+
+## 2.67.8
+
+### Patch Changes
+
+- 23c8201: fix(deploy): avoid issues caused by the module-sync field
+  fix(deploy): 避免因为 module-sync 字段导致的问题
+
+## 2.67.7
+
+## 2.67.6
+
+## 2.67.5
+
+## 2.67.4
+
+## 2.67.3
+
+## 2.67.2
+
+## 2.67.1
+
+### Patch Changes
+
+- 1d96265: feat(ssr): support streaming ssr to work with http2
+  feat(ssr): 支持 streaming ssr 和 http2 协议一起工作
+
+## 2.67.0
+
+## 2.66.0
+
+## 2.65.5
+
+## 2.65.4
+
+### Patch Changes
+
+- 0d47cb8: feat: use require.resolve to check react version to fix use pnpm catalog in pnpm workspace
+
+  feat: 使用 require.resolve 来检查 react 版本，以修复 pnpm workspace 中使用 pnpm catalog 的问题
+
+## 2.65.3
+
+## 2.65.2
+
+### Patch Changes
+
+- 1f83d96: fix(render): fork react-server-dom-webpack to avoid warnings about installing dependencies
+  fix(render): 内置 react-server-dom-webpack 到 packages/toolkit/utils/compiled 中，避免安装依赖的警告
+
+## 2.65.1
+
+## 2.65.0
+
+## 2.64.3
+
+## 2.64.2
+
+## 2.64.1
+
+## 2.64.0
+
+## 2.63.7
+
+## 2.63.6
+
+## 2.63.5
+
+## 2.63.4
+
+## 2.63.3
+
+## 2.63.2
+
+### Patch Changes
+
+- 5fc95f7: feat(app-tools): enable Rsbuild CLI shortcuts
+- 53e3ae0: fix: React is undefined while using react@16.14.0 and webpack mode
+  fix: 使用 react@16.14.0 且在 webpack 模式下时报错 React is undefined
+
+## 2.63.1
+
+## 2.63.0
+
+## 2.62.1
+
+## 2.62.0
+
+## 2.61.0
+
+### Patch Changes
+
+- 45230e2: fix: hot reload problems for server
+  fix: 修复服务端热更新问题
+
+## 2.60.6
+
+## 2.60.5
+
+## 2.60.4
+
+## 2.60.3
+
+### Patch Changes
+
+- 303331c: fix: should load ts-node from project
+  fix: 应该从项目中加载 ts-node
+
+## 2.60.2
+
+### Patch Changes
+
+- 8a709bc: feat(router): router plugin should use the App Component from other plugins & export the markRoutes method
+  feat(router): router plugin 应该使用 App Component from other plugins & 导出 markRoutes 方法
+
+## 2.60.1
+
+## 2.60.0
+
+## 2.59.0
+
+## 2.58.3
+
+## 2.58.2
+
+### Patch Changes
+
+- a1a9373: fix: fix compatibleRequire problem on windows
+  fix: 修复 windows 下 compatibleRequire 的问题
+
+## 2.58.1
+
+## 2.58.0
+
+## 2.57.1
+
+## 2.57.0
+
+### Patch Changes
+
+- 2515b00: feat(ssr): support server.ssrByRouteIds
+  feat(ssr): 支持 server.ssrByRouteIds
+
+## 2.56.2
+
+## 2.56.1
+
+## 2.56.0
+
+## 2.55.0
+
+### Patch Changes
+
+- bbcf55a: fix: runtime template windows path
+
+  fix: 修复 runtime 模板 windows 路径不正确
+
+## 2.54.6
+
+## 2.54.5
+
+## 2.54.4
+
+## 2.54.3
+
+## 2.54.2
+
+## 2.54.1
+
+## 2.54.0
+
+### Minor Changes
+
+- a8d8f0c: feat: support new server plugin & discard server plugin some hooks
+  feat: 支持新 server plugin & 减少 server plugin 钩子
+
+### Patch Changes
+
+- 15a090c: feat: refactor app-tools command and analyze check entry point
+
+  feat: 重构 app-tools 命令和 analyze 插件识别入口逻辑
+
+- 09798ac: feat: refactor runtime plugin
+
+  feat: 重构 runtime 插件
+
+## 2.53.0
+
+## 2.52.0
+
+## 2.51.0
+
+## 2.50.0
+
+## 2.49.4
+
+## 2.49.3
+
+## 2.49.2
+
+## 2.49.1
+
+## 2.49.0
+
+### Minor Changes
+
+- e8c8c5d: refactor: refactor server
+  refactor: 重构 server
+
+## 2.48.6
+
+## 2.48.5
+
+### Patch Changes
+
+- 4ca9f4c: fix: remove `node:` prefix
+  fix: 移除 `node:` 前缀
+
+## 2.48.4
+
+### Patch Changes
+
+- 7d2d433: fix: we should override server.baseUrl when merge it
+  fix: 在合并 server.baseUrl 时，我们应该覆盖他
+
+## 2.48.3
+
+## 2.48.2
+
+## 2.48.1
+
+### Patch Changes
+
+- 8942b90: perf(utils): remove unused schema-utils3 package
+
+  perf(utils): 移除 schema-utils3 包
+
+- ce426f7: fix(server): print ipv6 url correctly
+
+  fix(server): 正确打印 ipv6 url
+
+## 2.48.0
+
+### Patch Changes
+
+- c323a23: feat: separate new & upgrade action from solutions
+  feat: 从工程方案中分离 new & upgrade 命令
+
+## 2.47.1
+
+## 2.47.0
+
+### Patch Changes
+
+- a5386ab: fix(deps): bump semver to v7.6.0
+
+  fix(deps): 升级 semver 到 v7.6.0
+
+## 2.46.1
+
+## 2.46.0
+
+## 2.45.0
+
+## 2.44.0
+
+## 2.43.0
+
+## 2.42.2
+
+## 2.42.1
+
+## 2.42.0
+
+## 2.41.0
+
+### Patch Changes
+
+- c4d396a: chore(swc): bump swc and helpers
+  chore(swc): 升级 swc 以及 helpers
+
+## 2.40.0
+
+### Minor Changes
+
+- 95f15d2: chore: remove ajv schema verification of configuration
+  chore: 移除 ajv 对项目配置的校验
+
+## 2.39.2
+
+## 2.39.1
+
+## 2.39.0
+
+## 2.38.0
 
 ## 2.37.2
 

@@ -1,38 +1,43 @@
 import path from 'path';
+import { expect, test } from '@playwright/test';
+import type { RsbuildConfig, SourceConfig } from '@rsbuild/core';
 import { build } from '@scripts/shared';
-import { expect, test } from '@modern-js/e2e/playwright';
-import { ensureDirSync, copySync } from 'fs-extra';
-import { SharedTransformImport } from '@modern-js/builder-shared';
-import { BuilderConfig } from '@modern-js/builder-webpack-provider';
+import { copySync, ensureDirSync } from 'fs-extra';
 
 export const cases: Parameters<typeof shareTest>[] = [
   [
     `camelCase test`,
     './src/camel.js',
-    {
-      libraryName: 'foo',
-      libraryDirectory: 'lib',
-      camelToDashComponentName: false,
-    },
+    [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        camelToDashComponentName: false,
+      },
+    ],
   ],
   [
     `kebab-case test`,
     './src/kebab.js',
-    {
-      libraryName: 'foo',
-      libraryDirectory: 'lib',
-      camelToDashComponentName: true,
-    },
+    [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        camelToDashComponentName: true,
+      },
+    ],
   ],
   [
     'transform to named import',
     './src/named.js',
-    {
-      libraryName: 'foo',
-      libraryDirectory: 'lib',
-      camelToDashComponentName: true,
-      transformToDefaultImport: false,
-    },
+    [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        camelToDashComponentName: true,
+        transformToDefaultImport: false,
+      },
+    ],
   ],
 ];
 
@@ -59,7 +64,7 @@ export function copyPkgToNodeModules() {
 export function shareTest(
   msg: string,
   entry: string,
-  transformImport: SharedTransformImport,
+  transformImport: SourceConfig['transformImport'],
   otherConfigs: {
     plugins?: any[];
   } = {},
@@ -70,15 +75,11 @@ export function shareTest(
       index: entry,
     },
   };
-  const config: BuilderConfig = {
+  const config: RsbuildConfig = {
     source: {
-      transformImport: [transformImport],
+      transformImport,
     },
-    performance: {
-      chunkSplit: {
-        strategy: 'all-in-one',
-      },
-    },
+    splitChunks: false,
   };
 
   test(msg, async () => {

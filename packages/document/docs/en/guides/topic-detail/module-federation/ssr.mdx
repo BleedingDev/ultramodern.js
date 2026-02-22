@@ -1,0 +1,145 @@
+# Server-Side Rendering
+
+`@module-federation/modern-js-v3` offers powerful capabilities, enabling developers to easily combine Module Federation with server-side rendering (SSR) in Modern.js applications.
+
+## Enable SSR
+
+Using the application created in [Using Module Federation](/guides/topic-detail/module-federation/usage) as an example, you only need to add the `server.ssr` configuration to both the producer and the consumer:
+
+```ts title="modern.config.ts"
+import { appTools, defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  server: {
+    ssr: {
+      mode: 'stream',
+    },
+  },
+});
+```
+
+For better performance, we only support using this capability combination in Streaming SSR scenarios.
+
+:::warning
+Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) are available for SSR in **alpha mode**.
+
+Enable it explicitly in both host and remote apps:
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  server: {
+    ssr: {
+      mode: 'stream',
+      moduleFederationAppSSRAlpha: true,
+    },
+  },
+});
+```
+
+For production rollout, make sure you keep fallback boundaries for remote load failures and monitor fallback markers in logs/telemetry.
+:::
+
+## Node SSR Bundle Compatibility
+
+When Module Federation is enabled together with `server.ssr`, Modern.js automatically switches Node SSR output to a Module Federation compatible mode:
+
+- `target: 'async-node'`
+- `output.module: false`
+- `output.chunkFormat: 'commonjs'`
+- `output.chunkLoading: 'async-node'`
+- `output.library.type: 'commonjs-module'`
+
+This avoids runtime incompatibilities between ESM server output and `@module-federation/node`, and keeps SSR/SSG hydration behavior consistent across host and remote applications.
+
+## Data Fetching
+
+:::tip
+Currently, this feature is experimental and has not been fully practiced. Please use it with caution.
+:::
+
+Module Federation now supports [data fetching](https://module-federation.io/zh/guide/basic/data-fetch/index.html#%E7%AE%80%E4%BB%8B) capabilities. Each producer file can have a corresponding data fetching file, with the file name format of `[name].data.ts`.
+
+In Modern.js, data fetching can be used with SSR. Using the example in the previous chapter, create a data fetching file:
+
+```ts title="src/components/Button.data.ts"
+import type { DataFetchParams } from '@module-federation/modern-js-v3/react';
+
+export type Data = {
+  data: string;
+};
+
+export const fetchData = async (params: DataFetchParams): Promise<Data> => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({
+        data: `data: ${new Date()}`,
+      });
+    }, 1000);
+  });
+};
+```
+
+In Button, we get the data from the `Props`:
+
+```ts title="src/components/Button.tsx"
+import React from 'react';
+import type { Data } from './Button.data';
+
+export const Button = (props: { mfData: Data }) => {
+  const { mfData } = props;
+  return (
+    <button type="button" className="test">
+      Remote Button {mfData?.data}
+    </button>
+  );
+};
+```
+
+## Consuming Components
+
+Consumers must use [`createLazyComponent`](https://module-federation.io/practice/bridge/react-bridge/load-component.html#what-is-createlazycomponent) to load remote components and specify the export as the component name.
+
+```tsx title="src/routes/page.tsx"
+import type { JSX } from 'react';
+import { getInstance } from '@module-federation/modern-js-v3/runtime';
+import {
+  ERROR_TYPE,
+  lazyLoadComponentPlugin,
+} from '@module-federation/modern-js-v3/react';
+
+const instance = getInstance();
+instance!.registerPlugins([lazyLoadComponentPlugin()]);
+
+const Button = instance!.createLazyComponent({
+  loader: () => {
+    return import('remote/Button');
+  },
+  loading: 'loading...',
+  export: 'Button', // Configure this as the export name of the remote component
+  fallback: ({ error, errorType, dataFetchMapKey }) => {
+    console.error(error);
+    if (errorType === ERROR_TYPE.LOAD_REMOTE) {
+      return <div>load remote failed</div>;
+    }
+    if (errorType === ERROR_TYPE.DATA_FETCH) {
+      return (
+        <div>
+          data fetch failed, the dataFetchMapKey key is: {dataFetchMapKey}
+        </div>
+      );
+    }
+    return <div>error type is unknown</div>;
+  },
+});
+
+const Index = (): JSX.Element => {
+  return (
+    <div>
+      <h1>Basic usage with data fetch</h1>
+      <Button />
+    </div>
+  );
+};
+
+export default Index;
+```

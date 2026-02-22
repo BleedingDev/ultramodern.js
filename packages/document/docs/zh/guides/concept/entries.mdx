@@ -1,0 +1,323 @@
+---
+sidebar_position: 1
+---
+
+# 页面入口
+
+通过本章节，你可以了解到 Modern.js 中的入口约定，以及如何自定义入口。
+
+## 什么是入口
+
+**入口（Entry）指的是一个页面的起始模块。**
+
+在 Modern.js 应用中，每一个入口对应一个独立的页面，也对应一条服务端路由。默认情况下，Modern.js 会基于目录约定来自动确定页面的入口，同时也支持通过配置项来自定义入口。
+
+Modern.js 提供的很多配置项都是以入口为维度进行划分的，比如页面标题、HTML 模板、页面 Meta 信息、是否开启 SSR/SSG、服务端路由规则等。如果你希望了解更多关于入口的技术细节，请参考[深入了解](#深入了解)章节的内容。
+
+## 单入口与多入口
+
+Modern.js 初始化的应用是单入口的，应用结构如下：
+
+```
+.
+├── src
+│   └── routes
+│       ├── index.css
+│       ├── layout.tsx
+│       └── page.tsx
+├── package.json
+├── modern.config.ts
+└── tsconfig.json
+```
+
+在 Modern.js 应用中，你可以很方便的将单入口切换成多入口。手动创建多入口需要以下步骤：
+
+import NewEntryTooltip from '@site-docs/components/new-entry-tooltip.mdx';
+
+<NewEntryTooltip />
+
+1. **将原入口代码移动到以 `package.json` 中 `name` 命名的目录下**
+
+   假设 `package.json` 中的 `name` 为 `myapp`，需要将 `src/routes/` 目录移动到 `src/myapp/routes/`：
+
+```bash
+# 创建新目录
+mkdir -p src/myapp
+# 移动原入口代码
+mv src/routes src/myapp/routes
+```
+
+2. **创建新的入口目录**
+
+   创建新的入口目录，例如 `new-entry`：
+
+```bash
+# 创建新入口目录
+mkdir -p src/new-entry/routes
+```
+
+3. **在新入口目录下创建必要的文件**
+
+   在新入口的 `routes/` 目录下创建基础文件：
+
+```bash
+# 创建基础文件（可根据需要调整内容）
+touch src/new-entry/routes/index.css
+touch src/new-entry/routes/layout.tsx
+touch src/new-entry/routes/page.tsx
+```
+
+完成上述步骤后，`src/` 目录结构如下：
+
+```bash
+.
+├── myapp    # 原入口
+│   └── routes
+│       ├── index.css
+│       ├── layout.tsx
+│       └── page.tsx
+└── new-entry # 新入口
+    └── routes
+        ├── index.css
+        ├── layout.tsx
+        └── page.tsx
+```
+
+Modern.js 会将与 `package.json` 文件中 `name` 字段同名的入口作为主入口，主入口的路由为 `/`，其他入口的路由为 `/{entryName}`。比如，`package.json` 中的 `name` 为 `myapp` 时，`src/myapp` 会作为应用的主入口。
+
+你可以执行 `pnpm run dev` 启动开发服务，此时可以看到新增了一条名为 `/new-entry` 的路由，并且原有页面的路由并未发生变化。
+
+:::note
+**单入口/多入口** 和 **SPA/MPA** 的概念并不等价。前者是关于如何配置和打包应用，而后者是组织前端应用的模式，每个入口都可以是 SPA 或非 SPA 的。
+:::
+
+## 入口类型
+
+Modern.js 支持三种入口类型，每种类型都有不同的使用场景和特点。选择合适的入口类型可以帮助你更好地组织代码。
+
+### 如何识别入口
+
+Modern.js 会自动扫描目录，识别符合条件的入口。一个目录被认定为入口需要满足以下**三个条件之一**：
+
+1. **具有 `routes/` 目录** → 约定式路由入口
+2. **具有 `App.tsx?` 文件** → 自控式路由入口
+3. **具有 `entry.tsx?` 文件** → 自定义入口
+
+import EntryScanLogic from '@site-docs/components/entry-scan-logic.mdx';
+
+<EntryScanLogic />
+
+:::tip 自定义扫描目录
+你可以通过 [source.entriesDir](/configure/app/source/entries-dir) 修改识别入口的目录。
+
+:::
+
+import EntryMode from '@site-docs/components/entry-mode.mdx';
+
+<EntryMode />
+
+接下来我们详细介绍每种入口类型的使用方法。
+
+### 约定式路由
+
+如果入口中存在 `routes/` 目录，我们称该入口为约定式路由。Modern.js 会在启动时扫描 `routes/` 下的文件，基于文件约定，自动生成客户端路由（react-router）。例如：
+
+```bash
+src/
+└── routes/
+    ├── layout.tsx    # 布局组件（可选）
+    ├── page.tsx      # 首页组件（/ 路由）
+    ├── about/
+    │   └── page.tsx  # 关于页面（/about 路由）
+    └── blog/
+        ├── page.tsx  # 博客列表页（/blog 路由）
+        └── [id]/
+            └── page.tsx  # 博客详情页（/blog/:id 路由）
+```
+
+组件对应关系
+
+| 文件                        | 路由        | 说明               |
+| --------------------------- | ----------- | ------------------ |
+| `routes/layout.tsx`         | 全局布局    | 所有页面的外层容器 |
+| `routes/page.tsx`           | `/`         | 首页               |
+| `routes/about/page.tsx`     | `/about`    | 关于页面           |
+| `routes/blog/[id]/page.tsx` | `/blog/:id` | 动态路由页面       |
+
+详细内容可以参考[路由方案](/guides/basic-features/routes/routes#约定式路由)。
+
+### 自控式路由
+
+如果入口中存在 `App.tsx?` 文件，该入口就是自控式路由。这种方式给开发者完全的路由控制权。
+
+```bash
+.
+├── src
+│   └── App.tsx
+```
+
+以 `src/App.tsx` 为约定的入口，Modern.js 不会对路由做额外的操作，开发者可以使用 [React Router v7](https://reactrouter.com/en/main) 的 API 设置客户端路由，或不设置客户端路由。例如以下代码，在应用中自行设置了客户端路由：
+
+```tsx title="src/App.tsx"
+import { BrowserRouter, Route, Routes } from '@modern-js/runtime/router';
+
+export default () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route index element={<div>index</div>} />
+        <Route path="about" element={<div>about</div>} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+```
+
+:::note
+我们推荐开发者使用约定式路由，Modern.js 默认对约定式路由做了一系列资源加载及渲染上的优化，并且提供了开箱即用的 SSR 能力。而在使用自控路由时，这些能力都需要开发者自行封装。
+:::
+
+### 自定义入口
+
+默认情况下，使用约定式路由或自控式路由时，Modern.js 会自动完成渲染。如果你希望自定义这个行为，可以通过自定义入口文件的方式来实现。
+
+:::tip
+自定义入口可以和约定式路由及自控式路由入口共存，自定义项目初始化的逻辑。
+
+:::
+
+如果入口中存在 `entry.tsx` 文件，则 Modern.js 不再控制应用的渲染流程，你可以在 `entry.tsx` 文件中调用 `createRoot` 和 `render` 函数，完成应用入口逻辑。
+
+```tsx title="src/entry.tsx"
+import { createRoot } from '@modern-js/runtime/react';
+import { render } from '@modern-js/runtime/browser';
+
+// 创建根组件
+const ModernRoot = createRoot();
+
+// 渲染到 DOM
+render(<ModernRoot />);
+```
+
+上述代码中，`createRoot` 函数返回的组件为 `routes/` 目录生成或 `App.tsx` 导出的组件，`render` 函数用于处理渲染与挂载组件。例如，你希望在渲染前执行某些异步任务，可以这样实现：
+
+```tsx
+import { createRoot } from '@modern-js/runtime/react';
+import { render } from '@modern-js/runtime/browser';
+
+const ModernRoot = createRoot();
+
+async function beforeRender() {
+  // some async request
+}
+
+beforeRender().then(() => {
+  render(<ModernRoot />);
+});
+```
+
+如果你不想使用 Modern.js 任何运行时能力，也可以自行将组件挂载到 DOM 节点上，例如:
+
+```js title=src/entry.tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const container = document.getElementById('root');
+
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
+```
+
+在该模式下，**将无法使用 Modern.js 框架的运行时能力**，比如：
+
+- 约定式路由，即基于 `src/routes` 下文件的路由
+- 服务端渲染（SSR）
+- 国际化能力（i18n）
+- 模块联邦能力（Module Federation）
+
+## 在配置文件中指定入口
+
+在某些情况下，你可能需要自定义入口配置，而不是使用 Modern.js 提供的入口约定。
+
+比如你需要将一个非 Modern.js 应用迁移到 Modern.js，它并不是按照 Modern.js 的目录结构来搭建的。如果你要将它改成 Modern.js 约定的目录结构，会存在一定的迁移成本。这种情况下，你就可以使用自定义入口。
+
+Modern.js 提供了以下配置项，你可以在 [modern.config.ts](/configure/app/usage) 中配置它们：
+
+- [source.entries](/configure/app/source/entries)：用于设置自定义的入口对象。
+- [source.disableDefaultEntries](/configure/app/source/disable-default-entries)：用于关闭 Modern.js 默认的入口扫描行为。当你使用自定义入口时，应用的部分结构可能会恰巧命中 Modern.js 约定的目录结构，但你可能不希望 Modern.js 为你自动生成入口配置，开启该选项可以避免这个问题。
+
+### 示例
+
+下面是一个自定义入口的例子，你也可以查看相关配置项的文档来了解更多用法。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  source: {
+    entries: {
+      // 指定一个名为 'my-entry' 的入口
+      'my-entry': {
+        // 入口模块的路径
+        entry: './src/my-page/index.tsx',
+        // 关闭 Modern.js 自动生成入口代码的行为
+        disableMount: true,
+      },
+    },
+    // 禁用入口扫描行为
+    disableDefaultEntries: true,
+  },
+});
+```
+
+## 深入了解
+
+页面入口的概念衍生自 webpack 的入口（Entrypoint）概念，其主要用于配置 JavaScript 或其他模块在应用启动时加载和执行。webpack 对于网页应用的 [最佳实践](https://webpack.docschina.org/concepts/entry-points/#multi-page-application) 通常将入口与 HTML 产物对应，即每增加一个入口最终就会在产物中生成一份对应的 HTML 文件。入口引入的模块会在编译打包后生成多个 Chunk 产物，例如对于 JavaScript 模块最终可能会生成数个类似 `dist/static/js/index.ea39u8.js` 的文件产物。
+
+需要注意区分入口、路由等概念之间的关系：
+
+- **入口**：包含多个用于启动时执行的模块。
+- **客户端路由**：在 Modern.js 中通常由 `react-router` 实现，通过 History API 判断浏览器当前 URL 决定加载和显示哪个 React 组件。
+- **服务端路由**：服务端可以模仿 [devServer 的行为](https://webpack.docschina.org/configuration/dev-server/#devserverhistoryapifallback)，将 index.html 页面代替所有 404 响应被返回以实现客户端路由，也可以自行实现任何路由逻辑。
+
+它们的对应关系如下：
+
+- 每个网站项目可以包含多个入口
+- 每个入口包含若干个模块（源码文件）
+- 每个入口通常对应一个 HTML 文件产物和若干其它产物。
+- 每个 HTML 文件可以包含多个客户端路由方案（比如在页面中同时使用 `react-router` 和 `@tanstack/react-router`）。
+- 每个 HTML 文件可以被多个服务端路由对应。
+- 每个 HTML 文件可以包含多个客户端路由，当访问单入口应用的不同路由时实际使用的是同一个 HTML 文件。
+
+## 常见问题
+
+1. **`react-router` 定义的每个客户端路由会分别生成一个 HTML 文件吗？**
+
+不会。每个入口通常只会生成一个 HTML 文件，单个入口中如果定义多个客户端路由系统会共用这一个 HTML 文件。
+
+2. **约定式路由的 `routes/` 目录下每个 `page.tsx` 文件都会生成一个 HTML 文件吗？**
+
+不是。约定式路由是基于 `react-router` 实现的客户端路由方案，其约定 `routes/` 目录下每个 `page.tsx` 文件都会对应生成一个 `react-router` 的客户端路由。`routes/` 本身作为一个页面入口，对应最终产物中的一个 HTML 文件。
+
+3. **服务端渲染（SSR）的项目是否会构建多份 HTML 产物？**
+
+在使用服务端渲染应用时并不必须在编译时生成一份 HTML 产物，它可以只包含用于渲染的服务端 JavaScript 产物。此时 `react-router` 将在服务端运行和调度路由，并在每次请求时渲染并响应 HTML 内容。
+
+而 Modern.js 在编译时仍会为每个入口生成包含 HTML 文件的完整的客户端产物，用于在服务端渲染失败时降级为客户端渲染使用。
+
+另一个特殊情况是使用静态站点生成（SSG）的项目，即使是使用约定式路由搭建的单入口 SSG 应用，Modern.js 也会在 Rspack 的流程外为每个 `page.tsx` 文件生成一份单独的 HTML 文件。
+
+需要注意的是即使开启服务端渲染，React 通常仍需要执行水合阶段并在前端执行 `react-router` 的路由。
+
+4. **单入口应用是否存在输出多个 HTML 文件的例外情况？**
+
+你可以自行配置 [html-rspack-plugin](https://rspack.rs/zh/plugins/rspack/html-rspack-plugin#%E7%94%9F%E6%88%90%E5%A4%9A%E4%B8%AA-html-%E6%96%87%E4%BB%B6) 为每个入口生成多个 HTML 产物，或使多个入口共用一个 HTML 产物。
+
+5. **什么叫多页应用（Multi-Page Application）？**
+
+多页应用的 **页面** 指的是静态的 HTML 文件。
+一般可以将任何包含多个入口、多个 HTML 文件产物的网页应用称为多页应用。
+狭义的多页应用可能不包含客户端路由、仅通过 `<a>` 之类的标签元素进行 HTML 静态页面之间的跳转，但实践中上多页应用也经常需要为其入口配置客户端路由以满足不同需求。
+
+相反地，通过 `react-router` 定义多个路由的单入口应用因为只生成一个 HTML 文件产物，所以被称为单页应用（Single Page Application）。

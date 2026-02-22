@@ -1,3 +1,4 @@
+import { after } from '../compiled/lodash';
 import { prettyInstructions } from '../src';
 
 const mockNetworkInterfaces = {
@@ -49,7 +50,6 @@ const mockEntrypoints = [
     entryName: 'main',
     entry: '/example/node_modules/.modern-js/main/index.js',
     isAutoMount: true,
-    customBootstrap: false,
   },
 ];
 
@@ -61,8 +61,8 @@ const mockServerRoute = {
   isSSR: false,
 };
 
-jest.mock('os', () => {
-  const originalModule = jest.requireActual('os');
+rstest.mock('os', () => {
+  const originalModule = rstest.requireActual('os');
   return {
     __esModule: true,
     ...originalModule,
@@ -74,18 +74,29 @@ jest.mock('os', () => {
   };
 });
 
-jest.mock('../compiled/chalk', () => {
+rstest.mock('../compiled/chalk', () => {
   return {
-    blue: jest.fn(str => str),
-    bold: jest.fn(str => str),
-    green: jest.fn(str => str),
-    red: jest.fn(str => str),
-    yellow: jest.fn(str => str),
-    cyanBright: jest.fn(str => str),
+    default: {
+      blue: rstest.fn(str => str),
+      bold: rstest.fn(str => str),
+      green: rstest.fn(str => str),
+      red: rstest.fn(str => str),
+      yellow: rstest.fn(str => str),
+      cyanBright: rstest.fn(str => str),
+    },
+    blue: rstest.fn(str => str),
+    bold: rstest.fn(str => str),
+    green: rstest.fn(str => str),
+    red: rstest.fn(str => str),
+    yellow: rstest.fn(str => str),
+    cyanBright: rstest.fn(str => str),
   };
 });
 
 describe('prettyInstructions', () => {
+  afterEach(() => {
+    rstest.unstubAllEnvs();
+  });
   test('basic usage', () => {
     const mockAppContext = {
       entrypoints: mockEntrypoints,
@@ -109,32 +120,26 @@ describe('prettyInstructions', () => {
   });
 
   test('should print https URLs', () => {
-    const { NODE_ENV } = process.env;
-    process.env.NODE_ENV = 'development';
+    rs.stubEnv('NODE_ENV', 'development');
 
     const mockAppContext = {
       entrypoints: mockEntrypoints,
       serverRoutes: [mockServerRoute],
       port: 8080,
       apiOnly: false,
-      builder: {
-        context: {
-          devServer: {
-            https: true,
-          },
-        },
-      },
     };
 
-    const message = prettyInstructions(mockAppContext, {});
+    const message = prettyInstructions(mockAppContext, {
+      dev: {
+        https: true,
+      },
+    });
 
     expect(message).toMatchSnapshot();
-
-    process.env.NODE_ENV = NODE_ENV;
   });
 
   test('should print host correctly', () => {
-    process.env.NODE_ENV = 'development';
+    rs.stubEnv('NODE_ENV', 'development');
 
     const mockAppContext = {
       entrypoints: mockEntrypoints,

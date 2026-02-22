@@ -2,13 +2,13 @@ import React, { useContext } from 'react';
 import ReactDomServer from 'react-dom/server';
 
 import {
-  Html,
-  Scripts,
   Body,
-  Head,
-  Root,
   DocumentContext,
+  Head,
+  Html,
+  Root,
   Script,
+  Scripts,
 } from '../../src/document';
 import cliPlugin from '../../src/document/cli';
 
@@ -21,20 +21,20 @@ describe('plugin-document', () => {
   it('should render correct document', () => {
     const document = (
       <Html>
-        <Head></Head>
-        <Body></Body>
+        <Head />
+        <Body />
       </Html>
     );
     const docHtml = ReactDomServer.renderToString(document);
     expect(docHtml).toEqual(
-      `<html><head>%3C!--%3C%3F-%20partials.top%20%3F%3E--%3E<!-- -->%3C%25%3D%20meta%20%25%3E<!-- -->%3C!--%20chunk%20links%20placeholder%20--%3E<!-- -->%3C!--%20chunk%20scripts%20placeholder%20--%3E<!-- -->%3C!--%3C%3F-%20partials.head%20%3F%3E--%3E</head><body><div id="root">%3C!--%3C%3F-%20html%20%3F%3E--%3E</div>%3C!--%3C%3F-%20partials.body%20%3F%3E--%3E<!-- -->%3C!--%3C%3F-%20chunksMap.js%20%3F%3E--%3E<!-- -->%3C!--%3C%3F-%20SSRDataScript%20%3F%3E--%3E</body></html>`,
+      `<html><head><title>%3C%25%3D%20title%20%25%3E</title>%3C!--%3C%3F-%20partials.top%20%3F%3E--%3E<!-- -->%3C%25%3D%20meta%20%25%3E%3C!--%20chunk%20links%20placeholder%20--%3E<!-- -->%3C!--%20chunk%20scripts%20placeholder%20--%3E<!-- -->%3C!--%3C%3F-%20partials.head%20%3F%3E--%3E</head><body><div id=\"root\">%3C!--%3C%3F-%20html%20%3F%3E--%3E</div>%3C!--%3C%3F-%20partials.body%20%3F%3E--%3E<!-- -->%3C!--%3C%3F-%20chunksMap.js%20%3F%3E--%3E<!-- -->%3C!--%3C%3F-%20SSRDataScript%20%3F%3E--%3E</body></html>`,
     );
   });
 
   it('should throw error when document not include some child', () => {
     const document = (
       <Html>
-        <Head></Head>
+        <Head />
         <div>abc</div>
       </Html>
     );
@@ -50,9 +50,9 @@ describe('plugin-document', () => {
     };
     const document = (
       <Html>
-        <Head></Head>
-        <Body></Body>
-        <Script content={fn}></Script>
+        <Head />
+        <Body />
+        <Script content={fn} />
       </Html>
     );
     const docHtml = ReactDomServer.renderToString(document);
@@ -79,11 +79,11 @@ describe('plugin-document', () => {
         }}
       >
         <Html>
-          <Head></Head>
+          <Head />
           <Body>
             <H1D />
-            <Root rootId="abc"></Root>
-            <Scripts></Scripts>
+            <Root rootId="abc" />
+            <Scripts />
           </Body>
         </Html>
       </DocumentContext.Provider>
@@ -91,5 +91,30 @@ describe('plugin-document', () => {
     const docHtml = ReactDomServer.renderToString(document);
 
     expect(docHtml.includes(`<h1>title: </h1><div id="abc">`)).toBeTruthy();
+  });
+
+  it('should render title successful', () => {
+    const document = (
+      <DocumentContext.Provider
+        value={{
+          templateParams: {
+            title: 'aaaa',
+          },
+        }}
+      >
+        <Html>
+          <Head />
+          <Body>
+            <Root rootId="abc" />
+            <Scripts />
+          </Body>
+        </Html>
+      </DocumentContext.Provider>
+    );
+    const docHtml = ReactDomServer.renderToString(document);
+
+    expect(
+      docHtml.includes(`<title>%3C%25%3D%20title%20%25%3E</title>`),
+    ).toBeTruthy();
   });
 });

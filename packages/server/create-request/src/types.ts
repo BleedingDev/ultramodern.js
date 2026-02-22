@@ -9,6 +9,7 @@ export type BFFRequestPayload = {
   data?: Record<string, any>;
   headers?: Record<string, any>;
   cookies?: Record<string, any>;
+  files?: Record<string, any>;
 };
 
 export type Sender<F = typeof fetch> = ((...args: any[]) => Promise<any>) & {
@@ -142,7 +143,6 @@ export type IOptions<F = typeof fetch> = {
   identityBinding?: IdentityBindingOptions;
   setDomain?: (ops?: {
     target: 'server' | 'browser';
-    requestId: string;
   }) => string;
   requestId?: string;
 };

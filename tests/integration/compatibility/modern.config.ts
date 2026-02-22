@@ -1,12 +1,9 @@
 import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 export default applyBaseConfig({
-  runtime: {
-    router: true,
-  },
   output: {
-    disableSourceMap: true,
-    disableFilenameHash: true,
+    sourceMap: false,
+    filenameHash: false,
   },
   security: {
     checkSyntax: {

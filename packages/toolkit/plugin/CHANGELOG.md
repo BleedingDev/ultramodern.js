@@ -1,788 +1,359 @@
-# @modern-js/plugin
+# @modern-js/plugin-v2
 
-## 4.0.0
-
-### Patch Changes
-
-- @modern-js/utils@4.0.0
-
-## 2.37.2
+## 3.0.2
 
 ### Patch Changes
 
-- @modern-js/utils@2.37.2
+- @modern-js/runtime-utils@3.0.2
+- @modern-js/types@3.0.2
+- @modern-js/utils@3.0.2
 
-## 2.37.1
-
-### Patch Changes
-
-- @modern-js/utils@2.37.1
-
-## 2.37.0
+## 3.0.1
 
 ### Patch Changes
 
-- Updated dependencies [383b636]
-- Updated dependencies [ce0a14e]
-- Updated dependencies [708f248]
-  - @modern-js/utils@2.37.0
+- @modern-js/runtime-utils@3.0.1
+- @modern-js/types@3.0.1
+- @modern-js/utils@3.0.1
 
-## 2.36.0
-
-### Patch Changes
-
-- Updated dependencies [3473bee]
-- Updated dependencies [b98f8aa]
-- Updated dependencies [eb602d2]
-  - @modern-js/utils@2.36.0
-
-## 2.35.1
+## 3.0.0
 
 ### Patch Changes
 
-- 14f95cf: fix(plugin): run async setup function in the correct order
+- Updated dependencies [ecd247c]
+- Updated dependencies [952f6fe]
+  - @modern-js/runtime-utils@3.0.0
+  - @modern-js/types@3.0.0
+  - @modern-js/utils@3.0.0
 
-  fix(plugin): 以正确的顺序执行异步的 setup 函数
-
-- Updated dependencies [ea3fe18]
-- Updated dependencies [9dd3151]
-- Updated dependencies [4980480]
-- Updated dependencies [6a1d46e]
-  - @modern-js/utils@2.35.1
-
-## 2.35.0
+## 3.0.0-alpha.2
 
 ### Patch Changes
 
-- Updated dependencies [15b834f]
-  - @modern-js/utils@2.35.0
+- Updated dependencies [ecd247c]
+- Updated dependencies [952f6fe]
+  - @modern-js/runtime-utils@3.0.0-alpha.2
+  - @modern-js/types@3.0.0-alpha.2
+  - @modern-js/utils@3.0.0-alpha.2
 
-## 2.34.0
-
-### Patch Changes
-
-- Updated dependencies [a77b82a]
-- Updated dependencies [c8b448b]
-  - @modern-js/utils@2.34.0
-
-## 2.33.1
+## 3.0.0-alpha.1
 
 ### Patch Changes
 
-- @modern-js/utils@2.33.1
+- Updated dependencies [952f6fe]
+  - @modern-js/types@3.0.0-alpha.1
+  - @modern-js/runtime-utils@3.0.0-alpha.1
+  - @modern-js/utils@3.0.0-alpha.1
 
-## 2.33.0
-
-### Patch Changes
-
-- Updated dependencies [fd82137]
-- Updated dependencies [bc1f8da]
-  - @modern-js/utils@2.33.0
-
-## 2.32.1
+## 3.0.0-alpha.0
 
 ### Patch Changes
 
-- @modern-js/utils@2.32.1
+- Updated dependencies [952f6fe]
+  - @modern-js/types@3.0.0-alpha.0
+  - @modern-js/runtime-utils@3.0.0-alpha.0
+  - @modern-js/utils@3.0.0-alpha.0
 
-## 2.32.0
-
-### Patch Changes
-
-- 6076166: fix: packaging errors found by publint
-
-  fix: 修复 publint 检测到的 packaging 问题
-
-- Updated dependencies [e5a3fb4]
-- Updated dependencies [6076166]
-- Updated dependencies [a030aff]
-- Updated dependencies [3c91100]
-- Updated dependencies [5255eba]
-  - @modern-js/utils@2.32.0
-
-## 2.31.2
+## 2.68.1
 
 ### Patch Changes
 
-- Updated dependencies [15d30abdc66]
-  - @modern-js/utils@2.31.2
+- @modern-js/runtime-utils@2.68.1
+- @modern-js/types@2.68.1
+- @modern-js/utils@2.68.1
 
-## 2.31.1
-
-### Patch Changes
-
-- @modern-js/utils@2.31.1
-
-## 2.31.0
+## 2.68.0
 
 ### Patch Changes
 
-- Updated dependencies [1882366]
-  - @modern-js/utils@2.31.0
+- @modern-js/runtime-utils@2.68.0
+- @modern-js/types@2.68.0
+- @modern-js/utils@2.68.0
 
-## 2.30.0
-
-### Patch Changes
-
-- @modern-js/utils@2.30.0
-
-## 2.29.0
+## 2.67.11
 
 ### Patch Changes
 
-- Updated dependencies [e6b5355]
-- Updated dependencies [93db783]
-- Updated dependencies [cba7675]
-- Updated dependencies [99052ea]
-- Updated dependencies [1d71d2e]
-  - @modern-js/utils@2.29.0
+- @modern-js/runtime-utils@2.67.11
+- @modern-js/types@2.67.11
+- @modern-js/utils@2.67.11
 
-## 2.28.0
+## 2.67.10
 
 ### Patch Changes
 
-- Updated dependencies [00b58a7]
-  - @modern-js/utils@2.28.0
+- @modern-js/runtime-utils@2.67.10
+- @modern-js/types@2.67.10
+- @modern-js/utils@2.67.10
 
-## 2.27.0
-
-### Patch Changes
-
-- Updated dependencies [91d14b8]
-- Updated dependencies [6d7104d]
-  - @modern-js/utils@2.27.0
-
-## 2.26.0
+## 2.67.9
 
 ### Patch Changes
 
-- @modern-js/utils@2.26.0
+- 474aa1e: feat: export APIs to support modern.js rsbuild storybook addon
+  feat: 暴露 createStorybookOptions 和 resolveStorybookOptions API 支持 storybook 插件
+  - @modern-js/runtime-utils@2.67.9
+  - @modern-js/types@2.67.9
+  - @modern-js/utils@2.67.9
 
-## 2.25.2
-
-### Patch Changes
-
-- Updated dependencies [63d8247]
-- Updated dependencies [6651684]
-- Updated dependencies [272646c]
-- Updated dependencies [358ed24]
-  - @modern-js/utils@2.25.2
-
-## 2.25.1
+## 2.67.8
 
 ### Patch Changes
 
-- Updated dependencies [9f78d0c]
-  - @modern-js/utils@2.25.1
+- Updated dependencies [23c8201]
+  - @modern-js/utils@2.67.8
+  - @modern-js/runtime-utils@2.67.8
 
-## 2.25.0
-
-### Patch Changes
-
-- Updated dependencies [5732c6a]
-  - @modern-js/utils@2.25.0
-
-## 2.24.0
+## 2.67.7
 
 ### Patch Changes
 
-- Updated dependencies [c882fbd]
-- Updated dependencies [4a82c3b]
-  - @modern-js/utils@2.24.0
+- @modern-js/runtime-utils@2.67.7
+- @modern-js/utils@2.67.7
 
-## 2.23.1
-
-### Patch Changes
-
-- Updated dependencies [f08bbfc]
-- Updated dependencies [a6b313a]
-- Updated dependencies [8f2cab0]
-  - @modern-js/utils@2.23.1
-
-## 2.23.0
+## 2.67.6
 
 ### Patch Changes
 
-- 7e6fb5f: chore: publishConfig add provenance config
+- e67b6d0: feat: add middlewares and renderMiddlewares to server plugin context
+  feat: 添加 middlewares 和 renderMiddlewares 到服务端插件上下文中
+- a3e140d: fix: proxy may not exist when run in low browser
 
-  chore: publishConfig 增加 provenance 配置
+  fix: 修复在低版本浏览器 proxy 可能不存在问题
 
-- Updated dependencies [7e6fb5f]
-- Updated dependencies [a7a7ad7]
-- Updated dependencies [6dec7c2]
-- Updated dependencies [c3216b5]
-  - @modern-js/utils@2.23.0
+  - @modern-js/runtime-utils@2.67.6
+  - @modern-js/utils@2.67.6
 
-## 2.22.1
-
-### Patch Changes
-
-- Updated dependencies [e2848a2]
-- Updated dependencies [d4045ed]
-  - @modern-js/utils@2.22.1
-
-## 2.22.0
+## 2.67.5
 
 ### Patch Changes
 
-- Updated dependencies [3d48836]
-- Updated dependencies [5050e8e]
-  - @modern-js/utils@2.22.0
+- @modern-js/runtime-utils@2.67.5
+- @modern-js/utils@2.67.5
 
-## 2.21.1
-
-### Patch Changes
-
-- @modern-js/utils@2.21.1
-
-## 2.21.0
+## 2.67.4
 
 ### Patch Changes
 
-- 26dcf3a: chore: bump typescript to v5 in devDependencies
+- 35e9786: feat: modern.server supports extended server
+  feat: modern.server 支持扩展 modern.js 服务
+- Updated dependencies [3a66335]
+- Updated dependencies [03cf233]
+- Updated dependencies [446939a]
+- Updated dependencies [446939a]
+- Updated dependencies [b00922e]
+- Updated dependencies [446939a]
+  - @modern-js/runtime-utils@2.67.4
+  - @modern-js/utils@2.67.4
 
-  chore: 升级 devDependencies 中的 typescript 版本到 v5
-
-- Updated dependencies [e81eeaf]
-- Updated dependencies [26dcf3a]
-- Updated dependencies [056627f]
-- Updated dependencies [0fc15ca]
-- Updated dependencies [43b4e83]
-- Updated dependencies [ad78387]
-  - @modern-js/utils@2.21.0
-
-## 2.20.0
-
-### Patch Changes
-
-- 6b9d90a: chore: remove @babel/runtime. add @swc/helper and enable `externalHelper` config.
-  chore: 移除 @babel/runtime 依赖. 增加 @swc/helpers 依赖并且开启 `externalHelpers` 配置
-- Updated dependencies [3c4e0a5]
-- Updated dependencies [6b9d90a]
-  - @modern-js/utils@2.20.0
-
-## 2.19.1
+## 2.67.3
 
 ### Patch Changes
 
-- @modern-js/utils@2.19.1
+- @modern-js/runtime-utils@2.67.3
+- @modern-js/utils@2.67.3
 
-## 2.19.0
-
-### Patch Changes
-
-- Updated dependencies [1134fe2]
-  - @modern-js/utils@2.19.0
-
-## 2.18.1
+## 2.67.2
 
 ### Patch Changes
 
-- @modern-js/utils@2.18.1
+- Updated dependencies [8f97aae]
+  - @modern-js/runtime-utils@2.67.2
+  - @modern-js/utils@2.67.2
 
-## 2.18.0
-
-### Patch Changes
-
-- @modern-js/utils@2.18.0
-
-## 2.17.1
+## 2.67.1
 
 ### Patch Changes
 
-- @modern-js/utils@2.17.1
+- Updated dependencies [1d96265]
+  - @modern-js/utils@2.67.1
+  - @modern-js/runtime-utils@2.67.1
 
-## 2.17.0
+## 2.67.0
 
 ### Patch Changes
 
-- @modern-js/utils@2.17.0
+- @modern-js/runtime-utils@2.67.0
+- @modern-js/utils@2.67.0
 
-## 2.16.0
+## 2.66.0
 
 ### Minor Changes
 
-- 7596520: feat(builder): builder plugin supports specifying relative order via the `pre` / `post` configuration items
+- e48a5ae: feat: server plugin use plugin v2
 
-  feat(builder): builder 插件支持通过 `pre` / `post` 配置项指定相对顺序
-
-### Patch Changes
-
-- 4e876ab: chore: package.json include the monorepo-relative directory
-
-  chore: 在 package.json 中声明 monorepo 的子路径
-
-- Updated dependencies [5954330]
-- Updated dependencies [7596520]
-- Updated dependencies [4e876ab]
-  - @modern-js/utils@2.16.0
-
-## 2.15.0
-
-## 2.14.0
-
-## 2.13.4
-
-## 2.13.3
-
-## 2.13.2
-
-## 2.13.1
-
-## 2.13.0
+  feat: server 插件使用 plugin v2 实现
 
 ### Patch Changes
 
-- 78431f4: perf(plugin): reduce bundle size
+- @modern-js/runtime-utils@2.66.0
+- @modern-js/utils@2.66.0
 
-  perf(plugin): 优化包体积
-
-## 2.12.0
-
-## 2.11.0
-
-## 2.10.0
+## 2.65.5
 
 ### Patch Changes
 
-- 0da32d0: chore: upgrade jest and puppeteer
-  chore: 升级 jest 和 puppeteer 到 latest
+- Updated dependencies [90a3c1c]
+- Updated dependencies [58a1afd]
+  - @modern-js/runtime-utils@2.65.5
+  - @modern-js/utils@2.65.5
 
-## 2.9.0
-
-## 2.8.0
-
-## 2.7.0
-
-## 2.6.0
-
-## 2.5.0
+## 2.65.4
 
 ### Patch Changes
 
-- 89ca6cc: refactor: merge build-config into scripts/build
+- 7bce153: feat: rename runtime plugin modifyRuntimeConfig hook to config
 
-  refactor: 把 build-config 合并进 scripts/build
+  feat: 重命名 runtime 插件 modifyRuntimeConfig 钩子为 config
 
-- 30614fa: chore: modify package.json entry fields and build config
-  chore: 更改 package.json entry 字段以及构建配置
+- Updated dependencies [0d47cb8]
+- Updated dependencies [f1cd095]
+  - @modern-js/utils@2.65.4
+  - @modern-js/runtime-utils@2.65.4
 
-## 2.4.0
-
-## 2.3.0
-
-## 2.2.0
-
-## 2.1.0
-
-## 2.0.2
-
-## 2.0.1
-
-## 2.0.0
-
-### Major Changes
-
-- dda38c9c3e: chore: v2
-
-## 2.0.0-beta.7
-
-### Major Changes
-
-- dda38c9c3e: chore: v2
-
-## 2.0.0-beta.6
-
-### Major Changes
-
-- dda38c9c3e: chore: v2
+## 2.65.3
 
 ### Patch Changes
 
-- b8bbe036c7: feat: change type logic
-  feat: 修改类型相关的逻辑
-- f179749375: fix: the sortPlugins api not work
+- Updated dependencies [087ae7c]
+  - @modern-js/runtime-utils@2.65.3
+  - @modern-js/utils@2.65.3
 
-  fix: sortPlugins 没有真实生效
-
-## 2.0.0-beta.4
-
-### Major Changes
-
-- dda38c9c3e: chore: v2
+## 2.65.2
 
 ### Patch Changes
 
-- b8bbe036c7: feat: change type logic
-  feat: 修改类型相关的逻辑
-- f179749375: fix: the sortPlugins api not work
+- 63d477e: feat: use assign to update context
 
-  fix: sortPlugins 没有真实生效
+  feat: 使用 assign 函数更新 context 信息
 
-## 2.0.0-beta.3
+- Updated dependencies [793be44]
+- Updated dependencies [1fe923c]
+- Updated dependencies [8837b85]
+- Updated dependencies [1f83d96]
+  - @modern-js/runtime-utils@2.65.2
+  - @modern-js/utils@2.65.2
 
-### Major Changes
-
-- dda38c9c3e: chore: v2
-
-### Patch Changes
-
-- b8bbe036c7: feat: change type logic
-  feat: 修改类型相关的逻辑
-- f179749375: fix: the sortPlugins api not work
-
-  fix: sortPlugins 没有真实生效
-
-## 2.0.0-beta.2
-
-### Major Changes
-
-- dda38c9c3e: chore: v2
+## 2.65.1
 
 ### Patch Changes
 
-- b8bbe036c7: feat: change type logic
-  feat: 修改类型相关的逻辑
-- f179749: fix: the sortPlugins api not work
+- @modern-js/runtime-utils@2.65.1
+- @modern-js/utils@2.65.1
 
-  fix: sortPlugins 没有真实生效
-
-## 2.0.0-beta.1
-
-### Major Changes
-
-- dda38c9: chore: v2
+## 2.65.0
 
 ### Patch Changes
 
-- b8bbe036c7: feat: change type logic
-  feat: 修改类型相关的逻辑
-- f179749: fix: the sortPlugins api not work
+- @modern-js/runtime-utils@2.65.0
+- @modern-js/utils@2.65.0
 
-  fix: sortPlugins 没有真实生效
-
-## 2.0.0-beta.0
-
-### Major Changes
-
-- dda38c9: chore: v2
+## 2.64.3
 
 ### Patch Changes
 
-- b8bbe036c: feat: change type logic
-  feat: 修改类型相关的逻辑
+- @modern-js/runtime-utils@2.64.3
+- @modern-js/utils@2.64.3
 
-## 1.21.2
-
-### Patch Changes
-
-- 9d4c0ba: chore: add types for exports field
-  chore: 为 exports 补充 types 字段
-
-## 1.21.1
-
-## 1.21.0
+## 2.64.2
 
 ### Patch Changes
 
-- 28f0a4f: fix(plugin): fix return type of Workflow
+- 80fe649: fix: plugin v2 runtime export add node config
 
-  fix(plugin): 修复 Workflow 的返回值类型错误
+  fix: plugin v2 runtime 导出增加 node 配置
 
-## 1.20.1
+- 18b55af: feat: move modifyServerRoutes hook to plugin v2
 
-## 1.20.0
+  feat: 将 modifyServerRoutes 钩子函数移动到 plugin v2 中
 
-## 1.19.0
+  - @modern-js/runtime-utils@2.64.2
+  - @modern-js/utils@2.64.2
 
-## 1.18.1
-
-### Patch Changes
-
-- c1a4d9b: fix(plugin): incorrect createManager type in TS 4.8
-
-  fix(plugin): 修复 createManager 在 TS 4.8 下的类型问题
-
-## 1.18.0
-
-## 1.17.0
-
-## 1.16.0
-
-## 1.15.0
-
-## 1.4.2
+## 2.64.1
 
 ### Patch Changes
 
-- 5b7a5a7: fix typo closeHooksMap => cloneHooksMap
+- b69c8fa: feat: use `jiti` to read config file for supporting esm import
 
-## 1.4.0
+  feat: 使用 `jiti` 读取配置文件，支持 esm 导入
+
+- 88aafcb: feat: load env in appTools when before the first time load modern config
+  feat: 在 appTools 在第一次加载 modern config 之前，加载环境变量
+- f83fd60: feat: migrate \_internalRuntimePlugins and \_internalServerPlugins hooks to plugin v2
+
+  feat: 迁移 \_internalRuntimePlugins 和 \_internalServerPlugins hook 函数到 plugin-v2
+
+- c5bb493: feat: cli plugin support ExtendConfigUtils
+
+  feat: cli 插件支持扩展 config 工具函数
+
+  - @modern-js/runtime-utils@2.64.1
+  - @modern-js/utils@2.64.1
+
+## 2.64.0
 
 ### Minor Changes
 
-- f29e9ba: feat(plugin): simplify context usage, no longer depend on containers
+- 9e6f86e: feat: runtime plugin use plugin v2
 
-## 1.3.8
-
-### Patch Changes
-
-- b7302f781: Export some required types
-- e0e708f83: perf(app-tools): speed up modern start command
-
-## 1.3.7
+  feat: runtime 插件使用插件 v2
 
 ### Patch Changes
 
-- 1ac68424f: chore(plugin): extract same utils to shared
+- 48c11bf: feat: enhance plugin API type inference, supporting extendsHooks and extendsAPI
 
-## 1.3.6
+  feat: 增强 plugin api 类型推断，支持 extendsHooks 和 extendsAPI
 
-### Patch Changes
+  - @modern-js/node-bundle-require@2.64.0
+  - @modern-js/runtime-utils@2.64.0
+  - @modern-js/utils@2.64.0
 
-- a1198d509: feat: bump babel 7.18.0
-
-## 1.3.5
-
-### Patch Changes
-
-- 54fa1dbd6: fix(plugin): allow multiple versions to be installed
-
-## 1.3.4
+## 2.63.7
 
 ### Patch Changes
 
-- d5913bd96: feat: fork farrow-pipeline to remove tslib and reduce bundle size
-- d32f35134: chore: add modern/jest/eslint/ts config files to .npmignore
+- fa20ea7: feat: plugin run support config params to overrides config file content
 
-## 1.3.3
+  feat: 插件 run 方法支持添加更高优先级的配置参数
 
-### Patch Changes
+- fa20ea7: feat: adjust after dev hook type and run time
 
-- 6cffe99d: chore:
-  remove react eslint rules for `modern-js` rule set.
-  add .eslintrc for each package to speed up linting
-- 60f7d8bf: feat: add tests dir to npmignore
+  feat: 调整 onAfterDev 钩子函数的类型和执行时机
 
-## 1.3.2
+- fa20ea7: feat: add onDevCompileDone hook
 
-### Patch Changes
+  feat: 添加 onDevCompileDone 钩子函数
 
-- dc88abf9: fix: should allow to use plugin without setup function
-- 0462ff77: feat: add compatible logic of plugin options with "setup" param
+- 775bc3b: feat: plugin api add isPluginExists
 
-## 1.3.0
+  feat: 插件 api 增加 isPluginExists
 
-### Minor Changes
+- 28ec156: feat: cli plugin support extend build utils
 
-- 80d8ddfe: feat: support `setup`, `registerHook`, `usePlugins` in plugin options.
+  feat: cli 插件支持扩展构建工具函数
 
-### Patch Changes
+- fa20ea7: feat: handle api not register error
 
-- 491145e3: feat: allow manger.clone to override pluginAPI
+  feat: api 未注册时增加 debug 调试信息
 
-## 1.2.1
+  - @modern-js/node-bundle-require@2.63.7
+  - @modern-js/utils@2.63.7
+
+## 2.63.6
 
 ### Patch Changes
 
-- 83166714: change .npmignore
+- 4492a5d: feat: support isPluginExists for plugin manager
 
-## 1.2.0
+  feat: 插件支持 isPluginExists 方法
 
-### Minor Changes
+  - @modern-js/node-bundle-require@2.63.6
+  - @modern-js/utils@2.63.6
 
-- cfe11628: Make Modern.js self bootstraping
-
-## 1.1.2
-
-### Patch Changes
-
-- 0fa83663: support more .env files
-
-## 1.1.1
+## 2.63.5
 
 ### Patch Changes
 
-- 6ffd1a50: Refactor to base on farrow-pipeline
-
-## 1.1.0
-
-### Minor Changes
-
-- 96119db2: Relese v1.1.0
-
-## 1.0.0
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 0fd196e: feat: fix bugs
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.23
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 0fd196e: feat: fix bugs
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.22
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 0fd196e: feat: fix bugs
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.21
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 0fd196e: feat: fix bugs
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.20
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- feat: fix bugs
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.19
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.18
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 204c626: feat: initial
-- 63be0a5: fix: #118 #104
-
-## 1.0.0-rc.17
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 204c626: feat: initial
-- fix: #118 #104
-
-## 1.0.0-rc.16
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 204c626: feat: initial
-
-## 1.0.0-rc.15
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 30ac27c: feat: add generator package description
-- 204c626: feat: initial
-
-## 1.0.0-rc.14
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.13
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.12
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.11
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.10
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.9
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.8
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.7
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.6
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.5
-
-### Patch Changes
-
-- 224f7fe: fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.4
-
-### Patch Changes
-
-- fix server route match
-- 204c626: feat: initial
-
-## 1.0.0-rc.3
-
-### Patch Changes
-
-- feat: initial
+- @modern-js/node-bundle-require@2.63.5
+- @modern-js/utils@2.63.5

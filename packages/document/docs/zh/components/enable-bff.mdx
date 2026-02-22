@@ -1,0 +1,56 @@
+要在 Modern.js 项目中启用 BFF 功能，请按照以下步骤修改代码：
+
+1. 安装 BFF 插件依赖
+
+如果项目尚未安装 BFF 插件，请先安装：
+
+```bash
+pnpm add @modern-js/plugin-bff
+```
+
+:::tip 版本一致性
+请确保 `@modern-js/plugin-bff` 的版本与项目中 `@modern-js/app-tools` 的版本保持一致。Modern.js 的所有官方包使用统一版本号发布，版本不一致可能导致兼容性问题。
+
+请先查看 `@modern-js/app-tools` 的版本，然后安装相同版本的 `@modern-js/plugin-bff`：
+
+```bash
+# 查看当前 @modern-js/app-tools 的版本
+pnpm list @modern-js/app-tools
+
+# 安装相同版本的 @modern-js/plugin-bff
+pnpm add @modern-js/plugin-bff@<版本号>
+```
+
+:::
+
+2. 配置 `modern.config.ts`
+
+在 `modern.config.ts` 文件中导入并添加 BFF 插件：
+
+```ts title="modern.config.ts"
+import { defineConfig, appTools } from '@modern-js/app-tools';
+import { bffPlugin } from '@modern-js/plugin-bff';
+
+export default defineConfig({
+  plugins: [appTools(), bffPlugin()],
+});
+```
+
+3. 配置 TypeScript 别名
+
+为了在 TypeScript 中正确识别 `@api` 别名，建议在 `tsconfig.json` 中添加路径映射：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "paths": {
+      ..., // other paths,
+      "@api/*": ["./api/lambda/*"]
+    }
+  },
+  "include": [
+    ..., // 其他 include 目录
+    "api"  // 添加 api 目录
+  ]
+}
+```

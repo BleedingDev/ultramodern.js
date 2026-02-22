@@ -1,15 +1,10 @@
-import { DevServer as Server } from './server';
-import type { ModernDevServerOptions } from './types';
+import type { DevServerOptions } from './types';
+export { createDevServer } from './createDevServer';
+export type {
+  ModernDevServerOptions,
+  ApplyPlugins,
+  CorsOptions,
+} from './types';
 
-export { Server };
-export type { ModernDevServerOptions };
-
-export default (options: ModernDevServerOptions): Promise<Server> => {
-  if (options == null) {
-    throw new Error('can not start server without options');
-  }
-
-  const server = new Server(options);
-
-  return server.init();
-};
+// export for @modern-js/app-tools to override rsbuild dev.setupMiddlewares type
+export type SetupMiddlewares = DevServerOptions['setupMiddlewares'];

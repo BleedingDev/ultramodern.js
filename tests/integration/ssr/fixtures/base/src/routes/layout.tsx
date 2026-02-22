@@ -1,6 +1,8 @@
-import { Link, Outlet } from '@modern-js/runtime/router';
+import { Link, Outlet, useLoaderData } from '@modern-js/runtime/router';
 
 export default function Layout() {
+  const { count } = useLoaderData() as { count: number };
+
   return (
     <div>
       Root layout
@@ -19,6 +21,7 @@ export default function Layout() {
         </Link>
       </div>
       <Outlet />
+      <footer>{`count:${count}`}</footer>
     </div>
   );
 }

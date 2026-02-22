@@ -1,53 +1,32 @@
-import type { ServerUserConfig, BffUserConfig } from '@modern-js/server-core';
-import type { BuilderPlugin } from '@modern-js/builder-webpack-provider';
+import type { RsbuildPlugin } from '@modern-js/builder';
+import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin';
+import type { BffUserConfig, ServerUserConfig } from '@modern-js/server-core';
+import type { RsbuildConfig } from '@rsbuild/core';
 import type {
-  OutputUserConfig,
-  RsOutputUserConfig,
-  SharedOutputConfig,
-} from './output';
-import type {
-  RsSourceUserConfig,
-  SharedSourceConfig,
-  SourceUserConfig,
-} from './source';
-import type { TestingUserConfig } from './testing';
-import type { DevUserConfig } from './dev';
-import type {
-  RsToolsUserConfig,
-  SharedToolsConfig,
-  ToolsUserConfig,
-} from './tools';
-import type {
-  HtmlUserConfig,
-  RsHtmlUserConfig,
-  SharedHtmlConfig,
-} from './html';
-import type {
-  RsSecurityConfig,
-  SecurityUserConfig,
-  SharedSecurityConfig,
-} from './security';
+  AppToolsExtendAPI,
+  AppToolsExtendContext,
+  AppToolsExtendHooks,
+} from '../plugin';
 import type { DeployUserConfig } from './deploy';
+import type { DevUserConfig } from './dev';
 import type { ExperimentsUserConfig } from './experiments';
-import type {
-  PerformanceUserConfig,
-  RsPerformanceConfig,
-  SharedPerformanceConfig,
-} from './performance';
+import type { HtmlUserConfig } from './html';
+import type { OutputUserConfig } from './output';
+import type { PerformanceUserConfig } from './performance';
+import type { ResolveUserConfig } from './resolve';
+import type { SecurityUserConfig } from './security';
+import type { SourceUserConfig } from './source';
+import type { TestingUserConfig } from './testing';
+import type { ToolsUserConfig } from './tools';
 
 export * from './output';
 
-export interface RuntimeUserConfig {
-  [name: string]: any;
-}
-export interface RuntimeByEntriesUserConfig {
-  [name: string]: RuntimeUserConfig;
-}
-
-export interface SharedUserConfig {
+export interface AppToolsUserConfig {
+  resolve?: ResolveUserConfig;
   server?: ServerUserConfig;
-  source?: SharedSourceConfig;
-  output?: SharedOutputConfig;
+  source?: SourceUserConfig;
+  output?: OutputUserConfig;
+  experiments?: ExperimentsUserConfig;
   /**
    * The configuration of `bff` is provided by `bff` plugin.
    * Please use `yarn new` or `pnpm new` to enable the corresponding capability.
@@ -56,34 +35,15 @@ export interface SharedUserConfig {
   bff?: BffUserConfig;
   dev?: DevUserConfig;
   deploy?: DeployUserConfig;
-  runtime?: RuntimeUserConfig;
-  runtimeByEntries?: RuntimeByEntriesUserConfig;
-  html?: SharedHtmlConfig;
-  tools?: SharedToolsConfig;
-  security?: SharedSecurityConfig;
-  testing?: TestingUserConfig;
-  builderPlugins?: BuilderPlugin[];
-  performance?: SharedPerformanceConfig;
-  devtools?: any;
-}
-
-export interface AppToolsUserConfig extends SharedUserConfig {
-  source?: SourceUserConfig;
-  output?: OutputUserConfig;
   html?: HtmlUserConfig;
   tools?: ToolsUserConfig;
   security?: SecurityUserConfig;
+  testing?: TestingUserConfig;
+  builderPlugins?: Array<RsbuildPlugin>;
   performance?: PerformanceUserConfig;
-  experiments?: ExperimentsUserConfig;
-}
-
-export interface RsAppToolsUserConfig extends SharedUserConfig {
-  source?: RsSourceUserConfig;
-  output?: RsOutputUserConfig;
-  html?: RsHtmlUserConfig;
-  tools?: RsToolsUserConfig;
-  performance?: RsPerformanceConfig;
-  security?: RsSecurityConfig;
+  environments?: RsbuildConfig['environments'];
+  splitChunks?: RsbuildConfig['splitChunks'];
+  plugins?: CliPlugin<AppTools>[];
 }
 
 interface SharedNormalizedConfig<RawConfig> {
@@ -91,5 +51,17 @@ interface SharedNormalizedConfig<RawConfig> {
   _raw: RawConfig;
 }
 
-export type AppToolsNormalizedConfig<Config = SharedUserConfig> =
+export type AppToolsNormalizedConfig<Config = AppToolsUserConfig> =
   Required<Config> & SharedNormalizedConfig<Config>;
+
+export type AppTools = Required<
+  CLIPluginExtends<
+    AppToolsUserConfig,
+    AppToolsNormalizedConfig,
+    AppToolsExtendContext,
+    AppToolsExtendAPI,
+    AppToolsExtendHooks
+  >
+>;
+
+export type CliPlugin<Extends extends CLIPluginExtends> = CLIPlugin<Extends>;

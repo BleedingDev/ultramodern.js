@@ -1,12 +1,7 @@
-import { builderRspackProvider } from '@modern-js/builder-rspack-provider';
-import { BuilderOptions } from '../shared';
 import { generateBuilder } from '../generator';
-import { builderPluginAdpaterCopy } from './adapterCopy';
+import type { BuilderOptions } from '../shared';
 
-export async function createRspackBuilderForModern(
-  options: BuilderOptions<'rspack'>,
-) {
-  const builder = await generateBuilder(options, builderRspackProvider);
-  builder.addPlugins([builderPluginAdpaterCopy(options)]);
+export async function createRspackBuilderForModern(options: BuilderOptions) {
+  const builder = await generateBuilder(options, 'rspack');
   return builder;
 }

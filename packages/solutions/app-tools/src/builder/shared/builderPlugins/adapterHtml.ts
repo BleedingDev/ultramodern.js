@@ -1,36 +1,36 @@
-import {
-  isHtmlDisabled,
-  BuilderPlugin,
-  BundlerChain,
-  createVirtualModule,
-} from '@modern-js/builder-shared';
-import {
-  ChainIdentifier,
-  MAIN_ENTRY_NAME,
-  getEntryOptions,
-  removeTailSlash,
-} from '@modern-js/utils';
+import { isHtmlDisabled } from '@modern-js/builder';
+import { removeTailSlash } from '@modern-js/utils';
 import { template as lodashTemplate } from '@modern-js/utils/lodash';
-import { Bundler } from '../../../types';
+import type {
+  ChainIdentifier,
+  RsbuildPlugin,
+  RspackChain,
+} from '@rsbuild/core';
 import { BottomTemplatePlugin } from '../bundlerPlugins';
-import type { BuilderOptions, BuilderPluginAPI } from '../types';
+import type { BuilderOptions } from '../types';
 
-export const builderPluginAdapterHtml = <B extends Bundler>(
-  options: BuilderOptions<B>,
-): BuilderPlugin<BuilderPluginAPI> => ({
+const createVirtualModule = (content: string) =>
+  `data:text/javascript;charset=utf-8,${encodeURIComponent(content)}`;
+
+export const builderPluginAdapterHtml = (
+  options: BuilderOptions,
+): RsbuildPlugin => ({
   name: 'builder-plugin-adapter-modern-html',
   setup(api) {
     api.modifyBundlerChain(
-      async (chain, { CHAIN_ID, target, HtmlPlugin: HtmlBundlerPlugin }) => {
-        const builderConfig = api.getNormalizedConfig();
+      async (
+        chain,
+        { CHAIN_ID, target, HtmlPlugin: HtmlBundlerPlugin, environment },
+      ) => {
+        const builderConfig = environment.config;
 
         if (!isHtmlDisabled(builderConfig, target)) {
           applyBottomHtmlPlugin({
-            api,
             options,
             chain,
             CHAIN_ID,
             HtmlBundlerPlugin,
+            htmlPaths: environment.htmlPaths,
           });
 
           await injectAssetPrefix({
@@ -42,7 +42,7 @@ export const builderPluginAdapterHtml = <B extends Bundler>(
   },
 });
 
-async function injectAssetPrefix({ chain }: { chain: BundlerChain }) {
+async function injectAssetPrefix({ chain }: { chain: RspackChain }) {
   const entries = chain.entryPoints.entries() || {};
   const entryNames = Object.keys(entries);
   const assetPrefix = removeTailSlash(chain.output.get('publicPath') || '');
@@ -54,44 +54,27 @@ async function injectAssetPrefix({ chain }: { chain: BundlerChain }) {
 }
 
 /** inject bottom template */
-function applyBottomHtmlPlugin<B extends Bundler>({
-  api,
+function applyBottomHtmlPlugin({
   chain,
   options,
   CHAIN_ID,
   HtmlBundlerPlugin,
+  htmlPaths,
 }: {
-  api: BuilderPluginAPI;
-  chain: BundlerChain;
-  options: BuilderOptions<B>;
+  chain: RspackChain;
+  options: BuilderOptions;
   CHAIN_ID: ChainIdentifier;
   HtmlBundlerPlugin: any;
+  htmlPaths: Record<string, string>;
 }) {
   const { normalizedConfig: modernConfig, appContext } = options;
   // inject bottomTemplate into html-webpack-plugin
-  for (const entryName of Object.keys(api.context.entry)) {
-    const {
-      source: { mainEntryName },
-    } = modernConfig;
-    const isMainEntry = entryName === (mainEntryName || MAIN_ENTRY_NAME);
+  for (const entryName of Object.keys(htmlPaths)) {
     // FIXME: the only need necessary
     const baseTemplateParams = {
       entryName,
-      title: getEntryOptions<string | undefined>(
-        entryName,
-        isMainEntry,
-        modernConfig.html.title,
-        modernConfig.html.titleByEntries,
-        appContext.packageName,
-      ),
-      mountId: modernConfig.html.mountId,
-      ...getEntryOptions<any>(
-        entryName,
-        isMainEntry,
-        modernConfig.html.templateParameters,
-        modernConfig.html.templateParametersByEntries,
-        appContext.packageName,
-      ),
+      title: modernConfig.html.title,
+      mountId: modernConfig.html.templateParameters,
     };
 
     chain.plugin(`${CHAIN_ID.PLUGIN.HTML}-${entryName}`).tap(args => [
@@ -107,6 +90,6 @@ function applyBottomHtmlPlugin<B extends Bundler>({
     ]);
   }
   chain
-    .plugin(CHAIN_ID.PLUGIN.BOTTOM_TEMPLATE)
+    .plugin('bottom-template')
     .use(BottomTemplatePlugin, [HtmlBundlerPlugin]);
 }

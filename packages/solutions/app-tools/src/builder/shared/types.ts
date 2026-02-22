@@ -1,26 +1,7 @@
-import type {
-  BuilderConfig as WebpackBuilderConfig,
-  NormalizedConfig as WebpackNormalizedConfig,
-} from '@modern-js/builder-webpack-provider';
-import type {
-  BuilderConfig as RspackBuilderConfig,
-  NormalizedConfig as RspackNormalizedConfig,
-} from '@modern-js/builder-rspack-provider';
-import type { DefaultBuilderPluginAPI } from '@modern-js/builder-shared';
-import type { Bundler, AppNormalizedConfig, IAppContext } from '../../types';
+import type { AppNormalizedConfig } from '../../types';
+import type { AppToolsContext } from '../../types/plugin';
 
-export { WebpackBuilderConfig, RspackBuilderConfig };
-
-export type BuilderOptions<B extends Bundler> = {
-  normalizedConfig: AppNormalizedConfig<B>;
-  appContext: IAppContext;
+export type BuilderOptions = {
+  normalizedConfig: AppNormalizedConfig;
+  appContext: AppToolsContext;
 };
-
-export type BuilderConfig = RspackBuilderConfig | WebpackBuilderConfig;
-export type BuilderNormalizedConfig =
-  | RspackNormalizedConfig
-  | WebpackNormalizedConfig;
-export type BuilderPluginAPI = DefaultBuilderPluginAPI<
-  BuilderConfig,
-  BuilderNormalizedConfig
->;

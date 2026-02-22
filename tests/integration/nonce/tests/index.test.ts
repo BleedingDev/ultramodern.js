@@ -1,9 +1,9 @@
 import path from 'path';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
-  launchApp,
   getPort,
   killApp,
+  launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
 
@@ -33,8 +33,9 @@ describe('test nonce', () => {
   });
 
   test('should inject nonce correctly', async () => {
-    await page.goto(`http://localhost:${port}`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
+    await page.goto(`http://localhost:${port}`);
     const scriptArr = await page.$$eval('head > script', scripts =>
       scripts
         .filter(script => script.type !== 'application/json')

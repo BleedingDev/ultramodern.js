@@ -1,207 +1,261 @@
-import React, { useContext } from 'react';
-import { createStaticHandler } from '@modern-js/runtime-utils/remix-router';
-import {
-  createStaticRouter,
-  StaticRouterProvider,
-} from '@modern-js/runtime-utils/node/router';
-import hoistNonReactStatics from 'hoist-non-react-statics';
-import { createRoutesFromElements } from '@modern-js/runtime-utils/router';
+import { merge } from '@modern-js/runtime-utils/merge';
 import {
   createRequestContext,
   reporterCtx,
 } from '@modern-js/runtime-utils/node';
+import { createStaticHandler } from '@modern-js/runtime-utils/router';
+import {
+  StaticRouterProvider,
+  createStaticRouter,
+} from '@modern-js/runtime-utils/router';
+import {
+  type RouteObject,
+  createRoutesFromElements,
+} from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
-import { RuntimeReactContext } from '../../core';
-import type { Plugin } from '../../core';
-import { SSRServerContext } from '../../ssr/serverRender/types';
-import type { RouteManifest, RouterConfig } from './types';
-import { renderRoutes, urlJoin } from './utils';
-import { installGlobals } from './fetch';
-import { modifyRoutes as modifyRoutesHook } from './hooks';
+import type React from 'react';
+import { useContext } from 'react';
+import type { RuntimePlugin } from '../../core';
+import {
+  InternalRuntimeContext,
+  type ServerPayload,
+  getGlobalEnableRsc,
+  getGlobalLayoutApp,
+  getGlobalRoutes,
+} from '../../core/context';
+import { setServerPayload } from '../../core/context/serverPayload/index.server';
+import DeferredDataScripts from './DeferredDataScripts.node';
+import {
+  type RouterExtendsHooks,
+  modifyRoutes as modifyRoutesHook,
+  onBeforeCreateRoutes as onBeforeCreateRoutesHook,
+} from './hooks';
+import {
+  RSCStaticRouter,
+  createServerPayload,
+  handleRSCRedirect,
+  prepareRSCRoutes,
+} from './rsc-router';
+import type { RouterConfig } from './types';
+import { createRouteObjectsFromConfig, renderRoutes, urlJoin } from './utils';
 
-// Polyfill Web Fetch API
-installGlobals();
-
-// TODO: polish
-function createFetchRequest(req: SSRServerContext['request']): Request {
-  // const origin = `${req.protocol}://${req.get('host')}`;
-  const origin = `${req.protocol}://${req.host}`;
-  // Note: This had to take originalUrl into account for presumably vite's proxying
-  const url = new URL(req.originalUrl || req.url, origin);
-
+function createRemixReuqest(request: Request) {
+  const method = 'GET';
+  const { headers } = request;
   const controller = new AbortController();
 
-  // req.on('close', () => {
-  //   controller.abort();
-  // });
-
-  const init = {
-    method: req.method,
-    headers: createFetchHeaders(req.headers),
+  return new Request(request.url, {
+    method,
+    headers,
     signal: controller.signal,
-  };
-
-  // if (req.method !== 'GET' && req.method !== 'HEAD') {
-  //   init.body = req.body;
-  // }
-
-  return new Request(url.href, init);
+  });
 }
 
-export function createFetchHeaders(
-  requestHeaders: SSRServerContext['request']['headers'],
-): Headers {
-  const headers = new Headers();
-
-  for (const [key, values] of Object.entries(requestHeaders || {})) {
-    if (values) {
-      if (Array.isArray(values)) {
-        for (const value of values) {
-          headers.append(key, value);
-        }
-      } else {
-        headers.set(key, values);
-      }
-    }
-  }
-
-  return headers;
-}
-
-export const routerPlugin = ({
-  basename = '',
-  routesConfig,
-  createRoutes,
-}: RouterConfig): Plugin => {
+export const routerPlugin = (
+  userConfig: Partial<RouterConfig> = {},
+): RuntimePlugin<{
+  extendHooks: RouterExtendsHooks;
+}> => {
   return {
     name: '@modern-js/plugin-router',
-    registerHook: {
+    registryHooks: {
       modifyRoutes: modifyRoutesHook,
+      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
     },
     setup: api => {
-      return {
-        async init({ context }, next) {
-          // can not get routes config, skip wrapping React Router.
-          // e.g. App.tsx as the entrypoint
-          if (!routesConfig && !createRoutes) {
-            return next({ context });
-          }
+      let finalRouteConfig: any = {};
 
-          const { request, mode: ssrMode, nonce } = context.ssrContext!;
-          const baseUrl = request.baseUrl as string;
-          const _basename =
-            baseUrl === '/' ? urlJoin(baseUrl, basename) : baseUrl;
-          const { reporter, serverTiming } = context.ssrContext!;
-          const requestContext = createRequestContext();
-          requestContext.set(reporterCtx, reporter);
+      api.onBeforeRender(async (context, interrupt) => {
+        const pluginConfig: Record<string, any> = api.getRuntimeConfig();
+        const {
+          basename = '',
+          routesConfig,
+          createRoutes,
+        } = merge(pluginConfig.router || {}, userConfig);
+        finalRouteConfig = {
+          routes: getGlobalRoutes(),
+          globalApp: getGlobalLayoutApp(),
+          ...routesConfig,
+        };
+        // can not get routes config, skip wrapping React Router.
+        // e.g. App.tsx as the entrypoint
+        if (!finalRouteConfig.routes && !createRoutes) {
+          return;
+        }
 
-          let routes = createRoutes
+        const enableRsc = getGlobalEnableRsc();
+
+        if (enableRsc) {
+          await prepareRSCRoutes(finalRouteConfig.routes);
+        }
+
+        const {
+          request,
+          mode: ssrMode,
+          nonce,
+          loaderFailureMode = 'errorBoundary',
+          baseUrl,
+        } = context.ssrContext!;
+        const _basename =
+          baseUrl === '/' ? urlJoin(baseUrl, basename) : baseUrl;
+
+        const requestContext = createRequestContext(
+          context.ssrContext?.loaderContext,
+        );
+        const hooks = api.getHooks();
+
+        await hooks.onBeforeCreateRoutes.call(context);
+
+        let routes: RouteObject[] = [];
+        if (enableRsc) {
+          routes = createRoutes
+            ? createRoutes()
+            : createRouteObjectsFromConfig({
+                routesConfig: finalRouteConfig,
+              });
+        } else {
+          routes = createRoutes
             ? createRoutes()
             : createRoutesFromElements(
                 renderRoutes({
-                  routesConfig,
+                  routesConfig: finalRouteConfig,
                   ssrMode,
                   props: {
                     nonce,
                   },
-                  reporter,
                 }),
               );
+        }
 
-          const runner = (api as any).useHookRunners();
-          routes = runner.modifyRoutes(routes);
+        routes = hooks.modifyRoutes.call(routes);
 
-          const { query } = createStaticHandler(routes, {
-            basename: _basename,
-          });
+        const { query } = createStaticHandler(routes, {
+          basename: _basename,
+        });
 
-          const remixRequest = createFetchRequest(request);
+        // We can't pass post request to query,due to post request would trigger react-router submit action.
+        // But user maybe do not define action for page.
+        const remixRequest = createRemixReuqest(
+          context.ssrContext!.request.raw,
+        );
 
-          const end = time();
-          const routerContext = await query(remixRequest, {
-            requestContext,
-          });
-          const cost = end();
-          reporter.reportTiming(LOADER_REPORTER_NAME, cost);
-          serverTiming.addServeTiming(LOADER_REPORTER_NAME, cost);
+        const end = time();
+        const routerContext = await query(remixRequest, {
+          requestContext,
+        });
 
-          if (routerContext instanceof Response) {
-            // React Router would return a Response when redirects occur in loader.
-            // Throw the Response to bail out and let the server handle it with an HTTP redirect
-            return routerContext;
+        const cost = end();
+        context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
+
+        const isRSCNavigation =
+          remixRequest.headers.get('x-rsc-tree') === 'true';
+        if (routerContext instanceof Response) {
+          // React Router would return a Response when redirects occur in loader.
+          // Throw the Response to bail out and let the server handle it with an HTTP redirect
+          if (enableRsc && isRSCNavigation) {
+            return interrupt(
+              handleRSCRedirect(
+                routerContext.headers,
+                _basename,
+                routerContext.status,
+              ),
+            );
+          } else {
+            return interrupt(routerContext);
+          }
+        }
+
+        // Now `throw new Response` or `throw new Error` is same, both will be caught by errorBoundary by default
+        // If loaderFailureMode is 'clientRender', we will downgrade to csr, and the loader will be request in client again
+        const errors = Object.values(
+          (routerContext.errors || {}) as Record<string, Error>,
+        );
+        if (
+          // TODO: if loaderFailureMode is not 'errroBoundary', error log will not be printed.
+          errors.length > 0 &&
+          loaderFailureMode === 'clientRender'
+        ) {
+          routerContext.statusCode = 200;
+          throw errors[0];
+        }
+        context.routerContext = routerContext;
+
+        let payload: ServerPayload;
+        if (enableRsc) {
+          // In order to execute the client loader, refer to the ServerRouter implementation of react-router.
+          if (isRSCNavigation) {
+            for (const match of routerContext.matches) {
+              if ((match.route as any).hasClientLoader) {
+                delete routerContext.loaderData[match.route.id];
+              }
+            }
           }
 
-          const router = createStaticRouter(routes, routerContext);
-          context.remixRouter = router;
-          context.routerContext = routerContext;
-          context.routes = routes;
-          // set routeManifest in context to be consistent with csr context
-          context.routeManifest = context.ssrContext!
-            .routeManifest as RouteManifest;
+          payload = createServerPayload(routerContext, routes);
+          setServerPayload(payload);
+        }
 
-          return next({ context });
-        },
-        hoc: ({ App }, next) => {
-          // can not get routes config, skip wrapping React Router.
-          // e.g. App.tsx as the entrypoint
-          if (!routesConfig) {
-            return next({ App });
-          }
+        // private api, pass to React Component in `wrapRoot`
+        Object.defineProperty(context, 'routes', {
+          get() {
+            return routes;
+          },
+          enumerable: true,
+        });
+      });
 
-          const getRouteApp = () => {
-            return (props => {
-              const { remixRouter, routerContext } =
-                useContext(RuntimeReactContext);
-              return (
-                <App {...props}>
+      api.wrapRoot(App => {
+        // can not get routes config, skip wrapping React Router.
+        // e.g. App.tsx as the entrypoint
+        if (!finalRouteConfig) {
+          return App;
+        }
+
+        const getRouteApp = () => {
+          const enableRsc = getGlobalEnableRsc();
+          return (props => {
+            const context = useContext(InternalRuntimeContext);
+            const { routerContext, ssrContext, routes } = context;
+            const { nonce, mode, useJsonScript } = ssrContext!;
+            const { basename } = routerContext!;
+
+            const remixRouter = createStaticRouter(routes!, routerContext!);
+            if (!enableRsc) {
+              const routerWrapper = (
+                <>
                   <StaticRouterProvider
                     router={remixRouter!}
                     context={routerContext!}
                     hydrate={false}
                   />
-                </App>
+
+                  {mode === 'stream' && (
+                    // ROUTER_DATA will inject in `packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts` in string ssr
+                    // So we can inject it only when streaming ssr
+                    <DeferredDataScripts
+                      nonce={nonce}
+                      context={routerContext!}
+                      useJsonScript={useJsonScript}
+                    />
+                  )}
+                </>
               );
-            }) as React.FC<any>;
-          };
+              return App ? <App>{routerWrapper}</App> : routerWrapper;
+            } else {
+              return App ? (
+                <App>
+                  <RSCStaticRouter basename={basename} />
+                </App>
+              ) : (
+                <RSCStaticRouter basename={basename} />
+              );
+            }
+          }) as React.FC<any>;
+        };
 
-          const RouteApp = getRouteApp();
-
-          if (routesConfig?.globalApp) {
-            return next({
-              App: hoistNonReactStatics(RouteApp, routesConfig.globalApp),
-            });
-          }
-
-          return next({
-            App: RouteApp,
-          });
-        },
-        pickContext: ({ context, pickedContext }, next) => {
-          const { remixRouter } = context;
-
-          // remixRouter is not existed in conventional routes
-          if (!remixRouter) {
-            return next({ context, pickedContext });
-          }
-
-          // only export partial common API from remix-router
-          const router = {
-            navigate: remixRouter.navigate,
-            get location() {
-              return remixRouter.state.location;
-            },
-          };
-
-          return next({
-            context,
-            pickedContext: {
-              ...pickedContext,
-              router,
-            },
-          });
-        },
-      };
+        return getRouteApp();
+      });
     },
   };
 };

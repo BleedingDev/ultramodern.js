@@ -1,0 +1,43 @@
+---
+title: buildCache
+---
+
+# performance.buildCache
+
+- **类型：**
+
+```ts
+type BuildCacheConfig =
+  | {
+      /**
+       * 用于设置缓存文件的输出目录
+       */
+      cacheDirectory?: string;
+      /**
+       * 根据 cacheDigest 内容设置不同的缓存名称
+       */
+      cacheDigest?: Array<string | undefined>;
+      /**
+       * 一个包含构建依赖的文件数组。
+       * Rspack 将使用其中每个文件的哈希值来判断持久化缓存是否失效。
+       */
+      buildDependencies?: string[];
+    }
+  | boolean;
+```
+
+控制 Modern.js 在构建过程中的缓存行为。
+
+在构建时，Modern.js 默认会开启构建缓存来提升二次构建的速度。如果不希望缓存，你可以将 `buildCache` 置为 `false` 将其禁用掉：
+
+```js
+export default {
+  performance: {
+    buildCache: false,
+  },
+};
+```
+
+import RsbuildConfig from '@site-docs/components/rsbuild-config-tooltip';
+
+<RsbuildConfig configName="performance.buildCache" />

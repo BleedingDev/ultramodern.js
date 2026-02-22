@@ -1,40 +1,195 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
+import Module from 'module';
+import { builtinModules } from 'module';
 import path from 'path';
-import React from 'react';
-import ReactDomServer from 'react-dom/server';
-import { build } from 'esbuild';
-import type { AppUserConfig, CliPlugin, AppTools } from '@modern-js/app-tools';
-import { createDebugger, findExists, fs } from '@modern-js/utils';
-import { Entrypoint } from '@modern-js/types/cli';
+import type {
+  AppTools,
+  CliPlugin,
+  AppNormalizedConfig as NormalizedConfig,
+} from '@modern-js/app-tools';
+import type { Entrypoint } from '@modern-js/types/cli';
+import { fs, createDebugger, findExists, logger } from '@modern-js/utils';
+import type { Rspack, RspackChain } from '@rsbuild/core';
+import { decodeHTML } from 'entities';
 
-import { DocumentContext } from '../DocumentContext';
 import {
-  DOCUMENT_SCRIPTS_PLACEHOLDER,
-  DOCUMENT_LINKS_PLACEHOLDER,
-  DOCUMENT_FILE_NAME,
-  DOCUMENT_META_PLACEHOLDER,
-  PLACEHOLDER_REPLACER_MAP,
-  DOC_EXT,
-  DOCUMENT_SSR_PLACEHOLDER,
-  DOCUMENT_CHUNKSMAP_PLACEHOLDER,
-  DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
-  DOCUMENT_SCRIPT_PLACEHOLDER_START,
-  DOCUMENT_SCRIPT_PLACEHOLDER_END,
-  HTML_SEPARATOR,
-  DOCUMENT_COMMENT_PLACEHOLDER_START,
-  DOCUMENT_COMMENT_PLACEHOLDER_END,
-  DOCUMENT_STYLE_PLACEHOLDER_START,
-  DOCUMENT_STYLE_PLACEHOLDER_END,
-  TOP_PARTICALS_SEPARATOR,
-  HEAD_PARTICALS_SEPARATOR,
   BODY_PARTICALS_SEPARATOR,
+  DOCUMENT_CHUNKSMAP_PLACEHOLDER,
+  DOCUMENT_COMMENT_PLACEHOLDER_END,
+  DOCUMENT_COMMENT_PLACEHOLDER_START,
+  DOCUMENT_FILE_NAME,
+  DOCUMENT_LINKS_PLACEHOLDER,
+  DOCUMENT_META_PLACEHOLDER,
+  DOCUMENT_SCRIPTS_PLACEHOLDER,
+  DOCUMENT_SCRIPT_ATTRIBUTES_END,
+  DOCUMENT_SCRIPT_ATTRIBUTES_START,
+  DOCUMENT_SCRIPT_PLACEHOLDER_END,
+  DOCUMENT_SCRIPT_PLACEHOLDER_START,
+  DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
+  DOCUMENT_SSR_PLACEHOLDER,
+  DOCUMENT_STYLE_PLACEHOLDER_END,
+  DOCUMENT_STYLE_PLACEHOLDER_START,
+  DOCUMENT_TITLE_PLACEHOLDER,
+  DOC_EXT,
+  HEAD_PARTICALS_SEPARATOR,
+  HTML_SEPARATOR,
+  PLACEHOLDER_REPLACER_MAP,
+  TOP_PARTICALS_SEPARATOR,
 } from '../constants';
 
-const debug = createDebugger('html_genarate');
+interface DocumentParams {
+  processEnv: NodeJS.ProcessEnv;
+  config: {
+    output: NormalizedConfig['output'];
+  };
+  entryName: string;
+  templateParams: Record<string, unknown>;
+}
 
-// get the entry document file,
-// if not exist, fallback to src/
-export const getDocumenByEntryName = function (
+interface PartialsContent {
+  partialsTop: string;
+  partialsHead: string;
+  partialsBody: string;
+}
+
+interface HtmlRspackPluginTags {
+  headTags: Array<{ tagName: string; toString(): string }>;
+  bodyTags: { toString(): string };
+}
+
+interface HtmlRspackPlugin {
+  tags: HtmlRspackPluginTags;
+}
+
+interface ExternalRequest {
+  request?: string;
+}
+
+type Compiler = Rspack.Compiler;
+type Compilation = Rspack.Compilation;
+
+const debug = createDebugger('document');
+
+const entryName2DocCode = new Map<string, string>();
+
+const CONSTANTS = {
+  GLOBAL_DOC_RENDERERS: '__MODERN_DOC_RENDERERS__',
+  DOCUMENT_OUTPUT_DIR: 'document',
+  TEMP_ENTRY_PREFIX: '_entry_',
+  HTML_OUTPUT_PREFIX: '_',
+  HTML_OUTPUT_SUFFIX: '.html.js',
+  CHILD_COMPILER_PREFIX: 'modernjs-document-',
+  COMMONJS_EXTERNAL_PREFIX: 'commonjs ',
+  NODE_PREFIX: 'node:',
+} as const;
+
+const EXTERNAL_MAPPINGS = {
+  react: 'react',
+  'react/jsx-runtime': 'react/jsx-runtime',
+  'react/jsx-dev-runtime': 'react/jsx-dev-runtime',
+  'react-dom/server': 'react-dom/server',
+} as const;
+
+// global stores helpers
+// Because Bundler will build IFEE, the components and renderers need to be stored on global.
+const getGlobalDocRenderers = () => {
+  const g = globalThis as any;
+  g[CONSTANTS.GLOBAL_DOC_RENDERERS] = g[CONSTANTS.GLOBAL_DOC_RENDERERS] || {};
+  return g[CONSTANTS.GLOBAL_DOC_RENDERERS] as Record<
+    string,
+    (p: DocumentParams) => string
+  >;
+};
+
+// clear cached renderer to support HMR for Document.tsx
+const clearGlobalDocRenderer = (entryName: string): void => {
+  const renderers = getGlobalDocRenderers();
+  if (renderers[entryName]) {
+    delete renderers[entryName];
+  }
+};
+
+const decodeHtmlEntities = (input: string): string => decodeHTML(input);
+
+const isWindowsAbs = (req: string): boolean => /^[a-zA-Z]:[\\/]/.test(req);
+const isRelativeOrAbs = (req: string): boolean =>
+  req.startsWith('.') || req.startsWith('/') || isWindowsAbs(req);
+const isAsset = (req: string): boolean =>
+  /\.(css|less|scss|sass|styl|png|jpe?g|gif|svg|ico|woff2?|ttf|eot)(?:[?#].*)?$/.test(
+    req,
+  );
+
+const processScriptPlaceholders = (html: string, nonce?: string): string => {
+  if (
+    !html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_START) ||
+    !html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_END)
+  ) {
+    return html;
+  }
+
+  const nonceAttr = nonce ? `nonce="${nonce}"` : '';
+  return html.replace(
+    new RegExp(
+      `${DOCUMENT_SCRIPT_PLACEHOLDER_START}${DOCUMENT_SCRIPT_ATTRIBUTES_START}([\\s\\S]*?)${DOCUMENT_SCRIPT_ATTRIBUTES_END}([\\s\\S]*?)${DOCUMENT_SCRIPT_PLACEHOLDER_END}`,
+      'g',
+    ),
+    (_scriptStr: string, $1: string, $2: string) =>
+      `<script ${decodeURIComponent($1)} ${nonceAttr}>${decodeHtmlEntities(decodeURIComponent($2))}</script>`,
+  );
+};
+
+const processStylePlaceholders = (html: string): string => {
+  if (
+    !html.includes(DOCUMENT_STYLE_PLACEHOLDER_START) ||
+    !html.includes(DOCUMENT_STYLE_PLACEHOLDER_END)
+  ) {
+    return html;
+  }
+
+  return html.replace(
+    new RegExp(
+      `${DOCUMENT_STYLE_PLACEHOLDER_START}([\\s\\S]*?)${DOCUMENT_STYLE_PLACEHOLDER_END}`,
+      'g',
+    ),
+    (_styleStr: string, $1: string) =>
+      `<style>${decodeHtmlEntities(decodeURIComponent($1))}</style>`,
+  );
+};
+
+const processCommentPlaceholders = (html: string): string => {
+  if (
+    !html.includes(DOCUMENT_COMMENT_PLACEHOLDER_START) ||
+    !html.includes(DOCUMENT_COMMENT_PLACEHOLDER_END)
+  ) {
+    return html;
+  }
+
+  return html.replace(
+    new RegExp(
+      `${DOCUMENT_COMMENT_PLACEHOLDER_START}([\\s\\S]*?)${DOCUMENT_COMMENT_PLACEHOLDER_END}`,
+      'g',
+    ),
+    (_scriptStr: string, $1: string) =>
+      `${decodeHtmlEntities(decodeURIComponent($1))}`,
+  );
+};
+
+// load CommonJS module from code string (evaluated in Node), returns exports
+const requireFromString = (code: string, filename: string) => {
+  const m = new Module.Module(filename, module.parent as Module);
+  m.filename = filename;
+  // set proper resolution paths for nested requires
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore private API used intentionally
+  m.paths = Module.Module._nodeModulePaths(path.dirname(filename));
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore private API _compile
+  m._compile(code, filename);
+
+  return m.exports;
+};
+
+export const getDocumentByEntryName = function (
   entrypoints: Entrypoint[],
   entryName: string,
   fallbackDir?: string,
@@ -53,8 +208,207 @@ export const getDocumenByEntryName = function (
     : [];
 
   const docFile = findExists([...entryDirs, ...fallbackDirs]);
-
   return docFile || undefined;
+};
+
+// external node buildin modules
+const createExternalHandler =
+  () =>
+  ({ request }: ExternalRequest) => {
+    const req = request || '';
+    if (isAsset(req)) return;
+    if (req.startsWith(CONSTANTS.NODE_PREFIX)) {
+      return `${CONSTANTS.COMMONJS_EXTERNAL_PREFIX}${req}`;
+    }
+    if (builtinModules.includes(req)) {
+      return `${CONSTANTS.COMMONJS_EXTERNAL_PREFIX}${req}`;
+    }
+    if (isRelativeOrAbs(req)) return;
+    return;
+  };
+
+const configureChildCompiler = (
+  child: Compiler,
+  compiler: Compiler,
+  appDirectory: string,
+) => {
+  child.options.mode = compiler.options.mode;
+  child.options.target = 'node';
+  child.options.context = compiler.options.context || appDirectory;
+  child.options.resolve = {
+    ...compiler.options.resolve,
+    fallback: {},
+  };
+  child.options.module = compiler.options.module;
+  child.options.externalsPresets = { node: true };
+  child.options.devtool = false;
+};
+
+const applyExternalsPlugin = (child: Compiler, compiler: Compiler) => {
+  const ExternalsPlugin = compiler.rspack?.ExternalsPlugin;
+  if (ExternalsPlugin) {
+    new ExternalsPlugin('commonjs', [
+      createExternalHandler(),
+      EXTERNAL_MAPPINGS,
+    ]).apply(child);
+  }
+};
+
+const generateEntryCode = (docPath: string, _entryName: string): string => {
+  const runtimeAPI = require.resolve('../');
+  const esmRuntimeAPI = runtimeAPI
+    .replace(`cjs`, `esm`)
+    .replace(/.js$/, '.mjs');
+
+  return `import React from 'react';
+import ReactDomServer from 'react-dom/server';
+import Document from ${JSON.stringify(docPath)};
+import { DocumentContext } from ${JSON.stringify(esmRuntimeAPI)};
+
+// expose to global for host to consume
+var g = (typeof globalThis !== 'undefined' ? globalThis : global);
+g.__MODERN_DOC_RENDERERS__ = g.__MODERN_DOC_RENDERERS__ || {};
+
+function render(documentParams) {
+  var HTMLElement = React.createElement(
+    DocumentContext.Provider,
+    { value: documentParams },
+    React.createElement(Document, null)
+  );
+  return ReactDomServer.renderToStaticMarkup(HTMLElement);
+}
+
+g.__MODERN_DOC_RENDERERS__[${JSON.stringify(_entryName)}] = render;
+
+export default { render: render };`;
+};
+
+const processChildCompilation = async (
+  entryName: string,
+  docPath: string,
+  compilation: Compilation,
+  compiler: Compiler,
+  appDirectory: string,
+  internalDirectory: string,
+): Promise<void> => {
+  return new Promise<void>((resolve, reject) => {
+    const outFile = path.posix.join(
+      CONSTANTS.DOCUMENT_OUTPUT_DIR,
+      `${CONSTANTS.HTML_OUTPUT_PREFIX}${entryName}${CONSTANTS.HTML_OUTPUT_SUFFIX}`,
+    );
+
+    const child = compilation.createChildCompiler(
+      `${CONSTANTS.CHILD_COMPILER_PREFIX}${entryName}`,
+      {
+        filename: outFile,
+        library: { type: 'commonjs2' },
+      },
+      [],
+    );
+
+    configureChildCompiler(child, compiler, appDirectory);
+    // external react related dependencies
+    applyExternalsPlugin(child, compiler);
+
+    const entryDir = path.join(
+      internalDirectory,
+      CONSTANTS.DOCUMENT_OUTPUT_DIR,
+    );
+    const tempEntry = path.join(
+      entryDir,
+      `${CONSTANTS.TEMP_ENTRY_PREFIX}${entryName}.js`,
+    );
+
+    const finalize = () => {
+      try {
+        const EntryPlugin = compiler.rspack?.EntryPlugin;
+        if (!EntryPlugin) {
+          throw new Error('EntryPlugin not available');
+        }
+
+        new EntryPlugin(compiler.context, tempEntry, {
+          name: `${CONSTANTS.CHILD_COMPILER_PREFIX}${entryName}`,
+        }).apply(child);
+
+        child.runAsChild(
+          (
+            err?: Error | null,
+            _entries?: any,
+            childCompilation?: Compilation,
+          ) => {
+            if (err) {
+              logger.error(
+                `Document child compiler failed for entry "${entryName}": ${err.message}`,
+              );
+              return reject(err);
+            }
+            try {
+              if (!childCompilation) {
+                throw new Error('Child compilation is undefined');
+              }
+              const asset =
+                childCompilation.assets[outFile] ||
+                childCompilation.getAsset?.(outFile)?.source;
+              const code: string =
+                typeof asset?.source === 'function'
+                  ? asset.source().toString()
+                  : typeof asset === 'string'
+                    ? asset
+                    : asset?.buffer?.().toString?.() || '';
+
+              if (!code) {
+                const errorMsg = `Document child compiler produced empty output for entry "${entryName}". Please check your Document component for syntax errors.`;
+                logger.error(errorMsg);
+                reject(new Error(errorMsg));
+                return;
+              }
+
+              entryName2DocCode.set(entryName, code);
+              debug(
+                'Document child compiler: cached injected bundle for %s',
+                entryName,
+              );
+              resolve();
+            } catch (e) {
+              const err = e as Error;
+              logger.error(
+                `Document child compiler failed to process output for entry "${entryName}": ${err.message}`,
+              );
+              reject(err);
+            }
+          },
+        );
+      } catch (e) {
+        const err = e as Error;
+        logger.error(
+          `Document child compiler failed to initialize for entry "${entryName}": ${err.message}`,
+        );
+        reject(err);
+      }
+    };
+
+    try {
+      fs.ensureFile(tempEntry)
+        .then(() => {
+          const entryCode = generateEntryCode(docPath, entryName);
+          return fs.writeFile(tempEntry, entryCode);
+        })
+        .then(finalize)
+        .catch((e: unknown) => {
+          const err = e as Error;
+          logger.error(
+            `Document child compiler failed to prepare entry file for "${entryName}": ${err.message}`,
+          );
+          reject(err);
+        });
+    } catch (e) {
+      const err = e as Error;
+      logger.error(
+        `Document child compiler failed to create entry directory for "${entryName}": ${err.message}`,
+      );
+      reject(err);
+    }
+  });
 };
 
 export const documentPlugin = (): CliPlugin<AppTools> => ({
@@ -62,14 +416,74 @@ export const documentPlugin = (): CliPlugin<AppTools> => ({
 
   pre: ['@modern-js/plugin-analyze'],
   setup: async api => {
-    // get params for document.tsx
-    function getDocParams(params: {
-      config: AppUserConfig;
+    class ModernJsDocumentChildCompilerPlugin {
+      name = 'ModernJsDocumentChildCompilerPlugin';
+
+      apply(compiler: Compiler) {
+        compiler.hooks.make.tapPromise(
+          this.name,
+          async (compilation: Compilation) => {
+            try {
+              const { entrypoints, appDirectory, internalDirectory } =
+                api.getAppContext();
+              const tasks: Promise<void>[] = [];
+
+              for (const ep of entrypoints || []) {
+                const entryName = ep.entryName;
+                const docPath = getDocumentByEntryName(
+                  entrypoints!,
+                  entryName,
+                  appDirectory,
+                );
+                if (!docPath) continue;
+
+                // ensure host compiler watches Document file for HMR
+                compilation.fileDependencies?.add?.(docPath);
+
+                // clear cached renderer so updated Document takes effect
+                clearGlobalDocRenderer(entryName);
+
+                tasks.push(
+                  processChildCompilation(
+                    entryName,
+                    docPath,
+                    compilation,
+                    compiler,
+                    appDirectory,
+                    internalDirectory,
+                  ),
+                );
+              }
+              await Promise.all(tasks);
+            } catch (e) {
+              const err = e as Error;
+              logger.error(`Document child compiler failed: ${err.message}`);
+              debug('Document child compiler make hook failed: %o', e);
+              throw err;
+            }
+          },
+        );
+      }
+    }
+
+    api.config(() => {
+      return {
+        tools: {
+          bundlerChain: (chain: RspackChain) => {
+            chain
+              .plugin('modernjs-document-child-compiler')
+              .use(ModernJsDocumentChildCompilerPlugin, []);
+          },
+        },
+      };
+    });
+
+    const getDocParams = (params: {
+      config: NormalizedConfig;
       entryName: string;
       templateParameters: Record<string, unknown>;
-    }) {
+    }): DocumentParams => {
       const { config, templateParameters, entryName } = params;
-      // for enough params, devide as：process, config, templateParams
       return {
         processEnv: process.env,
         config: {
@@ -78,253 +492,236 @@ export const documentPlugin = (): CliPlugin<AppTools> => ({
         entryName,
         templateParams: templateParameters,
       };
-    }
+    };
+
+    const loadRender = async (
+      entryName: string,
+      internalDirectory: string,
+    ): Promise<{ renderer: (p: DocumentParams) => string }> => {
+      const renderers = getGlobalDocRenderers();
+      const globalRenderer = renderers[entryName];
+      if (globalRenderer) {
+        return { renderer: globalRenderer };
+      }
+
+      const cached = entryName2DocCode.get(entryName);
+      if (!cached) {
+        throw new Error(
+          `Document bundle not found for entry "${entryName}". The Document component compilation may have failed.`,
+        );
+      }
+
+      const filename = path.join(
+        internalDirectory,
+        `./${CONSTANTS.DOCUMENT_OUTPUT_DIR}/${CONSTANTS.HTML_OUTPUT_PREFIX}${entryName}${CONSTANTS.HTML_OUTPUT_SUFFIX}`,
+      );
+
+      requireFromString(cached, filename);
+
+      const renderer = renderers[entryName];
+      if (!renderer) {
+        throw new Error(
+          `Document renderer not found for entry "${entryName}". Please ensure your Document component exports a valid default component.`,
+        );
+      }
+
+      return { renderer };
+    };
+
+    const processPartials = (
+      html: string,
+      entryName: string,
+      partialsByEntrypoint: Record<
+        string,
+        { top: string[]; head: string[]; body: string[] }
+      >,
+    ): string => {
+      const partialsContent: PartialsContent = {
+        partialsTop: '',
+        partialsHead: '',
+        partialsBody: '',
+      };
+
+      if (partialsByEntrypoint?.[entryName]) {
+        partialsContent.partialsTop =
+          partialsByEntrypoint[entryName].top.join('\n');
+        partialsContent.partialsHead =
+          partialsByEntrypoint[entryName].head.join('\n');
+        partialsContent.partialsBody =
+          partialsByEntrypoint[entryName].body.join('\n');
+      }
+
+      return html
+        .replace(TOP_PARTICALS_SEPARATOR, () => partialsContent.partialsTop)
+        .replace(HEAD_PARTICALS_SEPARATOR, () => partialsContent.partialsHead)
+        .replace(BODY_PARTICALS_SEPARATOR, () => partialsContent.partialsBody);
+    };
+
+    const extractHtmlTags = (
+      htmlPlugin: HtmlRspackPlugin,
+      templateParameters: Record<string, unknown>,
+    ) => {
+      const scripts = [
+        htmlPlugin.tags.headTags
+          .filter(item => item.tagName === 'script')
+          .join(''),
+        htmlPlugin.tags.bodyTags.toString(),
+      ].join('');
+
+      const links = htmlPlugin.tags.headTags
+        .filter(item => item.tagName === 'link')
+        .join('');
+
+      const metas = [
+        templateParameters.meta,
+        htmlPlugin.tags.headTags
+          .filter(
+            item =>
+              item.tagName !== 'script' &&
+              item.tagName !== 'link' &&
+              item.tagName !== 'title',
+          )
+          .join(''),
+      ].join('');
+
+      const titles: string = htmlPlugin.tags.headTags
+        .filter(item => item.tagName === 'title')
+        .join('')
+        .replace('<title>', '')
+        .replace('</title>', '');
+
+      return { scripts, links, metas, titles };
+    };
+
+    const processPlaceholders = (
+      html: string,
+      config: NormalizedConfig,
+      scripts: string,
+      links: string,
+      metas: string,
+      titles: string,
+    ): string => {
+      const { nonce } = config.security || {};
+
+      let processedHtml = processScriptPlaceholders(html, nonce);
+      processedHtml = processStylePlaceholders(processedHtml);
+      processedHtml = processCommentPlaceholders(processedHtml);
+
+      return `<!DOCTYPE html>${processedHtml}`
+        .replace(DOCUMENT_META_PLACEHOLDER, () => metas)
+        .replace(DOCUMENT_SSR_PLACEHOLDER, () => HTML_SEPARATOR)
+        .replace(DOCUMENT_SCRIPTS_PLACEHOLDER, () => scripts)
+        .replace(DOCUMENT_LINKS_PLACEHOLDER, () => links)
+        .replace(
+          DOCUMENT_CHUNKSMAP_PLACEHOLDER,
+          () => PLACEHOLDER_REPLACER_MAP[DOCUMENT_CHUNKSMAP_PLACEHOLDER],
+        )
+        .replace(
+          DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
+          () => PLACEHOLDER_REPLACER_MAP[DOCUMENT_SSRDATASCRIPT_PLACEHOLDER],
+        )
+        .replace(DOCUMENT_TITLE_PLACEHOLDER, () => titles);
+    };
+
     const documentEntry = (
       entryName: string,
-      // config: HtmlPluginConfig,
       templateParameters: Record<string, unknown>,
     ) => {
       const { entrypoints, internalDirectory, appDirectory } =
-        api.useAppContext();
-      // search the document.[tsx|jsx|js|ts] under entry
-      const documentFilePath = getDocumenByEntryName(
+        api.getAppContext();
+
+      const documentFilePath = getDocumentByEntryName(
         entrypoints,
         entryName,
         appDirectory,
       );
-      // if no document file, do nothing as default
+
       if (!documentFilePath) {
         return null;
       }
-
-      return async ({ htmlWebpackPlugin }: { [option: string]: any }) => {
-        const config = api.useResolvedConfigContext();
-
+      // Don't know why we can't use htmlRspackPlugin, it can't get the tags.
+      return async ({ htmlPlugin }: { [option: string]: HtmlRspackPlugin }) => {
+        const config = api.getNormalizedConfig();
         const documentParams = getDocParams({
-          config,
+          config: config as NormalizedConfig,
           entryName,
           templateParameters,
         });
 
-        // set a temporary tsconfig file for divide the influence by project's jsx
-        const tempTsConfigFile = path.join(
-          internalDirectory,
-          `./document/_tempTsconfig.json`,
-        );
-        const userTsConfigFilePath = path.join(appDirectory, 'tsconfig.json');
-        let tsConfig;
+        let html: string;
         try {
-          // eslint-disable-next-line import/no-dynamic-require
-          tsConfig = await require(userTsConfigFilePath);
-        } catch (err) {
-          tsConfig = {};
+          const { renderer } = await loadRender(entryName, internalDirectory);
+          html = renderer(documentParams);
+        } catch (error) {
+          const err = error as Error;
+          logger.error(
+            `Failed to render Document for entry "${entryName}": ${err.message}`,
+          );
+          throw err;
         }
-        if (tsConfig?.compilerOptions) {
-          tsConfig.compilerOptions.jsx = 'react-jsx';
-        } else {
-          tsConfig.compilerOptions = {
-            jsx: 'react-jsx',
-          };
-        }
-        fs.outputFileSync(tempTsConfigFile, JSON.stringify(tsConfig));
-
-        const htmlOutputFile = path.join(
-          internalDirectory,
-          `./document/_${entryName}.html.js`,
-        );
-        // transform document file to html string
-        await build({
-          entryPoints: [documentFilePath],
-          outfile: htmlOutputFile,
-          platform: 'node',
-          // change esbuild use the rootDir tsconfig.json as default to tempTsConfigFile
-          tsconfig: tempTsConfigFile,
-          target: 'es6',
-          loader: {
-            '.ts': 'ts',
-            '.tsx': 'tsx',
-          },
-          bundle: true,
-          plugins: [
-            {
-              name: 'make-all-packages-external',
-              setup(build) {
-                // https://github.com/evanw/esbuild/issues/619#issuecomment-751995294
-                build.onResolve(
-                  { filter: /^[^./]|^\.[^./]|^\.\.[^/]/ },
-                  args => {
-                    let external = true;
-                    // FIXME: windows external entrypoint
-                    if (args.kind === 'entry-point') {
-                      external = false;
-                    }
-                    return {
-                      path: args.path,
-                      external,
-                    };
-                  },
-                );
-              },
-            },
-          ],
-        });
-
-        delete require.cache[require.resolve(htmlOutputFile)];
-        // eslint-disable-next-line import/no-dynamic-require
-        const Document = (await require(htmlOutputFile)).default;
-        const HTMLElement = React.createElement(
-          DocumentContext.Provider,
-          { value: documentParams },
-          React.createElement(Document, null),
-        );
-        let html = ReactDomServer.renderToStaticMarkup(HTMLElement);
 
         debug("entry %s's document jsx rendered html: %o", entryName, html);
-        // htmlWebpackPlugin.tags
-        const { partialsByEntrypoint } = api.useAppContext();
-        const scripts = [
-          htmlWebpackPlugin.tags.headTags
-            .filter((item: any) => item.tagName === 'script')
-            .join(''),
-          htmlWebpackPlugin.tags.bodyTags.toString(),
-        ].join('');
-        // support partials html
-        const partialsContent = {
-          partialsTop: '',
-          partialsHead: '',
-          partialsBody: '',
-        };
-        if (partialsByEntrypoint?.[entryName]) {
-          partialsContent.partialsTop =
-            partialsByEntrypoint[entryName].top.join('\n');
-          partialsContent.partialsHead =
-            partialsByEntrypoint[entryName].head.join('\n');
-          partialsContent.partialsBody =
-            partialsByEntrypoint[entryName].body.join('\n');
-        }
 
-        html = html
-          .replace(TOP_PARTICALS_SEPARATOR, partialsContent.partialsTop)
-          .replace(HEAD_PARTICALS_SEPARATOR, partialsContent.partialsHead)
-          .replace(BODY_PARTICALS_SEPARATOR, partialsContent.partialsBody);
+        const { partialsByEntrypoint } = api.getAppContext();
+        html = processPartials(html, entryName, partialsByEntrypoint || {});
+        const { scripts, links, metas, titles } = extractHtmlTags(
+          htmlPlugin,
+          templateParameters,
+        );
 
-        const links = [
-          htmlWebpackPlugin.tags.headTags
-            .filter((item: any) => item.tagName === 'link')
-            .join(''),
-        ].join('');
-
-        const metas = [
-          templateParameters.meta,
-          htmlWebpackPlugin.tags.headTags
-            .filter(
-              (item: any) =>
-                item.tagName !== 'script' && item.tagName !== 'link',
-            )
-            .join(''),
-        ].join('');
-
-        // if the Document.tsx has a functional script, replace to convert it
-        if (
-          html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_START) &&
-          html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_END)
-        ) {
-          const { nonce } = config.security;
-          const nonceAttr = nonce ? `nonce=${nonce}` : '';
-
-          html = html.replace(
-            new RegExp(
-              `${DOCUMENT_SCRIPT_PLACEHOLDER_START}(.*?)${DOCUMENT_SCRIPT_PLACEHOLDER_END}`,
-              'g',
-            ),
-            (_scriptStr, $1) =>
-              `<script ${nonceAttr}>${decodeURIComponent($1)}</script>`,
-          );
-        }
-        // if the Document.tsx has a style, replace to convert it
-        if (
-          html.includes(DOCUMENT_STYLE_PLACEHOLDER_START) &&
-          html.includes(DOCUMENT_STYLE_PLACEHOLDER_END)
-        ) {
-          html = html.replace(
-            new RegExp(
-              `${DOCUMENT_STYLE_PLACEHOLDER_START}(.*?)${DOCUMENT_STYLE_PLACEHOLDER_END}`,
-              'g',
-            ),
-            (_styleStr, $1) => `<style>${decodeURIComponent($1)}</style>`,
-          );
-        }
-        // if the Document.tsx has a comment component, replace and convert it
-        if (
-          html.includes(DOCUMENT_COMMENT_PLACEHOLDER_START) &&
-          html.includes(DOCUMENT_COMMENT_PLACEHOLDER_END)
-        ) {
-          html = html.replace(
-            new RegExp(
-              `${DOCUMENT_COMMENT_PLACEHOLDER_START}(.*?)${DOCUMENT_COMMENT_PLACEHOLDER_END}`,
-              'g',
-            ),
-            (_scriptStr, $1) => `${decodeURIComponent($1)}`,
-          );
-        }
-
-        // replace the html placeholder while transfer string to jsx component is not a easy way
-        const finalHtml = `<!DOCTYPE html>${html}`
-          .replace(DOCUMENT_META_PLACEHOLDER, metas)
-          .replace(DOCUMENT_SSR_PLACEHOLDER, HTML_SEPARATOR)
-          .replace(DOCUMENT_SCRIPTS_PLACEHOLDER, scripts)
-          .replace(DOCUMENT_LINKS_PLACEHOLDER, links)
-          .replace(
-            DOCUMENT_CHUNKSMAP_PLACEHOLDER,
-            PLACEHOLDER_REPLACER_MAP[DOCUMENT_CHUNKSMAP_PLACEHOLDER],
-          )
-          .replace(
-            DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
-            PLACEHOLDER_REPLACER_MAP[DOCUMENT_SSRDATASCRIPT_PLACEHOLDER],
-          );
-        return finalHtml;
+        return processPlaceholders(
+          html,
+          config as NormalizedConfig,
+          scripts,
+          links,
+          metas,
+          titles,
+        );
       };
     };
-    return {
-      config: () => {
-        return {
-          tools: {
-            htmlPlugin: (options, entry) => {
-              // just for reuse the baseParames calculate by builder:
-              // https://github.com/web-infra-dev/modern.js/blob/1abb452a87ae1adbcf8da47d62c05da39cbe4d69/packages/builder/builder-webpack-provider/src/plugins/html.ts#L69-L103
-              const hackParameters: Record<string, unknown> =
-                typeof options?.templateParameters === 'function'
-                  ? options?.templateParameters(
-                      {} as any,
-                      {} as any,
-                      {} as any,
-                      {} as any,
-                    )
-                  : { ...options?.templateParameters };
 
-              const templateContent = documentEntry(
-                entry.entryName,
-                // options,
-                hackParameters,
-              );
+    api.config(() => {
+      const userConfig = api.getConfig();
 
-              const documentHtmlOptions = templateContent
-                ? {
-                    templateContent,
-                    // Note: the behavior of inject/modify tags in afterTemplateExecution hook will not take effect
-                    inject: false,
-                  }
-                : {};
+      if (userConfig.tools?.htmlPlugin === false) {
+        return {};
+      }
 
-              return {
-                ...options,
-                ...documentHtmlOptions,
-              };
-            },
+      return {
+        tools: {
+          htmlPlugin: (options, entry) => {
+            // reuse builder's computed base parameters
+            // https://github.com/web-infra-dev/modern.js/blob/1abb452a87ae1adbcf8da47d62c05da39cbe4d69/packages/builder/builder-webpack-provider/src/plugins/html.ts#L69-L103
+            const hackParameters: Record<string, unknown> =
+              typeof options?.templateParameters === 'function'
+                ? options?.templateParameters(
+                    {} as any,
+                    {} as any,
+                    {} as any,
+                    {} as any,
+                  )
+                : { ...options?.templateParameters };
+
+            const templateContent = documentEntry(
+              entry.entryName,
+              hackParameters,
+            );
+
+            const documentHtmlOptions = templateContent
+              ? {
+                  templateContent,
+                  inject: false,
+                }
+              : {};
+
+            return {
+              ...options,
+              ...documentHtmlOptions,
+            };
           },
-        };
-      },
-    };
+        },
+      };
+    });
   },
 });
 
