@@ -9,7 +9,9 @@ import type {
   IdentityBindingViolation,
   OperationContext,
   RequestCreator,
+  RequestCreatorOptions,
   Sender,
+  UploadCreator,
   IOptions,
   TransportResilienceOptions,
 } from './types';
@@ -283,7 +285,36 @@ export const configure = (options: IOptions) => {
   realRequest.set(requestId, configuredRequest as any);
 };
 
-export const createRequest: RequestCreator = ({
+const normalizeRequestOptions = (
+  ...args: Parameters<RequestCreator>
+): RequestCreatorOptions => {
+  if (typeof args[0] === 'object' && args[0] !== null) {
+    return args[0];
+  }
+
+  const [
+    path,
+    method,
+    port,
+    httpMethodDecider,
+    fetch,
+    requestId,
+    operationContext,
+  ] = args;
+
+  return {
+    path,
+    method,
+    port,
+    httpMethodDecider,
+    fetch,
+    requestId,
+    operationContext,
+  };
+};
+
+export const createRequest: RequestCreator = ((...args: Parameters<RequestCreator>) => {
+  const {
   path,
   method,
   port,
@@ -292,7 +323,7 @@ export const createRequest: RequestCreator = ({
   domain,
   requestId = 'default',
   operationContext,
-) => {
+  } = normalizeRequestOptions(...args);
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keyNames = extractPathParamNames(path);
 
@@ -523,7 +554,7 @@ export const createRequest: RequestCreator = ({
   };
 
   return sender;
-};
+}) as RequestCreator;
 
 export const createUploader: UploadCreator = ({
   path,

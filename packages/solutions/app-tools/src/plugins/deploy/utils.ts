@@ -39,7 +39,7 @@ export const serverAppContenxtTemplate = (appContext: AppToolsContext) => {
       lambdaDirectory,
     )}")`,
     metaName,
-    bffRuntimeFramework: bffRuntimeFramework || 'hono',
+    bffRuntimeFramework: bffRuntimeFramework || 'effect',
   };
 };
 

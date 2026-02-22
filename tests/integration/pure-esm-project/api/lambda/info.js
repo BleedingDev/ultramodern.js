@@ -1,8 +1,8 @@
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 import { add } from 'lodash-es';
 
 export const get = () => {
-  const context = useBackendContext();
+  const context = useHonoContext();
   const parsedUrl = new URL(context.req.url);
   const pathname = parsedUrl.pathname;
 

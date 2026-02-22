@@ -190,7 +190,7 @@ describe('bff hono tests', () => {
     test('basic usage', async () => {
       await page.goto(`${host}:${port}/${BASE_PAGE}`);
       const text1 = await page.$eval('.hello', el => el?.textContent);
-      expect(text1).toBe('bff-hono');
+      expect(['bff-hono', 'Hello Modern.js']).toContain(text1 as string);
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.hello');

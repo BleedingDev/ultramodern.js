@@ -30,16 +30,22 @@ UltraModern additions are designed to be optional or backward-compatible whereve
 
 | Area | Modern.js v3 baseline | UltraModern.js v3 |
 | --- | --- | --- |
-| BFF runtime and contracts | Standard BFF runtimes and generated clients | Adds Effect-first runtime/data-platform path and stricter cross-project contracts |
-| Cross-project producer bootstrap | Producer wiring can be loosely coupled in multi-repo setups | Adds `requestId`-aware bootstrap/runtime behavior and fail-fast guardrails |
-| Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP and VictoriaMetrics exporters |
-| App-level MF SSR handshake | No dedicated super-app app-level contract focus | Adds explicit app-level MF SSR alpha contract flags for controlled rollout |
-| MF remote reliability | App teams usually implement retry/fallback patterns independently | Adds stronger shared reliability contracts for remote loading paths |
+| Build diagnostics | RsDoctor is generally opt-in | Adds `performance.rsdoctor`, default-on diagnostics in production Rspack builds, and `.rsdoctor/ultramodern-diagnostics.json` contract artifact |
+| Output and static serving | Precompression behavior is app-defined | Enables `output.precompress` by default and serves `.br` / `.gz` variants via `Accept-Encoding` negotiation |
+| BFF runtime and contracts | Standard BFF runtime/client generation | Adds `requestId`-aware producer isolation, fail-fast initialization checks, and operation/trace correlation headers |
+| BFF runtime choices | Hono runtime path only in Modern.js v3 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |
+| Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP/VictoriaMetrics exporters, redaction, batching, and backpressure controls |
+| App-level MF SSR handshake | No dedicated super-app app-level stability contract focus | Adds `server.ssr.moduleFederationAppSSR` plus integration-tested env/config handshake |
+| MF remote reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
+| Module onboarding governance | No module-certification evidence profile in baseline | Adds module SDK contracts, boundary anti-pattern guards, and release/module certification gate workflows |
+| Router runtime | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI path (React Router remains supported) |
+| Scaffolding templates | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates |
 
 ## What We Intentionally Do Not Change
 
 - We do not fork core architecture into a separate framework model.
 - We do not replace normal Modern.js defaults for teams that do not need super-app contracts.
+- We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
 - We avoid incompatible API changes unless there is a hard reliability requirement.
 
 ## Practical Guidance
@@ -47,8 +53,20 @@ UltraModern additions are designed to be optional or backward-compatible whereve
 If you are already on Modern.js v3:
 
 1. Keep your existing app structure.
-2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR alpha contract).
+2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR staged contract).
 3. Keep tracking upstream Modern.js updates; UltraModern is designed for that workflow.
+
+## Baseline Switches (Opt-out)
+
+The default UltraModern starter baseline enables strict platform contracts. Use these env switches to opt out per app or per environment:
+
+- `MODERN_BASELINE_ENABLE_MF_SSR` (default: `true`): Enables app-level MF SSR baseline contract (`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`). Disable when the app does not use app-level MF SSR, or when you need plain SSR/CSR behavior first.
+- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
+- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` (default: `true`): Enables telemetry exporters in baseline config. Disable when the environment has no telemetry backend yet.
+- `MODERN_BASELINE_APP_ID` (default: `basename(process.cwd())`): Overrides baseline `bff.requestId` identity. Set this when you need a fixed platform-wide producer ID convention.
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/metrics`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT` (default: `http://127.0.0.1:8428/api/v1/import/prometheus`): VictoriaMetrics exporter endpoint. Override when you use a different VM ingress endpoint.
+- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP` (default: `true`): Fails startup if configured exporters fail startup health checks. Disable in local/dev environments where temporary telemetry outage should not block boot.
 
 ## Related Docs
 
@@ -57,3 +75,4 @@ If you are already on Modern.js v3:
 - [BFF Effect Runtime Config](/configure/app/bff/effect)
 - [Module Federation SSR](/guides/topic-detail/module-federation/ssr)
 - [performance.rsdoctor](/configure/app/performance/rsdoctor)
+- [server.ssr](/configure/app/server/ssr)

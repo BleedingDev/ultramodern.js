@@ -1,6 +1,6 @@
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { Plugin } from '@modern-js/plugin';
-import { loadServerPlugins as loadServerPluginInstances } from '@modern-js/prod-server';
+import { loadServerPlugins as loadServerPluginInstances } from '@modern-js/server-core/node';
 import type { ServerPlugin as ServerPluginInstance } from '@modern-js/server-core';
 import type { ServerPlugin } from '@modern-js/types';
 import type { InternalPlugins } from '@modern-js/types';

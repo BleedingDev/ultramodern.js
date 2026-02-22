@@ -1,17 +1,12 @@
 import {
   type AppNormalizedConfig,
   type AppUserConfig,
-  type UserConfigExport,
   appTools,
-  defineConfig,
   mergeConfig,
 } from '@modern-js/app-tools';
 
-export const applyBaseConfig = (config = defineConfig({})) => {
-  return mergeConfig<
-    UserConfigExport<AppUserConfig>,
-    UserConfigExport<AppNormalizedConfig>
-  >([
+export const applyBaseConfig = (config: AppUserConfig = {}) => {
+  return mergeConfig<AppUserConfig, AppNormalizedConfig>([
     {
       output: {
         // disable polyfill and ts checker to make test faster

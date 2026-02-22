@@ -5,7 +5,7 @@ title: runtimeFramework
 # bff.runtimeFramework
 
 - **类型：** `'hono' | 'effect'`
-- **默认值：** `'hono'`
+- **默认值：** `'effect'`
 
 import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 
@@ -21,7 +21,7 @@ export default defineConfig({
 });
 ```
 
-- 设置为 `'hono'` 时，使用文件约定 BFF 处理函数作为主要运行时。
-- 设置为 `'effect'` 时，挂载 `api/effect/index` 中定义的 Effect HttpApi 运行时。
+- 设置为 `'effect'` 时，仅从 `api/effect/index` 运行 BFF（Effect HttpApi 运行时）。
+- 设置为 `'hono'` 时，仅从 `api/lambda/**` 的文件约定处理函数运行 BFF。
 
-使用 `'effect'` 时，`api/lambda/**` 下的文件约定 BFF 处理函数仍可继续使用，用于兼容迁移。
+两种运行时之间没有隐式回退，应用需要显式选择其一。

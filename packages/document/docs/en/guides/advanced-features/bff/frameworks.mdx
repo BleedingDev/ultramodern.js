@@ -7,10 +7,10 @@ title: Runtime Framework
 
 Modern.js supports two BFF runtime frameworks:
 
-- `hono` (default): use file-convention BFF functions and Hono ecosystem middleware.
-- `effect`: use [Effect HttpApi](https://effect.website/) as the primary BFF runtime.
+- `effect` (default): use [Effect HttpApi](https://effect.website/) runtime from `api/effect/index`.
+- `hono`: use file-convention BFF handlers from `api/lambda/**`.
 
-When `effect` mode is enabled, file-convention BFF APIs in `api/lambda/**` still work for compatibility.
+`effect` and `hono` are strict runtime modes. There is no automatic fallback between them.
 
 ## Switch to Effect runtime
 

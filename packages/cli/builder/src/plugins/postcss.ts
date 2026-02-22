@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { applyOptionsChain, isProd } from '@modern-js/utils';
-import { type RsbuildPlugin, logger } from '@rsbuild/core';
+import { type PostCSSLoaderOptions, type RsbuildPlugin, logger } from '@rsbuild/core';
 import type { Options } from 'cssnano';
 import { getCssSupport } from '../shared/getCssSupport';
 import type { ToolsAutoprefixerConfig } from '../types';
@@ -43,6 +43,50 @@ const loadPostcssPlugin = (name: string, appRootPath: string) => {
 
 const importPostcssPlugin = (name: string, appRootPath: string) =>
   Promise.resolve(loadPostcssPlugin(name, appRootPath)) as Promise<any>;
+
+type PostCSSConfig = NonNullable<PostCSSLoaderOptions['postcssOptions']>;
+type PostCSSOptions = Exclude<PostCSSConfig, (loader: any) => any>;
+
+const clonePostCSSConfig = (config: PostCSSOptions) => ({
+  ...config,
+  plugins: config.plugins ? [...config.plugins] : undefined,
+});
+
+type PostcssLoadConfig = (
+  ctx: Record<string, unknown>,
+  rootPath: string,
+) => Promise<PostCSSOptions>;
+
+const postcssLoadConfig = builderRequire(
+  'postcss-load-config',
+) as PostcssLoadConfig;
+
+const userPostcssrcCache = new Map<
+  string,
+  PostCSSOptions | Promise<PostCSSOptions>
+>();
+
+const loadUserPostcssrc = async (root: string): Promise<PostCSSOptions> => {
+  const cached = userPostcssrcCache.get(root);
+
+  if (cached) {
+    return clonePostCSSConfig(await cached);
+  }
+
+  const promise = postcssLoadConfig({}, root).catch(err => {
+    if (err?.message?.includes('No PostCSS Config found')) {
+      return {} as PostCSSOptions;
+    }
+    throw err;
+  });
+
+  userPostcssrcCache.set(root, promise);
+
+  return promise.then(config => {
+    userPostcssrcCache.set(root, config);
+    return clonePostCSSConfig(config);
+  });
+};
 
 export interface PluginPostcssOptions {
   autoprefixer?: ToolsAutoprefixerConfig;
@@ -122,6 +166,8 @@ export const pluginPostcss = (
         ),
       ]).then(results => results.filter(Boolean));
 
+      const userOptions = await loadUserPostcssrc(api.context.rootPath);
+
       return mergeEnvironmentConfig(
         {
           tools: {
@@ -132,9 +178,19 @@ export const pluginPostcss = (
                 );
                 return opts;
               }
-              opts.postcssOptions ??= {};
-              opts.postcssOptions.plugins ??= [];
-              opts.postcssOptions.plugins.push(...plugins);
+              const existingOptions = opts.postcssOptions ?? {};
+              const mergedOptions = {
+                ...userOptions,
+                ...existingOptions,
+              };
+              const userPlugins = userOptions.plugins ?? [];
+              const existingPlugins = existingOptions.plugins ?? [];
+              mergedOptions.plugins = [
+                ...userPlugins,
+                ...existingPlugins,
+                ...plugins,
+              ];
+              opts.postcssOptions = mergedOptions;
             },
           },
         },

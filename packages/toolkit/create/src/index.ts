@@ -71,7 +71,7 @@ function detectBffRuntime(): BffRuntime {
   const runtimeValue = getOptionValue(args, ['--bff-runtime']);
 
   if (!runtimeValue) {
-    return args.includes('--bff') ? 'hono' : 'none';
+    return args.includes('--bff') ? 'effect' : 'none';
   }
 
   if (runtimeValue === 'hono' || runtimeValue === 'effect') {
@@ -476,6 +476,7 @@ function copyTemplate(
             isTanstackRouter: options.routerFramework === 'tanstack',
             enableBff: options.bffRuntime !== 'none',
             useEffectBff: options.bffRuntime === 'effect',
+            useHonoBff: options.bffRuntime === 'hono',
             bffRuntime: options.bffRuntime,
             enableTailwind: options.enableTailwind,
             routerImportPath:

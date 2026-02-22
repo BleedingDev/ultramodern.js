@@ -580,6 +580,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 1
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -650,6 +653,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 1
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -719,6 +725,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 2
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -807,6 +816,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 2
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -900,6 +912,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 3
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -980,6 +995,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 3
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -1072,6 +1090,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -1152,6 +1173,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -1234,6 +1258,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },
@@ -1427,6 +1454,9 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                     "postcssPlugin": "postcss-media-minmax",
                   },
                   {
+                    "AtRule": {
+                      "nest": [Function],
+                    },
                     "Rule": [Function],
                     "postcssPlugin": "postcss-nesting",
                   },

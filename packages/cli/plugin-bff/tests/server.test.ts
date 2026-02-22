@@ -18,13 +18,21 @@ const pwd = path.resolve(__dirname, './fixtures/function');
 export async function serverInit({
   plugins,
   serverConfig,
+  appContext,
 }: {
   plugins?: ServerPlugin[];
   serverConfig?: ServerConfig;
+  appContext?: Record<string, unknown>;
 }) {
   const { serverContext } = await server.run({
     plugins: [compatPlugin(), ...(plugins || [])] as BasePlugin[],
-    options: { appContext: {}, pwd: process.cwd() },
+    options: {
+      appContext: {
+        bffRuntimeFramework: 'hono',
+        ...(appContext || {}),
+      },
+      pwd: process.cwd(),
+    },
     config: assign(
       {},
       {
@@ -95,6 +103,30 @@ describe('bff server plugin', () => {
 
       await hooks.prepareApiServer.call({ pwd, prefix: '/api' });
       expect(apiHandlerInfos).toMatchSnapshot();
+    });
+
+    it('should skip api/lambda handler exposure in effect mode', async () => {
+      let apiHandlerInfos = null;
+      const mockApiPlugin: ServerPlugin = {
+        name: 'mock-api',
+        setup(api) {
+          api.prepareApiServer(((input: any, next: any) => {
+            const appContext = api.getServerContext();
+            apiHandlerInfos = appContext.apiHandlerInfos;
+            return next(input);
+          }) as any);
+        },
+      };
+
+      const hooks = await serverInit({
+        plugins: [plugin(), mockApiPlugin],
+        appContext: {
+          bffRuntimeFramework: 'effect',
+        },
+      });
+
+      await hooks.prepareApiServer.call({ pwd, prefix: '/' });
+      expect(apiHandlerInfos).toBeUndefined();
     });
   });
 });

@@ -1,7 +1,7 @@
 import type { ServerConfig } from '@modern-js/server-core';
 
 export {
-  useBackendContext,
+  useHonoContext,
   type ServerPlugin,
   type MiddlewareObj,
   type Context,

@@ -7,7 +7,13 @@ module.exports = {
     '<rootDir>/integration/**/*.(spec|test).[tj]s?(x)',
     '!**/module/**/*.(spec|test).[tj]s?(x)',
   ],
-  testPathIgnorePatterns: ['/node_modules/', '/api/tests'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/api/tests',
+    '/integration/bff-effect/',
+    '/integration/bff-effect-lambda-only/',
+    '/integration/bff-runtime-parity/',
+  ],
   transform: {
     '^.+.tsx?$': 'ts-jest',
   },

@@ -67,17 +67,21 @@ test('source-map', async () => {
     source: o.source!.split('webpack-builder-source-map/')[1] || o.source,
   }));
 
-  expect(originalPositions[0]).toEqual({
-    source: '../../../src/App.jsx',
+  expect(originalPositions[0]).toMatchObject({
     line: 2,
     column: 24,
     name: null,
   });
+  expect(String(originalPositions[0].source)).toMatch(
+    /(?:\.\.\/){3}src\/App\.jsx$|\/cases\/source-map\/src\/App\.jsx$/,
+  );
 
-  expect(originalPositions[1]).toEqual({
-    source: '../../../src/index.js',
+  expect(originalPositions[1]).toMatchObject({
     line: 5,
     column: 0,
     name: 'window',
   });
+  expect(String(originalPositions[1].source)).toMatch(
+    /(?:\.\.\/){3}src\/index\.js$|\/cases\/source-map\/src\/index\.js$/,
+  );
 });

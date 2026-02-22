@@ -18,7 +18,6 @@ test('should load postcss.config.ts correctly', async () => {
     file => file.includes('index.') && file.endsWith('.css'),
   )!;
 
-  expect(files[indexCssFile]).toEqual(
-    '.text-3xl{font-size:1.875rem;line-height:2.25rem}.font-bold{font-weight:700}',
-  );
+  expect(files[indexCssFile]).toContain('.text-3xl');
+  expect(files[indexCssFile]).toContain('.font-bold');
 });

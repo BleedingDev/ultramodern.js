@@ -1,12 +1,11 @@
 import effectBff from '@api/effect/index';
-import legacy from '@api/lambda/legacy';
 import {
   makeEffectRpcClient,
   runEffectRequest,
   runEffectView,
   view,
 } from '@modern-js/plugin-bff/effect-client';
-import { bffRpcGroup } from '@shared/effect-rpc';
+import { bffRpcGroup } from '../../shared/effect-rpc.js';
 import { useEffect, useState } from 'react';
 
 const userCardView = view<{
@@ -17,7 +16,6 @@ const userCardView = view<{
 });
 
 export default function Page() {
-  const [legacyMessage, setLegacyMessage] = useState('pending');
   const [effectMessage, setEffectMessage] = useState('pending');
   const [userMessage, setUserMessage] = useState('pending');
   const [projectionMessage, setProjectionMessage] = useState('pending');
@@ -25,10 +23,6 @@ export default function Page() {
   const [rpcMessage, setRpcMessage] = useState('pending');
 
   useEffect(() => {
-    legacy().then(data => {
-      setLegacyMessage(data.message);
-    });
-
     effectBff.client.greetings.hello({}).then(data => {
       setEffectMessage(data.message);
     });
@@ -77,7 +71,6 @@ export default function Page() {
 
   return (
     <div>
-      <div className="legacy-message">{legacyMessage}</div>
       <div className="effect-message">{effectMessage}</div>
       <div className="user-message">{userMessage}</div>
       <div className="projection-message">{projectionMessage}</div>

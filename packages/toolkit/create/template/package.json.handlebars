@@ -5,7 +5,8 @@
     "reset": "npx rimraf node_modules ./**/node_modules",
     "dev": "modern dev",
     "build": "modern build",
-    "serve": "modern serve"{{#unless isSubproject}},
+    "serve": "modern serve",
+    "baseline:check": "node ./scripts/validate-baseline.mjs"{{#unless isSubproject}},
     "lint": "biome check",
     "prepare": "simple-git-hooks"{{/unless}}
   },

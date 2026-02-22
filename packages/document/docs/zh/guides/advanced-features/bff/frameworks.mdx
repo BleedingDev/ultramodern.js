@@ -7,10 +7,10 @@ title: 运行时框架
 
 Modern.js 目前支持两种 BFF 运行时框架：
 
-- `hono`（默认）：使用文件约定 BFF 函数以及 Hono 生态中间件。
-- `effect`：使用 [Effect HttpApi](https://effect.website/) 作为主要 BFF 运行时。
+- `effect`（默认）：使用 `api/effect/index` 的 [Effect HttpApi](https://effect.website/) 运行时。
+- `hono`：使用 `api/lambda/**` 的文件约定 BFF 处理函数。
 
-启用 `effect` 模式后，`api/lambda/**` 下的文件约定 BFF API 仍可继续使用，便于兼容迁移。
+`effect` 与 `hono` 为严格模式，两者之间不会自动回退。
 
 ## 切换到 Effect 运行时
 

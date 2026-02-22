@@ -83,6 +83,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -163,6 +166,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -482,6 +488,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -580,6 +589,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -678,6 +690,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -768,6 +783,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2117,6 +2135,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2197,6 +2218,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2515,6 +2539,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2613,6 +2640,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2711,6 +2741,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },
@@ -2801,6 +2834,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                         "postcssPlugin": "postcss-media-minmax",
                       },
                       {
+                        "AtRule": {
+                          "nest": [Function],
+                        },
                         "Rule": [Function],
                         "postcssPlugin": "postcss-nesting",
                       },

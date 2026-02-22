@@ -1,4 +1,4 @@
-import minimatch from 'minimatch';
+import * as minimatch from 'minimatch';
 
 export const defaultIgnores = [
   '**/coverage/**',

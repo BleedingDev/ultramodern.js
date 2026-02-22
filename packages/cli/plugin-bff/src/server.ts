@@ -36,10 +36,20 @@ const RUNTIME_ADAPTER_FACTORIES: Record<
   effect: [api => new EffectAdapter(api)],
 };
 
+const normalizePrefixList = (prefix: string | string[] | undefined) => {
+  if (Array.isArray(prefix)) {
+    return prefix.filter(Boolean);
+  }
+  return [prefix || '/api'];
+};
+
+const getPrimaryPrefix = (prefix: string | string[] | undefined) =>
+  normalizePrefixList(prefix)[0] || '/api';
+
 function resolveRuntimeFramework(
   runtimeFramework: BffUserConfig['runtimeFramework'],
 ): RuntimeFramework {
-  return runtimeFramework === 'effect' ? 'effect' : 'hono';
+  return runtimeFramework === 'hono' ? 'hono' : 'effect';
 }
 
 type PrepareApiServerNext = (
@@ -62,7 +72,7 @@ export default (): ServerPlugin => ({
   name: '@modern-js/plugin-bff',
   setup: api => {
     const storage = new Storage();
-    let apiRouter: ApiRouter;
+    let apiRouter: ApiRouter | null = null;
 
     const appContext = api.getServerContext();
     const runtimeFramework = resolveRuntimeFramework(
@@ -84,7 +94,8 @@ export default (): ServerPlugin => ({
 
       /** bind api server */
       const config = api.getServerConfig();
-      const prefix = config?.bff?.prefix || '/api';
+      const prefixList = normalizePrefixList(config?.bff?.prefix);
+      const prefix = getPrimaryPrefix(config?.bff?.prefix);
       const enableHandleWeb = config?.bff?.enableHandleWeb;
       const httpMethodDecider = config?.bff?.httpMethodDecider;
 
@@ -93,36 +104,41 @@ export default (): ServerPlugin => ({
 
       const webOnly = await isWebOnly();
 
-      let handler: ServerNodeMiddleware;
+      if (runtimeFramework === 'hono') {
+        let handler: ServerNodeMiddleware;
 
-      if (webOnly) {
-        handler = async (c, next) => {
-          c.body('');
-          await next();
-        };
-      } else {
-        const runner = api.getHooks();
-        const renderHandler = enableHandleWeb ? render : null;
-        handler = await runner.prepareApiServer.call({
-          pwd: pwd!,
-          prefix,
-          render: renderHandler,
-          httpMethodDecider,
-        });
-      }
+        if (webOnly) {
+          handler = async (c, next) => {
+            c.body('');
+            await next();
+          };
+        } else {
+          const runner = api.getHooks();
+          const renderHandler = enableHandleWeb ? render : null;
+          handler = await runner.prepareApiServer.call({
+            pwd: pwd!,
+            prefix,
+            render: renderHandler,
+            httpMethodDecider,
+          });
+        }
 
-      if (handler && isFunction(handler)) {
-        globalMiddlewares.push({
-          name: 'bind-bff',
-          handler: ((c, next) => {
-            if (!c.req.path.startsWith(prefix) && !enableHandleWeb) {
-              return next();
-            }
-            return handler(c, next);
-          }) as MiddlewareHandler,
-          order: 'post',
-          before: ['custom-server-hook', 'custom-server-middleware', 'render'],
-        });
+        if (handler && isFunction(handler)) {
+          globalMiddlewares.push({
+            name: 'bind-bff',
+            handler: ((c, next) => {
+              if (
+                !prefixList.some(item => c.req.path.startsWith(item)) &&
+                !enableHandleWeb
+              ) {
+                return next();
+              }
+              return handler(c, next);
+            }) as MiddlewareHandler,
+            order: 'post',
+            before: ['custom-server-hook', 'custom-server-middleware', 'render'],
+          });
+        }
       }
 
       await Promise.all(
@@ -144,12 +160,14 @@ export default (): ServerPlugin => ({
       });
 
       if (event.type === 'file-change') {
-        const apiHandlerInfos = await apiRouter.getApiHandlers();
-        const appContext = api.getServerContext();
-        api.updateServerContext({
-          ...appContext,
-          apiHandlerInfos,
-        });
+        if (runtimeFramework === 'hono' && apiRouter) {
+          const apiHandlerInfos = await apiRouter.getApiHandlers();
+          const appContext = api.getServerContext();
+          api.updateServerContext({
+            ...appContext,
+            apiHandlerInfos,
+          });
+        }
 
         await Promise.all(
           runtimeAdapters.map(adapter => adapter.onApiHandlersUpdated?.()),
@@ -157,6 +175,9 @@ export default (): ServerPlugin => ({
       }
     });
     const prepareApiServer: PrepareApiServerTap = async (input, next) => {
+      if (runtimeFramework !== 'hono') {
+        return next(input);
+      }
       const { pwd, prefix, httpMethodDecider } = input;
       const defaultApiDirectory = path.resolve(pwd, API_DIR);
       const appContext = api.getServerContext();

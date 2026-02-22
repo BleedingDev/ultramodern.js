@@ -20,6 +20,15 @@ const apiAppDir = path.resolve(__dirname, '../bff-api-app');
 const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
 const typecheckedAppDirs = new Set<string>();
+const generatedProducerSdkDirs = new Set<string>();
+
+async function ensureProducerSdkGenerated(projectDir: string) {
+  if (generatedProducerSdkDirs.has(projectDir)) {
+    return;
+  }
+  await modernBuild(projectDir, [], {});
+  generatedProducerSdkDirs.add(projectDir);
+}
 
 function expectTypecheckPasses(projectDir: string) {
   if (typecheckedAppDirs.has(projectDir)) {
@@ -131,6 +140,7 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 2);
+      await ensureProducerSdkGenerated(apiAppDir);
       expectTypecheckPasses(apiAppDir);
       expectTypecheckPasses(appDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
@@ -238,6 +248,7 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
+      await ensureProducerSdkGenerated(apiAppDir);
       expectTypecheckPasses(apiAppDir);
       expectTypecheckPasses(appDir);
       await modernBuild(apiAppDir, [], {});
@@ -352,6 +363,7 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       jest.setTimeout(1000 * 60 * 2);
+      await ensureProducerSdkGenerated(apiAppDir);
       expectTypecheckPasses(apiAppDir);
       expectTypecheckPasses(indepAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
@@ -437,6 +449,7 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
+      await ensureProducerSdkGenerated(apiAppDir);
       expectTypecheckPasses(apiAppDir);
       expectTypecheckPasses(indepAppDir);
       await modernBuild(apiAppDir, [], {});

@@ -12,6 +12,11 @@ type EffectGreetingResponse = {
   runtime: string;
   message: string;
 };
+type EffectGreetingClient = {
+  greetings: {
+    hello: (request: Record<string, unknown>) => Promise<unknown>;
+  };
+};
 
 function toEffectGreetingResponse(value: unknown): EffectGreetingResponse {
   if (typeof value !== 'object' || value === null) {
@@ -34,7 +39,8 @@ const App = () => {
   const [message, setMessage] = useState('loading');
 
   useEffect(() => {
-    effectBff.client.greetings
+    const effectGreetingClient = effectBff.client as EffectGreetingClient;
+    effectGreetingClient.greetings
       .hello({})
       .then(toEffectGreetingResponse)
       .then((data: EffectGreetingResponse) => {

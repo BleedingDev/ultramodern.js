@@ -1,14 +1,15 @@
-import lambdaHello from '@api/lambda';
 import { useEffect, useState } from 'react';
 
 export default function Page() {
   const [message, setMessage] = useState('pending');
 
   useEffect(() => {
-    lambdaHello().then(data => {
-      setMessage(data.message);
-    });
+    fetch('/bff-api/effect/hello')
+      .then(res => res.json())
+      .then(data => {
+        setMessage(data.message);
+      });
   }, []);
 
-  return <div className="lambda-message">{message}</div>;
+  return <div className="effect-message">{message}</div>;
 }

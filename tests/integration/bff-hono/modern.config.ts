@@ -9,6 +9,7 @@ export default applyBaseConfig({
   },
   bff: {
     prefix: '/bff-api',
+    runtimeFramework: 'hono',
   },
   plugins: [bffPlugin()],
   security: {

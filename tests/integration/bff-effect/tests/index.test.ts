@@ -1,10 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
-import {
-  makeEffectRpcClient,
-  runEffectRequest,
-} from '@modern-js/plugin-bff/effect-client';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   getPort,
@@ -14,7 +10,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
-import { bffRpcGroup } from '../shared/effect-rpc';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -29,14 +25,6 @@ function expectTypecheckPasses() {
   execFileSync('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'], {
     cwd: appDir,
     stdio: 'pipe',
-  });
-}
-
-async function expectLegacyLambdaRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/legacy`);
-  expect(response.status).toBe(200);
-  await expect(response.json()).resolves.toEqual({
-    message: 'Hello from lambda in effect mode',
   });
 }
 
@@ -77,23 +65,40 @@ async function expectEffectPayloadRoute(port: number) {
 }
 
 async function expectEffectRpcRoute(port: number) {
-  const client = await runEffectRequest(
-    makeEffectRpcClient(bffRpcGroup, {
-      url: `${host}:${port}/bff-api/rpc`,
-    }),
-  );
-  try {
-    const response = await runEffectRequest(
-      client.ping({
-        name: 'modern',
-      }),
-    );
-    expect(response).toEqual({
-      message: 'Hello from Effect RPC, modern',
-    });
-  } finally {
-    await client.dispose();
-  }
+  const requestBody = {
+    jsonrpc: '2.0',
+    method: 'ping',
+    params: {
+      name: 'modern',
+    },
+    id: 0,
+    headers: [] as string[],
+  };
+
+  const response = await fetch(`${host}:${port}/bff-api/rpc/`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  expect(response.status).toBe(200);
+  const payload = (await response.json()) as
+    | {
+        result?: {
+          message?: string;
+        };
+      }
+    | Array<{
+        result?: {
+          message?: string;
+        };
+      }>;
+  const firstResult = Array.isArray(payload) ? payload[0] : payload;
+  expect(firstResult.result).toEqual({
+    message: 'Hello from Effect RPC, modern',
+  });
 }
 
 async function expectOpenApiRoute(port: number) {
@@ -107,20 +112,22 @@ async function expectOpenApiRoute(port: number) {
   expect(json.paths['/effect/managed']).toBeDefined();
 }
 
-async function expectManagedLambdaErrorRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/error/managed`);
-  expect(response.status).toBe(501);
-  await expect(response.json()).resolves.toEqual({
-    error: 'customize response in effect serverConfig',
-  });
-}
-
 async function expectManagedEffectErrorRoute(port: number) {
   const response = await fetch(`${host}:${port}/bff-api/effect/managed`);
   expect(response.status).toBe(501);
   await expect(response.json()).resolves.toEqual({
     error: 'customize response in effect serverConfig',
   });
+}
+
+async function expectLegacyLambdaRoutesBlocked(port: number) {
+  const legacyResponse = await fetch(`${host}:${port}/bff-api/legacy`);
+  expect(legacyResponse.status).toBe(404);
+  const legacyBody = await legacyResponse.text();
+  expect(legacyBody).not.toContain('Hello from lambda in effect mode');
+
+  const managedResponse = await fetch(`${host}:${port}/bff-api/error/managed`);
+  expect(managedResponse.status).toBe(404);
 }
 
 function expectDurationHeader(
@@ -171,16 +178,11 @@ async function expectClientSdkInBrowser(page: Page, port: number) {
     timeout: 50000,
   });
   await page.waitForFunction(() => {
-    const el = document.querySelector('.legacy-message');
     const effectEl = document.querySelector('.effect-message');
     const userEl = document.querySelector('.user-message');
     const projectionEl = document.querySelector('.projection-message');
     const echoEl = document.querySelector('.echo-message');
     return (
-      el &&
-      el.textContent !== null &&
-      el.textContent !== 'pending' &&
-      el.textContent.trim() !== '' &&
       effectEl &&
       effectEl.textContent !== null &&
       effectEl.textContent !== 'pending' &&
@@ -199,20 +201,13 @@ async function expectClientSdkInBrowser(page: Page, port: number) {
       echoEl.textContent.trim() !== ''
     );
   });
-  const [
-    legacyMessage,
-    effectMessage,
-    userMessage,
-    projectionMessage,
-    echoMessage,
-  ] = await Promise.all([
-    page.$eval('.legacy-message', el => el?.textContent),
-    page.$eval('.effect-message', el => el?.textContent),
-    page.$eval('.user-message', el => el?.textContent),
-    page.$eval('.projection-message', el => el?.textContent),
-    page.$eval('.echo-message', el => el?.textContent),
-  ]);
-  expect(legacyMessage).toBe('Hello from lambda in effect mode');
+  const [effectMessage, userMessage, projectionMessage, echoMessage] =
+    await Promise.all([
+      page.$eval('.effect-message', el => el?.textContent),
+      page.$eval('.user-message', el => el?.textContent),
+      page.$eval('.projection-message', el => el?.textContent),
+      page.$eval('.echo-message', el => el?.textContent),
+    ]);
   expect(effectMessage).toBe('Hello from Effect HttpApi');
   expect(userMessage).toBe('42:browser');
   expect(projectionMessage).toBe('42');
@@ -296,16 +291,12 @@ describe('bff effect tests', () => {
     let port = 8080;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
+      setSuiteTimeout(1000 * 60 * 2);
       expectTypecheckPasses();
       port = await getPort();
       app = await launchApp(appDir, port, {});
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();
-    });
-
-    test('legacy lambda route still works', async () => {
-      await expectLegacyLambdaRoute(port);
     });
 
     test('effect http api route works', async () => {
@@ -328,12 +319,12 @@ describe('bff effect tests', () => {
       await expectOpenApiRoute(port);
     });
 
-    test('managed lambda error uses serverConfig.onError', async () => {
-      await expectManagedLambdaErrorRoute(port);
-    });
-
     test('managed effect error uses serverConfig.onError', async () => {
       await expectManagedEffectErrorRoute(port);
+    });
+
+    test('effect runtime does not serve api/lambda handlers', async () => {
+      await expectLegacyLambdaRoutesBlocked(port);
     });
 
     test('custom server middlewares run for effect runtime', async () => {
@@ -366,16 +357,12 @@ describe('bff effect tests', () => {
     let port = 8080;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
+      setSuiteTimeout(1000 * 60 * 2);
       port = await getPort();
       await modernBuild(appDir, [], {});
       app = await modernServe(appDir, port, {});
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();
-    });
-
-    test('legacy lambda route still works', async () => {
-      await expectLegacyLambdaRoute(port);
     });
 
     test('effect http api route works', async () => {
@@ -398,12 +385,12 @@ describe('bff effect tests', () => {
       await expectOpenApiRoute(port);
     });
 
-    test('managed lambda error uses serverConfig.onError', async () => {
-      await expectManagedLambdaErrorRoute(port);
-    });
-
     test('managed effect error uses serverConfig.onError', async () => {
       await expectManagedEffectErrorRoute(port);
+    });
+
+    test('effect runtime does not serve api/lambda handlers', async () => {
+      await expectLegacyLambdaRoutesBlocked(port);
     });
 
     test('custom server middlewares run for effect runtime', async () => {

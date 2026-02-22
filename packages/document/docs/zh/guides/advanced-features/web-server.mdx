@@ -239,11 +239,11 @@ export default defineServerConfig({
 ```
 
 ```ts title="src/routes/page.data.ts"
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 import { defer } from '@modern-js/runtime/router';
 
 export default () => {
-  const ctx = useBackendContext();
+  const ctx = useHonoContext();
   // SSR 场景消费服务端注入的数据
   const message = ctx.get('message');
 

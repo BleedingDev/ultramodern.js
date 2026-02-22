@@ -90,6 +90,7 @@ export type BaseSSRServerContext<T extends 'node' | 'worker' = 'node'> = {
   loaderContext: Map<string, unknown>;
   logger: Logger;
   serverTiming: ServerTiming;
+  reporter?: Reporter;
   cacheConfig?: any;
 
   enableUnsafeCtx?: boolean;

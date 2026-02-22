@@ -8,6 +8,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -259,7 +260,7 @@ describe.each<Mode>(['dev', 'prod'])('bff runtime parity (%s)', mode => {
   let effectSnapshot: RuntimeParitySnapshot;
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * (mode === 'prod' ? 8 : 4));
+    setSuiteTimeout(1000 * 60 * (mode === 'prod' ? 8 : 4));
     if (!typecheckVerified) {
       expectTypecheckPasses();
       typecheckVerified = true;
@@ -313,7 +314,7 @@ describe.each<Mode>(['dev', 'prod'])('bff runtime parity (%s)', mode => {
     );
   });
 
-  test('parity: useBackendContext response headers', () => {
+  test('parity: useHonoContext response headers', () => {
     expect(honoSnapshot.context.status).toBe(200);
     expect(effectSnapshot.context.status).toBe(200);
     expect(effectSnapshot.context.body).toEqual(honoSnapshot.context.body);

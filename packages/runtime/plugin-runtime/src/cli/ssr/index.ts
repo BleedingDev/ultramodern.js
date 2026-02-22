@@ -158,17 +158,20 @@ const hasServerRenderingConfig = (
   return false;
 };
 
-const isModuleFederationAppSSRAlphaEnabled = (
+const isModuleFederationAppSSREnabledInConfig = (
+  ssr: ServerUserConfig['ssr'],
+): boolean => {
+  if (!ssr || typeof ssr !== 'object') {
+    return false;
+  }
+
+  return ssr.moduleFederationAppSSR === true;
+};
+
+const isModuleFederationAppSSREnabled = (
   userConfig: AppToolsNormalizedConfig,
 ): boolean => {
-  const isEnabled = (ssr: ServerUserConfig['ssr']) =>
-    Boolean(
-      ssr &&
-        typeof ssr === 'object' &&
-        ssr.moduleFederationAppSSRAlpha === true,
-    );
-
-  if (isEnabled(userConfig.server?.ssr)) {
+  if (isModuleFederationAppSSREnabledInConfig(userConfig.server?.ssr)) {
     return true;
   }
 
@@ -176,7 +179,9 @@ const isModuleFederationAppSSRAlphaEnabled = (
     userConfig.server?.ssrByEntries &&
     typeof userConfig.server.ssrByEntries === 'object'
   ) {
-    return Object.values(userConfig.server.ssrByEntries).some(isEnabled);
+    return Object.values(userConfig.server.ssrByEntries).some(
+      isModuleFederationAppSSREnabledInConfig,
+    );
   }
 
   return false;
@@ -250,12 +255,12 @@ const ssrBuilderPlugin = (
       const isServerEnvironment =
         config.output.target === 'node' || name === 'workerSSR';
       const userConfig = modernAPI.getNormalizedConfig();
-      const isModuleFederationAppSSRAlpha =
-        isModuleFederationAppSSRAlphaEnabled(userConfig);
+      const isModuleFederationAppSSR =
+        isModuleFederationAppSSREnabled(userConfig);
       const useModuleFederationNodeOutput =
         hasServerRenderingConfig(userConfig) &&
         (shouldUseModuleFederationNodeOutput(config) ||
-          (isModuleFederationAppSSRAlpha && config.output.target === 'node'));
+          (isModuleFederationAppSSR && config.output.target === 'node'));
 
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =
@@ -297,8 +302,8 @@ const ssrBuilderPlugin = (
               ? JSON.stringify('node')
               : JSON.stringify('browser'),
             'process.env.MODERN_SSR_ENV': JSON.stringify(ssrEnv),
-            'process.env.MODERN_MF_APP_SSR_ALPHA': JSON.stringify(
-              isModuleFederationAppSSRAlpha,
+            'process.env.MODERN_MF_APP_SSR': JSON.stringify(
+              isModuleFederationAppSSR,
             ),
           },
         },

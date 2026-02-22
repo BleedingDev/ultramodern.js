@@ -36,6 +36,7 @@ export type GenClientOptions = {
   requireResolve?: typeof require.resolve;
   httpMethodDecider?: HttpMethodDecider;
   domain?: string;
+  requestId?: string;
 };
 
 export const INNER_CLIENT_REQUEST_CREATOR = '@modern-js/plugin-bff/client';
@@ -53,6 +54,7 @@ export const generateClient = async ({
   requireResolve = require.resolve,
   httpMethodDecider,
   domain,
+  requestId,
 }: GenClientOptions): Promise<GenClientResult> => {
   requestCreator = requestCreator || INNER_CLIENT_REQUEST_CREATOR;
 
@@ -137,7 +139,7 @@ ${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`;
 
   const bootstrapCode = requestId
     ? `export const initProducerClient = (options = {}) => {
-  const configure = requestRuntime.configure || requestRuntime.default?.configure;
+  const configure = requestRuntime.configure;
   if (typeof configure !== 'function') {
     console.warn('[modernjs] Compatibility request creator path does not expose configure(); use default @modern-js/create-request or migrate the compatibility path.');
     return undefined;

@@ -1,30 +1,20 @@
 import path from 'path';
-import { type APIHandlerInfo, ApiRouter } from '@modern-js/bff-core';
 import type {
   Context,
-  MiddlewareHandler,
   Next,
   ServerMiddleware,
   ServerPluginAPI,
 } from '@modern-js/server-core';
-import { Hono, run } from '@modern-js/server-core';
-import {
-  fs,
-  API_DIR,
-  compatibleRequire,
-  findExists,
-  isProd,
-  logger,
-} from '@modern-js/utils';
+import { fs, compatibleRequire, findExists, isProd, logger } from '@modern-js/utils';
 import type * as ServiceMap from 'effect/ServiceMap';
 import { HttpApi } from 'effect/unstable/httpapi';
-import createHonoRoutes from '../../utils/createHonoRoutes';
 import { createHttpApiHandler } from './index';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
   EffectRuntimeLayer,
 } from './index';
+import { runWithEffectContext, type EffectContext } from './context';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 
@@ -44,19 +34,13 @@ interface MiddlewareOptions {
   enableHandleWeb?: boolean;
 }
 
-type EffectRequestContext = {
-  env: Record<string, unknown>;
-  path: string;
-  method: string;
-};
-
 type ContextWithJson = Context & {
   json?: (data: unknown, status?: number, headers?: HeadersInit) => Response;
 };
 
 type RequestHandler = (
   request: Request,
-  context?: ServiceMap.ServiceMap<never> | EffectRequestContext,
+  context?: ServiceMap.ServiceMap<never> | EffectContext,
 ) => Promise<Response> | Response;
 
 type EffectApiModule = {
@@ -153,7 +137,6 @@ export class EffectAdapter {
   api: ServerPluginAPI;
   isEffect = true;
   effectMiddleware: ServerMiddleware | null = null;
-  legacyApiServer: Hono | null = null;
 
   private handler: RequestHandler | null = null;
   private dispose: (() => Promise<void>) | null = null;
@@ -167,13 +150,13 @@ export class EffectAdapter {
     const { bffRuntimeFramework, middlewares: globalMiddlewares } =
       this.api.getServerContext();
 
-    if (bffRuntimeFramework !== 'effect') {
+    // Effect is the default runtime. Only skip when explicitly set to hono.
+    if (bffRuntimeFramework === 'hono') {
       this.isEffect = false;
       return;
     }
 
     await this.reloadHandler();
-    await this.reloadLegacyApiRoutes();
 
     this.effectMiddleware = {
       name: 'effect-bff-handler',
@@ -183,8 +166,16 @@ export class EffectAdapter {
       before,
       handler: async (c: Context, next: Next) => {
         if (!this.handler) {
-          await this.handleLegacyApiRoute(c, next);
-          return;
+          if (enableHandleWeb) {
+            await next();
+            return;
+          }
+          return this.handleRuntimeError(
+            new Error(
+              '[BFF][Effect] Missing Effect entry. Define api/effect/index or configure bff.effect.entry.',
+            ),
+            c,
+          );
         }
 
         let response: Response;
@@ -193,26 +184,32 @@ export class EffectAdapter {
             c.req.raw,
             prefix,
           );
-          const maybeContext = {
+          const effectContext: EffectContext = {
+            request: effectRequest,
             env: c.env as Record<string, unknown>,
             path: c.req.path,
             method: c.req.method,
           };
-          response =
-            this.handler.length > 1
-              ? await this.handler(effectRequest, maybeContext)
-              : await this.handler(effectRequest);
+          response = await runWithEffectContext(effectContext, () =>
+            this.handler!.length > 1
+              ? this.handler!(effectRequest, effectContext)
+              : this.handler!(effectRequest),
+          );
         } catch (error) {
           return this.handleRuntimeError(error, c);
         }
 
         if (!maybeResponse(response)) {
-          await this.handleLegacyApiRoute(c, next);
-          return;
+          return this.handleRuntimeError(
+            new Error(
+              '[BFF][Effect] Effect handler must return a Response instance.',
+            ),
+            c,
+          );
         }
 
-        if (response.status === 404 && !enableHandleWeb) {
-          await this.handleLegacyApiRoute(c, next);
+        if (response.status === 404 && enableHandleWeb) {
+          await next();
           return;
         }
 
@@ -227,100 +224,8 @@ export class EffectAdapter {
     if (!this.isEffect || isProd()) {
       return;
     }
-    await Promise.all([this.reloadHandler(), this.reloadLegacyApiRoutes()]);
+    await this.reloadHandler();
   };
-
-  private async handleLegacyApiRoute(c: Context, next: Next) {
-    if (this.legacyApiServer) {
-      const response = await this.legacyApiServer.fetch(c.req.raw, c.env);
-      if (response.status !== 404) {
-        c.res = response;
-        return;
-      }
-    }
-    await next();
-  }
-
-  private async reloadLegacyApiRoutes() {
-    const apiHandlerInfos = await this.resolveApiHandlerInfos();
-    this.legacyApiServer = new Hono();
-    this.legacyApiServer.use('*', run);
-
-    const honoHandlers = createHonoRoutes(apiHandlerInfos);
-    for (const { path: routePath, method, handler } of honoHandlers) {
-      const handlers = this.wrapInArray(handler);
-      if (handlers.length === 0) {
-        continue;
-      }
-      const firstHandler = handlers[0]!;
-      const restHandlers = handlers.slice(1);
-      type RouteMethod =
-        | 'options'
-        | 'get'
-        | 'post'
-        | 'put'
-        | 'delete'
-        | 'patch'
-        | 'all';
-      type Register = (
-        routePath: string,
-        handler: MiddlewareHandler,
-        ...handlers: MiddlewareHandler[]
-      ) => unknown;
-      const routeMethod = method as RouteMethod;
-      const register = this.legacyApiServer[routeMethod] as unknown as Register;
-      register.call(
-        this.legacyApiServer,
-        routePath,
-        firstHandler,
-        ...restHandlers,
-      );
-    }
-
-    this.legacyApiServer.onError((error, c) => {
-      return this.handleRuntimeError(error, c);
-    });
-  }
-
-  private async resolveApiHandlerInfos(): Promise<APIHandlerInfo[]> {
-    const appContext = this.api.getServerContext();
-    if (
-      Array.isArray(appContext.apiHandlerInfos) &&
-      appContext.apiHandlerInfos.length > 0
-    ) {
-      return appContext.apiHandlerInfos as APIHandlerInfo[];
-    }
-
-    const bffConfig = this.api.getServerConfig()?.bff;
-    const appDir =
-      appContext.distDirectory || appContext.appDirectory || process.cwd();
-    const apiDir =
-      typeof appContext.apiDirectory === 'string'
-        ? appContext.apiDirectory
-        : path.resolve(appDir, API_DIR);
-    const lambdaDir =
-      typeof appContext.lambdaDirectory === 'string'
-        ? appContext.lambdaDirectory
-        : undefined;
-
-    const apiRouter = new ApiRouter({
-      appDir,
-      apiDir,
-      lambdaDir,
-      prefix: bffConfig?.prefix || '/api',
-      httpMethodDecider: bffConfig?.httpMethodDecider,
-    });
-    return (await apiRouter.getApiHandlers()) as APIHandlerInfo[];
-  }
-
-  private wrapInArray(
-    handler: MiddlewareHandler[] | MiddlewareHandler,
-  ): MiddlewareHandler[] {
-    if (Array.isArray(handler)) {
-      return handler;
-    }
-    return [handler];
-  }
 
   private resolveEntryFile() {
     const { appDirectory, apiDirectory } = this.api.getServerContext();
@@ -394,6 +299,12 @@ export class EffectAdapter {
           handler: maybeHandler,
         };
       }
+    }
+
+    if (isRequestHandler(normalizedModule.handler)) {
+      return {
+        handler: normalizedModule.handler,
+      };
     }
 
     if (typeof normalizedModule.createHandler === 'function') {

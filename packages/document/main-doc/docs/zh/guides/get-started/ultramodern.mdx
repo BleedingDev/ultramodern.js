@@ -1,27 +1,30 @@
 ---
-title: UltraModern.js V4
+title: UltraModern.js V3
 sidebar_position: 6
 ---
 
-# UltraModern.js V4 与 Modern.js V4 的完整差异
+# UltraModern.js V3 与 Modern.js V3 的完整差异
 
-UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目标是服务于大型、可独立部署的 Super App / ERP 场景。
+UltraModern.js V3 是构建在 Modern.js V3 之上的兼容增强发行版，目标是服务于大型、可独立部署的 Super App / ERP 场景。
 
-本文是已发布 V4 线的完整公开差异文档。
+本文是已发布 V3 线的完整公开差异文档。
 
-## 范围（仅 V4）
+## 范围（仅 V3）
 
-- 基线版本：Modern.js `release-v4.0.0`。
-- 覆盖范围：UltraModern.js V4 已落地的全部用户可见差异。
-- 不包含：未进入 V4 发布线的主线路线图能力。
+- 基线版本：Modern.js `release-v3.x`。
+- 覆盖范围：UltraModern.js V3 已落地的全部用户可见差异。
+- 不包含：未进入 V3 发布线的主线路线图能力。
 
-## 完整差异矩阵（V4）
+## 完整差异矩阵（V3）
 
-| 领域 | Modern.js V4 基线 | UltraModern.js V4 差异 | V4 状态 | 备注 |
+| 领域 | Modern.js V3 基线 | UltraModern.js V3 差异 | V3 状态 | 备注 |
 | --- | --- | --- | --- | --- |
 | 构建诊断默认行为 | 大多数项目中 RsDoctor 为显式开启 | Rspack 生产构建默认开启 RsDoctor | 已实现 | 可通过 `performance.rsdoctor` 关闭 |
 | 构建诊断配置面 | 框架文档无 `performance.rsdoctor` | 新增 `performance.rsdoctor`（`boolean` 或 `{ enabled, disableClientServer, reportDir, mode }`） | 已实现 | `disableClientServer` 默认 `true` |
 | 诊断产物契约 | 无标准化机器可读诊断入口 | 新增 `.rsdoctor/ultramodern-diagnostics.json`，用于定位 manifest | 已实现 | 便于编码代理稳定消费诊断数据 |
+| 静态资源预压缩默认行为 | 预压缩产物与回源策略通常由业务自定义 | 生产 Web 构建默认开启 `output.precompress`，并在 Node 静态中间件按 `Accept-Encoding` 协商 `.br` / `.gz` | 已实现 | 可按 codec 关闭或细调 |
+| 路由运行时选型 | 默认运行时路径以 React Router 为中心 | 新增 TanStack Router 运行时与 CLI 路由树支持 | 已实现 | React Router 路径仍保留 |
+| 脚手架模板选型 | 默认 create 模板以 React Router 起步路径为中心 | 新增 TanStack-ready 与 Tailwind-ready 的 create 模板 | 已实现 | React Router 起步路径仍保留 |
 | BFF Producer 契约标识 | `bff` 配置不包含 producer 身份 | 新增 `bff.requestId`，并打通到客户端生成链路 | 已实现 | 支持显式 producer 隔离 |
 | BFF 生成客户端签名 | `createRequest(...)` 可选参数到 `fetch` 结束 | 配置 `requestId` 时，生成代码会附加 `requestId` 参数 | 已实现 | 未配置时保持兼容旧路径 |
 | `create-request` 运行时隔离 | 单一可变请求配置 | 以 `requestId` 为维度隔离 request/domain/header 配置 | 已实现 | 支持同一应用多 producer |
@@ -32,18 +35,21 @@ UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目
 | Telemetry 导出器 | 导出链路依赖业务自建 | 内置 OTLP 与 VictoriaMetrics 导出器 | 已实现 | 导出失败不会中断请求链路 |
 | Telemetry 背压契约 | 无统一队列策略 | 内置队列上限、丢弃计数、定时 flush | 已实现 | 背压时上报 `telemetry.queue.dropped` |
 | Metrics 与 Trace 关联 | SSR metrics 不解析 W3C trace 上下文 | 解析 `traceparent` 并注入 `trace_id` / `span_id` 标签 | 已实现 | 提升跨系统观测关联度 |
-| 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR alpha 开关 | 新增 `server.ssr.moduleFederationAppSSRAlpha` + 环境变量注入 | 已实现（alpha 合约） | 注入 `process.env.MODERN_MF_APP_SSR_ALPHA` |
-| 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V4 仅提供合约/环境变量，完整桥接仍在 alpha 推进 | 设计上部分支持 | 需受控灰度 |
+| 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR 稳定性契约开关 | 新增 `server.ssr.moduleFederationAppSSR` 分阶段稳定契约 | 已实现（分阶段稳定契约） | 注入 `process.env.MODERN_MF_APP_SSR` |
+| 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V3 仅提供合约/环境变量，完整桥接仍在分阶段推进 | 设计上部分支持 | 需受控灰度 |
+| MF 远程加载可靠性契约 | 远程加载重试/降级策略通常由业务自管 | 新增 timeout/network/contract-error 的确定性降级矩阵与分布式 OTEL 连续性断言 | 已实现 | 对应 `routes-tanstack-mf` 可靠性套件 |
+| BFF 运行时选型 | Modern.js V3 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-only MF 数据契约与 failure-injection 覆盖 | 已实现（Effect 默认 + 严格拆分） | 该流明确不引入 Zod |
 | 模块 SDK 合约产物 | 无框架级模块契约产物 | 新增机器可读模块家族契约与类型化模块 SDK 接口 | 已实现 | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | 边界反模式 CI 守卫 | 无专门边界反模式工作流 | 新增基于 profile 的边界检查（导入边界/必需钩子/模块禁用模式） | 已实现 | `.github/workflows/boundary-anti-patterns.yml` |
-| 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR alpha 的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
-| 公开文档面 | 无 UltraModern V4 差异总览页 | 新增 V4 专用差异页并补齐关联配置文档 | 已实现 | 本页为 V4 权威基准 |
+| 发布 / 模块认证 Gate 自动化 | 基线无 super-app 证据化 gate profile | 新增 RC + 模块认证 gate profile、证据元数据校验与专用 CI 工作流 | 已实现 | `.github/workflows/release-contract-gates.yml` + 模块/Bun gate 工作流 |
+| 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR 分阶段契约环境变量的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
+| 公开文档面 | 无 UltraModern V3 差异总览页 | 新增 V3 专用差异页并补齐关联配置文档 | 已实现 | 本页为 V3 权威基准 |
 
-## V4 详细差异说明
+## V3 详细差异说明
 
 ### 1) `performance.rsdoctor` 与默认开启诊断
 
-UltraModern.js V4 扩展了性能配置：
+UltraModern.js V3 扩展了性能配置：
 
 - `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean; reportDir?: string; mode?: 'normal' | 'brief' | 'lite' }`
 - Rspack + 生产环境：默认开启。
@@ -68,7 +74,7 @@ export default defineConfig({
 
 ### 2) 通过 `requestId` 强化跨项目 BFF 契约
 
-UltraModern.js V4 在 BFF 工具链中引入显式 producer 身份：
+UltraModern.js V3 在 BFF 工具链中引入显式 producer 身份：
 
 - `bff.requestId` 配置项。
 - Loader/客户端生成链路将 `requestId` 传递给 `createRequest(...)`。
@@ -85,7 +91,7 @@ configure({
 });
 ```
 
-V4 合约行为：
+V3 合约行为：
 
 - 非默认 `requestId` 若未先 `configure({ requestId })`，会抛出 `ProducerClientNotInitializedError`。
 - `allowedHeaders` / `request` / `setDomain` 都按 `requestId` 隔离。
@@ -97,7 +103,7 @@ V4 合约行为：
 
 ### 3) `server.telemetry` 标准化与导出器
 
-UltraModern.js V4 新增统一 telemetry 契约：
+UltraModern.js V3 新增统一 telemetry 契约：
 
 - 在 `server.telemetry` 提供配置面。
 - 内置 registry，支持采样、批处理、脱敏、背压控制。
@@ -133,53 +139,54 @@ export default defineConfig({
 });
 ```
 
-V4 重要行为：
+V3 重要行为：
 
 - 若没有启用任何导出器，telemetry 管线不会初始化。
 - 导出器异常按非致命处理，不会阻断请求主链路。
 
 ### 4) SSR metrics 的 Trace 标签注入
 
-当请求携带 W3C `traceparent` 时，UltraModern.js V4 会在 SSR metrics 标签中注入：
+当请求携带 W3C `traceparent` 时，UltraModern.js V3 会在 SSR metrics 标签中注入：
 
 - `trace_id`
 - `span_id`
 
 用于提升应用指标与分布式追踪系统之间的关联能力。
 
-### 5) 应用级 MF SSR alpha 合约（`server.ssr.moduleFederationAppSSRAlpha`）
+### 5) 应用级 MF SSR 分阶段契约（`server.ssr.moduleFederationAppSSR`）
 
-UltraModern.js V4 新增：
+UltraModern.js V3 新增：
 
-- `server.ssr.moduleFederationAppSSRAlpha`（`server.ssrByEntries` 同样生效）。
-- 编译期全局变量：`process.env.MODERN_MF_APP_SSR_ALPHA`（`'true' | 'false'`）。
+- 首选开关：`server.ssr.moduleFederationAppSSR`（`server.ssrByEntries` 同样生效）。
+- 编译期全局变量：
+  - `process.env.MODERN_MF_APP_SSR`（`'true' | 'false'`）
 
 ```ts title="modern.config.ts"
 export default defineConfig({
   server: {
     ssr: {
-      moduleFederationAppSSRAlpha: true,
+      moduleFederationAppSSR: true,
     },
   },
 });
 ```
 
 :::warning
-在 UltraModern.js V4 中，该开关当前只提供配置/环境变量合约。完整的应用级 Module Federation SSR 运行时桥接仍处于 alpha 推进阶段。
+在 UltraModern.js V3 中，该开关已经提供稳定的配置/环境变量契约。完整的应用级 Module Federation SSR 运行时桥接仍处于分阶段推进中。
 :::
 
-### 6) V4 的合约级测试加固
+### 6) V3 的合约级测试加固
 
-UltraModern.js V4 新增了以下关键测试覆盖：
+UltraModern.js V3 新增了以下关键测试覆盖：
 
 - RsDoctor 默认行为与显式开关。
 - BFF `requestId` 生成与运行时隔离、fail-fast 行为。
 - Telemetry 脱敏、背压与导出器行为。
-- SSR alpha 合约识别与环境变量注入。
+- SSR 分阶段契约识别与环境变量注入。
 
 ### 7) 模块 SDK 合约与边界反模式守卫
 
-UltraModern.js V4 新增用于模块准入与平台边界治理的产物：
+UltraModern.js V3 新增用于模块准入与平台边界治理的产物：
 
 - 模块契约产物：`docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
 - 模块 manifest 示例：`docs/super-app-rfc-adr/contracts/module-manifest.example.json`
@@ -192,16 +199,104 @@ UltraModern.js V4 新增用于模块准入与平台边界治理的产物：
   - `.github/workflows/module-certification-gates.yml`
   - `.github/workflows/bun-superapp-smoke.yml`
 
-## 不属于 UltraModern.js V4 的能力
+### 8) 默认预压缩与预压缩静态资源回源
 
-以下能力刻意不纳入当前发布的 V4 线：
+UltraModern.js V3 调整了生产 Web 产物的默认行为：
+
+- app-tools 默认 `output.precompress: true`。
+- 构建阶段会产出 gzip（`.gz`）与 brotli（`.br`）静态资源。
+- Node 静态中间件按 `Accept-Encoding` 协商并设置：
+  - `Content-Encoding`
+  - `Vary: Accept-Encoding`
+- 支持按项目维度细调 `gzip` / `brotli` 选项。
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  output: {
+    precompress: {
+      gzip: true,
+      brotli: {
+        threshold: 8 * 1024,
+      },
+    },
+  },
+});
+```
+
+### 9) TanStack Router + Tailwind 一等支持
+
+UltraModern.js V3 在运行时与脚手架层面补齐了 TanStack 路径：
+
+- 运行时/CLI 支持 TanStack 路由树生成与 SSR/stream 集成。
+- Create 模板补齐 TanStack 与 Tailwind 初始化能力。
+- 配套集成测试覆盖：
+  - `tests/integration/routes-tanstack`
+  - `tests/integration/routes-tanstack-mf`
+- 既有 React Router 工作流继续保持可用。
+
+### 10) Effect-first MF 数据可靠性与数据平台契约
+
+UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
+
+- `@modern-js/plugin-bff` 运行时路径迁移到 Effect v4。
+- MF 数据拉取契约采用 Effect-only 指导（该流明确不引入 Zod）。
+- 远程加载可靠性矩阵覆盖 timeout/network/contract error 的确定性注入场景。
+- build 与 serve 路径重新启用分布式 trace 连续性断言。
+- 数据平台架构补齐 operation identity、请求/水合 envelope 完整性、scope key 与失效路由契约。
+
+参考资料：
+
+- `docs/super-app-rfc-adr/ADR-0003-effect-only-mf-data-fetch-reliability.md`
+- `packages/cli/plugin-bff/docs/data-platform-architecture.md`
+- `tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts`
+
+### 11) 发布与模块认证 Gate 模型
+
+UltraModern.js V3 在基线 Modern.js V3 之外补齐了可机审的发布 gate：
+
+- Gate profile：
+  - `scripts/release-gates/rc-contract-profile.json`
+  - `scripts/release-gates/module-certification-profile.json`
+- 证据目录契约：
+  - `docs/super-app-rfc-adr/evidence/release-candidate/current`
+  - `docs/super-app-rfc-adr/evidence/module-certification/current`
+- 本地校验命令：
+  - `pnpm run validate:module-sdk-contracts`
+  - `pnpm run validate:boundary-guards`
+  - `pnpm run validate:module-certification-gates`
+  - `pnpm run validate:rc-gates`
+  - `pnpm run validate:bun-smoke`
+- CI 工作流：
+  - `.github/workflows/release-contract-gates.yml`
+  - `.github/workflows/module-certification-gates.yml`
+  - `.github/workflows/bun-superapp-smoke.yml`
+
+## 不属于 UltraModern.js V3 的能力
+
+以下能力刻意不纳入当前发布的 V3 线：
 
 - 作为稳定默认能力的应用级 MF SSR 完整运行时桥接。
-- 以 Effect-only 为内建框架层的数据获取标准化运行时。
+- 将 Effect-only 数据获取运行时强制为所有应用的默认路径。
+
+## 基线开关（可按需关闭）
+
+UltraModern 默认 create 模板会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
+
+- `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
+- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。
+- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS`（默认：`true`）：在基线配置中启用 telemetry 导出器。当前环境还没有 telemetry 后端时可关闭。
+- `MODERN_BASELINE_APP_ID`（默认：`basename(process.cwd())`）：覆盖基线 `bff.requestId` 身份。需要固定、可治理的统一 producer ID 命名时建议设置。
+- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/metrics`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT`（默认：`http://127.0.0.1:8428/api/v1/import/prometheus`）：VictoriaMetrics 导出端点。接入其他 VM 写入地址时覆盖。
+- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP`（默认：`true`）：导出器健康检查失败时启动即失败（fail-loud）。本地/开发环境希望 telemetry 故障不阻断启动时可关闭。
 
 ## 相关公开文档
 
 - [performance.rsdoctor](/configure/app/performance/rsdoctor)
 - [server.ssr](/configure/app/server/ssr)
 - [BFF 指南](/guides/advanced-features/bff/index)
+- [BFF 运行时框架](/guides/advanced-features/bff/frameworks)
+- [BFF Data Platform 架构](/guides/advanced-features/bff/data-platform)
+- [BFF Effect 运行时配置](/configure/app/bff/effect)
 - [微前端指南](/guides/topic-detail/micro-frontend/c01-introduction)
+- [Module Federation SSR](/guides/topic-detail/module-federation/ssr)

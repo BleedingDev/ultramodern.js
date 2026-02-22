@@ -12,6 +12,8 @@ import type {
   OperationContext,
   Sender,
   RequestCreator,
+  RequestCreatorOptions,
+  UploadCreator,
   IOptions,
   ResolveHeaders,
   TransportResilienceOptions,
@@ -313,7 +315,38 @@ export const configure = (options: IOptions<Fetch>) => {
   realRequest.set(requestId, configuredRequest);
 };
 
-export const createRequest: RequestCreator<Fetch> = ({
+const normalizeRequestOptions = (
+  ...args: Parameters<RequestCreator<Fetch>>
+): RequestCreatorOptions<Fetch> => {
+  if (typeof args[0] === 'object' && args[0] !== null) {
+    return args[0];
+  }
+
+  const [
+    path,
+    method,
+    port,
+    httpMethodDecider,
+    fetch,
+    requestId,
+    operationContext,
+  ] = args;
+
+  return {
+    path,
+    method,
+    port,
+    httpMethodDecider,
+    fetch,
+    requestId,
+    operationContext,
+  };
+};
+
+export const createRequest: RequestCreator<Fetch> = ((
+  ...args: Parameters<RequestCreator<Fetch>>
+) => {
+  const {
   path,
   method,
   port,
@@ -321,7 +354,7 @@ export const createRequest: RequestCreator<Fetch> = ({
   fetch = originFetch,
   requestId = 'default',
   operationContext,
-) => {
+  } = normalizeRequestOptions(...args);
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keyNames = extractPathParamNames(path);
 
@@ -330,7 +363,7 @@ export const createRequest: RequestCreator<Fetch> = ({
 
     let webRequestHeaders = {} as Record<string, any>;
     try {
-      webRequestHeaders = useHeaders();
+      webRequestHeaders = storage.useContext().headers || {};
     } catch (error) {
       webRequestHeaders = {};
     }
@@ -593,7 +626,7 @@ export const createRequest: RequestCreator<Fetch> = ({
   };
 
   return sender;
-};
+}) as RequestCreator<Fetch>;
 
 export const createUploader: UploadCreator = ({
   path,

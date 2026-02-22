@@ -1,5 +1,12 @@
 import { upload } from 'bff-api-app/api/upload';
+import { configure } from 'bff-api-app/runtime';
 import React, { useEffect } from 'react';
+
+configure({
+  setDomain() {
+    return window.location.origin;
+  },
+});
 
 const getMockImage = () => {
   const imageData =

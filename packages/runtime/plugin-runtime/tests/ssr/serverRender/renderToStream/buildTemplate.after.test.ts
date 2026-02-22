@@ -1,37 +1,48 @@
-import { RenderLevel } from '../../../../src/ssr/serverRender/types';
-import { buildShellAfterTemplate } from '../../../../src/ssr/serverRender/renderToStream/buildTemplate.after';
+import { RenderLevel } from '../../../../src/core/constants';
+import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
 
-describe('buildShellAfterTemplate', () => {
-  it('should strip denylisted headers from streaming SSR data script', () => {
-    const html = buildShellAfterTemplate('<!--<?- SSRDataScript ?>-->', {
-      context: {
+describe('SSRDataCollector (stream parity)', () => {
+  it('should strip denylisted headers from serialized SSR data script', () => {
+    const chunkSet = {
+      renderLevel: RenderLevel.SERVER_RENDER,
+      ssrScripts: '',
+      jsChunk: '',
+      cssChunk: '',
+    };
+
+    const collector = new SSRDataCollector({
+      runtimeContext: {
         initialData: {},
         __i18nData__: {},
-        ssrContext: {
-          enableUnsafeCtx: true,
-          request: {
-            params: {},
-            query: {},
-            pathname: '/',
-            host: 'localhost',
-            url: 'http://localhost/',
-            headers: {
-              authorization: 'Bearer secret',
-              cookie: 'sid=abc',
-              'x-request-id': 'req-1',
-              'x-internal-secret': 'hidden',
-            },
-          },
-          tracker: { sessionId: 'session-1' },
-          unsafeHeaders: ['x-internal-secret'],
-        },
       } as any,
-      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/'),
+      chunkSet,
+      ssrContext: {
+        request: {
+          params: {},
+          query: {},
+          pathname: '/',
+          host: 'localhost',
+          url: 'http://localhost/',
+          headers: {
+            authorization: 'Bearer secret',
+            cookie: 'sid=abc',
+            'x-request-id': 'req-1',
+            'x-internal-secret': 'hidden',
+          },
+        },
+        reporter: { sessionId: 'session-1' },
+      } as any,
+      ssrConfig: {
+        unsafeHeaders: ['x-request-id'],
+      } as any,
     });
 
-    expect(html).toMatch('"x-request-id":"req-1"');
-    expect(html).not.toMatch('authorization');
-    expect(html).not.toMatch('cookie');
-    expect(html).not.toMatch('x-internal-secret');
+    collector.effect();
+
+    expect(chunkSet.ssrScripts).toMatch('"x-request-id":"req-1"');
+    expect(chunkSet.ssrScripts).not.toMatch('authorization');
+    expect(chunkSet.ssrScripts).not.toMatch('cookie');
+    expect(chunkSet.ssrScripts).not.toMatch('x-internal-secret');
   });
 });

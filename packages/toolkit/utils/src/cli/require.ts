@@ -1,17 +1,18 @@
 import { isAbsolute } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { moduleResolve } from 'import-meta-resolve';
 import { findExists } from './fs';
 
-async function importPath(path: string, options?: any) {
+async function importPath(path: string) {
   const modulePath = isAbsolute(path) ? pathToFileURL(path).href : path;
   if (process.env.NODE_ENV === 'development') {
     const timestamp = Date.now();
     // @ts-ignore
-    return await import(`${modulePath}?t=${timestamp}`, options);
+    return await import(`${modulePath}?t=${timestamp}`);
   } else {
     // @ts-ignore
-    return await import(modulePath, options);
+    return await import(modulePath);
   }
 }
 
@@ -26,10 +27,7 @@ async function compatibleRequireESM(
   interop = true,
 ): Promise<any> {
   if (path.endsWith('.json')) {
-    const res = await importPath(path, {
-      with: { type: 'json' },
-    });
-    return res.default;
+    return JSON.parse(await readFile(path, 'utf8'));
   }
 
   const requiredModule = await importPath(path);

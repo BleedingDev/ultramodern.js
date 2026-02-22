@@ -30,16 +30,22 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 
 | 领域 | Modern.js v3 基线 | UltraModern.js v3 |
 | --- | --- | --- |
-| BFF 运行时与契约 | 提供标准 BFF 运行时与客户端生成能力 | 增加 Effect-first 运行时 / data-platform 路径，并强化跨项目契约 |
-| 跨项目 Producer 启动方式 | 多仓场景下 producer 绑定约束相对宽松 | 增加 `requestId` 维度 bootstrap/runtime 行为与 fail-fast 守卫 |
-| Telemetry 标准化 | 可观测链路通常由业务侧自行拼装 | 增加框架级 telemetry 管线，并内置 OTLP 与 VictoriaMetrics 导出器 |
-| 应用级 MF SSR 协议 | 没有以 super-app 为重点的应用级协议开关 | 增加应用级 MF SSR alpha 合约开关，支持可控灰度 |
-| MF 远程加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加共享的远程加载可靠性契约，降低重复实现成本 |
+| 构建诊断能力 | RsDoctor 多为显式开启 | 新增 `performance.rsdoctor`，并在 Rspack 生产构建默认开启，同时产出 `.rsdoctor/ultramodern-diagnostics.json` 契约文件 |
+| 输出与静态资源回源 | 预压缩策略通常由业务自定义 | 默认开启 `output.precompress`，并按 `Accept-Encoding` 协商 `.br` / `.gz` 回源 |
+| BFF 运行时与契约 | 提供标准 BFF 运行时与客户端生成能力 | 增加 `requestId` 维度隔离、初始化 fail-fast 校验与操作/追踪关联 Header |
+| BFF 运行时选型 | Modern.js v3 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-first 契约与 MF failure-injection 覆盖 |
+| Telemetry 标准化 | 可观测链路通常由业务侧自行拼装 | 增加框架级 telemetry 管线，内置 OTLP/VictoriaMetrics，支持脱敏、批处理与背压 |
+| 应用级 MF SSR 协议 | 没有以 super-app 为重点的应用级稳定性契约开关 | 增加 `server.ssr.moduleFederationAppSSR` 配置/环境变量握手，并补齐集成级回归保障 |
+| MF 远程加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加 timeout/network/contract-error 的确定性可靠性矩阵与分布式 OTEL 连续性断言 |
+| 模块准入治理 | 基线无模块认证证据化 gate profile | 新增模块 SDK 契约、边界反模式守卫与发布/模块认证 gate 工作流 |
+| 路由运行时 | 默认运行时路径以 React Router 为中心 | 增加 TanStack Router 运行时/CLI 一等支持（React Router 继续可用） |
+| 脚手架模板 | 默认 create 模板以 React Router 起步路径为中心 | 增加 TanStack-ready 与 Tailwind-ready 的 create 模板 |
 
 ## 我们刻意不做的事情
 
 - 不将核心架构分叉成另一套不兼容框架模型。
 - 不强制替换普通 Modern.js 团队已稳定使用的默认行为。
+- 运行时保持 `effect` 与 `hono` 双模式并存，但不提供隐式回退。
 - 除非稳定性硬需求，否则避免引入破坏性 API 变更。
 
 ## 迁移建议
@@ -47,8 +53,20 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 如果你已经在使用 Modern.js v3：
 
 1. 保持现有应用结构不变。
-2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR alpha 合约）。
+2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR 分阶段契约）。
 3. 持续跟进上游 Modern.js 更新，UltraModern 即按该模式设计。
+
+## 基线开关（可按需关闭）
+
+UltraModern 默认脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
+
+- `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
+- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。
+- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS`（默认：`true`）：在基线配置中启用 telemetry 导出器。当前环境还没有 telemetry 后端时可关闭。
+- `MODERN_BASELINE_APP_ID`（默认：`basename(process.cwd())`）：覆盖基线 `bff.requestId` 身份。需要固定、可治理的统一 producer ID 命名时建议设置。
+- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/metrics`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT`（默认：`http://127.0.0.1:8428/api/v1/import/prometheus`）：VictoriaMetrics 导出端点。接入其他 VM 写入地址时覆盖。
+- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP`（默认：`true`）：导出器健康检查失败时启动即失败（fail-loud）。本地/开发环境希望 telemetry 故障不阻断启动时可关闭。
 
 ## 相关文档
 
@@ -57,3 +75,4 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 - [BFF Effect 运行时配置](/configure/app/bff/effect)
 - [Module Federation SSR](/guides/topic-detail/module-federation/ssr)
 - [performance.rsdoctor](/configure/app/performance/rsdoctor)
+- [server.ssr](/configure/app/server/ssr)

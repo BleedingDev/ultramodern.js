@@ -6,7 +6,6 @@ import {
   createRequest,
   CrossOriginEnvelopePolicyError,
   IdentityBindingViolationError,
-  ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
 } from '../src/node';
 
@@ -20,6 +19,18 @@ describe('configure', () => {
       message: 'hello Modernjs',
     },
   };
+
+  const run = (
+    headers: Record<string, string>,
+    callback: () => Promise<void> | void,
+  ) =>
+    storage.run(
+      {
+        headers,
+        monitors: {} as any,
+      },
+      callback,
+    );
 
   // beforeEach(() => {
   //   nock.disableNetConnect();
@@ -264,7 +275,7 @@ describe('configure', () => {
   });
 
   test('should throw for non-default requestId when producer client is not initialized', async () => {
-    const request = createRequest(
+    const request = createRequest({
       path,
       method,
       port: 8080,
@@ -291,8 +302,8 @@ describe('configure', () => {
     nock(urlA).get(path).reply(200, response);
     nock(urlB).get(path).reply(200, response);
 
-    const customRequestA = jest.fn((requestPath: any) => fetch(requestPath));
-    const customRequestB = jest.fn((requestPath: any) => fetch(requestPath));
+    const customRequestA = rs.fn((requestPath: any) => fetch(requestPath));
+    const customRequestB = rs.fn((requestPath: any) => fetch(requestPath));
 
     configure({
       request: customRequestA as unknown as typeof fetch,
@@ -305,19 +316,34 @@ describe('configure', () => {
       setDomain: () => urlB,
     });
 
-    expect(() =>
-      uploader({
-        files: { file: 'demo' },
-      }),
-    ).toThrow(ProducerClientNotInitializedError);
+    const requestA = createRequest({
+      path,
+      method,
+      port: 8080,
+      requestId: producerA,
+    });
+    const requestB = createRequest({
+      path,
+      method,
+      port: 8080,
+      requestId: producerB,
+    });
+
+    const resA = await requestA();
+    const resB = await requestB();
+
+    expect(customRequestA).toHaveBeenCalledTimes(1);
+    expect(customRequestB).toHaveBeenCalledTimes(1);
+    expect(resA instanceof Response).toBe(true);
+    expect(resB instanceof Response).toBe(true);
   });
 
-  test('should propagate allowed headers for non-default requestId', done => {
+  test('should propagate allowed headers for non-default requestId', async () => {
     const producer = 'producer-non-default';
     const authKey = 'token-abc';
     const producerUrl = 'http://127.0.0.1:9083';
 
-    run(
+    await run(
       {
         authorization: authKey,
       },
@@ -347,18 +373,17 @@ describe('configure', () => {
         const data = await request();
 
         expect(data).toStrictEqual(response);
-        done();
       },
     );
   });
 
-  test('should support secure resolveHeaders callback for non-default requestId', done => {
+  test('should support secure resolveHeaders callback for non-default requestId', async () => {
     const producer = 'producer-with-resolver';
     const authKey = 'token-def';
     const tenant = 'tenant-a';
     const producerUrl = 'http://127.0.0.1:9084';
 
-    run(
+    await run(
       {
         authorization: authKey,
         'x-tenant-id': tenant,
@@ -395,7 +420,6 @@ describe('configure', () => {
         const data = await request();
 
         expect(data).toStrictEqual(response);
-        done();
       },
     );
   });
@@ -435,11 +459,13 @@ describe('configure', () => {
     });
   });
 
-  test('should enforce server-derived tenant and subject context over client overrides', done => {
+  test(
+    'should enforce server-derived tenant and subject context over client overrides',
+    async () => {
     const producer = 'producer-identity-derived';
     const producerUrl = 'http://127.0.0.1:9086';
 
-    run(
+      await run(
       {
         'x-tenant-id': 'tenant-server',
         'x-subject-id': 'subject-server',
@@ -475,11 +501,11 @@ describe('configure', () => {
           },
         });
 
-        expect(data).toStrictEqual(response);
-        done();
+          expect(data).toStrictEqual(response);
       },
     );
-  });
+    },
+  );
 
   test('should reject client identity override in strict identity binding mode', () => {
     const producer = 'producer-identity-strict';
@@ -510,12 +536,14 @@ describe('configure', () => {
     ).toThrow(IdentityBindingViolationError);
   });
 
-  test('should require envelope and block cross-origin producer calls in production by default', done => {
+  test(
+    'should require envelope and block cross-origin producer calls in production by default',
+    async () => {
     const producer = 'producer-envelope-default';
     const previousEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-    run(
+      await run(
       {
         origin: 'https://consumer.internal',
       },
@@ -539,25 +567,27 @@ describe('configure', () => {
         } finally {
           process.env.NODE_ENV = previousEnv;
         }
-        done();
       },
     );
-  });
+    },
+  );
 
-  test('should allow explicit cross-origin envelope policy and attach envelope header', done => {
+  test(
+    'should allow explicit cross-origin envelope policy and attach envelope header',
+    async () => {
     const producer = 'producer-envelope-policy';
     const producerUrl = 'https://producer.internal';
     const previousEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-    run(
+      await run(
       {
         origin: 'https://consumer.internal',
       },
       async () => {
         try {
           nock(producerUrl).get(path).reply(200, response);
-          const customRequest = jest.fn((requestPath: any, init: any) =>
+          const customRequest = rs.fn((requestPath: any, init: any) =>
             fetch(requestPath, init),
           );
 
@@ -586,7 +616,7 @@ describe('configure', () => {
           const res = await request();
           const data = await res.json();
 
-          const headers = customRequest.mock.calls[0][1].headers;
+          const headers = customRequest.mock.calls[0]?.[1]?.headers;
           const envelope = JSON.parse(headers['x-modernjs-bff-envelope']);
           expect(envelope.requestId).toBe(producer);
           expect(envelope.target).toBe('server');
@@ -594,20 +624,20 @@ describe('configure', () => {
         } finally {
           process.env.NODE_ENV = previousEnv;
         }
-        done();
       },
     );
-  });
+    },
+  );
 
-  test('should attach operation context headers for non-default producer client', done => {
+  test('should attach operation context headers for non-default producer client', async () => {
     const producer = 'crm.producer-a';
     const producerUrl = 'http://127.0.0.1:18080';
     const traceparent =
       '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 
-    run({ traceparent }, async () => {
+    await run({ traceparent }, async () => {
       nock(producerUrl).get(path).reply(200, response);
-      const customRequest = jest.fn((requestPath: any, init: any) =>
+      const customRequest = rs.fn((requestPath: any, init: any) =>
         fetch(requestPath, init),
       );
 
@@ -627,7 +657,7 @@ describe('configure', () => {
       );
       await request();
 
-      const headers = customRequest.mock.calls[0][1].headers;
+      const headers = customRequest.mock.calls[0]?.[1]?.headers;
       expect(headers['x-operation-id']).toBe(`${producer}:GET:${path}`);
       expect(headers.traceparent).toBe(traceparent);
       const operationContext = JSON.parse(
@@ -640,16 +670,15 @@ describe('configure', () => {
         '4bf92f3577b34da6a3ce929d0e0e4736',
       );
       expect(operationContext.spanId).toBe('00f067aa0ba902b7');
-      done();
     });
   });
 
   test('should retry with backoff and emit degraded telemetry events', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
     let attempts = 0;
 
-    const customRequest = jest.fn(async () => {
+    const customRequest = rs.fn(async () => {
       attempts += 1;
       if (attempts < 3) {
         const error: any = new Error('temporary upstream error');
@@ -677,9 +706,9 @@ describe('configure', () => {
       const pending = request();
 
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(20);
+      await rs.advanceTimersByTimeAsync(20);
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(20);
+      await rs.advanceTimersByTimeAsync(20);
       await Promise.resolve();
 
       await expect(pending).resolves.toStrictEqual(response);
@@ -701,14 +730,14 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 
   test('should emit retry_exhausted when retry budget is consumed', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
-    const customRequest = jest.fn(async () => {
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
+    const customRequest = rs.fn(async () => {
       const error: any = new Error('upstream unavailable');
       error.status = 503;
       throw error;
@@ -733,7 +762,7 @@ describe('configure', () => {
       const failure = expect(pending).rejects.toThrow('upstream unavailable');
 
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(10);
+      await rs.advanceTimersByTimeAsync(10);
       await failure;
 
       expect(customRequest).toHaveBeenCalledTimes(2);
@@ -752,15 +781,15 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 
   test('should abort timed out requests and emit timeout degraded event', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
 
-    const customRequest = jest.fn((_requestPath: any, init?: any) => {
+    const customRequest = rs.fn((_requestPath: any, init?: any) => {
       return new Promise((_, reject) => {
         init?.signal?.addEventListener('abort', () => {
           const error: any = new Error('aborted');
@@ -785,7 +814,7 @@ describe('configure', () => {
         name: 'TimeoutError',
       });
 
-      await jest.advanceTimersByTimeAsync(50);
+      await rs.advanceTimersByTimeAsync(50);
       await failure;
 
       expect(customRequest).toHaveBeenCalledTimes(1);
@@ -798,7 +827,7 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 });

@@ -1,0 +1,28 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const configPath = path.resolve(process.cwd(), 'modern.config.ts');
+
+if (!fs.existsSync(configPath)) {
+  console.error('modern.config.ts not found');
+  process.exit(1);
+}
+
+const content = fs.readFileSync(configPath, 'utf8');
+const requiredTokens = [
+  'withAppBaseline(',
+  'appTools()',
+  'enableModuleFederationSSR',
+  'enableBffRequestId',
+  'enableTelemetryExporters',
+];
+const missing = requiredTokens.filter(token => !content.includes(token));
+
+if (missing.length > 0) {
+  console.error(
+    `Baseline contract check failed. Missing tokens: ${missing.join(', ')}`,
+  );
+  process.exit(1);
+}
+
+console.log('Baseline contract check passed.');

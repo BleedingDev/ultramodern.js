@@ -3,6 +3,9 @@ import { configure } from 'bff-api-app/runtime';
 import { useLoader } from '../useLoader';
 
 configure({
+  setDomain() {
+    return 'http://127.0.0.1:3399';
+  },
   interceptor(request) {
     return async (url, params) => {
       const urlString = typeof url === 'string' ? url : url.toString();

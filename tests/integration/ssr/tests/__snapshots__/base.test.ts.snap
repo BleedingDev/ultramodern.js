@@ -1,3 +1,0 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
-
-exports[`Traditional SSR error thrown in client navigation 1`] = `"error occurs"`;

@@ -83,7 +83,7 @@ module.exports = { api };
   });
 
   test('declaration includes operation manifest contract', () => {
-    const declaration = renderEffectClientDeclaration('./index');
+    const declaration = renderEffectClientDeclaration();
     expect(declaration).toContain('EffectOperationManifest');
     expect(declaration).toContain('operationManifest');
   });

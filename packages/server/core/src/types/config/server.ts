@@ -25,14 +25,16 @@ export type SSR =
          */
         unsafeHeaders?: string[];
         /**
-         * Enable app-level Module Federation SSR bridge path in alpha mode.
+         * Enable app-level Module Federation SSR bridge path.
          * This flag should be enabled in both host and remote applications.
          * @default false
          */
-        moduleFederationAppSSRAlpha?: boolean;
+        moduleFederationAppSSR?: boolean;
       };
 
 export type SSRByEntries = Record<string, SSR>;
+
+type SSRPreload = Record<string, unknown>;
 
 export interface ServerTelemetryExporterOptions {
   enabled?: boolean;

@@ -1,5 +1,5 @@
 import { defer } from '@modern-js/runtime/router';
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 
 interface Ctx {
   path: string;
@@ -10,7 +10,7 @@ export interface Data {
 }
 
 export default () => {
-  const ctx = useBackendContext();
+  const ctx = useHonoContext();
   const _ctx = new Promise<Ctx>(resolve => {
     setTimeout(() => {
       resolve({

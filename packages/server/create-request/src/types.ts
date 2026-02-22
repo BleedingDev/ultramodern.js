@@ -111,16 +111,6 @@ export type IdentityBindingOptions = {
   onViolation?: (violation: IdentityBindingViolation) => void;
 };
 
-export type RequestCreator<F = typeof fetch> = (
-  path: string,
-  method: string,
-  port: number,
-  httpMethodDecider: HttpMethodDecider,
-  fetch?: F,
-  requestId?: string,
-  operationContext?: OperationContext,
-) => Sender;
-
 export type OperationContext = {
   operationId?: string;
   routePath?: string;
@@ -131,6 +121,38 @@ export type OperationContext = {
   traceId?: string;
   spanId?: string;
 };
+
+export type RequestCreatorOptions<F = typeof fetch> = {
+  path: string;
+  method: string;
+  port: number;
+  httpMethodDecider?: HttpMethodDecider;
+  fetch?: F;
+  domain?: string;
+  requestId?: string;
+  operationContext?: OperationContext;
+};
+
+export type RequestCreator<F = typeof fetch> = {
+  (options: RequestCreatorOptions<F>): Sender;
+  (
+    path: string,
+    method: string,
+    port: number,
+    httpMethodDecider?: HttpMethodDecider,
+    fetch?: F,
+    requestId?: string,
+    operationContext?: OperationContext,
+  ): Sender;
+};
+
+export type UploadCreatorOptions = {
+  path: string;
+  domain?: string;
+  requestId?: string;
+};
+
+export type UploadCreator = (options: UploadCreatorOptions) => Sender;
 
 export type IOptions<F = typeof fetch> = {
   request?: F;
@@ -143,6 +165,7 @@ export type IOptions<F = typeof fetch> = {
   identityBinding?: IdentityBindingOptions;
   setDomain?: (ops?: {
     target: 'server' | 'browser';
+    requestId?: string;
   }) => string;
   requestId?: string;
 };

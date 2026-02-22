@@ -66,6 +66,18 @@ const GENERATED_RUNTIME_DIRS = [CLIENT_DIR, PLUGIN_DIR, RUNTIME_DIR];
 const toPosixPath = (p: string) => p.replace(/\\/g, '/');
 const posixJoin = (...args: string[]) => toPosixPath(path.join(...args));
 
+function getPackageName(appDirectory: string): string | undefined {
+  try {
+    const packageJsonPath = path.resolve(appDirectory, './package.json');
+    const packageJson = fs.readJSONSync(packageJsonPath) as {
+      name?: string;
+    };
+    return packageJson.name;
+  } catch {
+    return undefined;
+  }
+}
+
 function createFileDetails(options: {
   appDirectory: string;
   baseDirectory: string;
@@ -385,6 +397,8 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
     CLIENT_DIR,
   );
   await fs.remove(generatedClientDir);
+  const requestId =
+    getPackageName(draftOptions.appDir) || process.env.npm_package_name;
 
   const lambdaSourceList = draftOptions.existLambda
     ? await readDirectoryFiles(
@@ -416,6 +430,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
       target: 'bundle',
       httpMethodDecider: draftOptions.httpMethodDecider,
       requestCreator: draftOptions.requestCreator,
+      requestId,
     };
 
     const { lambdaDir } = draftOptions;
@@ -477,19 +492,6 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
             /\.js$/,
             '.d.ts',
           );
-          const effectDeclarationImportPath = toPosixPath(
-            path
-              .relative(
-                path.dirname(path.resolve(targetTypeFile)),
-                path.resolve(effectFileDetails.relativeTargetDistDir),
-              )
-              .replace(/\.d\.ts$/, ''),
-          );
-          const normalizedImportPath = effectDeclarationImportPath.startsWith(
-            '.',
-          )
-            ? effectDeclarationImportPath
-            : `./${effectDeclarationImportPath}`;
 
           await writeTargetFile(
             effectFileDetails.absTargetDir,
@@ -497,7 +499,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
           );
           await writeTargetFile(
             path.resolve(targetTypeFile),
-            renderEffectClientDeclaration(normalizedImportPath),
+            renderEffectClientDeclaration(),
           );
           generatedSourceList.push(effectFileDetails);
         }

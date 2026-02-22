@@ -8,13 +8,20 @@ export { faviconPlugin } from './favicon';
 export { injectServerTiming, injectloggerPlugin } from './monitors';
 export {
   TelemetryRegistry,
+  TelemetryCanaryOrchestrator,
+  TelemetryStartupHealthError,
   createOtlpTelemetryExporter,
   createVictoriaMetricsTelemetryExporter,
+  createTelemetryAwareMetrics,
   injectTelemetryPlugin,
+  hasEnabledTelemetryExporters,
   type OtlpExporterOptions,
+  type TelemetryCanaryDecision,
   type TelemetryEnvelope,
   type TelemetryExporter,
+  type TelemetryQueueStats,
   type TelemetryRegistryOptions,
+  type TelemetrySloAlert,
   type TelemetrySignalType,
   type VictoriaMetricsExporterOptions,
 } from './telemetry';

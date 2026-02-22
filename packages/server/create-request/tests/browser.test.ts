@@ -5,7 +5,6 @@ import {
   CrossOriginEnvelopePolicyError,
   createRequest,
   IdentityBindingViolationError,
-  ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
 } from '../src/browser';
 
@@ -205,11 +204,11 @@ describe('configure', () => {
     nock(urlA).get(path).reply(200, response);
     nock(urlB).get(path).reply(200, response);
 
-    const customRequestA = jest.fn((requestPath: RequestInfo) =>
+    const customRequestA = rs.fn((requestPath: RequestInfo) =>
       fetch(requestPath as string),
     );
 
-    const customRequestB = jest.fn((requestPath: RequestInfo) =>
+    const customRequestB = rs.fn((requestPath: RequestInfo) =>
       fetch(requestPath as string),
     );
 
@@ -255,7 +254,7 @@ describe('configure', () => {
     const producerUrl = 'http://localhost:9083';
 
     nock(producerUrl).get(path).reply(200, response);
-    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
       fetch(requestPath, init),
     );
 
@@ -292,7 +291,7 @@ describe('configure', () => {
     const producerUrl = 'http://localhost:9084';
 
     nock(producerUrl).get(path).reply(200, response);
-    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
       fetch(requestPath, init),
     );
 
@@ -387,7 +386,7 @@ describe('configure', () => {
 
     try {
       nock(producerUrl).get(path).reply(200, response);
-      const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+      const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
         fetch(requestPath, init),
       );
 
@@ -428,7 +427,7 @@ describe('configure', () => {
       '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
     nock(producerUrl).get(path).reply(200, response);
 
-    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
       fetch(requestPath, init),
     );
 
@@ -464,11 +463,11 @@ describe('configure', () => {
   });
 
   test('should retry with backoff and emit degraded telemetry events', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
     let attempts = 0;
 
-    const customRequest = jest.fn(async () => {
+    const customRequest = rs.fn(async () => {
       attempts += 1;
       if (attempts < 3) {
         const error: any = new Error('temporary upstream error');
@@ -497,9 +496,9 @@ describe('configure', () => {
       const pending = request();
 
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(20);
+      await rs.advanceTimersByTimeAsync(20);
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(20);
+      await rs.advanceTimersByTimeAsync(20);
       await Promise.resolve();
 
       await expect(pending).resolves.toStrictEqual(response);
@@ -521,14 +520,14 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 
   test('should emit retry_exhausted when retry budget is consumed', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
-    const customRequest = jest.fn(async () => {
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
+    const customRequest = rs.fn(async () => {
       const error: any = new Error('upstream unavailable');
       error.status = 503;
       throw error;
@@ -553,7 +552,7 @@ describe('configure', () => {
       const failure = expect(pending).rejects.toThrow('upstream unavailable');
 
       await Promise.resolve();
-      await jest.advanceTimersByTimeAsync(10);
+      await rs.advanceTimersByTimeAsync(10);
       await failure;
 
       expect(customRequest).toHaveBeenCalledTimes(2);
@@ -572,15 +571,15 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 
   test('should abort timed out requests and emit timeout degraded event', async () => {
-    jest.useFakeTimers();
-    const onDegraded = jest.fn();
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
 
-    const customRequest = jest.fn((_requestPath: RequestInfo, init?: RequestInit) => {
+    const customRequest = rs.fn((_requestPath: RequestInfo, init?: RequestInit) => {
       return new Promise((_, reject) => {
         init?.signal?.addEventListener('abort', () => {
           const error: any = new Error('aborted');
@@ -605,7 +604,7 @@ describe('configure', () => {
         name: 'TimeoutError',
       });
 
-      await jest.advanceTimersByTimeAsync(50);
+      await rs.advanceTimersByTimeAsync(50);
       await failure;
 
       expect(customRequest).toHaveBeenCalledTimes(1);
@@ -618,7 +617,7 @@ describe('configure', () => {
         }),
       );
     } finally {
-      jest.useRealTimers();
+      rs.useRealTimers();
     }
   });
 });

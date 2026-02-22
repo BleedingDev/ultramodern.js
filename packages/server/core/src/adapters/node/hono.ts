@@ -11,15 +11,25 @@ export type ServerNodeContext = Context<ServerNodeEnv>;
 
 type Handler = (req: NodeRequest, res: NodeResponse) => void | Promise<void>;
 
+type EventedNodeResponse = NodeResponse & {
+  _modernBodyPiped?: boolean;
+  once?: (eventName: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (
+    eventName: string,
+    listener: (...args: unknown[]) => void,
+  ) => void;
+};
+
 // when using the node.js http callback as hono middleware,
 // it needs to be the last middleware, because it's possible to send res directly in the http callback.
 export const httpCallBack2HonoMid = (handler: Handler) => {
   return async (context: Context<ServerNodeEnv & ServerEnv>, next: Next) => {
-    const { req, res } = context.env.node;
+    const { req, res: rawRes } = context.env.node;
+    const res = rawRes as EventedNodeResponse;
     const onPipe = () => {
       res._modernBodyPiped = true;
     };
-    res.once('pipe', onPipe);
+    res.once?.('pipe', onPipe);
     // for bff.enableHandleWeb
     req.__honoRequest = context.req;
     req.__templates = context.get('templates') || {};
@@ -38,7 +48,7 @@ export const httpCallBack2HonoMid = (handler: Handler) => {
       delete req.__rscServerManifest;
       delete req.__rscClientManifest;
       delete req.__rscSSRManifest;
-      res.removeListener('pipe', onPipe);
+      res.removeListener?.('pipe', onPipe);
     }
 
     if (isResFinalized(res)) {
@@ -91,10 +101,11 @@ export const connectMockMid2HonoMid = (
 ): Middleware => {
   return async (context: Context<ServerNodeEnv>, next: Next) => {
     return new Promise((resolve, reject) => {
-      const { req, res } = context.env.node;
+      const { req, res: rawRes } = context.env.node;
+      const res = rawRes as EventedNodeResponse;
       // The function lenth < 3 means the handler is not a function with next
       if (handler.length < 3) {
-        res.once('finish', () => {
+        res.once?.('finish', () => {
           // Fix: ensure context.res is initialized before setting finalized
           // This prevents c.#res from being undefined in Hono
           const _ = context.res;

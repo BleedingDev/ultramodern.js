@@ -39,8 +39,8 @@ const consumerDir = path.resolve(__dirname, '../mf-consumer');
 const COMPONENT_PROVIDER_PORT = 3006;
 const APP_PROVIDER_PORT = 3005;
 const CONSUMER_PORT = 3007;
-const APP_MF_SSR_ALPHA_ENV = {
-  MODERN_MF_APP_SSR_ALPHA: 'true',
+const APP_MF_SSR_ENV = {
+  MODERN_MF_APP_SSR: 'true',
   MODERN_FAST_TEST: 'true',
 };
 
@@ -78,7 +78,7 @@ describe('mf-i18n-tests', () => {
       appProviderDir,
       APP_PROVIDER_PORT,
       {},
-      APP_MF_SSR_ALPHA_ENV,
+      APP_MF_SSR_ENV,
     );
     await waitForAppReady(APP_PROVIDER_PORT);
 
@@ -280,7 +280,7 @@ describe('mf-i18n-tests', () => {
         consumerDir,
         CONSUMER_PORT,
         {},
-        APP_MF_SSR_ALPHA_ENV,
+        APP_MF_SSR_ENV,
       );
       await waitForAppReady(CONSUMER_PORT);
 
@@ -389,7 +389,7 @@ describe('mf-i18n-tests', () => {
         consumerDir,
         CONSUMER_PORT,
         {},
-        APP_MF_SSR_ALPHA_ENV,
+        APP_MF_SSR_ENV,
       );
       await waitForAppReady(CONSUMER_PORT);
 
@@ -516,7 +516,7 @@ describe('mf-i18n-tests', () => {
         consumerDir,
         CONSUMER_PORT,
         {},
-        APP_MF_SSR_ALPHA_ENV,
+        APP_MF_SSR_ENV,
       );
       await waitForAppReady(CONSUMER_PORT);
     });

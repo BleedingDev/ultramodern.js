@@ -5,6 +5,9 @@ import { initProducerClient } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
 
 initProducerClient({
+  setDomain() {
+    return window.location.origin;
+  },
   interceptor(request) {
     return async (url, params) => {
       const urlString = typeof url === 'string' ? url : url.toString();

@@ -6,7 +6,7 @@ import {
   Post,
   Query,
 } from '@modern-js/plugin-bff/server';
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
 export default async () => ({
@@ -40,7 +40,7 @@ export const postHello = Api(
   Data(DataSchema),
   Headers(HeadersSchema),
   async ({ query, data, params, headers }) => {
-    const ctx = useBackendContext();
+    const ctx = useHonoContext();
     return {
       params,
       query,

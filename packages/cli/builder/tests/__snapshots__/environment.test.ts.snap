@@ -84,6 +84,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },
@@ -164,6 +167,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },
@@ -483,6 +489,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },
@@ -581,6 +590,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },
@@ -679,6 +691,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },
@@ -769,6 +784,9 @@ exports[`builder environment compat > should generator environment config correc
                           "postcssPlugin": "postcss-media-minmax",
                         },
                         {
+                          "AtRule": {
+                            "nest": [Function],
+                          },
                           "Rule": [Function],
                           "postcssPlugin": "postcss-nesting",
                         },

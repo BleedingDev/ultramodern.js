@@ -21,7 +21,7 @@ export default defineConfig({
 For better performance, we only support using this capability combination in Streaming SSR scenarios.
 
 :::warning
-Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) are available for SSR in **alpha mode**.
+Application-level modules (modules using `createBridgeComponent` and `createRemoteAppComponent`) use a **staged stability contract** for SSR.
 
 Enable it explicitly in both host and remote apps:
 
@@ -30,13 +30,13 @@ export default defineConfig({
   server: {
     ssr: {
       mode: 'stream',
-      moduleFederationAppSSRAlpha: true,
+      moduleFederationAppSSR: true,
     },
   },
 });
 ```
 
-For production rollout, make sure you keep fallback boundaries for remote load failures and monitor fallback markers in logs/telemetry.
+For production rollout, keep fallback boundaries for remote load failures and monitor fallback markers in logs/telemetry.
 :::
 
 ## Node SSR Bundle Compatibility
@@ -51,10 +51,33 @@ When Module Federation is enabled together with `server.ssr`, Modern.js automati
 
 This avoids runtime incompatibilities between ESM server output and `@module-federation/node`, and keeps SSR/SSG hydration behavior consistent across host and remote applications.
 
+## Battle-Tested Rollout Checklist
+
+Before enabling this for broad production traffic, verify the following scenarios:
+
+1. Host and all remotes use `server.ssr.mode: 'stream'` and the same MF SSR contract flag.
+2. Happy-path SSR works in `dev`, `build`, and `serve` modes.
+3. Remote unavailable path is covered by explicit fallback boundaries (no server crash).
+4. Data-fetch timeout and contract-error cases return deterministic fallback UI.
+5. Trace and telemetry markers are present across host/remote boundaries.
+6. Canary rollout with progressive traffic increase has clear rollback criteria.
+
+## Example Rollout Scenarios
+
+1. Baseline enablement (host + remote):
+  - Configure both sides with `server.ssr.mode: 'stream'` and `moduleFederationAppSSR: true`.
+  - Verify SSR HTML contains remote shell markers and no fallback markers.
+2. Remote unavailable fallback:
+  - Keep host flag enabled, stop one remote service, request a remote route.
+  - Verify response is still `200`, fallback boundary renders, and server does not crash.
+3. Timeout and contract-error drill:
+  - Inject a delayed remote/data response and a malformed payload in CI.
+  - Verify deterministic fallback UI and matching telemetry reason codes.
+
 ## Data Fetching
 
 :::tip
-Currently, this feature is experimental and has not been fully practiced. Please use it with caution.
+This capability is still in staged rollout. Keep fallback boundaries and run the checklist above in CI before widening traffic.
 :::
 
 Module Federation now supports [data fetching](https://module-federation.io/zh/guide/basic/data-fetch/index.html#%E7%AE%80%E4%BB%8B) capabilities. Each producer file can have a corresponding data fetching file, with the file name format of `[name].data.ts`.

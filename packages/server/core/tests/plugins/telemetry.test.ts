@@ -106,18 +106,23 @@ describe('telemetry registry', () => {
     await registry.flush();
     await registry.shutdown();
 
-    const item = batches[0] as {
-      attributes?: {
-        token?: string;
-        nested?: {
-          token?: string;
-          keep?: boolean;
-        };
-      };
-    };
-    expect(item.attributes?.token).toBe('[REDACTED]');
-    expect(item.attributes?.nested?.token).toBe('[REDACTED]');
-    expect(item.attributes?.nested?.keep).toBe(true);
+    const item = batches.find(
+      entry => (entry as { name?: string }).name === 'sensitive',
+    ) as
+      | {
+          attributes?: {
+            token?: string;
+            nested?: {
+              token?: string;
+              keep?: boolean;
+            };
+          };
+        }
+      | undefined;
+    expect(item).toBeDefined();
+    expect(item?.attributes?.token).toBe('[REDACTED]');
+    expect(item?.attributes?.nested?.token).toBe('[REDACTED]');
+    expect(item?.attributes?.nested?.keep).toBe(true);
   });
 });
 

@@ -40,15 +40,19 @@ async function runtimeGenerator({
     process.env.npm_package_name ||
     'default';
 
-  const source = `import { configure as _configure } from '${runtime}'
+  const runtimeImportPath = JSON.stringify(runtime);
+  const requestIdValue = JSON.stringify(requestId);
+  const source = `const { configure: _configure } = require(${runtimeImportPath});
     const initProducerClient = (options) => {
       return _configure({
         ...options,
-        requestId: '${requestId}',
+        requestId: ${requestIdValue},
       });
     }
     const configure = initProducerClient;
-    export { initProducerClient, configure }
+    Object.defineProperty(exports, '__esModule', { value: true });
+    exports.initProducerClient = initProducerClient;
+    exports.configure = configure;
   `;
   const pluginPath = path.join(pluginDir, 'index.js');
   await fs.ensureFile(pluginPath);

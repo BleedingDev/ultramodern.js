@@ -136,7 +136,7 @@ describe('module federation SSR output compatibility', () => {
 
     expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
-    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR_ALPHA']).toBe(
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
       'false',
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
@@ -222,13 +222,13 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.target).toBe('node');
   });
 
-  it('enables module federation node output when app-level mf ssr alpha is enabled', () => {
+  it('enables module federation node output when app-level mf ssr stable flag is enabled', () => {
     const transform = createEnvironmentConfigTransformer({
       normalizedConfig: {
         server: {
           ssr: {
             mode: 'stream',
-            moduleFederationAppSSRAlpha: true,
+            moduleFederationAppSSR: true,
           },
         },
       },
@@ -242,7 +242,35 @@ describe('module federation SSR output compatibility', () => {
 
     expect(result.output.module).toBe(false);
     expect(result.output.target).toBe('node');
-    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR_ALPHA']).toBe(
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
+      'true',
+    );
+    expect(typeof result.tools?.bundlerChain).toBe('function');
+  });
+
+  it('enables module federation node output when stable flag is set via ssrByEntries', () => {
+    const transform = createEnvironmentConfigTransformer({
+      normalizedConfig: {
+        server: {
+          ssrByEntries: {
+            main: {
+              mode: 'stream',
+              moduleFederationAppSSR: true,
+            },
+          },
+        },
+      },
+    });
+
+    const result = transform({
+      output: {
+        target: 'node',
+      },
+    });
+
+    expect(result.output.module).toBe(false);
+    expect(result.output.target).toBe('node');
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
       'true',
     );
     expect(typeof result.tools?.bundlerChain).toBe('function');

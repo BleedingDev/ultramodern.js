@@ -127,7 +127,7 @@ export class HonoAdapter {
 
     const { bffRuntimeFramework } = this.api.getServerContext();
 
-    if (bffRuntimeFramework !== 'hono' && bffRuntimeFramework !== 'effect') {
+    if (bffRuntimeFramework !== 'hono') {
       this.isHono = false;
       return;
     }

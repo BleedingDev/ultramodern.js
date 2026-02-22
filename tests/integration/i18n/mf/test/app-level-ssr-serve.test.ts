@@ -39,8 +39,8 @@ const consumerDir = path.resolve(__dirname, '../mf-consumer');
 const COMPONENT_PROVIDER_PORT = 3006;
 const APP_PROVIDER_PORT = 3005;
 const CONSUMER_PORT = 3007;
-const APP_MF_SSR_ALPHA_ENV = {
-  MODERN_MF_APP_SSR_ALPHA: 'true',
+const APP_MF_SSR_ENV = {
+  MODERN_MF_APP_SSR: 'true',
   MODERN_FAST_TEST: 'true',
 };
 
@@ -67,13 +67,13 @@ describe('mf-i18n app-level SSR serve mode', () => {
     jest.setTimeout(1000 * 60 * 8);
 
     await modernBuild(componentProviderDir, [], {
-      env: APP_MF_SSR_ALPHA_ENV,
+      env: APP_MF_SSR_ENV,
     });
     await modernBuild(appProviderDir, [], {
-      env: APP_MF_SSR_ALPHA_ENV,
+      env: APP_MF_SSR_ENV,
     });
     await modernBuild(consumerDir, [], {
-      env: APP_MF_SSR_ALPHA_ENV,
+      env: APP_MF_SSR_ENV,
     });
 
     componentProviderApp = await modernServe(
@@ -82,11 +82,11 @@ describe('mf-i18n app-level SSR serve mode', () => {
     );
     await waitForAppReady(COMPONENT_PROVIDER_PORT);
     appProviderApp = await modernServe(appProviderDir, APP_PROVIDER_PORT, {
-      env: APP_MF_SSR_ALPHA_ENV,
+      env: APP_MF_SSR_ENV,
     });
     await waitForAppReady(APP_PROVIDER_PORT);
     consumerApp = await modernServe(consumerDir, CONSUMER_PORT, {
-      env: APP_MF_SSR_ALPHA_ENV,
+      env: APP_MF_SSR_ENV,
     });
     await waitForAppReady(CONSUMER_PORT);
   });

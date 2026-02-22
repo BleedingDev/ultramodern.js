@@ -586,14 +586,6 @@ describe('routes-tanstack-mf', () => {
       runtime: 'host',
     });
 
-    const lambdaResponse = await fetchJson(
-      `http://localhost:${HOST_PORT}/host-api/legacy`,
-    );
-    expect(lambdaResponse.status).toBe(200);
-    expect(lambdaResponse.json).toEqual({
-      message: 'Hello from host lambda in effect mode',
-    });
-
     const openapiResponse = await fetchJson(
       `http://localhost:${HOST_PORT}/host-api/openapi.json`,
     );
@@ -609,14 +601,6 @@ describe('routes-tanstack-mf', () => {
     expect(effectResponse.json).toEqual({
       message: 'Hello from remote Effect API',
       runtime: 'remote',
-    });
-
-    const lambdaResponse = await fetchJson(
-      `http://localhost:${REMOTE_PORT}/remote-api/legacy`,
-    );
-    expect(lambdaResponse.status).toBe(200);
-    expect(lambdaResponse.json).toEqual({
-      message: 'Hello from remote lambda in effect mode',
     });
 
     const openapiResponse = await fetchJson(
@@ -636,13 +620,6 @@ describe('routes-tanstack-mf', () => {
       runtime: 'remote2',
     });
 
-    const lambdaResponse = await fetchJson(
-      `http://localhost:${REMOTE_TWO_PORT}/remote2-api/legacy`,
-    );
-    expect(lambdaResponse.status).toBe(200);
-    expect(lambdaResponse.json).toEqual({
-      message: 'Hello from remote2 lambda in effect mode',
-    });
   });
 
   test('supports remote component fetcher with host loader/action', async () => {

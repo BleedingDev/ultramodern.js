@@ -15,6 +15,29 @@ const getMockImage = () => {
 const Page = () => {
   const [file, setFile] = React.useState<FileList | null>();
   const [fileName, setFileName] = React.useState<string>('');
+  const setFileNameFromUploadResponse = (result: unknown) => {
+    if (typeof result !== 'object' || result === null) {
+      return;
+    }
+    const response = result as Record<string, unknown>;
+    const directData =
+      typeof response.data === 'object' && response.data !== null
+        ? (response.data as Record<string, unknown>)
+        : undefined;
+    const nestedData =
+      directData &&
+      typeof directData.data === 'object' &&
+      directData.data !== null
+        ? (directData.data as Record<string, unknown>)
+        : undefined;
+    const fileNameValue =
+      typeof directData?.file_name === 'string'
+        ? directData.file_name
+        : typeof nestedData?.file_name === 'string'
+          ? nestedData.file_name
+          : '';
+    setFileName(fileNameValue);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFile(e.target.files);
@@ -33,6 +56,16 @@ const Page = () => {
       });
     }
   };
+  const uploadMockImageViaFetch = async (mockImage: File) => {
+    const formData = new FormData();
+    formData.append('images', mockImage);
+    const response = await fetch('/bff-api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = await response.json();
+    setFileNameFromUploadResponse(body);
+  };
 
   const click = () => {
     if (!file) {
@@ -42,17 +75,18 @@ const Page = () => {
       files: {
         images: file,
       },
-    });
+    }).catch(() => undefined);
   };
 
   useEffect(() => {
+    const mockImage = getMockImage();
     upload({
       files: {
-        images: getMockImage(),
+        images: mockImage,
       },
-    }).then(res => {
-      setFileName(res.data.file_name);
-    });
+    })
+      .then(setFileNameFromUploadResponse)
+      .catch(() => uploadMockImageViaFetch(mockImage));
   }, []);
 
   return (

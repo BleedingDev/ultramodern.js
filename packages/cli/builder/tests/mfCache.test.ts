@@ -1,9 +1,10 @@
+import { describe, expect, test } from '@rstest/core';
 import {
   getRequestPathname,
   isMfManifestAsset,
   isMfRemoteEntryAsset,
   resolveMfAssetCacheHeaders,
-} from '../src/libs/mfCache';
+} from '../../../server/core/src/plugins/mfCache';
 
 describe('mf cache headers', () => {
   test('detects MF manifest assets', () => {

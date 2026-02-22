@@ -1,4 +1,4 @@
-import cookieTool from 'cookie';
+import { parse as parseCookie } from 'cookie';
 import type React from 'react';
 import { getGlobalInternalRuntimeContext } from '../context';
 import { type TRuntimeContext, getInitialContext } from '../context/runtime';
@@ -21,6 +21,15 @@ const getQuery = () =>
       return res;
     }, {});
 
+const getCookieMap = (): Record<string, string> => {
+  const parsed = parseCookie(document.cookie || '');
+  return Object.fromEntries(
+    Object.entries(parsed).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+};
+
 function getSSRData(): SSRContainer {
   const ssrData = window._SSR_DATA;
 
@@ -39,7 +48,7 @@ function getSSRData(): SSRContainer {
         host: ssrRequest?.host || location.host,
         pathname: ssrRequest?.pathname || location.pathname,
         headers: ssrRequest?.headers || {},
-        cookieMap: cookieTool.parse(document.cookie || '') || {},
+        cookieMap: getCookieMap(),
         cookie: document.cookie || '',
         userAgent: ssrRequest?.headers?.['user-agent'] || navigator.userAgent,
         referer: document.referrer,

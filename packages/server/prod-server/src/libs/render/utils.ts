@@ -2,11 +2,20 @@
 // The first time was in ssg html created, the seoncd time was in prod-server start.
 // but the second wound causes route error.
 
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
 import type { ModernServerContext } from '@modern-js/types';
 import { sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
-import { TemplateAPI } from '../hook-api/template';
-import { templateInjectableStream } from '../hook-api/templateForStream';
+
+const SERVER_DATA_MARKUP = (payload: string) =>
+  `<script type="application/json" id="__MODERN_SERVER_DATA__">${payload}</script>`;
+
+const injectIntoHead = (content: string, payload: string) => {
+  const scriptTag = SERVER_DATA_MARKUP(payload);
+  if (content.includes('</head>')) {
+    return content.replace('</head>', `${scriptTag}</head>`);
+  }
+  return `${scriptTag}${content}`;
+};
 
 // To ensure that the second injection fails, the _SERVER_DATA inject at the front of head,
 export const injectServerData = (
@@ -18,11 +27,7 @@ export const injectServerData = (
     unsafeHeaders: options?.unsafeHeaders,
     treatRootAsHeaders: true,
   }).payload;
-  const template = new TemplateAPI(content);
-  template.prependHead(
-    `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(serverData)}</script>`,
-  );
-  return template.get();
+  return injectIntoHead(content, JSON.stringify(serverData));
 };
 
 export const injectServerDataStream = (
@@ -34,9 +39,19 @@ export const injectServerDataStream = (
     unsafeHeaders: options?.unsafeHeaders,
     treatRootAsHeaders: true,
   }).payload;
-  return content.pipe(
-    templateInjectableStream({
-      prependHead: `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(serverData)}</script>`,
-    }),
-  );
+  const payload = JSON.stringify(serverData);
+
+  let buffer = '';
+  const injector = new Transform({
+    transform(chunk, _encoding, callback) {
+      buffer += chunk.toString();
+      callback();
+    },
+    flush(callback) {
+      this.push(injectIntoHead(buffer, payload));
+      callback();
+    },
+  });
+
+  return content.pipe(injector);
 };

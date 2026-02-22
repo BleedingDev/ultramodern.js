@@ -556,13 +556,13 @@ export default Api(
 
 ## Request Context
 
-As mentioned above, through operators, you can get `query`, `data`, `params`, etc. in the input parameters of the interface processing function. But sometimes we need to get more request context information. At this time, we can get it through [`useBackendContext`](/apis/app/runtime/bff/use-backend-context):
+As mentioned above, through operators, you can get `query`, `data`, `params`, etc. in the input parameters of the interface processing function. But sometimes we need to get more request context information. At this time, we can get it through [`useHonoContext`](/apis/app/runtime/bff/use-backend-context):
 
 <BFFOperatorCode>
 
 ```typescript title="api/lambda/user.ts"
 import { Api, Get, Query } from '@modern-js/plugin-bff/server';
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
 const UserSchema = z.object({
@@ -574,7 +574,7 @@ export const queryUser = Api(
   Get('/user'),
   Query(UserSchema),
   async ({ query }) => {
-    const c = useBackendContext();
+    const c = useHonoContext();
     const userAgent = c.req.header('user-agent');
     return {
       name: query.name,

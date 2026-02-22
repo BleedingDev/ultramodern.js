@@ -1,27 +1,30 @@
 ---
-title: UltraModern.js V4
+title: UltraModern.js V3
 sidebar_position: 6
 ---
 
-# UltraModern.js V4 vs Modern.js V4
+# UltraModern.js V3 vs Modern.js V3
 
-UltraModern.js V4 is a compatibility-first distribution built on top of Modern.js V4 for large, independently deployable super-app and ERP-style systems.
+UltraModern.js V3 is a compatibility-first distribution built on top of Modern.js V3 for large, independently deployable super-app and ERP-style systems.
 
-This page is the complete public difference reference for the published V4 line.
+This page is the complete public difference reference for the published V3 line.
 
-## Scope (V4 Only)
+## Scope (V3 Only)
 
-- Baseline: Modern.js `release-v4.0.0`.
-- Scope: all user-visible differences shipped in UltraModern.js V4.
-- Excluded: roadmap/mainline-only work that is not shipped to V4.
+- Baseline: Modern.js `release-v3.x`.
+- Scope: all user-visible differences shipped in UltraModern.js V3.
+- Excluded: roadmap/mainline-only work that is not shipped to V3.
 
-## Complete Difference Matrix (V4)
+## Complete Difference Matrix (V3)
 
-| Area | Modern.js V4 baseline | UltraModern.js V4 difference | Status in V4 | Notes |
+| Area | Modern.js V3 baseline | UltraModern.js V3 difference | Status in V3 | Notes |
 | --- | --- | --- | --- | --- |
 | Build diagnostics default | RsDoctor usage is opt-in in most projects | Rspack production build enables RsDoctor by default | Implemented | Can be disabled via `performance.rsdoctor` |
 | Build diagnostics config surface | No `performance.rsdoctor` option in framework docs | Adds `performance.rsdoctor` (`boolean` or `{ enabled, disableClientServer, reportDir, mode }`) | Implemented | `disableClientServer` defaults to `true` |
 | Diagnostics artifact contract | No standardized machine-readable diagnostics pointer | Adds `.rsdoctor/ultramodern-diagnostics.json` contract pointing to manifest | Implemented | Stable consumption path for coding agents |
+| Static asset precompression defaults | Precompressed artifacts and serving are app-defined | Adds default-on `output.precompress` for production web builds and static middleware `Accept-Encoding` negotiation for `.br` / `.gz` | Implemented | Can be disabled or tuned per codec |
+| Router runtime choice | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI route tree support | Implemented | React Router path remains available |
+| Scaffolding template path | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates | Implemented | React Router starter path remains available |
 | BFF producer contract wiring | `bff` config does not include producer identity | Adds `bff.requestId` and carries it through client generation | Implemented | Enables explicit producer scoping |
 | Generated BFF client call shape | `createRequest(...)` optional args stop at `fetch` | Generated client appends `requestId` to `createRequest(...)` when configured | Implemented | Keeps legacy call path when no `requestId` |
 | `create-request` runtime isolation | Single mutable request config path | Per-`requestId` request/domain/header config maps | Implemented | Supports multiple producer clients in one app |
@@ -32,18 +35,21 @@ This page is the complete public difference reference for the published V4 line.
 | Telemetry exporters | Export pipeline is app-defined | Built-in OTLP and VictoriaMetrics exporters | Implemented | Exporters are non-fatal on failure |
 | Telemetry backpressure contract | No standard queue policy | Registry queue with max size, dropped-event counter, periodic flush | Implemented | Emits `telemetry.queue.dropped` on pressure |
 | Metrics/trace correlation | SSR metrics tags do not parse W3C trace context | `traceparent` is parsed and emits `trace_id` / `span_id` tags | Implemented | Improves cross-system observability joins |
-| App-level MF SSR contract flag | No dedicated app-level MF SSR alpha switch | Adds `server.ssr.moduleFederationAppSSRAlpha` and env injection | Implemented (alpha contract) | Sets `process.env.MODERN_MF_APP_SSR_ALPHA` |
-| App-level MF SSR runtime bridge | Not a stable default bridge path | V4 exposes contract/env only, full bridge remains alpha rollout | Partial by design | Use behind controlled rollout |
+| App-level MF SSR contract flag | No dedicated app-level MF SSR stability contract switch | Adds `server.ssr.moduleFederationAppSSR` staged-stability contract | Implemented (staged-stability contract) | Sets `process.env.MODERN_MF_APP_SSR` |
+| App-level MF SSR runtime bridge | Not a stable default bridge path | V3 exposes contract/env only, full bridge remains staged rollout | Partial by design | Use behind controlled rollout |
+| MF remote loader reliability contracts | Remote loading fallback patterns are typically app-defined | Adds deterministic timeout/network/contract-error fallback matrix and distributed OTEL continuity assertions | Implemented | `routes-tanstack-mf` reliability suite |
+| BFF runtime choices | Hono runtime path only in Modern.js V3 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-only MF data contracts plus failure-injection coverage for federated data fetch | Implemented (Effect-default + strict split) | Stream is explicit about no Zod introduction |
 | Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable family contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
-| Contract test coverage | No tests for these new contracts in V4 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR alpha env wiring | Implemented | Reduces regression risk in super-app scenarios |
-| Public docs surface | No UltraModern V4 comparison page | Adds dedicated V4 difference page and linked config docs | Implemented | This page is the canonical V4 reference |
+| Release/module certification gate automation | No super-app release evidence profile in baseline | Adds RC + module-certification gate profiles, evidence metadata validation, and dedicated CI workflows | Implemented | `.github/workflows/release-contract-gates.yml` + module/bun gate workflows |
+| Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR staged-contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
+| Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the canonical V3 reference |
 
-## Detailed V4 Differences
+## Detailed V3 Differences
 
 ### 1) `performance.rsdoctor` and default-on diagnostics
 
-UltraModern.js V4 extends performance config with:
+UltraModern.js V3 extends performance config with:
 
 - `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean; reportDir?: string; mode?: 'normal' | 'brief' | 'lite' }`
 - Rspack + production: enabled by default.
@@ -68,7 +74,7 @@ export default defineConfig({
 
 ### 2) Cross-project BFF hardening with `requestId`
 
-UltraModern.js V4 adds explicit producer identity across the BFF toolchain:
+UltraModern.js V3 adds explicit producer identity across the BFF toolchain:
 
 - `bff.requestId` in plugin config.
 - Loader/client generation passes `requestId` to `createRequest(...)`.
@@ -85,7 +91,7 @@ configure({
 });
 ```
 
-Contract behavior in V4:
+Contract behavior in V3:
 
 - Non-default producer calls without prior `configure({ requestId })` throw `ProducerClientNotInitializedError`.
 - `allowedHeaders` / `request` / `setDomain` are isolated by `requestId`.
@@ -97,7 +103,7 @@ Contract behavior in V4:
 
 ### 3) `server.telemetry` standardization and exporters
 
-UltraModern.js V4 adds a unified telemetry contract:
+UltraModern.js V3 adds a unified telemetry contract:
 
 - Config surface in `server.telemetry`.
 - Internal registry with sampling, batching, redaction, backpressure handling.
@@ -133,53 +139,54 @@ export default defineConfig({
 });
 ```
 
-Important V4 behavior:
+Important V3 behavior:
 
 - If no exporter is enabled, telemetry pipeline is not initialized.
 - Exporter failures are treated as non-fatal for request handling.
 
 ### 4) Trace tags in SSR metrics
 
-When an incoming request contains W3C `traceparent`, UltraModern.js V4 parses and injects:
+When an incoming request contains W3C `traceparent`, UltraModern.js V3 parses and injects:
 
 - `trace_id`
 - `span_id`
 
 into SSR metric tags, improving correlation between app metrics and distributed tracing backends.
 
-### 5) App-level MF SSR alpha contract (`server.ssr.moduleFederationAppSSRAlpha`)
+### 5) App-level MF SSR staged contract (`server.ssr.moduleFederationAppSSR`)
 
-UltraModern.js V4 adds:
+UltraModern.js V3 adds:
 
-- `server.ssr.moduleFederationAppSSRAlpha` (also works under `server.ssrByEntries`).
-- Global compile-time env: `process.env.MODERN_MF_APP_SSR_ALPHA` (`'true' | 'false'`).
+- Preferred flag: `server.ssr.moduleFederationAppSSR` (also works under `server.ssrByEntries`).
+- Global compile-time env:
+  - `process.env.MODERN_MF_APP_SSR` (`'true' | 'false'`)
 
 ```ts title="modern.config.ts"
 export default defineConfig({
   server: {
     ssr: {
-      moduleFederationAppSSRAlpha: true,
+      moduleFederationAppSSR: true,
     },
   },
 });
 ```
 
 :::warning
-In UltraModern.js V4, this flag provides contract/env wiring only. The full app-level Module Federation SSR runtime bridge is still an alpha rollout item.
+In UltraModern.js V3, this flag provides stable contract/env wiring. The full app-level Module Federation SSR runtime bridge is still a staged rollout item.
 :::
 
-### 6) Contract-level test hardening in V4
+### 6) Contract-level test hardening in V3
 
-UltraModern.js V4 adds dedicated coverage for:
+UltraModern.js V3 adds dedicated coverage for:
 
 - RsDoctor default behavior and opt-out semantics.
 - BFF `requestId` generation/runtime isolation and fail-fast checks.
 - Telemetry redaction/backpressure/exporter behavior.
-- SSR alpha contract detection and env injection.
+- SSR staged-contract detection and env injection.
 
 ### 7) Module SDK contract + boundary anti-pattern guards
 
-UltraModern.js V4 adds platform-boundary enforcement artifacts for module onboarding:
+UltraModern.js V3 adds platform-boundary enforcement artifacts for module onboarding:
 
 - Contract artifact: `docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
 - Example manifest: `docs/super-app-rfc-adr/contracts/module-manifest.example.json`
@@ -192,16 +199,104 @@ UltraModern.js V4 adds platform-boundary enforcement artifacts for module onboar
   - `.github/workflows/module-certification-gates.yml`
   - `.github/workflows/bun-superapp-smoke.yml`
 
-## Not Part of UltraModern.js V4
+### 8) Default precompression + precompressed static serving
 
-The following are intentionally out of scope for this published V4 line:
+UltraModern.js V3 changes default output and serving behavior for production web assets:
+
+- `output.precompress` defaults to `true` in app-tools config.
+- Build emits gzip (`.gz`) and brotli (`.br`) variants for static assets.
+- Node static middleware selects precompressed variants via `Accept-Encoding` and sets:
+  - `Content-Encoding`
+  - `Vary: Accept-Encoding`
+- Codec-level tuning is supported per project (`gzip` / `brotli` options).
+
+```ts title="modern.config.ts"
+export default defineConfig({
+  output: {
+    precompress: {
+      gzip: true,
+      brotli: {
+        threshold: 8 * 1024,
+      },
+    },
+  },
+});
+```
+
+### 9) First-class TanStack Router + Tailwind scaffolding
+
+UltraModern.js V3 adds a first-class TanStack path in runtime and project scaffolding:
+
+- Runtime/CLI support for TanStack route tree generation and SSR/stream integration.
+- Create templates include TanStack-ready scaffolds and Tailwind starter wiring.
+- Dedicated integration suites cover:
+  - `tests/integration/routes-tanstack`
+  - `tests/integration/routes-tanstack-mf`
+- Existing React Router workflow remains supported.
+
+### 10) Effect-first MF data reliability and data-platform contracts
+
+UltraModern.js V3 shipped additional reliability work aligned to Beads stream D:
+
+- `@modern-js/plugin-bff` runtime path migrated to Effect v4.
+- Effect-only MF data-fetch contract guidance (explicitly no Zod layer in this stream).
+- MF reliability matrix includes deterministic failure injection (timeout/network/contract error).
+- Distributed trace continuity checks were re-enabled for build and serve paths.
+- Data-platform architecture defines operation identity, envelope integrity, scoped invalidation, and trace propagation contracts.
+
+Reference materials:
+
+- `docs/super-app-rfc-adr/ADR-0003-effect-only-mf-data-fetch-reliability.md`
+- `packages/cli/plugin-bff/docs/data-platform-architecture.md`
+- `tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts`
+
+### 11) Release and module certification gate model
+
+UltraModern.js V3 includes a machine-verifiable gate model beyond baseline Modern.js V3:
+
+- Gate profiles:
+  - `scripts/release-gates/rc-contract-profile.json`
+  - `scripts/release-gates/module-certification-profile.json`
+- Required evidence contracts under:
+  - `docs/super-app-rfc-adr/evidence/release-candidate/current`
+  - `docs/super-app-rfc-adr/evidence/module-certification/current`
+- Local validation commands:
+  - `pnpm run validate:module-sdk-contracts`
+  - `pnpm run validate:boundary-guards`
+  - `pnpm run validate:module-certification-gates`
+  - `pnpm run validate:rc-gates`
+  - `pnpm run validate:bun-smoke`
+- CI workflows:
+  - `.github/workflows/release-contract-gates.yml`
+  - `.github/workflows/module-certification-gates.yml`
+  - `.github/workflows/bun-superapp-smoke.yml`
+
+## Not Part of UltraModern.js V3
+
+The following are intentionally out of scope for this published V3 line:
 
 - Full app-level MF SSR runtime bridge as a stable default.
-- Effect-only data-fetch runtime standardization as a built-in framework layer.
+- Forcing Effect-only data-fetch runtime as the mandatory default for every app.
+
+## Baseline Switches (Opt-out)
+
+The default UltraModern create-template enables stricter platform contracts. These env switches are read by generated `modern.config.ts` and can be disabled/overridden per app or per environment:
+
+- `MODERN_BASELINE_ENABLE_MF_SSR` (default: `true`): Enables app-level MF SSR baseline contract (`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`). Disable when the app does not use app-level MF SSR, or when you need plain SSR/CSR behavior first.
+- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
+- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` (default: `true`): Enables telemetry exporters in baseline config. Disable when the environment has no telemetry backend yet.
+- `MODERN_BASELINE_APP_ID` (default: `basename(process.cwd())`): Overrides baseline `bff.requestId` identity. Set this when you need a fixed platform-wide producer ID convention.
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/metrics`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT` (default: `http://127.0.0.1:8428/api/v1/import/prometheus`): VictoriaMetrics exporter endpoint. Override when you use a different VM ingress endpoint.
+- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP` (default: `true`): Fails startup if configured exporters fail startup health checks. Disable in local/dev environments where temporary telemetry outage should not block boot.
 
 ## Related Public Docs
 
 - [performance.rsdoctor](/configure/app/performance/rsdoctor)
 - [server.ssr](/configure/app/server/ssr)
 - [BFF guide](/guides/advanced-features/bff/index)
+- [BFF frameworks](/guides/advanced-features/bff/frameworks)
+- [BFF data platform architecture](/guides/advanced-features/bff/data-platform)
+- [BFF Effect runtime config](/configure/app/bff/effect)
 - [Micro-frontend guide](/guides/topic-detail/micro-frontend/c01-introduction)
+- [Module Federation SSR](/guides/topic-detail/module-federation/ssr)

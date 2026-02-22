@@ -36,7 +36,7 @@ export const ZH_LOCALE = {
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (zh 或 en)',
     optionRouter: '  -r, --router   选择路由框架 (react-router 或 tanstack)',
-    optionBff: '      --bff      启用 BFF 模板（默认运行时：hono）',
+    optionBff: '      --bff      启用 BFF 模板（默认运行时：effect）',
     optionBffRuntime: '      --bff-runtime 选择 BFF 运行时（hono 或 effect）',
     optionTailwind:
       '      --tailwind 启用 Tailwind CSS v4 模板（PostCSS + 示例样式）',

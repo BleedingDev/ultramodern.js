@@ -1,28 +1,25 @@
 import {
   type MiddlewareHandler,
   defineServerConfig,
-  useBackendContext,
 } from '@modern-js/server-runtime';
 
 const requestTiming: MiddlewareHandler = async (c, next) => {
-  const context = useBackendContext();
   const startedAt = Date.now();
   await next();
   const duration = Date.now() - startedAt;
   c.res.headers.set(
     'x-effect-request-middleware',
-    `dur=${duration}; path=${context.req.path}`,
+    `dur=${duration}; path=${c.req.path}`,
   );
 };
 
 const renderTiming: MiddlewareHandler = async (c, next) => {
-  const context = useBackendContext();
   const startedAt = Date.now();
   await next();
   const duration = Date.now() - startedAt;
   c.res.headers.set(
     'x-effect-render-middleware',
-    `dur=${duration}; path=${context.req.path}`,
+    `dur=${duration}; path=${c.req.path}`,
   );
 };
 

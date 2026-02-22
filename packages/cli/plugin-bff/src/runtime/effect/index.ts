@@ -34,6 +34,7 @@ export * as Schema from 'effect/Schema';
 export * as Config from 'effect/Config';
 export * as Option from 'effect/Option';
 export * as OpenTelemetry from '@effect/opentelemetry';
+export { useEffectContext, type EffectContext } from './context';
 
 export type EffectRuntimeLayer = Layer.Layer<any, unknown, any>;
 export type EffectRpcSerialization =
@@ -504,7 +505,7 @@ function getRpcSerializationLayer(
     case 'msgPack':
       return RpcSerialization.layerMsgPack;
     default:
-      return RpcSerialization.layerJson;
+      return RpcSerialization.layerJsonRpc();
   }
 }
 

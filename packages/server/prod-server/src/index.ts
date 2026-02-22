@@ -3,12 +3,14 @@ import {
   createNodeServer,
   loadServerCliConfig,
   loadServerEnv,
+  loadServerPlugins,
   loadServerRuntimeConfig,
 } from '@modern-js/server-core/node';
 import { applyPlugins } from './apply';
 import type { BaseEnv, ProdServerOptions } from './types';
 
 export { applyPlugins, type ApplyPlugins } from './apply';
+export { loadServerPlugins };
 
 export {
   TelemetryRegistry,
@@ -66,3 +68,5 @@ export const createProdServer = async (options: ProdServerOptions) => {
 
   return nodeServer;
 };
+
+export default createProdServer;

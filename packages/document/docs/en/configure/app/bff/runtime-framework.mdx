@@ -5,7 +5,7 @@ title: runtimeFramework
 # bff.runtimeFramework
 
 - **Type:** `'hono' | 'effect'`
-- **Default:** `'hono'`
+- **Default:** `'effect'`
 
 import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
 
@@ -21,7 +21,7 @@ export default defineConfig({
 });
 ```
 
-- Set to `'hono'` to use file-convention BFF handlers as the primary runtime.
-- Set to `'effect'` to mount Effect HttpApi runtime from `api/effect/index`.
+- Set to `'effect'` to run BFF only from `api/effect/index` (Effect HttpApi runtime).
+- Set to `'hono'` to run BFF only from file-convention handlers under `api/lambda/**`.
 
-When using `'effect'`, file-convention BFF handlers under `api/lambda/**` are still available for compatibility.
+There is no implicit fallback between runtimes. Choose one runtime mode per app.

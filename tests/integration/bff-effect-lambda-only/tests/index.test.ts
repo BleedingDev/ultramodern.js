@@ -10,6 +10,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -28,18 +29,25 @@ function expectTypecheckPasses() {
   });
 }
 
-async function expectLambdaRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api`);
+async function expectEffectRoute(port: number) {
+  const response = await fetch(`${host}:${port}/bff-api/effect/hello`);
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toEqual({
-    message: 'Hello from lambda-only effect runtime',
+    message: 'Hello from effect-only runtime',
   });
+}
+
+async function expectLambdaRouteBlocked(port: number) {
+  const response = await fetch(`${host}:${port}/bff-api/`);
+  expect(response.status).toBe(404);
+  const body = await response.text();
+  expect(body).not.toContain('Hello from lambda-only effect runtime');
 }
 
 async function expectClientSdkInBrowser(page: Page, port: number) {
   await page.goto(`${host}:${port}/`, { timeout: 50000 });
   await page.waitForFunction(() => {
-    const el = document.querySelector('.lambda-message');
+    const el = document.querySelector('.effect-message');
     return (
       el &&
       el.textContent !== null &&
@@ -47,8 +55,8 @@ async function expectClientSdkInBrowser(page: Page, port: number) {
       el.textContent.trim() !== ''
     );
   });
-  const message = await page.$eval('.lambda-message', el => el?.textContent);
-  expect(message).toBe('Hello from lambda-only effect runtime');
+  const message = await page.$eval('.effect-message', el => el?.textContent);
+  expect(message).toBe('Hello from effect-only runtime');
 }
 
 describe('bff effect lambda-only tests', () => {
@@ -59,7 +67,7 @@ describe('bff effect lambda-only tests', () => {
     let port = 8080;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
+      setSuiteTimeout(1000 * 60 * 2);
       expectTypecheckPasses();
       port = await getPort();
       app = await launchApp(appDir, port, {});
@@ -67,8 +75,12 @@ describe('bff effect lambda-only tests', () => {
       page = await browser.newPage();
     });
 
-    test('lambda route works under effect runtime', async () => {
-      await expectLambdaRoute(port);
+    test('effect route works under strict effect runtime', async () => {
+      await expectEffectRoute(port);
+    });
+
+    test('api/lambda routes are not served in effect runtime', async () => {
+      await expectLambdaRouteBlocked(port);
     });
 
     test('client import works in browser', async () => {
@@ -89,7 +101,7 @@ describe('bff effect lambda-only tests', () => {
     let port = 8080;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
+      setSuiteTimeout(1000 * 60 * 2);
       port = await getPort();
       await modernBuild(appDir, [], {});
       app = await modernServe(appDir, port, {});
@@ -97,8 +109,12 @@ describe('bff effect lambda-only tests', () => {
       page = await browser.newPage();
     });
 
-    test('lambda route works under effect runtime', async () => {
-      await expectLambdaRoute(port);
+    test('effect route works under strict effect runtime', async () => {
+      await expectEffectRoute(port);
+    });
+
+    test('api/lambda routes are not served in effect runtime', async () => {
+      await expectLambdaRouteBlocked(port);
     });
 
     test('client import works in browser', async () => {

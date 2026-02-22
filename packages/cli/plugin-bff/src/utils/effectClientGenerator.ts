@@ -1,11 +1,6 @@
 import path from 'path';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, compatibleRequire, findExists, logger } from '@modern-js/utils';
-import {
-  HttpApi,
-  type HttpApiEndpoint,
-  type HttpApiGroup,
-} from 'effect/unstable/httpapi';
 
 const JS_OR_TS_EXTS = [
   '.js',
@@ -28,6 +23,36 @@ type EffectEndpointMeta = {
   method: string;
   routePath: string;
 };
+
+type HttpApiLike = {
+  identifier?: unknown;
+};
+
+type HttpApiGroupLike = {
+  identifier?: unknown;
+};
+
+type HttpApiEndpointLike = {
+  name?: unknown;
+  method?: unknown;
+  path?: unknown;
+};
+
+type HttpApiRuntime = {
+  isHttpApi: (value: unknown) => boolean;
+  reflect: (
+    api: unknown,
+    handlers: {
+      onGroup?: (group: HttpApiGroupLike) => void;
+      onEndpoint: (input: {
+        group: HttpApiGroupLike;
+        endpoint: HttpApiEndpointLike;
+      }) => void;
+    },
+  ) => void;
+};
+
+let httpApiRuntimePromise: Promise<HttpApiRuntime> | undefined;
 
 export type EffectClientCodegenOptions = {
   appDir: string;
@@ -128,11 +153,51 @@ function getPackageName(appDir: string): string | undefined {
   }
 }
 
-function resolveApiId(api: HttpApi.Any): string {
+async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
+  if (!httpApiRuntimePromise) {
+    httpApiRuntimePromise = (async () => {
+      let mod: unknown;
+      try {
+        mod = await compatibleRequire('effect/unstable/httpapi', false);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        if (!message.includes("Cannot find module 'effect/unstable/httpapi'")) {
+          throw error;
+        }
+        // Fallback for CJS paths where the effect package does not expose a require condition.
+        const effectPackageJson = require.resolve('effect/package.json');
+        const effectHttpApiRuntimePath = path.join(
+          path.dirname(effectPackageJson),
+          'dist',
+          'unstable',
+          'httpapi',
+          'index.js',
+        );
+        mod = await compatibleRequire(effectHttpApiRuntimePath, false);
+      }
+
+      if (isRecord(mod) && isRecord(mod.HttpApi)) {
+        const maybeHttpApi = mod.HttpApi as Partial<HttpApiRuntime>;
+        if (
+          typeof maybeHttpApi.isHttpApi === 'function' &&
+          typeof maybeHttpApi.reflect === 'function'
+        ) {
+          return maybeHttpApi as HttpApiRuntime;
+        }
+      }
+      throw new Error(
+        '[BFF][Effect] Unable to resolve HttpApi runtime from effect/unstable/httpapi.',
+      );
+    })();
+  }
+
+  return httpApiRuntimePromise;
+}
+
+function resolveApiId(api: HttpApiLike): string {
   const fallback = 'EffectHttpApi';
-  const maybeApi = api as HttpApi.AnyWithProps & {
-    identifier?: unknown;
-  };
+  const maybeApi = api as HttpApiLike;
   if (
     'identifier' in maybeApi &&
     typeof maybeApi.identifier === 'string' &&
@@ -143,10 +208,14 @@ function resolveApiId(api: HttpApi.Any): string {
   return fallback;
 }
 
-function collectEffectEndpoints(api: HttpApi.Any, prefix: string) {
+function collectEffectEndpoints(
+  httpApiRuntime: HttpApiRuntime,
+  api: HttpApiLike,
+  prefix: string,
+) {
   const endpoints: EffectEndpointMeta[] = [];
   const apiId = resolveApiId(api);
-  HttpApi.reflect(api as HttpApi.AnyWithProps, {
+  httpApiRuntime.reflect(api, {
     onGroup: () => {
       // no-op
     },
@@ -154,8 +223,8 @@ function collectEffectEndpoints(api: HttpApi.Any, prefix: string) {
       group,
       endpoint,
     }: {
-      group: HttpApiGroup.AnyWithProps;
-      endpoint: HttpApiEndpoint.AnyWithProps;
+      group: HttpApiGroupLike;
+      endpoint: HttpApiEndpointLike;
     }) => {
       endpoints.push({
         apiId,
@@ -174,19 +243,20 @@ function collectEffectEndpoints(api: HttpApi.Any, prefix: string) {
   });
 }
 
-async function loadEffectApi(resourcePath: string) {
+async function loadEffectApi(resourcePath: string): Promise<HttpApiLike | null> {
+  const httpApiRuntime = await getHttpApiRuntime();
   const mod = (await compatibleRequire(resourcePath, false)) as unknown;
 
-  if (isRecord(mod) && HttpApi.isHttpApi(mod.api)) {
-    return mod.api;
+  if (isRecord(mod) && httpApiRuntime.isHttpApi(mod.api)) {
+    return mod.api as HttpApiLike;
   }
 
   if (
     isRecord(mod) &&
     isRecord(mod.default) &&
-    HttpApi.isHttpApi(mod.default.api)
+    httpApiRuntime.isHttpApi(mod.default.api)
   ) {
-    return mod.default.api;
+    return mod.default.api as HttpApiLike;
   }
 
   if (
@@ -195,8 +265,8 @@ async function loadEffectApi(resourcePath: string) {
     mod.default.length === 0
   ) {
     const output = await mod.default();
-    if (isRecord(output) && HttpApi.isHttpApi(output.api)) {
-      return output.api;
+    if (isRecord(output) && httpApiRuntime.isHttpApi(output.api)) {
+      return output.api as HttpApiLike;
     }
   }
 
@@ -352,15 +422,34 @@ const __REQUEST_ID = ${requestId ? JSON.stringify(requestId) : 'undefined'};
 const __RUNTIME_FETCH =
   typeof fetch === 'function' ? fetch.bind(globalThis) : undefined;
 
-if (
-  __DEFAULT_BATCH_CONFIG.enabled !== false &&
-  __REQUEST_ID &&
-  __configureRequest &&
-  __RUNTIME_FETCH
-) {
-  __configureRequest({
+if (__REQUEST_ID && __configureRequest) {
+  const __configurePayload = {
     requestId: __REQUEST_ID,
-    request: createDataBatchTransport({
+    setDomain: () => {
+      if (
+        typeof window !== 'undefined' &&
+        window.location &&
+        typeof window.location.origin === 'string' &&
+        window.location.origin
+      ) {
+        return window.location.origin;
+      }
+
+      if (
+        typeof globalThis !== 'undefined' &&
+        globalThis.location &&
+        typeof globalThis.location.origin === 'string' &&
+        globalThis.location.origin
+      ) {
+        return globalThis.location.origin;
+      }
+
+      return __DEFAULT_ORIGIN;
+    },
+  };
+
+  if (__DEFAULT_BATCH_CONFIG.enabled !== false && __RUNTIME_FETCH) {
+    __configurePayload.request = createDataBatchTransport({
       fetch: __RUNTIME_FETCH,
       endpoint: __DEFAULT_BATCH_CONFIG.endpoint,
       flushIntervalMs: __DEFAULT_BATCH_CONFIG.flushIntervalMs,
@@ -368,8 +457,10 @@ if (
       maxBatchBytes: __DEFAULT_BATCH_CONFIG.maxBatchBytes,
       requestTimeoutMs: __DEFAULT_BATCH_CONFIG.requestTimeoutMs,
       allowedMethods: __DEFAULT_BATCH_CONFIG.allowedMethods,
-    }),
-  });
+    });
+  }
+
+  __configureRequest(__configurePayload);
 }
 
 const __isRecord = value => typeof value === 'object' && value !== null;
@@ -606,11 +697,23 @@ export default effectBffModule;
 `;
 }
 
-export function renderEffectClientDeclaration(effectModuleImportPath: string) {
-  return `import type EffectModule from ${JSON.stringify(effectModuleImportPath)};
-
-type EffectClient = (typeof EffectModule)['client'];
-type EffectOperationManifest = (typeof EffectModule)['operationManifest'];
+export function renderEffectClientDeclaration() {
+  return `export type EffectClientOperation = (
+  request?: unknown,
+) => Promise<unknown>;
+export type EffectClientGroup = Record<string, EffectClientOperation>;
+export type EffectClient = Record<string, EffectClientGroup>;
+export type EffectOperationDescriptor = {
+  appNamespace: string;
+  apiId: string;
+  group: string;
+  endpoint: string;
+  version: number;
+};
+export type EffectOperationManifest = Record<
+  string,
+  Record<string, EffectOperationDescriptor>
+>;
 
 export declare const client: EffectClient;
 export declare const operationManifest: EffectOperationManifest;
@@ -634,7 +737,8 @@ export async function generateEffectClientCode(
     return null;
   }
 
-  const endpoints = collectEffectEndpoints(api, options.prefix);
+  const httpApiRuntime = await getHttpApiRuntime();
+  const endpoints = collectEffectEndpoints(httpApiRuntime, api, options.prefix);
   return renderEffectClientCode(endpoints, options);
 }
 

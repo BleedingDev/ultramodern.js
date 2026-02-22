@@ -35,6 +35,16 @@ const WATCHABLE_EXTENSIONS = [
 const isWatchableBffFile = (filename: string) =>
   WATCHABLE_EXTENSIONS.some(ext => filename.endsWith(ext));
 
+const normalizePrefixList = (prefix: string | string[] | undefined) => {
+  if (Array.isArray(prefix)) {
+    return prefix.filter(Boolean);
+  }
+  return [prefix || DEFAULT_API_PREFIX];
+};
+
+const getPrimaryPrefix = (prefix: string | string[] | undefined) =>
+  normalizePrefixList(prefix)[0] || DEFAULT_API_PREFIX;
+
 export const bffPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-bff',
   setup: api => {
@@ -44,7 +54,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       api.updateAppContext({
         ...appContext,
         bffRuntimeFramework:
-          userRuntimeFramework === 'effect' ? 'effect' : 'hono',
+          userRuntimeFramework === 'hono' ? 'hono' : 'effect',
       });
     }
 
@@ -73,7 +83,6 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         sourceDirs.push(sharedDir);
       }
 
-      const { server } = modernConfig;
       const { alias } = modernConfig.source;
       const { alias: resolveAlias } = modernConfig.resolve;
 
@@ -84,32 +93,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         await compile(
           appDirectory,
           {
-            target: 'bff',
-            schema: {
-              type: 'object',
-              properties: {
-                prefix: {
-                  type: ['string', 'array'],
-                  items: { type: 'string' },
-                },
-                fetcher: { type: 'string' },
-                proxy: { type: 'object' },
-                requestId: { type: 'string' },
-                crossProjectPolicy: {
-                  type: 'object',
-                  properties: {
-                    enabled: { type: 'boolean' },
-                    requireEnvelope: { type: 'boolean' },
-                    requireOperationContext: { type: 'boolean' },
-                    allowedNamespaces: {
-                      type: 'array',
-                      items: { type: 'string' },
-                    },
-                    denyStatus: { type: 'number' },
-                  },
-                },
-              },
-            },
+            alias: combinedAlias,
           },
           {
             sourceDirs,
@@ -134,7 +118,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       const modernConfig = api.getNormalizedConfig();
       const relativeDistPath = modernConfig?.output?.distPath?.root || 'dist';
       const { bff } = modernConfig || {};
-      const prefix = bff?.prefix || DEFAULT_API_PREFIX;
+      const prefix = getPrimaryPrefix(bff?.prefix);
       const httpMethodDecider = bff?.httpMethodDecider;
 
       const apiRouter = new ApiRouter({
@@ -159,7 +143,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         relativeDistPath,
         relativeApiPath,
         relativeLambdaPath,
-        runtimeFramework: bffRuntimeFramework === 'effect' ? 'effect' : 'hono',
+        runtimeFramework: bffRuntimeFramework === 'hono' ? 'hono' : 'effect',
       });
       await clientGenerator({
         prefix,
@@ -200,7 +184,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
 
     const createCompressConfig = (
       devServer: ToolsDevServerConfig | undefined,
-      prefix: string,
+      prefix: string | string[],
     ) => {
       if (
         !devServer ||
@@ -213,8 +197,10 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       const { compress } = devServer;
 
       if (compress === undefined || compress === true) {
+        const prefixes = normalizePrefixList(prefix);
         return {
-          filter: (req: IncomingMessage) => !req.url?.includes(prefix),
+          filter: (req: IncomingMessage) =>
+            !prefixes.some(item => req.url?.includes(item)),
         };
       }
 
@@ -246,7 +232,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
             } = api.getAppContext();
             const modernConfig = api.getNormalizedConfig();
             const { bff } = modernConfig || {};
-            const prefix = bff?.prefix || DEFAULT_API_PREFIX;
+            const prefix = getPrimaryPrefix(bff?.prefix);
             const httpMethodDecider = bff?.httpMethodDecider;
 
             const apiRouter = new ApiRouter({

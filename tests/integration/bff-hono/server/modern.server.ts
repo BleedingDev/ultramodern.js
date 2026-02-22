@@ -1,11 +1,11 @@
 import {
   type MiddlewareHandler,
   defineServerConfig,
-  useBackendContext,
+  useHonoContext,
 } from '@modern-js/server-runtime';
 
 const timing: MiddlewareHandler = async (c, next) => {
-  const ctx = useBackendContext();
+  const ctx = useHonoContext();
 
   const start = Date.now();
 

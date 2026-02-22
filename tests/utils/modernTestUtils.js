@@ -1,7 +1,7 @@
 const path = require('path');
+const net = require('node:net');
 const spawn = require('cross-spawn');
 const treeKill = require('tree-kill');
-const getRandomPort = require('get-port');
 const { launchOptions } = require('./launchOptions');
 
 const kModernAppTools = path.join(
@@ -96,9 +96,12 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     });
 
     let didResolve = false;
+    let stdoutOutput = '';
+    let stderrOutput = '';
 
     function handleStdout(data) {
       const message = data.toString();
+      stdoutOutput += message;
       const bootupMarkers = {
         dev: /> Local:/i,
         serve: /> Local:/i,
@@ -129,16 +132,52 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     }
 
     instance.stdout.on('data', handleStdout);
+    instance.stderr.on('data', data => {
+      const message = data.toString();
+      stderrOutput += message;
+
+      if (typeof options.onStderr === 'function') {
+        options.onStderr(message);
+      }
+
+      const compileErrorMarker = /Compile error/i;
+      if (rejectOnCompileError && compileErrorMarker.test(message)) {
+        if (!didResolve) {
+          didResolve = true;
+          const error = new Error(message);
+          error.stdout = stdoutOutput;
+          error.stderr = stderrOutput;
+          reject(error);
+        }
+      }
+
+      if (options.stderr !== false) {
+        process.stderr.write(message);
+      }
+    });
 
     instance.on('error', error => {
+      error.stdout = stdoutOutput;
+      error.stderr = stderrOutput;
       reject(error);
     });
 
-    instance.on('close', () => {
+    instance.on('close', code => {
       instance.stdout.removeListener('data', handleStdout);
       if (!didResolve) {
+        const phase = options.modernServe ? 'serve' : 'dev';
+        const output = [stdoutOutput.trim(), stderrOutput.trim()]
+          .filter(Boolean)
+          .join('\n');
+        const detail = output ? `\n${output}` : '';
+        const exitCode = code === null ? 'unknown' : String(code);
+        const error = new Error(
+          `modern ${phase} exited before readiness marker with code ${exitCode}.${detail}`,
+        );
+        error.stdout = stdoutOutput;
+        error.stderr = stderrOutput;
         didResolve = true;
-        resolve();
+        reject(error);
       }
     });
   });
@@ -224,9 +263,36 @@ async function killApp(instance) {
 
 const portMap = new Map();
 
+function reservePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => {
+          reject(new Error('Failed to resolve an available TCP port'));
+        });
+        return;
+      }
+
+      const { port } = address;
+      server.close(err => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
 async function getPort() {
   while (true) {
-    const port = await getRandomPort();
+    const port = await reservePort();
     if (!portMap.get(port)) {
       portMap.set(port, 1);
       return port;

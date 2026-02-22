@@ -1,6 +1,8 @@
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
+import * as Scope from 'effect/Scope';
 import { FetchHttpClient } from 'effect/unstable/http';
 import {
   HttpApi,
@@ -169,7 +171,7 @@ function getRpcSerializationLayer(
     case 'msgPack':
       return RpcSerialization.layerMsgPack;
     default:
-      return RpcSerialization.layerJson;
+      return RpcSerialization.layerJsonRpc();
   }
 }
 
@@ -204,20 +206,31 @@ export function makeEffectRpcClient<
   return Effect.tryPromise({
     try: async () => {
       const runtime = ManagedRuntime.make(runtimeLayer);
+      const scope = await runtime.runPromise(Scope.make());
       try {
         const client = await runtime.runPromise(
-          Effect.scoped(
-            RpcClient.make(group, {
-              flatten: options.flatten,
-            }),
-          ),
+          RpcClient.make(group, {
+            flatten: options.flatten,
+          }).pipe(Effect.provideService(Scope.Scope, scope)),
         );
+        let disposed = false;
         const clientWithDispose: EffectRpcClientHandle<Rpcs, Flatten> =
           Object.assign(client, {
-            dispose: () => runtime.dispose(),
+            dispose: async () => {
+              if (!disposed) {
+                disposed = true;
+                await runtime.runPromise(Scope.close(scope, Exit.void));
+              }
+              await runtime.dispose();
+            },
           });
         return clientWithDispose;
       } catch (error) {
+        try {
+          await runtime.runPromise(Scope.close(scope, Exit.void));
+        } catch {
+          // ignore scope close errors and preserve the original construction error
+        }
         try {
           await runtime.dispose();
         } catch {

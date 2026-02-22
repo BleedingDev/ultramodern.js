@@ -10,11 +10,11 @@ export const bffCrossProjectEffectApi = HttpApi.make(
   'CrossProjectEffectApi',
 ).add(
   HttpApiGroup.make('greetings').add(
-    HttpApiEndpoint.get('hello', '/effect/hello').addSuccess(
-      Schema.Struct({
+    HttpApiEndpoint.get('hello', '/effect/hello', {
+      success: Schema.Struct({
         message: Schema.String,
         runtime: Schema.Literal('effect'),
       }),
-    ),
+    }),
   ),
 );

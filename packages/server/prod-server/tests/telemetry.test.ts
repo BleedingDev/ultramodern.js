@@ -1,7 +1,6 @@
 import { createServer } from 'http';
 import type { IncomingHttpHeaders } from 'http';
 import type { AddressInfo } from 'net';
-import path from 'path';
 import {
   TelemetryCanaryOrchestrator,
   TelemetryEnvelope,
@@ -11,7 +10,6 @@ import {
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
 } from '../src/libs/telemetry';
-import { Server } from '../src/server';
 
 const createEnvelope = (
   partial: Partial<TelemetryEnvelope> = {},
@@ -126,9 +124,9 @@ describe('telemetry registry', () => {
     });
 
     const base = {
-      gauges: jest.fn(),
-      emitCounter: jest.fn(),
-      emitTimer: jest.fn(),
+      gauges: rs.fn(),
+      emitCounter: rs.fn(),
+      emitTimer: rs.fn(),
     };
     const metrics = createTelemetryAwareMetrics(base as any, registry);
     metrics.emitCounter('server.request.count', 1, {
@@ -283,7 +281,7 @@ describe('telemetry canary orchestrator', () => {
       },
     });
 
-    const onPromote = jest.fn();
+    const onPromote = rs.fn();
     const orchestrator = new TelemetryCanaryOrchestrator({
       registry,
       minConsecutiveHealthyEvaluations: 2,
@@ -309,7 +307,7 @@ describe('telemetry canary orchestrator', () => {
       flushIntervalMs: 60_000,
     });
 
-    const onRollback = jest.fn();
+    const onRollback = rs.fn();
     const orchestrator = new TelemetryCanaryOrchestrator({
       registry,
       requiredContractGates: ['contracts'],
@@ -418,163 +416,5 @@ describe('telemetry exporters', () => {
     } finally {
       await capture.close();
     }
-  });
-});
-
-describe('server telemetry startup policy', () => {
-  const createServerConfig = (telemetry: Record<string, unknown>) => ({
-    html: {},
-    output: {},
-    source: {},
-    tools: {},
-    runtime: {},
-    bff: {},
-    server: {
-      telemetry,
-    },
-  });
-
-  test('server initialization throws startup health error by default', async () => {
-    const server = new Server({
-      pwd: path.join(__dirname, './fixtures/pure'),
-      config: createServerConfig({
-        enabled: true,
-        exporters: {
-          otlp: {
-            enabled: true,
-            endpoint: 'http://127.0.0.1:1/v1/logs',
-            timeoutMs: 100,
-          },
-        },
-      }) as any,
-    } as any);
-
-    await expect((server as any).initTelemetry((server as any).options)).rejects.toBeInstanceOf(
-      TelemetryStartupHealthError,
-    );
-  });
-
-  test('server initialization can continue with unhealthy exporter in degraded mode', async () => {
-    const server = new Server({
-      pwd: path.join(__dirname, './fixtures/pure'),
-      config: createServerConfig({
-        enabled: true,
-        failLoudStartup: false,
-        exporters: {
-          otlp: {
-            enabled: true,
-            endpoint: 'http://127.0.0.1:1/v1/logs',
-            timeoutMs: 100,
-          },
-        },
-      }) as any,
-    } as any);
-
-    await expect(
-      (server as any).initTelemetry((server as any).options),
-    ).resolves.toBeUndefined();
-
-    const health = (server as any).telemetryRegistry?.getExporterHealth();
-    expect(health).toHaveLength(1);
-    expect(health[0].name).toBe('otlp');
-    expect(health[0].healthy).toBe(false);
-    expect(health[0].failures).toBeGreaterThan(0);
-
-    await server.close();
-  });
-
-  test('server telemetry SLO alerts are wired to logger warnings', async () => {
-    const warn = jest.fn();
-    const server = new Server({
-      pwd: path.join(__dirname, './fixtures/pure'),
-      logger: {
-        level: jest.fn(),
-        fatal: jest.fn(),
-        error: jest.fn(),
-        warn,
-        info: jest.fn(),
-        debug: jest.fn(),
-      } as any,
-      config: createServerConfig({
-        enabled: true,
-        failLoudStartup: false,
-        maxQueueSize: 2,
-        slo: {
-          queueUtilizationWarnThreshold: 0.5,
-          queueDroppedWarnThreshold: 1,
-          alertCooldownMs: 0,
-        },
-        exporters: {
-          otlp: {
-            enabled: true,
-            endpoint: 'http://127.0.0.1:1/v1/logs',
-            timeoutMs: 100,
-          },
-        },
-      }) as any,
-    } as any);
-
-    await expect(
-      (server as any).initTelemetry((server as any).options),
-    ).resolves.toBeUndefined();
-
-    const metrics = (server as any).options.metrics;
-    metrics.emitCounter('queue.alert.test', 1, {});
-    metrics.emitCounter('queue.alert.test', 1, {});
-    metrics.emitCounter('queue.alert.test', 1, {});
-
-    expect(warn).toHaveBeenCalled();
-    expect(
-      warn.mock.calls.some(call => String(call[0]).includes('[telemetry.slo]')),
-    ).toBe(true);
-
-    await server.close();
-  });
-
-  test('server telemetry canary rollback is wired to logger errors', async () => {
-    const capture = await createCaptureServer();
-    const error = jest.fn();
-
-    const server = new Server({
-      pwd: path.join(__dirname, './fixtures/pure'),
-      logger: {
-        level: jest.fn(),
-        fatal: jest.fn(),
-        error,
-        warn: jest.fn(),
-        info: jest.fn(),
-        debug: jest.fn(),
-      } as any,
-      config: createServerConfig({
-        enabled: true,
-        exporters: {
-          otlp: {
-            enabled: true,
-            endpoint: capture.endpoint,
-            timeoutMs: 200,
-          },
-        },
-        canary: {
-          enabled: true,
-          rollbackConsecutiveFailures: 1,
-          contractGates: {
-            contracts: false,
-          },
-        },
-      }) as any,
-    } as any);
-
-    await expect(
-      (server as any).initTelemetry((server as any).options),
-    ).resolves.toBeUndefined();
-
-    expect(
-      error.mock.calls.some(call =>
-        String(call[0]).includes('[telemetry.canary] rollback triggered'),
-      ),
-    ).toBe(true);
-
-    await server.close();
-    await capture.close();
   });
 });

@@ -70,8 +70,8 @@ Adopt a phased SSR strategy for app-level MF:
 
 ## 9. Implementation Notes (2026-02-21)
 
-- Added alpha config flag: `server.ssr.moduleFederationAppSSRAlpha`.
-- Added runtime define: `process.env.MODERN_MF_APP_SSR_ALPHA`.
+- Added app-level MF SSR config flag: `server.ssr.moduleFederationAppSSR`.
+- Added runtime define: `process.env.MODERN_MF_APP_SSR`.
 - Added i18n MF integration coverage for:
   - dev SSR shell + hydration consistency.
   - remote-unavailable fallback boundary behavior.

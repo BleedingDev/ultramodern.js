@@ -1,61 +1,61 @@
 // Rstest Snapshot v1
 
-exports[`client generateClient should support operator 1`] = `
-"import { createRequest } from "@modern-js/create-request";
+exports[`client > generateClient should support operator 1`] = `
+"import { createRequest } from \\"@modern-js/plugin-bff/client\\";
 
 export const operationVersion = 1;
 export const operationSchemaHash = 'f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba';
 export const operationManifest = {
-  "operationVersion": 1,
-  "schemaHash": "f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba",
-  "operations": [
+  \\"operationVersion\\": 1,
+  \\"schemaHash\\": \\"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba\\",
+  \\"operations\\": [
     {
-      "name": "DELETE",
-      "httpMethod": "DELETE",
-      "routePath": "/normal/origin"
+      \\"name\\": \\"DELETE\\",
+      \\"httpMethod\\": \\"DELETE\\",
+      \\"routePath\\": \\"/normal/origin\\"
     },
     {
-      "name": "default",
-      "httpMethod": "GET",
-      "routePath": "/normal/origin"
+      \\"name\\": \\"default\\",
+      \\"httpMethod\\": \\"GET\\",
+      \\"routePath\\": \\"/normal/origin\\"
     },
     {
-      "name": "putRepo",
-      "httpMethod": "PUT",
-      "routePath": "/put-repo"
+      \\"name\\": \\"putRepo\\",
+      \\"httpMethod\\": \\"PUT\\",
+      \\"routePath\\": \\"/put-repo\\"
     }
   ]
 };
 
-export default createRequest("/normal/origin", "GET", 3000, "functionName", undefined, undefined, {"operationId":"default","routePath":"/normal/origin","method":"GET","schemaHash":"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba","operationVersion":1});
-      export var DELETE = createRequest("/normal/origin", "DELETE", 3000, "functionName", undefined, undefined, {"operationId":"DELETE","routePath":"/normal/origin","method":"DELETE","schemaHash":"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba","operationVersion":1});
-      export var putRepo = createRequest("/put-repo", "PUT", 3000, "functionName", undefined, undefined, {"operationId":"putRepo","routePath":"/put-repo","method":"PUT","schemaHash":"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba","operationVersion":1});
+export var DELETE = createRequest(\\"/normal/origin\\", \\"DELETE\\", 3000, \\"functionName\\", undefined, undefined, {\\"operationId\\":\\"DELETE\\",\\"routePath\\":\\"/normal/origin\\",\\"method\\":\\"DELETE\\",\\"schemaHash\\":\\"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba\\",\\"operationVersion\\":1});
+      export default createRequest(\\"/normal/origin\\", \\"GET\\", 3000, \\"functionName\\", undefined, undefined, {\\"operationId\\":\\"default\\",\\"routePath\\":\\"/normal/origin\\",\\"method\\":\\"GET\\",\\"schemaHash\\":\\"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba\\",\\"operationVersion\\":1});
+      export var putRepo = createRequest(\\"/put-repo\\", \\"PUT\\", 3000, \\"functionName\\", undefined, undefined, {\\"operationId\\":\\"putRepo\\",\\"routePath\\":\\"/put-repo\\",\\"method\\":\\"PUT\\",\\"schemaHash\\":\\"f3dbf4f8a01043841f6feb150e85fdfa31a2dd9f77d8697a72542477a98944ba\\",\\"operationVersion\\":1});
 "
 `;
 
-exports[`client generateClient should works correctly 1`] = `
-"import { createRequest } from "@modern-js/create-request";
+exports[`client > generateClient should works correctly 1`] = `
+"import { createRequest } from \\"@modern-js/plugin-bff/client\\";
 
 export const operationVersion = 1;
 export const operationSchemaHash = '83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1';
 export const operationManifest = {
-  "operationVersion": 1,
-  "schemaHash": "83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1",
-  "operations": [
+  \\"operationVersion\\": 1,
+  \\"schemaHash\\": \\"83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1\\",
+  \\"operations\\": [
     {
-      "name": "get",
-      "httpMethod": "GET",
-      "routePath": "/api/:id/origin/foo"
+      \\"name\\": \\"get\\",
+      \\"httpMethod\\": \\"GET\\",
+      \\"routePath\\": \\"/api/:id/origin/foo\\"
     },
     {
-      "name": "post",
-      "httpMethod": "POST",
-      "routePath": "/api/:id/origin/foo"
+      \\"name\\": \\"post\\",
+      \\"httpMethod\\": \\"POST\\",
+      \\"routePath\\": \\"/api/:id/origin/foo\\"
     }
   ]
 };
 
-export var get = createRequest("/api/:id/origin/foo", "GET", 3000, "functionName", undefined, undefined, {"operationId":"get","routePath":"/api/:id/origin/foo","method":"GET","schemaHash":"83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1","operationVersion":1});
-      export var post = createRequest("/api/:id/origin/foo", "POST", 3000, "functionName", undefined, undefined, {"operationId":"post","routePath":"/api/:id/origin/foo","method":"POST","schemaHash":"83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1","operationVersion":1});
+export var get = createRequest(\\"/api/:id/origin/foo\\", \\"GET\\", 3000, \\"functionName\\", undefined, undefined, {\\"operationId\\":\\"get\\",\\"routePath\\":\\"/api/:id/origin/foo\\",\\"method\\":\\"GET\\",\\"schemaHash\\":\\"83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1\\",\\"operationVersion\\":1});
+      export var post = createRequest(\\"/api/:id/origin/foo\\", \\"POST\\", 3000, \\"functionName\\", undefined, undefined, {\\"operationId\\":\\"post\\",\\"routePath\\":\\"/api/:id/origin/foo\\",\\"method\\":\\"POST\\",\\"schemaHash\\":\\"83a353e648dd5a343671f933eee94f9516c8c8bae2fa95932622f45ccffd5bf1\\",\\"operationVersion\\":1});
 "
 `;

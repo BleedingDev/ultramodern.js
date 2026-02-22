@@ -19,6 +19,15 @@ type ExtendedNodeResponse = NodeResponse & {
   _modernBodyPiped?: boolean;
 };
 
+type ResponseStatusSnapshot = {
+  headersSent?: boolean;
+  writableEnded?: boolean;
+  finished?: boolean;
+  socket?: {
+    writable?: boolean;
+  } | null;
+};
+
 export type NodeBindings = {
   node: {
     req: ExtendedNodeRequest;
@@ -27,11 +36,12 @@ export type NodeBindings = {
 };
 
 export const isResFinalized = (res: ExtendedNodeResponse): boolean => {
+  const response = res as ExtendedNodeResponse & ResponseStatusSnapshot;
   return (
-    res.headersSent ||
-    res._modernBodyPiped ||
-    res.writableEnded ||
-    res.finished ||
-    !res.socket?.writable
+    Boolean(response.headersSent) ||
+    Boolean(response._modernBodyPiped) ||
+    Boolean(response.writableEnded) ||
+    Boolean(response.finished) ||
+    response.socket?.writable === false
   );
 };

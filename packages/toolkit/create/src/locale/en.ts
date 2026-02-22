@@ -38,7 +38,7 @@ export const EN_LOCALE = {
     optionLang: '  -l, --lang     Set the language (zh or en)',
     optionRouter:
       '  -r, --router   Select router framework (react-router or tanstack)',
-    optionBff: '      --bff      Enable BFF scaffold (default runtime: hono)',
+    optionBff: '      --bff      Enable BFF scaffold (default runtime: effect)',
     optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
     optionTailwind:
       '      --tailwind Enable Tailwind CSS v4 scaffold (PostCSS + starter styles)',

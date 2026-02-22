@@ -1,9 +1,21 @@
 import effectBff from 'bff-api-app/api/effect/index';
+import { configure } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
+
+configure({
+  setDomain() {
+    return window.location.origin;
+  },
+});
 
 type EffectGreetingResponse = {
   runtime: string;
   message: string;
+};
+type EffectGreetingClient = {
+  greetings: {
+    hello: (request: Record<string, unknown>) => Promise<unknown>;
+  };
 };
 
 function toEffectGreetingResponse(value: unknown): EffectGreetingResponse {
@@ -27,7 +39,8 @@ const App = () => {
   const [message, setMessage] = useState('loading');
 
   useEffect(() => {
-    effectBff.client.greetings
+    const effectGreetingClient = effectBff.client as EffectGreetingClient;
+    effectGreetingClient.greetings
       .hello({})
       .then(toEffectGreetingResponse)
       .then((data: EffectGreetingResponse) => {

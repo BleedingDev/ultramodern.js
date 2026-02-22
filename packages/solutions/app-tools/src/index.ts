@@ -42,6 +42,7 @@ import { initAppContext } from './utils/initAppContext';
 import { restart } from './utils/restart';
 
 export * from './defineConfig';
+export * from './baseline';
 
 export const appTools = (): CliPlugin<AppTools> => ({
   name: '@modern-js/app-tools',
@@ -83,7 +84,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
         runtimeConfigFile: DEFAULT_RUNTIME_CONFIG_FILE,
         options: {
           bffRuntimeFramework:
-            userConfig.bff?.runtimeFramework === 'effect' ? 'effect' : 'hono',
+            userConfig.bff?.runtimeFramework === 'hono' ? 'hono' : 'effect',
         },
         tempDir: userConfig.output?.tempDir,
       }),

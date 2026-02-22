@@ -31,7 +31,7 @@ const createStorage = <T>() => {
     }
     const context = storage.getStore();
     if (!context) {
-      throw new Error(`Can't call useBackendContext out of server scope`);
+      throw new Error(`Can't call context hook out of server scope`);
     }
 
     return context;

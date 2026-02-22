@@ -2,7 +2,7 @@ import type { Operator } from '@modern-js/bff-core';
 import {
   type Context,
   type Next,
-  useBackendContext,
+  useHonoContext,
 } from '@modern-js/server-core';
 
 export type EndFunction = ((func: (res: Response) => void) => void) &
@@ -19,7 +19,7 @@ export const Pipe = <T>(func: PipeFunction<T>): Operator<T> => {
     name: 'pipe',
     async execute(executeHelper, next) {
       const { inputs } = executeHelper;
-      const ctx = useBackendContext();
+      const ctx = useHonoContext();
       const { res } = ctx;
       if (typeof func === 'function') {
         let isPiped = true;

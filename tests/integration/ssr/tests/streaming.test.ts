@@ -10,6 +10,14 @@ import {
 
 const fixtureDir = path.resolve(__dirname, '../fixtures');
 
+async function waitForUserData(page: Page, expectedText: string) {
+  await page.waitForFunction(
+    text => document.body.textContent?.includes(text),
+    { timeout: 10_000 },
+    expectedText,
+  );
+}
+
 async function basicUsage(page: Page, appPort: number) {
   const res = await page.goto(`http://localhost:${appPort}/about`, {
     waitUntil: ['networkidle0'],
@@ -34,7 +42,7 @@ async function deferredData(page: Page, appPort: number) {
     waitUntil: ['networkidle0'],
   });
 
-  await (expect(page) as any).toMatchTextContent(/user1-18/);
+  await waitForUserData(page, 'user1-18');
 }
 
 async function deferredDataInNavigation(page: Page, appPort: number) {
@@ -43,7 +51,7 @@ async function deferredDataInNavigation(page: Page, appPort: number) {
   });
 
   await page.click('#user-btn');
-  await (expect(page) as any).toMatchTextContent(/user1-18/);
+  await waitForUserData(page, 'user1-18');
 }
 
 async function errorThrownInLoader(page: Page, appPort: number) {

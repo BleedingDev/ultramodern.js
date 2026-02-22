@@ -56,8 +56,8 @@ describe('create-bff-runtime', () => {
     }
   });
 
-  test('scaffolds hono runtime with --bff', () => {
-    const appDir = path.join(tempRoot, 'with-bff-hono');
+  test('scaffolds effect runtime by default with --bff', () => {
+    const appDir = path.join(tempRoot, 'with-bff-effect-default');
     fs.rmSync(appDir, { recursive: true, force: true });
     runCreate(appDir, ['--bff', '--lang', 'en']);
 
@@ -71,14 +71,13 @@ describe('create-bff-runtime', () => {
       'utf-8',
     );
     expect(modernConfig).toContain('bffPlugin()');
-    expect(modernConfig).toContain("runtimeFramework: 'hono'");
+    expect(modernConfig).toContain("runtimeFramework: 'effect'");
+    expect(modernConfig).toContain('openapi: true');
     expectNoHandlebarsArtifacts(modernConfig);
 
-    expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(true);
 
     const routePage = path.join(appDir, 'src/routes/page.tsx');
     expectNoHandlebarsArtifacts(fs.readFileSync(routePage, 'utf-8'));
@@ -108,7 +107,7 @@ describe('create-bff-runtime', () => {
     expect(fs.existsSync(effectEntry)).toBe(true);
     expect(fs.readFileSync(effectEntry, 'utf-8')).toContain('defineEffectBff');
     expect(fs.readFileSync(effectEntry, 'utf-8')).toContain('bffEffectApi');
-    expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(false);
 
     const sharedEffectApi = path.join(appDir, 'shared/effect/api.ts');
     expect(fs.existsSync(sharedEffectApi)).toBe(true);
@@ -131,6 +130,29 @@ describe('create-bff-runtime', () => {
     );
     expect(tsConfig).toContain('"@api/*"');
     expect(tsConfig).toContain('"api"');
+  });
+
+  test('scaffolds hono runtime with --bff-runtime hono', () => {
+    const appDir = path.join(tempRoot, 'with-bff-hono');
+    fs.rmSync(appDir, { recursive: true, force: true });
+    runCreate(appDir, ['--router', 'tanstack', '--bff-runtime', 'hono']);
+
+    const modernConfig = fs.readFileSync(
+      path.join(appDir, 'modern.config.ts'),
+      'utf-8',
+    );
+    expect(modernConfig).toContain("runtimeFramework: 'hono'");
+    expect(modernConfig).not.toContain('openapi: true');
+    expectNoHandlebarsArtifacts(modernConfig);
+
+    expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(false);
+
+    const routePage = path.join(appDir, 'src/routes/page.tsx');
+    const routePageContent = fs.readFileSync(routePage, 'utf-8');
+    expectNoHandlebarsArtifacts(routePageContent);
+    expect(routePageContent).not.toContain("import effectBff from '@api/effect/index'");
   });
 
   test('scaffolds workspace versions with --workspace', () => {

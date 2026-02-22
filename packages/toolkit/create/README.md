@@ -36,16 +36,22 @@ npx @modern-js/create my-app --router tanstack --tailwind
 
 ### BFF Runtime Template
 
-You can scaffold BFF APIs with the default Hono runtime:
+You can scaffold BFF APIs with the default Effect runtime:
 
 ```bash
 npx @modern-js/create my-app --bff
 ```
 
-You can scaffold Effect HttpApi runtime for BFF:
+You can explicitly scaffold Effect HttpApi runtime for BFF:
 
 ```bash
 npx @modern-js/create my-app --bff-runtime effect
+```
+
+To scaffold Hono runtime explicitly:
+
+```bash
+npx @modern-js/create my-app --bff-runtime hono
 ```
 
 You can combine TanStack Router + Tailwind + Effect BFF in one command:

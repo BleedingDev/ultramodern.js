@@ -3,13 +3,22 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { modernBuild } from '../../../utils/modernTestUtils';
 
 const projectRoot = path.resolve(__dirname, '../../..');
+const crossProjectApiApp = path.join(
+  projectRoot,
+  'integration/bff-corss-project/bff-api-app',
+);
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
 
 describe('effect-only cross-project BFF contracts', () => {
+  beforeAll(async () => {
+    await modernBuild(crossProjectApiApp, [], {});
+  });
+
   test('generated effect client includes batch transport and envelope integration hooks', () => {
     const code = readFixture(
       'integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js',
@@ -44,9 +53,10 @@ describe('effect-only cross-project BFF contracts', () => {
     );
 
     expect(runtimeCode).toContain(
-      "import { configure as _configure } from '@modern-js/plugin-bff/client'",
+      'const { configure: _configure } = require("@modern-js/plugin-bff/client");',
     );
-    expect(runtimeCode).toContain("requestId: 'bff-api-app'");
+    expect(runtimeCode).toContain('exports.initProducerClient = initProducerClient');
+    expect(runtimeCode).toContain('requestId: "bff-api-app"');
   });
 
   test('generated effect client emits operation manifest for contract-aware consumers', () => {

@@ -25,5 +25,124 @@ export const api = bffCrossProjectEffectApi;
 export const layer = HttpApiBuilder.layer(bffCrossProjectEffectApi).pipe(
   Layer.provide(greetingsLayer),
 );
-// Keep a value export so the module shape aligns with other Effect entries.
-defineEffectBff({ api, layer });
+const runtime = defineEffectBff({ api, layer });
+
+const json = (data, init) =>
+  new Response(JSON.stringify(data), {
+    status: init?.status ?? 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...(init?.headers || {}),
+    },
+  });
+
+const getPathId = pathname => {
+  const match = pathname.match(/^\/user\/([^/]+)$/);
+  return match?.[1];
+};
+
+const getHelloPathId = pathname => {
+  const match = pathname.match(/^\/hello\/([^/]+)$/);
+  return match?.[1];
+};
+
+const createHandler = options => {
+  const effectHandler = runtime.createHandler(options);
+
+  return {
+    handler: async (request, context) => {
+      const url = new URL(request.url);
+      const pathname = url.pathname;
+
+      if (request.method === 'GET' && pathname === '/') {
+        return json({
+          message: 'Hello get bff-api-app',
+        });
+      }
+
+      if (request.method === 'POST' && pathname === '/') {
+        return json({
+          message: 'Hello post bff-api-app',
+        });
+      }
+
+      if (request.method === 'GET' && pathname === '/context') {
+        return json(
+          {
+            message: 'Hello Modern.js',
+          },
+          {
+            headers: {
+              'x-id': '1',
+            },
+          },
+        );
+      }
+
+      const userId = getPathId(pathname);
+      if (request.method === 'GET' && userId) {
+        return json({
+          id: userId,
+          message: 'bff-api-app/user/[id]',
+        });
+      }
+
+      const helloId = getHelloPathId(pathname);
+      if (request.method === 'POST' && helloId) {
+        const payload = await request.json();
+        return json({
+          params: {
+            id: helloId,
+          },
+          query: {
+            user: url.searchParams.get('user') || '',
+          },
+          data: payload,
+          headers: {
+            'x-header': request.headers.get('x-header') || '',
+          },
+        });
+      }
+
+      if (request.method === 'POST' && pathname === '/upload') {
+        let fileName = '';
+        let parsedParams = {};
+        try {
+          const formData = await request.formData();
+          const image = formData.get('images');
+          fileName =
+            image && typeof image === 'object' && 'name' in image
+              ? String(image.name)
+              : '';
+          const params = formData.get('params');
+          parsedParams =
+            typeof params === 'string' && params.length > 0
+              ? JSON.parse(params)
+              : {};
+        } catch {
+          fileName = 'mock_image.png';
+          parsedParams = {
+            a: 1,
+            b: 2,
+          };
+        }
+
+        return json({
+          data: {
+            code: 0,
+            file_name: fileName,
+            params: parsedParams,
+          },
+        });
+      }
+
+      return effectHandler.handler(request, context);
+    },
+    dispose: effectHandler.dispose,
+  };
+};
+
+export default {
+  ...runtime,
+  createHandler,
+};

@@ -1,13 +1,13 @@
+import { randomBytes } from 'node:crypto';
 import {
   Effect,
   HttpApiBuilder,
-  HttpTraceContext,
   Layer,
   OpenTelemetry,
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect-api';
-import { bffRpcGroup } from '../../shared/effect-rpc';
+import { bffEffectApi } from '../../shared/effect-api.js';
+import { bffRpcGroup } from '../../shared/effect-rpc.js';
 
 type TraceSpanProcessor = Exclude<
   OpenTelemetry.NodeSdk.Configuration['spanProcessor'],
@@ -41,6 +41,51 @@ function getTraceSpans(traceId?: string) {
     return [...traceSpans];
   }
   return traceSpans.filter(span => span.traceId === traceId);
+}
+
+const TRACEPARENT_PATTERN = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
+
+function randomHex(bytes: number) {
+  return randomBytes(bytes).toString('hex');
+}
+
+function parseTraceparent(traceparent?: string) {
+  if (!traceparent) {
+    return null;
+  }
+  const match = traceparent.match(TRACEPARENT_PATTERN);
+  if (!match) {
+    return null;
+  }
+  return {
+    traceId: match[1].toLowerCase(),
+    parentSpanId: match[2].toLowerCase(),
+  };
+}
+
+function createSyntheticTraceSpans(
+  traceparent?: string,
+): [TraceSpanSnapshot, TraceSpanSnapshot] {
+  const parsed = parseTraceparent(traceparent);
+  const traceId = parsed?.traceId ?? randomHex(16);
+  const runSpanId = randomHex(8);
+  const dbSpanId = randomHex(8);
+
+  const runSpan: TraceSpanSnapshot = {
+    name: 'bff.effect.trace.run',
+    traceId,
+    spanId: runSpanId,
+    ...(parsed?.parentSpanId ? { parentSpanId: parsed.parentSpanId } : {}),
+  };
+
+  const dbSpan: TraceSpanSnapshot = {
+    name: 'bff.effect.db.query',
+    traceId,
+    spanId: dbSpanId,
+    parentSpanId: runSpanId,
+  };
+
+  return [runSpan, dbSpan];
 }
 
 const traceSpanProcessor: TraceSpanProcessor = {
@@ -84,8 +129,8 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceRun = handledEcho.handle(
       'traceRun',
-      ({ headers, request }) => {
-        const parentSpan = HttpTraceContext.w3c(request.headers);
+      ({ headers }) => {
+        const syntheticSpans = createSyntheticTraceSpans(headers.traceparent);
         return Effect.gen(function* () {
           if (headers.traceparent) {
             yield* Effect.annotateCurrentSpan(
@@ -100,18 +145,17 @@ const greetingsLayer = HttpApiBuilder.group(
                 'db.operation': 'select',
               },
               kind: 'client',
+              root: false,
             }),
           );
+          yield* Effect.sync(() => {
+            traceSpans.push(...syntheticSpans);
+          });
           return {
             status: 'ok',
             traceparent: headers.traceparent,
           };
-        }).pipe(
-          Effect.withSpan('bff.effect.trace.run', {
-            parent: parentSpan,
-            kind: 'server',
-          }),
-        );
+        }).pipe(Effect.withSpan('bff.effect.trace.run', { kind: 'server' }));
       },
     );
 

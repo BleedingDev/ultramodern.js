@@ -1,8 +1,8 @@
 import { defer } from '@modern-js/runtime/router';
-import { useBackendContext } from '@modern-js/server-runtime';
+import { useHonoContext } from '@modern-js/server-runtime';
 
 export const loader = () => {
-  const ctx = useBackendContext();
+  const ctx = useHonoContext();
 
   const url = ctx.req.url;
   const parsedUrl = new URL(url);

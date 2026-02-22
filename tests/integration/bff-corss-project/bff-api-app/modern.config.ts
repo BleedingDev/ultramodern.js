@@ -7,7 +7,9 @@ export default applyBaseConfig({
     crossProject: true,
     runtimeFramework: 'effect',
     effect: {
-      openapi: true,
+      openapi: {
+        path: '/openapi.json',
+      },
     },
   },
   plugins: [bffPlugin()],

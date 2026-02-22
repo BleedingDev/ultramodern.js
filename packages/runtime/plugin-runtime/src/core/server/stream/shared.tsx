@@ -5,7 +5,7 @@ import type {
   SSRManifest as RscSSRManifest,
   ServerManifest as RscServerManifest,
 } from '@modern-js/types/server';
-import checkIsBot from 'isbot';
+import { isbot as checkIsBot } from 'isbot';
 import type React from 'react';
 import { JSX_SHELL_STREAM_END_MARK } from '../../../common';
 import type { TRuntimeContext } from '../../context';
