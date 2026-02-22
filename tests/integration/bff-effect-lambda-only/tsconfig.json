@@ -6,6 +6,7 @@
     "declaration": false,
     "jsx": "preserve",
     "baseUrl": "./",
+    "rootDir": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@api/*": ["./api/*"]

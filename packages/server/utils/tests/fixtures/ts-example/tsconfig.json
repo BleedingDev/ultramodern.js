@@ -9,7 +9,8 @@
       "@shared/*": ["./shared/*"],
       "@api/*": ["./api/*"],
       "@server/*": ["./server/*"]
-    }
+    },
+    "rootDir": "./src"
   },
   "include": ["src", "shared", "server", "config", "api", "modern-app-env.d.ts"]
 }

@@ -27,6 +27,6 @@
     "connect": "^3.7.0",
     "serve-static": "^2.2.1",
     "tailwindcss": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "6.0.0-beta"
   }
 }

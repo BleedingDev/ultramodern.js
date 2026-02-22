@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 
 type CacheQueryOptions = {
   features: string;
@@ -11,7 +11,9 @@ type CacheQueryOptions = {
 const KB = 1024;
 const MB = 1024 * KB;
 
-const keyCache = new LRUCache<string, string>(10000);
+const keyCache = new LRUCache<string, string>({
+  max: 10000,
+});
 export const generateCacheKey = (options: CacheQueryOptions) => {
   const { name, version, features, minify } = options;
 
@@ -34,8 +36,8 @@ export default class Cache {
 
   constructor() {
     this.caches = new LRUCache({
-      max: 200 * MB,
-      length: v => v.length,
+      maxSize: 200 * MB,
+      sizeCalculation: (v: string) => v.length,
     });
   }
 

@@ -179,7 +179,15 @@ function createSSRContext(
   }
 
   const loaderFailureMode =
-    typeof ssrConfig === 'object' ? ssrConfig.loaderFailureMode : undefined;
+    typeof ssrConfig === 'object' &&
+    ssrConfig &&
+    'loaderFailureMode' in ssrConfig
+      ? (
+          ssrConfig as {
+            loaderFailureMode?: 'clientRender' | 'errorBoundary';
+          }
+        ).loaderFailureMode
+      : undefined;
 
   return {
     nonce,

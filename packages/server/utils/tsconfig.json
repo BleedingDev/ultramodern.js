@@ -6,7 +6,8 @@
     "baseUrl": "./",
     "isolatedModules": true,
     "paths": {},
-    "types": ["node"]
+    "types": ["node"],
+    "rootDir": "./src"
   },
   "include": ["src"]
 }

@@ -12,7 +12,8 @@
     "jsx": "preserve",
     "experimentalDecorators": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0"
   },
   "$schema": "https://json.schemastore.org/tsconfig",
   "display": "Base"

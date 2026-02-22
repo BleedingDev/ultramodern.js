@@ -4,6 +4,7 @@
     "declaration": true,
     "jsx": "preserve",
     "baseUrl": "./",
+    "rootDir": ".",
     "paths": {
       "@shared/*": ["./shared/*"],
       "@api/*": ["./api/lambda/*"]

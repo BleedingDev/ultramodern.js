@@ -6,7 +6,8 @@
     "jsx": "preserve",
     "baseUrl": "./",
     "isolatedModules": true,
-    "types": ["node", "@rstest/core/globals"]
+    "types": ["node", "@rstest/core/globals"],
+    "rootDir": "./src"
   },
   "include": ["src"]
 }

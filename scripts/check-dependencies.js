@@ -1,9 +1,4 @@
-const ignoreDeps = [
-  'fs-extra',
-  'react-router-dom',
-  'tsconfig-paths',
-  'typescript',
-];
+const ignoreDeps = ['fs-extra', 'react-router-dom', 'tsconfig-paths'];
 
 // Use the workspace-pinned version to avoid unexpected breaking changes from @latest.
 const command = `pnpm exec check-dependency-version-consistency . ${ignoreDeps

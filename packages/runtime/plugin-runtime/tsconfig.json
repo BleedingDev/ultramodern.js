@@ -6,7 +6,9 @@
     "jsx": "preserve",
     "baseUrl": "./",
     "isolatedModules": true,
-    "paths": {}
+    "paths": {},
+    "rootDir": "./src"
   },
-  "include": ["src", "types"]
+  "include": ["src", "types"],
+  "exclude": ["src/ssr/**/*"]
 }

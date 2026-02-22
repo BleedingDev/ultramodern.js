@@ -8,7 +8,8 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "isolatedModules": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "rootDir": "./src"
   },
   "include": ["src"]
 }

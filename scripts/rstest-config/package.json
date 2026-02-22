@@ -8,6 +8,6 @@
     "@modern-js/tsconfig": "workspace:*",
     "@types/node": "^25.3.0",
     "path-serializer": "0.5.1",
-    "typescript": "^5.9.3"
+    "typescript": "6.0.0-beta"
   }
 }

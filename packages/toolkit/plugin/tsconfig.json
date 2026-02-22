@@ -6,7 +6,8 @@
     "baseUrl": "./",
     "isolatedModules": true,
     "paths": {},
-    "types": ["node", "@rstest/core/globals"]
+    "types": ["node", "@rstest/core/globals"],
+    "rootDir": "./src"
   },
   "include": ["src"]
 }

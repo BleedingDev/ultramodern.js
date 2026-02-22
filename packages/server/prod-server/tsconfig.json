@@ -6,7 +6,16 @@
     "jsx": "preserve",
     "baseUrl": "./",
     "esModuleInterop": true,
-    "paths": {}
+    "paths": {},
+    "rootDir": "./src"
   },
-  "include": ["src"]
+  "include": [
+    "src/index.ts",
+    "src/netlify.ts",
+    "src/apply.ts",
+    "src/types.ts",
+    "src/libs/metrics.ts",
+    "src/libs/telemetry.ts",
+    "src/modern-app-env.d.ts"
+  ]
 }

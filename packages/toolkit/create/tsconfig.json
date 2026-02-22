@@ -7,7 +7,8 @@
     "isolatedModules": true,
     "module": "ESNext",
     "moduleResolution": "node",
-    "paths": {}
+    "paths": {},
+    "rootDir": "./src"
   },
   "include": ["src"],
   "exclude": ["template", "dist", "node_modules"]
