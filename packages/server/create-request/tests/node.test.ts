@@ -1,12 +1,12 @@
 import { storage } from '@modern-js/runtime-utils/node';
 import nock from 'nock';
 import {
-  ProducerClientNotInitializedError,
-  configure,
-  createRequest,
   CrossOriginEnvelopePolicyError,
   IdentityBindingViolationError,
+  ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
+  configure,
+  createRequest,
 } from '../src/node';
 
 describe('configure', () => {
@@ -252,9 +252,7 @@ describe('configure', () => {
     const producerUrl = 'http://127.0.0.1:9091';
 
     await run({}, async () => {
-      nock(producerUrl)
-        .post(path, 'modernjs')
-        .reply(200, response);
+      nock(producerUrl).post(path, 'modernjs').reply(200, response);
 
       configure({
         requestId: producer,
@@ -459,13 +457,11 @@ describe('configure', () => {
     });
   });
 
-  test(
-    'should enforce server-derived tenant and subject context over client overrides',
-    async () => {
+  test('should enforce server-derived tenant and subject context over client overrides', async () => {
     const producer = 'producer-identity-derived';
     const producerUrl = 'http://127.0.0.1:9086';
 
-      await run(
+    await run(
       {
         'x-tenant-id': 'tenant-server',
         'x-subject-id': 'subject-server',
@@ -501,11 +497,10 @@ describe('configure', () => {
           },
         });
 
-          expect(data).toStrictEqual(response);
+        expect(data).toStrictEqual(response);
       },
     );
-    },
-  );
+  });
 
   test('should reject client identity override in strict identity binding mode', () => {
     const producer = 'producer-identity-strict';
@@ -536,14 +531,12 @@ describe('configure', () => {
     ).toThrow(IdentityBindingViolationError);
   });
 
-  test(
-    'should require envelope and block cross-origin producer calls in production by default',
-    async () => {
+  test('should require envelope and block cross-origin producer calls in production by default', async () => {
     const producer = 'producer-envelope-default';
     const previousEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-      await run(
+    await run(
       {
         origin: 'https://consumer.internal',
       },
@@ -569,18 +562,15 @@ describe('configure', () => {
         }
       },
     );
-    },
-  );
+  });
 
-  test(
-    'should allow explicit cross-origin envelope policy and attach envelope header',
-    async () => {
+  test('should allow explicit cross-origin envelope policy and attach envelope header', async () => {
     const producer = 'producer-envelope-policy';
     const producerUrl = 'https://producer.internal';
     const previousEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-      await run(
+    await run(
       {
         origin: 'https://consumer.internal',
       },
@@ -626,8 +616,7 @@ describe('configure', () => {
         }
       },
     );
-    },
-  );
+  });
 
   test('should attach operation context headers for non-default producer client', async () => {
     const producer = 'crm.producer-a';
@@ -666,9 +655,7 @@ describe('configure', () => {
       expect(operationContext.requestId).toBe(producer);
       expect(operationContext.operationId).toBe(`${producer}:GET:${path}`);
       expect(operationContext.traceparent).toBe(traceparent);
-      expect(operationContext.traceId).toBe(
-        '4bf92f3577b34da6a3ce929d0e0e4736',
-      );
+      expect(operationContext.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
       expect(operationContext.spanId).toBe('00f067aa0ba902b7');
     });
   });

@@ -41,7 +41,7 @@ describe('effect-only cross-project BFF contracts', () => {
       'if (!strictEnvelope && !__shouldAttachEnvelopeHeader(dataPlatform))',
     );
     expect(code).toContain('if (dataPlatform.batch === false)');
-    expect(code).toContain('headers[DEFAULT_DATA_BATCH_HEADER] = \'off\'');
+    expect(code).toContain("headers[DEFAULT_DATA_BATCH_HEADER] = 'off'");
     expect(code).toContain('headers[headerName] = encodeRequestEnvelopeHeader');
     expect(code).toContain('if (strictEnvelope) {');
     expect(code).toContain('throw error;');
@@ -55,7 +55,9 @@ describe('effect-only cross-project BFF contracts', () => {
     expect(runtimeCode).toContain(
       'const { configure: _configure } = require("@modern-js/plugin-bff/client");',
     );
-    expect(runtimeCode).toContain('exports.initProducerClient = initProducerClient');
+    expect(runtimeCode).toContain(
+      'exports.initProducerClient = initProducerClient',
+    );
     expect(runtimeCode).toContain('requestId: "bff-api-app"');
   });
 

@@ -1,5 +1,5 @@
-import { isAbsolute } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { moduleResolve } from 'import-meta-resolve';
 import { findExists } from './fs';

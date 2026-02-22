@@ -68,7 +68,9 @@ export async function applyPlugins(
     }
     const bffPrefix = config.bff?.prefix || '/api';
     const bffPrefixList = Array.isArray(bffPrefix) ? bffPrefix : [bffPrefix];
-    const isApiPath = bffPrefixList.some(prefix => c.req.path.startsWith(prefix));
+    const isApiPath = bffPrefixList.some(prefix =>
+      c.req.path.startsWith(prefix),
+    );
 
     if (isApiPath) {
       return c.json(

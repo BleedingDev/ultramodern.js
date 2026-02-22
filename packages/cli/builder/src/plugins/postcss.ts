@@ -2,7 +2,11 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { applyOptionsChain, isProd } from '@modern-js/utils';
-import { type PostCSSLoaderOptions, type RsbuildPlugin, logger } from '@rsbuild/core';
+import {
+  type PostCSSLoaderOptions,
+  type RsbuildPlugin,
+  logger,
+} from '@rsbuild/core';
 import type { Options } from 'cssnano';
 import { getCssSupport } from '../shared/getCssSupport';
 import type { ToolsAutoprefixerConfig } from '../types';

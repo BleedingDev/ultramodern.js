@@ -113,12 +113,12 @@ export const getMatched = (request: InternalRequest, mockApis: MockAPI[]) => {
   const { path: targetPathname, method: targetMethod } = request;
 
   const matched = mockApis.find(mockApi => {
-      const { method, path: pathname } = mockApi;
-      if (method.toLowerCase() === targetMethod.toLowerCase()) {
-        return match(pathname, {
-          decode: decodeURIComponent,
-        })(targetPathname);
-      }
+    const { method, path: pathname } = mockApi;
+    if (method.toLowerCase() === targetMethod.toLowerCase()) {
+      return match(pathname, {
+        decode: decodeURIComponent,
+      })(targetPathname);
+    }
 
     return false;
   });

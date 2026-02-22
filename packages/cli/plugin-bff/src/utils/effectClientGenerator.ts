@@ -160,8 +160,7 @@ async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
       try {
         mod = await compatibleRequire('effect/unstable/httpapi', false);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         if (!message.includes("Cannot find module 'effect/unstable/httpapi'")) {
           throw error;
         }
@@ -243,7 +242,9 @@ function collectEffectEndpoints(
   });
 }
 
-async function loadEffectApi(resourcePath: string): Promise<HttpApiLike | null> {
+async function loadEffectApi(
+  resourcePath: string,
+): Promise<HttpApiLike | null> {
   const httpApiRuntime = await getHttpApiRuntime();
   const mod = (await compatibleRequire(resourcePath, false)) as unknown;
 

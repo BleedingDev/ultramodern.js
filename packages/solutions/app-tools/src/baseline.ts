@@ -53,11 +53,9 @@ export const createAppBaselineConfig = (
     enableBffRequestId = true,
     enableTelemetry = true,
     enableTelemetryExporters = true,
-    otlpEndpoint =
-      process.env.MODERN_TELEMETRY_OTLP_ENDPOINT ||
+    otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT ||
       'http://127.0.0.1:4318/v1/metrics',
-    victoriaMetricsEndpoint =
-      process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT ||
+    victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT ||
       'http://127.0.0.1:8428/api/v1/import/prometheus',
     telemetryFailLoudStartup = true,
     enableModuleFederationSSR = true,

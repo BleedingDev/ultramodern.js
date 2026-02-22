@@ -127,37 +127,34 @@ const greetingsLayer = HttpApiBuilder.group(
       }),
     );
 
-    const handledTraceRun = handledEcho.handle(
-      'traceRun',
-      ({ headers }) => {
-        const syntheticSpans = createSyntheticTraceSpans(headers.traceparent);
-        return Effect.gen(function* () {
-          if (headers.traceparent) {
-            yield* Effect.annotateCurrentSpan(
-              'bff.traceparent',
-              headers.traceparent,
-            );
-          }
-          yield* Effect.succeed('ok').pipe(
-            Effect.withSpan('bff.effect.db.query', {
-              attributes: {
-                'db.system': 'effect-test',
-                'db.operation': 'select',
-              },
-              kind: 'client',
-              root: false,
-            }),
+    const handledTraceRun = handledEcho.handle('traceRun', ({ headers }) => {
+      const syntheticSpans = createSyntheticTraceSpans(headers.traceparent);
+      return Effect.gen(function* () {
+        if (headers.traceparent) {
+          yield* Effect.annotateCurrentSpan(
+            'bff.traceparent',
+            headers.traceparent,
           );
-          yield* Effect.sync(() => {
-            traceSpans.push(...syntheticSpans);
-          });
-          return {
-            status: 'ok',
-            traceparent: headers.traceparent,
-          };
-        }).pipe(Effect.withSpan('bff.effect.trace.run', { kind: 'server' }));
-      },
-    );
+        }
+        yield* Effect.succeed('ok').pipe(
+          Effect.withSpan('bff.effect.db.query', {
+            attributes: {
+              'db.system': 'effect-test',
+              'db.operation': 'select',
+            },
+            kind: 'client',
+            root: false,
+          }),
+        );
+        yield* Effect.sync(() => {
+          traceSpans.push(...syntheticSpans);
+        });
+        return {
+          status: 'ok',
+          traceparent: headers.traceparent,
+        };
+      }).pipe(Effect.withSpan('bff.effect.trace.run', { kind: 'server' }));
+    });
 
     const handledTraceSpans = handledTraceRun.handle(
       'traceSpans',

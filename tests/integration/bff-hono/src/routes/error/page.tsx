@@ -52,7 +52,8 @@ const Page = () => {
 
   useEffect(() => {
     apiCalls.forEach(call => {
-      call.api()
+      call
+        .api()
         .then(result => {
           setErrorStates(prev => ({
             ...prev,

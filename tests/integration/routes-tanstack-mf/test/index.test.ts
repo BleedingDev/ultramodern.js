@@ -619,7 +619,6 @@ describe('routes-tanstack-mf', () => {
       message: 'Hello from remote2 Effect API',
       runtime: 'remote2',
     });
-
   });
 
   test('supports remote component fetcher with host loader/action', async () => {

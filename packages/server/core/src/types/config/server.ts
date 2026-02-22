@@ -13,24 +13,24 @@ export type Routes = Record<string, Route>;
 
 export type SSR =
   | boolean
-    | {
-        forceCSR?: boolean;
-        mode?: SSRMode;
-        preload?: boolean | SSRPreload;
-        inlineScript?: boolean;
-        disablePrerender?: boolean;
-        /**
-         * Additional request header names removed from SSR payload serialization.
-         * Sensitive headers are denylisted by default.
-         */
-        unsafeHeaders?: string[];
-        /**
-         * Enable app-level Module Federation SSR bridge path.
-         * This flag should be enabled in both host and remote applications.
-         * @default false
-         */
-        moduleFederationAppSSR?: boolean;
-      };
+  | {
+      forceCSR?: boolean;
+      mode?: SSRMode;
+      preload?: boolean | SSRPreload;
+      inlineScript?: boolean;
+      disablePrerender?: boolean;
+      /**
+       * Additional request header names removed from SSR payload serialization.
+       * Sensitive headers are denylisted by default.
+       */
+      unsafeHeaders?: string[];
+      /**
+       * Enable app-level Module Federation SSR bridge path.
+       * This flag should be enabled in both host and remote applications.
+       * @default false
+       */
+      moduleFederationAppSSR?: boolean;
+    };
 
 export type SSRByEntries = Record<string, SSR>;
 

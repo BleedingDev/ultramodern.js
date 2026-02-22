@@ -136,7 +136,11 @@ export default (): ServerPlugin => ({
               return handler(c, next);
             }) as MiddlewareHandler,
             order: 'post',
-            before: ['custom-server-hook', 'custom-server-middleware', 'render'],
+            before: [
+              'custom-server-hook',
+              'custom-server-middleware',
+              'render',
+            ],
           });
         }
       }

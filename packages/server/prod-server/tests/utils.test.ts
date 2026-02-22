@@ -1,5 +1,8 @@
 import { Readable } from 'stream';
-import { injectServerData, injectServerDataStream } from '../src/libs/render/utils';
+import {
+  injectServerData,
+  injectServerDataStream,
+} from '../src/libs/render/utils';
 
 describe('render utils', () => {
   const template = `

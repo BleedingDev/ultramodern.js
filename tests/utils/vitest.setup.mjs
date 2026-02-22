@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
 import { beforeAll, expect } from 'vitest';
 

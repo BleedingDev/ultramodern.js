@@ -115,7 +115,10 @@ export const handler = async (request: Request): Promise<Response> => {
     const message = payload?.message ?? '';
     const user = url.searchParams.get('user') ?? '';
     const extFrom = url.searchParams.get('ext[0][from]') ?? '';
-    const arr = [url.searchParams.get('arr[0]'), url.searchParams.get('arr[1]')].filter(
+    const arr = [
+      url.searchParams.get('arr[0]'),
+      url.searchParams.get('arr[1]'),
+    ].filter(
       (item): item is string => typeof item === 'string' && item.length > 0,
     );
     const objA = url.searchParams.get('obj[a]') ?? '';

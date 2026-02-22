@@ -1,5 +1,5 @@
-import * as path from 'path';
 import { createHash } from 'crypto';
+import * as path from 'path';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { ApiRouter } from '../router';
 import { Err, Ok, type Result } from './result';

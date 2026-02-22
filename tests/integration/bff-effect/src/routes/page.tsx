@@ -5,8 +5,8 @@ import {
   runEffectView,
   view,
 } from '@modern-js/plugin-bff/effect-client';
-import { bffRpcGroup } from '../../shared/effect-rpc.js';
 import { useEffect, useState } from 'react';
+import { bffRpcGroup } from '../../shared/effect-rpc.js';
 
 const userCardView = view<{
   id: string;

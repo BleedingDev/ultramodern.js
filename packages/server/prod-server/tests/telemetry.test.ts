@@ -3,9 +3,9 @@ import type { IncomingHttpHeaders } from 'http';
 import type { AddressInfo } from 'net';
 import {
   TelemetryCanaryOrchestrator,
-  TelemetryEnvelope,
-  TelemetryStartupHealthError,
+  type TelemetryEnvelope,
   TelemetryRegistry,
+  TelemetryStartupHealthError,
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
@@ -147,7 +147,9 @@ describe('telemetry registry', () => {
     const countEnvelope = emitted.find(
       item => item.name === 'server.request.count',
     )!;
-    const timerEnvelope = emitted.find(item => item.name === 'server.request.cost')!;
+    const timerEnvelope = emitted.find(
+      item => item.name === 'server.request.cost',
+    )!;
 
     expect(countEnvelope.unit).toBe('count');
     expect(countEnvelope.traceId).toBe('11112222333344445555666677778888');
@@ -175,7 +177,9 @@ describe('telemetry registry', () => {
     registry.enqueue(createEnvelope({ name: 'b' }));
     await registry.flush();
 
-    const depthEnvelope = emitted.find(item => item.name === 'telemetry.queue.depth');
+    const depthEnvelope = emitted.find(
+      item => item.name === 'telemetry.queue.depth',
+    );
     const utilizationEnvelope = emitted.find(
       item => item.name === 'telemetry.queue.utilization',
     );

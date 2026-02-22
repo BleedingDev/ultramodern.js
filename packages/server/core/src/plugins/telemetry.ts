@@ -507,7 +507,10 @@ export class TelemetryRegistry {
   private droppedCount = 0;
   private totalDroppedCount = 0;
   private flushing: Promise<void> | null = null;
-  private readonly exporterHealth = new Map<string, TelemetryExporterHealthStatus>();
+  private readonly exporterHealth = new Map<
+    string,
+    TelemetryExporterHealthStatus
+  >();
   private readonly queueUtilizationWarnThreshold: number;
   private readonly queueDroppedWarnThreshold: number;
   private readonly alertCooldownMs: number;
@@ -879,7 +882,9 @@ export class TelemetryRegistry {
   private async flushInternal() {
     const queueDepthBeforeFlush = this.queue.length;
     if (queueDepthBeforeFlush > 0) {
-      this.queue.unshift(this.buildQueueUtilizationEnvelope(queueDepthBeforeFlush));
+      this.queue.unshift(
+        this.buildQueueUtilizationEnvelope(queueDepthBeforeFlush),
+      );
       this.queue.unshift(this.buildQueueDepthEnvelope(queueDepthBeforeFlush));
     }
 
@@ -963,7 +968,10 @@ export class TelemetryCanaryOrchestrator {
 
   constructor(options: TelemetryCanaryOrchestratorOptions) {
     this.registry = options.registry;
-    this.evaluationIntervalMs = Math.max(250, options.evaluationIntervalMs ?? 15_000);
+    this.evaluationIntervalMs = Math.max(
+      250,
+      options.evaluationIntervalMs ?? 15_000,
+    );
     this.minConsecutiveHealthyEvaluations = Math.max(
       1,
       options.minConsecutiveHealthyEvaluations ?? 3,
@@ -974,7 +982,10 @@ export class TelemetryCanaryOrchestrator {
     );
     this.maxQueueUtilization = clamp(options.maxQueueUtilization ?? 0.8, 0, 1);
     this.maxTotalDropped = Math.max(0, options.maxTotalDropped ?? 0);
-    this.maxUnhealthyExporters = Math.max(0, options.maxUnhealthyExporters ?? 0);
+    this.maxUnhealthyExporters = Math.max(
+      0,
+      options.maxUnhealthyExporters ?? 0,
+    );
     this.requiredContractGates = options.requiredContractGates || [];
     this.onEvaluate = options.onEvaluate;
     this.onPromote = options.onPromote;
@@ -1059,9 +1070,7 @@ export class TelemetryCanaryOrchestrator {
         failures.push({
           reason: 'contract_gate_failed',
           gate: gateName,
-          message:
-            gate.reason ||
-            `Contract gate "${gateName}" is not passing`,
+          message: gate.reason || `Contract gate "${gateName}" is not passing`,
         });
       }
     }
@@ -1263,12 +1272,7 @@ export const createTelemetryAwareMetrics = <T extends Metrics>(
     }
   };
 
-  const emitTimer: Metrics['emitTimer'] = (
-    name,
-    value,
-    prefixOrTags,
-    tags,
-  ) => {
+  const emitTimer: Metrics['emitTimer'] = (name, value, prefixOrTags, tags) => {
     const normalized = normalizeMetricsInput(
       prefixOrTags as TelemetryMetricsPrefixOrTags | undefined,
       tags,

@@ -7,16 +7,16 @@ import { executeWithResilience } from './transport';
 import type {
   AllowCrossOriginEnvelope,
   BFFRequestPayload,
+  IOptions,
   IdentityBindingOptions,
   IdentityBindingViolation,
   OperationContext,
-  Sender,
   RequestCreator,
   RequestCreatorOptions,
-  UploadCreator,
-  IOptions,
   ResolveHeaders,
+  Sender,
   TransportResilienceOptions,
+  UploadCreator,
 } from './types';
 import { getUploadPayload } from './utiles';
 
@@ -156,7 +156,11 @@ const buildOperationContext = ({
   traceparent?: unknown;
 }) => {
   const routePath = operationContext?.routePath || path;
-  const operationMethod = (operationContext?.method || method || 'GET').toUpperCase();
+  const operationMethod = (
+    operationContext?.method ||
+    method ||
+    'GET'
+  ).toUpperCase();
   const rawOperationId =
     operationContext?.operationId || `${operationMethod}:${routePath}`;
   const operationId = rawOperationId.startsWith(`${requestId}:`)
@@ -347,13 +351,13 @@ export const createRequest: RequestCreator<Fetch> = ((
   ...args: Parameters<RequestCreator<Fetch>>
 ) => {
   const {
-  path,
-  method,
-  port,
-  httpMethodDecider = 'functionName', // 后续可能要修改，暂时先保留
-  fetch = originFetch,
-  requestId = 'default',
-  operationContext,
+    path,
+    method,
+    port,
+    httpMethodDecider = 'functionName', // 后续可能要修改，暂时先保留
+    fetch = originFetch,
+    requestId = 'default',
+    operationContext,
   } = normalizeRequestOptions(...args);
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keyNames = extractPathParamNames(path);
@@ -409,8 +413,7 @@ export const createRequest: RequestCreator<Fetch> = ((
       const identityBindingEnabled =
         identityBinding?.enabled ?? requestId !== 'default';
       const protectedIdentityHeaders = (
-        identityBinding?.protectedHeaders ||
-        DEFAULT_PROTECTED_IDENTITY_HEADERS
+        identityBinding?.protectedHeaders || DEFAULT_PROTECTED_IDENTITY_HEADERS
       ).map(header => header.toLowerCase());
 
       const targetAllowedHeaders = realAllowedHeaders.get(requestId) || [];
@@ -594,8 +597,14 @@ export const createRequest: RequestCreator<Fetch> = ((
         traceparent: readHeader(headers, TRACEPARENT_HEADER),
       });
 
-      if (typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined') {
-        writeHeader(headers, OPERATION_CONTEXT_HEADER, contextPayload.operationId);
+      if (
+        typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined'
+      ) {
+        writeHeader(
+          headers,
+          OPERATION_CONTEXT_HEADER,
+          contextPayload.operationId,
+        );
       }
       writeHeader(
         headers,

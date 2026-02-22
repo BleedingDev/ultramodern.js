@@ -1,11 +1,11 @@
 import nock from 'nock';
 import {
-  ProducerClientNotInitializedError,
-  configure,
   CrossOriginEnvelopePolicyError,
-  createRequest,
   IdentityBindingViolationError,
+  ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
+  configure,
+  createRequest,
 } from '../src/browser';
 
 describe('configure', () => {
@@ -254,8 +254,9 @@ describe('configure', () => {
     const producerUrl = 'http://localhost:9083';
 
     nock(producerUrl).get(path).reply(200, response);
-    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
-      fetch(requestPath, init),
+    const customRequest = rs.fn(
+      (requestPath: RequestInfo, init?: RequestInit) =>
+        fetch(requestPath, init),
     );
 
     configure({
@@ -291,8 +292,9 @@ describe('configure', () => {
     const producerUrl = 'http://localhost:9084';
 
     nock(producerUrl).get(path).reply(200, response);
-    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
-      fetch(requestPath, init),
+    const customRequest = rs.fn(
+      (requestPath: RequestInfo, init?: RequestInit) =>
+        fetch(requestPath, init),
     );
 
     configure({
@@ -386,8 +388,9 @@ describe('configure', () => {
 
     try {
       nock(producerUrl).get(path).reply(200, response);
-      const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
-        fetch(requestPath, init),
+      const customRequest = rs.fn(
+        (requestPath: RequestInfo, init?: RequestInit) =>
+          fetch(requestPath, init),
       );
 
       configure({
@@ -427,8 +430,9 @@ describe('configure', () => {
       '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
     nock(producerUrl).get(path).reply(200, response);
 
-    const customRequest = rs.fn((requestPath: RequestInfo, init?: RequestInit) =>
-      fetch(requestPath, init),
+    const customRequest = rs.fn(
+      (requestPath: RequestInfo, init?: RequestInit) =>
+        fetch(requestPath, init),
     );
 
     configure({
@@ -454,7 +458,9 @@ describe('configure', () => {
     >;
     expect(headers['x-operation-id']).toBe(`${producer}:GET:${path}`);
     expect(headers.traceparent).toBe(traceparent);
-    const operationContext = JSON.parse(headers['x-modernjs-bff-operation-context']);
+    const operationContext = JSON.parse(
+      headers['x-modernjs-bff-operation-context'],
+    );
     expect(operationContext.requestId).toBe(producer);
     expect(operationContext.operationId).toBe(`${producer}:GET:${path}`);
     expect(operationContext.traceparent).toBe(traceparent);
@@ -579,15 +585,17 @@ describe('configure', () => {
     rs.useFakeTimers();
     const onDegraded = rs.fn();
 
-    const customRequest = rs.fn((_requestPath: RequestInfo, init?: RequestInit) => {
-      return new Promise((_, reject) => {
-        init?.signal?.addEventListener('abort', () => {
-          const error: any = new Error('aborted');
-          error.name = 'AbortError';
-          reject(error);
+    const customRequest = rs.fn(
+      (_requestPath: RequestInfo, init?: RequestInit) => {
+        return new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const error: any = new Error('aborted');
+            error.name = 'AbortError';
+            reject(error);
+          });
         });
-      });
-    });
+      },
+    );
 
     try {
       configure({

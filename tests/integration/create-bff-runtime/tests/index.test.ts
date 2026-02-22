@@ -147,12 +147,16 @@ describe('create-bff-runtime', () => {
 
     expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(true);
     expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(
+      false,
+    );
 
     const routePage = path.join(appDir, 'src/routes/page.tsx');
     const routePageContent = fs.readFileSync(routePage, 'utf-8');
     expectNoHandlebarsArtifacts(routePageContent);
-    expect(routePageContent).not.toContain("import effectBff from '@api/effect/index'");
+    expect(routePageContent).not.toContain(
+      "import effectBff from '@api/effect/index'",
+    );
   });
 
   test('scaffolds workspace versions with --workspace', () => {
