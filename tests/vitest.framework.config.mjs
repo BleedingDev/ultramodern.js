@@ -23,7 +23,7 @@ const parsePositiveInt = value => {
 
 const maxThreads =
   parsePositiveInt(process.env.VITEST_FRAMEWORK_MAX_THREADS) ??
-  Math.max(1, Math.floor(cpuCount / 2));
+  Math.max(1, cpuCount - 1);
 const minThreads = Math.min(2, maxThreads);
 
 export default defineConfig({
