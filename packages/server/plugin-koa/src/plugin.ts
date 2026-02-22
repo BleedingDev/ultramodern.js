@@ -3,7 +3,10 @@ import Koa, { Middleware } from 'koa';
 import type Application from 'koa';
 import Router from 'koa-router';
 import koaBody from 'koa-body';
-import { APIHandlerInfo } from '@modern-js/bff-core';
+import {
+  APIHandlerInfo,
+  evaluateCrossProjectPolicy,
+} from '@modern-js/bff-core';
 import { fs, compatRequire } from '@modern-js/utils';
 import type { ServerPlugin } from '@modern-js/server-core';
 import { run } from './context';
@@ -41,6 +44,32 @@ const initMiddlewares = (
   });
 };
 
+const applyCrossProjectPolicy = (
+  app: Application,
+  crossProjectPolicy: Record<string, unknown> | undefined,
+) => {
+  if (!crossProjectPolicy || !crossProjectPolicy.enabled) {
+    return;
+  }
+
+  app.use(async (ctx, next) => {
+    const violation = evaluateCrossProjectPolicy(
+      ctx.request.headers as Record<string, unknown>,
+      crossProjectPolicy as any,
+    );
+    if (violation) {
+      ctx.status = violation.status;
+      ctx.body = {
+        code: violation.code,
+        reason: violation.reason,
+        message: violation.message,
+      };
+      return;
+    }
+    await next();
+  });
+};
+
 export default (): ServerPlugin => ({
   name: '@modern-js/plugin-koa',
   pre: ['@modern-js/plugin-bff'],
@@ -54,6 +83,9 @@ export default (): ServerPlugin => ({
       const apiHandlerInfos = appContext.apiHandlerInfos as APIHandlerInfo[];
       const mode = appContext.apiMode;
       const userConfig = api.useConfigContext();
+      const crossProjectPolicy = userConfig.bff?.crossProjectPolicy as
+        | Record<string, unknown>
+        | undefined;
 
       if (mode === 'framework') {
         app = await findAppModule(apiDir);
@@ -65,6 +97,7 @@ export default (): ServerPlugin => ({
             }),
           );
         }
+        applyCrossProjectPolicy(app, crossProjectPolicy);
 
         if (config) {
           const { middleware } = config as FrameConfig;
@@ -80,6 +113,7 @@ export default (): ServerPlugin => ({
             multipart: true,
           }),
         );
+        applyCrossProjectPolicy(app, crossProjectPolicy);
         if (config) {
           const { middleware } = config as FrameConfig;
           initMiddlewares(middleware, app);

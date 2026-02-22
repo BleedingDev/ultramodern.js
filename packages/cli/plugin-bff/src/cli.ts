@@ -34,6 +34,19 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
                 fetcher: { type: 'string' },
                 proxy: { type: 'object' },
                 requestId: { type: 'string' },
+                crossProjectPolicy: {
+                  type: 'object',
+                  properties: {
+                    enabled: { type: 'boolean' },
+                    requireEnvelope: { type: 'boolean' },
+                    requireOperationContext: { type: 'boolean' },
+                    allowedNamespaces: {
+                      type: 'array',
+                      items: { type: 'string' },
+                    },
+                    denyStatus: { type: 'number' },
+                  },
+                },
               },
             },
           },

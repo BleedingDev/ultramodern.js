@@ -133,6 +133,10 @@ describe('test render util', () => {
     const rtn = injectServerDataStream(readable, {
       serverData: {
         name: 'bytedance',
+        headers: {
+          authorization: 'secret-token',
+          'x-request-id': 'req-1',
+        },
       },
     } as any);
 
@@ -141,7 +145,9 @@ describe('test render util', () => {
 
     writable.on('finish', () => {
       const content = fs.readFileSync(tmpfile, 'utf-8');
-      expect(content).toMatch('{"name":"bytedance"}');
+      expect(content).toMatch('"name":"bytedance"');
+      expect(content).toMatch('"x-request-id":"req-1"');
+      expect(content).not.toMatch('authorization');
       resolve();
     });
 
@@ -157,9 +163,15 @@ describe('test render util', () => {
     const rtn = injectServerData(content, {
       serverData: {
         name: 'bytedance',
+        headers: {
+          cookie: 'sid=hidden',
+          'x-request-id': 'req-2',
+        },
       },
     } as any);
 
-    expect(rtn).toMatch('{"name":"bytedance"}');
+    expect(rtn).toMatch('"name":"bytedance"');
+    expect(rtn).toMatch('"x-request-id":"req-2"');
+    expect(rtn).not.toMatch('cookie');
   });
 });

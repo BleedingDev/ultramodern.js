@@ -39,6 +39,7 @@ import {
   createStaticFileHandler,
   faviconFallbackHandler,
 } from '../libs/serveFile';
+import { resolveMfAssetCacheHeaders } from '../libs/mfCache';
 import {
   createErrorDocument,
   createMiddlewareCollecter,
@@ -178,6 +179,8 @@ export class ModernServer implements ModernServerInterface {
 
     this.routeRenderHandler = this.getRenderHandler();
     await this.setupBeforeProdMiddleware();
+
+    this.addHandler(this.setupMfAssetCacheMiddleware());
 
     // Only work when without setting `assetPrefix`.
     // Setting `assetPrefix` means these resources should be uploaded to CDN.
@@ -412,6 +415,23 @@ export class ModernServer implements ModernServerInterface {
       ],
       prefix,
     );
+  }
+
+  protected setupMfAssetCacheMiddleware(): ModernServerAsyncHandler {
+    return async (context, next) => {
+      const headers = resolveMfAssetCacheHeaders(
+        context.url,
+        context.query as Record<string, unknown>,
+      );
+
+      if (headers) {
+        for (const [key, value] of Object.entries(headers)) {
+          context.res.setHeader(key, value);
+        }
+      }
+
+      await next();
+    };
   }
 
   protected async handleAPI(context: ModernServerContext) {

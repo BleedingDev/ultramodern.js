@@ -4,6 +4,7 @@
 
 import { Readable } from 'stream';
 import type { ModernServerContext } from '@modern-js/types';
+import { sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
 import { TemplateAPI } from '../hook-api/template';
 import { templateInjectableStream } from '../hook-api/templateForStream';
 
@@ -11,12 +12,15 @@ import { templateInjectableStream } from '../hook-api/templateForStream';
 export const injectServerData = (
   content: string,
   context: ModernServerContext,
+  options?: { unsafeHeaders?: string[] },
 ) => {
+  const serverData = sanitizeSSRPayload(context.serverData, {
+    unsafeHeaders: options?.unsafeHeaders,
+    treatRootAsHeaders: true,
+  }).payload;
   const template = new TemplateAPI(content);
   template.prependHead(
-    `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(
-      context.serverData,
-    )}</script>`,
+    `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(serverData)}</script>`,
   );
   return template.get();
 };
@@ -24,12 +28,15 @@ export const injectServerData = (
 export const injectServerDataStream = (
   content: Readable,
   context: ModernServerContext,
+  options?: { unsafeHeaders?: string[] },
 ) => {
+  const serverData = sanitizeSSRPayload(context.serverData, {
+    unsafeHeaders: options?.unsafeHeaders,
+    treatRootAsHeaders: true,
+  }).payload;
   return content.pipe(
     templateInjectableStream({
-      prependHead: `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(
-        context.serverData,
-      )}</script>`,
+      prependHead: `<script type="application/json" id="__MODERN_SERVER_DATA__">${JSON.stringify(serverData)}</script>`,
     }),
   );
 };

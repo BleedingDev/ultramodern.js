@@ -23,6 +23,7 @@ export const render = async (
     entryName: string;
     staticGenerate: boolean;
     enableUnsafeCtx?: boolean;
+    unsafeHeaders?: string[];
     nonce?: string;
   },
   runner: ServerHookRunner,
@@ -35,6 +36,7 @@ export const render = async (
     entryName,
     staticGenerate,
     enableUnsafeCtx = false,
+    unsafeHeaders,
     nonce,
   } = renderOptions;
   const bundleJS = path.join(distDir, bundle);
@@ -77,6 +79,7 @@ export const render = async (
     req: ctx.req,
     res: ctx.res,
     enableUnsafeCtx,
+    unsafeHeaders,
     nonce,
   };
   context.logger = createLogger(context, ctx.logger);
@@ -100,13 +103,13 @@ export const render = async (
 
   if (typeof content === 'string') {
     return {
-      content: injectServerData(content, ctx),
+      content: injectServerData(content, ctx, { unsafeHeaders }),
       contentType: mime.contentType('html') as string,
     };
   } else {
     return {
       content: '',
-      contentStream: injectServerDataStream(content, ctx),
+      contentStream: injectServerDataStream(content, ctx, { unsafeHeaders }),
       contentType: mime.contentType('html') as string,
     };
   }

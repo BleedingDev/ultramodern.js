@@ -1,5 +1,5 @@
 import React from 'react';
-import { serializeJson } from '@modern-js/runtime-utils/node';
+import { serializeJson, sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
 import ReactHelmet, { HelmetData } from 'react-helmet';
 // Todo: This import will introduce router code, like remix, even if router config is false
 import { time } from '@modern-js/runtime-utils/time';
@@ -218,7 +218,10 @@ export default class Entry {
     routerData?: Record<string, any>,
   ) {
     const useInlineScript = this.pluginConfig.inlineScript !== false;
-    const ssrData = serializeJson(templateData);
+    const sanitizedTemplateData = sanitizeSSRPayload(templateData, {
+      unsafeHeaders: this.pluginConfig.unsafeHeaders,
+    }).payload;
+    const ssrData = serializeJson(sanitizedTemplateData);
     const attrsStr = attributesToString({ nonce: this.nonce });
 
     let ssrDataScripts = useInlineScript
@@ -226,7 +229,10 @@ export default class Entry {
       : `<script type="application/json" id="${SSR_DATA_JSON_ID}">${ssrData}</script>`;
 
     if (routerData) {
-      const serializedRouterData = serializeJson(routerData);
+      const sanitizedRouterData = sanitizeSSRPayload(routerData, {
+        unsafeHeaders: this.pluginConfig.unsafeHeaders,
+      }).payload;
+      const serializedRouterData = serializeJson(sanitizedRouterData);
       ssrDataScripts += useInlineScript
         ? `\n<script${attrsStr}>window._ROUTER_DATA = ${serializedRouterData}</script>`
         : `\n<script type="application/json" id="${ROUTER_DATA_JSON_ID}">${serializedRouterData}</script>`;

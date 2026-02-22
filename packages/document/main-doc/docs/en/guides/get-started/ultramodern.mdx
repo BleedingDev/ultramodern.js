@@ -20,10 +20,12 @@ This page is the complete public difference reference for the published V4 line.
 | Area | Modern.js V4 baseline | UltraModern.js V4 difference | Status in V4 | Notes |
 | --- | --- | --- | --- | --- |
 | Build diagnostics default | RsDoctor usage is opt-in in most projects | Rspack production build enables RsDoctor by default | Implemented | Can be disabled via `performance.rsdoctor` |
-| Build diagnostics config surface | No `performance.rsdoctor` option in framework docs | Adds `performance.rsdoctor` (`boolean` or `{ enabled, disableClientServer }`) | Implemented | `disableClientServer` defaults to `true` |
+| Build diagnostics config surface | No `performance.rsdoctor` option in framework docs | Adds `performance.rsdoctor` (`boolean` or `{ enabled, disableClientServer, reportDir, mode }`) | Implemented | `disableClientServer` defaults to `true` |
+| Diagnostics artifact contract | No standardized machine-readable diagnostics pointer | Adds `.rsdoctor/ultramodern-diagnostics.json` contract pointing to manifest | Implemented | Stable consumption path for coding agents |
 | BFF producer contract wiring | `bff` config does not include producer identity | Adds `bff.requestId` and carries it through client generation | Implemented | Enables explicit producer scoping |
 | Generated BFF client call shape | `createRequest(...)` optional args stop at `fetch` | Generated client appends `requestId` to `createRequest(...)` when configured | Implemented | Keeps legacy call path when no `requestId` |
 | `create-request` runtime isolation | Single mutable request config path | Per-`requestId` request/domain/header config maps | Implemented | Supports multiple producer clients in one app |
+| BFF audit correlation headers | No standardized producer audit propagation for operation and trace | Adds `x-operation-id`, `x-modernjs-bff-operation-context`, and `traceparent` propagation with parsed trace IDs | Implemented | Supports tenant/operation/trace joins in observability |
 | Uninitialized producer behavior | Missing config may silently fall back | Non-default `requestId` now throws `ProducerClientNotInitializedError` | Implemented | Fail-fast contract for cross-project BFF |
 | Node header forwarding behavior | Header forwarding is global | Incoming headers are forwarded only for `requestId === 'default'` | Implemented | Avoids accidental header bleed across producers |
 | Server telemetry config | No standardized `server.telemetry` contract | Adds `server.telemetry` with sampling/batching/redaction/exporter settings | Implemented | Added to app-tools schema and server types |
@@ -32,6 +34,8 @@ This page is the complete public difference reference for the published V4 line.
 | Metrics/trace correlation | SSR metrics tags do not parse W3C trace context | `traceparent` is parsed and emits `trace_id` / `span_id` tags | Implemented | Improves cross-system observability joins |
 | App-level MF SSR contract flag | No dedicated app-level MF SSR alpha switch | Adds `server.ssr.moduleFederationAppSSRAlpha` and env injection | Implemented (alpha contract) | Sets `process.env.MODERN_MF_APP_SSR_ALPHA` |
 | App-level MF SSR runtime bridge | Not a stable default bridge path | V4 exposes contract/env only, full bridge remains alpha rollout | Partial by design | Use behind controlled rollout |
+| Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable family contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
+| Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
 | Contract test coverage | No tests for these new contracts in V4 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR alpha env wiring | Implemented | Reduces regression risk in super-app scenarios |
 | Public docs surface | No UltraModern V4 comparison page | Adds dedicated V4 difference page and linked config docs | Implemented | This page is the canonical V4 reference |
 
@@ -41,10 +45,13 @@ This page is the complete public difference reference for the published V4 line.
 
 UltraModern.js V4 extends performance config with:
 
-- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean }`
+- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean; reportDir?: string; mode?: 'normal' | 'brief' | 'lite' }`
 - Rspack + production: enabled by default.
 - Rspack + development: disabled by default (unless explicitly enabled).
 - Webpack builds: no RsDoctor injection.
+- RsDoctor contract artifact:
+  - `<reportDir or outputPath>/.rsdoctor/ultramodern-diagnostics.json`
+  - points to `.rsdoctor/manifest.json`
 
 ```ts title="modern.config.ts"
 export default defineConfig({
@@ -52,6 +59,8 @@ export default defineConfig({
     rsdoctor: {
       enabled: true,
       disableClientServer: true,
+      reportDir: './artifacts',
+      mode: 'brief',
     },
   },
 });
@@ -81,6 +90,10 @@ Contract behavior in V4:
 - Non-default producer calls without prior `configure({ requestId })` throw `ProducerClientNotInitializedError`.
 - `allowedHeaders` / `request` / `setDomain` are isolated by `requestId`.
 - In Node runtime, incoming request headers are only forwarded for the legacy `default` producer path.
+- Non-default producer calls emit operation context and trace correlation headers:
+  - `x-operation-id`
+  - `x-modernjs-bff-operation-context`
+  - `traceparent` (with parsed `traceId` / `spanId` reflected in operation context when present)
 
 ### 3) `server.telemetry` standardization and exporters
 
@@ -163,6 +176,21 @@ UltraModern.js V4 adds dedicated coverage for:
 - BFF `requestId` generation/runtime isolation and fail-fast checks.
 - Telemetry redaction/backpressure/exporter behavior.
 - SSR alpha contract detection and env injection.
+
+### 7) Module SDK contract + boundary anti-pattern guards
+
+UltraModern.js V4 adds platform-boundary enforcement artifacts for module onboarding:
+
+- Contract artifact: `docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
+- Example manifest: `docs/super-app-rfc-adr/contracts/module-manifest.example.json`
+- Public type contracts: `packages/toolkit/types/common/moduleSdk.d.ts`
+- Validation tooling:
+  - `scripts/module-sdk-contracts/validate-module-sdk-contracts.js`
+  - `scripts/boundary-guards/check-boundary-violations.js`
+- CI workflow:
+  - `.github/workflows/boundary-anti-patterns.yml`
+  - `.github/workflows/module-certification-gates.yml`
+  - `.github/workflows/bun-superapp-smoke.yml`
 
 ## Not Part of UltraModern.js V4
 

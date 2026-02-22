@@ -1,6 +1,29 @@
 import type { AppNormalizedConfig } from '@modern-js/app-tools';
 
 export const makeProvider = () => `
+const runtimeDigest =
+  typeof process !== 'undefined' && process.env
+    ? process.env.MODERN_MF_RUNTIME_DIGEST
+    : undefined;
+const remoteEntryIntegrity =
+  typeof process !== 'undefined' && process.env
+    ? process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY
+    : undefined;
+const remoteEntryAttestation =
+  typeof process !== 'undefined' && process.env
+    ? process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION
+    : undefined;
+const runtimeMetadata =
+  runtimeDigest || remoteEntryIntegrity || remoteEntryAttestation
+    ? {
+        ...(runtimeDigest ? { runtimeDigest } : {}),
+        ...(remoteEntryIntegrity ? { integrity: remoteEntryIntegrity } : {}),
+        ...(remoteEntryAttestation
+          ? { attestation: remoteEntryAttestation }
+          : {}),
+      }
+    : undefined;
+
 export const provider = function ({basename, dom}) {
   return {
     render({basename, dom, props, appName}) {
@@ -30,8 +53,16 @@ export const provider = function ({basename, dom}) {
   }
 };
 
+if (runtimeMetadata) {
+  provider.runtimeMetadata = runtimeMetadata;
+}
+
 if (typeof __GARFISH_EXPORTS__ !== 'undefined') {
   __GARFISH_EXPORTS__.provider = provider;
+  if (runtimeMetadata) {
+    __GARFISH_EXPORTS__.runtimeMetadata = runtimeMetadata;
+    __GARFISH_EXPORTS__.runtimeDigest = runtimeMetadata.runtimeDigest;
+  }
 }
 
 function canContinueRender ({ dom, appName }) {
@@ -137,13 +168,42 @@ export const generateAsyncEntry = (code: string) => {
   );
 
   return `
+      const runtimeDigest =
+        typeof process !== 'undefined' && process.env
+          ? process.env.MODERN_MF_RUNTIME_DIGEST
+          : undefined;
+      const remoteEntryIntegrity =
+        typeof process !== 'undefined' && process.env
+          ? process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY
+          : undefined;
+      const remoteEntryAttestation =
+        typeof process !== 'undefined' && process.env
+          ? process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION
+          : undefined;
+      const runtimeMetadata =
+        runtimeDigest || remoteEntryIntegrity || remoteEntryAttestation
+          ? {
+              ...(runtimeDigest ? { runtimeDigest } : {}),
+              ...(remoteEntryIntegrity ? { integrity: remoteEntryIntegrity } : {}),
+              ...(remoteEntryAttestation
+                ? { attestation: remoteEntryAttestation }
+                : {}),
+            }
+          : undefined;
       export const provider = async (...args) => {
         const exports = await import('./bootstrap');
         return exports.provider.apply(null, args);
       };
+      if (runtimeMetadata) {
+        provider.runtimeMetadata = runtimeMetadata;
+      }
       ${transformCode}
       if (typeof __GARFISH_EXPORTS__ !== 'undefined') {
         __GARFISH_EXPORTS__.provider = provider;
+        if (runtimeMetadata) {
+          __GARFISH_EXPORTS__.runtimeMetadata = runtimeMetadata;
+          __GARFISH_EXPORTS__.runtimeDigest = runtimeMetadata.runtimeDigest;
+        }
       }
     `;
 };

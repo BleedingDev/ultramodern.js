@@ -5,8 +5,11 @@ import nock from 'nock';
 import 'isomorphic-fetch';
 import {
   configure,
+  CrossOriginEnvelopePolicyError,
   createRequest,
+  IdentityBindingViolationError,
   ProducerClientNotInitializedError,
+  ProducerDomainNotConfiguredError,
 } from '../src/browser';
 
 describe('configure', () => {
@@ -167,6 +170,14 @@ describe('configure', () => {
     );
   });
 
+  test('should require setDomain when configuring non-default requestId', () => {
+    expect(() =>
+      configure({
+        requestId: 'producer-a',
+      }),
+    ).toThrow(ProducerDomainNotConfiguredError);
+  });
+
   test('should isolate custom request by requestId', async () => {
     const producerA = 'producer-a';
     const producerB = 'producer-b';
@@ -176,18 +187,24 @@ describe('configure', () => {
     nock(urlA).get(path).reply(200, response);
     nock(urlB).get(path).reply(200, response);
 
-    const customRequestA = jest.fn((requestPath: RequestInfo) => {
-      const finalUrl = `${urlA}${requestPath as string}`;
-      return fetch(finalUrl);
-    });
+    const customRequestA = jest.fn((requestPath: RequestInfo) =>
+      fetch(requestPath as string),
+    );
 
-    const customRequestB = jest.fn((requestPath: RequestInfo) => {
-      const finalUrl = `${urlB}${requestPath as string}`;
-      return fetch(finalUrl);
-    });
+    const customRequestB = jest.fn((requestPath: RequestInfo) =>
+      fetch(requestPath as string),
+    );
 
-    configure({ request: customRequestA, requestId: producerA });
-    configure({ request: customRequestB, requestId: producerB });
+    configure({
+      request: customRequestA,
+      requestId: producerA,
+      setDomain: () => urlA,
+    });
+    configure({
+      request: customRequestB,
+      requestId: producerB,
+      setDomain: () => urlB,
+    });
 
     const requestA = createRequest(
       path,
@@ -213,5 +230,377 @@ describe('configure', () => {
     expect(customRequestB).toHaveBeenCalledTimes(1);
     expect(resA instanceof Response).toBe(true);
     expect(resB instanceof Response).toBe(true);
+  });
+
+  test('should strip client identity headers by default for non-default producer clients', async () => {
+    const producer = 'producer-browser-identity-strip';
+    const producerUrl = 'http://localhost:9083';
+
+    nock(producerUrl).get(path).reply(200, response);
+    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+      fetch(requestPath, init),
+    );
+
+    configure({
+      request: customRequest,
+      requestId: producer,
+      setDomain: () => producerUrl,
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+    );
+    const res = await request({
+      headers: {
+        'x-tenant-id': 'tenant-client',
+      },
+    });
+
+    const sentHeaders = customRequest.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(sentHeaders['x-tenant-id']).toBeUndefined();
+    expect(res instanceof Response).toBe(true);
+  });
+
+  test('should support derived identity binding headers when explicitly configured', async () => {
+    const producer = 'producer-browser-identity-derived';
+    const producerUrl = 'http://localhost:9084';
+
+    nock(producerUrl).get(path).reply(200, response);
+    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+      fetch(requestPath, init),
+    );
+
+    configure({
+      request: customRequest,
+      requestId: producer,
+      setDomain: () => producerUrl,
+      identityBinding: {
+        deriveHeaders: () => ({
+          'x-tenant-id': 'tenant-derived',
+        }),
+      },
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+    );
+    await request();
+
+    const sentHeaders = customRequest.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(sentHeaders['x-tenant-id']).toBe('tenant-derived');
+  });
+
+  test('should reject client identity override in strict identity binding mode', async () => {
+    const producer = 'producer-browser-identity-strict';
+    configure({
+      requestId: producer,
+      setDomain: () => 'http://localhost:9085',
+      identityBinding: {
+        strict: true,
+      },
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+    );
+
+    await expect(
+      request({
+        headers: {
+          'x-subject-id': 'subject-client',
+        },
+      }),
+    ).rejects.toBeInstanceOf(IdentityBindingViolationError);
+  });
+
+  test('should require envelope and block cross-origin producer calls in production by default', async () => {
+    const producer = 'producer-browser-envelope';
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      configure({
+        requestId: producer,
+        setDomain: () => 'https://producer.internal',
+      });
+      const request = createRequest(
+        path,
+        method,
+        8080,
+        undefined,
+        undefined,
+        producer,
+      );
+
+      await expect(request()).rejects.toBeInstanceOf(
+        CrossOriginEnvelopePolicyError,
+      );
+    } finally {
+      process.env.NODE_ENV = previousEnv;
+    }
+  });
+
+  test('should allow explicit cross-origin policy and attach envelope header', async () => {
+    const producer = 'producer-browser-policy';
+    const producerUrl = 'https://producer.internal';
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      nock(producerUrl).get(path).reply(200, response);
+      const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+        fetch(requestPath, init),
+      );
+
+      configure({
+        request: customRequest,
+        requestId: producer,
+        setDomain: () => producerUrl,
+        allowCrossOriginEnvelope: true,
+      });
+
+      const request = createRequest(
+        path,
+        method,
+        8080,
+        undefined,
+        undefined,
+        producer,
+      );
+      const res = await request();
+
+      const headers = customRequest.mock.calls[0][1].headers as Record<
+        string,
+        string
+      >;
+      const envelope = JSON.parse(headers['x-modernjs-bff-envelope']);
+      expect(envelope.requestId).toBe(producer);
+      expect(envelope.target).toBe('browser');
+      expect(res instanceof Response).toBe(true);
+    } finally {
+      process.env.NODE_ENV = previousEnv;
+    }
+  });
+
+  test('should attach operation context headers for non-default producer client', async () => {
+    const producer = 'crm.producer-a';
+    const producerUrl = 'http://localhost:18080';
+    const traceparent =
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+    nock(producerUrl).get(path).reply(200, response);
+
+    const customRequest = jest.fn((requestPath: RequestInfo, init?: RequestInit) =>
+      fetch(requestPath, init),
+    );
+
+    configure({
+      request: customRequest,
+      requestId: producer,
+      setDomain: () => producerUrl,
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+      { traceparent },
+    );
+    await request();
+
+    const headers = customRequest.mock.calls[0][1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers['x-operation-id']).toBe(`${producer}:GET:${path}`);
+    expect(headers.traceparent).toBe(traceparent);
+    const operationContext = JSON.parse(headers['x-modernjs-bff-operation-context']);
+    expect(operationContext.requestId).toBe(producer);
+    expect(operationContext.operationId).toBe(`${producer}:GET:${path}`);
+    expect(operationContext.traceparent).toBe(traceparent);
+    expect(operationContext.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
+    expect(operationContext.spanId).toBe('00f067aa0ba902b7');
+  });
+
+  test('should retry with backoff and emit degraded telemetry events', async () => {
+    jest.useFakeTimers();
+    const onDegraded = jest.fn();
+    let attempts = 0;
+
+    const customRequest = jest.fn(async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        const error: any = new Error('temporary upstream error');
+        error.status = 503;
+        throw error;
+      }
+
+      return response;
+    });
+
+    try {
+      configure({
+        request: customRequest,
+        transport: {
+          retry: {
+            retries: 2,
+            baseDelayMs: 20,
+            maxDelayMs: 20,
+            jitterRatio: 0,
+          },
+          onDegraded,
+        },
+      });
+
+      const request = createRequest(path, method, 8080, undefined);
+      const pending = request();
+
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(20);
+      await Promise.resolve();
+
+      await expect(pending).resolves.toStrictEqual(response);
+      expect(customRequest).toHaveBeenCalledTimes(3);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'retry',
+          attempt: 1,
+          maxAttempts: 3,
+          backoffMs: 20,
+        }),
+      );
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'retry',
+          attempt: 2,
+          maxAttempts: 3,
+          backoffMs: 20,
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('should emit retry_exhausted when retry budget is consumed', async () => {
+    jest.useFakeTimers();
+    const onDegraded = jest.fn();
+    const customRequest = jest.fn(async () => {
+      const error: any = new Error('upstream unavailable');
+      error.status = 503;
+      throw error;
+    });
+
+    try {
+      configure({
+        request: customRequest,
+        transport: {
+          retry: {
+            retries: 1,
+            baseDelayMs: 10,
+            maxDelayMs: 10,
+            jitterRatio: 0,
+          },
+          onDegraded,
+        },
+      });
+
+      const request = createRequest(path, method, 8080, undefined);
+      const pending = request();
+      const failure = expect(pending).rejects.toThrow('upstream unavailable');
+
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(10);
+      await failure;
+
+      expect(customRequest).toHaveBeenCalledTimes(2);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'retry',
+          attempt: 1,
+          maxAttempts: 2,
+        }),
+      );
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'retry_exhausted',
+          attempt: 2,
+          maxAttempts: 2,
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('should abort timed out requests and emit timeout degraded event', async () => {
+    jest.useFakeTimers();
+    const onDegraded = jest.fn();
+
+    const customRequest = jest.fn((_requestPath: RequestInfo, init?: RequestInit) => {
+      return new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const error: any = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      });
+    });
+
+    try {
+      configure({
+        request: customRequest,
+        transport: {
+          timeoutMs: 50,
+          onDegraded,
+        },
+      });
+
+      const request = createRequest(path, method, 8080, undefined);
+      const pending = request();
+      const failure = expect(pending).rejects.toMatchObject({
+        name: 'TimeoutError',
+      });
+
+      await jest.advanceTimersByTimeAsync(50);
+      await failure;
+
+      expect(customRequest).toHaveBeenCalledTimes(1);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'timeout',
+          timeoutMs: 50,
+          attempt: 1,
+          maxAttempts: 1,
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

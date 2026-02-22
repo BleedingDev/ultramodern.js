@@ -10,10 +10,17 @@ export * from './constants';
 export { createRenderHandler } from './libs/render';
 export {
   TelemetryRegistry,
+  TelemetryCanaryOrchestrator,
   createOtlpTelemetryExporter,
+  TelemetryStartupHealthError,
   createVictoriaMetricsTelemetryExporter,
   createTelemetryAwareMetrics,
   hasEnabledTelemetryExporters,
+} from './libs/telemetry';
+export type {
+  TelemetryCanaryDecision,
+  TelemetrySloAlert,
+  TelemetryQueueStats,
 } from './libs/telemetry';
 
 export default (options: ModernServerOptions): Promise<Server> => {

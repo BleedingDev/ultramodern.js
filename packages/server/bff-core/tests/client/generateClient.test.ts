@@ -82,6 +82,13 @@ describe('client', () => {
     });
 
     expect(result.isOk).toBeTruthy();
-    expect(result.value).toContain(`'producer-sdk'`);
+    expect(result.value).toContain(`import * as requestRuntime`);
+    expect(result.value).toContain(`const { createRequest } = requestRuntime;`);
+    expect(result.value).toContain(`export const initProducerClient`);
+    expect(result.value).toContain(`requestRuntime.default?.configure`);
+    expect(result.value).toContain(`return undefined;`);
+    expect(result.value).toContain(`export const operationSchemaHash`);
+    expect(result.value).toContain(`export const operationVersion`);
+    expect(result.value).toContain(`"producer-sdk"`);
   });
 });

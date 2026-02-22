@@ -28,6 +28,8 @@ import {
 } from '../type';
 import { metrics as defaultMetrics } from '../libs/metrics';
 import {
+  TelemetryCanaryDecision,
+  TelemetryCanaryOrchestrator,
   TelemetryRegistry,
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
@@ -56,6 +58,8 @@ export class Server {
   private serverConfig: ServerConfig;
 
   private telemetryRegistry?: TelemetryRegistry;
+
+  private canaryOrchestrator?: TelemetryCanaryOrchestrator;
 
   constructor(options: ModernServerOptions) {
     options.logger = options.logger || createLogger({ level: 'warn' });
@@ -211,6 +215,17 @@ export class Server {
       maxBatchSize: telemetryConfig.maxBatchSize,
       maxQueueSize: telemetryConfig.maxQueueSize,
       redactionKeys: telemetryConfig.redactionKeys,
+      slo: {
+        queueUtilizationWarnThreshold:
+          telemetryConfig.slo?.queueUtilizationWarnThreshold,
+        queueDroppedWarnThreshold: telemetryConfig.slo?.queueDroppedWarnThreshold,
+        alertCooldownMs: telemetryConfig.slo?.alertCooldownMs,
+        onAlert: alert => {
+          options.logger?.warn(
+            `[telemetry.slo] ${alert.type} threshold=${alert.threshold} value=${alert.value} depth=${alert.queueDepth}/${alert.queueCapacity} dropped=${alert.totalDropped}`,
+          );
+        },
+      },
     });
 
     if (telemetryConfig.exporters?.otlp?.enabled) {
@@ -227,14 +242,84 @@ export class Server {
       );
     }
 
+    try {
+      await registry.startupHealthCheck({
+        failLoud: telemetryConfig.failLoudStartup ?? true,
+      });
+    } catch (error) {
+      await registry.shutdown();
+      throw error;
+    }
+
     options.metrics = createTelemetryAwareMetrics(
       options.metrics || defaultMetrics,
       registry,
     );
     this.telemetryRegistry = registry;
+
+    const canaryConfig = telemetryConfig.canary;
+    if (canaryConfig?.enabled) {
+      const contractGates =
+        canaryConfig.contractGates as
+          | Record<string, boolean | { passed: boolean; reason?: string }>
+          | undefined;
+      const orchestrator = new TelemetryCanaryOrchestrator({
+        registry,
+        evaluationIntervalMs: canaryConfig.evaluationIntervalMs,
+        minConsecutiveHealthyEvaluations:
+          canaryConfig.minConsecutiveHealthyEvaluations,
+        rollbackConsecutiveFailures: canaryConfig.rollbackConsecutiveFailures,
+        maxQueueUtilization: canaryConfig.maxQueueUtilization,
+        maxTotalDropped: canaryConfig.maxTotalDropped,
+        maxUnhealthyExporters: canaryConfig.maxUnhealthyExporters,
+        requiredContractGates: Object.keys(contractGates || {}),
+        onPromote: decision => {
+          options.logger?.info(
+            `[telemetry.canary] promoted after ${decision.consecutiveHealthy} healthy evaluations`,
+          );
+          this.emitCanaryDecisionMetric(registry, decision, 'promote');
+        },
+        onRollback: decision => {
+          options.logger?.error(
+            `[telemetry.canary] rollback triggered failures=${decision.failures.map(item => item.reason).join(',')}`,
+          );
+          this.emitCanaryDecisionMetric(registry, decision, 'rollback');
+        },
+      });
+      if (contractGates) {
+        orchestrator.setContractGates(contractGates);
+      }
+      this.canaryOrchestrator = orchestrator;
+      orchestrator.start();
+      orchestrator.evaluate();
+    }
+  }
+
+  private emitCanaryDecisionMetric(
+    registry: TelemetryRegistry,
+    decision: TelemetryCanaryDecision,
+    action: 'promote' | 'rollback',
+  ) {
+    try {
+      registry.enqueueMetric({
+        name: `telemetry.canary.${action}`,
+        value: 1,
+        unit: 'count',
+        tags: {
+          action,
+          state: decision.state,
+          failures: String(decision.failures.length),
+        },
+      });
+    } catch (_error) {
+      // Canary decision metrics are best-effort and must not break server startup.
+    }
   }
 
   public async close() {
+    if (this.canaryOrchestrator) {
+      this.canaryOrchestrator.stop();
+    }
     if (this.telemetryRegistry) {
       await this.telemetryRegistry.shutdown();
     }

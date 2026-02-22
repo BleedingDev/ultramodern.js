@@ -83,6 +83,58 @@ Introduce a framework telemetry standardization layer with pluggable exporters.
   - OTLP exporter.
   - VictoriaMetrics exporter.
 - Framework config surface is available under `server.telemetry` with exporter-specific options.
+- Exporter health model is tracked per exporter (`healthy`, failure count, last error/success timestamps).
+- Startup probe runs during server initialization and defaults to fail-loud mode; opt-out is available via `server.telemetry.failLoudStartup = false`.
+- Queue visibility is exported as first-party telemetry metrics:
+  - `telemetry.queue.depth`
+  - `telemetry.queue.utilization`
+  - `telemetry.queue.dropped`
+- SLO alert thresholds are configurable via `server.telemetry.slo` and are wired to runtime warning hooks for early degradation detection.
 - Validation coverage:
-  - `packages/server/core/tests/plugins/telemetry.test.ts`
-  - `pnpm --filter @modern-js/server-core test -- telemetry.test.ts`
+  - `packages/server/prod-server/tests/telemetry.test.ts`
+  - `pnpm --filter @modern-js/prod-server test -- --runInBand`
+
+## 10. Canary Rollout and Rollback Notes (2026-02-22)
+
+- Added `TelemetryCanaryOrchestrator` for release orchestration with promotion/rollback decisions.
+- Promotion criteria are tied to telemetry and contract gates:
+  - queue utilization threshold
+  - dropped-envelope budget
+  - unhealthy exporter budget
+  - required contract gate pass set
+- Automated rollback triggers when consecutive failing evaluations exceed configured threshold.
+- Config surface added under `server.telemetry.canary`:
+  - `enabled`
+  - `evaluationIntervalMs`
+  - `minConsecutiveHealthyEvaluations`
+  - `rollbackConsecutiveFailures`
+  - `maxQueueUtilization`
+  - `maxTotalDropped`
+  - `maxUnhealthyExporters`
+  - `contractGates`
+- Runtime wiring:
+  - server init starts orchestrator when enabled
+  - promotion/rollback events are logged
+  - canary decision metrics emitted:
+    - `telemetry.canary.promote`
+    - `telemetry.canary.rollback`
+- Validation coverage:
+  - `packages/server/prod-server/tests/telemetry.test.ts`
+  - `pnpm --filter @modern-js/prod-server test -- --runInBand`
+
+## 11. Release-Candidate Contract Gate Pipeline Notes (2026-02-22)
+
+- Added release-candidate contract gate workflow:
+  - `.github/workflows/release-contract-gates.yml`
+- Added gate validator tooling:
+  - `scripts/release-gates/validate-release-candidate-gates.js`
+  - `scripts/release-gates/validator.js`
+  - `scripts/release-gates/rc-contract-profile.json`
+- Pipeline enforces:
+  - A-D gate evidence file presence and metadata shape
+  - minimum review evidence cardinality (>=2 reviewer entries)
+  - migration contract assertions on representative module artifacts
+  - representative lane command execution for release-candidate validation
+- Validation coverage:
+  - `scripts/release-gates/__tests__/validator.test.js`
+  - `node --test scripts/release-gates/__tests__/validator.test.js`

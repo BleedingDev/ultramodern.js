@@ -1,16 +1,104 @@
 import { compile, pathToRegexp, Key } from 'path-to-regexp';
 import { stringify } from 'query-string';
 import { handleRes } from './handleRes';
+import { executeWithResilience } from './transport';
 import type {
+  AllowCrossOriginEnvelope,
   BFFRequestPayload,
+  IdentityBindingOptions,
+  IdentityBindingViolation,
+  OperationContext,
   RequestCreator,
   Sender,
   IOptions,
+  TransportResilienceOptions,
 } from './types';
 
 const realRequest: Map<string, typeof fetch> = new Map();
 const realAllowedHeaders: Map<string, string[]> = new Map();
+const realRequireEnvelope: Map<string, boolean> = new Map();
+const realAllowCrossOriginEnvelope: Map<string, AllowCrossOriginEnvelope> =
+  new Map();
+const realTransportResilience: Map<string, TransportResilienceOptions> =
+  new Map();
+const realIdentityBinding: Map<string, IdentityBindingOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
+const isEmptyDomain = (domain?: string) =>
+  typeof domain !== 'string' || domain.trim() === '';
+const ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
+const OPERATION_CONTEXT_HEADER = 'x-operation-id';
+const OPERATION_CONTEXT_DETAIL_HEADER = 'x-modernjs-bff-operation-context';
+const TRACEPARENT_HEADER = 'traceparent';
+const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
+const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
+  'x-tenant-id',
+  'x-subject-id',
+  'x-user-id',
+  'x-operation-id',
+];
+
+const firstHeaderValue = (value: unknown) =>
+  Array.isArray(value) ? value[0] : value;
+
+const findHeaderKey = (headers: Record<string, any>, header: string) => {
+  const normalized = header.toLowerCase();
+  return Object.keys(headers).find(key => key.toLowerCase() === normalized);
+};
+
+const readHeader = (headers: Record<string, any>, header: string) => {
+  const key = findHeaderKey(headers, header);
+  return typeof key === 'string' ? headers[key] : undefined;
+};
+
+const writeHeader = (
+  headers: Record<string, any>,
+  header: string,
+  value: unknown,
+) => {
+  if (typeof value === 'undefined') {
+    return;
+  }
+  const key = findHeaderKey(headers, header);
+  if (typeof key === 'string' && key !== header) {
+    delete headers[key];
+  }
+  headers[header] = value;
+};
+
+const deleteHeader = (headers: Record<string, any>, header: string) => {
+  const key = findHeaderKey(headers, header);
+  if (typeof key === 'string') {
+    delete headers[key];
+  }
+};
+
+const toOrigin = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    return new URL(value).origin;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+const parseTraceparent = (value: unknown) => {
+  const traceparent = firstHeaderValue(value);
+  if (typeof traceparent !== 'string') {
+    return undefined;
+  }
+
+  const match = traceparent.trim().match(TRACEPARENT_REGEX);
+  if (!match) {
+    return undefined;
+  }
+
+  return {
+    traceId: match[1].toLowerCase(),
+    spanId: match[2].toLowerCase(),
+  };
+};
 
 const originFetch = (...params: Parameters<typeof fetch>) => {
   const [url, init] = params;
@@ -22,6 +110,60 @@ const originFetch = (...params: Parameters<typeof fetch>) => {
   return fetch(url, init).then(handleRes);
 };
 
+const buildOperationContext = ({
+  requestId,
+  method,
+  path,
+  operationContext,
+  traceparent,
+}: {
+  requestId: string;
+  method: string;
+  path: string;
+  operationContext?: OperationContext | undefined;
+  traceparent?: unknown;
+}) => {
+  const routePath = operationContext?.routePath || path;
+  const operationMethod = (operationContext?.method || method || 'GET').toUpperCase();
+  const rawOperationId =
+    operationContext?.operationId || `${operationMethod}:${routePath}`;
+  const operationId = rawOperationId.startsWith(`${requestId}:`)
+    ? rawOperationId
+    : `${requestId}:${rawOperationId}`;
+  const traceparentValue =
+    operationContext?.traceparent ||
+    (typeof firstHeaderValue(traceparent) === 'string'
+      ? String(firstHeaderValue(traceparent))
+      : undefined);
+  const parsedTraceContext =
+    operationContext?.traceId && operationContext?.spanId
+      ? {
+          traceId: operationContext.traceId,
+          spanId: operationContext.spanId,
+        }
+      : parseTraceparent(traceparentValue);
+
+  return {
+    requestId,
+    operationId,
+    routePath,
+    method: operationMethod,
+    ...(operationContext?.schemaHash
+      ? { schemaHash: operationContext.schemaHash }
+      : {}),
+    ...(typeof operationContext?.operationVersion === 'number'
+      ? { operationVersion: operationContext.operationVersion }
+      : {}),
+    ...(traceparentValue ? { traceparent: traceparentValue } : {}),
+    ...(parsedTraceContext
+      ? {
+          traceId: parsedTraceContext.traceId,
+          spanId: parsedTraceContext.spanId,
+        }
+      : {}),
+  };
+};
+
 export class ProducerClientNotInitializedError extends Error {
   readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
 
@@ -30,6 +172,42 @@ export class ProducerClientNotInitializedError extends Error {
       `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
     );
     this.name = 'ProducerClientNotInitializedError';
+  }
+}
+
+export class ProducerDomainNotConfiguredError extends Error {
+  readonly code = 'BFF_PRODUCER_DOMAIN_NOT_CONFIGURED';
+
+  constructor(requestId: string) {
+    super(
+      `Producer client "${requestId}" must provide setDomain() during configure().`,
+    );
+    this.name = 'ProducerDomainNotConfiguredError';
+  }
+}
+
+export class CrossOriginEnvelopePolicyError extends Error {
+  readonly code = 'BFF_CROSS_ORIGIN_ENVELOPE_NOT_ALLOWED';
+
+  constructor(requestId: string, sourceOrigin?: string, targetOrigin?: string) {
+    super(
+      `Cross-origin envelope is not allowed for producer "${requestId}" (${sourceOrigin || 'unknown-origin'} -> ${targetOrigin || 'unknown-origin'}). Configure allowCrossOriginEnvelope to explicitly allow this flow.`,
+    );
+    this.name = 'CrossOriginEnvelopePolicyError';
+  }
+}
+
+export class IdentityBindingViolationError extends Error {
+  readonly code = 'BFF_IDENTITY_BINDING_VIOLATION';
+
+  readonly violation: IdentityBindingViolation;
+
+  constructor(violation: IdentityBindingViolation) {
+    super(
+      `Identity header "${violation.header}" for producer "${violation.requestId}" was rejected by server-derived identity binding.`,
+    );
+    this.name = 'IdentityBindingViolationError';
+    this.violation = violation;
   }
 }
 
@@ -51,9 +229,19 @@ export const configure = (options: IOptions) => {
     request,
     interceptor,
     allowedHeaders,
+    transport,
+    requireEnvelope,
+    allowCrossOriginEnvelope,
+    identityBinding,
     setDomain,
     requestId = 'default',
   } = options;
+
+  const hasExistingDomain = domainMap.has(requestId);
+  if (requestId !== 'default' && !setDomain && !hasExistingDomain) {
+    throw new ProducerDomainNotConfiguredError(requestId);
+  }
+
   let configuredRequest = request || originFetch;
   if (interceptor && !request) {
     configuredRequest = interceptor(fetch);
@@ -61,14 +249,32 @@ export const configure = (options: IOptions) => {
   if (Array.isArray(allowedHeaders)) {
     realAllowedHeaders.set(requestId, allowedHeaders);
   }
+  if (transport && typeof transport === 'object') {
+    realTransportResilience.set(requestId, transport);
+  }
+  if (identityBinding && typeof identityBinding === 'object') {
+    realIdentityBinding.set(requestId, identityBinding);
+  }
+  if (typeof requireEnvelope === 'boolean') {
+    realRequireEnvelope.set(requestId, requireEnvelope);
+  }
+  if (
+    typeof allowCrossOriginEnvelope === 'boolean' ||
+    typeof allowCrossOriginEnvelope === 'function'
+  ) {
+    realAllowCrossOriginEnvelope.set(requestId, allowCrossOriginEnvelope);
+  }
   if (setDomain) {
-    domainMap.set(
+    const resolvedDomain = setDomain({
+      target: 'browser',
       requestId,
-      setDomain({
-        target: 'browser',
-        requestId,
-      }),
-    );
+    });
+    if (requestId !== 'default' && isEmptyDomain(resolvedDomain)) {
+      throw new ProducerDomainNotConfiguredError(requestId);
+    }
+    if (typeof resolvedDomain === 'string') {
+      domainMap.set(requestId, resolvedDomain);
+    }
   }
   realRequest.set(requestId, configuredRequest);
 };
@@ -82,6 +288,7 @@ export const createRequest: RequestCreator = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetch = originFetch,
   requestId = 'default',
+  operationContext,
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keys: Key[] = [];
@@ -123,7 +330,62 @@ export const createRequest: RequestCreator = (
       finalURL = payload.query
         ? `${finalPath}?${stringify(payload.query)}`
         : finalPath;
-      headers = payload.headers || {};
+      headers = payload.headers ? { ...payload.headers } : {};
+      const identityBinding = realIdentityBinding.get(requestId);
+      const identityBindingEnabled =
+        identityBinding?.enabled ?? requestId !== 'default';
+      const protectedIdentityHeaders = (
+        identityBinding?.protectedHeaders ||
+        DEFAULT_PROTECTED_IDENTITY_HEADERS
+      ).map(header => header.toLowerCase());
+
+      if (identityBindingEnabled) {
+        const derivedIdentityHeaders: Record<string, any> = {};
+        const customDerivedHeaders = identityBinding?.deriveHeaders?.({
+          requestId,
+          target: 'browser',
+          incomingHeaders: {},
+          protectedHeaders: [...protectedIdentityHeaders],
+        });
+        if (customDerivedHeaders && typeof customDerivedHeaders === 'object') {
+          for (const header of protectedIdentityHeaders) {
+            const customValue = readHeader(customDerivedHeaders, header);
+            if (typeof customValue !== 'undefined') {
+              writeHeader(derivedIdentityHeaders, header, customValue);
+            }
+          }
+        }
+
+        for (const header of protectedIdentityHeaders) {
+          const attemptedValue = readHeader(headers, header);
+          if (typeof attemptedValue === 'undefined') {
+            continue;
+          }
+
+          const violation: IdentityBindingViolation = {
+            requestId,
+            target: 'browser',
+            header,
+            attemptedValue,
+            derivedValue: readHeader(derivedIdentityHeaders, header),
+            reason: identityBinding?.strict
+              ? 'client_override_rejected'
+              : 'client_override_blocked',
+          };
+          identityBinding?.onViolation?.(violation);
+
+          if (identityBinding?.strict) {
+            throw new IdentityBindingViolationError(violation);
+          }
+
+          deleteHeader(headers, header);
+        }
+
+        Object.keys(derivedIdentityHeaders).forEach(header => {
+          writeHeader(headers, header, derivedIdentityHeaders[header]);
+        });
+      }
+
       body =
         payload.data && typeof payload.data === 'object'
           ? JSON.stringify(payload.data)
@@ -149,7 +411,6 @@ export const createRequest: RequestCreator = (
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
         if (
           typeof payload.formUrlencoded === 'object' &&
-          // @ts-expect-error
           // eslint-disable-next-line node/prefer-global/url-search-params,node/no-unsupported-features/node-builtins
           !(payload.formUrlencoded instanceof URLSearchParams)
         ) {
@@ -162,12 +423,98 @@ export const createRequest: RequestCreator = (
 
     headers.accept = `application/json,*/*;q=0.8`;
     const configDomain = domainMap.get(requestId);
+    if (requestId !== 'default' && isEmptyDomain(configDomain)) {
+      throw new ProducerDomainNotConfiguredError(requestId);
+    }
     finalURL = `${configDomain || ''}${finalURL}`;
 
-    return fetcher(finalURL, {
+    const shouldRequireEnvelope =
+      realRequireEnvelope.get(requestId) ??
+      (requestId !== 'default' &&
+        typeof process !== 'undefined' &&
+        process.env?.NODE_ENV === 'production');
+    if (shouldRequireEnvelope) {
+      const sourceOrigin =
+        typeof window !== 'undefined' ? window.location.origin : undefined;
+      const targetOrigin = toOrigin(finalURL);
+      const traceContext = parseTraceparent(
+        readHeader(headers, TRACEPARENT_HEADER),
+      );
+      const isCrossOrigin =
+        Boolean(sourceOrigin) &&
+        Boolean(targetOrigin) &&
+        sourceOrigin !== targetOrigin;
+      if (isCrossOrigin) {
+        const policy = realAllowCrossOriginEnvelope.get(requestId);
+        const isAllowed =
+          typeof policy === 'function'
+            ? policy({
+                requestId,
+                sourceOrigin,
+                targetOrigin,
+                target: 'browser',
+              })
+            : policy === true;
+        if (!isAllowed) {
+          throw new CrossOriginEnvelopePolicyError(
+            requestId,
+            sourceOrigin,
+            targetOrigin,
+          );
+        }
+      }
+      headers[ENVELOPE_HEADER] = JSON.stringify({
+        requestId,
+        target: 'browser',
+        timestamp: Date.now(),
+        sourceOrigin,
+        targetOrigin,
+        ...(traceContext
+          ? {
+              traceId: traceContext.traceId,
+              spanId: traceContext.spanId,
+            }
+          : {}),
+      });
+    }
+
+    if (requestId !== 'default') {
+      if (
+        typeof readHeader(headers, TRACEPARENT_HEADER) === 'undefined' &&
+        operationContext?.traceparent
+      ) {
+        writeHeader(headers, TRACEPARENT_HEADER, operationContext.traceparent);
+      }
+      const contextPayload = buildOperationContext({
+        requestId,
+        method,
+        path,
+        operationContext,
+        traceparent: readHeader(headers, TRACEPARENT_HEADER),
+      });
+
+      if (typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined') {
+        writeHeader(headers, OPERATION_CONTEXT_HEADER, contextPayload.operationId);
+      }
+      writeHeader(
+        headers,
+        OPERATION_CONTEXT_DETAIL_HEADER,
+        JSON.stringify(contextPayload),
+      );
+    }
+
+    return executeWithResilience({
+      requestId,
+      target: 'browser',
       method,
-      body,
-      headers,
+      url: finalURL,
+      init: {
+        method,
+        body,
+        headers,
+      },
+      fetcher,
+      transport: realTransportResilience.get(requestId),
     });
   };
 

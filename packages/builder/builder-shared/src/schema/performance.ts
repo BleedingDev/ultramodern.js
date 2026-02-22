@@ -69,6 +69,13 @@ const rsdoctorSchema: ZodType<RsdoctorConfig> = z.union([
   z.object({
     enabled: z.boolean().optional(),
     disableClientServer: z.boolean().optional(),
+    reportDir: z.string().optional(),
+    mode: z.enum(['normal', 'brief', 'lite']).optional(),
+    loaderInterceptorOptions: z
+      .object({
+        skipLoaders: z.array(z.string()).optional(),
+      })
+      .optional(),
   }),
 ]);
 

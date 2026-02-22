@@ -50,6 +50,24 @@ export type RsdoctorConfig =
        * @default true
        */
       disableClientServer?: boolean;
+      /**
+       * The directory where RsDoctor report artifacts are emitted.
+       * Defaults to bundler output path.
+       */
+      reportDir?: string;
+      /**
+       * RsDoctor report mode.
+       */
+      mode?: 'normal' | 'brief' | 'lite';
+      /**
+       * Configure RsDoctor loader interception behavior.
+       */
+      loaderInterceptorOptions?: {
+        /**
+         * Loader names or paths to skip from RsDoctor loader interception.
+         */
+        skipLoaders?: string[];
+      };
     };
 
 export interface SharedPerformanceConfig {

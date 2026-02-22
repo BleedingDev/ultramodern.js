@@ -39,4 +39,43 @@ describe('plugin-garfish', () => {
     lifecycle?.addRuntimeExports!();
     expect(addExportList).toMatchSnapshot();
   });
+
+  test('cli modifyEntryExport injects runtime metadata contract', async () => {
+    const resolveConfig: any = {
+      deploy: {
+        microFrontend: {
+          runtimeDigest: 'runtime-v1-digest',
+          integrity: 'sha256-runtimeIntegrityDigest==',
+          attestation: 'attestation-token-v1',
+        },
+      },
+    };
+    const plugin = garfishPlugin();
+
+    const lifecycle = await plugin.setup!({
+      useResolvedConfigContext: () => resolveConfig,
+      useConfigContext: () => resolveConfig,
+      useAppContext: () => ({
+        internalDirectory: 'test',
+      }),
+    } as any);
+
+    const res = lifecycle?.modifyEntryExport?.({
+      entrypoint: 'main',
+      exportStatement: '',
+    } as any);
+
+    expect(res?.exportStatement).toContain(
+      '__GARFISH_EXPORTS__.runtimeMetadata = runtimeMetadata;',
+    );
+    expect(res?.exportStatement).toContain(
+      '__GARFISH_EXPORTS__.runtimeDigest = runtimeMetadata.runtimeDigest;',
+    );
+    expect(res?.exportStatement).toContain(
+      'process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY',
+    );
+    expect(res?.exportStatement).toContain(
+      'process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION',
+    );
+  });
 });

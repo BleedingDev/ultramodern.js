@@ -26,6 +26,22 @@ export default defineConfig<'rspack'>({
     assetPrefix: ROUTE_BASENAME,
   },
   tools: {
+    minifyCss: {
+      minimizerOptions: {
+        preset: [
+          'default',
+          {
+            mergeLonghand: false,
+            calc: false,
+          },
+        ],
+      },
+      warningsFilter: warning =>
+        !(
+          warning.includes('postcss-calc') &&
+          warning.includes('Could not parse expression')
+        ),
+    },
     postcss: (config, { addPlugins }) => {
       addPlugins(require('postcss-custom-media'));
     },

@@ -20,10 +20,12 @@ UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目
 | 领域 | Modern.js V4 基线 | UltraModern.js V4 差异 | V4 状态 | 备注 |
 | --- | --- | --- | --- | --- |
 | 构建诊断默认行为 | 大多数项目中 RsDoctor 为显式开启 | Rspack 生产构建默认开启 RsDoctor | 已实现 | 可通过 `performance.rsdoctor` 关闭 |
-| 构建诊断配置面 | 框架文档无 `performance.rsdoctor` | 新增 `performance.rsdoctor`（`boolean` 或 `{ enabled, disableClientServer }`） | 已实现 | `disableClientServer` 默认 `true` |
+| 构建诊断配置面 | 框架文档无 `performance.rsdoctor` | 新增 `performance.rsdoctor`（`boolean` 或 `{ enabled, disableClientServer, reportDir, mode }`） | 已实现 | `disableClientServer` 默认 `true` |
+| 诊断产物契约 | 无标准化机器可读诊断入口 | 新增 `.rsdoctor/ultramodern-diagnostics.json`，用于定位 manifest | 已实现 | 便于编码代理稳定消费诊断数据 |
 | BFF Producer 契约标识 | `bff` 配置不包含 producer 身份 | 新增 `bff.requestId`，并打通到客户端生成链路 | 已实现 | 支持显式 producer 隔离 |
 | BFF 生成客户端签名 | `createRequest(...)` 可选参数到 `fetch` 结束 | 配置 `requestId` 时，生成代码会附加 `requestId` 参数 | 已实现 | 未配置时保持兼容旧路径 |
 | `create-request` 运行时隔离 | 单一可变请求配置 | 以 `requestId` 为维度隔离 request/domain/header 配置 | 已实现 | 支持同一应用多 producer |
+| BFF 审计关联 Header | 缺少标准化 producer 操作/追踪上下文透传 | 新增 `x-operation-id`、`x-modernjs-bff-operation-context` 与 `traceparent` 传播并解析 trace 标识 | 已实现 | 便于租户/操作/追踪链路关联观测 |
 | 未初始化 producer 行为 | 缺失配置时可能隐式 fallback | 非默认 `requestId` 未初始化会抛 `ProducerClientNotInitializedError` | 已实现 | 跨项目 BFF fail-fast |
 | Node 侧透传 Header 行为 | Header 透传是全局路径 | 仅 `requestId === 'default'` 会透传入站请求头 | 已实现 | 避免 producer 间请求头串扰 |
 | 服务端 Telemetry 配置 | 缺少统一 `server.telemetry` 契约 | 新增 `server.telemetry`（采样/批处理/脱敏/导出器） | 已实现 | 同步扩展 app-tools schema 与 server types |
@@ -32,6 +34,8 @@ UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目
 | Metrics 与 Trace 关联 | SSR metrics 不解析 W3C trace 上下文 | 解析 `traceparent` 并注入 `trace_id` / `span_id` 标签 | 已实现 | 提升跨系统观测关联度 |
 | 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR alpha 开关 | 新增 `server.ssr.moduleFederationAppSSRAlpha` + 环境变量注入 | 已实现（alpha 合约） | 注入 `process.env.MODERN_MF_APP_SSR_ALPHA` |
 | 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V4 仅提供合约/环境变量，完整桥接仍在 alpha 推进 | 设计上部分支持 | 需受控灰度 |
+| 模块 SDK 合约产物 | 无框架级模块契约产物 | 新增机器可读模块家族契约与类型化模块 SDK 接口 | 已实现 | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
+| 边界反模式 CI 守卫 | 无专门边界反模式工作流 | 新增基于 profile 的边界检查（导入边界/必需钩子/模块禁用模式） | 已实现 | `.github/workflows/boundary-anti-patterns.yml` |
 | 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR alpha 的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
 | 公开文档面 | 无 UltraModern V4 差异总览页 | 新增 V4 专用差异页并补齐关联配置文档 | 已实现 | 本页为 V4 权威基准 |
 
@@ -41,10 +45,13 @@ UltraModern.js V4 是构建在 Modern.js V4 之上的兼容增强发行版，目
 
 UltraModern.js V4 扩展了性能配置：
 
-- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean }`
+- `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean; reportDir?: string; mode?: 'normal' | 'brief' | 'lite' }`
 - Rspack + 生产环境：默认开启。
 - Rspack + 开发环境：默认关闭（可显式开启）。
 - Webpack 构建：不会注入 RsDoctor 插件。
+- RsDoctor 契约产物：
+  - `<reportDir 或 outputPath>/.rsdoctor/ultramodern-diagnostics.json`
+  - 用于指向 `.rsdoctor/manifest.json`
 
 ```ts title="modern.config.ts"
 export default defineConfig({
@@ -52,6 +59,8 @@ export default defineConfig({
     rsdoctor: {
       enabled: true,
       disableClientServer: true,
+      reportDir: './artifacts',
+      mode: 'brief',
     },
   },
 });
@@ -81,6 +90,10 @@ V4 合约行为：
 - 非默认 `requestId` 若未先 `configure({ requestId })`，会抛出 `ProducerClientNotInitializedError`。
 - `allowedHeaders` / `request` / `setDomain` 都按 `requestId` 隔离。
 - Node 运行时仅在 legacy 的 `default` producer 路径透传入站请求头。
+- 非默认 producer 调用会自动携带操作与追踪关联 Header：
+  - `x-operation-id`
+  - `x-modernjs-bff-operation-context`
+  - `traceparent`（存在时会在 operation context 中反映 `traceId` / `spanId`）
 
 ### 3) `server.telemetry` 标准化与导出器
 
@@ -163,6 +176,21 @@ UltraModern.js V4 新增了以下关键测试覆盖：
 - BFF `requestId` 生成与运行时隔离、fail-fast 行为。
 - Telemetry 脱敏、背压与导出器行为。
 - SSR alpha 合约识别与环境变量注入。
+
+### 7) 模块 SDK 合约与边界反模式守卫
+
+UltraModern.js V4 新增用于模块准入与平台边界治理的产物：
+
+- 模块契约产物：`docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
+- 模块 manifest 示例：`docs/super-app-rfc-adr/contracts/module-manifest.example.json`
+- 类型契约：`packages/toolkit/types/common/moduleSdk.d.ts`
+- 校验工具：
+  - `scripts/module-sdk-contracts/validate-module-sdk-contracts.js`
+  - `scripts/boundary-guards/check-boundary-violations.js`
+- CI 工作流：
+  - `.github/workflows/boundary-anti-patterns.yml`
+  - `.github/workflows/module-certification-gates.yml`
+  - `.github/workflows/bun-superapp-smoke.yml`
 
 ## 不属于 UltraModern.js V4 的能力
 

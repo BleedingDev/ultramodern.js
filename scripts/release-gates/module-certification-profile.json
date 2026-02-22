@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "name": "module-onboarding-certification-gates",
+  "evidence": {
+    "defaultDir": "docs/super-app-rfc-adr/evidence/module-certification/current",
+    "requiredFiles": [
+      "architecture-evidence.md",
+      "validation-evidence.md",
+      "test-evidence.md",
+      "review-evidence.md"
+    ],
+    "requiredMetadataFields": [
+      "author",
+      "timestamp",
+      "ticket_id",
+      "commit_sha",
+      "workflow_run_url",
+      "module_id",
+      "module_family",
+      "runtime_lane"
+    ],
+    "minimumReviewers": 2
+  },
+  "migrationContracts": {
+    "targets": [
+      {
+        "id": "module-sdk-contract-shape",
+        "path": "docs/super-app-rfc-adr/contracts/module-sdk-contracts.json",
+        "includes": [
+          "\"schemaVersion\": 1",
+          "\"requiredComplianceFlags\"",
+          "\"families\""
+        ]
+      },
+      {
+        "id": "module-manifest-example-shape",
+        "path": "docs/super-app-rfc-adr/contracts/module-manifest.example.json",
+        "includes": [
+          "\"moduleId\":",
+          "\"family\":",
+          "\"usesSdkContracts\": true",
+          "\"usesPolicyMiddleware\": true",
+          "\"usesObservabilityHooks\": true"
+        ]
+      },
+      {
+        "id": "boundary-guard-profile-enforcement",
+        "path": "scripts/boundary-guards/profile.json",
+        "includes": [
+          "\"requiredSnippets\"",
+          "\"importGuards\"",
+          "\"core-no-domain-or-vendor-connector-imports\""
+        ]
+      },
+      {
+        "id": "module-certification-workflow",
+        "path": ".github/workflows/module-certification-gates.yml",
+        "includes": [
+          "module-certification-gates",
+          "validate-release-candidate-gates.js",
+          "module-certification-profile.json"
+        ]
+      }
+    ]
+  },
+  "gateCommands": [
+    "pnpm run validate:module-sdk-contracts",
+    "pnpm run validate:boundary-guards",
+    "node --test scripts/module-sdk-contracts/__tests__/validator.test.js",
+    "node --test scripts/boundary-guards/__tests__/validator.test.js"
+  ]
+}

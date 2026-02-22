@@ -1,6 +1,6 @@
 import * as path from 'path';
 import request from 'supertest';
-import { serverManager } from '@modern-js/server-core';
+import { serverManager, ConfigContext } from '@modern-js/server-core';
 import plugin from '../src/plugin';
 import { APIPlugin } from './helpers';
 import './common';
@@ -97,5 +97,45 @@ describe('function-mode', () => {
         expect(res.body.message).toBe('success');
         done();
       });
+  });
+
+  test('should enforce cross-project middleware policy with explicit deny semantics', async () => {
+    ConfigContext.set({
+      bff: {
+        crossProjectPolicy: {
+          enabled: true,
+          allowedNamespaces: ['crm'],
+        },
+      },
+    } as any);
+
+    try {
+      const runner = await serverManager
+        .clone()
+        .usePlugin(APIPlugin, plugin)
+        .init();
+      const policyHandler = await runner.prepareApiServer({
+        pwd,
+        prefix: '/',
+      });
+
+      const denied = await request(policyHandler).get('/hello');
+      expect(denied.status).toBe(403);
+      expect(denied.body.code).toBe('BFF_CROSS_PROJECT_POLICY_DENIED');
+      expect(denied.body.reason).toBe('missing_envelope');
+
+      const allowed = await request(policyHandler)
+        .get('/hello')
+        .set(
+          'x-modernjs-bff-envelope',
+          JSON.stringify({ requestId: 'crm.producer-a' }),
+        )
+        .set('x-operation-id', 'crm.producer-a:GET:/hello');
+
+      expect(allowed.status).toBe(200);
+      expect(allowed.body).toEqual({ message: 'hello' });
+    } finally {
+      ConfigContext.set({} as any);
+    }
   });
 });

@@ -25,6 +25,7 @@ export const ssr = (config: SSRPluginConfig = {}): Plugin => ({
         context.ssrContext!.request = formatServer(request);
         context.ssrContext!.mode = config.mode;
         context.ssrContext!.tracker = createSSRTracker(context.ssrContext!);
+        context.ssrContext!.unsafeHeaders = config.unsafeHeaders;
 
         if (!context.ssrContext!.htmlModifiers) {
           context.ssrContext!.htmlModifiers = [];

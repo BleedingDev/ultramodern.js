@@ -30,6 +30,32 @@ type CreateRenderHandler = (ctx: {
 const calcFallback = (metaName: string) =>
   `x-${cutNameByHyphen(metaName)}-ssr-fallback`;
 
+const readUnsafeHeaders = (ssrConfig: unknown): string[] | undefined => {
+  if (!ssrConfig || typeof ssrConfig !== 'object') {
+    return undefined;
+  }
+  const unsafeHeaders = (ssrConfig as { unsafeHeaders?: unknown }).unsafeHeaders;
+  if (!Array.isArray(unsafeHeaders)) {
+    return undefined;
+  }
+  return unsafeHeaders.filter(
+    (header): header is string =>
+      typeof header === 'string' && header.trim().length > 0,
+  );
+};
+
+const resolveUnsafeHeaders = (
+  conf: ServerOptions,
+  entryName?: string,
+): string[] | undefined => {
+  if (!entryName) {
+    return readUnsafeHeaders(conf.server?.ssr);
+  }
+
+  const entrySSRConfig = conf.server?.ssrByEntries?.[entryName];
+  return readUnsafeHeaders(entrySSRConfig) ?? readUnsafeHeaders(conf.server?.ssr);
+};
+
 export const createRenderHandler: CreateRenderHandler = ({
   distDir,
   staticGenerate,
@@ -61,6 +87,7 @@ export const createRenderHandler: CreateRenderHandler = ({
     }
 
     const { entryPath, urlPath } = route;
+    const unsafeHeaders = resolveUnsafeHeaders(conf, route.entryName);
     const entry = path.join(distDir, entryPath);
 
     if (!route.isSPA) {
@@ -107,6 +134,7 @@ export const createRenderHandler: CreateRenderHandler = ({
           bundle: route.bundle,
           template: content.toString(),
           staticGenerate,
+          unsafeHeaders,
           nonce,
         };
         const result = await (ssrRender
@@ -120,6 +148,7 @@ export const createRenderHandler: CreateRenderHandler = ({
                 bundle: route.bundle,
                 template: content.toString(),
                 staticGenerate,
+                unsafeHeaders,
                 nonce,
               },
               runner,
@@ -136,7 +165,7 @@ export const createRenderHandler: CreateRenderHandler = ({
 
     return {
       content: route.entryName
-        ? injectServerData(content.toString(), ctx)
+        ? injectServerData(content.toString(), ctx, { unsafeHeaders })
         : content,
       contentType: mime.contentType(path.extname(templatePath)) as string,
     };

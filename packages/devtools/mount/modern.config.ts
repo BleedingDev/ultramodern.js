@@ -1,8 +1,13 @@
 import { nanoid } from 'nanoid';
+import path from 'path';
 import { appTools, defineConfig } from '@modern-js/app-tools';
 import packageMeta from './package.json';
 
 const DEVTOOLS_MARK = nanoid();
+const INTERNAL_POSTCSS_LOADER_PATH = path.resolve(
+  process.cwd(),
+  '../../builder/builder-shared/compiled/postcss-loader/index.js',
+);
 
 // https://modernjs.dev/en/configure/app/usage
 export default defineConfig<'rspack'>({
@@ -36,6 +41,22 @@ export default defineConfig<'rspack'>({
   },
   tools: {
     htmlPlugin: process.env.NODE_ENV === 'production' ? false : {},
+    minifyCss: {
+      minimizerOptions: {
+        preset: [
+          'default',
+          {
+            mergeLonghand: false,
+            calc: false,
+          },
+        ],
+      },
+      warningsFilter: warning =>
+        !(
+          warning.includes('postcss-calc') &&
+          warning.includes('Could not parse expression')
+        ),
+    },
     styleLoader: {
       insert: function insert(element) {
         const key = `__DEVTOOLS_STYLE_${process.env.DEVTOOLS_MARK}`;
@@ -58,6 +79,15 @@ export default defineConfig<'rspack'>({
   performance: {
     chunkSplit: {
       strategy: 'all-in-one',
+    },
+    rsdoctor: {
+      loaderInterceptorOptions: {
+        skipLoaders: [
+          'postcss-loader',
+          '/packages/builder/builder-shared/compiled/postcss-loader/index.js',
+          INTERNAL_POSTCSS_LOADER_PATH,
+        ],
+      },
     },
   },
   plugins: [

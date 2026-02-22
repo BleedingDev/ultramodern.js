@@ -4,6 +4,7 @@ export * from './router';
 export * from './types';
 export * from './client';
 export * from './operators/http';
+export * from './security/crossProjectPolicy';
 export {
   getRelativeRuntimePath,
   HANDLER_WITH_META,

@@ -3,18 +3,127 @@ import { compile, pathToRegexp, Key } from 'path-to-regexp';
 import { useHeaders } from '@modern-js/runtime-utils/node';
 import { stringify } from 'query-string';
 import { handleRes } from './handleRes';
+import { executeWithResilience } from './transport';
 import type {
+  AllowCrossOriginEnvelope,
   BFFRequestPayload,
+  IdentityBindingOptions,
+  IdentityBindingViolation,
+  OperationContext,
   Sender,
   RequestCreator,
   IOptions,
+  ResolveHeaders,
+  TransportResilienceOptions,
 } from './types';
 
 type Fetch = typeof nodeFetch;
 
 const realRequest: Map<string, Fetch> = new Map();
 const realAllowedHeaders: Map<string, string[]> = new Map();
+const realResolveHeaders: Map<string, ResolveHeaders> = new Map();
+const realRequireEnvelope: Map<string, boolean> = new Map();
+const realAllowCrossOriginEnvelope: Map<string, AllowCrossOriginEnvelope> =
+  new Map();
+const realTransportResilience: Map<string, TransportResilienceOptions> =
+  new Map();
+const realIdentityBinding: Map<string, IdentityBindingOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
+const isEmptyDomain = (domain?: string) =>
+  typeof domain !== 'string' || domain.trim() === '';
+const ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
+const OPERATION_CONTEXT_HEADER = 'x-operation-id';
+const OPERATION_CONTEXT_DETAIL_HEADER = 'x-modernjs-bff-operation-context';
+const TRACEPARENT_HEADER = 'traceparent';
+const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
+const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
+  'x-tenant-id',
+  'x-subject-id',
+  'x-user-id',
+  'x-operation-id',
+];
+
+const firstHeaderValue = (value?: string | string[]) =>
+  Array.isArray(value) ? value[0] : value;
+
+const findHeaderKey = (headers: Record<string, any>, header: string) => {
+  const normalized = header.toLowerCase();
+  return Object.keys(headers).find(key => key.toLowerCase() === normalized);
+};
+
+const readHeader = (headers: Record<string, any>, header: string) => {
+  const key = findHeaderKey(headers, header);
+  return typeof key === 'string' ? headers[key] : undefined;
+};
+
+const writeHeader = (
+  headers: Record<string, any>,
+  header: string,
+  value: unknown,
+) => {
+  if (typeof value === 'undefined') {
+    return;
+  }
+  const key = findHeaderKey(headers, header);
+  if (typeof key === 'string' && key !== header) {
+    delete headers[key];
+  }
+  headers[header] = value;
+};
+
+const deleteHeader = (headers: Record<string, any>, header: string) => {
+  const key = findHeaderKey(headers, header);
+  if (typeof key === 'string') {
+    delete headers[key];
+  }
+};
+
+const toOrigin = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    return new URL(value).origin;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+const parseTraceparent = (value: unknown) => {
+  const traceparent = firstHeaderValue(value as string | string[]);
+  if (typeof traceparent !== 'string') {
+    return undefined;
+  }
+
+  const match = traceparent.trim().match(TRACEPARENT_REGEX);
+  if (!match) {
+    return undefined;
+  }
+
+  return {
+    traceId: match[1].toLowerCase(),
+    spanId: match[2].toLowerCase(),
+  };
+};
+
+const resolveSourceOrigin = (headers: Record<string, any>) => {
+  const origin = toOrigin(firstHeaderValue(headers.origin));
+  if (origin) {
+    return origin;
+  }
+
+  const referer = toOrigin(firstHeaderValue(headers.referer));
+  if (referer) {
+    return referer;
+  }
+
+  const host = firstHeaderValue(headers.host);
+  if (!host) {
+    return undefined;
+  }
+  const proto = firstHeaderValue(headers['x-forwarded-proto']) || 'http';
+  return `${proto}://${host}`;
+};
 
 const originFetch = (...params: Parameters<typeof nodeFetch>) => {
   const [, init] = params;
@@ -26,6 +135,60 @@ const originFetch = (...params: Parameters<typeof nodeFetch>) => {
   return nodeFetch(...params).then(handleRes);
 };
 
+const buildOperationContext = ({
+  requestId,
+  method,
+  path,
+  operationContext,
+  traceparent,
+}: {
+  requestId: string;
+  method: string;
+  path: string;
+  operationContext?: OperationContext | undefined;
+  traceparent?: unknown;
+}) => {
+  const routePath = operationContext?.routePath || path;
+  const operationMethod = (operationContext?.method || method || 'GET').toUpperCase();
+  const rawOperationId =
+    operationContext?.operationId || `${operationMethod}:${routePath}`;
+  const operationId = rawOperationId.startsWith(`${requestId}:`)
+    ? rawOperationId
+    : `${requestId}:${rawOperationId}`;
+  const traceparentValue =
+    operationContext?.traceparent ||
+    (typeof firstHeaderValue(traceparent as string | string[]) === 'string'
+      ? String(firstHeaderValue(traceparent as string | string[]))
+      : undefined);
+  const parsedTraceContext =
+    operationContext?.traceId && operationContext?.spanId
+      ? {
+          traceId: operationContext.traceId,
+          spanId: operationContext.spanId,
+        }
+      : parseTraceparent(traceparentValue);
+
+  return {
+    requestId,
+    operationId,
+    routePath,
+    method: operationMethod,
+    ...(operationContext?.schemaHash
+      ? { schemaHash: operationContext.schemaHash }
+      : {}),
+    ...(typeof operationContext?.operationVersion === 'number'
+      ? { operationVersion: operationContext.operationVersion }
+      : {}),
+    ...(traceparentValue ? { traceparent: traceparentValue } : {}),
+    ...(parsedTraceContext
+      ? {
+          traceId: parsedTraceContext.traceId,
+          spanId: parsedTraceContext.spanId,
+        }
+      : {}),
+  };
+};
+
 export class ProducerClientNotInitializedError extends Error {
   readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
 
@@ -34,6 +197,42 @@ export class ProducerClientNotInitializedError extends Error {
       `Producer client "${requestId}" is not initialized. Call configure() with this requestId before using generated APIs.`,
     );
     this.name = 'ProducerClientNotInitializedError';
+  }
+}
+
+export class ProducerDomainNotConfiguredError extends Error {
+  readonly code = 'BFF_PRODUCER_DOMAIN_NOT_CONFIGURED';
+
+  constructor(requestId: string) {
+    super(
+      `Producer client "${requestId}" must provide setDomain() during configure().`,
+    );
+    this.name = 'ProducerDomainNotConfiguredError';
+  }
+}
+
+export class CrossOriginEnvelopePolicyError extends Error {
+  readonly code = 'BFF_CROSS_ORIGIN_ENVELOPE_NOT_ALLOWED';
+
+  constructor(requestId: string, sourceOrigin?: string, targetOrigin?: string) {
+    super(
+      `Cross-origin envelope is not allowed for producer "${requestId}" (${sourceOrigin || 'unknown-origin'} -> ${targetOrigin || 'unknown-origin'}). Configure allowCrossOriginEnvelope to explicitly allow this flow.`,
+    );
+    this.name = 'CrossOriginEnvelopePolicyError';
+  }
+}
+
+export class IdentityBindingViolationError extends Error {
+  readonly code = 'BFF_IDENTITY_BINDING_VIOLATION';
+
+  readonly violation: IdentityBindingViolation;
+
+  constructor(violation: IdentityBindingViolation) {
+    super(
+      `Identity header "${violation.header}" for producer "${violation.requestId}" was rejected by server-derived identity binding.`,
+    );
+    this.name = 'IdentityBindingViolationError';
+    this.violation = violation;
   }
 }
 
@@ -55,9 +254,20 @@ export const configure = (options: IOptions<typeof nodeFetch>) => {
     request,
     interceptor,
     allowedHeaders,
+    resolveHeaders,
+    transport,
+    requireEnvelope,
+    allowCrossOriginEnvelope,
+    identityBinding,
     setDomain,
     requestId = 'default',
   } = options;
+
+  const hasExistingDomain = domainMap.has(requestId);
+  if (requestId !== 'default' && !setDomain && !hasExistingDomain) {
+    throw new ProducerDomainNotConfiguredError(requestId);
+  }
+
   let configuredRequest = (request as Fetch) || originFetch;
   if (interceptor && !request) {
     configuredRequest = interceptor(nodeFetch);
@@ -65,14 +275,35 @@ export const configure = (options: IOptions<typeof nodeFetch>) => {
   if (Array.isArray(allowedHeaders)) {
     realAllowedHeaders.set(requestId, allowedHeaders);
   }
+  if (typeof resolveHeaders === 'function') {
+    realResolveHeaders.set(requestId, resolveHeaders);
+  }
+  if (transport && typeof transport === 'object') {
+    realTransportResilience.set(requestId, transport);
+  }
+  if (identityBinding && typeof identityBinding === 'object') {
+    realIdentityBinding.set(requestId, identityBinding);
+  }
+  if (typeof requireEnvelope === 'boolean') {
+    realRequireEnvelope.set(requestId, requireEnvelope);
+  }
+  if (
+    typeof allowCrossOriginEnvelope === 'boolean' ||
+    typeof allowCrossOriginEnvelope === 'function'
+  ) {
+    realAllowCrossOriginEnvelope.set(requestId, allowCrossOriginEnvelope);
+  }
   if (setDomain) {
-    domainMap.set(
+    const resolvedDomain = setDomain({
+      target: 'server',
       requestId,
-      setDomain({
-        target: 'server',
-        requestId,
-      }),
-    );
+    });
+    if (requestId !== 'default' && isEmptyDomain(resolvedDomain)) {
+      throw new ProducerDomainNotConfiguredError(requestId);
+    }
+    if (typeof resolvedDomain === 'string') {
+      domainMap.set(requestId, resolvedDomain);
+    }
   }
   realRequest.set(requestId, configuredRequest);
 };
@@ -86,22 +317,32 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetch = nodeFetch,
   requestId = 'default',
+  operationContext,
 ) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const keys: Key[] = [];
   pathToRegexp(path, keys);
 
   const sender: Sender = (...args) => {
+    const fetcher = getConfiguredRequest(requestId, fetch);
+
     let webRequestHeaders = {} as Record<string, any>;
-    if (requestId === 'default') {
+    try {
       webRequestHeaders = useHeaders();
+    } catch (error) {
+      webRequestHeaders = {};
     }
+
     let body;
     let headers: Record<string, any>;
     let url: string;
 
     if (httpMethodDecider === 'inputParams') {
-      url = path;
+      const configDomain = domainMap.get(requestId);
+      if (requestId !== 'default' && isEmptyDomain(configDomain)) {
+        throw new ProducerDomainNotConfiguredError(requestId);
+      }
+      url = `${configDomain || `http://127.0.0.1:${port}`}${path}`;
       body = args as any;
       headers = {
         'Content-Type': 'application/json',
@@ -128,13 +369,93 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
       const finalPath = payload.query
         ? `${plainPath}?${stringify(payload.query)}`
         : plainPath;
-      headers = payload.headers || {};
+      headers = payload.headers ? { ...payload.headers } : {};
+      const identityBinding = realIdentityBinding.get(requestId);
+      const identityBindingEnabled =
+        identityBinding?.enabled ?? requestId !== 'default';
+      const protectedIdentityHeaders = (
+        identityBinding?.protectedHeaders ||
+        DEFAULT_PROTECTED_IDENTITY_HEADERS
+      ).map(header => header.toLowerCase());
+
       const targetAllowedHeaders = realAllowedHeaders.get(requestId) || [];
+      const forwardedHeaders: Record<string, any> = {};
       for (const key of targetAllowedHeaders) {
         if (typeof webRequestHeaders[key] !== 'undefined') {
-          headers[key] = webRequestHeaders[key];
+          forwardedHeaders[key] = webRequestHeaders[key];
         }
       }
+
+      if (identityBindingEnabled) {
+        const derivedIdentityHeaders: Record<string, any> = {};
+        for (const header of protectedIdentityHeaders) {
+          const incomingHeaderValue = readHeader(webRequestHeaders, header);
+          if (typeof incomingHeaderValue !== 'undefined') {
+            writeHeader(derivedIdentityHeaders, header, incomingHeaderValue);
+          }
+        }
+
+        const customDerivedHeaders = identityBinding?.deriveHeaders?.({
+          requestId,
+          target: 'server',
+          incomingHeaders: { ...webRequestHeaders },
+          protectedHeaders: [...protectedIdentityHeaders],
+        });
+        if (customDerivedHeaders && typeof customDerivedHeaders === 'object') {
+          for (const header of protectedIdentityHeaders) {
+            const customValue = readHeader(customDerivedHeaders, header);
+            if (typeof customValue !== 'undefined') {
+              writeHeader(derivedIdentityHeaders, header, customValue);
+            }
+          }
+        }
+
+        for (const header of protectedIdentityHeaders) {
+          const attemptedValue = readHeader(headers, header);
+          if (typeof attemptedValue === 'undefined') {
+            continue;
+          }
+
+          const violation: IdentityBindingViolation = {
+            requestId,
+            target: 'server',
+            header,
+            attemptedValue,
+            derivedValue: readHeader(derivedIdentityHeaders, header),
+            reason: identityBinding?.strict
+              ? 'client_override_rejected'
+              : 'client_override_blocked',
+          };
+          identityBinding?.onViolation?.(violation);
+
+          if (identityBinding?.strict) {
+            throw new IdentityBindingViolationError(violation);
+          }
+
+          deleteHeader(headers, header);
+        }
+
+        Object.keys(derivedIdentityHeaders).forEach(header => {
+          writeHeader(forwardedHeaders, header, derivedIdentityHeaders[header]);
+        });
+      }
+
+      const resolveHeaders = realResolveHeaders.get(requestId);
+      if (resolveHeaders) {
+        const resolvedHeaders = resolveHeaders({
+          requestId,
+          allowedHeaders: targetAllowedHeaders,
+          incomingHeaders: { ...forwardedHeaders },
+        });
+        if (resolvedHeaders && typeof resolvedHeaders === 'object') {
+          for (const key of targetAllowedHeaders) {
+            if (typeof resolvedHeaders[key] !== 'undefined') {
+              forwardedHeaders[key] = resolvedHeaders[key];
+            }
+          }
+        }
+      }
+      headers = { ...headers, ...forwardedHeaders };
 
       if (payload.data) {
         headers['Content-Type'] = 'application/json';
@@ -161,10 +482,94 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
       }
 
       const configDomain = domainMap.get(requestId);
+      if (requestId !== 'default' && isEmptyDomain(configDomain)) {
+        throw new ProducerDomainNotConfiguredError(requestId);
+      }
       url = `${configDomain || `http://127.0.0.1:${port}`}${finalPath}`;
     }
 
-    const fetcher = getConfiguredRequest(requestId, fetch);
+    if (typeof readHeader(headers, TRACEPARENT_HEADER) === 'undefined') {
+      const incomingTraceparent = firstHeaderValue(
+        readHeader(webRequestHeaders, TRACEPARENT_HEADER) as string | string[],
+      );
+      if (typeof incomingTraceparent === 'string') {
+        writeHeader(headers, TRACEPARENT_HEADER, incomingTraceparent);
+      }
+    }
+    if (
+      typeof readHeader(headers, TRACEPARENT_HEADER) === 'undefined' &&
+      operationContext?.traceparent
+    ) {
+      writeHeader(headers, TRACEPARENT_HEADER, operationContext.traceparent);
+    }
+
+    const shouldRequireEnvelope =
+      realRequireEnvelope.get(requestId) ??
+      (requestId !== 'default' && process.env.NODE_ENV === 'production');
+    if (shouldRequireEnvelope) {
+      const sourceOrigin = resolveSourceOrigin(webRequestHeaders);
+      const targetOrigin = toOrigin(url);
+      const traceContext = parseTraceparent(
+        readHeader(headers, TRACEPARENT_HEADER),
+      );
+      const isCrossOrigin =
+        Boolean(sourceOrigin) &&
+        Boolean(targetOrigin) &&
+        sourceOrigin !== targetOrigin;
+
+      if (isCrossOrigin) {
+        const policy = realAllowCrossOriginEnvelope.get(requestId);
+        const isAllowed =
+          typeof policy === 'function'
+            ? policy({
+                requestId,
+                sourceOrigin,
+                targetOrigin,
+                target: 'server',
+              })
+            : policy === true;
+        if (!isAllowed) {
+          throw new CrossOriginEnvelopePolicyError(
+            requestId,
+            sourceOrigin,
+            targetOrigin,
+          );
+        }
+      }
+
+      headers[ENVELOPE_HEADER] = JSON.stringify({
+        requestId,
+        target: 'server',
+        timestamp: Date.now(),
+        sourceOrigin,
+        targetOrigin,
+        ...(traceContext
+          ? {
+              traceId: traceContext.traceId,
+              spanId: traceContext.spanId,
+            }
+          : {}),
+      });
+    }
+
+    if (requestId !== 'default') {
+      const contextPayload = buildOperationContext({
+        requestId,
+        method,
+        path,
+        operationContext,
+        traceparent: readHeader(headers, TRACEPARENT_HEADER),
+      });
+
+      if (typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined') {
+        writeHeader(headers, OPERATION_CONTEXT_HEADER, contextPayload.operationId);
+      }
+      writeHeader(
+        headers,
+        OPERATION_CONTEXT_DETAIL_HEADER,
+        JSON.stringify(contextPayload),
+      );
+    }
 
     if (method.toLowerCase() === 'get') {
       body = undefined;
@@ -172,7 +577,19 @@ export const createRequest: RequestCreator<typeof nodeFetch> = (
 
     headers.accept = `application/json,*/*;q=0.8`;
 
-    return fetcher(url, { method, body, headers });
+    return executeWithResilience({
+      requestId,
+      target: 'server',
+      method,
+      url,
+      init: {
+        method,
+        body,
+        headers,
+      },
+      fetcher,
+      transport: realTransportResilience.get(requestId),
+    });
   };
 
   return sender;

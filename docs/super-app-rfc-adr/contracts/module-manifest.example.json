@@ -1,0 +1,34 @@
+{
+  "moduleId": "crm-sales",
+  "family": "crm",
+  "version": "1.0.0",
+  "runtime": "effect-first",
+  "sourceDir": "tests/integration/module-sdk-fixtures/crm-sales",
+  "lifecycleHooks": [
+    "registerRoutes",
+    "registerCapabilities",
+    "registerMigrations"
+  ],
+  "policyHooks": [
+    "authorize",
+    "enforceTenantScope",
+    "validateOperationContext"
+  ],
+  "observability": {
+    "signals": [
+      "metrics",
+      "audit",
+      "trace"
+    ],
+    "hooks": [
+      "emitBusinessMetric",
+      "emitAuditEvent",
+      "emitTraceContext"
+    ]
+  },
+  "compliance": {
+    "usesSdkContracts": true,
+    "usesPolicyMiddleware": true,
+    "usesObservabilityHooks": true
+  }
+}

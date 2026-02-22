@@ -1,13 +1,17 @@
 import { createServer } from 'http';
 import type { IncomingHttpHeaders } from 'http';
 import type { AddressInfo } from 'net';
+import path from 'path';
 import {
+  TelemetryCanaryOrchestrator,
   TelemetryEnvelope,
+  TelemetryStartupHealthError,
   TelemetryRegistry,
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
 } from '../src/libs/telemetry';
+import { Server } from '../src/server';
 
 const createEnvelope = (
   partial: Partial<TelemetryEnvelope> = {},
@@ -152,6 +156,205 @@ describe('telemetry registry', () => {
     expect(timerEnvelope.unit).toBe('ms');
     expect(timerEnvelope.spanId).toBe('1111222233334444');
   });
+
+  test('emits queue depth and utilization metrics during flush', async () => {
+    const emitted: TelemetryEnvelope[] = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 10,
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'memory',
+      async emit(batch) {
+        emitted.push(...batch);
+      },
+    });
+
+    registry.enqueue(createEnvelope({ name: 'a' }));
+    registry.enqueue(createEnvelope({ name: 'b' }));
+    await registry.flush();
+
+    const depthEnvelope = emitted.find(item => item.name === 'telemetry.queue.depth');
+    const utilizationEnvelope = emitted.find(
+      item => item.name === 'telemetry.queue.utilization',
+    );
+    expect(depthEnvelope?.value).toBe(2);
+    expect(utilizationEnvelope?.value).toBe(0.2);
+    await registry.shutdown();
+  });
+
+  test('exposes queue stats and emits SLO alerts for utilization and dropped envelopes', async () => {
+    const alerts: Array<{ type: string; value: number }> = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 2,
+      flushIntervalMs: 60_000,
+      slo: {
+        queueUtilizationWarnThreshold: 0.5,
+        queueDroppedWarnThreshold: 1,
+        alertCooldownMs: 0,
+        onAlert(alert) {
+          alerts.push({ type: alert.type, value: alert.value });
+        },
+      },
+    });
+
+    registry.enqueue(createEnvelope({ name: 'first' }));
+    registry.enqueue(createEnvelope({ name: 'second' }));
+    registry.enqueue(createEnvelope({ name: 'third' }));
+
+    const queueStats = registry.getQueueStats();
+    expect(queueStats.depth).toBe(2);
+    expect(queueStats.capacity).toBe(2);
+    expect(queueStats.utilization).toBe(1);
+    expect(queueStats.pendingDropped).toBe(1);
+    expect(queueStats.totalDropped).toBe(1);
+    expect(alerts.some(item => item.type === 'queue.utilization')).toBe(true);
+    expect(alerts.some(item => item.type === 'queue.drop')).toBe(true);
+    await registry.shutdown();
+  });
+
+  test('startup health check fails loud by default when exporter is unhealthy', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'failing',
+      async emit() {
+        throw new Error('connection refused');
+      },
+    });
+
+    await expect(registry.startupHealthCheck()).rejects.toBeInstanceOf(
+      TelemetryStartupHealthError,
+    );
+    const health = registry.getExporterHealth();
+    expect(health).toHaveLength(1);
+    expect(health[0].healthy).toBe(false);
+    expect(health[0].failures).toBeGreaterThan(0);
+    await registry.shutdown();
+  });
+
+  test('startup health check can degrade without throwing when failLoud is false', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'failing',
+      async emit() {
+        throw new Error('connection refused');
+      },
+    });
+
+    await expect(
+      registry.startupHealthCheck({ failLoud: false }),
+    ).resolves.toBeUndefined();
+    const health = registry.getExporterHealth();
+    expect(health).toHaveLength(1);
+    expect(health[0].healthy).toBe(false);
+    expect(health[0].failures).toBeGreaterThan(0);
+    await registry.shutdown();
+  });
+});
+
+describe('telemetry canary orchestrator', () => {
+  test('promotes when telemetry and contract gates stay healthy', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'memory',
+      async emit() {
+        // noop
+      },
+    });
+
+    const onPromote = jest.fn();
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      minConsecutiveHealthyEvaluations: 2,
+      requiredContractGates: ['contracts'],
+      onPromote,
+    });
+    orchestrator.setContractGate('contracts', true);
+
+    expect(orchestrator.evaluate().action).toBe('hold');
+    const decision = orchestrator.evaluate();
+    expect(decision.action).toBe('promote');
+    expect(decision.state).toBe('promoted');
+    expect(onPromote).toHaveBeenCalledTimes(1);
+
+    await registry.shutdown();
+  });
+
+  test('rolls back after consecutive contract gate failures', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+
+    const onRollback = jest.fn();
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      requiredContractGates: ['contracts'],
+      rollbackConsecutiveFailures: 2,
+      onRollback,
+    });
+    orchestrator.setContractGate('contracts', false, 'schema drift');
+
+    expect(orchestrator.evaluate().action).toBe('hold');
+    const decision = orchestrator.evaluate();
+    expect(decision.action).toBe('rollback');
+    expect(decision.state).toBe('rolled_back');
+    expect(
+      decision.failures.some(item => item.reason === 'contract_gate_failed'),
+    ).toBe(true);
+    expect(onRollback).toHaveBeenCalledTimes(1);
+
+    await registry.shutdown();
+  });
+
+  test('rolls back immediately when queue dropped budget is exceeded', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 2,
+      flushIntervalMs: 60_000,
+    });
+    registry.enqueue(createEnvelope({ name: 'a' }));
+    registry.enqueue(createEnvelope({ name: 'b' }));
+    registry.enqueue(createEnvelope({ name: 'c' }));
+
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      maxTotalDropped: 0,
+      rollbackConsecutiveFailures: 1,
+    });
+    const decision = orchestrator.evaluate();
+    expect(decision.action).toBe('rollback');
+    expect(
+      decision.failures.some(item => item.reason === 'queue_dropped'),
+    ).toBe(true);
+
+    await registry.shutdown();
+  });
 });
 
 describe('telemetry exporters', () => {
@@ -215,5 +418,163 @@ describe('telemetry exporters', () => {
     } finally {
       await capture.close();
     }
+  });
+});
+
+describe('server telemetry startup policy', () => {
+  const createServerConfig = (telemetry: Record<string, unknown>) => ({
+    html: {},
+    output: {},
+    source: {},
+    tools: {},
+    runtime: {},
+    bff: {},
+    server: {
+      telemetry,
+    },
+  });
+
+  test('server initialization throws startup health error by default', async () => {
+    const server = new Server({
+      pwd: path.join(__dirname, './fixtures/pure'),
+      config: createServerConfig({
+        enabled: true,
+        exporters: {
+          otlp: {
+            enabled: true,
+            endpoint: 'http://127.0.0.1:1/v1/logs',
+            timeoutMs: 100,
+          },
+        },
+      }) as any,
+    } as any);
+
+    await expect((server as any).initTelemetry((server as any).options)).rejects.toBeInstanceOf(
+      TelemetryStartupHealthError,
+    );
+  });
+
+  test('server initialization can continue with unhealthy exporter in degraded mode', async () => {
+    const server = new Server({
+      pwd: path.join(__dirname, './fixtures/pure'),
+      config: createServerConfig({
+        enabled: true,
+        failLoudStartup: false,
+        exporters: {
+          otlp: {
+            enabled: true,
+            endpoint: 'http://127.0.0.1:1/v1/logs',
+            timeoutMs: 100,
+          },
+        },
+      }) as any,
+    } as any);
+
+    await expect(
+      (server as any).initTelemetry((server as any).options),
+    ).resolves.toBeUndefined();
+
+    const health = (server as any).telemetryRegistry?.getExporterHealth();
+    expect(health).toHaveLength(1);
+    expect(health[0].name).toBe('otlp');
+    expect(health[0].healthy).toBe(false);
+    expect(health[0].failures).toBeGreaterThan(0);
+
+    await server.close();
+  });
+
+  test('server telemetry SLO alerts are wired to logger warnings', async () => {
+    const warn = jest.fn();
+    const server = new Server({
+      pwd: path.join(__dirname, './fixtures/pure'),
+      logger: {
+        level: jest.fn(),
+        fatal: jest.fn(),
+        error: jest.fn(),
+        warn,
+        info: jest.fn(),
+        debug: jest.fn(),
+      } as any,
+      config: createServerConfig({
+        enabled: true,
+        failLoudStartup: false,
+        maxQueueSize: 2,
+        slo: {
+          queueUtilizationWarnThreshold: 0.5,
+          queueDroppedWarnThreshold: 1,
+          alertCooldownMs: 0,
+        },
+        exporters: {
+          otlp: {
+            enabled: true,
+            endpoint: 'http://127.0.0.1:1/v1/logs',
+            timeoutMs: 100,
+          },
+        },
+      }) as any,
+    } as any);
+
+    await expect(
+      (server as any).initTelemetry((server as any).options),
+    ).resolves.toBeUndefined();
+
+    const metrics = (server as any).options.metrics;
+    metrics.emitCounter('queue.alert.test', 1, {});
+    metrics.emitCounter('queue.alert.test', 1, {});
+    metrics.emitCounter('queue.alert.test', 1, {});
+
+    expect(warn).toHaveBeenCalled();
+    expect(
+      warn.mock.calls.some(call => String(call[0]).includes('[telemetry.slo]')),
+    ).toBe(true);
+
+    await server.close();
+  });
+
+  test('server telemetry canary rollback is wired to logger errors', async () => {
+    const capture = await createCaptureServer();
+    const error = jest.fn();
+
+    const server = new Server({
+      pwd: path.join(__dirname, './fixtures/pure'),
+      logger: {
+        level: jest.fn(),
+        fatal: jest.fn(),
+        error,
+        warn: jest.fn(),
+        info: jest.fn(),
+        debug: jest.fn(),
+      } as any,
+      config: createServerConfig({
+        enabled: true,
+        exporters: {
+          otlp: {
+            enabled: true,
+            endpoint: capture.endpoint,
+            timeoutMs: 200,
+          },
+        },
+        canary: {
+          enabled: true,
+          rollbackConsecutiveFailures: 1,
+          contractGates: {
+            contracts: false,
+          },
+        },
+      }) as any,
+    } as any);
+
+    await expect(
+      (server as any).initTelemetry((server as any).options),
+    ).resolves.toBeUndefined();
+
+    expect(
+      error.mock.calls.some(call =>
+        String(call[0]).includes('[telemetry.canary] rollback triggered'),
+      ),
+    ).toBe(true);
+
+    await server.close();
+    await capture.close();
   });
 });

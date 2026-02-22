@@ -5,9 +5,15 @@ import { RuntimeReactContext } from '@modern-js/runtime';
 // eslint-disable-next-line import/no-named-as-default
 import Garfish, { interfaces } from 'garfish';
 // import Loadable from 'react-loadable';
-import { Manifest, MicroComponentProps, ModulesInfo } from '../useModuleApps';
+import {
+  Manifest,
+  MfFallbackTelemetryConfig,
+  MicroComponentProps,
+  ModulesInfo,
+} from '../useModuleApps';
 import { logger, generateSubAppContainerKey } from '../../util';
 import { Loadable, MicroProps } from '../loadable';
+import { emitFallbackTelemetry } from '../fallbackTelemetry';
 
 export interface Provider extends interfaces.Provider {
   SubModuleComponent?: React.ComponentType<any>;
@@ -39,6 +45,7 @@ function getAppInstance(
   options: typeof Garfish.options,
   appInfo: ModulesInfo[number],
   manifest?: Manifest,
+  fallbackTelemetry?: MfFallbackTelemetryConfig,
 ) {
   let locationHref = '';
   function MicroApp(props: MicroProps) {
@@ -169,6 +176,23 @@ function getAppInstance(
             isLoading: true,
             error,
           });
+          emitFallbackTelemetry(
+            {
+              reason: 'remote_load_failed',
+              phase: 'load',
+              appName: appInfo.name,
+              entry: appInfo.entry,
+              message: error instanceof Error ? error.message : String(error),
+              code:
+                error instanceof Error && 'code' in error
+                  ? String((error as any).code)
+                  : undefined,
+              metadata: {
+                source: 'plugin-garfish:apps',
+              },
+            },
+            fallbackTelemetry,
+          );
         }
       }
       renderApp();
@@ -177,10 +201,50 @@ function getAppInstance(
           const { appInfo } = appRef.current;
           if (appInfo.cache) {
             logger(`MicroApp Garfish.loadApp "${appInfo.name}" hide`);
-            appRef.current?.hide();
+            Promise.resolve(appRef.current?.hide()).catch(error => {
+              emitFallbackTelemetry(
+                {
+                  reason: 'remote_unmount_failed',
+                  phase: 'unmount',
+                  appName: appInfo.name,
+                  entry: appInfo.entry,
+                  message:
+                    error instanceof Error ? error.message : String(error),
+                  code:
+                    error instanceof Error && 'code' in error
+                      ? String((error as any).code)
+                      : undefined,
+                  metadata: {
+                    source: 'plugin-garfish:apps',
+                    action: 'hide',
+                  },
+                },
+                fallbackTelemetry,
+              );
+            });
           } else {
             logger(`MicroApp Garfish.loadApp "${appInfo.name}" unmount`);
-            appRef.current?.unmount();
+            Promise.resolve(appRef.current?.unmount()).catch(error => {
+              emitFallbackTelemetry(
+                {
+                  reason: 'remote_unmount_failed',
+                  phase: 'unmount',
+                  appName: appInfo.name,
+                  entry: appInfo.entry,
+                  message:
+                    error instanceof Error ? error.message : String(error),
+                  code:
+                    error instanceof Error && 'code' in error
+                      ? String((error as any).code)
+                      : undefined,
+                  metadata: {
+                    source: 'plugin-garfish:apps',
+                    action: 'unmount',
+                  },
+                },
+                fallbackTelemetry,
+              );
+            });
           }
         }
       };
@@ -199,13 +263,19 @@ function getAppInstance(
 export function generateApps(
   options: typeof Garfish.options,
   manifest?: Manifest,
+  fallbackTelemetry?: MfFallbackTelemetryConfig,
 ): {
   apps: AppMap;
   appInfoList: ModulesInfo;
 } {
   const apps: AppMap = {};
   options.apps?.forEach(appInfo => {
-    const Component = getAppInstance(options, appInfo, manifest);
+    const Component = getAppInstance(
+      options,
+      appInfo,
+      manifest,
+      fallbackTelemetry,
+    );
     (appInfo as any).Component = Component;
     apps[appInfo.name] = Component as any;
   });

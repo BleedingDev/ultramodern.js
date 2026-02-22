@@ -41,6 +41,29 @@ exports[`bff cli plugin schema 1`] = `
     {
       "schema": {
         "properties": {
+          "crossProjectPolicy": {
+            "properties": {
+              "allowedNamespaces": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "denyStatus": {
+                "type": "number",
+              },
+              "enabled": {
+                "type": "boolean",
+              },
+              "requireEnvelope": {
+                "type": "boolean",
+              },
+              "requireOperationContext": {
+                "type": "boolean",
+              },
+            },
+            "type": "object",
+          },
           "fetcher": {
             "type": "string",
           },

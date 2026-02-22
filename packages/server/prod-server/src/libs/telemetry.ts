@@ -53,6 +53,109 @@ export interface TelemetryRegistryOptions {
   maxBatchSize?: number;
   maxQueueSize?: number;
   redactionKeys?: string[];
+  slo?: {
+    queueUtilizationWarnThreshold?: number;
+    queueDroppedWarnThreshold?: number;
+    alertCooldownMs?: number;
+    onAlert?: (alert: TelemetrySloAlert) => void;
+  };
+}
+
+export type TelemetrySloAlertType = 'queue.utilization' | 'queue.drop';
+
+export interface TelemetrySloAlert {
+  timestamp: number;
+  service: string;
+  module: string;
+  environment: string;
+  type: TelemetrySloAlertType;
+  value: number;
+  threshold: number;
+  queueDepth: number;
+  queueCapacity: number;
+  queueUtilization: number;
+  totalDropped: number;
+}
+
+export interface TelemetryQueueStats {
+  depth: number;
+  capacity: number;
+  utilization: number;
+  pendingDropped: number;
+  totalDropped: number;
+}
+
+export type TelemetryCanaryState = 'canary' | 'promoted' | 'rolled_back';
+export type TelemetryCanaryAction = 'hold' | 'promote' | 'rollback';
+export type TelemetryCanaryFailureReason =
+  | 'queue_utilization'
+  | 'queue_dropped'
+  | 'unhealthy_exporter'
+  | 'contract_gate_missing'
+  | 'contract_gate_failed';
+
+export interface TelemetryCanaryFailure {
+  reason: TelemetryCanaryFailureReason;
+  gate?: string;
+  message?: string;
+  threshold?: number;
+  value?: number;
+}
+
+export interface TelemetryCanaryContractGateStatus {
+  name: string;
+  passed: boolean;
+  reason?: string;
+  updatedAt: number;
+}
+
+export interface TelemetryCanaryDecision {
+  timestamp: number;
+  action: TelemetryCanaryAction;
+  state: TelemetryCanaryState;
+  consecutiveHealthy: number;
+  consecutiveFailures: number;
+  failures: TelemetryCanaryFailure[];
+  queueStats: TelemetryQueueStats;
+  unhealthyExporterCount: number;
+  contractGates: TelemetryCanaryContractGateStatus[];
+}
+
+export interface TelemetryCanaryOrchestratorOptions {
+  registry: TelemetryRegistry;
+  evaluationIntervalMs?: number;
+  minConsecutiveHealthyEvaluations?: number;
+  rollbackConsecutiveFailures?: number;
+  maxQueueUtilization?: number;
+  maxTotalDropped?: number;
+  maxUnhealthyExporters?: number;
+  requiredContractGates?: string[];
+  onEvaluate?: (decision: TelemetryCanaryDecision) => void;
+  onPromote?: (decision: TelemetryCanaryDecision) => void;
+  onRollback?: (decision: TelemetryCanaryDecision) => void;
+}
+
+export interface TelemetryExporterHealthStatus {
+  name: string;
+  healthy: boolean;
+  failures: number;
+  lastError?: string;
+  lastSuccessAt?: number;
+  lastFailureAt?: number;
+}
+
+export class TelemetryStartupHealthError extends Error {
+  readonly code = 'TELEMETRY_EXPORTER_STARTUP_HEALTH_FAILED';
+
+  readonly failedExporters: TelemetryExporterHealthStatus[];
+
+  constructor(failedExporters: TelemetryExporterHealthStatus[]) {
+    super(
+      `Telemetry startup health check failed for exporters: ${failedExporters.map(item => item.name).join(', ')}`,
+    );
+    this.name = 'TelemetryStartupHealthError';
+    this.failedExporters = failedExporters;
+  }
 }
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
@@ -313,7 +416,14 @@ export class TelemetryRegistry {
   private readonly maxQueueSize: number;
   private readonly flushTimer?: ReturnType<typeof setInterval>;
   private droppedCount = 0;
+  private totalDroppedCount = 0;
   private flushing: Promise<void> | null = null;
+  private readonly exporterHealth = new Map<string, TelemetryExporterHealthStatus>();
+  private readonly queueUtilizationWarnThreshold: number;
+  private readonly queueDroppedWarnThreshold: number;
+  private readonly alertCooldownMs: number;
+  private readonly onSloAlert?: (alert: TelemetrySloAlert) => void;
+  private readonly lastSloAlertAt = new Map<TelemetrySloAlertType, number>();
 
   constructor(options: TelemetryRegistryOptions) {
     this.service = options.service;
@@ -323,6 +433,17 @@ export class TelemetryRegistry {
     this.maxBatchSize = Math.max(1, options.maxBatchSize ?? 50);
     this.maxQueueSize = Math.max(1, options.maxQueueSize ?? 1000);
     this.redactionKeys = new Set(options.redactionKeys || []);
+    this.queueUtilizationWarnThreshold = clamp(
+      options.slo?.queueUtilizationWarnThreshold ?? 0.8,
+      0,
+      1,
+    );
+    this.queueDroppedWarnThreshold = Math.max(
+      1,
+      options.slo?.queueDroppedWarnThreshold ?? 1,
+    );
+    this.alertCooldownMs = Math.max(0, options.slo?.alertCooldownMs ?? 60_000);
+    this.onSloAlert = options.slo?.onAlert;
 
     const flushIntervalMs = Math.max(50, options.flushIntervalMs ?? 1000);
     this.flushTimer = setInterval(() => {
@@ -335,12 +456,92 @@ export class TelemetryRegistry {
 
   async register(exporter: TelemetryExporter) {
     this.exporters.push(exporter);
+    this.exporterHealth.set(exporter.name, {
+      name: exporter.name,
+      healthy: true,
+      failures: 0,
+    });
     if (exporter.init) {
-      await exporter.init({
+      try {
+        await exporter.init({
+          service: this.service,
+          module: this.module,
+          environment: this.environment,
+        });
+        this.markExporterHealthy(exporter.name);
+      } catch (error) {
+        this.markExporterFailure(exporter.name, error);
+        throw error;
+      }
+    } else {
+      this.markExporterHealthy(exporter.name);
+    }
+  }
+
+  private getOrCreateExporterHealth(name: string) {
+    const existing = this.exporterHealth.get(name);
+    if (existing) {
+      return existing;
+    }
+
+    const next: TelemetryExporterHealthStatus = {
+      name,
+      healthy: true,
+      failures: 0,
+    };
+    this.exporterHealth.set(name, next);
+    return next;
+  }
+
+  private markExporterHealthy(name: string) {
+    const status = this.getOrCreateExporterHealth(name);
+    status.healthy = true;
+    status.lastSuccessAt = Date.now();
+    status.lastError = undefined;
+  }
+
+  private markExporterFailure(name: string, error: unknown) {
+    const status = this.getOrCreateExporterHealth(name);
+    status.healthy = false;
+    status.failures += 1;
+    status.lastFailureAt = Date.now();
+    status.lastError = error instanceof Error ? error.message : String(error);
+  }
+
+  private maybeEmitSloAlert(
+    type: TelemetrySloAlertType,
+    value: number,
+    threshold: number,
+  ) {
+    if (!this.onSloAlert || value < threshold) {
+      return;
+    }
+
+    const now = Date.now();
+    const lastTimestamp = this.lastSloAlertAt.get(type) ?? 0;
+    if (now - lastTimestamp < this.alertCooldownMs) {
+      return;
+    }
+
+    this.lastSloAlertAt.set(type, now);
+    const queueDepth = this.queue.length;
+
+    try {
+      this.onSloAlert({
+        timestamp: now,
         service: this.service,
         module: this.module,
         environment: this.environment,
+        type,
+        value,
+        threshold,
+        queueDepth,
+        queueCapacity: this.maxQueueSize,
+        queueUtilization: queueDepth / this.maxQueueSize,
+        totalDropped: this.totalDroppedCount,
       });
+    } catch (_error) {
+      // SLO alert hooks must never crash telemetry pipeline.
     }
   }
 
@@ -388,9 +589,20 @@ export class TelemetryRegistry {
     if (this.queue.length >= this.maxQueueSize) {
       this.queue.shift();
       this.droppedCount += 1;
+      this.totalDroppedCount += 1;
+      this.maybeEmitSloAlert(
+        'queue.drop',
+        this.totalDroppedCount,
+        this.queueDroppedWarnThreshold,
+      );
     }
 
     this.queue.push(redactedEnvelope);
+    this.maybeEmitSloAlert(
+      'queue.utilization',
+      this.queue.length / this.maxQueueSize,
+      this.queueUtilizationWarnThreshold,
+    );
 
     if (this.queue.length >= this.maxBatchSize) {
       void this.flush();
@@ -413,19 +625,126 @@ export class TelemetryRegistry {
     };
   }
 
+  private buildQueueDepthEnvelope(queueDepth: number): TelemetryEnvelope {
+    return {
+      timestamp: Date.now(),
+      service: this.service,
+      module: this.module,
+      environment: this.environment,
+      signalType: 'metric',
+      name: 'telemetry.queue.depth',
+      value: queueDepth,
+      unit: 'count',
+      tags: {
+        capacity: String(this.maxQueueSize),
+      },
+    };
+  }
+
+  private buildQueueUtilizationEnvelope(queueDepth: number): TelemetryEnvelope {
+    return {
+      timestamp: Date.now(),
+      service: this.service,
+      module: this.module,
+      environment: this.environment,
+      signalType: 'metric',
+      name: 'telemetry.queue.utilization',
+      value: queueDepth / this.maxQueueSize,
+      unit: 'ratio',
+      tags: {
+        capacity: String(this.maxQueueSize),
+      },
+    };
+  }
+
   private async emitBatch(batch: TelemetryEnvelope[]) {
     const results = await Promise.allSettled(
-      this.exporters.map(async exporter => exporter.emit(batch)),
+      this.exporters.map(async exporter => {
+        await exporter.emit(batch);
+        return exporter.name;
+      }),
     );
 
-    for (const result of results) {
+    for (const [index, result] of results.entries()) {
+      const exporterName = this.exporters[index]?.name || `exporter-${index}`;
       if (result.status === 'rejected') {
-        // Keep exporter failures non-fatal for request path.
+        this.markExporterFailure(exporterName, result.reason);
+        continue;
       }
+
+      this.markExporterHealthy(exporterName);
     }
   }
 
+  private buildStartupProbeEnvelope(): TelemetryEnvelope {
+    return {
+      timestamp: Date.now(),
+      service: this.service,
+      module: this.module,
+      environment: this.environment,
+      signalType: 'log',
+      name: 'telemetry.exporter.startup_probe',
+      level: 'info',
+      tags: {
+        phase: 'startup',
+      },
+      attributes: {
+        source: 'TelemetryRegistry',
+      },
+    };
+  }
+
+  async startupHealthCheck(options?: { failLoud?: boolean }) {
+    if (this.exporters.length === 0) {
+      return;
+    }
+
+    const probeBatch = [this.buildStartupProbeEnvelope()];
+    const failedExporters: TelemetryExporterHealthStatus[] = [];
+
+    await Promise.all(
+      this.exporters.map(async exporter => {
+        try {
+          await exporter.emit(probeBatch);
+          this.markExporterHealthy(exporter.name);
+        } catch (error) {
+          this.markExporterFailure(exporter.name, error);
+          const status = this.exporterHealth.get(exporter.name);
+          if (status) {
+            failedExporters.push({ ...status });
+          }
+        }
+      }),
+    );
+
+    if ((options?.failLoud ?? true) && failedExporters.length > 0) {
+      throw new TelemetryStartupHealthError(failedExporters);
+    }
+  }
+
+  getExporterHealth(): TelemetryExporterHealthStatus[] {
+    return Array.from(this.exporterHealth.values()).map(item => ({
+      ...item,
+    }));
+  }
+
+  getQueueStats(): TelemetryQueueStats {
+    return {
+      depth: this.queue.length,
+      capacity: this.maxQueueSize,
+      utilization: this.queue.length / this.maxQueueSize,
+      pendingDropped: this.droppedCount,
+      totalDropped: this.totalDroppedCount,
+    };
+  }
+
   private async flushInternal() {
+    const queueDepthBeforeFlush = this.queue.length;
+    if (queueDepthBeforeFlush > 0) {
+      this.queue.unshift(this.buildQueueUtilizationEnvelope(queueDepthBeforeFlush));
+      this.queue.unshift(this.buildQueueDepthEnvelope(queueDepthBeforeFlush));
+    }
+
     if (this.droppedCount > 0) {
       const droppedCount = this.droppedCount;
       this.droppedCount = 0;
@@ -480,6 +799,227 @@ export class TelemetryRegistry {
         }
       }),
     );
+  }
+}
+
+export class TelemetryCanaryOrchestrator {
+  private readonly registry: TelemetryRegistry;
+  private readonly evaluationIntervalMs: number;
+  private readonly minConsecutiveHealthyEvaluations: number;
+  private readonly rollbackConsecutiveFailures: number;
+  private readonly maxQueueUtilization: number;
+  private readonly maxTotalDropped: number;
+  private readonly maxUnhealthyExporters: number;
+  private readonly requiredContractGates: string[];
+  private readonly onEvaluate?: (decision: TelemetryCanaryDecision) => void;
+  private readonly onPromote?: (decision: TelemetryCanaryDecision) => void;
+  private readonly onRollback?: (decision: TelemetryCanaryDecision) => void;
+  private readonly contractGates = new Map<
+    string,
+    TelemetryCanaryContractGateStatus
+  >();
+  private state: TelemetryCanaryState = 'canary';
+  private consecutiveHealthy = 0;
+  private consecutiveFailures = 0;
+  private evaluationTimer?: ReturnType<typeof setInterval>;
+
+  constructor(options: TelemetryCanaryOrchestratorOptions) {
+    this.registry = options.registry;
+    this.evaluationIntervalMs = Math.max(250, options.evaluationIntervalMs ?? 15_000);
+    this.minConsecutiveHealthyEvaluations = Math.max(
+      1,
+      options.minConsecutiveHealthyEvaluations ?? 3,
+    );
+    this.rollbackConsecutiveFailures = Math.max(
+      1,
+      options.rollbackConsecutiveFailures ?? 2,
+    );
+    this.maxQueueUtilization = clamp(options.maxQueueUtilization ?? 0.8, 0, 1);
+    this.maxTotalDropped = Math.max(0, options.maxTotalDropped ?? 0);
+    this.maxUnhealthyExporters = Math.max(0, options.maxUnhealthyExporters ?? 0);
+    this.requiredContractGates = options.requiredContractGates || [];
+    this.onEvaluate = options.onEvaluate;
+    this.onPromote = options.onPromote;
+    this.onRollback = options.onRollback;
+  }
+
+  setContractGate(name: string, passed: boolean, reason?: string) {
+    this.contractGates.set(name, {
+      name,
+      passed,
+      reason,
+      updatedAt: Date.now(),
+    });
+  }
+
+  setContractGates(
+    gates: Record<string, boolean | { passed: boolean; reason?: string }>,
+  ) {
+    for (const [name, value] of Object.entries(gates)) {
+      if (typeof value === 'boolean') {
+        this.setContractGate(name, value);
+        continue;
+      }
+
+      this.setContractGate(name, value.passed, value.reason);
+    }
+  }
+
+  resetToCanary() {
+    this.state = 'canary';
+    this.consecutiveHealthy = 0;
+    this.consecutiveFailures = 0;
+  }
+
+  private collectFailures(): {
+    failures: TelemetryCanaryFailure[];
+    queueStats: TelemetryQueueStats;
+    unhealthyExporterCount: number;
+  } {
+    const failures: TelemetryCanaryFailure[] = [];
+    const queueStats = this.registry.getQueueStats();
+    const unhealthyExporterCount = this.registry
+      .getExporterHealth()
+      .filter(item => !item.healthy).length;
+
+    if (queueStats.utilization > this.maxQueueUtilization) {
+      failures.push({
+        reason: 'queue_utilization',
+        threshold: this.maxQueueUtilization,
+        value: queueStats.utilization,
+      });
+    }
+
+    if (queueStats.totalDropped > this.maxTotalDropped) {
+      failures.push({
+        reason: 'queue_dropped',
+        threshold: this.maxTotalDropped,
+        value: queueStats.totalDropped,
+      });
+    }
+
+    if (unhealthyExporterCount > this.maxUnhealthyExporters) {
+      failures.push({
+        reason: 'unhealthy_exporter',
+        threshold: this.maxUnhealthyExporters,
+        value: unhealthyExporterCount,
+      });
+    }
+
+    for (const gateName of this.requiredContractGates) {
+      const gate = this.contractGates.get(gateName);
+      if (!gate) {
+        failures.push({
+          reason: 'contract_gate_missing',
+          gate: gateName,
+          message: `Contract gate "${gateName}" is missing`,
+        });
+        continue;
+      }
+
+      if (!gate.passed) {
+        failures.push({
+          reason: 'contract_gate_failed',
+          gate: gateName,
+          message:
+            gate.reason ||
+            `Contract gate "${gateName}" is not passing`,
+        });
+      }
+    }
+
+    return {
+      failures,
+      queueStats,
+      unhealthyExporterCount,
+    };
+  }
+
+  evaluate(): TelemetryCanaryDecision {
+    const now = Date.now();
+    const { failures, queueStats, unhealthyExporterCount } =
+      this.collectFailures();
+    let action: TelemetryCanaryAction = 'hold';
+
+    if (failures.length > 0) {
+      this.consecutiveHealthy = 0;
+      this.consecutiveFailures += 1;
+
+      if (
+        this.state !== 'rolled_back' &&
+        this.consecutiveFailures >= this.rollbackConsecutiveFailures
+      ) {
+        this.state = 'rolled_back';
+        action = 'rollback';
+      }
+    } else {
+      this.consecutiveFailures = 0;
+      this.consecutiveHealthy += 1;
+      if (
+        this.state === 'canary' &&
+        this.consecutiveHealthy >= this.minConsecutiveHealthyEvaluations
+      ) {
+        this.state = 'promoted';
+        action = 'promote';
+      }
+    }
+
+    const decision: TelemetryCanaryDecision = {
+      timestamp: now,
+      action,
+      state: this.state,
+      consecutiveHealthy: this.consecutiveHealthy,
+      consecutiveFailures: this.consecutiveFailures,
+      failures,
+      queueStats,
+      unhealthyExporterCount,
+      contractGates: Array.from(this.contractGates.values()).map(item => ({
+        ...item,
+      })),
+    };
+
+    try {
+      this.onEvaluate?.(decision);
+    } catch (_error) {
+      // canary observer hooks must never crash server.
+    }
+
+    if (action === 'promote') {
+      try {
+        this.onPromote?.(decision);
+      } catch (_error) {
+        // canary observer hooks must never crash server.
+      }
+    }
+
+    if (action === 'rollback') {
+      try {
+        this.onRollback?.(decision);
+      } catch (_error) {
+        // canary observer hooks must never crash server.
+      }
+    }
+
+    return decision;
+  }
+
+  start() {
+    if (this.evaluationTimer) {
+      return;
+    }
+    this.evaluationTimer = setInterval(() => {
+      this.evaluate();
+    }, this.evaluationIntervalMs);
+    if (typeof (this.evaluationTimer as NodeJS.Timeout).unref === 'function') {
+      (this.evaluationTimer as NodeJS.Timeout).unref();
+    }
+  }
+
+  stop() {
+    if (this.evaluationTimer) {
+      clearInterval(this.evaluationTimer);
+      this.evaluationTimer = undefined;
+    }
   }
 }
 

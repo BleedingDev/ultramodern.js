@@ -1,0 +1,84 @@
+name: Module Certification Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_dir:
+        description: 'Evidence directory containing architecture/validation/test/review docs'
+        required: true
+        default: 'docs/super-app-rfc-adr/evidence/module-certification/current'
+      run_commands:
+        type: choice
+        description: 'Execute module certification command matrix'
+        required: true
+        default: 'true'
+        options:
+          - 'true'
+          - 'false'
+      allow_missing_evidence:
+        type: choice
+        description: 'Allow missing evidence files (dry-run only)'
+        required: true
+        default: 'false'
+        options:
+          - 'true'
+          - 'false'
+
+  workflow_call:
+    inputs:
+      evidence_dir:
+        description: 'Evidence directory containing architecture/validation/test/review docs'
+        required: true
+        type: string
+      run_commands:
+        description: 'Execute module certification command matrix'
+        required: false
+        default: 'true'
+        type: string
+      allow_missing_evidence:
+        description: 'Allow missing evidence files (dry-run only)'
+        required: false
+        default: 'false'
+        type: string
+
+jobs:
+  module-certification-gates:
+    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Install Pnpm
+        run: corepack enable
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --ignore-scripts --frozen-lockfile
+
+      - name: Validate Module Certification Gates
+        env:
+          EVIDENCE_DIR: ${{ inputs.evidence_dir || github.event.inputs.evidence_dir || 'docs/super-app-rfc-adr/evidence/module-certification/current' }}
+          RUN_COMMANDS: ${{ inputs.run_commands || github.event.inputs.run_commands || 'true' }}
+          ALLOW_MISSING_EVIDENCE: ${{ inputs.allow_missing_evidence || github.event.inputs.allow_missing_evidence || 'false' }}
+        run: |
+          ARGS=(
+            --profile scripts/release-gates/module-certification-profile.json
+            --evidence-dir "$EVIDENCE_DIR"
+          )
+
+          if [ "$ALLOW_MISSING_EVIDENCE" = "true" ]; then
+            ARGS+=(--allow-missing-evidence)
+          fi
+
+          if [ "$RUN_COMMANDS" = "false" ]; then
+            ARGS+=(--skip-commands)
+          fi
+
+          node scripts/release-gates/validate-release-candidate-gates.js "${ARGS[@]}"

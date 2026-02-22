@@ -2,7 +2,10 @@ import * as path from 'path';
 import express, { RequestHandler, Express } from 'express';
 import type { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
-import { APIHandlerInfo } from '@modern-js/bff-core';
+import {
+  APIHandlerInfo,
+  evaluateCrossProjectPolicy,
+} from '@modern-js/bff-core';
 import { fs, createDebugger, compatRequire } from '@modern-js/utils';
 import finalhandler from 'finalhandler';
 import type { ServerPlugin } from '@modern-js/server-core';
@@ -61,6 +64,32 @@ const initApp = (app: express.Express) => {
   return app;
 };
 
+const applyCrossProjectPolicy = (
+  app: Express,
+  crossProjectPolicy: Record<string, unknown> | undefined,
+) => {
+  if (!crossProjectPolicy || !crossProjectPolicy.enabled) {
+    return;
+  }
+
+  app.use((req, res, next) => {
+    const violation = evaluateCrossProjectPolicy(
+      req.headers as Record<string, unknown>,
+      crossProjectPolicy as any,
+    );
+    if (!violation) {
+      next();
+      return;
+    }
+
+    res.status(violation.status).json({
+      code: violation.code,
+      reason: violation.reason,
+      message: violation.message,
+    });
+  });
+};
+
 export default (): ServerPlugin => ({
   name: '@modern-js/plugin-express',
   pre: ['@modern-js/plugin-bff'],
@@ -74,6 +103,9 @@ export default (): ServerPlugin => ({
       const apiDir = apiDirectory || path.join(pwd, './api');
       const mode = appContext.apiMode;
       const userConfig = api.useConfigContext();
+      const crossProjectPolicy = userConfig.bff?.crossProjectPolicy as
+        | Record<string, unknown>
+        | undefined;
 
       if (mode === 'framework') {
         const appModule = await findAppModule(apiDir);
@@ -85,6 +117,7 @@ export default (): ServerPlugin => ({
           app = express();
         }
         initApp(app);
+        applyCrossProjectPolicy(app, crossProjectPolicy);
 
         if (config) {
           const { middleware } = config as FrameConfig;
@@ -102,6 +135,7 @@ export default (): ServerPlugin => ({
       } else if (mode === 'function') {
         app = express();
         initApp(app);
+        applyCrossProjectPolicy(app, crossProjectPolicy);
 
         if (config) {
           const { middleware } = config as FrameConfig;

@@ -1,15 +1,21 @@
 import React from 'react';
 // eslint-disable-next-line import/no-named-as-default
 import Garfish from 'garfish';
-import { Manifest, ModulesInfo } from '../useModuleApps';
+import {
+  Manifest,
+  MfFallbackTelemetryConfig,
+  ModulesInfo,
+} from '../useModuleApps';
 import { logger, generateSubAppContainerKey } from '../../util';
 import { Loadable, MicroProps } from '../loadable';
 import { Provider } from './apps';
+import { emitFallbackTelemetry } from '../fallbackTelemetry';
 
 declare global {
   interface Window {
     modern_manifest?: {
       modules: ModulesInfo;
+      runtimeDigest?: string;
     };
   }
 }
@@ -17,6 +23,7 @@ declare global {
 export function generateMApp(
   options: typeof Garfish.options,
   manifest?: Manifest,
+  fallbackTelemetry?: MfFallbackTelemetryConfig,
 ) {
   class MApp extends React.Component<MicroProps, any> {
     state: {
@@ -67,6 +74,23 @@ export function generateMApp(
             setLoadingState({
               error,
             });
+            emitFallbackTelemetry(
+              {
+                reason: 'remote_load_failed',
+                phase: 'load',
+                appName: appInfo.name,
+                entry: appInfo.entry,
+                message: error instanceof Error ? error.message : String(error),
+                code:
+                  error instanceof Error && 'code' in error
+                    ? String((error as any).code)
+                    : undefined,
+                metadata: {
+                  source: 'plugin-garfish:mapp',
+                },
+              },
+              fallbackTelemetry,
+            );
           }
           return errorLoadApp?.(error, appInfo, ...args);
         },
@@ -76,6 +100,23 @@ export function generateMApp(
             setLoadingState({
               error,
             });
+            emitFallbackTelemetry(
+              {
+                reason: 'remote_mount_failed',
+                phase: 'mount',
+                appName: appInfo.name,
+                entry: appInfo.entry,
+                message: error instanceof Error ? error.message : String(error),
+                code:
+                  error instanceof Error && 'code' in error
+                    ? String((error as any).code)
+                    : undefined,
+                metadata: {
+                  source: 'plugin-garfish:mapp',
+                },
+              },
+              fallbackTelemetry,
+            );
           }
           return errorMountApp?.(error, appInfo, ...args);
         },
@@ -85,6 +126,23 @@ export function generateMApp(
             setLoadingState({
               error,
             });
+            emitFallbackTelemetry(
+              {
+                reason: 'remote_unmount_failed',
+                phase: 'unmount',
+                appName: appInfo.name,
+                entry: appInfo.entry,
+                message: error instanceof Error ? error.message : String(error),
+                code:
+                  error instanceof Error && 'code' in error
+                    ? String((error as any).code)
+                    : undefined,
+                metadata: {
+                  source: 'plugin-garfish:mapp',
+                },
+              },
+              fallbackTelemetry,
+            );
           }
           return errorUnmountApp?.(error, appInfo, ...args);
         },

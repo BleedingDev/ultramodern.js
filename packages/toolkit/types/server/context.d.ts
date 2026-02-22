@@ -102,6 +102,8 @@ export type BaseSSRServerContext<T extends 'node' | 'worker' = 'node'> = {
 
   enableUnsafeCtx?: boolean;
 
+  unsafeHeaders?: string[];
+
   nonce?: string;
 
   req: T extends 'worker' ? Request : ModernServerContext['req'];

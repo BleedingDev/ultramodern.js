@@ -48,3 +48,11 @@ playground/
 
 # Local Netlify folder
 .netlify
+
+# Rest
+.nx
+.tmp
+.output
+dist-1
+.vercel
+dist-ssg

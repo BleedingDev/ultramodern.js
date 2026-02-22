@@ -24,6 +24,11 @@ export type SSRPluginConfig = {
   enableInlineScripts?: boolean | RegExp;
   disablePrerender?: boolean;
   chunkLoadingGlobal?: string;
+  /**
+   * Additional request header names removed from SSR payload serialization.
+   * Sensitive headers are denylisted by default; this list extends the default.
+   */
+  unsafeHeaders?: string[];
 } & Exclude<ServerUserConfig['ssr'], boolean>;
 
 export type ServerRenderOptions = {

@@ -271,4 +271,34 @@ describe('plugin-garfish cli', () => {
     const config = (await runner.config()) as AppUserConfig[];
     expect(config[0].output!.disableCssExtract).toBe(false);
   });
+
+  test('micro frontend runtime digest and integrity are injected into source.define', async () => {
+    const resolveConfig: Partial<UseConfig> = {
+      deploy: {
+        microFrontend: {
+          runtimeDigest: 'runtime-v1-digest',
+          integrity: 'sha256-runtimeIntegrityDigest==',
+          attestation: 'attestation-token-v1',
+        },
+      },
+    };
+
+    const main = manager
+      .clone({
+        useResolvedConfigContext: () => resolveConfig as any,
+        useConfigContext: () => resolveConfig,
+      })
+      .usePlugin(garfishPlugin as CliPlugin);
+    const runner = await main.init();
+    await runner.prepare();
+    const config = (await runner.config()) as AppUserConfig[];
+
+    expect(config[0].source?.define).toMatchObject({
+      'process.env.MODERN_MF_RUNTIME_DIGEST': '"runtime-v1-digest"',
+      'process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY':
+        '"sha256-runtimeIntegrityDigest=="',
+      'process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION':
+        '"attestation-token-v1"',
+    });
+  });
 });

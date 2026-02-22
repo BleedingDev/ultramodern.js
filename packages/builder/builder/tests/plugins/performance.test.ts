@@ -1,5 +1,12 @@
+import os from 'os';
+import path from 'path';
+import { promises as fs } from 'fs';
 import { describe, expect, it, vi } from 'vitest';
-import { builderPluginPerformance } from '@/plugins/performance';
+import {
+  builderPluginPerformance,
+  createRsdoctorDiagnosticsContract,
+  RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
+} from '@/plugins/performance';
 
 vi.mock('@rsdoctor/rspack-plugin', () => ({
   RsdoctorRspackPlugin: class RsdoctorRspackPlugin {
@@ -113,7 +120,7 @@ describe('plugins/performance', () => {
     const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
       options?: unknown;
     };
-    expect(bundlerConfigs[0].plugins).toHaveLength(1);
+    expect(bundlerConfigs[0].plugins).toHaveLength(2);
     expect(rsdoctorPlugin.options).toEqual({
       disableClientServer: true,
     });
@@ -153,7 +160,7 @@ describe('plugins/performance', () => {
     const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
       options?: unknown;
     };
-    expect(bundlerConfigs[0].plugins).toHaveLength(1);
+    expect(bundlerConfigs[0].plugins).toHaveLength(2);
     expect(rsdoctorPlugin.options).toEqual({
       disableClientServer: true,
     });
@@ -181,9 +188,159 @@ describe('plugins/performance', () => {
     const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
       options?: unknown;
     };
-    expect(bundlerConfigs[0].plugins).toHaveLength(1);
+    expect(bundlerConfigs[0].plugins).toHaveLength(2);
     expect(rsdoctorPlugin.options).toEqual({
       disableClientServer: false,
+    });
+  });
+
+  it('should allow reportDir and mode overrides', async () => {
+    const { onBeforeCreateCompilerCb } = createPluginApi({
+      performance: {
+        rsdoctor: {
+          enabled: true,
+          reportDir: '/tmp/rsdoctor-artifacts',
+          mode: 'brief',
+        },
+      },
+    });
+    const bundlerConfigs: Array<Record<string, unknown>> = [{}];
+    const { NODE_ENV } = process.env;
+    process.env.NODE_ENV = 'production';
+
+    await onBeforeCreateCompilerCb?.({
+      bundlerConfigs,
+    });
+
+    process.env.NODE_ENV = NODE_ENV;
+
+    const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
+      options?: unknown;
+    };
+    expect(rsdoctorPlugin.options).toEqual({
+      disableClientServer: true,
+      reportDir: '/tmp/rsdoctor-artifacts',
+      mode: 'brief',
+    });
+  });
+
+  it('should forward loader interceptor options', async () => {
+    const { onBeforeCreateCompilerCb } = createPluginApi({
+      performance: {
+        rsdoctor: {
+          enabled: true,
+          loaderInterceptorOptions: {
+            skipLoaders: ['postcss-loader'],
+          },
+        },
+      },
+    });
+    const bundlerConfigs: Array<Record<string, unknown>> = [{}];
+    const { NODE_ENV } = process.env;
+    process.env.NODE_ENV = 'production';
+
+    await onBeforeCreateCompilerCb?.({
+      bundlerConfigs,
+    });
+
+    process.env.NODE_ENV = NODE_ENV;
+
+    const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
+      options?: unknown;
+    };
+    expect(rsdoctorPlugin.options).toEqual({
+      disableClientServer: true,
+      loaderInterceptorOptions: {
+        skipLoaders: ['postcss-loader'],
+      },
+    });
+  });
+
+  it('should emit diagnostics contract artifact', async () => {
+    const { onBeforeCreateCompilerCb } = createPluginApi({});
+    const bundlerConfigs: Array<Record<string, unknown>> = [{}];
+    const { NODE_ENV } = process.env;
+    process.env.NODE_ENV = 'production';
+
+    await onBeforeCreateCompilerCb?.({
+      bundlerConfigs,
+    });
+
+    process.env.NODE_ENV = NODE_ENV;
+
+    const diagnosticsPlugin = bundlerConfigs[0].plugins?.[1] as {
+      apply: (compiler: {
+        outputPath: string;
+        hooks: {
+          done: {
+            tapPromise: (
+              options: { name: string; stage: number },
+              callback: () => Promise<void>,
+            ) => void;
+          };
+        };
+      }) => void;
+    };
+    const outputPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-rsdoctor-contract-'),
+    );
+    let doneCallback: (() => Promise<void>) | undefined;
+
+    diagnosticsPlugin.apply({
+      outputPath,
+      hooks: {
+        done: {
+          tapPromise: (_options, callback) => {
+            doneCallback = callback;
+          },
+        },
+      },
+    });
+
+    await doneCallback?.();
+
+    const artifactPath = path.join(
+      outputPath,
+      '.rsdoctor',
+      RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
+    );
+    const artifactRaw = await fs.readFile(artifactPath, 'utf8');
+    const artifact = JSON.parse(artifactRaw);
+
+    expect(artifact).toMatchObject({
+      schemaVersion: 1,
+      tool: 'rsdoctor',
+      artifacts: {
+        reportDir: '.rsdoctor',
+        manifest: '.rsdoctor/manifest.json',
+        contract: `.rsdoctor/${RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE}`,
+      },
+      disableClientServer: true,
+    });
+
+    await fs.rm(outputPath, { recursive: true, force: true });
+  });
+
+  it('should create deterministic diagnostics contract payload', async () => {
+    const contract = createRsdoctorDiagnosticsContract({
+      outputPath: '/workspace/dist',
+      options: {
+        disableClientServer: true,
+        reportDir: '/workspace/custom-artifacts',
+        mode: 'lite',
+      },
+    });
+
+    expect(contract).toMatchObject({
+      schemaVersion: 1,
+      tool: 'rsdoctor',
+      mode: 'lite',
+      artifactBaseDir: '/workspace/custom-artifacts',
+      artifacts: {
+        reportDir: '.rsdoctor',
+        manifest: '.rsdoctor/manifest.json',
+        contract: `.rsdoctor/${RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE}`,
+      },
     });
   });
 

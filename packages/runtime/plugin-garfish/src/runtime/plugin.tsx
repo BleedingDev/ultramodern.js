@@ -7,16 +7,30 @@ import { GarfishProvider } from './utils/Context';
 import setExternal from './utils/setExternal';
 import {
   Config,
+  MfFallbackTelemetryConfig,
   Manifest,
   MicroComponentProps,
   ModulesInfo,
   Options,
+  RemoteTrustPolicy,
+  RuntimeCompatibilityPolicy,
 } from './useModuleApps';
 import { generateMApp } from './utils/MApp';
 import { AppMap, generateApps } from './utils/apps';
+import { validateRuntimeCompatibility } from './compatibility';
+import { enforceRemoteTrustPolicy } from './trust';
+import { emitErrorFallbackTelemetry } from './fallbackTelemetry';
+import { applyMfEntryCachePolicy } from './cachePolicy';
 
-async function initOptions(manifest: Manifest = {}, options: Options) {
+async function initOptions(
+  manifest: Manifest = {},
+  options: Options,
+  remoteTrust?: RemoteTrustPolicy,
+  runtimeCompatibility?: RuntimeCompatibilityPolicy,
+) {
   let apps: ModulesInfo = options.apps || [];
+  const modernManifest =
+    typeof window !== 'undefined' ? window.modern_manifest : undefined;
 
   // use manifest modules
   if (manifest?.modules) {
@@ -36,13 +50,40 @@ async function initOptions(manifest: Manifest = {}, options: Options) {
   }
 
   // get inject modules list
-  if (
-    window?.modern_manifest?.modules &&
-    window?.modern_manifest?.modules.length > 0
-  ) {
-    apps = window?.modern_manifest?.modules;
+  if (modernManifest?.modules && modernManifest?.modules.length > 0) {
+    apps = modernManifest.modules;
     logger('modern_manifest', apps);
   }
+
+  const compatibilityPolicyCandidate: Partial<RuntimeCompatibilityPolicy> = {
+    ...runtimeCompatibility,
+    ...manifest.runtimeCompatibility,
+  };
+  const compatibilityPolicy = compatibilityPolicyCandidate.hostDigest
+    ? (compatibilityPolicyCandidate as RuntimeCompatibilityPolicy)
+    : undefined;
+
+  const remoteTrustPolicyCandidate: Partial<RemoteTrustPolicy> = {
+    ...remoteTrust,
+    ...manifest.remoteTrust,
+  };
+  const remoteTrustPolicy = Object.keys(remoteTrustPolicyCandidate).length
+    ? (remoteTrustPolicyCandidate as RemoteTrustPolicy)
+    : undefined;
+  apps = applyMfEntryCachePolicy(apps, {
+    manifestRuntimeDigest: manifest.runtimeDigest,
+    globalRuntimeDigest: modernManifest?.runtimeDigest,
+  });
+  await enforceRemoteTrustPolicy(
+    apps,
+    remoteTrustPolicy,
+  );
+
+  validateRuntimeCompatibility(apps, {
+    policy: compatibilityPolicy,
+    manifestRuntimeDigest: manifest.runtimeDigest,
+    globalRuntimeDigest: modernManifest?.runtimeDigest,
+  });
 
   return {
     ...options,
@@ -56,9 +97,27 @@ export default (config: Config): Plugin => ({
   setup: () => {
     setExternal();
 
-    const { manifest, ...options } = config;
+    const {
+      manifest,
+      remoteTrust,
+      runtimeCompatibility,
+      fallbackTelemetry,
+      ...options
+    } = config;
     logger('createPlugin', config);
-    const promise = initOptions(manifest, options);
+    const promise = initOptions(
+      manifest,
+      options,
+      remoteTrust,
+      runtimeCompatibility,
+    );
+    const telemetryConfigCandidate: Partial<MfFallbackTelemetryConfig> = {
+      ...fallbackTelemetry,
+      ...manifest?.fallbackTelemetry,
+    };
+    const telemetryConfig = Object.keys(telemetryConfigCandidate).length
+      ? (telemetryConfigCandidate as MfFallbackTelemetryConfig)
+      : undefined;
     return {
       hoc({ App }, next) {
         class GetMicroFrontendApp extends React.Component {
@@ -85,28 +144,46 @@ export default (config: Config): Plugin => ({
           constructor(props: any) {
             super(props);
             const load = async () => {
-              GarfishInstance.setOptions({
-                ...options,
-                insulationVariable: [
-                  ...(options.insulationVariable || []),
-                  '_SERVER_DATA',
-                ],
-                apps: [],
-              });
-              const GarfishConfig = await promise;
-              const { appInfoList, apps } = generateApps(
-                GarfishConfig,
-                manifest,
-              );
-              GarfishInstance.registerApp(appInfoList);
-              const MApp = generateMApp(GarfishConfig, manifest);
-              logger('initOptions result', { manifest, GarfishConfig });
-              logger('generateApps', { MApp, apps, appInfoList });
-              this.setState({
-                MApp,
-                apps,
-                appInfoList,
-              });
+              try {
+                GarfishInstance.setOptions({
+                  ...options,
+                  insulationVariable: [
+                    ...(options.insulationVariable || []),
+                    '_SERVER_DATA',
+                  ],
+                  apps: [],
+                });
+                const GarfishConfig = await promise;
+                const { appInfoList, apps } = generateApps(
+                  GarfishConfig,
+                  manifest,
+                  telemetryConfig,
+                );
+                GarfishInstance.registerApp(appInfoList);
+                const MApp = generateMApp(
+                  GarfishConfig,
+                  manifest,
+                  telemetryConfig,
+                );
+                logger('initOptions result', { manifest, GarfishConfig });
+                logger('generateApps', { MApp, apps, appInfoList });
+                this.setState({
+                  MApp,
+                  apps,
+                  appInfoList,
+                });
+              } catch (error) {
+                emitErrorFallbackTelemetry(
+                  {
+                    error,
+                    phase: 'bootstrap',
+                    metadata: {
+                      source: 'plugin-garfish:init',
+                    },
+                  },
+                  telemetryConfig,
+                );
+              }
             };
             load();
           }

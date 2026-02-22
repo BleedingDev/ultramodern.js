@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "name": "release-candidate-contract-gates",
+  "evidence": {
+    "defaultDir": "docs/super-app-rfc-adr/evidence/release-candidate/current",
+    "requiredFiles": [
+      "architecture-evidence.md",
+      "validation-evidence.md",
+      "test-evidence.md",
+      "review-evidence.md"
+    ],
+    "requiredMetadataFields": [
+      "author",
+      "timestamp",
+      "ticket_id",
+      "commit_sha",
+      "workflow_run_url"
+    ],
+    "minimumReviewers": 2
+  },
+  "migrationContracts": {
+    "targets": [
+      {
+        "id": "effect-bff-operation-manifest",
+        "path": "tests/integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js",
+        "includes": [
+          "const operationManifest =",
+          "\"version\":1",
+          "\"appNamespace\":\"bff-api-app\"",
+          "export { client, operationManifest };"
+        ]
+      },
+      {
+        "id": "bff-cross-project-policy-contract",
+        "path": "packages/server/bff-core/src/security/crossProjectPolicy.ts",
+        "includes": [
+          "x-modernjs-bff-envelope",
+          "BFF_CROSS_PROJECT_POLICY_DENIED",
+          "namespace_not_allowed",
+          "evaluateCrossProjectPolicy"
+        ]
+      },
+      {
+        "id": "bff-generate-client-manifest-contract",
+        "path": "packages/server/bff-core/src/client/generateClient.ts",
+        "includes": [
+          "operationManifest",
+          "operationSchemaHash",
+          "requestId || 'default'",
+          "initProducerClient"
+        ]
+      },
+      {
+        "id": "tanstack-loader-string-router-contract",
+        "path": "tests/integration/routes-tanstack/src/modern-tanstack/string/router.gen.ts",
+        "includes": [
+          "function modernLoaderToTanstack",
+          "ctx?.abortController?.signal",
+          "throwTanstackRedirect(location)",
+          "throw notFound()"
+        ]
+      },
+      {
+        "id": "tanstack-loader-stream-router-contract",
+        "path": "tests/integration/routes-tanstack/src/modern-tanstack/stream/router.gen.ts",
+        "includes": [
+          "function modernLoaderToTanstack",
+          "mapParamsForModernLoader",
+          "throwTanstackRedirect(location)",
+          "throw notFound()"
+        ]
+      },
+      {
+        "id": "tanstack-create-routes-register-contract",
+        "path": "tests/integration/routes-tanstack-create-routes/src/modern-tanstack/register.gen.d.ts",
+        "includes": [
+          "declare module '@modern-js/runtime/tanstack-router'",
+          "interface Register",
+          "router: typeof router0;"
+        ]
+      },
+      {
+        "id": "tanstack-create-routes-manifest-contract",
+        "path": "tests/integration/routes-tanstack-create-routes/dist/route.json",
+        "includes": [
+          "\"urlPath\": \"/\"",
+          "\"isSPA\": true",
+          "\"isSSR\": true",
+          "\"bundle\": \"bundles/index.js\""
+        ]
+      },
+      {
+        "id": "plugin-runtime-ssr-stream-sanitization-contract",
+        "path": "packages/runtime/plugin-runtime/src/ssr/serverRender/renderToStream/buildTemplate.after.ts",
+        "includes": [
+          "sanitizeSSRPayload",
+          "unsafeHeaders",
+          "window._SSR_DATA",
+          "enableUnsafeCtx"
+        ]
+      },
+      {
+        "id": "plugin-runtime-ssr-string-sanitization-contract",
+        "path": "packages/runtime/plugin-runtime/src/ssr/serverRender/renderToString/entry.ts",
+        "includes": [
+          "sanitizeSSRPayload",
+          "unsafeHeaders: this.pluginConfig.unsafeHeaders",
+          "window._SSR_DATA",
+          "window._ROUTER_DATA"
+        ]
+      },
+      {
+        "id": "plugin-garfish-runtime-compatibility-contract",
+        "path": "packages/runtime/plugin-garfish/src/runtime/compatibility.ts",
+        "includes": [
+          "MODERN_MF_RUNTIME_INCOMPATIBLE",
+          "missing_remote_digest",
+          "digest_mismatch",
+          "validateRuntimeCompatibility"
+        ]
+      },
+      {
+        "id": "plugin-garfish-remote-trust-contract",
+        "path": "packages/runtime/plugin-garfish/src/runtime/trust.ts",
+        "includes": [
+          "MODERN_MF_REMOTE_TRUST_VIOLATION",
+          "origin_isolation_violation",
+          "integrity_mismatch",
+          "attestation_mismatch"
+        ]
+      },
+      {
+        "id": "plugin-garfish-fallback-telemetry-contract",
+        "path": "packages/runtime/plugin-garfish/src/runtime/fallbackTelemetry.ts",
+        "includes": [
+          "modernjs:mf-fallback",
+          "runtime_incompatible",
+          "inferFallbackReason",
+          "emitFallbackTelemetry"
+        ]
+      },
+      {
+        "id": "plugin-garfish-cache-policy-contract",
+        "path": "packages/runtime/plugin-garfish/src/runtime/cachePolicy.ts",
+        "includes": [
+          "CACHE_VERSION_QUERY_KEY = 'mfv'",
+          "applyMfEntryCachePolicy",
+          "runtimeDigest",
+          "manifestRuntimeDigest"
+        ]
+      },
+      {
+        "id": "tanstack-mf-host-router-contract",
+        "path": "tests/integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts",
+        "includes": [
+          "function modernLoaderToTanstack",
+          "route_mf_page",
+          "path: \"mf\"",
+          "createMemoryHistory"
+        ]
+      },
+      {
+        "id": "tanstack-mf-host-manifest-contract",
+        "path": "tests/integration/routes-tanstack-mf/mf-host/dist/mf-manifest.json",
+        "includes": [
+          "\"alias\": \"remote\"",
+          "\"alias\": \"remote2\"",
+          "\"@tanstack/react-router\"",
+          "\"@modern-js/runtime\""
+        ]
+      },
+      {
+        "id": "tanstack-mf-remote-manifest-contract",
+        "path": "tests/integration/routes-tanstack-mf/mf-remote/dist/mf-manifest.json",
+        "includes": [
+          "\"name\": \"Widget\"",
+          "\"name\": \"Mutator\"",
+          "\"path\": \"./Widget\"",
+          "\"path\": \"./Mutator\""
+        ]
+      },
+      {
+        "id": "telemetry-exporter-contract",
+        "path": "packages/server/prod-server/src/libs/telemetry.ts",
+        "includes": [
+          "createOtlpTelemetryExporter",
+          "createVictoriaMetricsTelemetryExporter",
+          "DEFAULT_VM_ENDPOINT",
+          "telemetry.queue.dropped"
+        ]
+      },
+      {
+        "id": "mf-cache-policy-contract",
+        "path": "packages/server/prod-server/src/libs/mfCache.ts",
+        "includes": [
+          "resolveMfAssetCacheHeaders",
+          "isMfManifestAsset",
+          "isMfRemoteEntryAsset",
+          "immutable"
+        ]
+      },
+      {
+        "id": "audit-context-trace-propagation-contract",
+        "path": "packages/server/create-request/src/node.ts",
+        "includes": [
+          "x-modernjs-bff-operation-context",
+          "traceparent",
+          "traceId",
+          "spanId"
+        ]
+      },
+      {
+        "id": "rsdoctor-artifact-contract",
+        "path": "packages/builder/builder/src/plugins/performance.ts",
+        "includes": [
+          "ultramodern-diagnostics.json",
+          ".rsdoctor",
+          "schemaVersion: 1"
+        ]
+      }
+    ]
+  },
+  "gateCommands": [
+    "pnpm --filter @scripts/vitest-config... run build",
+    "pnpm --filter @modern-js/builder test -- tests/plugins/performance.test.ts",
+    "pnpm --filter @modern-js/create-request test",
+    "pnpm --filter @modern-js/bff-core test",
+    "pnpm --filter @modern-js/plugin-express test",
+    "pnpm --filter @modern-js/plugin-koa test",
+    "pnpm --filter @modern-js/plugin-garfish test -- reliabilityMatrix.test.ts compatibility.test.ts trust.test.ts cachePolicy.test.ts fallbackTelemetry.test.ts",
+    "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
+    "pnpm --filter @modern-js/prod-server test -- telemetry.test.ts mfCache.test.ts",
+    "pnpm --dir tests run test:superapp-contracts"
+  ]
+}

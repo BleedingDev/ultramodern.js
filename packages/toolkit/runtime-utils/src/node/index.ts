@@ -9,5 +9,6 @@ const { run, useContext: useHeaders } = createStorage<IncomingHttpHeaders>();
 export { run, useHeaders };
 
 export { serializeJson } from './serialize';
+export { sanitizeSSRPayload } from './sanitize';
 export * from './nestedRoutes';
 export * from './loaderContext';

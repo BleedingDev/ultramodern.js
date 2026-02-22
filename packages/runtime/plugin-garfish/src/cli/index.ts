@@ -116,27 +116,64 @@ export const garfishPlugin = ({
         );
 
         let disableCssExtract = useConfig.output?.disableCssExtract || false;
+        let runtimeDigest: string | undefined;
+        let remoteEntryIntegrity: string | undefined;
+        let remoteEntryAttestation: string | undefined;
 
         // When the micro-frontend application js entry, there is no need to extract css, close cssExtract
         if (useConfig.deploy?.microFrontend) {
-          const { enableHtmlEntry } = getDefaultMicroFrontedConfig(
+          const {
+            enableHtmlEntry,
+            runtimeDigest: resolvedRuntimeDigest,
+            integrity,
+            attestation,
+          } = getDefaultMicroFrontedConfig(
             useConfig.deploy?.microFrontend,
           );
+          runtimeDigest = resolvedRuntimeDigest;
+          remoteEntryIntegrity = integrity;
+          remoteEntryAttestation = attestation;
           if (!enableHtmlEntry) {
             disableCssExtract = true;
           }
+        }
+
+        const sourceConfig: Record<string, unknown> = {
+          alias: {
+            '@modern-js/runtime/plugins': pluginsExportsUtils.getPath(),
+            '@modern-js/runtime/garfish': '@modern-js/plugin-garfish/runtime',
+          },
+        };
+
+        if (runtimeDigest || remoteEntryIntegrity || remoteEntryAttestation) {
+          sourceConfig.define = {
+            ...(runtimeDigest
+              ? {
+                  'process.env.MODERN_MF_RUNTIME_DIGEST': JSON.stringify(
+                    runtimeDigest,
+                  ),
+                }
+              : {}),
+            ...(remoteEntryIntegrity
+              ? {
+                  'process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY':
+                    JSON.stringify(remoteEntryIntegrity),
+                }
+              : {}),
+            ...(remoteEntryAttestation
+              ? {
+                  'process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION':
+                    JSON.stringify(remoteEntryAttestation),
+                }
+              : {}),
+          };
         }
 
         return {
           output: {
             disableCssExtract,
           },
-          source: {
-            alias: {
-              '@modern-js/runtime/plugins': pluginsExportsUtils.getPath(),
-              '@modern-js/runtime/garfish': '@modern-js/plugin-garfish/runtime',
-            },
-          },
+          source: sourceConfig,
           tools: {
             devServer: {
               headers: {

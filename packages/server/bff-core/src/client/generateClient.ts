@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { createHash } from 'crypto';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { ApiRouter } from '../router';
 import { Result, Ok, Err } from './result';
@@ -68,6 +69,27 @@ export const generateClient = async ({
     return Err(`generate client error: Cannot require module ${resourcePath}`);
   }
 
+  const operationEntries = handlerInfos
+    .map(({ name, httpMethod, routePath }) => ({
+      name,
+      httpMethod: httpMethod.toUpperCase(),
+      routePath,
+    }))
+    .sort((a, b) => {
+      const keyA = `${a.routePath}:${a.httpMethod}:${a.name}`;
+      const keyB = `${b.routePath}:${b.httpMethod}:${b.name}`;
+      return keyA.localeCompare(keyB);
+    });
+  const operationVersion = 1;
+  const schemaHash = createHash('sha256')
+    .update(
+      JSON.stringify({
+        operations: operationEntries,
+        requestId: requestId || 'default',
+      }),
+    )
+    .digest('hex');
+
   let handlersCode = '';
   for (const handlerInfo of handlerInfos) {
     const { name, httpMethod, routePath } = handlerInfo;
@@ -77,29 +99,75 @@ export const generateClient = async ({
     }
     const upperHttpMethod = httpMethod.toUpperCase();
 
-    const routeName = routePath;
-    const optionalArgs = [
-      fetcher ? 'fetch' : undefined,
-      requestId ? `'${requestId}'` : undefined,
-    ]
-      .filter(Boolean)
-      .join(', ');
-    const tailArgs = optionalArgs ? `, ${optionalArgs}` : ' ';
+    const serializedRouteName = JSON.stringify(routePath);
+    const serializedMethod = JSON.stringify(upperHttpMethod);
+    const serializedMethodDecider = JSON.stringify(
+      httpMethodDecider ? httpMethodDecider : 'functionName',
+    );
+    const serializedOperationContext = JSON.stringify({
+      operationId: name,
+      routePath,
+      method: upperHttpMethod,
+      schemaHash,
+      operationVersion,
+    });
+    const tailArgs = `, ${
+      fetcher ? 'fetch' : 'undefined'
+    }, ${requestId ? JSON.stringify(requestId) : 'undefined'}, ${serializedOperationContext}`;
     if (target === 'server') {
-      handlersCode += `export ${exportStatement} createRequest('${routeName}', '${upperHttpMethod}', process.env.PORT || ${String(
+      handlersCode += `export ${exportStatement} createRequest(${serializedRouteName}, ${serializedMethod}, process.env.PORT || ${String(
         port,
-      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}'${tailArgs});
+      )}, ${serializedMethodDecider}${tailArgs});
       `;
     } else {
-      handlersCode += `export ${exportStatement} createRequest('${routeName}', '${upperHttpMethod}', ${String(
+      handlersCode += `export ${exportStatement} createRequest(${serializedRouteName}, ${serializedMethod}, ${String(
         port,
-      )}, '${httpMethodDecider ? httpMethodDecider : 'functionName'}'${tailArgs});
+      )}, ${serializedMethodDecider}${tailArgs});
       `;
     }
   }
 
-  const importCode = `import { createRequest } from '${requestCreator}';
-${fetcher ? `import { fetch } from '${fetcher}';\n` : ''}`;
+  const serializedRequestCreator = JSON.stringify(requestCreator);
+  const serializedFetcher = fetcher ? JSON.stringify(fetcher) : undefined;
+  const importCode = requestId
+    ? `import * as requestRuntime from ${serializedRequestCreator};
+const { createRequest } = requestRuntime;
+${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`
+    : `import { createRequest } from ${serializedRequestCreator};
+${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`;
 
-  return Ok(`${importCode}\n${handlersCode}`);
+  const bootstrapCode = requestId
+    ? `export const initProducerClient = (options = {}) => {
+  const configure = requestRuntime.configure || requestRuntime.default?.configure;
+  if (typeof configure !== 'function') {
+    console.warn('[modernjs] Compatibility request creator path does not expose configure(); use default @modern-js/create-request or migrate the compatibility path.');
+    return undefined;
+  }
+  return configure({ ...options, requestId: ${JSON.stringify(requestId)} });
+};
+`
+    : '';
+  const manifestCode = `export const operationVersion = ${String(
+    operationVersion,
+  )};
+export const operationSchemaHash = '${schemaHash}';
+export const operationManifest = ${JSON.stringify(
+    {
+      operationVersion,
+      schemaHash,
+      operations: operationEntries,
+    },
+    null,
+    2,
+  )};
+`;
+  const generatedParts = [
+    importCode.trimEnd(),
+    bootstrapCode.trimEnd(),
+    manifestCode.trimEnd(),
+    handlersCode.trimEnd(),
+  ].filter(Boolean);
+
+  return Ok(`${generatedParts.join('\n\n')}
+`);
 };

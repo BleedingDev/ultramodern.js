@@ -42,7 +42,14 @@
     "update-codesmith": "cd ./scripts/update-codesmith && pnpm start",
     "update-rspress": "cd ./scripts/update-rspress && pnpm start",
     "update-rsbuild": "cd ./scripts/update-rsbuild && pnpm start",
-    "update-nx-cache": "cross-env NX_DAEMON=false nx reset && npm run prepare-build"
+    "update-nx-cache": "cross-env NX_DAEMON=false nx reset && npm run prepare-build",
+    "prebuild:main-doc-docs": "cross-env NX_DAEMON=false nx run @modern-js/main-doc:build",
+    "validate:main-doc-docs": "pnpm run prebuild:main-doc-docs && pnpm --filter @modern-js/main-doc run build:doc",
+    "validate:module-sdk-contracts": "node scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --skip-manifest-validation",
+    "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
+    "validate:module-certification-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
+    "validate:bun-smoke": "bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",
+    "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current"
   },
   "engines": {
     "node": ">=14.17.6",
