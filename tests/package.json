@@ -7,7 +7,9 @@
   "scripts": {
     "test:rspack": "pnpm test:builder:rspack && pnpm test:framework",
     "test:framework": "vitest run -c vitest.framework.config.mjs",
+    "test:framework:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.framework.config.mjs",
     "test:framework:effect": "vitest run -c vitest.effect.config.mjs",
+    "test:framework:effect:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.effect.config.mjs",
     "test:builder": "cd e2e/builder && pnpm test",
     "test:builder:rspack": "cd e2e/builder && pnpm test",
     "test:module-tools": "jest -c jest.module-tools.config.js",

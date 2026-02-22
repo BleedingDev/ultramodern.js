@@ -1,8 +1,30 @@
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
+const cpuCount = Math.max(1, os.availableParallelism?.() ?? os.cpus().length);
+const frameworkParallel = process.env.VITEST_FRAMEWORK_PARALLEL !== '0';
+
+const parsePositiveInt = value => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
+const maxThreads =
+  parsePositiveInt(process.env.VITEST_FRAMEWORK_MAX_THREADS) ??
+  Math.max(1, Math.floor(cpuCount / 2));
+const minThreads = Math.min(2, maxThreads);
 
 export default defineConfig({
   resolve: {
@@ -24,8 +46,17 @@ export default defineConfig({
     ],
     setupFiles: ['./utils/vitest.setup.mjs'],
     globalSetup: ['./utils/vitest.global-setup.mjs'],
-    threads: false,
-    isolate: false,
+    ...(frameworkParallel
+      ? {
+          threads: true,
+          isolate: true,
+          maxThreads,
+          minThreads,
+        }
+      : {
+          threads: false,
+          isolate: false,
+        }),
     testTimeout: 300000,
     hookTimeout: 300000,
     retry: 1,
