@@ -1,0 +1,33 @@
+# Curated production-critical TS configs for strict TS6/TS7 parity checks.
+# Keep this list focused on packages and integration fixtures that reflect
+# real runtime behavior of UltraModern.js.
+
+benchmark/bundle-diff/tsconfig.json
+packages/cli/builder/tsconfig.json
+packages/cli/plugin-bff/tsconfig.json
+packages/cli/plugin-data-loader/tsconfig.json
+packages/cli/plugin-ssg/tsconfig.json
+packages/cli/plugin-styled-components/tsconfig.json
+packages/runtime/plugin-i18n/tsconfig.json
+packages/runtime/plugin-image/tsconfig.json
+packages/runtime/plugin-runtime/tsconfig.json
+packages/runtime/render/tsconfig.json
+packages/server/bff-core/tsconfig.json
+packages/server/bff-runtime/tsconfig.json
+packages/server/core/tsconfig.json
+packages/server/create-request/tsconfig.json
+packages/server/prod-server/tsconfig.json
+packages/server/server-runtime/tsconfig.json
+packages/server/server/tsconfig.json
+packages/server/utils/tsconfig.json
+packages/solutions/app-tools/tsconfig.json
+packages/toolkit/create/tsconfig.json
+packages/toolkit/i18n-utils/tsconfig.json
+packages/toolkit/plugin/tsconfig.json
+packages/toolkit/runtime-utils/tsconfig.json
+packages/toolkit/utils/tsconfig.json
+scripts/rstest-config/tsconfig.json
+tests/integration/bff-effect/tsconfig.json
+tests/integration/bff-effect-lambda-only/tsconfig.json
+tests/integration/bff-runtime-parity/tsconfig.json
+tests/integration/pure-esm-project/tsconfig.json
