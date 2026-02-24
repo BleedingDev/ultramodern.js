@@ -1,9 +1,7 @@
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useTranslation } from 'react-i18next';
 
 const App = () => {
-  const { changeLanguage } = useModernI18n();
-  const { t } = useTranslation();
+  const { changeLanguage, i18nInstance } = useModernI18n();
   return (
     <>
       <div>
@@ -14,7 +12,7 @@ const App = () => {
           en
         </button>
       </div>
-      <div id="key">{t('key')}</div>
+      <div id="key">{i18nInstance.t('key')}</div>
     </>
   );
 };

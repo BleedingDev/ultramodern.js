@@ -35,12 +35,15 @@ describe('init with SSR', () => {
     }
   });
 
-  test.skip(`use ssr init data`, async () => {
+  test(`use ssr init data`, async () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
     const content = await page.content();
 
-    expect(content).toMatch(/<script.*async.*\/>/);
+    expect(content).toContain('_MODERNJS_ROUTE_MANIFEST');
+    expect(content).toMatch(
+      /<script[^>]*src="\/static\/js\/builder-runtime\.js"[^>]*>/,
+    );
   });
 });

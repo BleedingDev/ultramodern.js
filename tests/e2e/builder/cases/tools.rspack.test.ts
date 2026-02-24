@@ -5,6 +5,7 @@ import { build, getHrefByEntryName } from '../scripts/shared';
 const fixtures = __dirname;
 
 test('tools.rspack', async ({ page }) => {
+  const uniqueDistRoot = `dist-tools-rspack-${process.pid}-${Date.now()}`;
   const builder = await build({
     cwd: join(fixtures, 'source/global-vars'),
     entry: {
@@ -12,6 +13,11 @@ test('tools.rspack', async ({ page }) => {
     },
     runServer: true,
     builderConfig: {
+      output: {
+        distPath: {
+          root: uniqueDistRoot,
+        },
+      },
       source: {
         define: {
           ENABLE_TEST: JSON.stringify(true),

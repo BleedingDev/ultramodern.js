@@ -21,7 +21,7 @@ function existsSync(filePath: string) {
   return fs.existsSync(resolveDist(filePath));
 }
 
-describe.skip('build', () => {
+describe('build', () => {
   test(`should build success`, async () => {
     if (!isVersionAtLeast18()) return;
     const buildRes = await modernBuild(appDir);
@@ -31,9 +31,11 @@ describe.skip('build', () => {
 
     const pageName = resolveDist('static/js/async/page.js');
     const pageContent = await fs.promises.readFile(pageName, 'utf-8');
-    expect(pageContent).toMatch(
-      `{"url":"/static/assets/crab.png","width":1920,"height":1281,"thumbnail":`,
+    expect(pageContent).toContain(
+      'url: __webpack_require__.p + "static/assets/crab.png"',
     );
+    expect(pageContent).toContain('width: 1920');
+    expect(pageContent).toContain('height: 1281');
   });
 
   it('should get image url with production CDN', async () => {
@@ -51,9 +53,13 @@ describe.skip('build', () => {
 
     const root = await page.$('#root img');
     const targetText = await page.evaluate(el => el?.outerHTML, root);
-    expect(targetText).toMatchInlineSnapshot(
-      `"<img src="/static/assets/crab.png?w=1000&amp;q=75" alt="test" width="500" height="333.59375" srcset="/static/assets/crab.png?w=500&amp;q=75 1x,/static/assets/crab.png?w=1000&amp;q=75 2x" loading="lazy" style="">"`,
+    expect(targetText).toContain(
+      'src="/static/assets/crab.png?w=1000&amp;q=75"',
     );
+    expect(targetText).toContain(
+      'srcset="/static/assets/crab.png?w=500&amp;q=75 1x,/static/assets/crab.png?w=1000&amp;q=75 2x"',
+    );
+    expect(targetText).toContain('width="500"');
     expect(errors.length).toEqual(0);
 
     await browser.close();
@@ -61,7 +67,7 @@ describe.skip('build', () => {
   });
 });
 
-describe.skip('dev', () => {
+describe('dev', () => {
   test(`should render page correctly`, async () => {
     if (!isVersionAtLeast18()) return;
     const appPort = await getPort();
@@ -85,9 +91,13 @@ describe.skip('dev', () => {
 
     const root = await page.$('#root img');
     const targetText = await page.evaluate(el => el?.outerHTML, root);
-    expect(targetText).toMatchInlineSnapshot(
-      `"<img alt="test" width="500" height="333.59375" loading="lazy" srcset="/_modern/ipx/f_auto,w_500,q_75/static/assets/crab.png 1x,/_modern/ipx/f_auto,w_1000,q_75/static/assets/crab.png 2x" src="/_modern/ipx/f_auto,w_1000,q_75/static/assets/crab.png" style="">"`,
+    expect(targetText).toMatch(
+      /srcset="\/_(modern|rsbuild)\/ipx\/f_auto,w_500,q_75\/static\/assets\/crab\.png 1x,\/_(modern|rsbuild)\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png 2x"/,
     );
+    expect(targetText).toMatch(
+      /src="\/_(modern|rsbuild)\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png"/,
+    );
+    expect(targetText).toContain('width="500"');
     expect(errors.length).toEqual(0);
 
     await browser.close();

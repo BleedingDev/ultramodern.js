@@ -4,7 +4,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../../utils/modernTestUtils';
-import { conditionalTest } from '../../test-utils';
+import { acquireTestLock, conditionalTest } from '../../test-utils';
 
 async function waitForAppReady(
   port: number,
@@ -59,12 +59,14 @@ async function fetchHtml(port: number, pathname: string) {
 }
 
 describe('mf-i18n app-level SSR serve mode', () => {
+  let releaseLock: (() => Promise<void>) | undefined;
   let componentProviderApp: unknown;
   let appProviderApp: unknown;
   let consumerApp: unknown;
 
   beforeAll(async () => {
     jest.setTimeout(1000 * 60 * 8);
+    releaseLock = await acquireTestLock('i18n-mf');
 
     await modernBuild(componentProviderDir, [], {
       env: APP_MF_SSR_ENV,
@@ -100,6 +102,9 @@ describe('mf-i18n app-level SSR serve mode', () => {
     }
     if (componentProviderApp) {
       await killApp(componentProviderApp);
+    }
+    if (releaseLock) {
+      await releaseLock();
     }
   });
 

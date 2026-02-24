@@ -11,8 +11,7 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 
-// Skip flaky tests on CI, but run them locally
-const conditionalTest = process.env.LOCAL_TEST === 'true' ? test : test.skip;
+const conditionalTest = test;
 
 dns.setDefaultResultOrder('ipv4first');
 

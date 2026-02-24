@@ -6,6 +6,7 @@ import {
   launchOptions,
 } from '../../../../utils/modernTestUtils';
 import {
+  acquireTestLock,
   clearI18nTestState,
   conditionalTest,
   gotoWithSSRRetry,
@@ -59,6 +60,7 @@ async function fetchHtml(port: number, pathname: string) {
 }
 
 describe('mf-i18n-tests', () => {
+  let releaseLock: (() => Promise<void>) | undefined;
   let componentProviderApp: unknown;
   let appProviderApp: unknown;
   let componentProviderPage: Page;
@@ -68,6 +70,7 @@ describe('mf-i18n-tests', () => {
 
   beforeAll(async () => {
     jest.setTimeout(1000 * 60 * 5);
+    releaseLock = await acquireTestLock('i18n-mf');
     componentProviderApp = await launchApp(
       componentProviderDir,
       COMPONENT_PROVIDER_PORT,
@@ -107,6 +110,9 @@ describe('mf-i18n-tests', () => {
     }
     if (appProviderApp) {
       await killApp(appProviderApp);
+    }
+    if (releaseLock) {
+      await releaseLock();
     }
   });
 

@@ -24,7 +24,16 @@ describe('source build', () => {
 
   beforeEach(async () => {
     port = await getPort();
-    app = await launchApp(appDir, port, {});
+    let detectedPort = port;
+    app = await launchApp(appDir, port, {
+      onStdout(message: string) {
+        const match = message.match(/http:\/\/localhost:(\d+)\/?/);
+        if (match) {
+          detectedPort = Number(match[1]);
+        }
+      },
+    });
+    port = detectedPort;
     browser = await puppeteer.launch(launchOptions as any);
     const cardCompDir = path.join(__dirname, './components/src/card/index.tsx');
     card = {

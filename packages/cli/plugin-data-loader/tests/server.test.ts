@@ -117,7 +117,7 @@ describe('handleRequest', () => {
     expect(res.status).toBe(403);
   });
 
-  test.skip('should return directly when routeId not exist', async () => {
+  test('should return directly when routeId not exist', async () => {
     const handler = createHandler(
       [
         {
@@ -134,6 +134,9 @@ describe('handleRequest', () => {
     const realHandler = async (req: IncomingMessage, res: ServerResponse) => {
       res.statusCode = 404;
       await handler(req, res);
+      if (!res.writableEnded) {
+        res.end();
+      }
     };
 
     const res = await request(realHandler).get('/three/user/profile');

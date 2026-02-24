@@ -58,7 +58,7 @@ async function checkIsPassChunkLoadingGlobal() {
   const modernJsDir = join(fixtureDir, 'base', 'node_modules', '.modern-js');
   const entryFilePath = join(modernJsDir, 'index', 'index.jsx');
   const content = await fs.readFile(entryFilePath, 'utf-8');
-  expect(content).toMatch(/chunkLoadingGlobal/);
+  expect(content).not.toMatch(/chunkLoadingGlobal/);
 }
 
 describe('Traditional SSR', () => {
@@ -89,16 +89,28 @@ describe('Traditional SSR', () => {
     await basicUsage(page, appPort);
   });
 
-  // We will not add chunkLoadingGlobal to entry(index.jsx)
-  test.skip(`should pass chunkLoadingGlobal`, async () => {
+  test(`should not pass chunkLoadingGlobal`, async () => {
     await checkIsPassChunkLoadingGlobal();
   });
 
-  test.skip(`client navigation works`, async () => {
+  test(`client navigation works`, async () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
+    await page.waitForFunction(() => {
+      const el = document.querySelector('#user-btn');
+      if (!el) {
+        return false;
+      }
+      return Object.keys(el).some(
+        key =>
+          key.startsWith('__reactFiber$') ||
+          key.startsWith('__reactProps$') ||
+          key.startsWith('__reactInternalInstance$'),
+      );
+    });
     await page.click('#user-btn');
+    await page.waitForFunction(() => window.location.pathname === '/user/1');
     await (expect(page) as any).toMatchTextContent('user1-18');
   });
 
