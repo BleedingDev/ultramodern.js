@@ -5,13 +5,24 @@ import { transformerNotationHighlight } from '@shikijs/transformers';
 
 const docPath = path.join(__dirname, 'docs');
 
+function normalizeBase(base = '/') {
+  const trimmed = base.trim();
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.endsWith('/')
+    ? withLeadingSlash
+    : `${withLeadingSlash}/`;
+}
+
+// Set by CI for GitHub Pages project sites. Defaults to root for local dev/custom domains.
+const docsBase = normalizeBase(process.env.DOCS_BASE);
+
 export default defineConfig({
   root: docPath,
   llms: true,
   title: 'Modern.js',
   description:
     'The Modern.js framework is a progressive web framework based on React. At ByteDance, we use Modern.js to build upper-level frameworks that have supported the development of thousands of web applications.',
-  base: '/',
+  base: docsBase,
   logo: 'https://lf-cdn-tos.bytescm.com/obj/static/webinfra/modern-js-website/assets/images/images/modernjs-logo.svg',
   icon: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico',
   lang: 'en',
