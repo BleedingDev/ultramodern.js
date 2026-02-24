@@ -7,7 +7,10 @@ const {
   validateEvidence,
   validateMigrationContracts,
   validateProfileShape,
+  writeGateSnapshot,
 } = require('./validator');
+
+const DEFAULT_GATE_SNAPSHOT_PATH = '.modern/contract-gates.json';
 
 const parseArgs = argv => {
   const parsed = {
@@ -16,6 +19,10 @@ const parseArgs = argv => {
     allowMissingEvidence: false,
     skipCommands: false,
     skipMigrationValidation: false,
+    gateSnapshotPath:
+      process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_GATE_SNAPSHOT_PATH,
+    gateName: undefined,
+    skipGateSnapshot: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -38,6 +45,17 @@ const parseArgs = argv => {
       case '--skip-migration-validation':
         parsed.skipMigrationValidation = true;
         break;
+      case '--gate-snapshot-path':
+        parsed.gateSnapshotPath = argv[index + 1];
+        index += 1;
+        break;
+      case '--gate-name':
+        parsed.gateName = argv[index + 1];
+        index += 1;
+        break;
+      case '--skip-gate-snapshot':
+        parsed.skipGateSnapshot = true;
+        break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
@@ -46,8 +64,50 @@ const parseArgs = argv => {
   return parsed;
 };
 
-const main = () => {
-  const args = parseArgs(process.argv.slice(2));
+const resolveGateName = ({ args, profilePath, profile }) => {
+  if (typeof args.gateName === 'string' && args.gateName.trim().length > 0) {
+    return args.gateName.trim();
+  }
+
+  if (profile && typeof profile.name === 'string' && profile.name.trim()) {
+    return profile.name.trim();
+  }
+
+  return path.basename(profilePath, path.extname(profilePath));
+};
+
+const persistGateSnapshot = ({
+  args,
+  profilePath,
+  profile,
+  passed,
+  reason,
+  summary,
+}) => {
+  if (args.skipGateSnapshot) {
+    return;
+  }
+
+  const gateName = resolveGateName({
+    args,
+    profilePath,
+    profile,
+  });
+  const snapshot = writeGateSnapshot({
+    snapshotPath: args.gateSnapshotPath,
+    gateName,
+    passed,
+    reason,
+    summary,
+    profilePath,
+  });
+
+  console.log(
+    `[release-gates] Gate snapshot updated (${snapshot.gateName}=${String(snapshot.passed)}) at ${snapshot.snapshotPath}`,
+  );
+};
+
+const runValidation = args => {
   const profilePath = path.resolve(args.profile);
   const profile = readJsonFile(profilePath);
 
@@ -86,18 +146,53 @@ const main = () => {
     validatedMigrationTargets: migrationReport.length,
     executedCommands: args.skipCommands ? 0 : profile.gateCommands.length,
   };
+  return {
+    profilePath,
+    profile,
+    summary,
+  };
+};
+
+const main = args => {
+  const { profilePath, profile, summary } = runValidation(args);
+  persistGateSnapshot({
+    args,
+    profilePath,
+    profile,
+    passed: true,
+    summary,
+  });
   console.log(
-    `[release-gates] RC contract gates passed:\n${JSON.stringify(
-      summary,
-      null,
-      2,
-    )}`,
+    `[release-gates] RC contract gates passed:\n${JSON.stringify(summary, null, 2)}`,
   );
 };
 
+let args;
+
 try {
-  main();
+  args = parseArgs(process.argv.slice(2));
+  main(args);
 } catch (error) {
+  if (args) {
+    try {
+      const profilePath = path.resolve(args.profile);
+      const profile = readJsonFile(profilePath);
+      persistGateSnapshot({
+        args,
+        profilePath,
+        profile,
+        passed: false,
+        reason: error.message,
+        summary: {
+          error: error.message,
+        },
+      });
+    } catch (snapshotError) {
+      console.error(
+        `[release-gates] Failed to persist gate snapshot: ${snapshotError.message}`,
+      );
+    }
+  }
   console.error(`[release-gates] Validation failed: ${error.message}`);
   process.exit(1);
 }

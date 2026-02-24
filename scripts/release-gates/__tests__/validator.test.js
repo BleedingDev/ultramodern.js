@@ -9,6 +9,7 @@ const {
   validateEvidence,
   validateMigrationContracts,
   validateProfileShape,
+  writeGateSnapshot,
 } = require('../validator');
 
 const makeTempDir = () =>
@@ -142,4 +143,49 @@ test('runGateCommands throws on failing command', () => {
       }),
     /exit code 2/,
   );
+});
+
+test('writeGateSnapshot persists and merges gate records', () => {
+  const dir = makeTempDir();
+  try {
+    const snapshotPath = path.join(dir, 'contract-gates.json');
+    const first = writeGateSnapshot({
+      snapshotPath,
+      gateName: 'release-candidate-contract-gates',
+      passed: true,
+      summary: { validatedEvidenceFiles: 4 },
+      profilePath: 'scripts/release-gates/rc-contract-profile.json',
+      timestamp: 1700000000000,
+    });
+    assert.equal(first.passed, true);
+
+    const second = writeGateSnapshot({
+      snapshotPath,
+      gateName: 'module-onboarding-certification-gates',
+      passed: false,
+      reason: 'reviewer evidence missing',
+      summary: { error: 'reviewer evidence missing' },
+      profilePath: 'scripts/release-gates/module-certification-profile.json',
+      timestamp: 1700000001000,
+    });
+    assert.equal(second.passed, false);
+
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    assert.equal(snapshot.schemaVersion, 1);
+    assert.equal(snapshot.updatedAt, 1700000001000);
+    assert.equal(
+      snapshot.gates['release-candidate-contract-gates'].passed,
+      true,
+    );
+    assert.equal(
+      snapshot.gates['module-onboarding-certification-gates'].passed,
+      false,
+    );
+    assert.match(
+      snapshot.gates['module-onboarding-certification-gates'].reason,
+      /reviewer evidence missing/,
+    );
+  } finally {
+    removeDir(dir);
+  }
 });

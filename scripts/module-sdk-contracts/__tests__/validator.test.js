@@ -55,7 +55,10 @@ test('validateContractShape rejects missing required family', () => {
   const contract = readJsonFile(CONTRACT_PATH);
   delete contract.families.chat;
 
-  assert.throws(() => validateContractShape(contract), /required family "chat"/);
+  assert.throws(
+    () => validateContractShape(contract),
+    /required family "chat"/,
+  );
 });
 
 test('validateManifestShape accepts compliant manifest', () => {
@@ -92,7 +95,10 @@ test('validateManifests validates directory manifests', () => {
   try {
     const contract = readJsonFile(CONTRACT_PATH);
     const manifestPath = path.join(dir, 'crm-sales.json');
-    fs.writeFileSync(manifestPath, JSON.stringify(createValidManifest(), null, 2));
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify(createValidManifest(), null, 2),
+    );
 
     const report = validateManifests({
       contract,

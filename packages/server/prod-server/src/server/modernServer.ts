@@ -1,57 +1,27 @@
 /* eslint-disable max-lines */
-import { IncomingMessage, ServerResponse, Server, createServer } from 'http';
+import {
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+  createServer,
+} from 'http';
 import path from 'path';
+import { time } from '@modern-js/runtime-utils/time';
+import type {
+  APIServerStartInput,
+  Adapter,
+  LoaderHandler,
+  ServerOptions,
+  WebAdapter,
+} from '@modern-js/server-core';
+import type { ModernServerContext, ServerRoute } from '@modern-js/types';
 import {
   fs,
+  ROUTE_SPEC_FILE,
   isPromise,
   isWebOnly,
   mime,
-  ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
-import {
-  Adapter,
-  WebAdapter,
-  APIServerStartInput,
-  ServerOptions,
-  LoaderHandler,
-} from '@modern-js/server-core';
-import { type ModernServerContext, type ServerRoute } from '@modern-js/types';
-import { time } from '@modern-js/runtime-utils/time';
-import type { ContextOptions } from '../libs/context';
-import {
-  ModernServerOptions,
-  NextFunction,
-  ServerHookRunner,
-  Metrics,
-  Logger,
-  ConfWithBFF,
-  ModernServerInterface,
-  BuildOptions,
-  ModernServerHandler,
-} from '../type';
-import {
-  RouteMatchManager,
-  ModernRouteInterface,
-  ModernRoute,
-} from '../libs/route';
-import { RenderHandler, createRenderHandler } from '../libs/render';
-import {
-  createStaticFileHandler,
-  faviconFallbackHandler,
-} from '../libs/serveFile';
-import { resolveMfAssetCacheHeaders } from '../libs/mfCache';
-import {
-  createErrorDocument,
-  createMiddlewareCollecter,
-  getStaticReg,
-  mergeExtension,
-  noop,
-  debug,
-  isRedirect,
-} from '../utils';
-import * as reader from '../libs/render/reader';
-import { createProxyHandler } from '../libs/proxy';
-import { createContext } from '../libs/context';
 import {
   AGGRED_DIR,
   ERROR_DIGEST,
@@ -59,11 +29,46 @@ import {
   RUN_MODE,
   ServerReportTimings,
 } from '../constants';
+import type { ContextOptions } from '../libs/context';
+import { createContext } from '../libs/context';
 import {
   createAfterMatchContext,
   createAfterRenderContext,
   createMiddlewareContext,
 } from '../libs/hook-api';
+import { resolveMfAssetCacheHeaders } from '../libs/mfCache';
+import { createProxyHandler } from '../libs/proxy';
+import { type RenderHandler, createRenderHandler } from '../libs/render';
+import * as reader from '../libs/render/reader';
+import {
+  type ModernRoute,
+  type ModernRouteInterface,
+  RouteMatchManager,
+} from '../libs/route';
+import {
+  createStaticFileHandler,
+  faviconFallbackHandler,
+} from '../libs/serveFile';
+import type {
+  BuildOptions,
+  ConfWithBFF,
+  Logger,
+  Metrics,
+  ModernServerHandler,
+  ModernServerInterface,
+  ModernServerOptions,
+  NextFunction,
+  ServerHookRunner,
+} from '../type';
+import {
+  createErrorDocument,
+  createMiddlewareCollecter,
+  debug,
+  getStaticReg,
+  isRedirect,
+  mergeExtension,
+  noop,
+} from '../utils';
 
 type ModernServerAsyncHandler = (
   context: ModernServerContext,

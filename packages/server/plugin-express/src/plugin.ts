@@ -1,14 +1,14 @@
 import * as path from 'path';
-import express, { RequestHandler, Express } from 'express';
-import type { Request, Response } from 'express';
-import cookieParser from 'cookie-parser';
 import {
-  APIHandlerInfo,
+  type APIHandlerInfo,
   evaluateCrossProjectPolicy,
 } from '@modern-js/bff-core';
-import { fs, createDebugger, compatRequire } from '@modern-js/utils';
-import finalhandler from 'finalhandler';
 import type { ServerPlugin } from '@modern-js/server-core';
+import { fs, compatRequire, createDebugger } from '@modern-js/utils';
+import cookieParser from 'cookie-parser';
+import express, { type RequestHandler, type Express } from 'express';
+import type { Request, Response } from 'express';
+import finalhandler from 'finalhandler';
 import { run } from './context';
 import registerRoutes from './registerRoutes';
 

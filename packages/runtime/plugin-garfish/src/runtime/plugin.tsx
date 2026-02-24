@@ -1,30 +1,30 @@
-import GarfishInstance from 'garfish';
-import React from 'react';
 import type { Plugin } from '@modern-js/runtime';
+import GarfishInstance from 'garfish';
 import hoistNonReactStatics from 'hoist-non-react-statics';
+import React from 'react';
 import { logger } from '../util';
-import { GarfishProvider } from './utils/Context';
-import setExternal from './utils/setExternal';
-import {
+import { applyMfEntryCachePolicy } from './cachePolicy';
+import { validateRuntimeCompatibility } from './compatibility';
+import { emitErrorFallbackTelemetry } from './fallbackTelemetry';
+import { enforceRemoteTrustPolicy } from './trust';
+import type {
   Config,
-  MfFallbackTelemetryConfig,
   Manifest,
+  MfFallbackTelemetryConfig,
   MicroComponentProps,
   ModulesInfo,
   Options,
   RemoteTrustPolicy,
   RuntimeCompatibilityPolicy,
 } from './useModuleApps';
+import { GarfishProvider } from './utils/Context';
 import { generateMApp } from './utils/MApp';
-import { AppMap, generateApps } from './utils/apps';
-import { validateRuntimeCompatibility } from './compatibility';
-import { enforceRemoteTrustPolicy } from './trust';
-import { emitErrorFallbackTelemetry } from './fallbackTelemetry';
-import { applyMfEntryCachePolicy } from './cachePolicy';
+import { type AppMap, generateApps } from './utils/apps';
+import setExternal from './utils/setExternal';
 
 async function initOptions(
-  manifest: Manifest = {},
   options: Options,
+  manifest: Manifest = {},
   remoteTrust?: RemoteTrustPolicy,
   runtimeCompatibility?: RuntimeCompatibilityPolicy,
 ) {
@@ -74,10 +74,7 @@ async function initOptions(
     manifestRuntimeDigest: manifest.runtimeDigest,
     globalRuntimeDigest: modernManifest?.runtimeDigest,
   });
-  await enforceRemoteTrustPolicy(
-    apps,
-    remoteTrustPolicy,
-  );
+  await enforceRemoteTrustPolicy(apps, remoteTrustPolicy);
 
   validateRuntimeCompatibility(apps, {
     policy: compatibilityPolicy,
@@ -106,8 +103,8 @@ export default (config: Config): Plugin => ({
     } = config;
     logger('createPlugin', config);
     const promise = initOptions(
-      manifest,
       options,
+      manifest,
       remoteTrust,
       runtimeCompatibility,
     );

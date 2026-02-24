@@ -1,14 +1,14 @@
 import * as path from 'path';
-import Koa, { Middleware } from 'koa';
-import type Application from 'koa';
-import Router from 'koa-router';
-import koaBody from 'koa-body';
 import {
-  APIHandlerInfo,
+  type APIHandlerInfo,
   evaluateCrossProjectPolicy,
 } from '@modern-js/bff-core';
-import { fs, compatRequire } from '@modern-js/utils';
 import type { ServerPlugin } from '@modern-js/server-core';
+import { fs, compatRequire } from '@modern-js/utils';
+import Koa, { type Middleware } from 'koa';
+import type Application from 'koa';
+import koaBody from 'koa-body';
+import Router from 'koa-router';
 import { run } from './context';
 import registerRoutes from './registerRoutes';
 

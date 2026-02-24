@@ -1,13 +1,13 @@
-import { createRuntimeExportsUtils } from '@modern-js/utils';
+import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type { CliHookCallbacks, useConfigContext } from '@modern-js/core';
-import type { CliPlugin, AppTools } from '@modern-js/app-tools';
+import { createRuntimeExportsUtils } from '@modern-js/utils';
 import { logger } from '../util';
 import {
+  generateAsyncEntry,
   getRuntimeConfig,
   makeProvider,
   makeRenderFunction,
   setRuntimeConfig,
-  generateAsyncEntry,
 } from './utils';
 
 export type UseConfig = ReturnType<typeof useConfigContext>;
@@ -127,9 +127,7 @@ export const garfishPlugin = ({
             runtimeDigest: resolvedRuntimeDigest,
             integrity,
             attestation,
-          } = getDefaultMicroFrontedConfig(
-            useConfig.deploy?.microFrontend,
-          );
+          } = getDefaultMicroFrontedConfig(useConfig.deploy?.microFrontend);
           runtimeDigest = resolvedRuntimeDigest;
           remoteEntryIntegrity = integrity;
           remoteEntryAttestation = attestation;
@@ -149,9 +147,8 @@ export const garfishPlugin = ({
           sourceConfig.define = {
             ...(runtimeDigest
               ? {
-                  'process.env.MODERN_MF_RUNTIME_DIGEST': JSON.stringify(
-                    runtimeDigest,
-                  ),
+                  'process.env.MODERN_MF_RUNTIME_DIGEST':
+                    JSON.stringify(runtimeDigest),
                 }
               : {}),
             ...(remoteEntryIntegrity

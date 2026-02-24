@@ -47,6 +47,8 @@ const main = () => {
 try {
   main();
 } catch (error) {
-  console.error(`[boundary-guards] anti-pattern checks failed: ${error.message}`);
+  console.error(
+    `[boundary-guards] anti-pattern checks failed: ${error.message}`,
+  );
   process.exit(1);
 }

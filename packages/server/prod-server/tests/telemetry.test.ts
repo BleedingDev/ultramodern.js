@@ -271,6 +271,38 @@ describe('telemetry registry', () => {
 });
 
 describe('telemetry canary orchestrator', () => {
+  test('supports dynamic required contract gate registration', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      rollbackConsecutiveFailures: 1,
+    });
+
+    orchestrator.addRequiredContractGate('runtime-contracts');
+    const missingDecision = orchestrator.evaluate();
+    expect(missingDecision.action).toBe('rollback');
+    expect(
+      missingDecision.failures.some(
+        item =>
+          item.reason === 'contract_gate_missing' &&
+          item.gate === 'runtime-contracts',
+      ),
+    ).toBe(true);
+
+    orchestrator.resetToCanary();
+    orchestrator.setContractGate('runtime-contracts', true);
+    const passingDecision = orchestrator.evaluate();
+    expect(passingDecision.failures).toHaveLength(0);
+
+    await registry.shutdown();
+  });
+
   test('promotes when telemetry and contract gates stay healthy', async () => {
     const registry = new TelemetryRegistry({
       service: 'svc',

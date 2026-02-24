@@ -80,6 +80,70 @@ export interface ServerTelemetryCanaryContractGateUserConfig {
   reason?: string;
 }
 
+export interface ServerTelemetryCanaryAutopilotUserConfig {
+  /**
+   * Enable automatic contract gate synchronization from a gate snapshot file.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * Path to contract gate snapshot JSON file.
+   *
+   * @default ".modern/contract-gates.json"
+   */
+  gateSnapshotPath?: string;
+  /**
+   * Poll interval for reading gate snapshot changes.
+   *
+   * @default 15000
+   */
+  pollIntervalMs?: number;
+  /**
+   * Marks gate entries as failed when they are older than this threshold.
+   *
+   * @default 600000
+   */
+  gateStaleAfterMs?: number;
+  /**
+   * Runtime MF fallback signal ingestion.
+   */
+  runtimeFallbackSignal?: ServerTelemetryCanaryRuntimeFallbackSignalUserConfig;
+}
+
+export interface ServerTelemetryCanaryRuntimeFallbackSignalUserConfig {
+  /**
+   * Enable runtime MF fallback signal ingestion endpoint.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * HTTP endpoint path for runtime fallback events.
+   *
+   * @default "/_modern/contract-gates/runtime-fallback"
+   */
+  endpoint?: string;
+  /**
+   * Contract gate name updated by runtime fallback events.
+   *
+   * @default "runtime-mf-fallback-health"
+   */
+  gateName?: string;
+  /**
+   * How long a runtime fallback signal should hold gate failure status.
+   *
+   * @default 300000
+   */
+  failureHoldMs?: number;
+  /**
+   * Maximum accepted request body size in bytes.
+   *
+   * @default 16384
+   */
+  maxBodyBytes?: number;
+}
+
 export interface ServerTelemetryCanaryUserConfig {
   /**
    * Enable canary rollout/rollback orchestration.
@@ -131,6 +195,10 @@ export interface ServerTelemetryCanaryUserConfig {
     string,
     boolean | ServerTelemetryCanaryContractGateUserConfig
   >;
+  /**
+   * Contract-gate autopilot settings.
+   */
+  autopilot?: ServerTelemetryCanaryAutopilotUserConfig;
 }
 
 export interface ServerTelemetryUserConfig {

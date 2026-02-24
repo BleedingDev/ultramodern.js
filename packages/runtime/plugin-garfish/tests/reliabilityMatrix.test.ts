@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
 import type { ModulesInfo, RemoteTrustIssue } from '../src/runtime';
 import { RuntimeCompatibilityError } from '../src/runtime';
-import { inferFallbackReason } from '../src/runtime/fallbackTelemetry';
 import { validateRuntimeCompatibility } from '../src/runtime/compatibility';
+import { inferFallbackReason } from '../src/runtime/fallbackTelemetry';
 import {
   RemoteTrustPolicyError,
   enforceRemoteTrustPolicy,

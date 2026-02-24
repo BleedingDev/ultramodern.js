@@ -1,12 +1,12 @@
+import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { promises as fs } from 'fs';
-import { describe, expect, it, vi } from 'vitest';
 import {
+  RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
   builderPluginPerformance,
   createRsdoctorDiagnosticsContract,
-  RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
 } from '@/plugins/performance';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@rsdoctor/rspack-plugin', () => ({
   RsdoctorRspackPlugin: class RsdoctorRspackPlugin {
@@ -46,7 +46,9 @@ const createPluginApi = ({
     modifyBuilderConfig: (cb: (builderConfig: any) => void) => {
       modifyBuilderConfigCb = cb;
     },
-    modifyBundlerChain: (cb: (chain: any, utils: { isProd: boolean }) => void) => {
+    modifyBundlerChain: (
+      cb: (chain: any, utils: { isProd: boolean }) => void,
+    ) => {
       modifyBundlerChainCb = cb;
     },
     onBeforeCreateCompiler: (

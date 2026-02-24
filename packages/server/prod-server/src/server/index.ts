@@ -1,34 +1,39 @@
-import { IncomingMessage, ServerResponse, Server as httpServer } from 'http';
+import { promises as nodeFs } from 'fs';
+import type {
+  IncomingMessage,
+  ServerResponse,
+  Server as httpServer,
+} from 'http';
 
 import type { ListenOptions } from 'net';
 import path from 'path';
 import {
-  fs,
-  createLogger,
-  SHARED_DIR,
-  OUTPUT_CONFIG_FILE,
-  dotenv,
-  dotenvExpand,
-  INTERNAL_SERVER_PLUGINS,
-  ensureAbsolutePath,
-} from '@modern-js/utils';
-import {
-  serverManager,
   AppContext,
   ConfigContext,
+  type ServerConfig,
   loadPlugins,
-  ServerConfig,
+  serverManager,
 } from '@modern-js/server-core';
-import { ISAppContext } from '@modern-js/types';
+import type { ISAppContext } from '@modern-js/types';
 import {
-  ModernServerOptions,
-  ServerHookRunner,
-  ServerConstructor,
-  ModernServerInterface,
-} from '../type';
+  fs,
+  INTERNAL_SERVER_PLUGINS,
+  OUTPUT_CONFIG_FILE,
+  SHARED_DIR,
+  createLogger,
+  dotenv,
+  dotenvExpand,
+  ensureAbsolutePath,
+} from '@modern-js/utils';
+import { ContractGateAutopilot } from '../libs/contractGateAutopilot';
+import {
+  getServerConfigPath,
+  loadConfig,
+  requireConfig,
+} from '../libs/loadConfig';
 import { metrics as defaultMetrics } from '../libs/metrics';
 import {
-  TelemetryCanaryDecision,
+  type TelemetryCanaryDecision,
   TelemetryCanaryOrchestrator,
   TelemetryRegistry,
   createOtlpTelemetryExporter,
@@ -36,13 +41,35 @@ import {
   createVictoriaMetricsTelemetryExporter,
   hasEnabledTelemetryExporters,
 } from '../libs/telemetry';
-import {
-  loadConfig,
-  getServerConfigPath,
-  requireConfig,
-} from '../libs/loadConfig';
+import type {
+  ModernServerInterface,
+  ModernServerOptions,
+  ServerConstructor,
+  ServerHookRunner,
+} from '../type';
 import { debug } from '../utils';
 import { createProdServer } from './modernServerSplit';
+
+const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
+const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
+  '/_modern/contract-gates/runtime-fallback';
+const DEFAULT_RUNTIME_FALLBACK_GATE_NAME = 'runtime-mf-fallback-health';
+const DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS = 5 * 60_000;
+const DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES = 16 * 1024;
+
+type RuntimeFallbackSignalConfig = {
+  endpoint: string;
+  gateName: string;
+  gateSnapshotPath: string;
+  failureHoldMs: number;
+  maxBodyBytes: number;
+};
+
+type ContractGateSnapshotFile = {
+  schemaVersion?: number;
+  updatedAt?: number;
+  gates?: Record<string, unknown>;
+};
 
 export class Server {
   public options: ModernServerOptions;
@@ -60,6 +87,10 @@ export class Server {
   private telemetryRegistry?: TelemetryRegistry;
 
   private canaryOrchestrator?: TelemetryCanaryOrchestrator;
+
+  private contractGateAutopilot?: ContractGateAutopilot;
+
+  private runtimeFallbackSignalConfig?: RuntimeFallbackSignalConfig;
 
   constructor(options: ModernServerOptions) {
     options.logger = options.logger || createLogger({ level: 'warn' });
@@ -218,7 +249,8 @@ export class Server {
       slo: {
         queueUtilizationWarnThreshold:
           telemetryConfig.slo?.queueUtilizationWarnThreshold,
-        queueDroppedWarnThreshold: telemetryConfig.slo?.queueDroppedWarnThreshold,
+        queueDroppedWarnThreshold:
+          telemetryConfig.slo?.queueDroppedWarnThreshold,
         alertCooldownMs: telemetryConfig.slo?.alertCooldownMs,
         onAlert: alert => {
           options.logger?.warn(
@@ -259,10 +291,9 @@ export class Server {
 
     const canaryConfig = telemetryConfig.canary;
     if (canaryConfig?.enabled) {
-      const contractGates =
-        canaryConfig.contractGates as
-          | Record<string, boolean | { passed: boolean; reason?: string }>
-          | undefined;
+      const contractGates = canaryConfig.contractGates as
+        | Record<string, boolean | { passed: boolean; reason?: string }>
+        | undefined;
       const orchestrator = new TelemetryCanaryOrchestrator({
         registry,
         evaluationIntervalMs: canaryConfig.evaluationIntervalMs,
@@ -291,7 +322,90 @@ export class Server {
       }
       this.canaryOrchestrator = orchestrator;
       orchestrator.start();
+
+      const autopilotEnabled = canaryConfig.autopilot?.enabled ?? true;
+      if (autopilotEnabled) {
+        const gateSnapshotPath = this.resolveContractGateSnapshotPath(
+          options,
+          canaryConfig.autopilot?.gateSnapshotPath,
+        );
+        this.contractGateAutopilot = new ContractGateAutopilot({
+          orchestrator,
+          gateSnapshotPath,
+          pollIntervalMs: canaryConfig.autopilot?.pollIntervalMs,
+          gateStaleAfterMs: canaryConfig.autopilot?.gateStaleAfterMs,
+          logger: {
+            info: message => {
+              options.logger?.info(message);
+            },
+            warn: message => {
+              options.logger?.warn(message);
+            },
+          },
+        });
+        await this.contractGateAutopilot.start();
+
+        const runtimeSignalConfig =
+          canaryConfig.autopilot?.runtimeFallbackSignal;
+        const runtimeSignalEnabled = runtimeSignalConfig?.enabled ?? true;
+        if (runtimeSignalEnabled) {
+          this.runtimeFallbackSignalConfig = {
+            endpoint: this.resolveRuntimeFallbackSignalEndpoint(
+              runtimeSignalConfig?.endpoint,
+            ),
+            gateName:
+              runtimeSignalConfig?.gateName?.trim() ||
+              DEFAULT_RUNTIME_FALLBACK_GATE_NAME,
+            gateSnapshotPath,
+            failureHoldMs: Math.max(
+              1_000,
+              runtimeSignalConfig?.failureHoldMs ??
+                DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS,
+            ),
+            maxBodyBytes: Math.max(
+              512,
+              runtimeSignalConfig?.maxBodyBytes ??
+                DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES,
+            ),
+          };
+        }
+      }
+
       orchestrator.evaluate();
+    }
+  }
+
+  private resolveContractGateSnapshotPath(
+    options: ModernServerOptions,
+    configuredPath: string | undefined,
+  ) {
+    const rawPath =
+      configuredPath ||
+      process.env.MODERN_CONTRACT_GATES_FILE ||
+      '.modern/contract-gates.json';
+    if (path.isAbsolute(rawPath)) {
+      return rawPath;
+    }
+    return path.resolve(options.pwd, rawPath);
+  }
+
+  private resolveRuntimeFallbackSignalEndpoint(configuredEndpoint?: string) {
+    const rawEndpoint = configuredEndpoint?.trim();
+    if (!rawEndpoint) {
+      return DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT;
+    }
+
+    if (rawEndpoint.startsWith('/')) {
+      return rawEndpoint;
+    }
+
+    try {
+      return (
+        new URL(rawEndpoint).pathname ||
+        DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT
+      );
+    } catch (_error) {
+      return `/${rawEndpoint.replace(/^\/+/, '')}`;
     }
   }
 
@@ -317,6 +431,11 @@ export class Server {
   }
 
   public async close() {
+    if (this.contractGateAutopilot) {
+      this.contractGateAutopilot.stop();
+      this.contractGateAutopilot = undefined;
+    }
+    this.runtimeFallbackSignalConfig = undefined;
     if (this.canaryOrchestrator) {
       this.canaryOrchestrator.stop();
     }
@@ -350,10 +469,205 @@ export class Server {
   }
 
   public getRequestHandler() {
+    const requestHandler = this.server.getRequestHandler();
     return (req: IncomingMessage, res: ServerResponse, next?: () => void) => {
-      const requestHandler = this.server.getRequestHandler();
+      if (this.shouldHandleRuntimeFallbackSignal(req)) {
+        void this.handleRuntimeFallbackSignal(req, res);
+        return;
+      }
       return requestHandler(req, res, next);
     };
+  }
+
+  private shouldHandleRuntimeFallbackSignal(req: IncomingMessage) {
+    const runtimeSignalConfig = this.runtimeFallbackSignalConfig;
+    if (!runtimeSignalConfig) {
+      return false;
+    }
+    if ((req.method || 'GET').toUpperCase() !== 'POST') {
+      return false;
+    }
+    const pathName = this.getRequestPath(req.url);
+    return pathName === runtimeSignalConfig.endpoint;
+  }
+
+  private getRequestPath(urlValue: string | undefined) {
+    try {
+      const requestUrl = new URL(urlValue || '/', 'http://127.0.0.1');
+      return requestUrl.pathname;
+    } catch (_error) {
+      return '/';
+    }
+  }
+
+  private async readRequestBody(req: IncomingMessage, maxBodyBytes: number) {
+    return new Promise<string>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let totalBytes = 0;
+      let done = false;
+
+      const cleanup = () => {
+        req.off('data', onData);
+        req.off('end', onEnd);
+        req.off('error', onError);
+      };
+
+      const onData = (chunk: Buffer | string) => {
+        if (done) {
+          return;
+        }
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalBytes += buffer.length;
+        if (totalBytes > maxBodyBytes) {
+          const error = new Error('runtime fallback signal payload too large');
+          (error as Error & { code?: string }).code = 'PAYLOAD_TOO_LARGE';
+          done = true;
+          cleanup();
+          reject(error);
+          return;
+        }
+        chunks.push(buffer);
+      };
+
+      const onEnd = () => {
+        if (done) {
+          return;
+        }
+        done = true;
+        cleanup();
+        resolve(Buffer.concat(chunks).toString('utf8'));
+      };
+
+      const onError = (error: Error) => {
+        if (done) {
+          return;
+        }
+        done = true;
+        cleanup();
+        reject(error);
+      };
+
+      req.on('data', onData);
+      req.on('end', onEnd);
+      req.on('error', onError);
+    });
+  }
+
+  private async handleRuntimeFallbackSignal(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ) {
+    const runtimeSignalConfig = this.runtimeFallbackSignalConfig;
+    if (!runtimeSignalConfig) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+
+    try {
+      const rawBody = await this.readRequestBody(
+        req,
+        runtimeSignalConfig.maxBodyBytes,
+      );
+      if (!rawBody || rawBody.trim().length === 0) {
+        throw new Error('runtime fallback signal body is empty');
+      }
+
+      const payload = JSON.parse(rawBody);
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('runtime fallback signal body must be a JSON object');
+      }
+
+      await this.persistRuntimeFallbackContractGate(
+        payload as Record<string, unknown>,
+        runtimeSignalConfig,
+      );
+
+      res.statusCode = 202;
+      res.setHeader('content-type', 'application/json');
+      res.end('{"ok":true}');
+    } catch (error) {
+      const code = (error as Error & { code?: string }).code;
+      res.statusCode = code === 'PAYLOAD_TOO_LARGE' ? 413 : 400;
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        `{"ok":false,"error":${JSON.stringify(
+          error instanceof Error ? error.message : String(error),
+        )}}`,
+      );
+      this.options.logger?.warn(
+        `[telemetry.canary.autopilot] runtime fallback signal rejected: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async persistRuntimeFallbackContractGate(
+    payload: Record<string, unknown>,
+    runtimeSignalConfig: RuntimeFallbackSignalConfig,
+  ) {
+    const now = Date.now();
+    const snapshotPath = runtimeSignalConfig.gateSnapshotPath;
+
+    let snapshot: ContractGateSnapshotFile = {
+      schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+      updatedAt: now,
+      gates: {},
+    };
+    if (await fs.pathExists(snapshotPath)) {
+      try {
+        const raw = await nodeFs.readFile(snapshotPath, 'utf8');
+        const parsed = JSON.parse(raw) as ContractGateSnapshotFile;
+        if (parsed && typeof parsed === 'object') {
+          snapshot = {
+            schemaVersion:
+              typeof parsed.schemaVersion === 'number'
+                ? parsed.schemaVersion
+                : CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+            updatedAt:
+              typeof parsed.updatedAt === 'number' ? parsed.updatedAt : now,
+            gates:
+              parsed.gates && typeof parsed.gates === 'object'
+                ? parsed.gates
+                : {},
+          };
+        }
+      } catch (_error) {
+        snapshot = {
+          schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+          updatedAt: now,
+          gates: {},
+        };
+      }
+    }
+
+    const reason =
+      typeof payload.reason === 'string' ? payload.reason : 'runtime_fallback';
+    const phase = typeof payload.phase === 'string' ? payload.phase : 'unknown';
+    const appName =
+      typeof payload.appName === 'string' ? payload.appName : 'unknown';
+    const entry = typeof payload.entry === 'string' ? payload.entry : undefined;
+
+    snapshot.schemaVersion = CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION;
+    snapshot.updatedAt = now;
+    snapshot.gates = snapshot.gates || {};
+    snapshot.gates[runtimeSignalConfig.gateName] = {
+      passed: false,
+      reason: `runtime_fallback:${reason} phase=${phase} app=${appName}${entry ? ` entry=${entry}` : ''}`,
+      updatedAt: now,
+      expiresAt: now + runtimeSignalConfig.failureHoldMs,
+      source: 'runtime-mf-fallback-signal',
+      metadata: payload,
+    };
+
+    await nodeFs.mkdir(path.dirname(snapshotPath), { recursive: true });
+    await nodeFs.writeFile(
+      snapshotPath,
+      `${JSON.stringify(snapshot, null, 2)}\n`,
+    );
+
+    this.options.logger?.warn(
+      `[telemetry.canary.autopilot] runtime fallback signal gate=${runtimeSignalConfig.gateName} reason=${reason} phase=${phase} app=${appName}`,
+    );
   }
 
   public async render(req: IncomingMessage, res: ServerResponse, url?: string) {

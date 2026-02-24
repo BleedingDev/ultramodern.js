@@ -26,7 +26,9 @@ function formatIssueMessage(issue: RuntimeCompatibilityIssue) {
   return `Runtime compatibility handshake failed for "${issue.appName}": host digest "${issue.hostDigest}" does not match remote digest "${issue.remoteDigest}"`;
 }
 
-function resolveMode(mode?: RuntimeCompatibilityMode): RuntimeCompatibilityMode {
+function resolveMode(
+  mode?: RuntimeCompatibilityMode,
+): RuntimeCompatibilityMode {
   return mode ?? 'strict';
 }
 

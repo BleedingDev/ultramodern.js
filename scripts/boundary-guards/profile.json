@@ -76,12 +76,5 @@
       ]
     }
   ],
-  "scanExtensions": [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs"
-  ]
+  "scanExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 }

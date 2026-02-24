@@ -8,6 +8,8 @@ import type {
 } from './useModuleApps';
 
 const DEFAULT_EVENT_NAME = 'modernjs:mf-fallback';
+const DEFAULT_SERVER_REPORT_ENDPOINT =
+  '/_modern/contract-gates/runtime-fallback';
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -85,6 +87,8 @@ export function emitFallbackTelemetry(
     window.dispatchEvent(new CustomEvent(eventName, { detail: payload }));
   }
 
+  reportFallbackTelemetry(payload, config);
+
   return payload;
 }
 
@@ -111,4 +115,76 @@ export function emitErrorFallbackTelemetry(
     },
     config,
   );
+}
+
+function resolveReportEndpoint(endpoint: string | undefined) {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const rawEndpoint = endpoint || DEFAULT_SERVER_REPORT_ENDPOINT;
+  if (/^https?:\/\//i.test(rawEndpoint)) {
+    return rawEndpoint;
+  }
+
+  try {
+    return new URL(rawEndpoint, window.location.href).toString();
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+function reportFallbackTelemetry(
+  payload: MfFallbackEvent,
+  config: MfFallbackTelemetryConfig | undefined,
+) {
+  const shouldReportToServer = config?.reportToServer ?? true;
+  if (!shouldReportToServer || typeof window === 'undefined') {
+    return;
+  }
+
+  const endpoint = resolveReportEndpoint(config?.reportEndpoint);
+  if (!endpoint) {
+    return;
+  }
+
+  const body = JSON.stringify(payload);
+  const reportHeaders = config?.reportHeaders || {};
+  const hasCustomHeaders = Object.keys(reportHeaders).length > 0;
+  const includeCredentials = config?.reportIncludeCredentials ?? false;
+
+  const sendBeacon =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.sendBeacon === 'function'
+      ? navigator.sendBeacon.bind(navigator)
+      : undefined;
+  if (sendBeacon && !hasCustomHeaders && !includeCredentials) {
+    try {
+      sendBeacon(endpoint, body);
+      return;
+    } catch (_error) {
+      // fallback to fetch path
+    }
+  }
+
+  if (typeof fetch !== 'function') {
+    return;
+  }
+
+  try {
+    void fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...reportHeaders,
+      },
+      body,
+      credentials: includeCredentials ? 'include' : 'same-origin',
+      keepalive: true,
+    }).catch(() => {
+      // best-effort reporting only
+    });
+  } catch (_error) {
+    // best-effort reporting only
+  }
 }

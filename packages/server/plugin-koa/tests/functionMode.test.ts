@@ -1,6 +1,6 @@
 import * as path from 'path';
+import { ConfigContext, serverManager } from '@modern-js/server-core';
 import request from 'supertest';
-import { serverManager, ConfigContext } from '@modern-js/server-core';
 import plugin from '../src/plugin';
 import { APIPlugin } from './helpers';
 import './common';

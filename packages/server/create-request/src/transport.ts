@@ -236,7 +236,9 @@ export const executeWithResilience = async ({
     }
 
     const nextInit =
-      controller && !init.signal ? { ...init, signal: controller.signal } : init;
+      controller && !init.signal
+        ? { ...init, signal: controller.signal }
+        : init;
 
     try {
       const { result } = await withTimeout(

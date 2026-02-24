@@ -1,8 +1,6 @@
 const REMOTE_ENTRY_REGEXP = /(^|\/)remoteEntry(?:\.[a-zA-Z0-9_-]+)?\.js$/;
 
-function firstQueryValue(
-  value: unknown,
-): string | undefined {
+function firstQueryValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {
     return value.find(item => typeof item === 'string' && item.length > 0);
   }

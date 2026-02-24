@@ -1,7 +1,10 @@
-import { serializeJson, sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
-import { RenderLevel, RuntimeContext } from '../types';
+import {
+  sanitizeSSRPayload,
+  serializeJson,
+} from '@modern-js/runtime-utils/node';
+import type { RenderLevel, RuntimeContext } from '../types';
 import { attributesToString } from '../utils';
-import { BuildTemplateCb, buildTemplate } from './buildTemplate.share';
+import { type BuildTemplateCb, buildTemplate } from './buildTemplate.share';
 
 type BuildShellAfterTemplateOptions = {
   context: RuntimeContext;

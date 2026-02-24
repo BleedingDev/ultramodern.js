@@ -1,19 +1,20 @@
-// The loading logic of the current component refers to react-loadable https://github.com/jamiebuilds/react-loadable
-import React, { useContext, useState, useEffect, useRef } from 'react';
 // import { withRouter, useMatches } from '@modern-js/runtime/router';
 import { RuntimeReactContext } from '@modern-js/runtime';
 // eslint-disable-next-line import/no-named-as-default
-import Garfish, { interfaces } from 'garfish';
+import Garfish, { type interfaces } from 'garfish';
+// The loading logic of the current component refers to react-loadable https://github.com/jamiebuilds/react-loadable
+import type React from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { generateSubAppContainerKey, logger } from '../../util';
+import { emitFallbackTelemetry } from '../fallbackTelemetry';
+import { Loadable, type MicroProps } from '../loadable';
 // import Loadable from 'react-loadable';
-import {
+import type {
   Manifest,
   MfFallbackTelemetryConfig,
   MicroComponentProps,
   ModulesInfo,
 } from '../useModuleApps';
-import { logger, generateSubAppContainerKey } from '../../util';
-import { Loadable, MicroProps } from '../loadable';
-import { emitFallbackTelemetry } from '../fallbackTelemetry';
 
 export interface Provider extends interfaces.Provider {
   SubModuleComponent?: React.ComponentType<any>;

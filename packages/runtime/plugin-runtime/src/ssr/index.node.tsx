@@ -1,11 +1,11 @@
 import type { Plugin } from '../core';
-import type {
-  SSRPluginConfig,
-  ModernSSRReactComponent,
-} from './serverRender/types';
-import { formatServer } from './utils';
 import render from './serverRender';
 import { createSSRTracker } from './serverRender/tracker';
+import type {
+  ModernSSRReactComponent,
+  SSRPluginConfig,
+} from './serverRender/types';
+import { formatServer } from './utils';
 
 export const ssr = (config: SSRPluginConfig = {}): Plugin => ({
   name: '@modern-js/plugin-ssr',

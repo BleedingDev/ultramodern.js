@@ -1,9 +1,6 @@
 {
   "schemaVersion": 1,
-  "compatibilityLanes": [
-    "effect-first",
-    "tanstack-first"
-  ],
+  "compatibilityLanes": ["effect-first", "tanstack-first"],
   "sharedRequirements": {
     "requiredManifestFields": [
       "moduleId",
@@ -21,11 +18,7 @@
       "usesPolicyMiddleware",
       "usesObservabilityHooks"
     ],
-    "requiredObservabilitySignals": [
-      "metrics",
-      "audit",
-      "trace"
-    ]
+    "requiredObservabilitySignals": ["metrics", "audit", "trace"]
   },
   "families": {
     "crm": {

@@ -4,6 +4,7 @@
     "declaration": false,
     "jsx": "preserve",
     "baseUrl": "./",
+    "rootDir": ".",
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {

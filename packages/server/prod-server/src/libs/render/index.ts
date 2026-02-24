@@ -1,14 +1,14 @@
 import path from 'path';
-import { cutNameByHyphen, mime } from '@modern-js/utils';
+import type { ServerOptions } from '@modern-js/server-core';
 import type { ModernServerContext } from '@modern-js/types';
-import { ServerOptions } from '@modern-js/server-core';
-import { RenderResult, ServerHookRunner } from '../../type';
-import { ModernRoute } from '../route';
+import { cutNameByHyphen, mime } from '@modern-js/utils';
 import { ERROR_DIGEST } from '../../constants';
+import type { RenderResult, ServerHookRunner } from '../../type';
 import { shouldFlushServerHeader } from '../preload/shouldFlushServerHeader';
-import { handleDirectory } from './static';
+import type { ModernRoute } from '../route';
 import { readFile } from './reader';
 import * as ssr from './ssr';
+import { handleDirectory } from './static';
 import { injectServerData } from './utils';
 
 export type RenderHandler = (options: {
@@ -34,7 +34,8 @@ const readUnsafeHeaders = (ssrConfig: unknown): string[] | undefined => {
   if (!ssrConfig || typeof ssrConfig !== 'object') {
     return undefined;
   }
-  const unsafeHeaders = (ssrConfig as { unsafeHeaders?: unknown }).unsafeHeaders;
+  const unsafeHeaders = (ssrConfig as { unsafeHeaders?: unknown })
+    .unsafeHeaders;
   if (!Array.isArray(unsafeHeaders)) {
     return undefined;
   }
@@ -53,7 +54,9 @@ const resolveUnsafeHeaders = (
   }
 
   const entrySSRConfig = conf.server?.ssrByEntries?.[entryName];
-  return readUnsafeHeaders(entrySSRConfig) ?? readUnsafeHeaders(conf.server?.ssr);
+  return (
+    readUnsafeHeaders(entrySSRConfig) ?? readUnsafeHeaders(conf.server?.ssr)
+  );
 };
 
 export const createRenderHandler: CreateRenderHandler = ({

@@ -9,3 +9,5 @@ declare module '@api/effect/index' {
 
   export default hostEffectBff;
 }
+
+declare module '*.css';

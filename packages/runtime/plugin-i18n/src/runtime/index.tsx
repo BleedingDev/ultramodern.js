@@ -82,6 +82,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
       ignoreRedirectRoutes,
     } = localeDetection || {};
     const { enabled: backendEnabled = false } = backend || {};
+    let latestI18nInstance: I18nInstance | undefined;
     let I18nextProvider: React.FunctionComponent<any> | null;
 
     api.onBeforeRender(async context => {
@@ -168,6 +169,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
         exportServerLngToWindow(context, finalLanguage);
       }
       context.i18nInstance = i18nInstance;
+      latestI18nInstance = i18nInstance;
 
       // Add changeLanguage method to context for other runtime plugins to use
       context.changeLanguage = async (newLang: string) => {
@@ -182,7 +184,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
         const runtimeContext = useContext(
           RuntimeContext,
         ) as RuntimeContextWithI18n;
-        const i18nInstance = runtimeContext.i18nInstance;
+        const i18nInstance = runtimeContext.i18nInstance || latestI18nInstance;
         const initialLang = useMemo(
           () =>
             i18nInstance?.language ||

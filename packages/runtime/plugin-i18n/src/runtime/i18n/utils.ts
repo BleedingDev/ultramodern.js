@@ -59,7 +59,8 @@ export const buildInitOptions = async (
     fallbackLng: fallbackLanguage,
     supportedLngs: languages,
     detection: mergedDetection,
-    initImmediate: sanitizedUserInitOptions?.initImmediate ?? true,
+    // Ensure resources are ready before first render unless user opts into async init.
+    initImmediate: sanitizedUserInitOptions?.initImmediate ?? false,
     interpolation: {
       ...(sanitizedUserInitOptions?.interpolation || {}),
       escapeValue:
@@ -328,6 +329,25 @@ export const setupClonedInstance = async (
       );
     }
   } else {
-    await ensureLanguageMatch(i18nInstance, finalLanguage);
+    if (!i18nInstance.isInitialized) {
+      const mergedDetection = mergeDetectionOptions(
+        i18nextDetector,
+        detection,
+        localePathRedirect,
+        userInitOptions,
+      );
+      await initializeI18nInstance(
+        i18nInstance,
+        finalLanguage,
+        fallbackLanguage,
+        languages,
+        mergedDetection,
+        undefined,
+        userInitOptions,
+        false, // SSR always uses false for useSuspense
+      );
+    } else {
+      await ensureLanguageMatch(i18nInstance, finalLanguage);
+    }
   }
 };

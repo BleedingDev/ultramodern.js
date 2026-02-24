@@ -1,4 +1,5 @@
-import garfish, { interfaces as GarfishInterfaces } from 'garfish';
+import type garfish from 'garfish';
+import type { interfaces as GarfishInterfaces } from 'garfish';
 import React, { useContext } from 'react';
 import { logger } from '../util';
 import { GarfishContext } from './utils/Context';
@@ -93,6 +94,10 @@ export type MfFallbackTelemetryConfig = {
   eventName?: string;
   emitConsole?: boolean;
   emitWindowEvent?: boolean;
+  reportToServer?: boolean;
+  reportEndpoint?: string;
+  reportHeaders?: Record<string, string>;
+  reportIncludeCredentials?: boolean;
 };
 export type ModuleInfo = GarfishInterfaces.AppInfo & {
   Component?: React.ComponentType | React.ElementType;

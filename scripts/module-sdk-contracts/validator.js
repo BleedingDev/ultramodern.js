@@ -112,7 +112,10 @@ const validateContractShape = contract => {
     context: 'compatibilityLanes',
   });
 
-  if (!contract.sharedRequirements || typeof contract.sharedRequirements !== 'object') {
+  if (
+    !contract.sharedRequirements ||
+    typeof contract.sharedRequirements !== 'object'
+  ) {
     throw new Error('sharedRequirements must be an object');
   }
 
@@ -122,7 +125,11 @@ const validateContractShape = contract => {
   );
   ensureIncludesAll({
     actual: contract.sharedRequirements.requiredComplianceFlags,
-    required: ['usesSdkContracts', 'usesPolicyMiddleware', 'usesObservabilityHooks'],
+    required: [
+      'usesSdkContracts',
+      'usesPolicyMiddleware',
+      'usesObservabilityHooks',
+    ],
     context: 'sharedRequirements.requiredComplianceFlags',
   });
   ensureIncludesAll({
@@ -151,7 +158,9 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
   const requiredFields = contract.sharedRequirements.requiredManifestFields;
   for (const field of requiredFields) {
     if (!(field in manifest)) {
-      throw new Error(`Manifest ${manifestPath} is missing required field "${field}"`);
+      throw new Error(
+        `Manifest ${manifestPath} is missing required field "${field}"`,
+      );
     }
   }
 
@@ -187,7 +196,9 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
   });
 
   if (!manifest.observability || typeof manifest.observability !== 'object') {
-    throw new Error(`Manifest ${manifestPath} must include observability object`);
+    throw new Error(
+      `Manifest ${manifestPath} must include observability object`,
+    );
   }
 
   ensureIncludesAll({
@@ -216,9 +227,7 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
 
 const resolveManifestPaths = ({ manifestPaths = [], manifestsDir }) => {
   const resolved = new Set(
-    manifestPaths
-      .filter(Boolean)
-      .map(filePath => path.resolve(filePath)),
+    manifestPaths.filter(Boolean).map(filePath => path.resolve(filePath)),
   );
 
   if (manifestsDir) {

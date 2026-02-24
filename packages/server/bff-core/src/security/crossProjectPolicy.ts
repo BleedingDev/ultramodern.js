@@ -25,8 +25,10 @@ export interface CrossProjectPolicyViolation {
   status: number;
 }
 
-const normalizeHeaderName = (headerName: string | undefined, fallback: string) =>
-  (headerName || fallback).trim().toLowerCase();
+const normalizeHeaderName = (
+  headerName: string | undefined,
+  fallback: string,
+) => (headerName || fallback).trim().toLowerCase();
 
 const normalizeStatusCode = (statusCode: number | undefined) => {
   if (

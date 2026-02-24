@@ -21,9 +21,7 @@ type SanitizeSSRPayloadResult<T> = {
   removed: string[];
 };
 
-const isPlainObject = (
-  value: unknown,
-): value is Record<string, unknown> => {
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   if (value === null || typeof value !== 'object') {
     return false;
   }
@@ -98,11 +96,7 @@ export const sanitizeSSRPayload = <T>(
         continue;
       }
 
-      next[key] = walk(
-        currentValue,
-        nextPath,
-        isHeaderContainerKey(key),
-      );
+      next[key] = walk(currentValue, nextPath, isHeaderContainerKey(key));
     }
     return next;
   };

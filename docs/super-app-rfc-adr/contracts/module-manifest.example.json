@@ -15,16 +15,8 @@
     "validateOperationContext"
   ],
   "observability": {
-    "signals": [
-      "metrics",
-      "audit",
-      "trace"
-    ],
-    "hooks": [
-      "emitBusinessMetric",
-      "emitAuditEvent",
-      "emitTraceContext"
-    ]
+    "signals": ["metrics", "audit", "trace"],
+    "hooks": ["emitBusinessMetric", "emitAuditEvent", "emitTraceContext"]
   },
   "compliance": {
     "usesSdkContracts": true,

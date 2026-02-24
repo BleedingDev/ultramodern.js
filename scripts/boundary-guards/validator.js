@@ -7,14 +7,7 @@ const {
 } = require('../module-sdk-contracts/validator');
 
 const SCHEMA_VERSION = 1;
-const DEFAULT_SCAN_EXTENSIONS = [
-  '.ts',
-  '.tsx',
-  '.js',
-  '.jsx',
-  '.mjs',
-  '.cjs',
-];
+const DEFAULT_SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 const DEFAULT_IGNORED_DIRECTORIES = new Set([
   '.git',
   '.hg',
@@ -43,7 +36,9 @@ const walkFiles = (targetPath, extensions) => {
   }
   const stat = fs.statSync(resolvedPath);
   if (stat.isFile()) {
-    return extensions.includes(path.extname(resolvedPath)) ? [resolvedPath] : [];
+    return extensions.includes(path.extname(resolvedPath))
+      ? [resolvedPath]
+      : [];
   }
   if (!stat.isDirectory()) {
     return [];
@@ -104,8 +99,13 @@ const validateProfileShape = profile => {
     );
   }
 
-  if (typeof profile.contractPath !== 'string' || profile.contractPath.trim() === '') {
-    throw new Error('Boundary guard profile must include a non-empty contractPath');
+  if (
+    typeof profile.contractPath !== 'string' ||
+    profile.contractPath.trim() === ''
+  ) {
+    throw new Error(
+      'Boundary guard profile must include a non-empty contractPath',
+    );
   }
 
   if (
@@ -147,13 +147,19 @@ const validateProfileShape = profile => {
       throw new Error(`requiredSnippets[${String(index)}] must be an object`);
     }
     if (typeof check.id !== 'string' || check.id.trim() === '') {
-      throw new Error(`requiredSnippets[${String(index)}].id must be non-empty`);
+      throw new Error(
+        `requiredSnippets[${String(index)}].id must be non-empty`,
+      );
     }
     if (typeof check.path !== 'string' || check.path.trim() === '') {
-      throw new Error(`requiredSnippets[${String(index)}].path must be non-empty`);
+      throw new Error(
+        `requiredSnippets[${String(index)}].path must be non-empty`,
+      );
     }
     if (!Array.isArray(check.includes)) {
-      throw new Error(`requiredSnippets[${String(index)}].includes must be an array`);
+      throw new Error(
+        `requiredSnippets[${String(index)}].includes must be an array`,
+      );
     }
     if (check.orderedIncludes && !Array.isArray(check.orderedIncludes)) {
       throw new Error(
@@ -243,7 +249,10 @@ const validateRequiredSnippets = ({ requiredSnippets, rootDir }) => {
     });
 
     let ordered = true;
-    if (Array.isArray(check.orderedIncludes) && check.orderedIncludes.length > 0) {
+    if (
+      Array.isArray(check.orderedIncludes) &&
+      check.orderedIncludes.length > 0
+    ) {
       let previousIndex = -1;
       check.orderedIncludes.forEach(snippet => {
         const index = content.indexOf(snippet);
@@ -360,7 +369,10 @@ const formatViolations = violations =>
   violations
     .map(violation => {
       const location =
-        violation.filePath || violation.manifestPath || violation.guardId || 'n/a';
+        violation.filePath ||
+        violation.manifestPath ||
+        violation.guardId ||
+        'n/a';
       return `- [${violation.section}] ${violation.message} (${location})`;
     })
     .join('\n');
@@ -417,7 +429,10 @@ const runBoundaryGuardChecks = ({
 
   const allViolations = flattenViolations([
     { section: 'import-guards', violations: importGuardReport.violations },
-    { section: 'required-snippets', violations: requiredSnippetReport.violations },
+    {
+      section: 'required-snippets',
+      violations: requiredSnippetReport.violations,
+    },
     {
       section: 'module-forbidden-patterns',
       violations: forbiddenPatternReport.violations,

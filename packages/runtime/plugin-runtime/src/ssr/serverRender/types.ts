@@ -1,8 +1,8 @@
-import { ServerUserConfig } from '@modern-js/app-tools';
+import type { ServerUserConfig } from '@modern-js/app-tools';
 import type { BaseSSRServerContext } from '@modern-js/types';
 import type { RuntimeContext } from '../../core';
-import { RenderLevel } from './renderToString/type';
 import type { BuildHtmlCb } from './renderToString/buildHtml';
+import { RenderLevel } from './renderToString/type';
 import type { SSRTracker } from './tracker';
 
 export type SSRServerContext = BaseSSRServerContext & {
@@ -15,7 +15,7 @@ export type SSRServerContext = BaseSSRServerContext & {
   tracker: SSRTracker;
 };
 export type ModernSSRReactComponent = React.ComponentType<any>;
-export { RuntimeContext, RenderLevel };
+export { type RuntimeContext, RenderLevel };
 
 export type SSRPluginConfig = {
   crossorigin?: boolean | 'anonymous' | 'use-credentials';

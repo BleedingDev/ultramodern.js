@@ -144,7 +144,9 @@ async function getSubtleCrypto() {
         subtle?: SubtleCryptoLike;
       };
     };
-    return nodeCrypto.webcrypto?.subtle ?? nodeCrypto.default?.webcrypto?.subtle;
+    return (
+      nodeCrypto.webcrypto?.subtle ?? nodeCrypto.default?.webcrypto?.subtle
+    );
   } catch (_error) {
     return undefined;
   }

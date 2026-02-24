@@ -9,8 +9,7 @@ const {
 
 const parseArgs = argv => {
   const parsed = {
-    contractPath:
-      'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json',
+    contractPath: 'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json',
     manifestPaths: [],
     manifestsDir: undefined,
     allowEmptyManifests: false,

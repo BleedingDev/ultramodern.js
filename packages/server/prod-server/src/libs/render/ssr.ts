@@ -1,17 +1,17 @@
 import path from 'path';
+import type { ModernServerContext } from '@modern-js/types';
 import {
   fs,
-  mime,
   LOADABLE_STATS_FILE,
   ROUTE_MANIFEST_FILE,
   SERVER_RENDER_FUNCTION_NAME,
+  mime,
 } from '@modern-js/utils';
-import type { ModernServerContext } from '@modern-js/types';
-import { RenderResult, ServerHookRunner } from '../../type';
+import type { RenderResult, ServerHookRunner } from '../../type';
 import cache from './cache';
-import { SSRServerContext } from './type';
 import { createLogger, createMetrics } from './measure';
-import { injectServerDataStream, injectServerData } from './utils';
+import type { SSRServerContext } from './type';
+import { injectServerData, injectServerDataStream } from './utils';
 
 export const render = async (
   ctx: ModernServerContext,

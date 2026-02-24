@@ -1,12 +1,18 @@
-import { RuntimeCompatibilityError } from '../src/runtime';
-import { RemoteTrustPolicyError } from '../src/runtime/trust';
+import { RuntimeCompatibilityError } from '../src/runtime/compatibility';
 import {
   emitFallbackTelemetry,
   inferFallbackReason,
 } from '../src/runtime/fallbackTelemetry';
-import type { RuntimeCompatibilityIssue } from '../src/runtime';
+import { RemoteTrustPolicyError } from '../src/runtime/trust';
+import type { RuntimeCompatibilityIssue } from '../src/runtime/useModuleApps';
 
 describe('fallback telemetry contract', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
   test('maps runtime compatibility errors to runtime_incompatible reason', () => {
     const issue: RuntimeCompatibilityIssue = {
       appName: 'dashboard',
@@ -57,8 +63,8 @@ describe('fallback telemetry contract', () => {
   });
 
   test('emits structured fallback telemetry through callback and browser event', () => {
-    const onFallback = jest.fn();
-    const eventHandler = jest.fn();
+    const onFallback = rstest.fn();
+    const eventHandler = rstest.fn();
     window.addEventListener(
       'modernjs:test-mf-fallback',
       eventHandler as EventListener,
@@ -75,6 +81,7 @@ describe('fallback telemetry contract', () => {
       {
         eventName: 'modernjs:test-mf-fallback',
         emitConsole: false,
+        reportToServer: false,
         onFallback,
       },
     );
@@ -102,5 +109,60 @@ describe('fallback telemetry contract', () => {
       'modernjs:test-mf-fallback',
       eventHandler as EventListener,
     );
+  });
+
+  test('reports fallback telemetry to server endpoint by default', () => {
+    const mockFetch = rstest
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), { status: 202 }),
+      );
+    global.fetch = mockFetch as typeof fetch;
+
+    emitFallbackTelemetry(
+      {
+        reason: 'runtime_incompatible',
+        phase: 'compatibility',
+        appName: 'dashboard',
+        entry: 'https://remote.example.com/remoteEntry.js',
+      },
+      {
+        emitConsole: false,
+        emitWindowEvent: false,
+        reportEndpoint: 'https://telemetry.example.com/runtime-fallback',
+        reportHeaders: {
+          'x-modernjs-test': '1',
+        },
+      },
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://telemetry.example.com/runtime-fallback');
+    expect(init.method).toBe('POST');
+  });
+
+  test('supports disabling fallback telemetry server reporting', () => {
+    const mockFetch = rstest
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), { status: 202 }),
+      );
+    global.fetch = mockFetch as typeof fetch;
+
+    emitFallbackTelemetry(
+      {
+        reason: 'runtime_init_failed',
+        phase: 'bootstrap',
+      },
+      {
+        emitConsole: false,
+        emitWindowEvent: false,
+        reportToServer: false,
+        reportEndpoint: 'https://telemetry.example.com/runtime-fallback',
+      },
+    );
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

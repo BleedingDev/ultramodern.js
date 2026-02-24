@@ -17,8 +17,7 @@ const PLACEHOLDER_METADATA_VALUES = new Set([
   'to-be-filled',
 ]);
 
-const escapeRegExp = value =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const readJsonFile = filePath => {
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -56,7 +55,10 @@ const validateProfileShape = profile => {
     throw new Error('Profile evidence.requiredMetadataFields must be an array');
   }
 
-  if (!profile.migrationContracts || typeof profile.migrationContracts !== 'object') {
+  if (
+    !profile.migrationContracts ||
+    typeof profile.migrationContracts !== 'object'
+  ) {
     throw new Error('Profile is missing "migrationContracts" section');
   }
 
@@ -87,7 +89,10 @@ const validateMetadataFields = ({
     }
 
     const rawValue = match[2] ? String(match[2]).trim() : '';
-    const normalized = rawValue.replace(/^['"]|['"]$/g, '').trim().toLowerCase();
+    const normalized = rawValue
+      .replace(/^['"]|['"]$/g, '')
+      .trim()
+      .toLowerCase();
     if (!normalized) {
       throw new Error(
         `Metadata field "${field}" has an empty value in evidence file: ${filePath}`,
@@ -215,6 +220,92 @@ const runGateCommands = ({ commands, cwd }) => {
   }
 };
 
+const normalizeGateSnapshot = snapshot => {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      updatedAt: Date.now(),
+      gates: {},
+    };
+  }
+
+  return {
+    schemaVersion:
+      typeof snapshot.schemaVersion === 'number'
+        ? snapshot.schemaVersion
+        : SCHEMA_VERSION,
+    updatedAt:
+      typeof snapshot.updatedAt === 'number' ? snapshot.updatedAt : Date.now(),
+    gates:
+      snapshot.gates && typeof snapshot.gates === 'object'
+        ? snapshot.gates
+        : {},
+  };
+};
+
+const writeGateSnapshot = ({
+  snapshotPath,
+  gateName,
+  passed,
+  reason,
+  summary,
+  profilePath,
+  timestamp,
+}) => {
+  if (!snapshotPath || typeof snapshotPath !== 'string') {
+    throw new Error('Gate snapshot path must be a non-empty string');
+  }
+  if (!gateName || typeof gateName !== 'string') {
+    throw new Error('Gate snapshot gateName must be a non-empty string');
+  }
+
+  const resolvedPath = path.resolve(snapshotPath);
+  const normalizedGateName = gateName.trim();
+  if (!normalizedGateName) {
+    throw new Error('Gate snapshot gateName must be non-empty');
+  }
+
+  let snapshot = normalizeGateSnapshot(undefined);
+  if (fs.existsSync(resolvedPath)) {
+    try {
+      const raw = fs.readFileSync(resolvedPath, 'utf8');
+      snapshot = normalizeGateSnapshot(JSON.parse(raw));
+    } catch (_error) {
+      snapshot = normalizeGateSnapshot(undefined);
+    }
+  }
+
+  const now =
+    typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0
+      ? timestamp
+      : Date.now();
+
+  snapshot.schemaVersion = SCHEMA_VERSION;
+  snapshot.updatedAt = now;
+  snapshot.gates[normalizedGateName] = {
+    passed: Boolean(passed),
+    reason:
+      typeof reason === 'string' && reason.trim().length > 0
+        ? reason.trim()
+        : undefined,
+    updatedAt: now,
+    profilePath: profilePath ? path.resolve(profilePath) : undefined,
+    summary:
+      summary && typeof summary === 'object'
+        ? JSON.parse(JSON.stringify(summary))
+        : undefined,
+  };
+
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  fs.writeFileSync(resolvedPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+  return {
+    snapshotPath: resolvedPath,
+    gateName: normalizedGateName,
+    passed: Boolean(passed),
+    updatedAt: now,
+  };
+};
+
 module.exports = {
   SCHEMA_VERSION,
   readJsonFile,
@@ -222,4 +313,5 @@ module.exports = {
   validateEvidence,
   validateMigrationContracts,
   runGateCommands,
+  writeGateSnapshot,
 };

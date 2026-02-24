@@ -1,4 +1,4 @@
-import {
+import type {
   BuildCacheOptions,
   ConsoleType,
   RsdoctorConfig,
@@ -7,7 +7,7 @@ import {
   SplitCustom,
 } from '../types';
 import { z } from '../utils';
-import { ZodType } from '../zod';
+import type { ZodType } from '../zod';
 
 export const ConsoleTypeSchema: ZodType<ConsoleType> = z.literals([
   'log',

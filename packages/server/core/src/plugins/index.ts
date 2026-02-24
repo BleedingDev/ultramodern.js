@@ -25,6 +25,10 @@ export {
   type TelemetrySignalType,
   type VictoriaMetricsExporterOptions,
 } from './telemetry';
+export {
+  ContractGateAutopilot,
+  type ContractGateAutopilotOptions,
+} from './contractGateAutopilot';
 export { processedByPlugin } from './processedBy';
 export { logPlugin } from './log';
 export {

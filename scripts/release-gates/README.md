@@ -41,6 +41,18 @@ node scripts/release-gates/validate-release-candidate-gates.js \
   --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current
 ```
 
+## Contract gate snapshot output
+
+By default, each validation run updates `.modern/contract-gates.json` with
+pass/fail gate status and timestamps. This snapshot is consumed by canary
+autopilot for automatic contract-gate rollout decisions.
+
+Options:
+
+1. `--gate-snapshot-path <path>` to write to a custom file.
+2. `--gate-name <name>` to override gate key (default: profile `name`).
+3. `--skip-gate-snapshot` to disable snapshot output.
+
 ## Required evidence files
 
 1. `architecture-evidence.md`

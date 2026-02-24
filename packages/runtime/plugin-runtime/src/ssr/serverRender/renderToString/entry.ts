@@ -1,27 +1,27 @@
-import React from 'react';
-import { serializeJson, sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
-import ReactHelmet, { HelmetData } from 'react-helmet';
+import {
+  sanitizeSSRPayload,
+  serializeJson,
+} from '@modern-js/runtime-utils/node';
 // Todo: This import will introduce router code, like remix, even if router config is false
 import { time } from '@modern-js/runtime-utils/time';
+import React from 'react';
+import ReactHelmet, { type HelmetData } from 'react-helmet';
 import { serializeErrors } from '../../../router/runtime/utils';
-import helmetReplace from '../helmet';
-import {
-  RenderLevel,
-  RuntimeContext,
-  ModernSSRReactComponent,
-  SSRPluginConfig,
-  SSRServerContext,
-} from '../types';
 import prefetch from '../../prefetch';
+import helmetReplace from '../helmet';
+import { SSRErrors, SSRTimings, type SSRTracker } from '../tracker';
+import {
+  type ModernSSRReactComponent,
+  RenderLevel,
+  type RuntimeContext,
+  type SSRPluginConfig,
+  type SSRServerContext,
+} from '../types';
 import {
   ROUTER_DATA_JSON_ID,
   SSR_DATA_JSON_ID,
   attributesToString,
 } from '../utils';
-import { SSRErrors, SSRTimings, SSRTracker } from '../tracker';
-import { createLoadableCollector } from './loadable';
-import { createRender } from './render';
-import { createStyledCollector } from './styledComponent';
 import {
   buildHtml,
   createReplaceChunkCss,
@@ -29,7 +29,10 @@ import {
   createReplaceHtml,
   createReplaceSSRDataScript,
 } from './buildHtml';
-import { RenderResult } from './type';
+import { createLoadableCollector } from './loadable';
+import { createRender } from './render';
+import { createStyledCollector } from './styledComponent';
+import type { RenderResult } from './type';
 
 type EntryOptions = {
   ctx: SSRServerContext;

@@ -1,12 +1,12 @@
+import { promises as fs } from 'fs';
+import path from 'path';
 import type {
+  BundlerChain,
   BundlerConfig,
   DefaultBuilderPlugin,
-  BundlerChain,
   RsdoctorConfig,
   SharedNormalizedConfig,
 } from '@modern-js/builder-shared';
-import path from 'path';
-import { promises as fs } from 'fs';
 
 type RsdoctorPluginOptions = {
   disableClientServer: boolean;
@@ -126,7 +126,8 @@ const createRsdoctorDiagnosticsContractPlugin = (
         stage: 10_000,
       },
       async () => {
-        const outputPath = compiler.outputPath || compiler.options?.output?.path;
+        const outputPath =
+          compiler.outputPath || compiler.options?.output?.path;
 
         if (!outputPath) {
           return;

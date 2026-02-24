@@ -1,12 +1,16 @@
+import { promises as nodeFs } from 'fs';
+import path from 'path';
 import type {
   CoreMonitor,
   LogEvent,
   Metrics,
   MonitorEvent,
 } from '@modern-js/types';
+import { fs } from '@modern-js/utils';
 import type { ServerTelemetryUserConfig } from '../types/config';
 import type { ServerPlugin } from '../types/plugins';
 import type { Context, Next, ServerEnv } from '../types/server';
+import { ContractGateAutopilot } from './contractGateAutopilot';
 
 export type TelemetrySignalType = 'log' | 'metric' | 'trace';
 
@@ -176,6 +180,27 @@ const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VM_ENDPOINT = 'http://127.0.0.1:8428/api/v1/import/prometheus';
 const DEFAULT_TIMEOUT_MS = 5_000;
+const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
+const DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH = '.modern/contract-gates.json';
+const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
+  '/_modern/contract-gates/runtime-fallback';
+const DEFAULT_RUNTIME_FALLBACK_GATE_NAME = 'runtime-mf-fallback-health';
+const DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS = 5 * 60_000;
+const DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES = 16 * 1024;
+
+type RuntimeFallbackSignalConfig = {
+  endpoint: string;
+  gateName: string;
+  gateSnapshotPath: string;
+  failureHoldMs: number;
+  maxBodyBytes: number;
+};
+
+type ContractGateSnapshotFile = {
+  schemaVersion?: number;
+  updatedAt?: number;
+  gates?: Record<string, unknown>;
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -953,7 +978,7 @@ export class TelemetryCanaryOrchestrator {
   private readonly maxQueueUtilization: number;
   private readonly maxTotalDropped: number;
   private readonly maxUnhealthyExporters: number;
-  private readonly requiredContractGates: string[];
+  private requiredContractGates: string[] = [];
   private readonly onEvaluate?: (decision: TelemetryCanaryDecision) => void;
   private readonly onPromote?: (decision: TelemetryCanaryDecision) => void;
   private readonly onRollback?: (decision: TelemetryCanaryDecision) => void;
@@ -986,10 +1011,27 @@ export class TelemetryCanaryOrchestrator {
       0,
       options.maxUnhealthyExporters ?? 0,
     );
-    this.requiredContractGates = options.requiredContractGates || [];
+    this.setRequiredContractGates(options.requiredContractGates || []);
     this.onEvaluate = options.onEvaluate;
     this.onPromote = options.onPromote;
     this.onRollback = options.onRollback;
+  }
+
+  setRequiredContractGates(gates: string[]) {
+    this.requiredContractGates = Array.from(
+      new Set(gates.map(item => item.trim()).filter(Boolean)),
+    );
+  }
+
+  addRequiredContractGate(name: string) {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return;
+    }
+
+    if (!this.requiredContractGates.includes(normalizedName)) {
+      this.requiredContractGates.push(normalizedName);
+    }
   }
 
   setContractGate(name: string, passed: boolean, reason?: string) {
@@ -1304,6 +1346,195 @@ export const createTelemetryAwareMetrics = <T extends Metrics>(
   };
 };
 
+function resolveContractGateSnapshotPath(
+  appDirectory: string,
+  configuredPath: string | undefined,
+) {
+  const rawPath =
+    configuredPath ||
+    process.env.MODERN_CONTRACT_GATES_FILE ||
+    DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH;
+  if (path.isAbsolute(rawPath)) {
+    return rawPath;
+  }
+  return path.resolve(appDirectory, rawPath);
+}
+
+function resolveRuntimeFallbackSignalEndpoint(configuredEndpoint?: string) {
+  const rawEndpoint = configuredEndpoint?.trim();
+  if (!rawEndpoint) {
+    return DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT;
+  }
+
+  if (rawEndpoint.startsWith('/')) {
+    return rawEndpoint;
+  }
+
+  try {
+    return (
+      new URL(rawEndpoint).pathname || DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT
+    );
+  } catch (_error) {
+    return `/${rawEndpoint.replace(/^\/+/, '')}`;
+  }
+}
+
+type RuntimeSignalError = Error & {
+  code?: 'PAYLOAD_TOO_LARGE' | 'INVALID_PAYLOAD';
+};
+
+function createRuntimeSignalError(
+  message: string,
+  code: RuntimeSignalError['code'],
+) {
+  const error = new Error(message) as RuntimeSignalError;
+  error.code = code;
+  return error;
+}
+
+function getUtf8ByteLength(input: string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.byteLength(input);
+  }
+  return new TextEncoder().encode(input).length;
+}
+
+async function parseRuntimeFallbackSignalPayload(
+  c: Context<ServerEnv>,
+  maxBodyBytes: number,
+) {
+  const contentLengthHeader = c.req.header('content-length');
+  if (contentLengthHeader) {
+    const contentLength = Number.parseInt(contentLengthHeader, 10);
+    if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+      throw createRuntimeSignalError(
+        'runtime fallback signal payload too large',
+        'PAYLOAD_TOO_LARGE',
+      );
+    }
+  }
+
+  const rawBody = await c.req.raw.text();
+  if (!rawBody || rawBody.trim().length === 0) {
+    throw createRuntimeSignalError(
+      'runtime fallback signal body is empty',
+      'INVALID_PAYLOAD',
+    );
+  }
+  if (getUtf8ByteLength(rawBody) > maxBodyBytes) {
+    throw createRuntimeSignalError(
+      'runtime fallback signal payload too large',
+      'PAYLOAD_TOO_LARGE',
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch (_error) {
+    throw createRuntimeSignalError(
+      'runtime fallback signal body must be valid JSON',
+      'INVALID_PAYLOAD',
+    );
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw createRuntimeSignalError(
+      'runtime fallback signal body must be a JSON object',
+      'INVALID_PAYLOAD',
+    );
+  }
+
+  return payload as Record<string, unknown>;
+}
+
+async function persistRuntimeFallbackContractGate(
+  payload: Record<string, unknown>,
+  runtimeSignalConfig: RuntimeFallbackSignalConfig,
+) {
+  const now = Date.now();
+  const snapshotPath = runtimeSignalConfig.gateSnapshotPath;
+
+  let snapshot: ContractGateSnapshotFile = {
+    schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+    updatedAt: now,
+    gates: {},
+  };
+
+  if (await fs.pathExists(snapshotPath)) {
+    try {
+      const raw = await nodeFs.readFile(snapshotPath, 'utf8');
+      const parsed = JSON.parse(raw) as ContractGateSnapshotFile;
+      if (parsed && typeof parsed === 'object') {
+        snapshot = {
+          schemaVersion:
+            typeof parsed.schemaVersion === 'number'
+              ? parsed.schemaVersion
+              : CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+          updatedAt:
+            typeof parsed.updatedAt === 'number' ? parsed.updatedAt : now,
+          gates:
+            parsed.gates && typeof parsed.gates === 'object'
+              ? parsed.gates
+              : {},
+        };
+      }
+    } catch (_error) {
+      snapshot = {
+        schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+        updatedAt: now,
+        gates: {},
+      };
+    }
+  }
+
+  const reason =
+    typeof payload.reason === 'string' ? payload.reason : 'runtime_fallback';
+  const phase = typeof payload.phase === 'string' ? payload.phase : 'unknown';
+  const appName =
+    typeof payload.appName === 'string' ? payload.appName : 'unknown';
+  const entry = typeof payload.entry === 'string' ? payload.entry : undefined;
+
+  snapshot.schemaVersion = CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION;
+  snapshot.updatedAt = now;
+  snapshot.gates = snapshot.gates || {};
+  snapshot.gates[runtimeSignalConfig.gateName] = {
+    passed: false,
+    reason: `runtime_fallback:${reason} phase=${phase} app=${appName}${entry ? ` entry=${entry}` : ''}`,
+    updatedAt: now,
+    expiresAt: now + runtimeSignalConfig.failureHoldMs,
+    source: 'runtime-mf-fallback-signal',
+    metadata: payload,
+  };
+
+  await nodeFs.mkdir(path.dirname(snapshotPath), { recursive: true });
+  await nodeFs.writeFile(
+    snapshotPath,
+    `${JSON.stringify(snapshot, null, 2)}\n`,
+  );
+}
+
+function emitCanaryDecisionMetric(
+  registry: TelemetryRegistry,
+  decision: TelemetryCanaryDecision,
+  action: 'promote' | 'rollback',
+) {
+  try {
+    registry.enqueueMetric({
+      name: `telemetry.canary.${action}`,
+      value: 1,
+      unit: 'count',
+      tags: {
+        action,
+        state: decision.state,
+        failures: String(decision.failures.length),
+      },
+    });
+  } catch (_error) {
+    // Canary decision metrics are best-effort and must never break request flow.
+  }
+}
+
 export const hasEnabledTelemetryExporters = (
   config: ServerTelemetryUserConfig | undefined,
 ) =>
@@ -1328,15 +1559,19 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       return;
     }
 
-    const { middlewares, metaName } = api.getServerContext();
+    const { middlewares, metaName, appDirectory } = api.getServerContext();
+    const serviceName = telemetryConfig.service || metaName || 'modern-js';
+    const moduleName = telemetryConfig.module || 'server';
+    const environmentName =
+      telemetryConfig.environment ||
+      process.env.MODERN_ENV ||
+      process.env.NODE_ENV ||
+      'development';
+
     const registry = new TelemetryRegistry({
-      service: telemetryConfig.service || metaName || 'modern-js',
-      module: telemetryConfig.module || 'server',
-      environment:
-        telemetryConfig.environment ||
-        process.env.MODERN_ENV ||
-        process.env.NODE_ENV ||
-        'development',
+      service: serviceName,
+      module: moduleName,
+      environment: environmentName,
       samplingRate: telemetryConfig.samplingRate,
       flushIntervalMs: telemetryConfig.flushIntervalMs,
       maxBatchSize: telemetryConfig.maxBatchSize,
@@ -1344,18 +1579,110 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       redactionKeys: telemetryConfig.redactionKeys,
     });
 
-    if (telemetryConfig.exporters?.otlp?.enabled) {
-      void registry.register(
-        createOtlpTelemetryExporter(telemetryConfig.exporters.otlp),
-      );
+    let canaryOrchestrator: TelemetryCanaryOrchestrator | undefined;
+    let contractGateAutopilot: ContractGateAutopilot | undefined;
+    let runtimeFallbackSignalConfig: RuntimeFallbackSignalConfig | undefined;
+
+    const canaryConfig = telemetryConfig.canary;
+    if (canaryConfig?.enabled) {
+      const contractGates = canaryConfig.contractGates as
+        | Record<string, boolean | { passed: boolean; reason?: string }>
+        | undefined;
+
+      canaryOrchestrator = new TelemetryCanaryOrchestrator({
+        registry,
+        evaluationIntervalMs: canaryConfig.evaluationIntervalMs,
+        minConsecutiveHealthyEvaluations:
+          canaryConfig.minConsecutiveHealthyEvaluations,
+        rollbackConsecutiveFailures: canaryConfig.rollbackConsecutiveFailures,
+        maxQueueUtilization: canaryConfig.maxQueueUtilization,
+        maxTotalDropped: canaryConfig.maxTotalDropped,
+        maxUnhealthyExporters: canaryConfig.maxUnhealthyExporters,
+        requiredContractGates: Object.keys(contractGates || {}),
+        onPromote: decision => {
+          emitCanaryDecisionMetric(registry, decision, 'promote');
+        },
+        onRollback: decision => {
+          emitCanaryDecisionMetric(registry, decision, 'rollback');
+        },
+      });
+
+      if (contractGates) {
+        canaryOrchestrator.setContractGates(contractGates);
+      }
+
+      const autopilotEnabled = canaryConfig.autopilot?.enabled ?? true;
+      if (autopilotEnabled) {
+        const gateSnapshotPath = resolveContractGateSnapshotPath(
+          appDirectory,
+          canaryConfig.autopilot?.gateSnapshotPath,
+        );
+
+        contractGateAutopilot = new ContractGateAutopilot({
+          orchestrator: canaryOrchestrator,
+          gateSnapshotPath,
+          pollIntervalMs: canaryConfig.autopilot?.pollIntervalMs,
+          gateStaleAfterMs: canaryConfig.autopilot?.gateStaleAfterMs,
+        });
+
+        const runtimeSignalConfig =
+          canaryConfig.autopilot?.runtimeFallbackSignal;
+        const runtimeSignalEnabled = runtimeSignalConfig?.enabled ?? true;
+        if (runtimeSignalEnabled) {
+          runtimeFallbackSignalConfig = {
+            endpoint: resolveRuntimeFallbackSignalEndpoint(
+              runtimeSignalConfig?.endpoint,
+            ),
+            gateName:
+              runtimeSignalConfig?.gateName?.trim() ||
+              DEFAULT_RUNTIME_FALLBACK_GATE_NAME,
+            gateSnapshotPath,
+            failureHoldMs: Math.max(
+              1_000,
+              runtimeSignalConfig?.failureHoldMs ??
+                DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS,
+            ),
+            maxBodyBytes: Math.max(
+              512,
+              runtimeSignalConfig?.maxBodyBytes ??
+                DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES,
+            ),
+          };
+        }
+      }
     }
 
-    if (telemetryConfig.exporters?.victoriaMetrics?.enabled) {
-      void registry.register(
-        createVictoriaMetricsTelemetryExporter(
-          telemetryConfig.exporters.victoriaMetrics,
-        ),
-      );
+    if (runtimeFallbackSignalConfig) {
+      const signalConfig = runtimeFallbackSignalConfig;
+      middlewares.push({
+        name: 'telemetry-runtime-fallback-signal',
+        path: signalConfig.endpoint,
+        method: 'post',
+        order: 'pre',
+        handler: async (c: Context<ServerEnv>) => {
+          try {
+            const payload = await parseRuntimeFallbackSignalPayload(
+              c,
+              signalConfig.maxBodyBytes,
+            );
+            await persistRuntimeFallbackContractGate(payload, signalConfig);
+            return c.json({ ok: true }, 202);
+          } catch (error) {
+            const signalError = error as RuntimeSignalError;
+            const status = signalError.code === 'PAYLOAD_TOO_LARGE' ? 413 : 400;
+            return c.json(
+              {
+                ok: false,
+                error:
+                  signalError instanceof Error
+                    ? signalError.message
+                    : String(signalError),
+              },
+              status,
+            );
+          }
+        },
+      });
     }
 
     middlewares.push({
@@ -1367,13 +1694,9 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
           const monitor: CoreMonitor = event => {
             registry.enqueue(
               toTelemetryEnvelope(event, {
-                service: telemetryConfig.service || metaName || 'modern-js',
-                module: telemetryConfig.module || 'server',
-                environment:
-                  telemetryConfig.environment ||
-                  process.env.MODERN_ENV ||
-                  process.env.NODE_ENV ||
-                  'development',
+                service: serviceName,
+                module: moduleName,
+                environment: environmentName,
                 traceId: traceContext?.traceId,
                 spanId: traceContext?.spanId,
                 attributes: {
@@ -1388,6 +1711,42 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
 
         await next();
       },
+    });
+
+    let prepared = false;
+    api.onPrepare(async () => {
+      if (prepared) {
+        return;
+      }
+      prepared = true;
+
+      if (telemetryConfig.exporters?.otlp?.enabled) {
+        await registry.register(
+          createOtlpTelemetryExporter(telemetryConfig.exporters.otlp),
+        );
+      }
+
+      if (telemetryConfig.exporters?.victoriaMetrics?.enabled) {
+        await registry.register(
+          createVictoriaMetricsTelemetryExporter(
+            telemetryConfig.exporters.victoriaMetrics,
+          ),
+        );
+      }
+
+      await registry.startupHealthCheck({
+        failLoud: telemetryConfig.failLoudStartup ?? true,
+      });
+
+      if (!canaryOrchestrator) {
+        return;
+      }
+
+      canaryOrchestrator.start();
+      if (contractGateAutopilot) {
+        await contractGateAutopilot.start();
+      }
+      canaryOrchestrator.evaluate();
     });
   },
 });

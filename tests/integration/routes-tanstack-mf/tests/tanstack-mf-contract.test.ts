@@ -34,7 +34,9 @@ describe('tanstack + module federation contracts', () => {
       ]),
     );
 
-    const sharedNames = hostManifest.shared.map((item: { name: string }) => item.name);
+    const sharedNames = hostManifest.shared.map(
+      (item: { name: string }) => item.name,
+    );
     expect(sharedNames).toEqual(
       expect.arrayContaining(['@modern-js/runtime', '@tanstack/react-router']),
     );
@@ -55,11 +57,17 @@ describe('tanstack + module federation contracts', () => {
       ]),
     );
     expect(remote2Manifest.exposes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: 'Panel', path: './Panel' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Panel', path: './Panel' }),
+      ]),
     );
 
-    const remoteShared = remoteManifest.shared.map((item: { name: string }) => item.name);
-    const remote2Shared = remote2Manifest.shared.map((item: { name: string }) => item.name);
+    const remoteShared = remoteManifest.shared.map(
+      (item: { name: string }) => item.name,
+    );
+    const remote2Shared = remote2Manifest.shared.map(
+      (item: { name: string }) => item.name,
+    );
     expect(remoteShared).toContain('@tanstack/react-router');
     expect(remote2Shared).toContain('@tanstack/react-router');
   });
