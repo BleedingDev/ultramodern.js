@@ -53,7 +53,7 @@ UltraModern additions are designed to be optional or backward-compatible whereve
 If you are already on Modern.js v3:
 
 1. Keep your existing app structure.
-2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR staged contract).
+2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR stable contract).
 3. Keep tracking upstream Modern.js updates; UltraModern is designed for that workflow.
 
 ## Baseline Switches (Opt-out)
@@ -64,7 +64,7 @@ The default UltraModern starter baseline enables strict platform contracts. Use 
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
 - `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` (default: `true`): Enables telemetry exporters in baseline config. Disable when the environment has no telemetry backend yet.
 - `MODERN_BASELINE_APP_ID` (default: `basename(process.cwd())`): Overrides baseline `bff.requestId` identity. Set this when you need a fixed platform-wide producer ID convention.
-- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/metrics`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/logs`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
 - `MODERN_TELEMETRY_VICTORIA_ENDPOINT` (default: `http://127.0.0.1:8428/api/v1/import/prometheus`): VictoriaMetrics exporter endpoint. Override when you use a different VM ingress endpoint.
 - `MODERN_TELEMETRY_FAIL_LOUD_STARTUP` (default: `true`): Fails startup if configured exporters fail startup health checks. Disable in local/dev environments where temporary telemetry outage should not block boot.
 

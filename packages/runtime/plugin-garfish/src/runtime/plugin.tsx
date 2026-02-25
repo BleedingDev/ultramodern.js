@@ -12,6 +12,7 @@ import type {
   Manifest,
   MfFallbackTelemetryConfig,
   MicroComponentProps,
+  MicroFrontendProductionProfile,
   ModulesInfo,
   Options,
   RemoteTrustPolicy,
@@ -22,11 +23,24 @@ import { generateMApp } from './utils/MApp';
 import { type AppMap, generateApps } from './utils/apps';
 import setExternal from './utils/setExternal';
 
+const resolveProductionProfile = (
+  profile: MicroFrontendProductionProfile | undefined,
+) => {
+  if (profile) {
+    return profile;
+  }
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+    return 'balanced';
+  }
+  return 'off';
+};
+
 async function initOptions(
   options: Options,
   manifest: Manifest = {},
   remoteTrust?: RemoteTrustPolicy,
   runtimeCompatibility?: RuntimeCompatibilityPolicy,
+  productionProfile?: MicroFrontendProductionProfile,
 ) {
   let apps: ModulesInfo = options.apps || [];
   const modernManifest =
@@ -59,17 +73,53 @@ async function initOptions(
     ...runtimeCompatibility,
     ...manifest.runtimeCompatibility,
   };
-  const compatibilityPolicy = compatibilityPolicyCandidate.hostDigest
-    ? (compatibilityPolicyCandidate as RuntimeCompatibilityPolicy)
-    : undefined;
+  const effectiveProductionProfile =
+    resolveProductionProfile(productionProfile);
+  const runtimeDigestFallback =
+    compatibilityPolicyCandidate.hostDigest ||
+    manifest.runtimeDigest ||
+    modernManifest?.runtimeDigest;
+  const compatibilityPolicy =
+    effectiveProductionProfile === 'off'
+      ? compatibilityPolicyCandidate.hostDigest
+        ? (compatibilityPolicyCandidate as RuntimeCompatibilityPolicy)
+        : undefined
+      : runtimeDigestFallback
+        ? ({
+            hostDigest: runtimeDigestFallback,
+            mode: compatibilityPolicyCandidate.mode || 'strict',
+            requireRemoteDigest:
+              compatibilityPolicyCandidate.requireRemoteDigest ?? true,
+            onIncompatible: compatibilityPolicyCandidate.onIncompatible,
+          } as RuntimeCompatibilityPolicy)
+        : undefined;
 
   const remoteTrustPolicyCandidate: Partial<RemoteTrustPolicy> = {
     ...remoteTrust,
     ...manifest.remoteTrust,
   };
-  const remoteTrustPolicy = Object.keys(remoteTrustPolicyCandidate).length
-    ? (remoteTrustPolicyCandidate as RemoteTrustPolicy)
-    : undefined;
+  const hasRemoteTrustPolicy =
+    Object.keys(remoteTrustPolicyCandidate).length > 0;
+  const remoteTrustPolicy =
+    effectiveProductionProfile === 'off'
+      ? hasRemoteTrustPolicy
+        ? (remoteTrustPolicyCandidate as RemoteTrustPolicy)
+        : undefined
+      : ({
+          productionOnly: remoteTrustPolicyCandidate.productionOnly ?? true,
+          mode:
+            remoteTrustPolicyCandidate.mode ||
+            (effectiveProductionProfile === 'strict' ? 'strict' : 'warn'),
+          requireIntegrity:
+            remoteTrustPolicyCandidate.requireIntegrity ??
+            effectiveProductionProfile === 'strict',
+          verifyIntegrity:
+            remoteTrustPolicyCandidate.verifyIntegrity ??
+            effectiveProductionProfile === 'strict',
+          requireAttestation:
+            remoteTrustPolicyCandidate.requireAttestation ?? false,
+          ...remoteTrustPolicyCandidate,
+        } as RemoteTrustPolicy);
   apps = applyMfEntryCachePolicy(apps, {
     manifestRuntimeDigest: manifest.runtimeDigest,
     globalRuntimeDigest: modernManifest?.runtimeDigest,
@@ -99,6 +149,7 @@ export default (config: Config): Plugin => ({
       remoteTrust,
       runtimeCompatibility,
       fallbackTelemetry,
+      productionProfile,
       ...options
     } = config;
     logger('createPlugin', config);
@@ -107,6 +158,7 @@ export default (config: Config): Plugin => ({
       manifest,
       remoteTrust,
       runtimeCompatibility,
+      productionProfile,
     );
     const telemetryConfigCandidate: Partial<MfFallbackTelemetryConfig> = {
       ...fallbackTelemetry,
@@ -115,6 +167,16 @@ export default (config: Config): Plugin => ({
     const telemetryConfig = Object.keys(telemetryConfigCandidate).length
       ? (telemetryConfigCandidate as MfFallbackTelemetryConfig)
       : undefined;
+    const effectiveProductionProfile =
+      resolveProductionProfile(productionProfile);
+    const resolvedTelemetryConfig =
+      telemetryConfig ||
+      (effectiveProductionProfile !== 'off'
+        ? ({
+            reportToServer: true,
+            reportEndpoint: '/_modern/contract-gates/runtime-fallback',
+          } as MfFallbackTelemetryConfig)
+        : undefined);
     return {
       hoc({ App }, next) {
         class GetMicroFrontendApp extends React.Component {
@@ -154,13 +216,13 @@ export default (config: Config): Plugin => ({
                 const { appInfoList, apps } = generateApps(
                   GarfishConfig,
                   manifest,
-                  telemetryConfig,
+                  resolvedTelemetryConfig,
                 );
                 GarfishInstance.registerApp(appInfoList);
                 const MApp = generateMApp(
                   GarfishConfig,
                   manifest,
-                  telemetryConfig,
+                  resolvedTelemetryConfig,
                 );
                 logger('initOptions result', { manifest, GarfishConfig });
                 logger('generateApps', { MApp, apps, appInfoList });
@@ -178,7 +240,7 @@ export default (config: Config): Plugin => ({
                       source: 'plugin-garfish:init',
                     },
                   },
-                  telemetryConfig,
+                  resolvedTelemetryConfig,
                 );
               }
             };

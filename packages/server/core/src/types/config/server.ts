@@ -109,6 +109,23 @@ export interface ServerTelemetryCanaryAutopilotUserConfig {
    * Runtime MF fallback signal ingestion.
    */
   runtimeFallbackSignal?: ServerTelemetryCanaryRuntimeFallbackSignalUserConfig;
+  /**
+   * Optional pluggable state store backend for contract gate snapshots.
+   * When omitted, snapshots are read/written from gateSnapshotPath on local disk.
+   */
+  stateStore?: ServerTelemetryCanaryAutopilotStateStoreUserConfig;
+}
+
+export interface ServerTelemetryCanaryAutopilotStateStoreUserConfig {
+  /**
+   * Path or package name of a module that exports
+   * `createContractGateSnapshotStore(context)`.
+   */
+  module: string;
+  /**
+   * Optional adapter-specific configuration.
+   */
+  options?: Record<string, unknown>;
 }
 
 export interface ServerTelemetryCanaryRuntimeFallbackSignalUserConfig {
@@ -142,6 +159,80 @@ export interface ServerTelemetryCanaryRuntimeFallbackSignalUserConfig {
    * @default 16384
    */
   maxBodyBytes?: number;
+  /**
+   * Optional runtime trust policy for fallback signal ingestion.
+   * Use this to restrict who can mutate canary contract gates.
+   */
+  trustPolicy?: ServerTelemetryCanaryRuntimeFallbackSignalTrustPolicyUserConfig;
+  /**
+   * Optional request authentication for runtime fallback signal endpoint.
+   */
+  auth?: ServerTelemetryCanaryRuntimeFallbackSignalAuthUserConfig;
+}
+
+export interface ServerTelemetryCanaryRuntimeFallbackSignalAuthUserConfig {
+  /**
+   * Enable auth guard for runtime fallback signal endpoint.
+   *
+   * @default false
+   */
+  enabled?: boolean;
+  /**
+   * Header name carrying runtime fallback auth token.
+   *
+   * @default "x-modernjs-runtime-signal-token"
+   */
+  headerName?: string;
+  /**
+   * Expected token value. Prefer using expectedValueEnv in production.
+   */
+  expectedValue?: string;
+  /**
+   * Name of environment variable that stores expected token value.
+   */
+  expectedValueEnv?: string;
+}
+
+export interface ServerTelemetryCanaryRuntimeFallbackSignalTrustPolicyUserConfig {
+  /**
+   * Allowlist of app names accepted by runtime fallback signal endpoint.
+   * Empty means no app-name allowlist check.
+   */
+  allowedApps?: string[];
+  /**
+   * Allowlist of entry origins accepted by runtime fallback signal endpoint.
+   * Values should be URL origins (for example https://erp.example.com).
+   * Empty means no entry-origin allowlist check.
+   */
+  allowedEntryOrigins?: string[];
+  /**
+   * Expected runtime digest per appName.
+   */
+  expectedRuntimeDigests?: Record<string, string>;
+  /**
+   * Require runtimeDigest to be present in signal payload metadata.
+   *
+   * @default false
+   */
+  enforceRuntimeDigest?: boolean;
+  /**
+   * Maximum accepted signals per app+origin window.
+   *
+   * @default 30
+   */
+  maxSignalsPerWindow?: number;
+  /**
+   * Sliding window size in milliseconds for maxSignalsPerWindow.
+   *
+   * @default 60000
+   */
+  windowMs?: number;
+  /**
+   * Drop duplicate fallback events with the same fingerprint during this window.
+   *
+   * @default 10000
+   */
+  dedupeWindowMs?: number;
 }
 
 export interface ServerTelemetryCanaryUserConfig {

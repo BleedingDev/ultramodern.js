@@ -2,6 +2,7 @@ import nock from 'nock';
 import {
   CrossOriginEnvelopePolicyError,
   IdentityBindingViolationError,
+  OperationContractViolationError,
   ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
   configure,
@@ -215,11 +216,19 @@ describe('configure', () => {
     configure({
       request: customRequestA,
       requestId: producerA,
+      operationContract: {
+        enabled: false,
+      },
+      allowCrossOriginEnvelope: true,
       setDomain: () => urlA,
     });
     configure({
       request: customRequestB,
       requestId: producerB,
+      operationContract: {
+        enabled: false,
+      },
+      allowCrossOriginEnvelope: true,
       setDomain: () => urlB,
     });
 
@@ -249,7 +258,7 @@ describe('configure', () => {
     expect(resB instanceof Response).toBe(true);
   });
 
-  test('should strip client identity headers by default for non-default producer clients', async () => {
+  test('should reject client identity headers by default for non-default producer clients', async () => {
     const producer = 'producer-browser-identity-strip';
     const producerUrl = 'http://localhost:9083';
 
@@ -262,6 +271,9 @@ describe('configure', () => {
     configure({
       request: customRequest,
       requestId: producer,
+      operationContract: {
+        enabled: false,
+      },
       setDomain: () => producerUrl,
     });
 
@@ -273,18 +285,13 @@ describe('configure', () => {
       undefined,
       producer,
     );
-    const res = await request({
-      headers: {
-        'x-tenant-id': 'tenant-client',
-      },
-    });
-
-    const sentHeaders = customRequest.mock.calls[0][1].headers as Record<
-      string,
-      string
-    >;
-    expect(sentHeaders['x-tenant-id']).toBeUndefined();
-    expect(res instanceof Response).toBe(true);
+    await expect(
+      request({
+        headers: {
+          'x-tenant-id': 'tenant-client',
+        },
+      }),
+    ).rejects.toBeInstanceOf(IdentityBindingViolationError);
   });
 
   test('should support derived identity binding headers when explicitly configured', async () => {
@@ -300,8 +307,13 @@ describe('configure', () => {
     configure({
       request: customRequest,
       requestId: producer,
+      operationContract: {
+        enabled: false,
+      },
+      allowCrossOriginEnvelope: true,
       setDomain: () => producerUrl,
       identityBinding: {
+        strict: false,
         deriveHeaders: () => ({
           'x-tenant-id': 'tenant-derived',
         }),
@@ -330,6 +342,9 @@ describe('configure', () => {
     configure({
       requestId: producer,
       setDomain: () => 'http://localhost:9085',
+      operationContract: {
+        enabled: false,
+      },
       identityBinding: {
         strict: true,
       },
@@ -361,6 +376,9 @@ describe('configure', () => {
     try {
       configure({
         requestId: producer,
+        operationContract: {
+          enabled: false,
+        },
         setDomain: () => 'https://producer.internal',
       });
       const request = createRequest(
@@ -396,6 +414,9 @@ describe('configure', () => {
       configure({
         request: customRequest,
         requestId: producer,
+        operationContract: {
+          enabled: false,
+        },
         setDomain: () => producerUrl,
         allowCrossOriginEnvelope: true,
       });
@@ -438,6 +459,7 @@ describe('configure', () => {
     configure({
       request: customRequest,
       requestId: producer,
+      allowCrossOriginEnvelope: true,
       setDomain: () => producerUrl,
     });
 
@@ -448,7 +470,14 @@ describe('configure', () => {
       undefined,
       undefined,
       producer,
-      { traceparent },
+      {
+        traceparent,
+        operationId: `GET:${path}`,
+        routePath: path,
+        method,
+        schemaHash: 'schema-test',
+        operationVersion: 1,
+      },
     );
     await request();
 
@@ -466,6 +495,54 @@ describe('configure', () => {
     expect(operationContext.traceparent).toBe(traceparent);
     expect(operationContext.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
     expect(operationContext.spanId).toBe('00f067aa0ba902b7');
+  });
+
+  test('should reject requests missing schema/version operation contract metadata by default', async () => {
+    const producer = 'producer-browser-operation-contract-default';
+    configure({
+      requestId: producer,
+      allowCrossOriginEnvelope: true,
+      setDomain: () => 'http://localhost:9086',
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+    );
+
+    await expect(request()).rejects.toBeInstanceOf(
+      OperationContractViolationError,
+    );
+  });
+
+  test('should enforce operation contract metadata for default requestId when strict-default mode is enabled', async () => {
+    process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID = 'true';
+    try {
+      configure({
+        operationContract: {
+          enabled: true,
+          strict: true,
+          requireSchemaHash: true,
+          requireOperationVersion: true,
+        },
+      });
+
+      const request = createRequest(path, method, 8080, undefined);
+      await expect(request()).rejects.toBeInstanceOf(
+        OperationContractViolationError,
+      );
+    } finally {
+      configure({
+        operationContract: {
+          enabled: false,
+        },
+      });
+      delete process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID;
+    }
   });
 
   test('should retry with backoff and emit degraded telemetry events', async () => {

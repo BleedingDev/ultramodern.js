@@ -1,6 +1,7 @@
 import * as path from 'path';
 import {
   type APIHandlerInfo,
+  buildOperationContractMap,
   evaluateCrossProjectPolicy,
 } from '@modern-js/bff-core';
 import type { ServerPlugin } from '@modern-js/server-core';
@@ -70,6 +71,49 @@ const applyCrossProjectPolicy = (
   });
 };
 
+const resolveCrossProjectPolicy = (input: {
+  crossProjectPolicy?: Record<string, unknown>;
+  apiHandlerInfos: APIHandlerInfo[];
+  requestId?: string;
+  isCrossProjectServer?: boolean;
+}) => {
+  const {
+    crossProjectPolicy,
+    apiHandlerInfos,
+    requestId,
+    isCrossProjectServer,
+  } = input;
+  if (!crossProjectPolicy && !isCrossProjectServer) {
+    return undefined;
+  }
+
+  const policy = (crossProjectPolicy || {}) as Record<string, any>;
+  const effectiveRequestId =
+    typeof requestId === 'string' && requestId.trim().length > 0
+      ? requestId
+      : 'default';
+  const generatedContracts = buildOperationContractMap({
+    handlers: apiHandlerInfos,
+    requestId: effectiveRequestId,
+  });
+
+  return {
+    ...policy,
+    enabled: policy.enabled ?? Boolean(isCrossProjectServer),
+    requireEnvelope: policy.requireEnvelope ?? true,
+    requireOperationContext: policy.requireOperationContext ?? true,
+    requireOperationContextDetails:
+      policy.requireOperationContextDetails ?? true,
+    requireOperationSchemaHash: policy.requireOperationSchemaHash ?? true,
+    requireOperationVersion: policy.requireOperationVersion ?? true,
+    allowUnknownOperations: policy.allowUnknownOperations ?? false,
+    expectedOperationContracts: {
+      ...(policy.expectedOperationContracts || {}),
+      ...generatedContracts,
+    },
+  };
+};
+
 export default (): ServerPlugin => ({
   name: '@modern-js/plugin-koa',
   pre: ['@modern-js/plugin-bff'],
@@ -83,9 +127,15 @@ export default (): ServerPlugin => ({
       const apiHandlerInfos = appContext.apiHandlerInfos as APIHandlerInfo[];
       const mode = appContext.apiMode;
       const userConfig = api.useConfigContext();
-      const crossProjectPolicy = userConfig.bff?.crossProjectPolicy as
+      const rawCrossProjectPolicy = userConfig.bff?.crossProjectPolicy as
         | Record<string, unknown>
         | undefined;
+      const crossProjectPolicy = resolveCrossProjectPolicy({
+        crossProjectPolicy: rawCrossProjectPolicy,
+        apiHandlerInfos,
+        requestId: userConfig.bff?.requestId,
+        isCrossProjectServer: userConfig.bff?.isCrossProjectServer,
+      });
 
       if (mode === 'framework') {
         app = await findAppModule(apiDir);

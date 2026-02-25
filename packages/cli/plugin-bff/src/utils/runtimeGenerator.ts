@@ -43,10 +43,32 @@ async function runtimeGenerator({
   const runtimeImportPath = JSON.stringify(runtime);
   const requestIdValue = JSON.stringify(requestId);
   const source = `const { configure: _configure } = require(${runtimeImportPath});
+    const defaultSecureOptions = {
+      requestId: ${requestIdValue},
+      requireEnvelope: true,
+      identityBinding: {
+        enabled: true,
+        strict: true,
+      },
+      operationContract: {
+        enabled: true,
+        strict: true,
+        requireSchemaHash: true,
+        requireOperationVersion: true,
+      },
+    };
     const initProducerClient = (options) => {
       return _configure({
+        ...defaultSecureOptions,
         ...options,
-        requestId: ${requestIdValue},
+        identityBinding: {
+          ...defaultSecureOptions.identityBinding,
+          ...(options && options.identityBinding ? options.identityBinding : {}),
+        },
+        operationContract: {
+          ...defaultSecureOptions.operationContract,
+          ...(options && options.operationContract ? options.operationContract : {}),
+        },
       });
     }
     const configure = initProducerClient;
@@ -62,6 +84,19 @@ async function runtimeGenerator({
     request?: F;
     interceptor?: (request: F) => F;
     allowedHeaders?: string[];
+    requireEnvelope?: boolean;
+    allowCrossOriginEnvelope?: boolean;
+    identityBinding?: {
+      enabled?: boolean;
+      strict?: boolean;
+      protectedHeaders?: string[];
+    };
+    operationContract?: {
+      enabled?: boolean;
+      strict?: boolean;
+      requireSchemaHash?: boolean;
+      requireOperationVersion?: boolean;
+    };
     setDomain?: (ops?: {
       target: 'node' | 'browser';
       requestId: string;

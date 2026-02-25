@@ -77,6 +77,9 @@ module.exports = { api };
       expect(generated).toContain('__shouldAttachEnvelopeHeader');
       expect(generated).toContain('__configureRequest');
       expect(generated).toContain('"appNamespace":"test-effect-app"');
+      expect(generated).toContain('operationContext');
+      expect(generated).toContain('"schemaHash"');
+      expect(generated).toContain('"operationVersion":1');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

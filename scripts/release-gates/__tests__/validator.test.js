@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const {
   runGateCommands,
   validateEvidence,
+  validateGateSnapshotFile,
   validateMigrationContracts,
   validateProfileShape,
   writeGateSnapshot,
@@ -184,6 +185,39 @@ test('writeGateSnapshot persists and merges gate records', () => {
     assert.match(
       snapshot.gates['module-onboarding-certification-gates'].reason,
       /reviewer evidence missing/,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateGateSnapshotFile validates shape and required gate names', () => {
+  const dir = makeTempDir();
+  try {
+    const snapshotPath = path.join(dir, 'contract-gates.json');
+    writeGateSnapshot({
+      snapshotPath,
+      gateName: 'release-candidate-contract-gates',
+      passed: true,
+      summary: { validatedEvidenceFiles: 4 },
+      profilePath: 'scripts/release-gates/rc-contract-profile.json',
+      timestamp: 1700000000000,
+    });
+
+    const report = validateGateSnapshotFile({
+      snapshotPath,
+      requiredGateNames: ['release-candidate-contract-gates'],
+    });
+    assert.equal(report.gateCount, 1);
+    assert.deepEqual(report.gates, ['release-candidate-contract-gates']);
+
+    assert.throws(
+      () =>
+        validateGateSnapshotFile({
+          snapshotPath,
+          requiredGateNames: ['module-onboarding-certification-gates'],
+        }),
+      /missing required gate/,
     );
   } finally {
     removeDir(dir);

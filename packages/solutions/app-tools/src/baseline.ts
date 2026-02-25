@@ -25,7 +25,7 @@ export interface AppBaselineOptions {
   enableTelemetryExporters?: boolean;
   /**
    * OTLP exporter endpoint.
-   * @default process.env.MODERN_TELEMETRY_OTLP_ENDPOINT || 'http://127.0.0.1:4318/v1/metrics'
+   * @default process.env.MODERN_TELEMETRY_OTLP_ENDPOINT || 'http://127.0.0.1:4318/v1/logs'
    */
   otlpEndpoint?: string;
   /**
@@ -54,7 +54,7 @@ export const createAppBaselineConfig = (
     enableTelemetry = true,
     enableTelemetryExporters = true,
     otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT ||
-      'http://127.0.0.1:4318/v1/metrics',
+      'http://127.0.0.1:4318/v1/logs',
     victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT ||
       'http://127.0.0.1:8428/api/v1/import/prometheus',
     telemetryFailLoudStartup = true,

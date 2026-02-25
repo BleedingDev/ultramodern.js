@@ -239,10 +239,15 @@ const hasModuleFederationMarker = (config: EnvironmentConfigLike): boolean => {
   return plugins.some(isModuleFederationRspackPlugin);
 };
 
+const isNodeEnvironmentTarget = (target: unknown): boolean =>
+  typeof target === 'string' &&
+  (target === 'node' || target === 'async-node' || target.startsWith('node'));
+
 export const shouldUseModuleFederationNodeOutput = (
   config: EnvironmentConfigLike,
 ): boolean =>
-  config.output?.target === 'node' && hasModuleFederationMarker(config);
+  isNodeEnvironmentTarget(config.output?.target) &&
+  hasModuleFederationMarker(config);
 
 const ssrBuilderPlugin = (
   modernAPI: CLIPluginAPI<AppTools>,
@@ -253,14 +258,38 @@ const ssrBuilderPlugin = (
   setup(api) {
     api.modifyEnvironmentConfig((config, { name, mergeEnvironmentConfig }) => {
       const isServerEnvironment =
-        config.output.target === 'node' || name === 'workerSSR';
+        isNodeEnvironmentTarget(config.output.target) || name === 'workerSSR';
       const userConfig = modernAPI.getNormalizedConfig();
+      const hasServerRendering = hasServerRenderingConfig(userConfig);
+      const hasModuleFederationRuntimeMarker =
+        shouldUseModuleFederationNodeOutput(config);
+      const hasExplicitMfSsrFlag = isModuleFederationAppSSREnabled(userConfig);
+      const requireExplicitMfSsrFlag =
+        process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT === 'true';
+
+      if (
+        hasServerRendering &&
+        hasModuleFederationRuntimeMarker &&
+        !hasExplicitMfSsrFlag
+      ) {
+        const warningMessage =
+          '[modernjs][mf-ssr] Module Federation SSR was auto-detected from runtime markers. Set server.ssr.moduleFederationAppSSR=true explicitly in host and remotes to avoid heuristic drift.';
+        if (requireExplicitMfSsrFlag) {
+          throw new Error(
+            `${warningMessage} (enforced by MODERN_MF_APP_SSR_REQUIRE_EXPLICIT=true)`,
+          );
+        }
+        // eslint-disable-next-line no-console
+        console.warn(warningMessage);
+      }
       const isModuleFederationAppSSR =
-        isModuleFederationAppSSREnabled(userConfig);
+        hasServerRendering &&
+        (hasExplicitMfSsrFlag || hasModuleFederationRuntimeMarker);
       const useModuleFederationNodeOutput =
-        hasServerRenderingConfig(userConfig) &&
-        (shouldUseModuleFederationNodeOutput(config) ||
-          (isModuleFederationAppSSR && config.output.target === 'node'));
+        hasServerRendering &&
+        (hasModuleFederationRuntimeMarker ||
+          (isModuleFederationAppSSR &&
+            isNodeEnvironmentTarget(config.output.target)));
 
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =

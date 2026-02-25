@@ -22,9 +22,45 @@ export interface BffCrossProjectPolicyUserConfig {
    */
   requireOperationContext?: boolean;
   /**
+   * Require operation-context detail header carrying schema/version metadata.
+   *
+   * @default true
+   */
+  requireOperationContextDetails?: boolean;
+  /**
+   * Require operation schema hash in operation-context details.
+   *
+   * @default true
+   */
+  requireOperationSchemaHash?: boolean;
+  /**
+   * Require operation version in operation-context details.
+   *
+   * @default true
+   */
+  requireOperationVersion?: boolean;
+  /**
    * Optional allowlist of producer namespaces derived from requestId.
    */
   allowedNamespaces?: string[];
+  /**
+   * Optional operation-contract map keyed by:
+   * - `${METHOD}:${routePath}`
+   * - `operation:${requestId}:${operationId}`
+   */
+  expectedOperationContracts?: Record<
+    string,
+    {
+      schemaHash?: string;
+      operationVersion?: number;
+    }
+  >;
+  /**
+   * Allow operations missing from expectedOperationContracts.
+   *
+   * @default false
+   */
+  allowUnknownOperations?: boolean;
   /**
    * HTTP status code used for denied requests.
    *

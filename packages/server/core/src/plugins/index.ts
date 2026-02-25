@@ -29,6 +29,22 @@ export {
   ContractGateAutopilot,
   type ContractGateAutopilotOptions,
 } from './contractGateAutopilot';
+export {
+  CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+  DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH,
+  createFileContractGateSnapshotStore,
+  createHttpContractGateSnapshotStore,
+  resolveContractGateSnapshotPath,
+  resolveContractGateSnapshotStore,
+  type ContractGateSnapshotHttpStoreOptions,
+  type ContractGateSnapshotStore,
+  type ContractGateSnapshotStoreFactory,
+  type ContractGateSnapshotStoreFactoryContext,
+  type ContractGateSnapshotStoreModule,
+  type ContractGateSnapshotStoreUserConfig,
+  type GateSnapshot,
+  type GateSnapshotGateValue,
+} from './contractGateSnapshotStore';
 export { processedByPlugin } from './processedBy';
 export { logPlugin } from './log';
 export {

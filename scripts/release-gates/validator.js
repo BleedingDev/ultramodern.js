@@ -306,6 +306,71 @@ const writeGateSnapshot = ({
   };
 };
 
+const validateGateSnapshotShape = snapshot => {
+  if (!snapshot || typeof snapshot !== 'object') {
+    throw new Error('Gate snapshot must be a JSON object');
+  }
+
+  if (
+    typeof snapshot.schemaVersion !== 'number' ||
+    snapshot.schemaVersion <= 0
+  ) {
+    throw new Error('Gate snapshot schemaVersion must be a positive number');
+  }
+
+  if (typeof snapshot.updatedAt !== 'number' || snapshot.updatedAt <= 0) {
+    throw new Error('Gate snapshot updatedAt must be a positive timestamp');
+  }
+
+  if (!snapshot.gates || typeof snapshot.gates !== 'object') {
+    throw new Error('Gate snapshot gates must be an object');
+  }
+};
+
+const validateGateSnapshotFile = ({ snapshotPath, requiredGateNames = [] }) => {
+  const resolvedSnapshotPath = path.resolve(snapshotPath);
+  ensureFileExists(resolvedSnapshotPath);
+  const snapshot = readJsonFile(resolvedSnapshotPath);
+  validateGateSnapshotShape(snapshot);
+
+  const gates = snapshot.gates;
+  const gateNames = Object.keys(gates);
+
+  for (const gateName of requiredGateNames) {
+    if (!gateNames.includes(gateName)) {
+      throw new Error(
+        `Gate snapshot is missing required gate "${gateName}" in ${resolvedSnapshotPath}`,
+      );
+    }
+  }
+
+  for (const [gateName, gateValue] of Object.entries(gates)) {
+    if (!gateValue || typeof gateValue !== 'object') {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must be an object in ${resolvedSnapshotPath}`,
+      );
+    }
+
+    if (typeof gateValue.passed !== 'boolean') {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must include boolean "passed"`,
+      );
+    }
+
+    if (typeof gateValue.updatedAt !== 'number' || gateValue.updatedAt <= 0) {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must include positive numeric "updatedAt"`,
+      );
+    }
+  }
+
+  return {
+    snapshotPath: resolvedSnapshotPath,
+    gateCount: gateNames.length,
+    gates: gateNames.sort(),
+  };
+};
+
 module.exports = {
   SCHEMA_VERSION,
   readJsonFile,
@@ -314,4 +379,5 @@ module.exports = {
   validateMigrationContracts,
   runGateCommands,
   writeGateSnapshot,
+  validateGateSnapshotFile,
 };

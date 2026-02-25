@@ -15,7 +15,7 @@ describe('app baseline config', () => {
       exporters: {
         otlp: {
           enabled: true,
-          endpoint: 'http://127.0.0.1:4318/v1/metrics',
+          endpoint: 'http://127.0.0.1:4318/v1/logs',
         },
         victoriaMetrics: {
           enabled: true,

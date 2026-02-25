@@ -15,7 +15,7 @@ Map ticket gates (A-D) to CI jobs, required artifacts, and blocker semantics so 
 | --- | --- | --- | --- |
 | Gate A: Architecture scope review | PR description + ticket docs checks (manual today) | Scope/out-of-scope, ADR links, compatibility impact, risk/rollback note | Ticket cannot move to implementation if architecture evidence missing |
 | Gate B: Implementation validation | `type-check.yml`, targeted build workflow (`build-main-website.yml`, `build-builder-website.yml`, `build-module-website.yml`, or relevant lane workflow) | Reproducible validation command list and pass output excerpt | Missing validation evidence blocks ticket close |
-| Gate C: Testing proof | `test-macOS.yml`, `test-Windows.yml`, `vitest-macOS.yml`, `vitest-Windows.yml`, `integration-test-Linux.yml`, `integration-test-Windows.yml`, targeted E2E (`test-builder-e2e.yml`, `test-garfish-e2e.yml`) | Test inventory + command list + pass/fail summary + follow-up ticket for known gaps | Any failed required test blocks ticket close |
+| Gate C: Testing proof | `ut-macOS.yml`, `ut-Windows.yml`, `integration-test-Linux.yml`, `integration-test-Windows.yml`, targeted E2E (`test-builder-e2e.yml`) | Test inventory + command list + pass/fail summary + follow-up ticket for known gaps | Any failed required test blocks ticket close |
 | Gate D: Final review (>=2 subagents) | Manual evidence gate (automatable in follow-up) | Two reviewer records, finding status, residual-risk resolution | Missing dual-review evidence blocks ticket close and release promotion |
 
 ## 3. Required Artifact Contract
@@ -41,15 +41,13 @@ Current workflow set referenced by this mapping:
 
 1. Lint and policy: `.github/workflows/lint-Linux.yml`
 2. Type check: `.github/workflows/type-check.yml`
-3. Unit tests: `.github/workflows/test-macOS.yml`, `.github/workflows/test-Windows.yml`
-4. Vitest: `.github/workflows/vitest-macOS.yml`, `.github/workflows/vitest-Windows.yml`
-5. Integration tests: `.github/workflows/integration-test-Linux.yml`, `.github/workflows/integration-test-Windows.yml`
-6. E2E: `.github/workflows/test-builder-e2e.yml`, `.github/workflows/test-garfish-e2e.yml`
-7. Release gates: `.github/workflows/release.yml`, `.github/workflows/release-pull-request.yml`, `.github/workflows/release-nightly.yml`
-8. RC contract gates: `.github/workflows/release-contract-gates.yml`
-9. Boundary anti-pattern checks: `.github/workflows/boundary-anti-patterns.yml`
-10. Module certification gates: `.github/workflows/module-certification-gates.yml`
-11. Bun super-app smoke: `.github/workflows/bun-superapp-smoke.yml`
+3. Unit tests: `.github/workflows/ut-macOS.yml`, `.github/workflows/ut-Windows.yml`
+4. Integration tests: `.github/workflows/integration-test-Linux.yml`, `.github/workflows/integration-test-Windows.yml`
+5. E2E: `.github/workflows/test-builder-e2e.yml`
+6. RC contract gates: `.github/workflows/release-contract-gates.yml`
+7. Boundary anti-pattern checks: `.github/workflows/boundary-anti-patterns.yml`
+8. Module certification gates: `.github/workflows/module-certification-gates.yml`
+9. Bun super-app smoke: `.github/workflows/bun-superapp-smoke.yml`
 
 ## 5. Blocking Enforcement Model
 
@@ -57,7 +55,7 @@ Current workflow set referenced by this mapping:
 2. Ticket close is blocked if any required gate artifact is missing.
 3. Release promotion is blocked if Gate D evidence or required test evidence is absent.
 4. Waivers must include approver identity, rationale, and expiry date.
-5. Current limitation: artifact-shape and dual-review completeness are still manually verified until follow-up automation in section 7 lands.
+5. Artifact-shape and dual-review completeness are CI-enforced via release gate validators and gate snapshot checks.
 
 ## 6. Scope-to-Workflow Selection Rules
 
@@ -74,9 +72,9 @@ Current workflow set referenced by this mapping:
 
 This mapping defines the contract; automation hardening should be implemented incrementally:
 
-1. Add CI job that validates presence/shape of gate artifacts.
-2. Add status check that verifies two-reviewer evidence for Gate D.
-3. Add release gate checker that refuses promotion when required evidence is missing.
+1. CI validates evidence presence/shape and reviewer count via `validate-release-candidate-gates.js`.
+2. PR workflows for release/module certification gates run as status checks on evidence and gate tooling changes.
+3. Gate snapshot artifact shape is validated via `validate-gate-snapshot.js` and required gate-name assertions.
 
 Status update (2026-02-22):
 
@@ -102,6 +100,13 @@ Status update (2026-02-22):
 6. Added Bun smoke gate workflow:
   - `.github/workflows/bun-superapp-smoke.yml`
   - `package.json` script `validate:bun-smoke`
+7. Added PR status checks for gate evidence automation:
+  - `.github/workflows/release-contract-gates.yml` (pull_request trigger + gate snapshot validation)
+  - `.github/workflows/module-certification-gates.yml` (pull_request trigger + gate snapshot validation)
+8. Added gate snapshot shape validator:
+  - `scripts/release-gates/validate-gate-snapshot.js`
+  - `scripts/release-gates/validator.js` (`validateGateSnapshotFile`)
+  - `package.json` script `validate:gate-snapshot`
 
 ## 8. Exit Criteria For CI-GATES-0001
 

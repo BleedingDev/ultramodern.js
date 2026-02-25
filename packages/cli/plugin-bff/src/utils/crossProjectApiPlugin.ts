@@ -55,6 +55,32 @@ export const crossProjectApiPlugin = (): CliPlugin<AppTools> => ({
         | 'hono'
         | 'effect';
       resolvedConfig.bff.isCrossProjectServer = true;
+      resolvedConfig.bff.requestId =
+        resolvedConfig.bff.requestId ||
+        config?.bff?.requestId ||
+        PACKAGE_NAME ||
+        'default';
+      resolvedConfig.bff.crossProjectPolicy = {
+        ...(resolvedConfig.bff.crossProjectPolicy || {}),
+        enabled: resolvedConfig.bff.crossProjectPolicy?.enabled ?? true,
+        requireEnvelope:
+          resolvedConfig.bff.crossProjectPolicy?.requireEnvelope ?? true,
+        requireOperationContext:
+          resolvedConfig.bff.crossProjectPolicy?.requireOperationContext ??
+          true,
+        requireOperationContextDetails:
+          resolvedConfig.bff.crossProjectPolicy
+            ?.requireOperationContextDetails ?? true,
+        requireOperationSchemaHash:
+          resolvedConfig.bff.crossProjectPolicy?.requireOperationSchemaHash ??
+          true,
+        requireOperationVersion:
+          resolvedConfig.bff.crossProjectPolicy?.requireOperationVersion ??
+          true,
+        allowUnknownOperations:
+          resolvedConfig.bff.crossProjectPolicy?.allowUnknownOperations ??
+          false,
+      };
       return resolvedConfig;
     });
   },

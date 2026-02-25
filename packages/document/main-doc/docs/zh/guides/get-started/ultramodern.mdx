@@ -35,14 +35,14 @@ UltraModern.js V3 是构建在 Modern.js V3 之上的兼容增强发行版，目
 | Telemetry 导出器 | 导出链路依赖业务自建 | 内置 OTLP 与 VictoriaMetrics 导出器 | 已实现 | 导出失败不会中断请求链路 |
 | Telemetry 背压契约 | 无统一队列策略 | 内置队列上限、丢弃计数、定时 flush | 已实现 | 背压时上报 `telemetry.queue.dropped` |
 | Metrics 与 Trace 关联 | SSR metrics 不解析 W3C trace 上下文 | 解析 `traceparent` 并注入 `trace_id` / `span_id` 标签 | 已实现 | 提升跨系统观测关联度 |
-| 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR 稳定性契约开关 | 新增 `server.ssr.moduleFederationAppSSR` 分阶段稳定契约 | 已实现（分阶段稳定契约） | 注入 `process.env.MODERN_MF_APP_SSR` |
-| 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V3 仅提供合约/环境变量，完整桥接仍在分阶段推进 | 设计上部分支持 | 需受控灰度 |
+| 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR 稳定性契约开关 | 新增 `server.ssr.moduleFederationAppSSR`，并在检测到 MF SSR 标记时自动启用环境变量握手 | 已实现 | 注入 `process.env.MODERN_MF_APP_SSR` |
+| 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V3 在「服务端渲染 + MF 标记」场景下提供稳定桥接默认行为 | 已实现 | 保留显式关闭路径 |
 | MF 远程加载可靠性契约 | 远程加载重试/降级策略通常由业务自管 | 新增 timeout/network/contract-error 的确定性降级矩阵与分布式 OTEL 连续性断言 | 已实现 | 对应 `routes-tanstack-mf` 可靠性套件 |
 | BFF 运行时选型 | Modern.js V3 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-only MF 数据契约与 failure-injection 覆盖 | 已实现（Effect 默认 + 严格拆分） | 该流明确不引入 Zod |
 | 模块 SDK 合约产物 | 无框架级模块契约产物 | 新增机器可读模块家族契约与类型化模块 SDK 接口 | 已实现 | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | 边界反模式 CI 守卫 | 无专门边界反模式工作流 | 新增基于 profile 的边界检查（导入边界/必需钩子/模块禁用模式） | 已实现 | `.github/workflows/boundary-anti-patterns.yml` |
 | 发布 / 模块认证 Gate 自动化 | 基线无 super-app 证据化 gate profile | 新增 RC + 模块认证 gate profile、证据元数据校验与专用 CI 工作流 | 已实现 | `.github/workflows/release-contract-gates.yml` + 模块/Bun gate 工作流 |
-| 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR 分阶段契约环境变量的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
+| 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR MF 合约环境变量的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
 | 公开文档面 | 无 UltraModern V3 差异总览页 | 新增 V3 专用差异页并补齐关联配置文档 | 已实现 | 本页为 V3 权威基准 |
 
 ## V3 详细差异说明
@@ -153,7 +153,7 @@ V3 重要行为：
 
 用于提升应用指标与分布式追踪系统之间的关联能力。
 
-### 5) 应用级 MF SSR 分阶段契约（`server.ssr.moduleFederationAppSSR`）
+### 5) 应用级 MF SSR 稳定契约（`server.ssr.moduleFederationAppSSR`）
 
 UltraModern.js V3 新增：
 
@@ -171,9 +171,7 @@ export default defineConfig({
 });
 ```
 
-:::warning
-在 UltraModern.js V3 中，该开关已经提供稳定的配置/环境变量契约。完整的应用级 Module Federation SSR 运行时桥接仍处于分阶段推进中。
-:::
+当检测到 MF SSR 标记且启用了服务端渲染时，V3 会自动进入同一套稳定合约路径；如需灰度，可通过配置/环境变量显式关闭。
 
 ### 6) V3 的合约级测试加固
 
@@ -286,7 +284,7 @@ UltraModern 默认 create 模板会开启更严格的平台契约。以下环境
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。
 - `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS`（默认：`true`）：在基线配置中启用 telemetry 导出器。当前环境还没有 telemetry 后端时可关闭。
 - `MODERN_BASELINE_APP_ID`（默认：`basename(process.cwd())`）：覆盖基线 `bff.requestId` 身份。需要固定、可治理的统一 producer ID 命名时建议设置。
-- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/metrics`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
+- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/logs`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
 - `MODERN_TELEMETRY_VICTORIA_ENDPOINT`（默认：`http://127.0.0.1:8428/api/v1/import/prometheus`）：VictoriaMetrics 导出端点。接入其他 VM 写入地址时覆盖。
 - `MODERN_TELEMETRY_FAIL_LOUD_STARTUP`（默认：`true`）：导出器健康检查失败时启动即失败（fail-loud）。本地/开发环境希望 telemetry 故障不阻断启动时可关闭。
 

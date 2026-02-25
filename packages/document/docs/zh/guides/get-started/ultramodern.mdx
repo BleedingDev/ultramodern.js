@@ -53,7 +53,7 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 如果你已经在使用 Modern.js v3：
 
 1. 保持现有应用结构不变。
-2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR 分阶段契约）。
+2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR 稳定契约）。
 3. 持续跟进上游 Modern.js 更新，UltraModern 即按该模式设计。
 
 ## 基线开关（可按需关闭）
@@ -64,7 +64,7 @@ UltraModern 默认脚手架会开启更严格的平台契约。以下环境变�
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。
 - `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS`（默认：`true`）：在基线配置中启用 telemetry 导出器。当前环境还没有 telemetry 后端时可关闭。
 - `MODERN_BASELINE_APP_ID`（默认：`basename(process.cwd())`）：覆盖基线 `bff.requestId` 身份。需要固定、可治理的统一 producer ID 命名时建议设置。
-- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/metrics`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
+- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/logs`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
 - `MODERN_TELEMETRY_VICTORIA_ENDPOINT`（默认：`http://127.0.0.1:8428/api/v1/import/prometheus`）：VictoriaMetrics 导出端点。接入其他 VM 写入地址时覆盖。
 - `MODERN_TELEMETRY_FAIL_LOUD_STARTUP`（默认：`true`）：导出器健康检查失败时启动即失败（fail-loud）。本地/开发环境希望 telemetry 故障不阻断启动时可关闭。
 
