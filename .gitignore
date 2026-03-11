@@ -60,3 +60,5 @@ playground/
 dist-1
 .vercel
 dist-ssg
+.dolt/
+*.db
