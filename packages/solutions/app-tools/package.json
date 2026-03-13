@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.0.2",
+  "version": "3.0.5",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
   "exports": {
@@ -105,7 +105,7 @@
     "es-module-lexer": "^2.0.0",
     "esbuild": "^0.27.3",
     "esbuild-register": "^3.6.0",
-    "flatted": "^3.3.3",
+    "flatted": "^3.4.0",
     "mlly": "^1.8.0",
     "ndepe": "^0.1.13",
     "pkg-types": "^2.3.0",

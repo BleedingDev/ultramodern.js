@@ -13,6 +13,7 @@ module.exports = {
     '/integration/bff-effect/',
     '/integration/bff-effect-lambda-only/',
     '/integration/bff-runtime-parity/',
+    '/rstest',
   ],
   transform: {
     '^.+.tsx?$': 'ts-jest',

@@ -277,7 +277,9 @@ declare module '@modern-js/runtime/tanstack-router' {
             entryName: entrypoint.entryName,
             internalDirectory,
             splitRouteChunks: config?.output?.splitRouteChunks,
-            isRscClient: isUseRsc(config),
+            isRscClientBundle: isUseRsc(config),
+            srcDirectory,
+            internalSrcAlias: appContext.internalSrcAlias,
           }),
         });
 
@@ -313,7 +315,9 @@ declare module '@modern-js/runtime/tanstack-router' {
             entryName: entrypoint.entryName,
             internalDirectory,
             splitRouteChunks: config?.output?.splitRouteChunks,
-            isRscClient: false,
+            isRscClientBundle: false,
+            srcDirectory,
+            internalSrcAlias: appContext.internalSrcAlias,
           });
 
           await fs.outputFile(

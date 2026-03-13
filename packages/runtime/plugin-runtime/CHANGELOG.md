@@ -1,5 +1,48 @@
 # @modern-js/runtime
 
+## 3.0.5
+
+### Patch Changes
+
+- 2eca73d: feat(router): skip RSC payload fetch for client-only route navigations
+  feat(router): 导航到只有客户端路由组件的路径时，跳过对 rsc payload 的拉取
+- Updated dependencies [4c25918]
+  - @modern-js/plugin@3.0.5
+  - @modern-js/plugin-data-loader@3.0.5
+  - @modern-js/render@3.0.5
+  - @modern-js/runtime-utils@3.0.5
+  - @modern-js/types@3.0.5
+  - @modern-js/utils@3.0.5
+
+## 3.0.4
+
+### Patch Changes
+
+- adb714e: fix: close document compiler minify
+  fix: 关闭 document Rspack 编译器的 minify 选项
+- 5a31f22: fix: csr remove @swc/plugin-loadable-components
+  fix: csr 移除 @swc/plugin-loadable-components 配置
+- 025b48b: fix(runtime): should match head file correctly
+  fix(runtime): 应该正确的匹配 head 文件
+- Updated dependencies [78eeaf8]
+  - @modern-js/plugin@3.0.4
+  - @modern-js/plugin-data-loader@3.0.4
+  - @modern-js/render@3.0.4
+  - @modern-js/runtime-utils@3.0.4
+  - @modern-js/types@3.0.4
+  - @modern-js/utils@3.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- @modern-js/plugin@3.0.3
+- @modern-js/plugin-data-loader@3.0.3
+- @modern-js/render@3.0.3
+- @modern-js/runtime-utils@3.0.3
+- @modern-js/types@3.0.3
+- @modern-js/utils@3.0.3
+
 ## 3.0.2
 
 ### Patch Changes
