@@ -6,7 +6,6 @@ import {
 } from './hooks';
 import type { RouterExtendsHooks } from './hooks';
 import { routerPlugin as reactRouterPlugin } from './plugin';
-import { tanstackRouterPlugin } from './tanstack/plugin';
 import type { RouterConfig, SingleRouteConfig } from './types';
 
 export const routerPlugin = (
@@ -26,11 +25,7 @@ export const routerPlugin = (
         userConfig,
       ) as RouterConfig;
 
-      const framework = mergedConfig.framework || 'react-router';
-      const pluginFactory =
-        framework === 'tanstack' ? tanstackRouterPlugin : reactRouterPlugin;
-
-      pluginFactory(userConfig as any).setup?.(api as any);
+      reactRouterPlugin(mergedConfig).setup?.(api as any);
     },
   };
 };
@@ -38,5 +33,9 @@ export const routerPlugin = (
 export default routerPlugin;
 export type { SingleRouteConfig, RouterConfig };
 export type { RouterExtendsHooks } from './hooks';
-export { renderRoutes } from './utils';
+export {
+  createRouteObjectsFromConfig,
+  renderRoutes,
+  urlJoin,
+} from './utils';
 export { modifyRoutes } from './plugin';

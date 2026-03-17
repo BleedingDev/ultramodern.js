@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Routing
 
-Modern.js supports conventional routing on top of both [React Router v7](https://reactrouter.com/en/main) and [TanStack Router](https://tanstack.com/router), offering file convention-based routing capabilities and supporting the industry-popular **nested routing** pattern. When an entry is recognized as [conventional routing](/guides/concept/entries.html#conventional-routing), Modern.js automatically generates the corresponding routing structure based on the file system.
+Modern.js routing is based on [React Router v7](https://reactrouter.com/en/main), offering file convention-based routing capabilities and supporting the industry-popular **nested routing** pattern. When an entry is recognized as [conventional routing](/guides/concept/entries.html#conventional-routing), Modern.js automatically generates the corresponding routing structure based on the file system.
 
 :::note
 
@@ -14,7 +14,7 @@ The routing mentioned in this section all refers to conventional routing.
 
 :::tip
 This page uses React Router import paths in examples (`@modern-js/runtime/router`).  
-If your project is created with `--router tanstack`, use `@modern-js/runtime/tanstack-router` instead.
+If your project is created with `--router tanstack`, use `@modern-js/plugin-tanstack/runtime` instead.
 :::
 
 ## What is Nested Routing
@@ -498,19 +498,19 @@ import Motivation from '@site-docs-en/components/convention-routing-motivation';
 
 ## FAQ
 
-1. Why should I import from `@modern-js/runtime/router` or `@modern-js/runtime/tanstack-router`?
+1. Why should I import from `@modern-js/runtime/router` or `@modern-js/plugin-tanstack/runtime`?
 
-Modern.js provides framework-specific runtime exports:
+Notice that all the code examples in the documentation uses APIs exported from the `@modern-js/runtime/router` package instead of directly using the API exported from the React Router package. So, what is the difference?
 
 - `@modern-js/runtime/router` for React Router mode.
-- `@modern-js/runtime/tanstack-router` for TanStack Router mode.
+- `@modern-js/plugin-tanstack/runtime` for TanStack Router mode.
 
 Use the Modern.js runtime export that matches your selected router framework, instead of importing directly from the upstream router package. This avoids dependency duplication and ensures compatibility with Modern.js route generation/runtime behavior.
 
 If you encounter API usage issues, check the corresponding upstream docs:
 
 - React Router docs for `@modern-js/runtime/router`.
-- TanStack Router docs for `@modern-js/runtime/tanstack-router`.
+- TanStack Router docs for `@modern-js/plugin-tanstack/runtime`.
 
 :::note
 If you must directly use the React Router package's API (e.g., route behavior wrapped in a unified npm package), you can set [`source.alias`](/configure/app/source/alias) to point `react-router` and `react-router-dom` to the project's dependencies, avoiding the issue of two versions of React Router.

@@ -13,48 +13,6 @@ You can also create a project directly in a new directory:
 npx @modern-js/create@latest myapp
 ```
 
-To initialize a TanStack Router template:
-
-```bash
-npx @modern-js/create@latest myapp --router tanstack
-```
-
-To initialize with Tailwind CSS v4 scaffold:
-
-```bash
-npx @modern-js/create@latest myapp --tailwind
-```
-
-To initialize TanStack Router with Tailwind CSS v4:
-
-```bash
-npx @modern-js/create@latest myapp --router tanstack --tailwind
-```
-
-To initialize BFF scaffold with default Effect runtime:
-
-```bash
-npx @modern-js/create@latest myapp --bff
-```
-
-To initialize BFF scaffold with Effect HttpApi runtime:
-
-```bash
-npx @modern-js/create@latest myapp --bff-runtime effect
-```
-
-To initialize BFF scaffold with Hono runtime:
-
-```bash
-npx @modern-js/create@latest myapp --bff-runtime hono
-```
-
-To initialize with workspace protocol dependencies (for local monorepo testing of unreleased Modern.js packages):
-
-```bash
-npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --workspace
-```
-
 `@modern-js/create` will directly create the application without providing an interactive Q & A interface:
 
 ```bash
@@ -102,6 +60,7 @@ Now, the project structure is as follows:
 ```
 
 When `--tailwind` is enabled, `postcss.config.mjs` and `tailwind.config.ts` are generated in the project root.
+When `--router tanstack` is enabled, the scaffold adds `@modern-js/plugin-tanstack`, registers `tanstackRouterPlugin()` in `modern.config.ts`, and uses `src/views` as the route convention directory.
 
 When `--bff` (default Effect runtime) or `--bff-runtime effect` is enabled, `modern.config.ts` enables `@modern-js/plugin-bff`, generates `api/effect/index.ts` + `shared/effect/api.ts`, and sets `bff.runtimeFramework` to `effect`.
 When `--bff-runtime hono` is enabled, `modern.config.ts` enables `@modern-js/plugin-bff`, generates `api/lambda/hello.ts`, and sets `bff.runtimeFramework` to `hono`.
