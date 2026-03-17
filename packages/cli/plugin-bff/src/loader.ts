@@ -82,7 +82,7 @@ async function loader(
     return;
   }
 
-  const warning = `The file ${resourcePath} is not allowd to be imported in src directory, only API definition files are allowed.`;
+  const warning = `The file ${resourcePath} is not allowed to be imported in src directory, only API definition files are allowed.`;
 
   if (!draftOptions.existLambda) {
     logger.warn(warning);

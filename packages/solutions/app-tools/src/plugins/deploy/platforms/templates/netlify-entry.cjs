@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { createProdServer } = require('@modern-js/prod-server');
+const { createNetlifyFunction } = require('@modern-js/prod-server/netlify');
 
 p_genPluginImportsCode;
 
@@ -45,9 +45,10 @@ async function initServer() {
     serverConfigPath: p_serverDirectory,
     ...dynamicProdOptions,
   };
-  const app = await createProdServer(prodServerOptions);
 
-  return app.getRequestListener();
+  const requestHandler = await createNetlifyFunction(prodServerOptions);
+
+  return requestHandler;
 }
 
 async function createHandler() {
@@ -67,11 +68,11 @@ async function createHandler() {
 
 createHandler();
 
-const handler = async (req, res) => {
+const handler = async (request, context) => {
   if (!requestHandler) {
     await createHandler();
   }
-  return requestHandler(req, res);
+  return requestHandler(request, context);
 };
 
-module.exports = { handler };
+exports.handler = handler;
