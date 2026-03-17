@@ -1,0 +1,153 @@
+[
+  {
+    "id": "mf_host_scaffold_paths",
+    "split": "train",
+    "category": "appdev",
+    "prompt": "Scaffold a host app for a large super-app and identify canonical host files.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/modern.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-host/module-federation.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-host/src/modern.runtime.tsx"
+    ],
+    "preferred_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/page.tsx",
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/layout.tsx"
+    ]
+  },
+  {
+    "id": "mf_remote_scaffold_paths",
+    "split": "train",
+    "category": "appdev",
+    "prompt": "Scaffold a remote module app and identify canonical remote files.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-remote/modern.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-remote/module-federation.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-remote/src/components/Widget.tsx"
+    ],
+    "preferred_signals": [
+      "tests/integration/routes-tanstack-mf/mf-remote/src/components/Mutator.tsx",
+      "tests/integration/routes-tanstack-mf/mf-remote/src/routes/page.tsx"
+    ]
+  },
+  {
+    "id": "effect_api_contracts",
+    "split": "train",
+    "category": "appdev",
+    "prompt": "Wire Effect API contracts across host and remotes with trace propagation.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/shared/effect/api.ts",
+      "tests/integration/routes-tanstack-mf/mf-remote/shared/effect/api.ts",
+      "traceparent"
+    ],
+    "preferred_signals": [
+      "Schema.optional(Schema.String)",
+      "tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts"
+    ]
+  },
+  {
+    "id": "remote_loader_reliability",
+    "split": "train",
+    "category": "mf",
+    "prompt": "Debug unstable remote loading and verify reliability contracts.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts",
+      "mf-manifest.json",
+      "mfv"
+    ],
+    "preferred_signals": [
+      "CACHE_VERSION_QUERY_KEY = 'mfv'",
+      "fallback telemetry"
+    ]
+  },
+  {
+    "id": "trace_flow_browser_to_effect",
+    "split": "train",
+    "category": "bff",
+    "prompt": "Ensure trace flow from browser to Effect spans in host APIs.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts",
+      "parseTraceparent",
+      "traceparent"
+    ],
+    "preferred_signals": [
+      "traceId",
+      "spanId",
+      "x-operation-id"
+    ]
+  },
+  {
+    "id": "type_contract_gate",
+    "split": "train",
+    "category": "appdev",
+    "prompt": "Keep host/remote type contracts stable before app release.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts",
+      "tsconfig.typecheck.json",
+      "@mf-types"
+    ],
+    "preferred_signals": [
+      "src/type-tests",
+      "runtime-shim"
+    ]
+  },
+  {
+    "id": "bff_effect_trace_integration",
+    "split": "val",
+    "category": "appdev",
+    "prompt": "Validate BFF effect integration trace flow and contracts.",
+    "required_signals": [
+      "tests/integration/bff-effect/tests/index.test.ts",
+      "opentelemetry traces from browser to effect spans",
+      "traceparent"
+    ],
+    "preferred_signals": [
+      "tests/integration/bff-effect/shared/effect-api.ts",
+      "x-modernjs-bff-operation-context"
+    ]
+  },
+  {
+    "id": "sdk_manifest_pathing",
+    "split": "val",
+    "category": "contracts",
+    "prompt": "Map module manifest structure for enterprise module onboarding.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/contracts/module-manifest.example.json",
+      "sourceDir",
+      "entrypoints"
+    ],
+    "preferred_signals": [
+      "module-sdk-contracts.json",
+      "scripts/module-sdk-contracts/validate-module-sdk-contracts.js"
+    ]
+  },
+  {
+    "id": "superapp_architecture_reference",
+    "split": "test",
+    "category": "appdev",
+    "prompt": "Reference target architecture guidance for large super-app implementation.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+      "requestId-scoped",
+      "fallback telemetry"
+    ],
+    "preferred_signals": [
+      "independently deployed super-app systems",
+      "App-level MF SSR"
+    ]
+  },
+  {
+    "id": "baseline_target_matrix_alignment",
+    "split": "test",
+    "category": "delivery",
+    "prompt": "Confirm app implementation aligns with baseline-vs-target contracts.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/BASELINE-0001-current-vs-target-contracts.md",
+      "Release promotion requires telemetry + contract gate success",
+      "App-level MF SSR"
+    ],
+    "preferred_signals": [
+      "requestId",
+      "canary and rollback orchestration"
+    ]
+  }
+]

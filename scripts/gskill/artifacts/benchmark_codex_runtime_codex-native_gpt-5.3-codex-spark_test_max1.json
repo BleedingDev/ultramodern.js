@@ -1,0 +1,3711 @@
+{
+  "generated_at": "2026-02-22T07:27:15.537888+00:00",
+  "runtime_bin": "codex-native",
+  "model": "gpt-5.3-codex-spark",
+  "split_filter": "test",
+  "max_tasks_per_suite": 1,
+  "suites": {
+    "codex-superapp-bootstrap": {
+      "description": "Codex-first project initialization, MF/MFE scaffolding, Effect BFF routing, and strict type-safety gates.",
+      "tasks_file": "/Users/satan/side/experiments/modernjs-gepa-gskill/scripts/gskill/benchmark_tasks_codex_bootstrap.json",
+      "task_count": 1,
+      "candidates": {
+        "baseline_none": {
+          "rows": [
+            {
+              "task_id": "codex_template_bootstrap_assets",
+              "split": "test",
+              "category": "init",
+              "score": 0.0,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.0,
+              "latency_inv": 0.0,
+              "word_count": 0.0,
+              "token_proxy": 0.0,
+              "missing_required": [
+                "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "packages/toolkit/create/template/package.json.handlebars",
+                "packages/toolkit/create/template/README.md"
+              ],
+              "missing_preferred": [
+                "packages/toolkit/create/template/scripts/",
+                "packages/toolkit/create/template/.github/"
+              ],
+              "directives": [
+                "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+              ],
+              "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "success": false,
+              "latency_s": 12.00819454100565,
+              "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "runtime_return_code": 124,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 527
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00819454100565,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00819454100565,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            }
+          }
+        },
+        "baseline_seed": {
+          "rows": [
+            {
+              "task_id": "codex_template_bootstrap_assets",
+              "split": "test",
+              "category": "init",
+              "score": 0.8,
+              "required_cov": 1.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 76,
+              "token_proxy": 102,
+              "missing_required": [],
+              "missing_preferred": [
+                "packages/toolkit/create/template/scripts/",
+                "packages/toolkit/create/template/.github/"
+              ],
+              "directives": [
+                "TASK::codex_template_bootstrap_assets",
+                "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+                "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=codex_template_bootstrap_assets required_cov=1.000 preferred_cov=0.000 words=76 token_proxy=102 missing_required=0",
+              "success": true,
+              "latency_s": 8.518544207996456,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3318
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 76.0,
+              "avg_token_proxy": 102.0,
+              "top_missing_required": [],
+              "avg_latency_s": 8.518544207996456,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 76.0,
+              "avg_token_proxy": 102.0,
+              "top_missing_required": [],
+              "avg_latency_s": 8.518544207996456,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "gepa_optimized_core": {
+          "rows": [
+            {
+              "task_id": "codex_template_bootstrap_assets",
+              "split": "test",
+              "category": "init",
+              "score": 0.0,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.0,
+              "latency_inv": 0.0,
+              "word_count": 0.0,
+              "token_proxy": 0.0,
+              "missing_required": [
+                "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "packages/toolkit/create/template/package.json.handlebars",
+                "packages/toolkit/create/template/README.md"
+              ],
+              "missing_preferred": [
+                "packages/toolkit/create/template/scripts/",
+                "packages/toolkit/create/template/.github/"
+              ],
+              "directives": [
+                "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+              ],
+              "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "success": false,
+              "latency_s": 12.00858987501124,
+              "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "runtime_return_code": 124,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 5227
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00858987501124,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00858987501124,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            }
+          }
+        },
+        "codex_split_pack": {
+          "rows": [
+            {
+              "task_id": "codex_template_bootstrap_assets",
+              "split": "test",
+              "category": "init",
+              "score": 0.8,
+              "required_cov": 1.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 143,
+              "token_proxy": 193,
+              "missing_required": [],
+              "missing_preferred": [
+                "packages/toolkit/create/template/scripts/",
+                "packages/toolkit/create/template/.github/"
+              ],
+              "directives": [
+                "TASK::codex_template_bootstrap_assets",
+                "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+                "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=codex_template_bootstrap_assets required_cov=1.000 preferred_cov=0.000 words=143 token_proxy=193 missing_required=0",
+              "success": true,
+              "latency_s": 9.272613042005105,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 2021
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 143.0,
+              "avg_token_proxy": 193.0,
+              "top_missing_required": [],
+              "avg_latency_s": 9.272613042005105,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 143.0,
+              "avg_token_proxy": 193.0,
+              "top_missing_required": [],
+              "avg_latency_s": 9.272613042005105,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "legacy_claude_split_pack": {
+          "rows": [
+            {
+              "task_id": "codex_template_bootstrap_assets",
+              "split": "test",
+              "category": "init",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 141,
+              "token_proxy": 190,
+              "missing_required": [
+                "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "packages/toolkit/create/template/package.json.handlebars",
+                "packages/toolkit/create/template/README.md"
+              ],
+              "missing_preferred": [
+                "packages/toolkit/create/template/scripts/",
+                "packages/toolkit/create/template/.github/"
+              ],
+              "directives": [
+                "TASK::codex_template_bootstrap_assets",
+                "ADD_SIGNAL::packages/toolkit/create/template/modern.config.ts.handlebars",
+                "ADD_SIGNAL::packages/toolkit/create/template/package.json.handlebars",
+                "ADD_SIGNAL::packages/toolkit/create/template/README.md",
+                "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+                "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=codex_template_bootstrap_assets required_cov=0.000 preferred_cov=0.000 words=141 token_proxy=190 missing_required=3",
+              "success": true,
+              "latency_s": 10.25798537497758,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3281
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 141.0,
+              "avg_token_proxy": 190.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 10.25798537497758,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 141.0,
+              "avg_token_proxy": 190.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/package.json.handlebars",
+                  "count": 1
+                },
+                {
+                  "signal": "packages/toolkit/create/template/README.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 10.25798537497758,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        }
+      },
+      "winner_by_split": {
+        "train": "baseline_none",
+        "val": "baseline_none",
+        "test": "baseline_seed",
+        "overall": "baseline_seed"
+      }
+    },
+    "foundation-contracts": {
+      "description": "UltraModern framework contracts, diagnostics, and runtime guards.",
+      "tasks_file": "/Users/satan/side/experiments/modernjs-gepa-gskill/scripts/gskill/benchmark_tasks.json",
+      "task_count": 1,
+      "candidates": {
+        "baseline_none": {
+          "rows": [
+            {
+              "task_id": "ultramodern_v4_reference_doc",
+              "split": "test",
+              "category": "core",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 40,
+              "token_proxy": 54,
+              "missing_required": [
+                "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "canonical V4 reference",
+                "Complete Difference Matrix"
+              ],
+              "missing_preferred": [
+                "Not Part of UltraModern.js V4",
+                "performance.rsdoctor"
+              ],
+              "directives": [
+                "TASK::ultramodern_v4_reference_doc",
+                "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "ADD_SIGNAL::canonical V4 reference",
+                "ADD_SIGNAL::Complete Difference Matrix",
+                "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+                "ADD_OPTIONAL::performance.rsdoctor",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=40 token_proxy=54 missing_required=3",
+              "success": true,
+              "latency_s": 6.694230583991157,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 519
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 40.0,
+              "avg_token_proxy": 54.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 6.694230583991157,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 40.0,
+              "avg_token_proxy": 54.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 6.694230583991157,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "baseline_seed": {
+          "rows": [
+            {
+              "task_id": "ultramodern_v4_reference_doc",
+              "split": "test",
+              "category": "core",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 67,
+              "token_proxy": 90,
+              "missing_required": [
+                "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "canonical V4 reference",
+                "Complete Difference Matrix"
+              ],
+              "missing_preferred": [
+                "Not Part of UltraModern.js V4",
+                "performance.rsdoctor"
+              ],
+              "directives": [
+                "TASK::ultramodern_v4_reference_doc",
+                "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "ADD_SIGNAL::canonical V4 reference",
+                "ADD_SIGNAL::Complete Difference Matrix",
+                "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+                "ADD_OPTIONAL::performance.rsdoctor",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=67 token_proxy=90 missing_required=3",
+              "success": true,
+              "latency_s": 5.936676541983616,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3310
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 67.0,
+              "avg_token_proxy": 90.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.936676541983616,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 67.0,
+              "avg_token_proxy": 90.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.936676541983616,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "gepa_optimized_core": {
+          "rows": [
+            {
+              "task_id": "ultramodern_v4_reference_doc",
+              "split": "test",
+              "category": "core",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 59,
+              "token_proxy": 79,
+              "missing_required": [
+                "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "canonical V4 reference",
+                "Complete Difference Matrix"
+              ],
+              "missing_preferred": [
+                "Not Part of UltraModern.js V4",
+                "performance.rsdoctor"
+              ],
+              "directives": [
+                "TASK::ultramodern_v4_reference_doc",
+                "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "ADD_SIGNAL::canonical V4 reference",
+                "ADD_SIGNAL::Complete Difference Matrix",
+                "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+                "ADD_OPTIONAL::performance.rsdoctor",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=59 token_proxy=79 missing_required=3",
+              "success": true,
+              "latency_s": 9.786139250005363,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 5219
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 59.0,
+              "avg_token_proxy": 79.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 9.786139250005363,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 59.0,
+              "avg_token_proxy": 79.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 9.786139250005363,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "codex_split_pack": {
+          "rows": [
+            {
+              "task_id": "ultramodern_v4_reference_doc",
+              "split": "test",
+              "category": "core",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 47,
+              "token_proxy": 63,
+              "missing_required": [
+                "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "canonical V4 reference",
+                "Complete Difference Matrix"
+              ],
+              "missing_preferred": [
+                "Not Part of UltraModern.js V4",
+                "performance.rsdoctor"
+              ],
+              "directives": [
+                "TASK::ultramodern_v4_reference_doc",
+                "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "ADD_SIGNAL::canonical V4 reference",
+                "ADD_SIGNAL::Complete Difference Matrix",
+                "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+                "ADD_OPTIONAL::performance.rsdoctor",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=47 token_proxy=63 missing_required=3",
+              "success": true,
+              "latency_s": 8.586345290997997,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 9437
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 47.0,
+              "avg_token_proxy": 63.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 8.586345290997997,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 47.0,
+              "avg_token_proxy": 63.0,
+              "top_missing_required": [
+                {
+                  "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                  "count": 1
+                },
+                {
+                  "signal": "canonical V4 reference",
+                  "count": 1
+                },
+                {
+                  "signal": "Complete Difference Matrix",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 8.586345290997997,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "legacy_claude_split_pack": {
+          "rows": [
+            {
+              "task_id": "ultramodern_v4_reference_doc",
+              "split": "test",
+              "category": "core",
+              "score": 0.8,
+              "required_cov": 1.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 47,
+              "token_proxy": 63,
+              "missing_required": [],
+              "missing_preferred": [
+                "Not Part of UltraModern.js V4",
+                "performance.rsdoctor"
+              ],
+              "directives": [
+                "TASK::ultramodern_v4_reference_doc",
+                "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+                "ADD_OPTIONAL::performance.rsdoctor",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=ultramodern_v4_reference_doc required_cov=1.000 preferred_cov=0.000 words=47 token_proxy=63 missing_required=0",
+              "success": true,
+              "latency_s": 5.648805417004041,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 6469
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 47.0,
+              "avg_token_proxy": 63.0,
+              "top_missing_required": [],
+              "avg_latency_s": 5.648805417004041,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.8,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 47.0,
+              "avg_token_proxy": 63.0,
+              "top_missing_required": [],
+              "avg_latency_s": 5.648805417004041,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        }
+      },
+      "winner_by_split": {
+        "train": "baseline_none",
+        "val": "baseline_none",
+        "test": "legacy_claude_split_pack",
+        "overall": "legacy_claude_split_pack"
+      }
+    },
+    "superapp-development": {
+      "description": "Large super-app host/remote development, Effect data flow, and integration readiness.",
+      "tasks_file": "/Users/satan/side/experiments/modernjs-gepa-gskill/scripts/gskill/benchmark_tasks_superapp_dev.json",
+      "task_count": 1,
+      "candidates": {
+        "baseline_none": {
+          "rows": [
+            {
+              "task_id": "superapp_architecture_reference",
+              "split": "test",
+              "category": "appdev",
+              "score": 0.0,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.0,
+              "latency_inv": 0.0,
+              "word_count": 0.0,
+              "token_proxy": 0.0,
+              "missing_required": [
+                "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "requestId-scoped",
+                "fallback telemetry"
+              ],
+              "missing_preferred": [
+                "independently deployed super-app systems",
+                "App-level MF SSR"
+              ],
+              "directives": [
+                "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+              ],
+              "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "success": false,
+              "latency_s": 12.012798165989807,
+              "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "runtime_return_code": 124,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 532
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                },
+                {
+                  "signal": "fallback telemetry",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.012798165989807,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                },
+                {
+                  "signal": "fallback telemetry",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.012798165989807,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            }
+          }
+        },
+        "baseline_seed": {
+          "rows": [
+            {
+              "task_id": "superapp_architecture_reference",
+              "split": "test",
+              "category": "appdev",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 218,
+              "token_proxy": 294,
+              "missing_required": [
+                "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "requestId-scoped",
+                "fallback telemetry"
+              ],
+              "missing_preferred": [
+                "independently deployed super-app systems",
+                "App-level MF SSR"
+              ],
+              "directives": [
+                "TASK::superapp_architecture_reference",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "ADD_SIGNAL::requestId-scoped",
+                "ADD_SIGNAL::fallback telemetry",
+                "ADD_OPTIONAL::independently deployed super-app systems",
+                "ADD_OPTIONAL::App-level MF SSR",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=superapp_architecture_reference required_cov=0.000 preferred_cov=0.000 words=218 token_proxy=294 missing_required=3",
+              "success": true,
+              "latency_s": 4.161496457993053,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3323
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 218.0,
+              "avg_token_proxy": 294.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                },
+                {
+                  "signal": "fallback telemetry",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 4.161496457993053,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 218.0,
+              "avg_token_proxy": 294.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                },
+                {
+                  "signal": "fallback telemetry",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 4.161496457993053,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "gepa_optimized_core": {
+          "rows": [
+            {
+              "task_id": "superapp_architecture_reference",
+              "split": "test",
+              "category": "appdev",
+              "score": 0.37333333333333335,
+              "required_cov": 0.3333333333333333,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 392,
+              "token_proxy": 529,
+              "missing_required": [
+                "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "requestId-scoped"
+              ],
+              "missing_preferred": [
+                "independently deployed super-app systems",
+                "App-level MF SSR"
+              ],
+              "directives": [
+                "TASK::superapp_architecture_reference",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "ADD_SIGNAL::requestId-scoped",
+                "ADD_OPTIONAL::independently deployed super-app systems",
+                "ADD_OPTIONAL::App-level MF SSR",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=superapp_architecture_reference required_cov=0.333 preferred_cov=0.000 words=392 token_proxy=529 missing_required=2",
+              "success": true,
+              "latency_s": 4.864891999983229,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 5232
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.37333333333333335,
+              "avg_required_cov": 0.3333333333333333,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 392.0,
+              "avg_token_proxy": 529.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 4.864891999983229,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.37333333333333335,
+              "avg_required_cov": 0.3333333333333333,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 392.0,
+              "avg_token_proxy": 529.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                },
+                {
+                  "signal": "requestId-scoped",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 4.864891999983229,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "codex_split_pack": {
+          "rows": [
+            {
+              "task_id": "superapp_architecture_reference",
+              "split": "test",
+              "category": "appdev",
+              "score": 0.5866666666666667,
+              "required_cov": 0.6666666666666666,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 265,
+              "token_proxy": 357,
+              "missing_required": [
+                "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md"
+              ],
+              "missing_preferred": [
+                "independently deployed super-app systems",
+                "App-level MF SSR"
+              ],
+              "directives": [
+                "TASK::superapp_architecture_reference",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "ADD_OPTIONAL::independently deployed super-app systems",
+                "ADD_OPTIONAL::App-level MF SSR",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=superapp_architecture_reference required_cov=0.667 preferred_cov=0.000 words=265 token_proxy=357 missing_required=1",
+              "success": true,
+              "latency_s": 5.469504083011998,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 5711
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.5866666666666667,
+              "avg_required_cov": 0.6666666666666666,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 265.0,
+              "avg_token_proxy": 357.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.469504083011998,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.5866666666666667,
+              "avg_required_cov": 0.6666666666666666,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 265.0,
+              "avg_token_proxy": 357.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.469504083011998,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "legacy_claude_split_pack": {
+          "rows": [
+            {
+              "task_id": "superapp_architecture_reference",
+              "split": "test",
+              "category": "appdev",
+              "score": 0.8999999999999999,
+              "required_cov": 1.0,
+              "preferred_cov": 0.5,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 200,
+              "token_proxy": 270,
+              "missing_required": [],
+              "missing_preferred": [
+                "independently deployed super-app systems"
+              ],
+              "directives": [
+                "TASK::superapp_architecture_reference",
+                "ADD_OPTIONAL::independently deployed super-app systems",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=superapp_architecture_reference required_cov=1.000 preferred_cov=0.500 words=200 token_proxy=270 missing_required=0",
+              "success": true,
+              "latency_s": 11.970197416987503,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3286
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.8999999999999999,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.5,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 200.0,
+              "avg_token_proxy": 270.0,
+              "top_missing_required": [],
+              "avg_latency_s": 11.970197416987503,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.8999999999999999,
+              "avg_required_cov": 1.0,
+              "avg_preferred_cov": 0.5,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 200.0,
+              "avg_token_proxy": 270.0,
+              "top_missing_required": [],
+              "avg_latency_s": 11.970197416987503,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        }
+      },
+      "winner_by_split": {
+        "train": "baseline_none",
+        "val": "baseline_none",
+        "test": "legacy_claude_split_pack",
+        "overall": "legacy_claude_split_pack"
+      }
+    },
+    "enterprise-delivery": {
+      "description": "Release governance, certification evidence, canary policy, and CI gate execution.",
+      "tasks_file": "/Users/satan/side/experiments/modernjs-gepa-gskill/scripts/gskill/benchmark_tasks_enterprise_delivery.json",
+      "task_count": 1,
+      "candidates": {
+        "baseline_none": {
+          "rows": [
+            {
+              "task_id": "foundation_rfc_alignment",
+              "split": "test",
+              "category": "delivery",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 180,
+              "token_proxy": 243,
+              "missing_required": [
+                "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "independently deployable modules",
+                "VictoriaMetrics"
+              ],
+              "missing_preferred": [
+                "execution order",
+                "acceptance gates"
+              ],
+              "directives": [
+                "TASK::foundation_rfc_alignment",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "ADD_SIGNAL::independently deployable modules",
+                "ADD_SIGNAL::VictoriaMetrics",
+                "ADD_OPTIONAL::execution order",
+                "ADD_OPTIONAL::acceptance gates",
+                "ADD_COMMAND::proto run pnpm -- test:ut",
+                "ADD_COMMAND::proto run pnpm -- validate:rc-gates"
+              ],
+              "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=180 token_proxy=243 missing_required=3",
+              "success": true,
+              "latency_s": 5.7744449590099975,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 516
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 180.0,
+              "avg_token_proxy": 243.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.7744449590099975,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 180.0,
+              "avg_token_proxy": 243.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 5.7744449590099975,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "baseline_seed": {
+          "rows": [
+            {
+              "task_id": "foundation_rfc_alignment",
+              "split": "test",
+              "category": "delivery",
+              "score": 0.16,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 1.0,
+              "latency_inv": 1.0,
+              "word_count": 196,
+              "token_proxy": 264,
+              "missing_required": [
+                "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "independently deployable modules",
+                "VictoriaMetrics"
+              ],
+              "missing_preferred": [
+                "execution order",
+                "acceptance gates"
+              ],
+              "directives": [
+                "TASK::foundation_rfc_alignment",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "ADD_SIGNAL::independently deployable modules",
+                "ADD_SIGNAL::VictoriaMetrics",
+                "ADD_OPTIONAL::execution order",
+                "ADD_OPTIONAL::acceptance gates",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=196 token_proxy=264 missing_required=3",
+              "success": true,
+              "latency_s": 6.0793911250075325,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3307
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 196.0,
+              "avg_token_proxy": 264.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 6.0793911250075325,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.16,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 1.0,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 196.0,
+              "avg_token_proxy": 264.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 6.0793911250075325,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "gepa_optimized_core": {
+          "rows": [
+            {
+              "task_id": "foundation_rfc_alignment",
+              "split": "test",
+              "category": "delivery",
+              "score": 0.1413397129186603,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.8133971291866029,
+              "latency_inv": 1.0,
+              "word_count": 418,
+              "token_proxy": 564,
+              "missing_required": [
+                "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "independently deployable modules",
+                "VictoriaMetrics"
+              ],
+              "missing_preferred": [
+                "execution order",
+                "acceptance gates"
+              ],
+              "directives": [
+                "TASK::foundation_rfc_alignment",
+                "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "ADD_SIGNAL::independently deployable modules",
+                "ADD_SIGNAL::VictoriaMetrics",
+                "ADD_OPTIONAL::execution order",
+                "ADD_OPTIONAL::acceptance gates",
+                "TRIM_WORDS::340",
+                "ADD_COMMAND::proto run pnpm -- test:ut"
+              ],
+              "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=418 token_proxy=564 missing_required=3",
+              "success": true,
+              "latency_s": 8.952636083005928,
+              "runtime_error": "",
+              "runtime_return_code": 0,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 5216
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.1413397129186603,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.8133971291866029,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 418.0,
+              "avg_token_proxy": 564.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 8.952636083005928,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.1413397129186603,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.8133971291866029,
+              "avg_latency_inv": 1.0,
+              "avg_word_count": 418.0,
+              "avg_token_proxy": 564.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 8.952636083005928,
+              "avg_success_rate": 1.0,
+              "error_count": 0
+            }
+          }
+        },
+        "codex_split_pack": {
+          "rows": [
+            {
+              "task_id": "foundation_rfc_alignment",
+              "split": "test",
+              "category": "delivery",
+              "score": 0.0,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.0,
+              "latency_inv": 0.0,
+              "word_count": 0.0,
+              "token_proxy": 0.0,
+              "missing_required": [
+                "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "independently deployable modules",
+                "VictoriaMetrics"
+              ],
+              "missing_preferred": [
+                "execution order",
+                "acceptance gates"
+              ],
+              "directives": [
+                "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}"
+              ],
+              "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}",
+              "success": false,
+              "latency_s": 12.00919025001349,
+              "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}",
+              "runtime_return_code": 124,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3140
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00919025001349,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.00919025001349,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            }
+          }
+        },
+        "legacy_claude_split_pack": {
+          "rows": [
+            {
+              "task_id": "foundation_rfc_alignment",
+              "split": "test",
+              "category": "delivery",
+              "score": 0.0,
+              "required_cov": 0.0,
+              "preferred_cov": 0.0,
+              "token_efficiency": 0.0,
+              "latency_inv": 0.0,
+              "word_count": 0.0,
+              "token_proxy": 0.0,
+              "missing_required": [
+                "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "independently deployable modules",
+                "VictoriaMetrics"
+              ],
+              "missing_preferred": [
+                "execution order",
+                "acceptance gates"
+              ],
+              "directives": [
+                "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+              ],
+              "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "success": false,
+              "latency_s": 12.01288354198914,
+              "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+              "runtime_return_code": 124,
+              "runtime_bin": "codex-native",
+              "runtime_model": "gpt-5.3-codex-spark",
+              "runtime_prompt_chars": 3140
+            }
+          ],
+          "splits": {
+            "train": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "val": {
+              "count": 0,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [],
+              "avg_latency_s": 0.0,
+              "avg_success_rate": 0.0,
+              "error_count": 0
+            },
+            "test": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.01288354198914,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            },
+            "overall": {
+              "count": 1,
+              "avg_score": 0.0,
+              "avg_required_cov": 0.0,
+              "avg_preferred_cov": 0.0,
+              "avg_token_efficiency": 0.0,
+              "avg_latency_inv": 0.0,
+              "avg_word_count": 0.0,
+              "avg_token_proxy": 0.0,
+              "top_missing_required": [
+                {
+                  "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                  "count": 1
+                },
+                {
+                  "signal": "independently deployable modules",
+                  "count": 1
+                },
+                {
+                  "signal": "VictoriaMetrics",
+                  "count": 1
+                }
+              ],
+              "avg_latency_s": 12.01288354198914,
+              "avg_success_rate": 0.0,
+              "error_count": 1
+            }
+          }
+        }
+      },
+      "winner_by_split": {
+        "train": "baseline_none",
+        "val": "baseline_none",
+        "test": "baseline_none",
+        "overall": "baseline_none"
+      }
+    }
+  },
+  "overall": {
+    "candidates": {
+      "baseline_none": {
+        "rows": [
+          {
+            "task_id": "codex_template_bootstrap_assets",
+            "split": "test",
+            "category": "init",
+            "score": 0.0,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.0,
+            "latency_inv": 0.0,
+            "word_count": 0.0,
+            "token_proxy": 0.0,
+            "missing_required": [
+              "packages/toolkit/create/template/modern.config.ts.handlebars",
+              "packages/toolkit/create/template/package.json.handlebars",
+              "packages/toolkit/create/template/README.md"
+            ],
+            "missing_preferred": [
+              "packages/toolkit/create/template/scripts/",
+              "packages/toolkit/create/template/.github/"
+            ],
+            "directives": [
+              "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+            ],
+            "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "success": false,
+            "latency_s": 12.00819454100565,
+            "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-32b0-7f42-adc3-557e8b351ae1\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "runtime_return_code": 124,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 527
+          },
+          {
+            "task_id": "ultramodern_v4_reference_doc",
+            "split": "test",
+            "category": "core",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 40,
+            "token_proxy": 54,
+            "missing_required": [
+              "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "canonical V4 reference",
+              "Complete Difference Matrix"
+            ],
+            "missing_preferred": [
+              "Not Part of UltraModern.js V4",
+              "performance.rsdoctor"
+            ],
+            "directives": [
+              "TASK::ultramodern_v4_reference_doc",
+              "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "ADD_SIGNAL::canonical V4 reference",
+              "ADD_SIGNAL::Complete Difference Matrix",
+              "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+              "ADD_OPTIONAL::performance.rsdoctor",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=40 token_proxy=54 missing_required=3",
+            "success": true,
+            "latency_s": 6.694230583991157,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 519
+          },
+          {
+            "task_id": "superapp_architecture_reference",
+            "split": "test",
+            "category": "appdev",
+            "score": 0.0,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.0,
+            "latency_inv": 0.0,
+            "word_count": 0.0,
+            "token_proxy": 0.0,
+            "missing_required": [
+              "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "requestId-scoped",
+              "fallback telemetry"
+            ],
+            "missing_preferred": [
+              "independently deployed super-app systems",
+              "App-level MF SSR"
+            ],
+            "directives": [
+              "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+            ],
+            "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "success": false,
+            "latency_s": 12.012798165989807,
+            "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843d-8d56-7e90-95dd-5fc37af29be5\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "runtime_return_code": 124,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 532
+          },
+          {
+            "task_id": "foundation_rfc_alignment",
+            "split": "test",
+            "category": "delivery",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 180,
+            "token_proxy": 243,
+            "missing_required": [
+              "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "independently deployable modules",
+              "VictoriaMetrics"
+            ],
+            "missing_preferred": [
+              "execution order",
+              "acceptance gates"
+            ],
+            "directives": [
+              "TASK::foundation_rfc_alignment",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "ADD_SIGNAL::independently deployable modules",
+              "ADD_SIGNAL::VictoriaMetrics",
+              "ADD_OPTIONAL::execution order",
+              "ADD_OPTIONAL::acceptance gates",
+              "ADD_COMMAND::proto run pnpm -- test:ut",
+              "ADD_COMMAND::proto run pnpm -- validate:rc-gates"
+            ],
+            "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=180 token_proxy=243 missing_required=3",
+            "success": true,
+            "latency_s": 5.7744449590099975,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 516
+          }
+        ],
+        "splits": {
+          "train": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "val": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "test": {
+            "count": 4,
+            "avg_score": 0.08,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.5,
+            "avg_latency_inv": 0.5,
+            "avg_word_count": 55.0,
+            "avg_token_proxy": 74.25,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 9.122417062499153,
+            "avg_success_rate": 0.5,
+            "error_count": 2
+          },
+          "overall": {
+            "count": 4,
+            "avg_score": 0.08,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.5,
+            "avg_latency_inv": 0.5,
+            "avg_word_count": 55.0,
+            "avg_token_proxy": 74.25,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 9.122417062499153,
+            "avg_success_rate": 0.5,
+            "error_count": 2
+          }
+        }
+      },
+      "baseline_seed": {
+        "rows": [
+          {
+            "task_id": "codex_template_bootstrap_assets",
+            "split": "test",
+            "category": "init",
+            "score": 0.8,
+            "required_cov": 1.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 76,
+            "token_proxy": 102,
+            "missing_required": [],
+            "missing_preferred": [
+              "packages/toolkit/create/template/scripts/",
+              "packages/toolkit/create/template/.github/"
+            ],
+            "directives": [
+              "TASK::codex_template_bootstrap_assets",
+              "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+              "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=codex_template_bootstrap_assets required_cov=1.000 preferred_cov=0.000 words=76 token_proxy=102 missing_required=0",
+            "success": true,
+            "latency_s": 8.518544207996456,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3318
+          },
+          {
+            "task_id": "ultramodern_v4_reference_doc",
+            "split": "test",
+            "category": "core",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 67,
+            "token_proxy": 90,
+            "missing_required": [
+              "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "canonical V4 reference",
+              "Complete Difference Matrix"
+            ],
+            "missing_preferred": [
+              "Not Part of UltraModern.js V4",
+              "performance.rsdoctor"
+            ],
+            "directives": [
+              "TASK::ultramodern_v4_reference_doc",
+              "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "ADD_SIGNAL::canonical V4 reference",
+              "ADD_SIGNAL::Complete Difference Matrix",
+              "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+              "ADD_OPTIONAL::performance.rsdoctor",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=67 token_proxy=90 missing_required=3",
+            "success": true,
+            "latency_s": 5.936676541983616,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3310
+          },
+          {
+            "task_id": "superapp_architecture_reference",
+            "split": "test",
+            "category": "appdev",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 218,
+            "token_proxy": 294,
+            "missing_required": [
+              "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "requestId-scoped",
+              "fallback telemetry"
+            ],
+            "missing_preferred": [
+              "independently deployed super-app systems",
+              "App-level MF SSR"
+            ],
+            "directives": [
+              "TASK::superapp_architecture_reference",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "ADD_SIGNAL::requestId-scoped",
+              "ADD_SIGNAL::fallback telemetry",
+              "ADD_OPTIONAL::independently deployed super-app systems",
+              "ADD_OPTIONAL::App-level MF SSR",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=superapp_architecture_reference required_cov=0.000 preferred_cov=0.000 words=218 token_proxy=294 missing_required=3",
+            "success": true,
+            "latency_s": 4.161496457993053,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3323
+          },
+          {
+            "task_id": "foundation_rfc_alignment",
+            "split": "test",
+            "category": "delivery",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 196,
+            "token_proxy": 264,
+            "missing_required": [
+              "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "independently deployable modules",
+              "VictoriaMetrics"
+            ],
+            "missing_preferred": [
+              "execution order",
+              "acceptance gates"
+            ],
+            "directives": [
+              "TASK::foundation_rfc_alignment",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "ADD_SIGNAL::independently deployable modules",
+              "ADD_SIGNAL::VictoriaMetrics",
+              "ADD_OPTIONAL::execution order",
+              "ADD_OPTIONAL::acceptance gates",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=196 token_proxy=264 missing_required=3",
+            "success": true,
+            "latency_s": 6.0793911250075325,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3307
+          }
+        ],
+        "splits": {
+          "train": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "val": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "test": {
+            "count": 4,
+            "avg_score": 0.32,
+            "avg_required_cov": 0.25,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 1.0,
+            "avg_latency_inv": 1.0,
+            "avg_word_count": 139.25,
+            "avg_token_proxy": 187.5,
+            "top_missing_required": [
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              },
+              {
+                "signal": "fallback telemetry",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 6.174027083245164,
+            "avg_success_rate": 1.0,
+            "error_count": 0
+          },
+          "overall": {
+            "count": 4,
+            "avg_score": 0.32,
+            "avg_required_cov": 0.25,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 1.0,
+            "avg_latency_inv": 1.0,
+            "avg_word_count": 139.25,
+            "avg_token_proxy": 187.5,
+            "top_missing_required": [
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              },
+              {
+                "signal": "fallback telemetry",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 6.174027083245164,
+            "avg_success_rate": 1.0,
+            "error_count": 0
+          }
+        }
+      },
+      "gepa_optimized_core": {
+        "rows": [
+          {
+            "task_id": "codex_template_bootstrap_assets",
+            "split": "test",
+            "category": "init",
+            "score": 0.0,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.0,
+            "latency_inv": 0.0,
+            "word_count": 0.0,
+            "token_proxy": 0.0,
+            "missing_required": [
+              "packages/toolkit/create/template/modern.config.ts.handlebars",
+              "packages/toolkit/create/template/package.json.handlebars",
+              "packages/toolkit/create/template/README.md"
+            ],
+            "missing_preferred": [
+              "packages/toolkit/create/template/scripts/",
+              "packages/toolkit/create/template/.github/"
+            ],
+            "directives": [
+              "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+            ],
+            "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "success": false,
+            "latency_s": 12.00858987501124,
+            "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843c-82e1-7d71-8d12-21a41f541f2a\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "runtime_return_code": 124,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 5227
+          },
+          {
+            "task_id": "ultramodern_v4_reference_doc",
+            "split": "test",
+            "category": "core",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 59,
+            "token_proxy": 79,
+            "missing_required": [
+              "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "canonical V4 reference",
+              "Complete Difference Matrix"
+            ],
+            "missing_preferred": [
+              "Not Part of UltraModern.js V4",
+              "performance.rsdoctor"
+            ],
+            "directives": [
+              "TASK::ultramodern_v4_reference_doc",
+              "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "ADD_SIGNAL::canonical V4 reference",
+              "ADD_SIGNAL::Complete Difference Matrix",
+              "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+              "ADD_OPTIONAL::performance.rsdoctor",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=59 token_proxy=79 missing_required=3",
+            "success": true,
+            "latency_s": 9.786139250005363,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 5219
+          },
+          {
+            "task_id": "superapp_architecture_reference",
+            "split": "test",
+            "category": "appdev",
+            "score": 0.37333333333333335,
+            "required_cov": 0.3333333333333333,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 392,
+            "token_proxy": 529,
+            "missing_required": [
+              "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "requestId-scoped"
+            ],
+            "missing_preferred": [
+              "independently deployed super-app systems",
+              "App-level MF SSR"
+            ],
+            "directives": [
+              "TASK::superapp_architecture_reference",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "ADD_SIGNAL::requestId-scoped",
+              "ADD_OPTIONAL::independently deployed super-app systems",
+              "ADD_OPTIONAL::App-level MF SSR",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=superapp_architecture_reference required_cov=0.333 preferred_cov=0.000 words=392 token_proxy=529 missing_required=2",
+            "success": true,
+            "latency_s": 4.864891999983229,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 5232
+          },
+          {
+            "task_id": "foundation_rfc_alignment",
+            "split": "test",
+            "category": "delivery",
+            "score": 0.1413397129186603,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.8133971291866029,
+            "latency_inv": 1.0,
+            "word_count": 418,
+            "token_proxy": 564,
+            "missing_required": [
+              "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "independently deployable modules",
+              "VictoriaMetrics"
+            ],
+            "missing_preferred": [
+              "execution order",
+              "acceptance gates"
+            ],
+            "directives": [
+              "TASK::foundation_rfc_alignment",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "ADD_SIGNAL::independently deployable modules",
+              "ADD_SIGNAL::VictoriaMetrics",
+              "ADD_OPTIONAL::execution order",
+              "ADD_OPTIONAL::acceptance gates",
+              "TRIM_WORDS::340",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=foundation_rfc_alignment required_cov=0.000 preferred_cov=0.000 words=418 token_proxy=564 missing_required=3",
+            "success": true,
+            "latency_s": 8.952636083005928,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 5216
+          }
+        ],
+        "splits": {
+          "train": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "val": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "test": {
+            "count": 4,
+            "avg_score": 0.1686682615629984,
+            "avg_required_cov": 0.08333333333333333,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.7033492822966507,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 217.25,
+            "avg_token_proxy": 293.0,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 8.90306430200144,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          },
+          "overall": {
+            "count": 4,
+            "avg_score": 0.1686682615629984,
+            "avg_required_cov": 0.08333333333333333,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.7033492822966507,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 217.25,
+            "avg_token_proxy": 293.0,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "requestId-scoped",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 8.90306430200144,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          }
+        }
+      },
+      "codex_split_pack": {
+        "rows": [
+          {
+            "task_id": "codex_template_bootstrap_assets",
+            "split": "test",
+            "category": "init",
+            "score": 0.8,
+            "required_cov": 1.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 143,
+            "token_proxy": 193,
+            "missing_required": [],
+            "missing_preferred": [
+              "packages/toolkit/create/template/scripts/",
+              "packages/toolkit/create/template/.github/"
+            ],
+            "directives": [
+              "TASK::codex_template_bootstrap_assets",
+              "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+              "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=codex_template_bootstrap_assets required_cov=1.000 preferred_cov=0.000 words=143 token_proxy=193 missing_required=0",
+            "success": true,
+            "latency_s": 9.272613042005105,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 2021
+          },
+          {
+            "task_id": "ultramodern_v4_reference_doc",
+            "split": "test",
+            "category": "core",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 47,
+            "token_proxy": 63,
+            "missing_required": [
+              "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "canonical V4 reference",
+              "Complete Difference Matrix"
+            ],
+            "missing_preferred": [
+              "Not Part of UltraModern.js V4",
+              "performance.rsdoctor"
+            ],
+            "directives": [
+              "TASK::ultramodern_v4_reference_doc",
+              "ADD_SIGNAL::packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+              "ADD_SIGNAL::canonical V4 reference",
+              "ADD_SIGNAL::Complete Difference Matrix",
+              "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+              "ADD_OPTIONAL::performance.rsdoctor",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=ultramodern_v4_reference_doc required_cov=0.000 preferred_cov=0.000 words=47 token_proxy=63 missing_required=3",
+            "success": true,
+            "latency_s": 8.586345290997997,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 9437
+          },
+          {
+            "task_id": "superapp_architecture_reference",
+            "split": "test",
+            "category": "appdev",
+            "score": 0.5866666666666667,
+            "required_cov": 0.6666666666666666,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 265,
+            "token_proxy": 357,
+            "missing_required": [
+              "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md"
+            ],
+            "missing_preferred": [
+              "independently deployed super-app systems",
+              "App-level MF SSR"
+            ],
+            "directives": [
+              "TASK::superapp_architecture_reference",
+              "ADD_SIGNAL::docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+              "ADD_OPTIONAL::independently deployed super-app systems",
+              "ADD_OPTIONAL::App-level MF SSR",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=superapp_architecture_reference required_cov=0.667 preferred_cov=0.000 words=265 token_proxy=357 missing_required=1",
+            "success": true,
+            "latency_s": 5.469504083011998,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 5711
+          },
+          {
+            "task_id": "foundation_rfc_alignment",
+            "split": "test",
+            "category": "delivery",
+            "score": 0.0,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.0,
+            "latency_inv": 0.0,
+            "word_count": 0.0,
+            "token_proxy": 0.0,
+            "missing_required": [
+              "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "independently deployable modules",
+              "VictoriaMetrics"
+            ],
+            "missing_preferred": [
+              "execution order",
+              "acceptance gates"
+            ],
+            "directives": [
+              "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}"
+            ],
+            "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}",
+            "success": false,
+            "latency_s": 12.00919025001349,
+            "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-74f1-7f93-9d20-5f6121821469\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}",
+            "runtime_return_code": 124,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3140
+          }
+        ],
+        "splits": {
+          "train": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "val": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "test": {
+            "count": 4,
+            "avg_score": 0.38666666666666666,
+            "avg_required_cov": 0.41666666666666663,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.75,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 113.75,
+            "avg_token_proxy": 153.25,
+            "top_missing_required": [
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              },
+              {
+                "signal": "VictoriaMetrics",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 8.834413166507147,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          },
+          "overall": {
+            "count": 4,
+            "avg_score": 0.38666666666666666,
+            "avg_required_cov": 0.41666666666666663,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.75,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 113.75,
+            "avg_token_proxy": 153.25,
+            "top_missing_required": [
+              {
+                "signal": "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+                "count": 1
+              },
+              {
+                "signal": "canonical V4 reference",
+                "count": 1
+              },
+              {
+                "signal": "Complete Difference Matrix",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/ARCH-0001-effect-tanstack-target-architecture.md",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              },
+              {
+                "signal": "VictoriaMetrics",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 8.834413166507147,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          }
+        }
+      },
+      "legacy_claude_split_pack": {
+        "rows": [
+          {
+            "task_id": "codex_template_bootstrap_assets",
+            "split": "test",
+            "category": "init",
+            "score": 0.16,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 141,
+            "token_proxy": 190,
+            "missing_required": [
+              "packages/toolkit/create/template/modern.config.ts.handlebars",
+              "packages/toolkit/create/template/package.json.handlebars",
+              "packages/toolkit/create/template/README.md"
+            ],
+            "missing_preferred": [
+              "packages/toolkit/create/template/scripts/",
+              "packages/toolkit/create/template/.github/"
+            ],
+            "directives": [
+              "TASK::codex_template_bootstrap_assets",
+              "ADD_SIGNAL::packages/toolkit/create/template/modern.config.ts.handlebars",
+              "ADD_SIGNAL::packages/toolkit/create/template/package.json.handlebars",
+              "ADD_SIGNAL::packages/toolkit/create/template/README.md",
+              "ADD_OPTIONAL::packages/toolkit/create/template/scripts/",
+              "ADD_OPTIONAL::packages/toolkit/create/template/.github/",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=codex_template_bootstrap_assets required_cov=0.000 preferred_cov=0.000 words=141 token_proxy=190 missing_required=3",
+            "success": true,
+            "latency_s": 10.25798537497758,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3281
+          },
+          {
+            "task_id": "ultramodern_v4_reference_doc",
+            "split": "test",
+            "category": "core",
+            "score": 0.8,
+            "required_cov": 1.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 47,
+            "token_proxy": 63,
+            "missing_required": [],
+            "missing_preferred": [
+              "Not Part of UltraModern.js V4",
+              "performance.rsdoctor"
+            ],
+            "directives": [
+              "TASK::ultramodern_v4_reference_doc",
+              "ADD_OPTIONAL::Not Part of UltraModern.js V4",
+              "ADD_OPTIONAL::performance.rsdoctor",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=ultramodern_v4_reference_doc required_cov=1.000 preferred_cov=0.000 words=47 token_proxy=63 missing_required=0",
+            "success": true,
+            "latency_s": 5.648805417004041,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 6469
+          },
+          {
+            "task_id": "superapp_architecture_reference",
+            "split": "test",
+            "category": "appdev",
+            "score": 0.8999999999999999,
+            "required_cov": 1.0,
+            "preferred_cov": 0.5,
+            "token_efficiency": 1.0,
+            "latency_inv": 1.0,
+            "word_count": 200,
+            "token_proxy": 270,
+            "missing_required": [],
+            "missing_preferred": [
+              "independently deployed super-app systems"
+            ],
+            "directives": [
+              "TASK::superapp_architecture_reference",
+              "ADD_OPTIONAL::independently deployed super-app systems",
+              "ADD_COMMAND::proto run pnpm -- test:ut"
+            ],
+            "feedback": "Task=superapp_architecture_reference required_cov=1.000 preferred_cov=0.500 words=200 token_proxy=270 missing_required=0",
+            "success": true,
+            "latency_s": 11.970197416987503,
+            "runtime_error": "",
+            "runtime_return_code": 0,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3286
+          },
+          {
+            "task_id": "foundation_rfc_alignment",
+            "split": "test",
+            "category": "delivery",
+            "score": 0.0,
+            "required_cov": 0.0,
+            "preferred_cov": 0.0,
+            "token_efficiency": 0.0,
+            "latency_inv": 0.0,
+            "word_count": 0.0,
+            "token_proxy": 0.0,
+            "missing_required": [
+              "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+              "independently deployable modules",
+              "VictoriaMetrics"
+            ],
+            "missing_preferred": [
+              "execution order",
+              "acceptance gates"
+            ],
+            "directives": [
+              "CODEX_ERROR::{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}"
+            ],
+            "feedback": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "success": false,
+            "latency_s": 12.01288354198914,
+            "runtime_error": "{\"type\":\"thread.started\",\"thread_id\":\"019c843e-a3d2-7023-b9d2-497c905d4b89\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Under-development features enabled: apply_patch_freeform, responses_websockets_v2. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/satan/.codex-native/config.toml.\"}}\n{\"type\":\"turn.started\"}",
+            "runtime_return_code": 124,
+            "runtime_bin": "codex-native",
+            "runtime_model": "gpt-5.3-codex-spark",
+            "runtime_prompt_chars": 3140
+          }
+        ],
+        "splits": {
+          "train": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "val": {
+            "count": 0,
+            "avg_score": 0.0,
+            "avg_required_cov": 0.0,
+            "avg_preferred_cov": 0.0,
+            "avg_token_efficiency": 0.0,
+            "avg_latency_inv": 0.0,
+            "avg_word_count": 0.0,
+            "avg_token_proxy": 0.0,
+            "top_missing_required": [],
+            "avg_latency_s": 0.0,
+            "avg_success_rate": 0.0,
+            "error_count": 0
+          },
+          "test": {
+            "count": 4,
+            "avg_score": 0.46499999999999997,
+            "avg_required_cov": 0.5,
+            "avg_preferred_cov": 0.125,
+            "avg_token_efficiency": 0.75,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 97.0,
+            "avg_token_proxy": 130.75,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              },
+              {
+                "signal": "VictoriaMetrics",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 9.972467937739566,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          },
+          "overall": {
+            "count": 4,
+            "avg_score": 0.46499999999999997,
+            "avg_required_cov": 0.5,
+            "avg_preferred_cov": 0.125,
+            "avg_token_efficiency": 0.75,
+            "avg_latency_inv": 0.75,
+            "avg_word_count": 97.0,
+            "avg_token_proxy": 130.75,
+            "top_missing_required": [
+              {
+                "signal": "packages/toolkit/create/template/modern.config.ts.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/package.json.handlebars",
+                "count": 1
+              },
+              {
+                "signal": "packages/toolkit/create/template/README.md",
+                "count": 1
+              },
+              {
+                "signal": "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+                "count": 1
+              },
+              {
+                "signal": "independently deployable modules",
+                "count": 1
+              },
+              {
+                "signal": "VictoriaMetrics",
+                "count": 1
+              }
+            ],
+            "avg_latency_s": 9.972467937739566,
+            "avg_success_rate": 0.75,
+            "error_count": 1
+          }
+        }
+      }
+    },
+    "winner_by_split": {
+      "train": "baseline_none",
+      "val": "baseline_none",
+      "test": "legacy_claude_split_pack",
+      "overall": "legacy_claude_split_pack"
+    }
+  }
+}

@@ -1,0 +1,287 @@
+[
+  {
+    "id": "rsdoctor_contract_file",
+    "split": "train",
+    "category": "core",
+    "prompt": "Locate the UltraModern build diagnostics contract and explain where the machine-readable pointer is written.",
+    "required_signals": [
+      "performance.rsdoctor",
+      "ultramodern-diagnostics.json",
+      "packages/builder/builder/src/plugins/performance.ts"
+    ],
+    "preferred_signals": [
+      "manifest.json",
+      "disableClientServer",
+      "reportDir"
+    ]
+  },
+  {
+    "id": "rsdoctor_default_enablement",
+    "split": "train",
+    "category": "core",
+    "prompt": "Explain when rsdoctor is enabled by default and which bundler path is supported.",
+    "required_signals": [
+      "process.env.NODE_ENV === 'production'",
+      "isRsdoctorEnabled",
+      "api.context.bundlerType !== 'rspack'"
+    ],
+    "preferred_signals": [
+      "enabled",
+      "mode",
+      "Rspack"
+    ]
+  },
+  {
+    "id": "bff_requestid_failfast",
+    "split": "train",
+    "category": "bff",
+    "prompt": "Debug a non-default producer call that fails before request dispatch.",
+    "required_signals": [
+      "requestId",
+      "ProducerClientNotInitializedError",
+      "ProducerDomainNotConfiguredError",
+      "packages/server/create-request/src/node.ts"
+    ],
+    "preferred_signals": [
+      "configure",
+      "setDomain",
+      "requestId !== 'default'"
+    ]
+  },
+  {
+    "id": "bff_operation_headers",
+    "split": "train",
+    "category": "bff",
+    "prompt": "Trace operation and distributed-tracing headers across create-request calls.",
+    "required_signals": [
+      "x-operation-id",
+      "x-modernjs-bff-operation-context",
+      "traceparent"
+    ],
+    "preferred_signals": [
+      "traceId",
+      "spanId",
+      "parseTraceparent"
+    ]
+  },
+  {
+    "id": "bff_runtime_isolation",
+    "split": "train",
+    "category": "bff",
+    "prompt": "Find where per-producer runtime state is isolated and how defaults behave.",
+    "required_signals": [
+      "Map<string",
+      "realRequest",
+      "domainMap",
+      "requestId = 'default'"
+    ],
+    "preferred_signals": [
+      "allowedHeaders",
+      "resolveHeaders",
+      "identityBinding"
+    ]
+  },
+  {
+    "id": "telemetry_enablement_policy",
+    "split": "train",
+    "category": "telemetry",
+    "prompt": "Determine when server telemetry should initialize and where exporter gates are checked.",
+    "required_signals": [
+      "server.telemetry",
+      "hasEnabledTelemetryExporters",
+      "exporters?.otlp?.enabled",
+      "exporters?.victoriaMetrics?.enabled"
+    ],
+    "preferred_signals": [
+      "packages/server/prod-server/src/server/index.ts",
+      "packages/server/core/src/plugins/telemetry.ts"
+    ]
+  },
+  {
+    "id": "telemetry_backpressure",
+    "split": "train",
+    "category": "telemetry",
+    "prompt": "Investigate dropped telemetry envelopes and identify queue controls.",
+    "required_signals": [
+      "telemetry.queue.dropped",
+      "maxQueueSize",
+      "maxBatchSize",
+      "flushIntervalMs"
+    ],
+    "preferred_signals": [
+      "slo",
+      "queueUtilizationWarnThreshold",
+      "alertCooldownMs"
+    ]
+  },
+  {
+    "id": "mf_ssr_alpha_flag",
+    "split": "train",
+    "category": "mf",
+    "prompt": "Find the app-level MF SSR alpha contract wiring and env injection path.",
+    "required_signals": [
+      "moduleFederationAppSSRAlpha",
+      "process.env.MODERN_MF_APP_SSR_ALPHA",
+      "packages/runtime/plugin-runtime/src/cli/ssr/index.ts"
+    ],
+    "preferred_signals": [
+      "server.ssrByEntries",
+      "tests/integration/i18n/mf/test/app-level-ssr-serve.test.ts"
+    ]
+  },
+  {
+    "id": "boundary_and_contract_commands",
+    "split": "train",
+    "category": "contracts",
+    "prompt": "Prepare CI checks for module boundary and release contracts.",
+    "required_signals": [
+      "proto run pnpm -- validate:module-sdk-contracts",
+      "proto run pnpm -- validate:boundary-guards",
+      "proto run pnpm -- validate:rc-gates"
+    ],
+    "preferred_signals": [
+      "scripts/module-sdk-contracts/validate-module-sdk-contracts.js",
+      "scripts/boundary-guards/check-boundary-violations.js",
+      "scripts/release-gates/validate-release-candidate-gates.js"
+    ]
+  },
+  {
+    "id": "fast_debug_loop",
+    "split": "train",
+    "category": "core",
+    "prompt": "Provide an issue-fixing loop optimized for speed and reviewability in this monorepo.",
+    "required_signals": [
+      "change one behavior at a time",
+      "rerun the smallest reproducing test",
+      "packages/server/create-request/tests",
+      "packages/server/prod-server/tests"
+    ],
+    "preferred_signals": [
+      "proto run pnpm -- test:ut",
+      "tests/integration",
+      "fail-fast"
+    ]
+  },
+  {
+    "id": "telemetry_tests_map",
+    "split": "val",
+    "category": "telemetry",
+    "prompt": "Map where telemetry behavior is covered in unit tests.",
+    "required_signals": [
+      "packages/server/prod-server/tests/telemetry.test.ts",
+      "packages/server/core/tests/plugins/telemetry.test.ts"
+    ],
+    "preferred_signals": [
+      "telemetry.canary.rollback",
+      "telemetry.queue.utilization"
+    ]
+  },
+  {
+    "id": "mf_alpha_tests_map",
+    "split": "val",
+    "category": "mf",
+    "prompt": "Map integration tests that depend on MODERN_MF_APP_SSR_ALPHA.",
+    "required_signals": [
+      "MODERN_MF_APP_SSR_ALPHA",
+      "tests/integration/i18n/mf/test/index.test.ts",
+      "tests/integration/i18n/mf/test/app-level-ssr-serve.test.ts"
+    ],
+    "preferred_signals": [
+      "mf-app-provider/modern.config.ts",
+      "mf-consumer/modern.config.ts"
+    ]
+  },
+  {
+    "id": "server_type_contracts",
+    "split": "val",
+    "category": "core",
+    "prompt": "Identify the source-of-truth types for SSR alpha and telemetry config surface.",
+    "required_signals": [
+      "packages/server/core/src/types/config/server.ts",
+      "ServerTelemetryUserConfig",
+      "moduleFederationAppSSRAlpha"
+    ],
+    "preferred_signals": [
+      "ServerTelemetryVictoriaMetricsOptions",
+      "ServerTelemetryCanaryUserConfig"
+    ]
+  },
+  {
+    "id": "release_gate_flags",
+    "split": "val",
+    "category": "contracts",
+    "prompt": "Explain which CLI flags matter when release gates fail in CI.",
+    "required_signals": [
+      "--profile",
+      "--evidence-dir",
+      "--skip-commands",
+      "--allow-missing-evidence"
+    ],
+    "preferred_signals": [
+      "scripts/release-gates/validate-release-candidate-gates.js",
+      "module-certification-profile.json",
+      "rc-contract-profile.json"
+    ]
+  },
+  {
+    "id": "ultramodern_v4_reference_doc",
+    "split": "test",
+    "category": "core",
+    "prompt": "Find the canonical public difference reference for UltraModern v4.",
+    "required_signals": [
+      "packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx",
+      "canonical V4 reference",
+      "Complete Difference Matrix"
+    ],
+    "preferred_signals": [
+      "Not Part of UltraModern.js V4",
+      "performance.rsdoctor"
+    ]
+  },
+  {
+    "id": "contract_artifact_sources",
+    "split": "test",
+    "category": "contracts",
+    "prompt": "Find the module SDK contract artifact, types, and validator entrypoint.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/contracts/module-sdk-contracts.json",
+      "packages/toolkit/types/common/moduleSdk.d.ts",
+      "scripts/module-sdk-contracts/validate-module-sdk-contracts.js"
+    ],
+    "preferred_signals": [
+      "module-manifest.example.json",
+      "boundary-anti-patterns.yml"
+    ]
+  },
+  {
+    "id": "mf_alpha_scope_guardrail",
+    "split": "test",
+    "category": "mf",
+    "prompt": "Clarify what the MF SSR alpha flag does and what it intentionally does not provide in v4.",
+    "required_signals": [
+      "moduleFederationAppSSRAlpha",
+      "contract/env wiring only",
+      "full app-level Module Federation SSR runtime bridge is still an alpha rollout item"
+    ],
+    "preferred_signals": [
+      "process.env.MODERN_MF_APP_SSR_ALPHA",
+      "Not Part of UltraModern.js V4"
+    ]
+  },
+  {
+    "id": "reliability_language",
+    "split": "test",
+    "category": "telemetry",
+    "prompt": "Ensure guidance preserves reliability language around startup and non-fatal behavior.",
+    "required_signals": [
+      "fail-fast",
+      "best-effort",
+      "non-fatal"
+    ],
+    "preferred_signals": [
+      "startupHealthCheck",
+      "ProducerClientNotInitializedError",
+      "telemetry.queue.dropped"
+    ]
+  }
+]

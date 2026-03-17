@@ -44,9 +44,15 @@
     "validate:main-doc-docs": "pnpm run prebuild:main-doc-docs && pnpm --filter @modern-js/main-doc run build:doc",
     "validate:module-sdk-contracts": "node scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --skip-manifest-validation",
     "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
-    "validate:module-certification-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
-    "validate:bun-smoke": "bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",
-    "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current"
+    "validate:release-gate-prereqs": "pnpm run prepare && pnpm run validate:module-sdk-contracts",
+    "validate:module-certification-gates": "pnpm run validate:release-gate-prereqs && node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
+    "validate:bun-smoke": "pnpm run validate:release-gate-prereqs && bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",
+    "validate:rc-gates": "pnpm run validate:release-gate-prereqs && node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
+    "gskill:ultramodern": "python3 scripts/gskill/run_gskill.py optimize --sync-skills",
+    "gskill:benchmark": "python3 scripts/gskill/run_gskill.py benchmark",
+    "gskill:codex": "python3 scripts/gskill/run_gskill.py optimize --sync-skills --skills-dir .codex/skills",
+    "gskill:benchmark:codex": "python3 scripts/gskill/run_gskill.py benchmark",
+    "gskill:benchmark:codex-runtime": "python3 scripts/gskill/benchmark_codex_runtime.py --runtime-bin codex-native --model gpt-5.3-codex-spark --split test"
   },
   "engines": {
     "node": ">=20",

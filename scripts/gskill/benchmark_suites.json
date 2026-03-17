@@ -1,0 +1,22 @@
+[
+  {
+    "id": "codex-superapp-bootstrap",
+    "description": "Codex-first project initialization, MF/MFE scaffolding, Effect BFF routing, and strict type-safety gates.",
+    "tasks_file": "benchmark_tasks_codex_bootstrap.json"
+  },
+  {
+    "id": "foundation-contracts",
+    "description": "UltraModern framework contracts, diagnostics, and runtime guards.",
+    "tasks_file": "benchmark_tasks.json"
+  },
+  {
+    "id": "superapp-development",
+    "description": "Large super-app host/remote development, Effect data flow, and integration readiness.",
+    "tasks_file": "benchmark_tasks_superapp_dev.json"
+  },
+  {
+    "id": "enterprise-delivery",
+    "description": "Release governance, certification evidence, canary policy, and CI gate execution.",
+    "tasks_file": "benchmark_tasks_enterprise_delivery.json"
+  }
+]

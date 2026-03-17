@@ -1,0 +1,152 @@
+[
+  {
+    "id": "codex_project_bootstrap_order",
+    "split": "train",
+    "category": "init",
+    "prompt": "Initialize an UltraModern super-app workspace in the exact execution order Codex should follow.",
+    "required_signals": [
+      "proto install",
+      "proto run pnpm -- install",
+      "proto run pnpm -- test:framework -- integration/routes-tanstack-mf/test/index.test.ts --runInBand"
+    ],
+    "preferred_signals": [
+      "one subsystem at a time",
+      "smallest reproducing test"
+    ]
+  },
+  {
+    "id": "codex_host_scaffold_map",
+    "split": "train",
+    "category": "mf",
+    "prompt": "Create a host shell for micro frontends and list canonical host scaffolding files.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/modern.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-host/module-federation.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-host/src/modern.runtime.tsx"
+    ],
+    "preferred_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/layout.tsx",
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/page.tsx"
+    ]
+  },
+  {
+    "id": "codex_remote_scaffold_map",
+    "split": "train",
+    "category": "mf",
+    "prompt": "Create a remote micro frontend and list canonical remote scaffolding files.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-remote/modern.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-remote/module-federation.config.ts",
+      "tests/integration/routes-tanstack-mf/mf-remote/src/components/Widget.tsx"
+    ],
+    "preferred_signals": [
+      "tests/integration/routes-tanstack-mf/mf-remote/src/components/Mutator.tsx",
+      "tests/integration/routes-tanstack-mf/mf-remote/src/routes/page.tsx"
+    ]
+  },
+  {
+    "id": "codex_effect_bff_contract_path",
+    "split": "train",
+    "category": "bff",
+    "prompt": "Wire Effect-based BFF APIs from host to remotes with trace-safe contracts.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/shared/effect/api.ts",
+      "tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts",
+      "traceparent"
+    ],
+    "preferred_signals": [
+      "Schema.optional(Schema.String)",
+      "x-modernjs-bff-operation-context"
+    ]
+  },
+  {
+    "id": "codex_tanstack_routing_contracts",
+    "split": "train",
+    "category": "routing",
+    "prompt": "Set up TanStack routing contracts across host and remotes.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/layout.tsx",
+      "tests/integration/routes-tanstack-mf/mf-host/src/routes/page.tsx",
+      "tests/integration/routes-tanstack-mf/mf-remote/src/routes/page.tsx"
+    ],
+    "preferred_signals": [
+      "TanStack Router",
+      "tests/integration/routes-tanstack-mf/test/index.test.ts"
+    ]
+  },
+  {
+    "id": "codex_typesafety_baseline",
+    "split": "train",
+    "category": "typesafety",
+    "prompt": "Enforce strong type-safety contracts before broad integration runs.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts",
+      "tsconfig.typecheck.json",
+      "@mf-types"
+    ],
+    "preferred_signals": [
+      "src/type-tests",
+      "runtime-shim"
+    ]
+  },
+  {
+    "id": "codex_remote_loader_reliability",
+    "split": "val",
+    "category": "mf",
+    "prompt": "Stabilize remote-loader reliability in module federation runtime.",
+    "required_signals": [
+      "tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts",
+      "mf-manifest.json",
+      "mfv"
+    ],
+    "preferred_signals": [
+      "CACHE_VERSION_QUERY_KEY = 'mfv'",
+      "fallback telemetry"
+    ]
+  },
+  {
+    "id": "codex_trace_header_integrity",
+    "split": "val",
+    "category": "bff",
+    "prompt": "Preserve operation and distributed tracing headers from browser to Effect spans.",
+    "required_signals": [
+      "x-operation-id",
+      "x-modernjs-bff-operation-context",
+      "parseTraceparent"
+    ],
+    "preferred_signals": [
+      "traceId",
+      "spanId"
+    ]
+  },
+  {
+    "id": "codex_template_bootstrap_assets",
+    "split": "test",
+    "category": "init",
+    "prompt": "Point Codex to template assets that bootstrap new UltraModern projects.",
+    "required_signals": [
+      "packages/toolkit/create/template/modern.config.ts.handlebars",
+      "packages/toolkit/create/template/package.json.handlebars",
+      "packages/toolkit/create/template/README.md"
+    ],
+    "preferred_signals": [
+      "packages/toolkit/create/template/scripts/",
+      "packages/toolkit/create/template/.github/"
+    ]
+  },
+  {
+    "id": "codex_type_contract_release_gate",
+    "split": "test",
+    "category": "typesafety",
+    "prompt": "Require type and module SDK contract checks before release promotion.",
+    "required_signals": [
+      "proto run pnpm -- validate:module-sdk-contracts",
+      "docs/super-app-rfc-adr/contracts/module-sdk-contracts.json",
+      "packages/toolkit/types/common/moduleSdk.d.ts"
+    ],
+    "preferred_signals": [
+      "scripts/module-sdk-contracts/validate-module-sdk-contracts.js",
+      "docs/super-app-rfc-adr/contracts/module-manifest.example.json"
+    ]
+  }
+]

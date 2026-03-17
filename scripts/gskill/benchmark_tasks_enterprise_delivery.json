@@ -1,0 +1,156 @@
+[
+  {
+    "id": "rc_profile_contracts",
+    "split": "train",
+    "category": "delivery",
+    "prompt": "Fix release candidate gate failures using contract profile guidance.",
+    "required_signals": [
+      "scripts/release-gates/rc-contract-profile.json",
+      "requiredFiles",
+      "gateCommands"
+    ],
+    "preferred_signals": [
+      "scripts/release-gates/validate-release-candidate-gates.js",
+      "--profile",
+      "--evidence-dir"
+    ]
+  },
+  {
+    "id": "module_cert_profile_contracts",
+    "split": "train",
+    "category": "delivery",
+    "prompt": "Run module certification gate checks for module onboarding.",
+    "required_signals": [
+      "scripts/release-gates/module-certification-profile.json",
+      "proto run pnpm -- validate:module-sdk-contracts",
+      "proto run pnpm -- validate:boundary-guards"
+    ],
+    "preferred_signals": [
+      "node --test scripts/module-sdk-contracts/__tests__/validator.test.js",
+      "node --test scripts/boundary-guards/__tests__/validator.test.js"
+    ]
+  },
+  {
+    "id": "evidence_directory_contract",
+    "split": "train",
+    "category": "delivery",
+    "prompt": "Collect evidence files required for certification and release gates.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/evidence/module-certification/current",
+      "docs/super-app-rfc-adr/evidence/release-candidate/current",
+      "validation-evidence.md"
+    ],
+    "preferred_signals": [
+      "architecture-evidence.md",
+      "test-evidence.md"
+    ]
+  },
+  {
+    "id": "telemetry_canary_guardrails",
+    "split": "train",
+    "category": "telemetry",
+    "prompt": "Operate canary promotion and rollback safely using telemetry signals.",
+    "required_signals": [
+      "telemetry.canary.promote",
+      "telemetry.canary.rollback",
+      "maxUnhealthyExporters"
+    ],
+    "preferred_signals": [
+      "maxQueueUtilization",
+      "maxTotalDropped",
+      "requiredContractGates"
+    ]
+  },
+  {
+    "id": "startup_probe_fail_loud",
+    "split": "train",
+    "category": "telemetry",
+    "prompt": "Handle exporter startup probe behavior for production readiness.",
+    "required_signals": [
+      "failLoudStartup",
+      "startupHealthCheck",
+      "non-fatal"
+    ],
+    "preferred_signals": [
+      "best-effort",
+      "telemetry.queue.dropped",
+      "server.telemetry.failLoudStartup = false"
+    ]
+  },
+  {
+    "id": "bun_superapp_smoke",
+    "split": "train",
+    "category": "delivery",
+    "prompt": "Run Bun governance smoke checks for super-app contracts.",
+    "required_signals": [
+      ".github/workflows/bun-superapp-smoke.yml",
+      "proto run pnpm -- validate:bun-smoke",
+      "ADR-0008-bun-superapp-smoke-gates.md"
+    ],
+    "preferred_signals": [
+      "scripts/release-gates/module-certification-profile.json",
+      "scripts/boundary-guards/profile.json"
+    ]
+  },
+  {
+    "id": "ci_gate_artifact_map",
+    "split": "val",
+    "category": "delivery",
+    "prompt": "Navigate CI gate definitions and required artifact map for promotion.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/CI-GATES-0001-check-and-artifact-map.md",
+      ".github/workflows/boundary-anti-patterns.yml",
+      ".github/workflows/module-certification-gates.yml"
+    ],
+    "preferred_signals": [
+      ".github/workflows/bun-superapp-smoke.yml",
+      "scripts/release-gates/validator.js"
+    ]
+  },
+  {
+    "id": "architecture_review_policies",
+    "split": "val",
+    "category": "governance",
+    "prompt": "Apply architecture board release policy constraints before merge.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/REVIEW-0001-architecture-board-log.md",
+      "D-006",
+      "Release promotion requires contract + telemetry gates"
+    ],
+    "preferred_signals": [
+      "D-005",
+      "MF runtime compatibility hard-fail"
+    ]
+  },
+  {
+    "id": "foundation_rfc_alignment",
+    "split": "test",
+    "category": "delivery",
+    "prompt": "Align implementation plans with super-app foundation RFC goals.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/RFC-0001-super-app-foundation-plan.md",
+      "independently deployable modules",
+      "VictoriaMetrics"
+    ],
+    "preferred_signals": [
+      "execution order",
+      "acceptance gates"
+    ]
+  },
+  {
+    "id": "telemetry_adr_contract",
+    "split": "test",
+    "category": "telemetry",
+    "prompt": "Use ADR telemetry contracts to enforce exporter and queue behavior.",
+    "required_signals": [
+      "docs/super-app-rfc-adr/ADR-0004-telemetry-standardization-and-exporters.md",
+      "telemetry.queue.depth",
+      "server.telemetry.canary"
+    ],
+    "preferred_signals": [
+      "telemetry.queue.utilization",
+      "telemetry.queue.dropped",
+      "OTLP and VictoriaMetrics exporters"
+    ]
+  }
+]

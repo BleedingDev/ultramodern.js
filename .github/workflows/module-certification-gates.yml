@@ -62,6 +62,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --ignore-scripts --frozen-lockfile
 
+      - name: Validate module gate prerequisites
+        run: pnpm run validate:release-gate-prereqs
+
       - name: Validate Module Certification Gates
         env:
           EVIDENCE_DIR: ${{ inputs.evidence_dir || github.event.inputs.evidence_dir || 'docs/super-app-rfc-adr/evidence/module-certification/current' }}
