@@ -49,13 +49,16 @@
   "typesVersions": {
     "*": {
       ".": [
-        "./dist/types/index.d.ts"
+        "./dist/types/index.d.ts",
+        "./src/index.ts"
       ],
       "node": [
-        "./dist/types/adapters/node/index.d.ts"
+        "./dist/types/adapters/node/index.d.ts",
+        "./src/adapters/node/index.ts"
       ],
       "hono": [
-        "./dist/types/hono.d.ts"
+        "./dist/types/hono.d.ts",
+        "./src/hono.ts"
       ]
     }
   },

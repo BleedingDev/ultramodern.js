@@ -9,6 +9,7 @@ import type {
   InfoOptions,
   InspectOptions,
 } from '../utils/types';
+import { runtimeCommand } from './runtime';
 
 export const devCommand = async (
   program: Command,
@@ -121,4 +122,11 @@ export const infoCommand = (program: Command, api: CLIPluginAPI<AppTools>) => {
       const { info } = await import('./info.js');
       await info(api, options);
     });
+};
+
+export const runtimeOperationsCommand = async (
+  program: Command,
+  api: CLIPluginAPI<AppTools>,
+) => {
+  await runtimeCommand(program, api);
 };

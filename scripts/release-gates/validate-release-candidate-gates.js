@@ -129,6 +129,7 @@ const runValidation = args => {
     : validateMigrationContracts({
         targets: profile.migrationContracts.targets,
         rootDir: process.cwd(),
+        allowAutoBuildArtifacts: !args.skipCommands,
       });
 
   if (!args.skipCommands) {

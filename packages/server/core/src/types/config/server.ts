@@ -168,6 +168,27 @@ export interface ServerTelemetryCanaryRuntimeFallbackSignalUserConfig {
    * Optional request authentication for runtime fallback signal endpoint.
    */
   auth?: ServerTelemetryCanaryRuntimeFallbackSignalAuthUserConfig;
+  /**
+   * Optional worker-lane pilot for runtime fallback snapshot persistence.
+   * Disabled by default to keep baseline behavior deterministic.
+   */
+  workerLane?: ServerTelemetryCanaryRuntimeFallbackSignalWorkerLaneUserConfig;
+}
+
+export interface ServerTelemetryCanaryRuntimeFallbackSignalWorkerLaneUserConfig {
+  /**
+   * Enable off-main-thread persistence for runtime fallback gate snapshots.
+   *
+   * @default false
+   */
+  enabled?: boolean;
+  /**
+   * Maximum time to wait for worker-lane completion before falling back to
+   * main-thread persistence.
+   *
+   * @default 250
+   */
+  timeoutMs?: number;
 }
 
 export interface ServerTelemetryCanaryRuntimeFallbackSignalAuthUserConfig {

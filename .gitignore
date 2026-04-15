@@ -62,3 +62,6 @@ dist-1
 dist-ssg
 .dolt/
 *.db
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

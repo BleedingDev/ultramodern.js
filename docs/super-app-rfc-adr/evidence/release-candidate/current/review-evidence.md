@@ -12,5 +12,5 @@ workflow_run_url: local://manual/validate-rc-gates
 - Subagent review attempt:
 - `collab spawn failed: agent thread limit reached (max 16)`.
 - Due to session cap, final review performed via two manual passes:
-- Pass A: config/script scope isolation (`tests/jest.module-tools.config.js`, `tests/package.json`).
+- Pass A: config/script scope isolation (`tests/rstest.module-tools.config.ts`, `tests/package.json`).
 - Pass B: end-to-end validation and regression checks (`validate:bun-smoke`, `validate:module-certification-gates`, `validate:rc-gates`, `test:module-tools`).

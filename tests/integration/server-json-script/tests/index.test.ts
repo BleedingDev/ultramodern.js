@@ -6,6 +6,7 @@ import {
   launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
 const appDir = path.resolve(__dirname, '../');
 let app: any;
@@ -22,7 +23,7 @@ afterAll(async () => {
 });
 
 describe('test basic usage', () => {
-  jest.setTimeout(25000);
+  setSuiteTimeout(25000);
 
   test(`should start successfully`, async () => {
     app = await launchApp(appDir, appPort, {}, {});

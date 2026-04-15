@@ -1,4 +1,4 @@
-// Rstest Snapshot v1
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`deploy > support csr when deploy target is netlify 1`] = `
 "/one/* /html/one/index.html 200

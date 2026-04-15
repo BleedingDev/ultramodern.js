@@ -11,5 +11,5 @@ workflow_run_url: local://manual/validate-rc-gates
 - Summary: 49/49 test suites, 126/126 tests, 13 snapshots passed.
 
 - Notes:
-- This test path now runs with `tests/jest.module-tools.config.js` (Node environment, no Puppeteer global setup).
+- This test path now runs with `tests/rstest.module-tools.config.ts` (Node environment, no Puppeteer global setup).
 - Restored tracked module fixture files under `tests/integration/module/fixtures/build/**/node_modules` to recover deterministic fixture-based integration coverage.

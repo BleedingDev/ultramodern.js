@@ -235,6 +235,92 @@ describe('telemetry autopilot runtime signal', () => {
     }
   });
 
+  test('exposes runtime status endpoint and applies auth when runtime signal auth is enabled', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            rollbackConsecutiveFailures: 1,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+              runtimeFallbackSignal: {
+                enabled: true,
+                endpoint: '/_modern/contract-gates/runtime-fallback',
+                auth: {
+                  enabled: true,
+                  headerName: 'x-modernjs-runtime-signal-token',
+                  expectedValue: 'status-token',
+                },
+              },
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+      ]);
+
+      await server.init();
+
+      const unauthorized = await server.request(
+        '/_modern/runtime/status',
+        {
+          method: 'GET',
+          headers: new Headers(),
+        },
+        {},
+      );
+      expect(unauthorized.status).toBe(401);
+
+      const authorized = await server.request(
+        '/_modern/runtime/status',
+        {
+          method: 'GET',
+          headers: new Headers({
+            'x-modernjs-runtime-signal-token': 'status-token',
+          }),
+        },
+        {},
+      );
+      expect(authorized.status).toBe(200);
+      const payload = (await authorized.json()) as {
+        ok?: boolean;
+        telemetry?: { queueStats?: { capacity?: number } };
+        canary?: { enabled?: boolean };
+        runtimeFallbackSignal?: {
+          enabled?: boolean;
+          endpoint?: string;
+          auth?: { enabled?: boolean };
+        };
+      };
+      expect(payload.ok).toBe(true);
+      expect(payload.telemetry?.queueStats?.capacity).toBeGreaterThan(0);
+      expect(payload.canary?.enabled).toBe(true);
+      expect(payload.runtimeFallbackSignal?.enabled).toBe(true);
+      expect(payload.runtimeFallbackSignal?.endpoint).toBe(
+        '/_modern/contract-gates/runtime-fallback',
+      );
+      expect(payload.runtimeFallbackSignal?.auth?.enabled).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('supports pluggable contract gate snapshot stateStore modules', async () => {
     const tempDir = makeTempDir();
     const defaultSnapshotPath = path.join(

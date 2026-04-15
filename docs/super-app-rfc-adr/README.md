@@ -5,6 +5,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 ## Documents
 
 - `RFC-0001-super-app-foundation-plan.md`
+- `RFC-0002-ai-first-framework-and-mcp-cli-parity-plan.md`
 - `ARCH-0001-effect-tanstack-target-architecture.md`
 - `BASELINE-0001-current-vs-target-contracts.md`
 - `BOUNDARY-0001-framework-core-vs-module-vs-external-matrix.md`
@@ -22,5 +23,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0006-boundary-anti-pattern-checks.md`
 - `ADR-0007-module-certification-gates.md`
 - `ADR-0008-bun-superapp-smoke-gates.md`
+- `ADR-0009-mcp-cli-capability-parity.md`
+- `contracts/ai-capabilities.json`
 - `IMPLEMENTATION-BACKLOG.md`
 - `RELEASE-V4-BACKPORT-PLAN.md`

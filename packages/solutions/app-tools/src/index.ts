@@ -15,6 +15,7 @@ import {
   devCommand,
   infoCommand,
   inspectCommand,
+  runtimeOperationsCommand,
   serverCommand,
 } from './commands';
 import { compatPlugin } from './compat';
@@ -97,6 +98,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
       deployCommand(program, api);
       inspectCommand(program, api);
       infoCommand(program, api);
+      await runtimeOperationsCommand(program, api);
       deprecatedCommands(program);
     });
 
