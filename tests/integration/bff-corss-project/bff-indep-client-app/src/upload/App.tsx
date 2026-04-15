@@ -1,10 +1,11 @@
 import { upload } from 'bff-api-app/api/upload';
 import { configure } from 'bff-api-app/runtime';
 import React, { type JSX, useEffect } from 'react';
+import { apiOrigin } from '../apiOrigin';
 
 configure({
   setDomain() {
-    return 'http://127.0.0.1:3399';
+    return apiOrigin;
   },
 });
 

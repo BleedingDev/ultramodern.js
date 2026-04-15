@@ -1,10 +1,11 @@
 import effectBff from 'bff-api-app/api/effect/index';
 import { configure } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
+import { apiOrigin } from '../apiOrigin';
 
 configure({
   setDomain() {
-    return 'http://127.0.0.1:3399';
+    return apiOrigin;
   },
 });
 

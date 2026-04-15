@@ -20,7 +20,12 @@ dns.setDefaultResultOrder('ipv4first');
 const apiAppDir = path.resolve(__dirname, '../bff-api-app');
 const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
+const buildDoneMarker = /(?:^|\n)File \((?:client|server)\)\s+/i;
 const generatedProducerSdkDirs = new Set<string>();
+
+function getApiOrigin(port: number) {
+  return `http://127.0.0.1:${port}`;
+}
 
 async function ensureProducerSdkGenerated(projectDir: string) {
   if (generatedProducerSdkDirs.has(projectDir)) {
@@ -216,7 +221,11 @@ describe.sequential('corss project bff', () => {
       await modernBuild(apiAppDir, [], { stdout: false, stderr: false });
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
-      await modernBuild(appDir, [], { stdout: false, stderr: false });
+      await modernBuild(appDir, [], {
+        stdout: false,
+        stderr: false,
+        marker: buildDoneMarker,
+      });
       app = await modernServe(appDir, port, {});
 
       browser = await puppeteer.launch(launchOptions as any);
@@ -328,7 +337,12 @@ describe.sequential('corss project bff', () => {
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
       port = await getPort();
-      indepClientApp = await launchApp(indepAppDir, port, {});
+      indepClientApp = await launchApp(
+        indepAppDir,
+        port,
+        {},
+        { MODERN_TEST_API_ORIGIN: getApiOrigin(apiPort) },
+      );
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
     });
@@ -412,8 +426,19 @@ describe.sequential('corss project bff', () => {
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
       port = await getPort();
-      await modernBuild(indepAppDir, [], { stdout: false, stderr: false });
-      indepClientApp = await modernServe(indepAppDir, port, {});
+      await modernBuild(indepAppDir, [], {
+        stdout: false,
+        stderr: false,
+        marker: buildDoneMarker,
+        env: {
+          MODERN_TEST_API_ORIGIN: getApiOrigin(apiPort),
+        },
+      });
+      indepClientApp = await modernServe(indepAppDir, port, {
+        env: {
+          MODERN_TEST_API_ORIGIN: getApiOrigin(apiPort),
+        },
+      });
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();

@@ -2,11 +2,12 @@ import hello from 'bff-api-app/api/index';
 import user from 'bff-api-app/api/user/index';
 import { configure } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
+import { apiOrigin } from '../apiOrigin';
 import { useLoader } from '../useLoader';
 
 configure({
   setDomain() {
-    return 'http://127.0.0.1:3399';
+    return apiOrigin;
   },
 });
 

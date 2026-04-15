@@ -1,16 +1,20 @@
 import hello from 'bff-api-app/api/index';
 import { configure } from 'bff-api-app/runtime';
+import { apiOrigin } from '../apiOrigin';
 import { useLoader } from '../useLoader';
 
 configure({
   setDomain() {
-    return 'http://127.0.0.1:3399';
+    return apiOrigin;
   },
   interceptor(request) {
     return async (url, params) => {
       const urlString = typeof url === 'string' ? url : url.toString();
       const path = new URL(urlString, window.location.href);
-      const pathString = path.toString().replace(/\:[0-9]+/, ':3399');
+      const pathString = new URL(
+        `${path.pathname}${path.search}`,
+        apiOrigin,
+      ).toString();
 
       const res = await request(pathString, params);
       const data = await res.json();

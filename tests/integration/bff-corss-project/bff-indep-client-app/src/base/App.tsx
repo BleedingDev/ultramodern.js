@@ -7,10 +7,11 @@ import hello, { postHello, post } from 'bff-api-app/api/index';
 import getUser from 'bff-api-app/api/user/[id]';
 import { configure } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';
+import { apiOrigin } from '../apiOrigin';
 
 configure({
   setDomain() {
-    return 'http://127.0.0.1:3399';
+    return apiOrigin;
   },
 });
 

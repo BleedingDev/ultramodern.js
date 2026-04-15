@@ -13,6 +13,7 @@ import {
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
 const appDir = path.resolve(__dirname, '../');
+const buildDoneMarker = /(?:^|\n)File \((?:client|server)\)\s+/i;
 dns.setDefaultResultOrder('ipv4first');
 
 async function waitForApiInfoReady(
@@ -117,7 +118,11 @@ describe('in prod', () => {
   beforeAll(async () => {
     port = await getPort();
 
-    await modernBuild(appDir, [], { stdout: false, stderr: false });
+    await modernBuild(appDir, [], {
+      stdout: false,
+      stderr: false,
+      marker: buildDoneMarker,
+    });
 
     app = await modernServe(appDir, port, {});
     browser = await puppeteer.launch(launchOptions as any);
