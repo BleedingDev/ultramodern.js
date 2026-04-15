@@ -185,10 +185,10 @@ function runModernCommandDev(argv, stdOut, options = {}) {
 
 function modernBuild(dir, args = [], opts = {}) {
   return runModernCommand(['build', ...args], {
-    ...opts,
     cwd: dir,
     stdout: true,
     stderr: true,
+    ...opts,
     env: {
       NODE_ENV: 'production',
       ...(opts.env || {}),
@@ -261,8 +261,6 @@ async function killApp(instance) {
   });
 }
 
-const portMap = new Map();
-
 function reservePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -291,13 +289,7 @@ function reservePort() {
 }
 
 async function getPort() {
-  while (true) {
-    const port = await reservePort();
-    if (!portMap.get(port)) {
-      portMap.set(port, 1);
-      return port;
-    }
-  }
+  return reservePort();
 }
 
 function sleep(t) {

@@ -26,7 +26,7 @@ async function ensureProducerSdkGenerated(projectDir: string) {
   if (generatedProducerSdkDirs.has(projectDir)) {
     return;
   }
-  await modernBuild(projectDir, [], {});
+  await modernBuild(projectDir, [], { stdout: false, stderr: false });
   generatedProducerSdkDirs.add(projectDir);
 }
 
@@ -81,11 +81,11 @@ const testEffectOpenApiWorked = async ({
   expect(text).toContain('/effect/hello');
 };
 
-describe('corss project bff', () => {
+describe.sequential('corss project bff', () => {
   describe('bff client-app in dev', () => {
     const expectedText = 'Hello get bff-api-app';
-    const port = 3401;
-    const apiPort = 3399;
+    let port = 0;
+    let apiPort = 0;
     const SSR_PAGE = 'ssr';
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
@@ -95,10 +95,12 @@ describe('corss project bff', () => {
     const prefix = '/api-app';
     let app: any;
     let apiApp: any;
-    let page: Page;
-    let browser: Browser;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
     beforeAll(async () => {
+      apiPort = await getPort();
+      port = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
@@ -180,17 +182,21 @@ describe('corss project bff', () => {
     });
 
     afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
       await killApp(app);
       await killApp(apiApp);
-      await page.close();
-      await browser.close();
     });
   });
 
   describe('bff client-app in prod', () => {
     const expectedText = 'Hello get bff-api-app';
-    const port = 3401;
-    const apiPort = 3399;
+    let port = 0;
+    let apiPort = 0;
     const SSR_PAGE = 'ssr';
     const BASE_PAGE = 'base';
     const CUSTOM_PAGE = 'custom-sdk';
@@ -200,24 +206,21 @@ describe('corss project bff', () => {
     const prefix = '/api-app';
     let app: any;
     let apiApp: any;
-    let page: Page;
-    let browser: Browser;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
     beforeAll(async () => {
+      apiPort = await getPort();
+      port = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
-      await modernBuild(apiAppDir, [], {});
+      await modernBuild(apiAppDir, [], { stdout: false, stderr: false });
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
-      await modernBuild(appDir, [], {});
+      await modernBuild(appDir, [], { stdout: false, stderr: false });
       app = await modernServe(appDir, port, {});
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-
-      page.on('console', msg => {
-        // 打印所有类型的日志
-        console.log('[browser]', msg.type(), msg.text());
-      });
     });
 
     test('api-app should works', async () => {
@@ -293,15 +296,19 @@ describe('corss project bff', () => {
     });
 
     afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
       await killApp(app);
       await killApp(apiApp);
-      await page.close();
-      await browser.close();
     });
   });
 
   describe('bff indep-client-app in dev', () => {
-    const apiPort = 3399;
+    let apiPort = 0;
     let port = 8080;
     const SSR_PAGE = 'ssr';
     const BASE_PAGE = 'base';
@@ -312,10 +319,11 @@ describe('corss project bff', () => {
     const prefix = '/api';
     let indepClientApp: any;
     let apiApp: any;
-    let page: Page;
-    let browser: Browser;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
     beforeAll(async () => {
+      apiPort = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
@@ -323,11 +331,6 @@ describe('corss project bff', () => {
       indepClientApp = await launchApp(indepAppDir, port, {});
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-
-      page.on('console', msg => {
-        // 打印所有类型的日志
-        console.log('[browser]', msg.type(), msg.text());
-      });
     });
 
     test('basic usage', async () => {
@@ -377,15 +380,19 @@ describe('corss project bff', () => {
     });
 
     afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
       await killApp(indepClientApp);
       await killApp(apiApp);
-      await page.close();
-      await browser.close();
     });
   });
 
   describe('bff indep-client-app in prod', () => {
-    const apiPort = 3399;
+    let apiPort = 0;
     let port = 8080;
     const SSR_PAGE = 'ssr';
     const BASE_PAGE = 'base';
@@ -395,16 +402,17 @@ describe('corss project bff', () => {
     const host = `http://localhost`;
     let indepClientApp: any;
     let apiApp: any;
-    let page: Page;
-    let browser: Browser;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
     beforeAll(async () => {
+      apiPort = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
-      await modernBuild(apiAppDir, [], {});
+      await modernBuild(apiAppDir, [], { stdout: false, stderr: false });
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
       port = await getPort();
-      await modernBuild(indepAppDir, [], {});
+      await modernBuild(indepAppDir, [], { stdout: false, stderr: false });
       indepClientApp = await modernServe(indepAppDir, port, {});
 
       browser = await puppeteer.launch(launchOptions as any);
@@ -450,10 +458,14 @@ describe('corss project bff', () => {
     });
 
     afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
       await killApp(indepClientApp);
       await killApp(apiApp);
-      await page.close();
-      await browser.close();
     });
   });
 });

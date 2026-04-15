@@ -56,7 +56,8 @@ async function expectApiInfo(host: string, port: number) {
   });
 }
 
-describe('pure-esm-project in dev', () => {
+describe.sequential('pure-esm-project', () => {
+describe('in dev', () => {
   let port = 8080;
   const host = `http://localhost`;
   let app: any;
@@ -96,17 +97,17 @@ describe('pure-esm-project in dev', () => {
   });
 
   afterAll(async () => {
-    await killApp(app);
     if (page) {
       await page.close();
     }
     if (browser) {
       await browser.close();
     }
+    await killApp(app);
   });
 });
 
-describe('pure-esm-project in prod', () => {
+describe('in prod', () => {
   let port = 8080;
   const host = `http://localhost`;
   let app: any;
@@ -116,7 +117,7 @@ describe('pure-esm-project in prod', () => {
   beforeAll(async () => {
     port = await getPort();
 
-    await modernBuild(appDir, [], {});
+    await modernBuild(appDir, [], { stdout: false, stderr: false });
 
     app = await modernServe(appDir, port, {});
     browser = await puppeteer.launch(launchOptions as any);
@@ -149,12 +150,13 @@ describe('pure-esm-project in prod', () => {
   });
 
   afterAll(async () => {
-    await killApp(app);
     if (page) {
       await page.close();
     }
     if (browser) {
       await browser.close();
     }
+    await killApp(app);
   });
+});
 });
