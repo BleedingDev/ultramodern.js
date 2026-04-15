@@ -43,8 +43,19 @@ const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
   'x-user-id',
   'x-operation-id',
 ];
+const readProcessEnv = (key: string) => {
+  if (
+    typeof process === 'undefined' ||
+    typeof process.env === 'undefined' ||
+    typeof process.env[key] !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return process.env[key];
+};
 const isStrictDefaultRequestIdEnabled = () =>
-  process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID === 'true';
+  readProcessEnv('MODERN_BFF_STRICT_DEFAULT_REQUEST_ID') === 'true';
 const isSecuredRequestId = (requestId: string) =>
   requestId !== 'default' || isStrictDefaultRequestIdEnabled();
 

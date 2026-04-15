@@ -545,6 +545,52 @@ describe('configure', () => {
     }
   });
 
+  test('should not require process to exist in browser runtime', async () => {
+    const previousProcess = globalThis.process;
+    const customRequest = rs.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              message: 'ok',
+            },
+          }),
+        ),
+      ),
+    );
+
+    try {
+      Object.defineProperty(globalThis, 'process', {
+        configurable: true,
+        value: undefined,
+      });
+      configure({
+        request: customRequest,
+      });
+
+      const request = createRequest({
+        path,
+        method,
+        port: 8080,
+      });
+      const response = await request();
+      const data = await response.json();
+
+      expect(data).toStrictEqual({
+        code: 200,
+        data: {
+          message: 'ok',
+        },
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'process', {
+        configurable: true,
+        value: previousProcess,
+      });
+    }
+  });
+
   test('should retry with backoff and emit degraded telemetry events', async () => {
     rs.useFakeTimers();
     const onDegraded = rs.fn();

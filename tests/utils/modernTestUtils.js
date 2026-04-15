@@ -30,11 +30,9 @@ function runModernCommand(argv, options = {}) {
     }
 
     let stderrOutput = '';
-    if (options.stderr) {
-      instance.stderr.on('data', chunk => {
-        stderrOutput += chunk;
-      });
-    }
+    instance.stderr.on('data', chunk => {
+      stderrOutput += chunk;
+    });
 
     let stdoutOutput = '';
     // if (options.stdout) {
@@ -56,7 +54,7 @@ function runModernCommand(argv, options = {}) {
         reject(new Error(message));
       }
 
-      if (marker?.test(message)) {
+      if (marker?.test(stdoutOutput)) {
         resolve({
           code: 0,
           stdout: stdoutOutput,
@@ -217,19 +215,21 @@ function launchApp(dir, port, opts = {}, env = {}) {
       PORT: port,
       NODE_ENV: 'development',
       ...env,
+      ...(opts.env || {}),
     },
   });
 }
 
 function modernServe(dir, port, opts = {}) {
   return runModernCommandDev(['serve'], undefined, {
+    ...opts,
     cwd: dir,
     env: {
       PORT: port,
       NODE_ENV: 'production',
+      ...(opts.env || {}),
     },
     modernServe: true,
-    ...opts,
   });
 }
 
