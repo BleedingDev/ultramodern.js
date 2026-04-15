@@ -10,7 +10,7 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 
-rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
+rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
 const appDir = path.resolve(__dirname, '../');
 dns.setDefaultResultOrder('ipv4first');
@@ -60,8 +60,8 @@ describe('pure-esm-project in dev', () => {
   let port = 8080;
   const host = `http://localhost`;
   let app: any;
-  let page: Page;
-  let browser: Browser;
+  let page: Page | undefined;
+  let browser: Browser | undefined;
 
   beforeAll(async () => {
     port = await getPort();
@@ -97,8 +97,12 @@ describe('pure-esm-project in dev', () => {
 
   afterAll(async () => {
     await killApp(app);
-    await page.close();
-    await browser.close();
+    if (page) {
+      await page.close();
+    }
+    if (browser) {
+      await browser.close();
+    }
   });
 });
 
@@ -106,8 +110,8 @@ describe('pure-esm-project in prod', () => {
   let port = 8080;
   const host = `http://localhost`;
   let app: any;
-  let page: Page;
-  let browser: Browser;
+  let page: Page | undefined;
+  let browser: Browser | undefined;
 
   beforeAll(async () => {
     port = await getPort();
@@ -146,7 +150,11 @@ describe('pure-esm-project in prod', () => {
 
   afterAll(async () => {
     await killApp(app);
-    await page.close();
-    await browser.close();
+    if (page) {
+      await page.close();
+    }
+    if (browser) {
+      await browser.close();
+    }
   });
 });

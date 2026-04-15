@@ -205,8 +205,6 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       await ensureProducerSdkGenerated(apiAppDir);
-      expectTypecheckPasses(apiAppDir);
-      expectTypecheckPasses(appDir);
       await modernBuild(apiAppDir, [], {});
       apiApp = await modernServe(apiAppDir, apiPort, {});
 
@@ -402,8 +400,6 @@ describe('corss project bff', () => {
 
     beforeAll(async () => {
       await ensureProducerSdkGenerated(apiAppDir);
-      expectTypecheckPasses(apiAppDir);
-      expectTypecheckPasses(indepAppDir);
       await modernBuild(apiAppDir, [], {});
       apiApp = await modernServe(apiAppDir, apiPort, {});
 

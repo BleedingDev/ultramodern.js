@@ -516,7 +516,6 @@ describe('mf-i18n-tests', () => {
     let consumerApp: unknown;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
       consumerApp = await launchApp(
         consumerDir,
         CONSUMER_PORT,
