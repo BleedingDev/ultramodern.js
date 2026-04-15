@@ -34,13 +34,31 @@ import {
 import { metrics as defaultMetrics } from '../libs/metrics';
 import {
   type TelemetryCanaryDecision,
+  type TelemetryCanaryStatusSnapshot,
+  DEFAULT_RUNTIME_STATUS_ENDPOINT,
   TelemetryCanaryOrchestrator,
+  type RuntimeFallbackSignalAuthConfig,
+  type RuntimeFallbackSignalRuntimeState,
+  type RuntimeFallbackSignalTrustPolicy,
+  type RuntimeSignalError,
   TelemetryRegistry,
+  createRuntimeFallbackSignalRuntimeState,
+  enforceRuntimeFallbackSignalAuthToken,
+  enforceRuntimeFallbackSignalTrustPolicy,
+  getRuntimeSignalErrorStatusCode,
+  normalizeRuntimeFallbackSignalAuthConfig,
+  normalizeRuntimeFallbackTrustPolicy,
+  parseRuntimeFallbackSignalPayloadFromRawBody,
+  resolveRuntimeFallbackSignalEndpoint,
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
   hasEnabledTelemetryExporters,
 } from '../libs/telemetry';
+import {
+  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
+  persistRuntimeFallbackContractGateInWorker,
+} from '../libs/runtimeFallbackWorkerLane';
 import type {
   ModernServerInterface,
   ModernServerOptions,
@@ -51,11 +69,17 @@ import { debug } from '../utils';
 import { createProdServer } from './modernServerSplit';
 
 const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
-const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
-  '/_modern/contract-gates/runtime-fallback';
 const DEFAULT_RUNTIME_FALLBACK_GATE_NAME = 'runtime-mf-fallback-health';
 const DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS = 5 * 60_000;
 const DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES = 16 * 1024;
+
+type RuntimeFallbackSignalWorkerLaneConfig = {
+  enabled: boolean;
+  timeoutMs: number;
+  workerSuccessCount: number;
+  fallbackToMainThreadCount: number;
+  lastError?: string;
+};
 
 type RuntimeFallbackSignalConfig = {
   endpoint: string;
@@ -63,6 +87,10 @@ type RuntimeFallbackSignalConfig = {
   gateSnapshotPath: string;
   failureHoldMs: number;
   maxBodyBytes: number;
+  auth: RuntimeFallbackSignalAuthConfig;
+  trustPolicy: RuntimeFallbackSignalTrustPolicy;
+  runtimeState: RuntimeFallbackSignalRuntimeState;
+  workerLane: RuntimeFallbackSignalWorkerLaneConfig;
 };
 
 type ContractGateSnapshotFile = {
@@ -91,6 +119,8 @@ export class Server {
   private contractGateAutopilot?: ContractGateAutopilot;
 
   private runtimeFallbackSignalConfig?: RuntimeFallbackSignalConfig;
+
+  private runtimeStatusEndpoint: string = DEFAULT_RUNTIME_STATUS_ENDPOINT;
 
   constructor(options: ModernServerOptions) {
     options.logger = options.logger || createLogger({ level: 'warn' });
@@ -228,10 +258,6 @@ export class Server {
       return;
     }
 
-    if (!hasEnabledExporters) {
-      return;
-    }
-
     const registry = new TelemetryRegistry({
       service:
         telemetryConfig.service || options.appContext?.metaName || 'modern-js',
@@ -349,8 +375,15 @@ export class Server {
           canaryConfig.autopilot?.runtimeFallbackSignal;
         const runtimeSignalEnabled = runtimeSignalConfig?.enabled ?? true;
         if (runtimeSignalEnabled) {
+          const workerLaneConfig = runtimeSignalConfig?.workerLane;
+          const workerLaneEnabledFromEnv =
+            process.env.MODERN_RUNTIME_FALLBACK_WORKER_LANE === 'true';
+          const workerLaneEnabled =
+            typeof workerLaneConfig?.enabled === 'boolean'
+              ? workerLaneConfig.enabled
+              : workerLaneEnabledFromEnv;
           this.runtimeFallbackSignalConfig = {
-            endpoint: this.resolveRuntimeFallbackSignalEndpoint(
+            endpoint: resolveRuntimeFallbackSignalEndpoint(
               runtimeSignalConfig?.endpoint,
             ),
             gateName:
@@ -367,6 +400,23 @@ export class Server {
               runtimeSignalConfig?.maxBodyBytes ??
                 DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES,
             ),
+            auth: normalizeRuntimeFallbackSignalAuthConfig(
+              runtimeSignalConfig?.auth,
+            ),
+            trustPolicy: normalizeRuntimeFallbackTrustPolicy(
+              runtimeSignalConfig?.trustPolicy,
+            ),
+            runtimeState: createRuntimeFallbackSignalRuntimeState(),
+            workerLane: {
+              enabled: workerLaneEnabled,
+              timeoutMs: Math.max(
+                25,
+                workerLaneConfig?.timeoutMs ??
+                  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
+              ),
+              workerSuccessCount: 0,
+              fallbackToMainThreadCount: 0,
+            },
           };
         }
       }
@@ -387,26 +437,6 @@ export class Server {
       return rawPath;
     }
     return path.resolve(options.pwd, rawPath);
-  }
-
-  private resolveRuntimeFallbackSignalEndpoint(configuredEndpoint?: string) {
-    const rawEndpoint = configuredEndpoint?.trim();
-    if (!rawEndpoint) {
-      return DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT;
-    }
-
-    if (rawEndpoint.startsWith('/')) {
-      return rawEndpoint;
-    }
-
-    try {
-      return (
-        new URL(rawEndpoint).pathname ||
-        DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT
-      );
-    } catch (_error) {
-      return `/${rawEndpoint.replace(/^\/+/, '')}`;
-    }
   }
 
   private emitCanaryDecisionMetric(
@@ -471,6 +501,10 @@ export class Server {
   public getRequestHandler() {
     const requestHandler = this.server.getRequestHandler();
     return (req: IncomingMessage, res: ServerResponse, next?: () => void) => {
+      if (this.shouldHandleRuntimeStatus(req)) {
+        void this.handleRuntimeStatus(req, res);
+        return;
+      }
       if (this.shouldHandleRuntimeFallbackSignal(req)) {
         void this.handleRuntimeFallbackSignal(req, res);
         return;
@@ -489,6 +523,14 @@ export class Server {
     }
     const pathName = this.getRequestPath(req.url);
     return pathName === runtimeSignalConfig.endpoint;
+  }
+
+  private shouldHandleRuntimeStatus(req: IncomingMessage) {
+    if ((req.method || 'GET').toUpperCase() !== 'GET') {
+      return false;
+    }
+    const pathName = this.getRequestPath(req.url);
+    return pathName === this.runtimeStatusEndpoint;
   }
 
   private getRequestPath(urlValue: string | undefined) {
@@ -565,40 +607,242 @@ export class Server {
     }
 
     try {
+      enforceRuntimeFallbackSignalAuthToken(
+        this.getRequestHeader(req, runtimeSignalConfig.auth.headerName),
+        runtimeSignalConfig.auth,
+      );
       const rawBody = await this.readRequestBody(
         req,
         runtimeSignalConfig.maxBodyBytes,
       );
-      if (!rawBody || rawBody.trim().length === 0) {
-        throw new Error('runtime fallback signal body is empty');
-      }
-
-      const payload = JSON.parse(rawBody);
-      if (!payload || typeof payload !== 'object') {
-        throw new Error('runtime fallback signal body must be a JSON object');
-      }
-
-      await this.persistRuntimeFallbackContractGate(
-        payload as Record<string, unknown>,
-        runtimeSignalConfig,
+      const payload = parseRuntimeFallbackSignalPayloadFromRawBody(
+        rawBody,
+        runtimeSignalConfig.maxBodyBytes,
       );
+      const trustResult = enforceRuntimeFallbackSignalTrustPolicy(payload, {
+        trustPolicy: runtimeSignalConfig.trustPolicy,
+        runtimeState: runtimeSignalConfig.runtimeState,
+      });
+      if (trustResult.deduped) {
+        res.statusCode = 202;
+        res.setHeader('content-type', 'application/json');
+        res.end('{"ok":true,"deduped":true}');
+        return;
+      }
+
+      let persistedByWorkerLane = false;
+      if (runtimeSignalConfig.workerLane.enabled) {
+        const workerResult = await persistRuntimeFallbackContractGateInWorker(
+          {
+            snapshotPath: runtimeSignalConfig.gateSnapshotPath,
+            gateName: runtimeSignalConfig.gateName,
+            failureHoldMs: runtimeSignalConfig.failureHoldMs,
+            payload: payload as Record<string, unknown>,
+            schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+          },
+          {
+            enabled: true,
+            timeoutMs: runtimeSignalConfig.workerLane.timeoutMs,
+          },
+        );
+        if (workerResult.ok) {
+          persistedByWorkerLane = true;
+          runtimeSignalConfig.workerLane.workerSuccessCount += 1;
+          runtimeSignalConfig.workerLane.lastError = undefined;
+          const payloadRecord = payload as Record<string, unknown>;
+          const reason =
+            typeof payloadRecord.reason === 'string'
+              ? payloadRecord.reason
+              : 'runtime_fallback';
+          const phase =
+            typeof payloadRecord.phase === 'string'
+              ? payloadRecord.phase
+              : 'unknown';
+          const appName =
+            typeof payloadRecord.appName === 'string'
+              ? payloadRecord.appName
+              : 'unknown';
+          this.options.logger?.warn(
+            `[telemetry.canary.autopilot] runtime fallback signal gate=${runtimeSignalConfig.gateName} reason=${reason} phase=${phase} app=${appName} workerLane=true`,
+          );
+        } else {
+          runtimeSignalConfig.workerLane.fallbackToMainThreadCount += 1;
+          runtimeSignalConfig.workerLane.lastError = workerResult.error;
+          this.options.logger?.warn(
+            `[telemetry.canary.autopilot] runtime fallback worker lane fallback: ${workerResult.error || 'unknown_error'}`,
+          );
+        }
+      }
+
+      if (!persistedByWorkerLane) {
+        await this.persistRuntimeFallbackContractGate(
+          payload as Record<string, unknown>,
+          runtimeSignalConfig,
+        );
+      }
 
       res.statusCode = 202;
       res.setHeader('content-type', 'application/json');
       res.end('{"ok":true}');
     } catch (error) {
-      const code = (error as Error & { code?: string }).code;
-      res.statusCode = code === 'PAYLOAD_TOO_LARGE' ? 413 : 400;
+      const signalError = error as RuntimeSignalError;
+      res.statusCode = getRuntimeSignalErrorStatusCode(signalError);
       res.setHeader('content-type', 'application/json');
       res.end(
         `{"ok":false,"error":${JSON.stringify(
-          error instanceof Error ? error.message : String(error),
+          signalError instanceof Error ? signalError.message : String(signalError),
         )}}`,
       );
       this.options.logger?.warn(
         `[telemetry.canary.autopilot] runtime fallback signal rejected: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  private async handleRuntimeStatus(req: IncomingMessage, res: ServerResponse) {
+    try {
+      if (this.runtimeFallbackSignalConfig?.auth.enabled) {
+        enforceRuntimeFallbackSignalAuthToken(
+          this.getRequestHeader(
+            req,
+            this.runtimeFallbackSignalConfig.auth.headerName,
+          ),
+          this.runtimeFallbackSignalConfig.auth,
+        );
+      }
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(this.buildRuntimeStatusPayload()));
+    } catch (error) {
+      const signalError = error as RuntimeSignalError;
+      res.statusCode = getRuntimeSignalErrorStatusCode(signalError);
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        `{"ok":false,"error":${JSON.stringify(
+          signalError instanceof Error ? signalError.message : String(signalError),
+        )}}`,
+      );
+    }
+  }
+
+  private buildRuntimeStatusPayload(): {
+    ok: boolean;
+    timestamp: number;
+    telemetry: {
+      enabled: boolean;
+      queueStats: ReturnType<TelemetryRegistry['getQueueStats']> | null;
+      exporterHealth: ReturnType<TelemetryRegistry['getExporterHealth']>;
+    };
+    canary: { enabled: false } | ({ enabled: true } & TelemetryCanaryStatusSnapshot);
+    runtimeFallbackSignal:
+      | {
+          enabled: false;
+        }
+      | {
+          enabled: true;
+          endpoint: string;
+          gateName: string;
+          failureHoldMs: number;
+          maxBodyBytes: number;
+          auth: {
+            enabled: boolean;
+            headerName: string;
+          };
+          trustPolicy: {
+            allowedApps: string[];
+            allowedEntryOrigins: string[];
+            enforceRuntimeDigest: boolean;
+            expectedRuntimeDigestsCount: number;
+            maxSignalsPerWindow: number;
+            windowMs: number;
+            dedupeWindowMs: number;
+          };
+          workerLane: {
+            enabled: boolean;
+            timeoutMs: number;
+            workerSuccessCount: number;
+            fallbackToMainThreadCount: number;
+            lastError?: string;
+          };
+        };
+  } {
+    const telemetry = this.telemetryRegistry
+      ? {
+          enabled: true,
+          queueStats: this.telemetryRegistry.getQueueStats(),
+          exporterHealth: this.telemetryRegistry.getExporterHealth(),
+        }
+      : {
+          enabled: false,
+          queueStats: null,
+          exporterHealth: [],
+        };
+    const canary = this.canaryOrchestrator
+      ? {
+          enabled: true as const,
+          ...this.canaryOrchestrator.getStatusSnapshot(),
+        }
+      : {
+          enabled: false as const,
+        };
+    const runtimeFallbackSignal = this.runtimeFallbackSignalConfig
+      ? {
+          enabled: true as const,
+          endpoint: this.runtimeFallbackSignalConfig.endpoint,
+          gateName: this.runtimeFallbackSignalConfig.gateName,
+          failureHoldMs: this.runtimeFallbackSignalConfig.failureHoldMs,
+          maxBodyBytes: this.runtimeFallbackSignalConfig.maxBodyBytes,
+          auth: {
+            enabled: this.runtimeFallbackSignalConfig.auth.enabled,
+            headerName: this.runtimeFallbackSignalConfig.auth.headerName,
+          },
+          trustPolicy: {
+            allowedApps: this.runtimeFallbackSignalConfig.trustPolicy.allowedApps,
+            allowedEntryOrigins:
+              this.runtimeFallbackSignalConfig.trustPolicy.allowedEntryOrigins,
+            enforceRuntimeDigest:
+              this.runtimeFallbackSignalConfig.trustPolicy.enforceRuntimeDigest,
+            expectedRuntimeDigestsCount: Object.keys(
+              this.runtimeFallbackSignalConfig.trustPolicy.expectedRuntimeDigests,
+            ).length,
+            maxSignalsPerWindow:
+              this.runtimeFallbackSignalConfig.trustPolicy.maxSignalsPerWindow,
+            windowMs: this.runtimeFallbackSignalConfig.trustPolicy.windowMs,
+            dedupeWindowMs:
+              this.runtimeFallbackSignalConfig.trustPolicy.dedupeWindowMs,
+          },
+          workerLane: {
+            enabled: this.runtimeFallbackSignalConfig.workerLane.enabled,
+            timeoutMs: this.runtimeFallbackSignalConfig.workerLane.timeoutMs,
+            workerSuccessCount:
+              this.runtimeFallbackSignalConfig.workerLane.workerSuccessCount,
+            fallbackToMainThreadCount:
+              this.runtimeFallbackSignalConfig.workerLane
+                .fallbackToMainThreadCount,
+            lastError: this.runtimeFallbackSignalConfig.workerLane.lastError,
+          },
+        }
+      : {
+          enabled: false as const,
+        };
+    return {
+      ok: true,
+      timestamp: Date.now(),
+      telemetry,
+      canary,
+      runtimeFallbackSignal,
+    };
+  }
+
+  private getRequestHeader(req: IncomingMessage, headerName: string) {
+    const raw = req.headers[headerName.toLowerCase()];
+    if (Array.isArray(raw)) {
+      return raw[0];
+    }
+    if (typeof raw === 'string') {
+      return raw;
+    }
+    return undefined;
   }
 
   private async persistRuntimeFallbackContractGate(

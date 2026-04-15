@@ -1,6 +1,6 @@
 # RFC-0001: Super App Foundation Plan
 
-- Status: Implemented (Phases A/B complete, Phase C alpha)
+- Status: Implemented (Phases A/B/C complete)
 - Date: 2026-02-21
 - Scope: Modern.js framework-level capability roadmap
 
@@ -15,7 +15,7 @@ This RFC defines a framework roadmap to make Modern.js super-app-ready while pre
 - Make cross-project APIs type-safe and less error-prone.
 - Standardize telemetry and exporter integration, including VictoriaMetrics.
 - Improve reliability of Module Federation data-fetch and error handling.
-- Move toward app-level MF SSR in a controlled, staged way.
+- Promote app-level MF SSR to a stable default contract for server-rendered MF apps.
 
 ## 3. Non-Goals
 
@@ -58,11 +58,11 @@ This RFC defines a framework roadmap to make Modern.js super-app-ready while pre
   - Dedicated MF data-fetch fixture and failure-injection tests merged.
   - Effect-only schema and runtime paths validated in CI.
 
-### Phase C: SSR Expansion (sequential)
+### Phase C: SSR Expansion (sequential, completed)
 
 - Execute ADR-0002 implementation milestones.
 - Exit criteria:
-  - App-level MF SSR alpha behind explicit feature flag.
+  - App-level MF SSR stable contract path enabled for server-rendered MF markers.
   - Hydration and fallback behavior stable under serve-mode integration tests.
 
 ## 7. Risks and Mitigations
@@ -89,5 +89,5 @@ This RFC defines a framework roadmap to make Modern.js super-app-ready while pre
 - Phase B complete:
   - Effect-only MF data-fetch reliability coverage landed with deterministic failure injection and typed fallback contracts.
   - Distributed trace continuity checks are active in routes MF integration (build and serve modes).
-- Phase C in progress (alpha complete):
-  - App-level MF SSR alpha flag and integration coverage landed, including serve-mode fallback behavior.
+- Phase C complete:
+  - App-level MF SSR stable contract/env path and integration coverage landed, including serve-mode fallback behavior.

@@ -1,6 +1,11 @@
 name: Module Certification Gates
 
 on:
+  pull_request:
+    paths:
+      - 'docs/super-app-rfc-adr/evidence/module-certification/**'
+      - 'scripts/release-gates/**'
+      - '.github/workflows/module-certification-gates.yml'
   workflow_dispatch:
     inputs:
       evidence_dir:
@@ -53,10 +58,10 @@ jobs:
       - name: Install Pnpm
         run: corepack enable
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js 20
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install Dependencies
@@ -65,9 +70,19 @@ jobs:
       - name: Validate Module Certification Gates
         env:
           EVIDENCE_DIR: ${{ inputs.evidence_dir || github.event.inputs.evidence_dir || 'docs/super-app-rfc-adr/evidence/module-certification/current' }}
-          RUN_COMMANDS: ${{ inputs.run_commands || github.event.inputs.run_commands || 'true' }}
+          RUN_COMMANDS_INPUT: ${{ inputs.run_commands || github.event.inputs.run_commands || '' }}
           ALLOW_MISSING_EVIDENCE: ${{ inputs.allow_missing_evidence || github.event.inputs.allow_missing_evidence || 'false' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          RUN_COMMANDS="$RUN_COMMANDS_INPUT"
+          if [ -z "$RUN_COMMANDS" ]; then
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              RUN_COMMANDS="false"
+            else
+              RUN_COMMANDS="true"
+            fi
+          fi
+
           ARGS=(
             --profile scripts/release-gates/module-certification-profile.json
             --evidence-dir "$EVIDENCE_DIR"
@@ -82,3 +97,9 @@ jobs:
           fi
 
           node scripts/release-gates/validate-release-candidate-gates.js "${ARGS[@]}"
+
+      - name: Validate gate snapshot artifact shape
+        run: |
+          node scripts/release-gates/validate-gate-snapshot.js \
+            --snapshot-path .modern/contract-gates.json \
+            --required-gate module-onboarding-certification-gates

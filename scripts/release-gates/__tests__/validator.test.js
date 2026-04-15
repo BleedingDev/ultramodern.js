@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const {
   runGateCommands,
   validateEvidence,
+  validateGateSnapshotFile,
   validateMigrationContracts,
   validateProfileShape,
   writeGateSnapshot,
@@ -135,6 +136,90 @@ test('validateMigrationContracts checks snippets', () => {
   }
 });
 
+test('validateMigrationContracts auto-builds missing dist artifacts when enabled', () => {
+  const dir = makeTempDir();
+  try {
+    const appDir = path.join(dir, 'integration/demo-app');
+    const artifactPath = path.join(appDir, 'dist-1/client/effect/index.js');
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(appDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'demo-app',
+          version: '1.0.0',
+          scripts: {
+            build: 'node ./build.js',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const executed = [];
+    const report = validateMigrationContracts({
+      rootDir: dir,
+      allowAutoBuildArtifacts: true,
+      commandRunner: ({ command }) => {
+        executed.push(command);
+        fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+        fs.writeFileSync(artifactPath, 'const operationManifest = true;');
+      },
+      targets: [
+        {
+          id: 'generated-contract',
+          path: 'integration/demo-app/dist-1/client/effect/index.js',
+          includes: ['operationManifest'],
+        },
+      ],
+    });
+
+    assert.equal(report.length, 1);
+    assert.equal(executed.length, 1);
+    assert.match(executed[0], /pnpm --dir/);
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateMigrationContracts fails auto-build when package has no build script', () => {
+  const dir = makeTempDir();
+  try {
+    const appDir = path.join(dir, 'integration/no-build-app');
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(appDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'no-build-app',
+          version: '1.0.0',
+        },
+        null,
+        2,
+      ),
+    );
+
+    assert.throws(
+      () =>
+        validateMigrationContracts({
+          rootDir: dir,
+          allowAutoBuildArtifacts: true,
+          targets: [
+            {
+              id: 'missing-artifact',
+              path: 'integration/no-build-app/dist/client/index.js',
+              includes: ['anything'],
+            },
+          ],
+        }),
+      /does not define scripts\.build/,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
 test('runGateCommands throws on failing command', () => {
   assert.throws(
     () =>
@@ -184,6 +269,39 @@ test('writeGateSnapshot persists and merges gate records', () => {
     assert.match(
       snapshot.gates['module-onboarding-certification-gates'].reason,
       /reviewer evidence missing/,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateGateSnapshotFile validates shape and required gate names', () => {
+  const dir = makeTempDir();
+  try {
+    const snapshotPath = path.join(dir, 'contract-gates.json');
+    writeGateSnapshot({
+      snapshotPath,
+      gateName: 'release-candidate-contract-gates',
+      passed: true,
+      summary: { validatedEvidenceFiles: 4 },
+      profilePath: 'scripts/release-gates/rc-contract-profile.json',
+      timestamp: 1700000000000,
+    });
+
+    const report = validateGateSnapshotFile({
+      snapshotPath,
+      requiredGateNames: ['release-candidate-contract-gates'],
+    });
+    assert.equal(report.gateCount, 1);
+    assert.deepEqual(report.gates, ['release-candidate-contract-gates']);
+
+    assert.throws(
+      () =>
+        validateGateSnapshotFile({
+          snapshotPath,
+          requiredGateNames: ['module-onboarding-certification-gates'],
+        }),
+      /missing required gate/,
     );
   } finally {
     removeDir(dir);

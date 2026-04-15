@@ -11,6 +11,8 @@ import type {
   IdentityBindingOptions,
   IdentityBindingViolation,
   OperationContext,
+  OperationContractOptions,
+  OperationContractViolation,
   RequestCreator,
   RequestCreatorOptions,
   ResolveHeaders,
@@ -32,6 +34,7 @@ const realAllowCrossOriginEnvelope: Map<string, AllowCrossOriginEnvelope> =
 const realTransportResilience: Map<string, TransportResilienceOptions> =
   new Map();
 const realIdentityBinding: Map<string, IdentityBindingOptions> = new Map();
+const realOperationContract: Map<string, OperationContractOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
 const isEmptyDomain = (domain?: string) =>
   typeof domain !== 'string' || domain.trim() === '';
@@ -46,6 +49,10 @@ const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
   'x-user-id',
   'x-operation-id',
 ];
+const isStrictDefaultRequestIdEnabled = () =>
+  process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID === 'true';
+const isSecuredRequestId = (requestId: string) =>
+  requestId !== 'default' || isStrictDefaultRequestIdEnabled();
 
 const firstHeaderValue = (value?: string | string[]) =>
   Array.isArray(value) ? value[0] : value;
@@ -247,6 +254,74 @@ export class IdentityBindingViolationError extends Error {
   }
 }
 
+export class OperationContractViolationError extends Error {
+  readonly code = 'BFF_OPERATION_CONTRACT_VIOLATION';
+
+  readonly violation: OperationContractViolation;
+
+  constructor(violation: OperationContractViolation) {
+    super(
+      `Operation contract violation "${violation.reason}" for producer "${violation.requestId}" operation "${violation.operationId}".`,
+    );
+    this.name = 'OperationContractViolationError';
+    this.violation = violation;
+  }
+}
+
+const validateOperationContract = (
+  requestId: string,
+  contextPayload: ReturnType<typeof buildOperationContext>,
+) => {
+  const operationContract = realOperationContract.get(requestId);
+  const operationContractEnabled =
+    operationContract?.enabled ?? isSecuredRequestId(requestId);
+
+  if (!operationContractEnabled) {
+    return;
+  }
+
+  const strict = operationContract?.strict ?? true;
+  const requireSchemaHash = operationContract?.requireSchemaHash ?? true;
+  const requireOperationVersion =
+    operationContract?.requireOperationVersion ?? true;
+
+  const maybeReportViolation = (
+    reason: OperationContractViolation['reason'],
+  ) => {
+    const violation: OperationContractViolation = {
+      requestId,
+      target: 'server',
+      operationId: contextPayload.operationId,
+      routePath: contextPayload.routePath,
+      method: contextPayload.method,
+      schemaHash:
+        typeof contextPayload.schemaHash === 'string'
+          ? contextPayload.schemaHash
+          : undefined,
+      operationVersion:
+        typeof contextPayload.operationVersion === 'number'
+          ? contextPayload.operationVersion
+          : undefined,
+      reason,
+    };
+    operationContract?.onViolation?.(violation);
+    if (strict) {
+      throw new OperationContractViolationError(violation);
+    }
+  };
+
+  if (requireSchemaHash && typeof contextPayload.schemaHash !== 'string') {
+    maybeReportViolation('missing_schema_hash');
+  }
+
+  if (
+    requireOperationVersion &&
+    typeof contextPayload.operationVersion !== 'number'
+  ) {
+    maybeReportViolation('missing_operation_version');
+  }
+};
+
 const getConfiguredRequest = (requestId: string, fallback: Fetch) => {
   const configuredRequest = realRequest.get(requestId);
   if (configuredRequest) {
@@ -270,6 +345,7 @@ export const configure = (options: IOptions<Fetch>) => {
     requireEnvelope,
     allowCrossOriginEnvelope,
     identityBinding,
+    operationContract,
     setDomain,
     requestId = 'default',
   } = options;
@@ -294,6 +370,9 @@ export const configure = (options: IOptions<Fetch>) => {
   }
   if (identityBinding && typeof identityBinding === 'object') {
     realIdentityBinding.set(requestId, identityBinding);
+  }
+  if (operationContract && typeof operationContract === 'object') {
+    realOperationContract.set(requestId, operationContract);
   }
   if (typeof requireEnvelope === 'boolean') {
     realRequireEnvelope.set(requestId, requireEnvelope);
@@ -411,7 +490,9 @@ export const createRequest: RequestCreator<Fetch> = ((
       headers = payload.headers ? { ...payload.headers } : {};
       const identityBinding = realIdentityBinding.get(requestId);
       const identityBindingEnabled =
-        identityBinding?.enabled ?? requestId !== 'default';
+        identityBinding?.enabled ?? isSecuredRequestId(requestId);
+      const identityBindingStrict =
+        identityBinding?.strict ?? isSecuredRequestId(requestId);
       const protectedIdentityHeaders = (
         identityBinding?.protectedHeaders || DEFAULT_PROTECTED_IDENTITY_HEADERS
       ).map(header => header.toLowerCase());
@@ -460,13 +541,13 @@ export const createRequest: RequestCreator<Fetch> = ((
             header,
             attemptedValue,
             derivedValue: readHeader(derivedIdentityHeaders, header),
-            reason: identityBinding?.strict
+            reason: identityBindingStrict
               ? 'client_override_rejected'
               : 'client_override_blocked',
           };
           identityBinding?.onViolation?.(violation);
 
-          if (identityBinding?.strict) {
+          if (identityBindingStrict) {
             throw new IdentityBindingViolationError(violation);
           }
 
@@ -540,8 +621,7 @@ export const createRequest: RequestCreator<Fetch> = ((
     }
 
     const shouldRequireEnvelope =
-      realRequireEnvelope.get(requestId) ??
-      (requestId !== 'default' && process.env.NODE_ENV === 'production');
+      realRequireEnvelope.get(requestId) ?? isSecuredRequestId(requestId);
     if (shouldRequireEnvelope) {
       const sourceOrigin = resolveSourceOrigin(webRequestHeaders);
       const targetOrigin = toOrigin(url);
@@ -588,7 +668,7 @@ export const createRequest: RequestCreator<Fetch> = ((
       });
     }
 
-    if (requestId !== 'default') {
+    if (isSecuredRequestId(requestId)) {
       const contextPayload = buildOperationContext({
         requestId,
         method,
@@ -596,6 +676,7 @@ export const createRequest: RequestCreator<Fetch> = ((
         operationContext,
         traceparent: readHeader(headers, TRACEPARENT_HEADER),
       });
+      validateOperationContract(requestId, contextPayload);
 
       if (
         typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined'

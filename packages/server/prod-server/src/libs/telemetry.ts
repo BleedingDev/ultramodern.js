@@ -1,15 +1,32 @@
 export {
+  DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT,
+  DEFAULT_RUNTIME_STATUS_ENDPOINT,
   TelemetryRegistry,
   TelemetryCanaryOrchestrator,
   TelemetryStartupHealthError,
+  createRuntimeFallbackSignalRuntimeState,
+  createRuntimeSignalError,
   createOtlpTelemetryExporter,
   createVictoriaMetricsTelemetryExporter,
   createTelemetryAwareMetrics,
+  enforceRuntimeFallbackSignalAuthToken,
+  enforceRuntimeFallbackSignalTrustPolicy,
+  getRuntimeSignalErrorStatusCode,
   hasEnabledTelemetryExporters,
+  normalizeRuntimeFallbackSignalAuthConfig,
+  normalizeRuntimeFallbackTrustPolicy,
+  parseRuntimeFallbackSignalPayloadFromRawBody,
+  resolveRuntimeFallbackSignalEndpoint,
 } from '@modern-js/server-core';
 
 export type {
   TelemetryCanaryDecision,
+  TelemetryCanaryStatusSnapshot,
   TelemetrySloAlert,
   TelemetryQueueStats,
+  RuntimeFallbackSignalAuthConfig,
+  RuntimeFallbackSignalRuntimeState,
+  RuntimeFallbackSignalTrustContext,
+  RuntimeFallbackSignalTrustPolicy,
+  RuntimeSignalError,
 } from '@modern-js/server-core';

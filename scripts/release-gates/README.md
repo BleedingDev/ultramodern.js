@@ -33,6 +33,9 @@ node scripts/release-gates/validate-release-candidate-gates.js \
   --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current
 ```
 
+Note: full runs automatically attempt to build missing `dist*` migration-contract
+artifacts from their nearest package before snippet validation.
+
 Module certification gate run:
 
 ```bash

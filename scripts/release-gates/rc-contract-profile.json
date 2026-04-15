@@ -181,7 +181,7 @@
       },
       {
         "id": "telemetry-exporter-contract",
-        "path": "packages/server/prod-server/src/libs/telemetry.ts",
+        "path": "packages/server/core/src/plugins/telemetry.ts",
         "includes": [
           "createOtlpTelemetryExporter",
           "createVictoriaMetricsTelemetryExporter",
@@ -190,8 +190,71 @@
         ]
       },
       {
+        "id": "ai-capability-contract",
+        "path": "docs/super-app-rfc-adr/contracts/ai-capabilities.json",
+        "includes": [
+          "\"runtime.status.read\"",
+          "\"runtime.fallback.signal.write\"",
+          "\"inputSchema\"",
+          "\"argMap\"",
+          "\"mcp\"",
+          "\"cli\""
+        ]
+      },
+      {
+        "id": "mcp-cli-bridge-contract",
+        "path": "scripts/ai-capabilities/mcp-cli-bridge.js",
+        "includes": [
+          "tools/list",
+          "tools/call",
+          "buildCliInvocation",
+          "Content-Length"
+        ]
+      },
+      {
+        "id": "mcp-adapter-generator-contract",
+        "path": "scripts/ai-capabilities/generate-mcp-adapter.js",
+        "includes": [
+          "adapter-manifest",
+          "mcporter",
+          "mcp-cli-bridge.js",
+          "createMcpAdapterManifest"
+        ]
+      },
+      {
+        "id": "runtime-cli-command-contract",
+        "path": "packages/solutions/app-tools/src/commands/runtime.ts",
+        "includes": [
+          "command('runtime')",
+          "command('status')",
+          "command('fallback-signal')",
+          "createRuntimeFallbackSignalPayload"
+        ]
+      },
+      {
+        "id": "runtime-resilience-benchmark-contract",
+        "path": "benchmark/runtime-resilience/run.js",
+        "includes": [
+          "runtime-resilience-benchmark",
+          "statusPhase",
+          "fallbackPhase",
+          "workerLanePhase",
+          "summarizeLatencies"
+        ]
+      },
+      {
+        "id": "runtime-fallback-worker-lane-contract",
+        "path": "packages/server/prod-server/src/libs/runtimeFallbackWorkerLane.ts",
+        "includes": [
+          "DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS",
+          "worker_lane_timeout",
+          "runtime-mf-fallback-signal",
+          "persistRuntimeFallbackContractGateInWorker"
+        ]
+      },
+      {
         "id": "mf-cache-policy-contract",
-        "path": "packages/server/prod-server/src/libs/mfCache.ts",
+        "path": "packages/server/core/src/plugins/mfCache.ts",
         "includes": [
           "resolveMfAssetCacheHeaders",
           "isMfManifestAsset",
@@ -229,7 +292,10 @@
     "pnpm --filter @modern-js/plugin-koa test",
     "pnpm --filter @modern-js/plugin-garfish test -- reliabilityMatrix.test.ts compatibility.test.ts trust.test.ts cachePolicy.test.ts fallbackTelemetry.test.ts",
     "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
-    "pnpm --filter @modern-js/prod-server test -- telemetry.test.ts mfCache.test.ts",
+    "pnpm --filter @modern-js/prod-server test -- telemetry.test.ts runtimeSignals.test.ts runtimeFallbackWorkerLane.test.ts",
+    "pnpm run validate:mcp-cli-parity",
+    "pnpm run generate:mcp-adapter",
+    "pnpm run benchmark:runtime-resilience:worker-lane-gate",
     "pnpm --dir tests run test:superapp-contracts"
   ]
 }

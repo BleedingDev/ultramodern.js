@@ -60,3 +60,8 @@ playground/
 dist-1
 .vercel
 dist-ssg
+.dolt/
+*.db
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

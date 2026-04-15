@@ -1,0 +1,8 @@
+{
+  "name": "@modern-js/runtime-resilience-benchmark",
+  "private": true,
+  "scripts": {
+    "run": "node run.js",
+    "test": "node --test __tests__/*.test.js"
+  }
+}

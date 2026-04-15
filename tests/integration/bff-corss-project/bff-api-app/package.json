@@ -50,6 +50,10 @@
       "import": "./dist-1/client/context/index.js",
       "types": "./dist-1/client/context/index.d.ts"
     },
+    "./api/effect/index": {
+      "import": "./dist-1/client/effect/index.js",
+      "types": "./dist-1/client/effect/index.d.ts"
+    },
     "./api/index": {
       "import": "./dist-1/client/index.js",
       "types": "./dist-1/client/index.d.ts"
@@ -80,6 +84,9 @@
       ],
       "api/context/index": [
         "./dist-1/client/context/index.d.ts"
+      ],
+      "api/effect/index": [
+        "./dist-1/client/effect/index.d.ts"
       ],
       "api/index": [
         "./dist-1/client/index.d.ts"

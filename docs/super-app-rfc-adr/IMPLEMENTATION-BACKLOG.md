@@ -1,14 +1,16 @@
 # Super App Implementation Backlog
 
-- Status: Active (Phases A/B complete, Phase C alpha)
-- Date: 2026-02-21
+- Status: Active (Phases A/B complete, Phase C alpha, AI-first Phase D1 in progress)
+- Date: 2026-02-26
 - Source docs:
   - `RFC-0001-super-app-foundation-plan.md`
+  - `RFC-0002-ai-first-framework-and-mcp-cli-parity-plan.md`
   - `ADR-0001-rsdoctor-default-on.md`
   - `ADR-0002-app-level-mf-ssr-strategy.md`
   - `ADR-0003-effect-only-mf-data-fetch-reliability.md`
   - `ADR-0004-telemetry-standardization-and-exporters.md`
   - `ADR-0005-cross-project-bff-hardening.md`
+  - `ADR-0009-mcp-cli-capability-parity.md`
 
 ## Owner Legend
 
@@ -17,6 +19,7 @@
 - BFF Platform: cross-project BFF generation/runtime.
 - Observability Platform: monitors, telemetry, exporters.
 - QA Infra: integration tests, fixtures, CI workflows.
+- AI Platform: agent-facing contracts, MCP/CLI parity, and automation surfaces.
 
 ## Epic Overview
 
@@ -27,14 +30,36 @@
 | EPIC-3 | Telemetry Standardization + Exporters | ADR-0004 | Observability Platform | L | Parallel | None | Implemented |
 | EPIC-4 | Effect-Only MF Data-Fetch Reliability | ADR-0003 | Runtime Federation + QA Infra | L | Parallel-start, partial sequential | EPIC-2 (partial) | Implemented |
 | EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Implemented (Alpha) |
+| EPIC-6 | AI-First Runtime + Agent Surfaces | RFC-0002 | AI Platform + Observability Platform | L | Parallel-start, partial sequential | EPIC-3, EPIC-5 | In Progress |
+| EPIC-7 | MCP Capability Parity via CLI | ADR-0009 | AI Platform + Platform Build | M | Parallel with EPIC-6 | EPIC-6 (partial) | In Progress |
 
-## Progress Snapshot (2026-02-21)
+## Progress Snapshot (2026-02-26)
 
 - EPIC-1 complete: RsDoctor defaults are enabled in production with opt-out and non-blocking plugin defaults.
 - EPIC-2 complete: cross-project BFF now enforces prefix/runtime compatibility and generated runtime/bootstrap contracts.
 - EPIC-3 complete: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are in framework core.
 - EPIC-4 complete: routes MF reliability and distributed trace assertions are active in both build and serve integration suites.
 - EPIC-5 alpha complete: app-level MF SSR path is feature-flagged and covered by i18n MF integration tests.
+- EPIC-6 in progress:
+  - runtime status endpoint `/_modern/runtime/status` is implemented in framework telemetry plugin with machine-readable payload shape.
+  - runtime status endpoint auth guard is wired to runtime signal auth policy when enabled.
+  - runtime resilience benchmark harness is added at `benchmark/runtime-resilience` with latency percentile reporting.
+  - runtime fallback signal worker-lane pilot is implemented in `@modern-js/prod-server` with opt-in `workerLane.enabled` and deterministic fallback-to-main-thread behavior.
+  - worker-lane benchmark gate mode is added:
+    - `pnpm run benchmark:runtime-resilience:worker-lane-gate`
+- EPIC-7 in progress:
+  - runtime CLI parity commands are implemented:
+    - `modern runtime status`
+    - `modern runtime fallback-signal`
+  - capability contract and parity validator are implemented:
+    - `docs/super-app-rfc-adr/contracts/ai-capabilities.json`
+    - `pnpm run validate:mcp-cli-parity`
+  - contract-driven MCP adapter artifacts are generated:
+    - `pnpm run generate:mcp-adapter`
+    - `.modern/mcp/adapter-manifest.json`
+    - `.modern/mcporter.json`
+  - MCP CLI bridge server is implemented:
+    - `pnpm run serve:mcp-cli-bridge`
 
 ## EPIC-1: RsDoctor Default-On (ADR-0001)
 
@@ -94,6 +119,27 @@
 | E5-T6 | Add dev/serve SSR integration test matrix | QA Infra | 3d | Sequential | E5-T3,E5-T4,E5-T5,E4-T5 |
 | E5-T7 | Release behind alpha feature flag and docs | Runtime Federation | 1d | Sequential | E5-T6 |
 
+## EPIC-6: AI-First Runtime + Agent Surfaces (RFC-0002)
+
+| Task ID | Task | Suggested Owner | Estimate | Parallelization | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| E6-T1 | Define versioned runtime status/graph API schema for MF remotes, BFF producer bindings, compatibility, trust, and telemetry health | AI Platform + Runtime Federation | 2d | Parallel | None |
+| E6-T2 | Expose read-only runtime operator endpoints and snapshot resources for CI/agents | AI Platform + Observability Platform | 3d | Sequential after E6-T1 | E6-T1 |
+| E6-T3 | Unify runtime fallback signal policy between server-core and prod-server code paths | Observability Platform | 2d | Parallel with E6-T1 | None |
+| E6-T4 | Add strict-mode digest flow validation between client fallback payload and server trust policy | Runtime Federation + Observability Platform | 2d | Sequential after E6-T3 | E6-T3 |
+| E6-T5 | Add runtime resilience benchmark harness for fallback latency, remote jitter, and BFF degradation | QA Infra + Runtime Federation | 3d | Sequential after E6-T1 | E6-T1 |
+| E6-T6 | Add selective worker-lane pilot for high-frequency transforms with guarded fallback-to-main-thread behavior | Runtime Federation | 3d | Sequential after E6-T5 | E6-T5 |
+
+## EPIC-7: MCP Capability Parity via CLI (ADR-0009)
+
+| Task ID | Task | Suggested Owner | Estimate | Parallelization | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| E7-T1 | Build a canonical capability registry (`id`, input schema, output schema, side-effects, auth model) used by MCP and CLI | AI Platform | 2d | Parallel | None |
+| E7-T2 | Introduce CLI parity command surface and JSON output contract for every MCP capability | Platform Build + AI Platform | 2d | Sequential after E7-T1 | E7-T1 |
+| E7-T3 | Add MCPorter bridge adapter for rapid parity bootstrap of low-risk read-only capabilities | AI Platform | 1d | Parallel with E7-T2 | E7-T1 |
+| E7-T4 | Add parity conformance tests (schema parity, exit-code parity, error-shape parity) | QA Infra | 2d | Sequential after E7-T2 | E7-T2 |
+| E7-T5 | Add capability parity report artifact and release gate check | Observability Platform + QA Infra | 1d | Sequential after E7-T4 | E7-T4 |
+
 ## Suggested Sprint Packaging
 
 1. Sprint 1 (parallel heavy):
@@ -109,6 +155,12 @@
    - EPIC-5 E5-T1..E5-T2 design completion.
 4. Sprint 4+:
    - EPIC-5 E5-T3..E5-T7.
+5. Sprint 5:
+   - EPIC-6 E6-T1..E6-T4.
+   - EPIC-7 E7-T1..E7-T3.
+6. Sprint 6:
+   - EPIC-6 E6-T5..E6-T6.
+   - EPIC-7 E7-T4..E7-T5.
 
 ## Definition of Done (global)
 
@@ -116,3 +168,4 @@
 - CI green with new tests enabled.
 - No untyped runtime contract path introduced for Effect-only streams.
 - Rollout notes and migration docs are published.
+- MCP capability parity report is generated and attached for release candidate checks.

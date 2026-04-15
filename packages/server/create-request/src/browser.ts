@@ -9,6 +9,8 @@ import type {
   IdentityBindingOptions,
   IdentityBindingViolation,
   OperationContext,
+  OperationContractOptions,
+  OperationContractViolation,
   RequestCreator,
   RequestCreatorOptions,
   Sender,
@@ -26,6 +28,7 @@ const realAllowCrossOriginEnvelope: Map<string, AllowCrossOriginEnvelope> =
 const realTransportResilience: Map<string, TransportResilienceOptions> =
   new Map();
 const realIdentityBinding: Map<string, IdentityBindingOptions> = new Map();
+const realOperationContract: Map<string, OperationContractOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
 const isEmptyDomain = (domain?: string) =>
   typeof domain !== 'string' || domain.trim() === '';
@@ -40,6 +43,21 @@ const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
   'x-user-id',
   'x-operation-id',
 ];
+const readProcessEnv = (key: string) => {
+  if (
+    typeof process === 'undefined' ||
+    typeof process.env === 'undefined' ||
+    typeof process.env[key] !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return process.env[key];
+};
+const isStrictDefaultRequestIdEnabled = () =>
+  readProcessEnv('MODERN_BFF_STRICT_DEFAULT_REQUEST_ID') === 'true';
+const isSecuredRequestId = (requestId: string) =>
+  requestId !== 'default' || isStrictDefaultRequestIdEnabled();
 
 const firstHeaderValue = (value: unknown) =>
   Array.isArray(value) ? value[0] : value;
@@ -221,6 +239,74 @@ export class IdentityBindingViolationError extends Error {
   }
 }
 
+export class OperationContractViolationError extends Error {
+  readonly code = 'BFF_OPERATION_CONTRACT_VIOLATION';
+
+  readonly violation: OperationContractViolation;
+
+  constructor(violation: OperationContractViolation) {
+    super(
+      `Operation contract violation "${violation.reason}" for producer "${violation.requestId}" operation "${violation.operationId}".`,
+    );
+    this.name = 'OperationContractViolationError';
+    this.violation = violation;
+  }
+}
+
+const validateOperationContract = (
+  requestId: string,
+  contextPayload: ReturnType<typeof buildOperationContext>,
+) => {
+  const operationContract = realOperationContract.get(requestId);
+  const operationContractEnabled =
+    operationContract?.enabled ?? isSecuredRequestId(requestId);
+
+  if (!operationContractEnabled) {
+    return;
+  }
+
+  const strict = operationContract?.strict ?? true;
+  const requireSchemaHash = operationContract?.requireSchemaHash ?? true;
+  const requireOperationVersion =
+    operationContract?.requireOperationVersion ?? true;
+
+  const maybeReportViolation = (
+    reason: OperationContractViolation['reason'],
+  ) => {
+    const violation: OperationContractViolation = {
+      requestId,
+      target: 'browser',
+      operationId: contextPayload.operationId,
+      routePath: contextPayload.routePath,
+      method: contextPayload.method,
+      schemaHash:
+        typeof contextPayload.schemaHash === 'string'
+          ? contextPayload.schemaHash
+          : undefined,
+      operationVersion:
+        typeof contextPayload.operationVersion === 'number'
+          ? contextPayload.operationVersion
+          : undefined,
+      reason,
+    };
+    operationContract?.onViolation?.(violation);
+    if (strict) {
+      throw new OperationContractViolationError(violation);
+    }
+  };
+
+  if (requireSchemaHash && typeof contextPayload.schemaHash !== 'string') {
+    maybeReportViolation('missing_schema_hash');
+  }
+
+  if (
+    requireOperationVersion &&
+    typeof contextPayload.operationVersion !== 'number'
+  ) {
+    maybeReportViolation('missing_operation_version');
+  }
+};
+
 const getConfiguredRequest = (requestId: string, fallback: typeof fetch) => {
   const configuredRequest = realRequest.get(requestId);
   if (configuredRequest) {
@@ -243,6 +329,7 @@ export const configure = (options: IOptions) => {
     requireEnvelope,
     allowCrossOriginEnvelope,
     identityBinding,
+    operationContract,
     setDomain,
     requestId = 'default',
   } = options;
@@ -264,6 +351,9 @@ export const configure = (options: IOptions) => {
   }
   if (identityBinding && typeof identityBinding === 'object') {
     realIdentityBinding.set(requestId, identityBinding);
+  }
+  if (operationContract && typeof operationContract === 'object') {
+    realOperationContract.set(requestId, operationContract);
   }
   if (typeof requireEnvelope === 'boolean') {
     realRequireEnvelope.set(requestId, requireEnvelope);
@@ -374,7 +464,9 @@ export const createRequest: RequestCreator = ((
       headers = payload.headers ? { ...payload.headers } : {};
       const identityBinding = realIdentityBinding.get(requestId);
       const identityBindingEnabled =
-        identityBinding?.enabled ?? requestId !== 'default';
+        identityBinding?.enabled ?? isSecuredRequestId(requestId);
+      const identityBindingStrict =
+        identityBinding?.strict ?? isSecuredRequestId(requestId);
       const protectedIdentityHeaders = (
         identityBinding?.protectedHeaders || DEFAULT_PROTECTED_IDENTITY_HEADERS
       ).map(header => header.toLowerCase());
@@ -408,13 +500,13 @@ export const createRequest: RequestCreator = ((
             header,
             attemptedValue,
             derivedValue: readHeader(derivedIdentityHeaders, header),
-            reason: identityBinding?.strict
+            reason: identityBindingStrict
               ? 'client_override_rejected'
               : 'client_override_blocked',
           };
           identityBinding?.onViolation?.(violation);
 
-          if (identityBinding?.strict) {
+          if (identityBindingStrict) {
             throw new IdentityBindingViolationError(violation);
           }
 
@@ -469,10 +561,7 @@ export const createRequest: RequestCreator = ((
     finalURL = `${configDomain || ''}${finalURL}`;
 
     const shouldRequireEnvelope =
-      realRequireEnvelope.get(requestId) ??
-      (requestId !== 'default' &&
-        typeof process !== 'undefined' &&
-        process.env?.NODE_ENV === 'production');
+      realRequireEnvelope.get(requestId) ?? isSecuredRequestId(requestId);
     if (shouldRequireEnvelope) {
       const sourceOrigin =
         typeof window !== 'undefined' ? window.location.origin : undefined;
@@ -518,7 +607,7 @@ export const createRequest: RequestCreator = ((
       });
     }
 
-    if (requestId !== 'default') {
+    if (isSecuredRequestId(requestId)) {
       if (
         typeof readHeader(headers, TRACEPARENT_HEADER) === 'undefined' &&
         operationContext?.traceparent
@@ -532,6 +621,7 @@ export const createRequest: RequestCreator = ((
         operationContext,
         traceparent: readHeader(headers, TRACEPARENT_HEADER),
       });
+      validateOperationContract(requestId, contextPayload);
 
       if (
         typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined'

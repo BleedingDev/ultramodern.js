@@ -1,8 +1,8 @@
 import * as path from 'path';
-import { ConfigContext, serverManager } from '@modern-js/server-core';
 import request from 'supertest';
 import plugin from '../src/plugin';
 import { APIPlugin } from './helpers';
+import { ConfigContext, serverManager } from './runtimeHarness';
 import './common';
 
 const pwd = path.join(__dirname, './fixtures/function-mode');
@@ -51,20 +51,15 @@ describe('function-mode', () => {
     expect(res3.status).toBe(500);
   });
 
-  test('should support upload file', done => {
-    request(apiHandler)
+  test('should support upload file', async () => {
+    const res = await request(apiHandler)
       .post('/upload')
       .field('my_field', 'value')
-      .attach('file', path.join(__dirname, './fixtures/assets/index.html'))
-      .end(async (err, res) => {
-        if (err) {
-          throw err;
-        }
-        expect(res.statusCode).toBe(200);
-        expect(res.body.message).toBe('success');
-        expect(res.body.formData).not.toBeUndefined();
-        done();
-      });
+      .attach('file', path.join(__dirname, './fixtures/assets/index.html'));
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toBe('success');
+    expect(res.body.formData).not.toBeUndefined();
   });
 
   test('should enforce cross-project middleware policy with explicit deny semantics', async () => {
@@ -73,6 +68,8 @@ describe('function-mode', () => {
         crossProjectPolicy: {
           enabled: true,
           allowedNamespaces: ['crm'],
+          requireOperationSchemaHash: false,
+          requireOperationVersion: false,
         },
       },
     } as any);
@@ -98,7 +95,16 @@ describe('function-mode', () => {
           'x-modernjs-bff-envelope',
           JSON.stringify({ requestId: 'crm.producer-a' }),
         )
-        .set('x-operation-id', 'crm.producer-a:GET:/nest/user');
+        .set('x-operation-id', 'crm.producer-a:GET:/nest/user')
+        .set(
+          'x-modernjs-bff-operation-context',
+          JSON.stringify({
+            requestId: 'crm.producer-a',
+            operationId: 'crm.producer-a:GET:/nest/user',
+            method: 'GET',
+            routePath: '/nest/user',
+          }),
+        );
 
       expect(allowed.status).toBe(200);
       expect(allowed.body.query).toBeDefined();

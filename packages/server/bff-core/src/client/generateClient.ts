@@ -1,7 +1,10 @@
-import { createHash } from 'crypto';
 import * as path from 'path';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { ApiRouter } from '../router';
+import {
+  createOperationEntries,
+  createOperationSchemaHash,
+} from '../security/operationContracts';
 import { Err, Ok, type Result } from './result';
 
 /**
@@ -70,26 +73,12 @@ export const generateClient = async ({
     return Err(`generate client error: Cannot require module ${resourcePath}`);
   }
 
-  const operationEntries = handlerInfos
-    .map(({ name, httpMethod, routePath }) => ({
-      name,
-      httpMethod: httpMethod.toUpperCase(),
-      routePath,
-    }))
-    .sort((a, b) => {
-      const keyA = `${a.routePath}:${a.httpMethod}:${a.name}`;
-      const keyB = `${b.routePath}:${b.httpMethod}:${b.name}`;
-      return keyA.localeCompare(keyB);
-    });
+  const operationEntries = createOperationEntries(handlerInfos);
   const operationVersion = 1;
-  const schemaHash = createHash('sha256')
-    .update(
-      JSON.stringify({
-        operations: operationEntries,
-        requestId: requestId || 'default',
-      }),
-    )
-    .digest('hex');
+  const schemaHash = createOperationSchemaHash(
+    operationEntries,
+    requestId || 'default',
+  );
 
   let handlersCode = '';
   for (const handlerInfo of handlerInfos) {
@@ -144,7 +133,32 @@ ${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`;
     console.warn('[modernjs] Compatibility request creator path does not expose configure(); use default @modern-js/create-request or migrate the compatibility path.');
     return undefined;
   }
-  return configure({ ...options, requestId: ${JSON.stringify(requestId)} });
+  const defaultSecureOptions = {
+    requestId: ${JSON.stringify(requestId)},
+    requireEnvelope: true,
+    identityBinding: {
+      enabled: true,
+      strict: true,
+    },
+    operationContract: {
+      enabled: true,
+      strict: true,
+      requireSchemaHash: true,
+      requireOperationVersion: true,
+    },
+  };
+  return configure({
+    ...defaultSecureOptions,
+    ...options,
+    identityBinding: {
+      ...defaultSecureOptions.identityBinding,
+      ...(options && options.identityBinding ? options.identityBinding : {}),
+    },
+    operationContract: {
+      ...defaultSecureOptions.operationContract,
+      ...(options && options.operationContract ? options.operationContract : {}),
+    },
+  });
 };
 `
     : '';

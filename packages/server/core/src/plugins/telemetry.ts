@@ -1,16 +1,21 @@
-import { promises as nodeFs } from 'fs';
-import path from 'path';
 import type {
   CoreMonitor,
   LogEvent,
   Metrics,
   MonitorEvent,
 } from '@modern-js/types';
-import { fs } from '@modern-js/utils';
 import type { ServerTelemetryUserConfig } from '../types/config';
 import type { ServerPlugin } from '../types/plugins';
 import type { Context, Next, ServerEnv } from '../types/server';
 import { ContractGateAutopilot } from './contractGateAutopilot';
+import {
+  CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
+  type ContractGateSnapshotStore,
+  DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH,
+  type GateSnapshot,
+  resolveContractGateSnapshotPath,
+  resolveContractGateSnapshotStore,
+} from './contractGateSnapshotStore';
 
 export type TelemetrySignalType = 'log' | 'metric' | 'trace';
 
@@ -125,6 +130,18 @@ export interface TelemetryCanaryDecision {
   contractGates: TelemetryCanaryContractGateStatus[];
 }
 
+export interface TelemetryCanaryStatusSnapshot {
+  timestamp: number;
+  state: TelemetryCanaryState;
+  consecutiveHealthy: number;
+  consecutiveFailures: number;
+  queueStats: TelemetryQueueStats;
+  unhealthyExporterCount: number;
+  requiredContractGates: string[];
+  contractGates: TelemetryCanaryContractGateStatus[];
+  failurePreview: TelemetryCanaryFailure[];
+}
+
 export interface TelemetryCanaryOrchestratorOptions {
   registry: TelemetryRegistry;
   evaluationIntervalMs?: number;
@@ -180,26 +197,68 @@ const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VM_ENDPOINT = 'http://127.0.0.1:8428/api/v1/import/prometheus';
 const DEFAULT_TIMEOUT_MS = 5_000;
-const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
-const DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH = '.modern/contract-gates.json';
-const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
+export const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
   '/_modern/contract-gates/runtime-fallback';
+export const DEFAULT_RUNTIME_STATUS_ENDPOINT = '/_modern/runtime/status';
 const DEFAULT_RUNTIME_FALLBACK_GATE_NAME = 'runtime-mf-fallback-health';
 const DEFAULT_RUNTIME_FALLBACK_FAILURE_HOLD_MS = 5 * 60_000;
 const DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES = 16 * 1024;
+const DEFAULT_RUNTIME_FALLBACK_AUTH_HEADER = 'x-modernjs-runtime-signal-token';
+const DEFAULT_RUNTIME_FALLBACK_TRUST_MAX_SIGNALS_PER_WINDOW = 30;
+const DEFAULT_RUNTIME_FALLBACK_TRUST_WINDOW_MS = 60_000;
+const DEFAULT_RUNTIME_FALLBACK_TRUST_DEDUPE_WINDOW_MS = 10_000;
+
+export type RuntimeSignalErrorCode =
+  | 'PAYLOAD_TOO_LARGE'
+  | 'INVALID_PAYLOAD'
+  | 'RATE_LIMITED'
+  | 'UNAUTHORIZED'
+  | 'UNTRUSTED_SOURCE';
+
+export type RuntimeSignalError = Error & {
+  code?: RuntimeSignalErrorCode;
+};
+
+export type RuntimeFallbackSignalTrustPolicy = {
+  allowedApps: string[];
+  allowedEntryOrigins: string[];
+  expectedRuntimeDigests: Record<string, string>;
+  enforceRuntimeDigest: boolean;
+  maxSignalsPerWindow: number;
+  windowMs: number;
+  dedupeWindowMs: number;
+};
+
+type RuntimeFallbackSignalRateLimitState = {
+  count: number;
+  windowStartedAt: number;
+};
+
+export type RuntimeFallbackSignalAuthConfig = {
+  enabled: boolean;
+  headerName: string;
+  expectedValue?: string;
+};
+
+export type RuntimeFallbackSignalRuntimeState = {
+  rateLimitBySource: Map<string, RuntimeFallbackSignalRateLimitState>;
+  dedupeByFingerprint: Map<string, number>;
+};
+
+export type RuntimeFallbackSignalTrustContext = {
+  trustPolicy: RuntimeFallbackSignalTrustPolicy;
+  runtimeState: RuntimeFallbackSignalRuntimeState;
+};
 
 type RuntimeFallbackSignalConfig = {
   endpoint: string;
   gateName: string;
-  gateSnapshotPath: string;
+  gateSnapshotStore: Promise<ContractGateSnapshotStore>;
   failureHoldMs: number;
   maxBodyBytes: number;
-};
-
-type ContractGateSnapshotFile = {
-  schemaVersion?: number;
-  updatedAt?: number;
-  gates?: Record<string, unknown>;
+  auth: RuntimeFallbackSignalAuthConfig;
+  trustPolicy: RuntimeFallbackSignalTrustPolicy;
+  runtimeState: RuntimeFallbackSignalRuntimeState;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -1192,6 +1251,25 @@ export class TelemetryCanaryOrchestrator {
     return decision;
   }
 
+  getStatusSnapshot(): TelemetryCanaryStatusSnapshot {
+    const now = Date.now();
+    const { failures, queueStats, unhealthyExporterCount } =
+      this.collectFailures();
+    return {
+      timestamp: now,
+      state: this.state,
+      consecutiveHealthy: this.consecutiveHealthy,
+      consecutiveFailures: this.consecutiveFailures,
+      queueStats,
+      unhealthyExporterCount,
+      requiredContractGates: [...this.requiredContractGates],
+      contractGates: Array.from(this.contractGates.values()).map(item => ({
+        ...item,
+      })),
+      failurePreview: failures,
+    };
+  }
+
   start() {
     if (this.evaluationTimer) {
       return;
@@ -1346,21 +1424,9 @@ export const createTelemetryAwareMetrics = <T extends Metrics>(
   };
 };
 
-function resolveContractGateSnapshotPath(
-  appDirectory: string,
-  configuredPath: string | undefined,
+export function resolveRuntimeFallbackSignalEndpoint(
+  configuredEndpoint?: string,
 ) {
-  const rawPath =
-    configuredPath ||
-    process.env.MODERN_CONTRACT_GATES_FILE ||
-    DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH;
-  if (path.isAbsolute(rawPath)) {
-    return rawPath;
-  }
-  return path.resolve(appDirectory, rawPath);
-}
-
-function resolveRuntimeFallbackSignalEndpoint(configuredEndpoint?: string) {
   const rawEndpoint = configuredEndpoint?.trim();
   if (!rawEndpoint) {
     return DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT;
@@ -1379,11 +1445,7 @@ function resolveRuntimeFallbackSignalEndpoint(configuredEndpoint?: string) {
   }
 }
 
-type RuntimeSignalError = Error & {
-  code?: 'PAYLOAD_TOO_LARGE' | 'INVALID_PAYLOAD';
-};
-
-function createRuntimeSignalError(
+export function createRuntimeSignalError(
   message: string,
   code: RuntimeSignalError['code'],
 ) {
@@ -1397,6 +1459,315 @@ function getUtf8ByteLength(input: string) {
     return Buffer.byteLength(input);
   }
   return new TextEncoder().encode(input).length;
+}
+
+function normalizeRuntimeSignalOrigin(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+function normalizeRuntimeSignalAppName(payload: Record<string, unknown>) {
+  if (typeof payload.appName !== 'string') {
+    return 'unknown';
+  }
+  const normalized = payload.appName.trim();
+  return normalized.length > 0 ? normalized : 'unknown';
+}
+
+function normalizeRuntimeSignalRuntimeDigest(payload: Record<string, unknown>) {
+  if (
+    typeof payload.runtimeDigest === 'string' &&
+    payload.runtimeDigest.trim()
+  ) {
+    return payload.runtimeDigest.trim();
+  }
+
+  const metadata = payload.metadata;
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    !Array.isArray(metadata) &&
+    typeof (metadata as Record<string, unknown>).runtimeDigest === 'string'
+  ) {
+    const digest = String(
+      (metadata as Record<string, unknown>).runtimeDigest,
+    ).trim();
+    if (digest) {
+      return digest;
+    }
+  }
+
+  return undefined;
+}
+
+export function normalizeRuntimeFallbackSignalAuthConfig(
+  configured:
+    | {
+        enabled?: boolean;
+        headerName?: string;
+        expectedValue?: string;
+        expectedValueEnv?: string;
+      }
+    | undefined,
+): RuntimeFallbackSignalAuthConfig {
+  const headerName =
+    typeof configured?.headerName === 'string' && configured.headerName.trim()
+      ? configured.headerName.trim().toLowerCase()
+      : DEFAULT_RUNTIME_FALLBACK_AUTH_HEADER;
+  const expectedFromEnv =
+    typeof configured?.expectedValueEnv === 'string' &&
+    configured.expectedValueEnv.trim().length > 0
+      ? process.env[configured.expectedValueEnv.trim()]
+      : undefined;
+  const expectedFromConfig =
+    typeof configured?.expectedValue === 'string' &&
+    configured.expectedValue.trim().length > 0
+      ? configured.expectedValue.trim()
+      : undefined;
+  const expectedValue = expectedFromConfig || expectedFromEnv;
+  const enabled = configured?.enabled === true;
+
+  if (enabled && !expectedValue) {
+    throw new Error(
+      '[telemetry.canary.autopilot.runtimeFallbackSignal] auth.enabled is true but no expected token is configured',
+    );
+  }
+
+  return {
+    enabled,
+    headerName,
+    expectedValue,
+  };
+}
+
+export function enforceRuntimeFallbackSignalAuthToken(
+  token: string | undefined,
+  authConfig: RuntimeFallbackSignalAuthConfig,
+) {
+  if (!authConfig.enabled) {
+    return;
+  }
+
+  if (!token || token !== authConfig.expectedValue) {
+    throw createRuntimeSignalError(
+      'runtime fallback signal auth failed',
+      'UNAUTHORIZED',
+    );
+  }
+}
+
+function enforceRuntimeFallbackSignalAuth(
+  c: Context<ServerEnv>,
+  runtimeSignalConfig: RuntimeFallbackSignalConfig,
+) {
+  enforceRuntimeFallbackSignalAuthToken(
+    c.req.header(runtimeSignalConfig.auth.headerName),
+    runtimeSignalConfig.auth,
+  );
+}
+
+export function normalizeRuntimeFallbackTrustPolicy(
+  configured:
+    | {
+        allowedApps?: string[];
+        allowedEntryOrigins?: string[];
+        expectedRuntimeDigests?: Record<string, string>;
+        enforceRuntimeDigest?: boolean;
+        maxSignalsPerWindow?: number;
+        windowMs?: number;
+        dedupeWindowMs?: number;
+      }
+    | undefined,
+): RuntimeFallbackSignalTrustPolicy {
+  const allowedApps = Array.isArray(configured?.allowedApps)
+    ? configured!.allowedApps
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+    : [];
+  const allowedEntryOrigins = Array.isArray(configured?.allowedEntryOrigins)
+    ? configured!.allowedEntryOrigins
+        .map(item => normalizeRuntimeSignalOrigin(item))
+        .filter((item): item is string => Boolean(item))
+    : [];
+
+  const expectedRuntimeDigestsRaw = configured?.expectedRuntimeDigests || {};
+  const expectedRuntimeDigests: Record<string, string> = {};
+  Object.entries(expectedRuntimeDigestsRaw).forEach(([appName, digest]) => {
+    if (
+      typeof appName === 'string' &&
+      appName.trim().length > 0 &&
+      typeof digest === 'string' &&
+      digest.trim().length > 0
+    ) {
+      expectedRuntimeDigests[appName.trim()] = digest.trim();
+    }
+  });
+
+  return {
+    allowedApps,
+    allowedEntryOrigins,
+    expectedRuntimeDigests,
+    enforceRuntimeDigest: configured?.enforceRuntimeDigest === true,
+    maxSignalsPerWindow: Math.max(
+      1,
+      Math.floor(
+        configured?.maxSignalsPerWindow ??
+          DEFAULT_RUNTIME_FALLBACK_TRUST_MAX_SIGNALS_PER_WINDOW,
+      ),
+    ),
+    windowMs: Math.max(
+      1_000,
+      Math.floor(
+        configured?.windowMs ?? DEFAULT_RUNTIME_FALLBACK_TRUST_WINDOW_MS,
+      ),
+    ),
+    dedupeWindowMs: Math.max(
+      0,
+      Math.floor(
+        configured?.dedupeWindowMs ??
+          DEFAULT_RUNTIME_FALLBACK_TRUST_DEDUPE_WINDOW_MS,
+      ),
+    ),
+  };
+}
+
+export function createRuntimeFallbackSignalRuntimeState(): RuntimeFallbackSignalRuntimeState {
+  return {
+    rateLimitBySource: new Map(),
+    dedupeByFingerprint: new Map(),
+  };
+}
+
+function cleanupRuntimeFallbackSignalRuntimeState(
+  now: number,
+  runtimeState: RuntimeFallbackSignalRuntimeState,
+  trustPolicy: RuntimeFallbackSignalTrustPolicy,
+) {
+  const dedupeExpiryMs = Math.max(
+    trustPolicy.dedupeWindowMs,
+    trustPolicy.windowMs,
+    1_000,
+  );
+  runtimeState.dedupeByFingerprint.forEach((lastSeenAt, fingerprint) => {
+    if (now - lastSeenAt > dedupeExpiryMs) {
+      runtimeState.dedupeByFingerprint.delete(fingerprint);
+    }
+  });
+
+  runtimeState.rateLimitBySource.forEach((state, source) => {
+    if (now - state.windowStartedAt > trustPolicy.windowMs * 2) {
+      runtimeState.rateLimitBySource.delete(source);
+    }
+  });
+}
+
+export function enforceRuntimeFallbackSignalTrustPolicy(
+  payload: Record<string, unknown>,
+  runtimeSignalContext: RuntimeFallbackSignalTrustContext,
+) {
+  const { trustPolicy, runtimeState } = runtimeSignalContext;
+  const now = Date.now();
+  cleanupRuntimeFallbackSignalRuntimeState(now, runtimeState, trustPolicy);
+
+  const appName = normalizeRuntimeSignalAppName(payload);
+  const entryOrigin = normalizeRuntimeSignalOrigin(payload.entry);
+  const runtimeDigest = normalizeRuntimeSignalRuntimeDigest(payload);
+
+  if (
+    trustPolicy.allowedApps.length > 0 &&
+    !trustPolicy.allowedApps.includes(appName)
+  ) {
+    throw createRuntimeSignalError(
+      `runtime fallback signal app "${appName}" is not trusted`,
+      'UNTRUSTED_SOURCE',
+    );
+  }
+
+  if (trustPolicy.allowedEntryOrigins.length > 0) {
+    if (
+      !entryOrigin ||
+      !trustPolicy.allowedEntryOrigins.includes(entryOrigin)
+    ) {
+      throw createRuntimeSignalError(
+        `runtime fallback signal entry origin "${entryOrigin || 'unknown'}" is not trusted`,
+        'UNTRUSTED_SOURCE',
+      );
+    }
+  }
+
+  const expectedDigest = trustPolicy.expectedRuntimeDigests[appName];
+  if (expectedDigest && runtimeDigest !== expectedDigest) {
+    throw createRuntimeSignalError(
+      `runtime fallback runtimeDigest mismatch for app "${appName}"`,
+      'UNTRUSTED_SOURCE',
+    );
+  }
+
+  if (trustPolicy.enforceRuntimeDigest && !runtimeDigest) {
+    throw createRuntimeSignalError(
+      `runtime fallback signal for app "${appName}" is missing runtimeDigest`,
+      'UNTRUSTED_SOURCE',
+    );
+  }
+
+  const dedupeFingerprint = JSON.stringify({
+    appName,
+    entryOrigin: entryOrigin || 'unknown',
+    reason: payload.reason || 'runtime_fallback',
+    phase: payload.phase || 'unknown',
+    runtimeDigest: runtimeDigest || 'unknown',
+  });
+  const dedupeWindowMs = trustPolicy.dedupeWindowMs;
+  if (dedupeWindowMs > 0) {
+    const lastSeenAt = runtimeState.dedupeByFingerprint.get(dedupeFingerprint);
+    runtimeState.dedupeByFingerprint.set(dedupeFingerprint, now);
+    if (typeof lastSeenAt === 'number' && now - lastSeenAt <= dedupeWindowMs) {
+      return {
+        deduped: true,
+      };
+    }
+  } else {
+    runtimeState.dedupeByFingerprint.set(dedupeFingerprint, now);
+  }
+
+  const sourceKey = `${appName}@${entryOrigin || 'unknown'}`;
+  const rateState = runtimeState.rateLimitBySource.get(sourceKey);
+  if (!rateState || now - rateState.windowStartedAt > trustPolicy.windowMs) {
+    runtimeState.rateLimitBySource.set(sourceKey, {
+      count: 1,
+      windowStartedAt: now,
+    });
+  } else {
+    if (rateState.count >= trustPolicy.maxSignalsPerWindow) {
+      throw createRuntimeSignalError(
+        `runtime fallback signal rate-limited for source "${sourceKey}"`,
+        'RATE_LIMITED',
+      );
+    }
+    rateState.count += 1;
+  }
+
+  return {
+    deduped: false,
+  };
+}
+
+function maybeWarnLegacyOtlpEndpoint(endpoint: string | undefined) {
+  if (!endpoint || !endpoint.includes('/v1/metrics')) {
+    return;
+  }
+  // Keep this warning lightweight and runtime-safe.
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[telemetry] OTLP endpoint "${endpoint}" looks like a metrics path. UltraModern telemetry exporter expects log-style envelopes (default: ${DEFAULT_OTLP_ENDPOINT}).`,
+  );
 }
 
 async function parseRuntimeFallbackSignalPayload(
@@ -1415,6 +1786,20 @@ async function parseRuntimeFallbackSignalPayload(
   }
 
   const rawBody = await c.req.raw.text();
+  const payload = parseRuntimeFallbackSignalPayloadFromRawBody(
+    rawBody,
+    maxBodyBytes,
+  );
+  return {
+    rawBody,
+    payload,
+  };
+}
+
+export function parseRuntimeFallbackSignalPayloadFromRawBody(
+  rawBody: string,
+  maxBodyBytes: number,
+) {
   if (!rawBody || rawBody.trim().length === 0) {
     throw createRuntimeSignalError(
       'runtime fallback signal body is empty',
@@ -1448,45 +1833,36 @@ async function parseRuntimeFallbackSignalPayload(
   return payload as Record<string, unknown>;
 }
 
+export function getRuntimeSignalErrorStatusCode(
+  signalError: RuntimeSignalError,
+): 400 | 401 | 403 | 413 | 429 | 500 {
+  if (signalError.code === 'PAYLOAD_TOO_LARGE') {
+    return 413;
+  }
+  if (signalError.code === 'INVALID_PAYLOAD') {
+    return 400;
+  }
+  if (signalError.code === 'UNAUTHORIZED') {
+    return 401;
+  }
+  if (signalError.code === 'RATE_LIMITED') {
+    return 429;
+  }
+  if (signalError.code === 'UNTRUSTED_SOURCE') {
+    return 403;
+  }
+  return 500;
+}
+
 async function persistRuntimeFallbackContractGate(
   payload: Record<string, unknown>,
   runtimeSignalConfig: RuntimeFallbackSignalConfig,
 ) {
   const now = Date.now();
-  const snapshotPath = runtimeSignalConfig.gateSnapshotPath;
-
-  let snapshot: ContractGateSnapshotFile = {
-    schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
-    updatedAt: now,
-    gates: {},
-  };
-
-  if (await fs.pathExists(snapshotPath)) {
-    try {
-      const raw = await nodeFs.readFile(snapshotPath, 'utf8');
-      const parsed = JSON.parse(raw) as ContractGateSnapshotFile;
-      if (parsed && typeof parsed === 'object') {
-        snapshot = {
-          schemaVersion:
-            typeof parsed.schemaVersion === 'number'
-              ? parsed.schemaVersion
-              : CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
-          updatedAt:
-            typeof parsed.updatedAt === 'number' ? parsed.updatedAt : now,
-          gates:
-            parsed.gates && typeof parsed.gates === 'object'
-              ? parsed.gates
-              : {},
-        };
-      }
-    } catch (_error) {
-      snapshot = {
-        schemaVersion: CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
-        updatedAt: now,
-        gates: {},
-      };
-    }
-  }
+  const gateSnapshotStore = await runtimeSignalConfig.gateSnapshotStore;
+  const snapshot: GateSnapshot = (await gateSnapshotStore.readSnapshot()) || {};
+  const existingGates =
+    snapshot.gates && typeof snapshot.gates === 'object' ? snapshot.gates : {};
 
   const reason =
     typeof payload.reason === 'string' ? payload.reason : 'runtime_fallback';
@@ -1495,23 +1871,24 @@ async function persistRuntimeFallbackContractGate(
     typeof payload.appName === 'string' ? payload.appName : 'unknown';
   const entry = typeof payload.entry === 'string' ? payload.entry : undefined;
 
-  snapshot.schemaVersion = CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION;
+  snapshot.schemaVersion =
+    typeof snapshot.schemaVersion === 'number'
+      ? snapshot.schemaVersion
+      : CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION;
   snapshot.updatedAt = now;
-  snapshot.gates = snapshot.gates || {};
-  snapshot.gates[runtimeSignalConfig.gateName] = {
-    passed: false,
-    reason: `runtime_fallback:${reason} phase=${phase} app=${appName}${entry ? ` entry=${entry}` : ''}`,
-    updatedAt: now,
-    expiresAt: now + runtimeSignalConfig.failureHoldMs,
-    source: 'runtime-mf-fallback-signal',
-    metadata: payload,
+  snapshot.gates = {
+    ...existingGates,
+    [runtimeSignalConfig.gateName]: {
+      passed: false,
+      reason: `runtime_fallback:${reason} phase=${phase} app=${appName}${entry ? ` entry=${entry}` : ''}`,
+      updatedAt: now,
+      expiresAt: now + runtimeSignalConfig.failureHoldMs,
+      source: 'runtime-mf-fallback-signal',
+      metadata: payload,
+    },
   };
 
-  await nodeFs.mkdir(path.dirname(snapshotPath), { recursive: true });
-  await nodeFs.writeFile(
-    snapshotPath,
-    `${JSON.stringify(snapshot, null, 2)}\n`,
-  );
+  await gateSnapshotStore.writeSnapshot(snapshot);
 }
 
 function emitCanaryDecisionMetric(
@@ -1582,6 +1959,9 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
     let canaryOrchestrator: TelemetryCanaryOrchestrator | undefined;
     let contractGateAutopilot: ContractGateAutopilot | undefined;
     let runtimeFallbackSignalConfig: RuntimeFallbackSignalConfig | undefined;
+    let gateSnapshotStorePromise:
+      | Promise<ContractGateSnapshotStore>
+      | undefined;
 
     const canaryConfig = telemetryConfig.canary;
     if (canaryConfig?.enabled) {
@@ -1617,18 +1997,17 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
           appDirectory,
           canaryConfig.autopilot?.gateSnapshotPath,
         );
-
-        contractGateAutopilot = new ContractGateAutopilot({
-          orchestrator: canaryOrchestrator,
-          gateSnapshotPath,
-          pollIntervalMs: canaryConfig.autopilot?.pollIntervalMs,
-          gateStaleAfterMs: canaryConfig.autopilot?.gateStaleAfterMs,
+        gateSnapshotStorePromise = resolveContractGateSnapshotStore({
+          appDirectory,
+          gateSnapshotPath:
+            gateSnapshotPath || DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH,
+          stateStore: canaryConfig.autopilot?.stateStore,
         });
 
         const runtimeSignalConfig =
           canaryConfig.autopilot?.runtimeFallbackSignal;
         const runtimeSignalEnabled = runtimeSignalConfig?.enabled ?? true;
-        if (runtimeSignalEnabled) {
+        if (runtimeSignalEnabled && gateSnapshotStorePromise) {
           runtimeFallbackSignalConfig = {
             endpoint: resolveRuntimeFallbackSignalEndpoint(
               runtimeSignalConfig?.endpoint,
@@ -1636,7 +2015,7 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
             gateName:
               runtimeSignalConfig?.gateName?.trim() ||
               DEFAULT_RUNTIME_FALLBACK_GATE_NAME,
-            gateSnapshotPath,
+            gateSnapshotStore: gateSnapshotStorePromise,
             failureHoldMs: Math.max(
               1_000,
               runtimeSignalConfig?.failureHoldMs ??
@@ -1647,6 +2026,13 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
               runtimeSignalConfig?.maxBodyBytes ??
                 DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES,
             ),
+            auth: normalizeRuntimeFallbackSignalAuthConfig(
+              runtimeSignalConfig?.auth,
+            ),
+            trustPolicy: normalizeRuntimeFallbackTrustPolicy(
+              runtimeSignalConfig?.trustPolicy,
+            ),
+            runtimeState: createRuntimeFallbackSignalRuntimeState(),
           };
         }
       }
@@ -1661,15 +2047,23 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
         order: 'pre',
         handler: async (c: Context<ServerEnv>) => {
           try {
-            const payload = await parseRuntimeFallbackSignalPayload(
+            enforceRuntimeFallbackSignalAuth(c, signalConfig);
+            const { payload } = await parseRuntimeFallbackSignalPayload(
               c,
               signalConfig.maxBodyBytes,
             );
+            const trustResult = enforceRuntimeFallbackSignalTrustPolicy(
+              payload,
+              signalConfig,
+            );
+            if (trustResult.deduped) {
+              return c.json({ ok: true, deduped: true }, 202);
+            }
             await persistRuntimeFallbackContractGate(payload, signalConfig);
             return c.json({ ok: true }, 202);
           } catch (error) {
             const signalError = error as RuntimeSignalError;
-            const status = signalError.code === 'PAYLOAD_TOO_LARGE' ? 413 : 400;
+            const status = getRuntimeSignalErrorStatusCode(signalError);
             return c.json(
               {
                 ok: false,
@@ -1684,6 +2078,87 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
         },
       });
     }
+
+    middlewares.push({
+      name: 'telemetry-runtime-status',
+      path: DEFAULT_RUNTIME_STATUS_ENDPOINT,
+      method: 'get',
+      order: 'pre',
+      handler: async (c: Context<ServerEnv>) => {
+        try {
+          if (runtimeFallbackSignalConfig?.auth.enabled) {
+            enforceRuntimeFallbackSignalAuthToken(
+              c.req.header(runtimeFallbackSignalConfig.auth.headerName),
+              runtimeFallbackSignalConfig.auth,
+            );
+          }
+
+          return c.json({
+            ok: true,
+            timestamp: Date.now(),
+            telemetry: {
+              queueStats: registry.getQueueStats(),
+              exporterHealth: registry.getExporterHealth(),
+            },
+            canary: canaryOrchestrator
+              ? {
+                  enabled: true,
+                  ...canaryOrchestrator.getStatusSnapshot(),
+                }
+              : {
+                  enabled: false,
+                },
+            runtimeFallbackSignal: runtimeFallbackSignalConfig
+              ? {
+                  enabled: true,
+                  endpoint: runtimeFallbackSignalConfig.endpoint,
+                  gateName: runtimeFallbackSignalConfig.gateName,
+                  failureHoldMs: runtimeFallbackSignalConfig.failureHoldMs,
+                  maxBodyBytes: runtimeFallbackSignalConfig.maxBodyBytes,
+                  auth: {
+                    enabled: runtimeFallbackSignalConfig.auth.enabled,
+                    headerName: runtimeFallbackSignalConfig.auth.headerName,
+                  },
+                  trustPolicy: {
+                    allowedApps:
+                      runtimeFallbackSignalConfig.trustPolicy.allowedApps,
+                    allowedEntryOrigins:
+                      runtimeFallbackSignalConfig.trustPolicy
+                        .allowedEntryOrigins,
+                    enforceRuntimeDigest:
+                      runtimeFallbackSignalConfig.trustPolicy
+                        .enforceRuntimeDigest,
+                    expectedRuntimeDigestsCount: Object.keys(
+                      runtimeFallbackSignalConfig.trustPolicy
+                        .expectedRuntimeDigests,
+                    ).length,
+                    maxSignalsPerWindow:
+                      runtimeFallbackSignalConfig.trustPolicy
+                        .maxSignalsPerWindow,
+                    windowMs: runtimeFallbackSignalConfig.trustPolicy.windowMs,
+                    dedupeWindowMs:
+                      runtimeFallbackSignalConfig.trustPolicy.dedupeWindowMs,
+                  },
+                }
+              : {
+                  enabled: false,
+                },
+          });
+        } catch (error) {
+          const signalError = error as RuntimeSignalError;
+          return c.json(
+            {
+              ok: false,
+              error:
+                signalError instanceof Error
+                  ? signalError.message
+                  : String(signalError),
+            },
+            getRuntimeSignalErrorStatusCode(signalError),
+          );
+        }
+      },
+    });
 
     middlewares.push({
       name: 'inject-telemetry',
@@ -1721,6 +2196,7 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       prepared = true;
 
       if (telemetryConfig.exporters?.otlp?.enabled) {
+        maybeWarnLegacyOtlpEndpoint(telemetryConfig.exporters.otlp.endpoint);
         await registry.register(
           createOtlpTelemetryExporter(telemetryConfig.exporters.otlp),
         );
@@ -1743,6 +2219,19 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       }
 
       canaryOrchestrator.start();
+      if (gateSnapshotStorePromise) {
+        const gateSnapshotStore = await gateSnapshotStorePromise;
+        contractGateAutopilot = new ContractGateAutopilot({
+          orchestrator: canaryOrchestrator,
+          gateSnapshotPath: resolveContractGateSnapshotPath(
+            appDirectory,
+            canaryConfig?.autopilot?.gateSnapshotPath,
+          ),
+          gateSnapshotStore,
+          pollIntervalMs: canaryConfig?.autopilot?.pollIntervalMs,
+          gateStaleAfterMs: canaryConfig?.autopilot?.gateStaleAfterMs,
+        });
+      }
       if (contractGateAutopilot) {
         await contractGateAutopilot.start();
       }

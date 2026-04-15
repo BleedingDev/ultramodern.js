@@ -82,7 +82,7 @@
     "dev": "rslib build --watch",
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
-    "test": "rstest"
+    "test": "rstest --passWithNoTests"
   },
   "dependencies": {
     "@modern-js/plugin": "workspace:*",

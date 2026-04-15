@@ -1,6 +1,6 @@
 # ADR-0002: App-Level Module Federation SSR Strategy
 
-- Status: Implemented (Alpha)
+- Status: Implemented (Stable contract defaults)
 - Date: 2026-02-21
 - Decision Type: Runtime architecture
 
@@ -10,11 +10,11 @@ Current docs state app-level MF modules exported/consumed through Bridge APIs ar
 
 ## 2. Decision
 
-Adopt a phased SSR strategy for app-level MF:
+Adopt an SSR strategy for app-level MF:
 
 1. Keep component-level SSR as stable baseline.
-2. Add app-level MF SSR as alpha behind feature flag.
-3. Promote after hydration consistency and fallback behavior are proven in integration tests.
+2. Enable app-level MF SSR stable contract/env wiring when server-rendered MF markers are detected.
+3. Keep explicit opt-out controls for staged rollout in sensitive environments.
 
 ## 3. Target Architecture
 
@@ -37,7 +37,7 @@ Adopt a phased SSR strategy for app-level MF:
   - remote unavailable
   - slow remote
   - hydration mismatch protection
-6. Ship alpha feature flag.
+6. Ship stable defaults + opt-out switch.
 
 ## 5. Risks
 
@@ -64,7 +64,7 @@ Adopt a phased SSR strategy for app-level MF:
 
 ## 8. Acceptance Criteria
 
-- Feature-flagged app-level MF SSR path works in dev and serve.
+- App-level MF SSR stable path works in dev and serve.
 - No critical hydration regressions in test matrix.
 - Remote SSR failure gracefully degrades to CSR with observability signals.
 

@@ -5,6 +5,8 @@ export * from './types';
 export * from './client';
 export * from './operators/http';
 export * from './security/crossProjectPolicy';
+export * from './security/operationContracts';
+export * from './contracts/eventContracts';
 export {
   getRelativeRuntimePath,
   HANDLER_WITH_META,

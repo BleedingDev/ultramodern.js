@@ -111,6 +111,29 @@ export type IdentityBindingOptions = {
   onViolation?: (violation: IdentityBindingViolation) => void;
 };
 
+export type OperationContractViolationReason =
+  | 'missing_schema_hash'
+  | 'missing_operation_version';
+
+export type OperationContractViolation = {
+  requestId: string;
+  target: TransportTarget;
+  operationId: string;
+  reason: OperationContractViolationReason;
+  routePath?: string;
+  method?: string;
+  schemaHash?: string;
+  operationVersion?: number;
+};
+
+export type OperationContractOptions = {
+  enabled?: boolean;
+  strict?: boolean;
+  requireSchemaHash?: boolean;
+  requireOperationVersion?: boolean;
+  onViolation?: (violation: OperationContractViolation) => void;
+};
+
 export type OperationContext = {
   operationId?: string;
   routePath?: string;
@@ -163,6 +186,7 @@ export type IOptions<F = typeof fetch> = {
   requireEnvelope?: boolean;
   allowCrossOriginEnvelope?: AllowCrossOriginEnvelope;
   identityBinding?: IdentityBindingOptions;
+  operationContract?: OperationContractOptions;
   setDomain?: (ops?: {
     target: 'server' | 'browser';
     requestId?: string;

@@ -1,24 +1,13 @@
-import path from 'path';
-import { fs } from '@modern-js/utils';
+import {
+  type ContractGateSnapshotStore,
+  type GateSnapshot,
+  type GateSnapshotGateValue,
+  createFileContractGateSnapshotStore,
+} from './contractGateSnapshotStore';
 import type { TelemetryCanaryOrchestrator } from './telemetry';
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_GATE_STALE_AFTER_MS = 10 * 60_000;
-
-type GateSnapshotGateValue =
-  | boolean
-  | {
-      passed?: boolean;
-      reason?: string;
-      updatedAt?: number;
-      expiresAt?: number;
-    };
-
-type GateSnapshot = {
-  schemaVersion?: number;
-  updatedAt?: number;
-  gates?: Record<string, GateSnapshotGateValue>;
-};
 
 type LoggerLike = {
   info?: (message: string) => void;
@@ -27,7 +16,8 @@ type LoggerLike = {
 
 export type ContractGateAutopilotOptions = {
   orchestrator: TelemetryCanaryOrchestrator;
-  gateSnapshotPath: string;
+  gateSnapshotPath?: string;
+  gateSnapshotStore?: ContractGateSnapshotStore;
   pollIntervalMs?: number;
   gateStaleAfterMs?: number;
   logger?: LoggerLike;
@@ -43,17 +33,26 @@ type NormalizedGate = {
 
 export class ContractGateAutopilot {
   private readonly orchestrator: TelemetryCanaryOrchestrator;
-  private readonly gateSnapshotPath: string;
+  private readonly gateSnapshotStore: ContractGateSnapshotStore;
+  private readonly gateSnapshotPath?: string;
   private readonly pollIntervalMs: number;
   private readonly gateStaleAfterMs: number;
   private readonly logger?: LoggerLike;
   private poller?: ReturnType<typeof setInterval>;
-  private lastSnapshotMtimeMs = -1;
+  private lastSnapshotFingerprint?: string;
   private readonly appliedGateFingerprints = new Map<string, string>();
 
   constructor(options: ContractGateAutopilotOptions) {
     this.orchestrator = options.orchestrator;
-    this.gateSnapshotPath = path.resolve(options.gateSnapshotPath);
+    if (!options.gateSnapshotStore && !options.gateSnapshotPath) {
+      throw new Error(
+        'ContractGateAutopilot requires gateSnapshotPath or gateSnapshotStore',
+      );
+    }
+    this.gateSnapshotPath = options.gateSnapshotPath;
+    this.gateSnapshotStore =
+      options.gateSnapshotStore ||
+      createFileContractGateSnapshotStore(options.gateSnapshotPath!);
     this.pollIntervalMs = Math.max(
       250,
       options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
@@ -115,29 +114,23 @@ export class ContractGateAutopilot {
 
   private async loadSnapshot() {
     try {
-      if (!(await fs.pathExists(this.gateSnapshotPath))) {
+      const snapshot = await this.gateSnapshotStore.readSnapshot();
+      if (!snapshot) {
         return undefined;
       }
 
-      const stat = await fs.stat(this.gateSnapshotPath);
-      if (stat.mtimeMs <= this.lastSnapshotMtimeMs) {
+      const fingerprint = JSON.stringify(snapshot);
+      if (fingerprint === this.lastSnapshotFingerprint) {
         return undefined;
       }
-      this.lastSnapshotMtimeMs = stat.mtimeMs;
+      this.lastSnapshotFingerprint = fingerprint;
 
-      const raw = await fs.readFile(this.gateSnapshotPath, 'utf8');
-      const parsed = JSON.parse(raw) as GateSnapshot;
-      if (!parsed || typeof parsed !== 'object') {
-        this.logger?.warn?.(
-          `[telemetry.canary.autopilot] invalid gate snapshot at ${this.gateSnapshotPath}`,
-        );
-        return undefined;
-      }
-
-      return parsed;
+      return snapshot;
     } catch (error) {
+      const source =
+        this.gateSnapshotPath || this.gateSnapshotStore.name || 'stateStore';
       this.logger?.warn?.(
-        `[telemetry.canary.autopilot] failed to load gate snapshot ${this.gateSnapshotPath}: ${error instanceof Error ? error.message : String(error)}`,
+        `[telemetry.canary.autopilot] failed to load gate snapshot ${source}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return undefined;
     }

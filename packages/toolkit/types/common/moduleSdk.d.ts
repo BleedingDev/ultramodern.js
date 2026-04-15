@@ -15,17 +15,20 @@ export type ModuleRuntimeLane =
 export type ModuleLifecycleHook =
   | 'registerRoutes'
   | 'registerCapabilities'
-  | 'registerMigrations';
+  | 'registerMigrations'
+  | 'registerEventContracts';
 
 export type ModulePolicyHook =
   | 'authorize'
   | 'enforceTenantScope'
-  | 'validateOperationContext';
+  | 'validateOperationContext'
+  | 'validateEventEnvelope';
 
 export type ModuleObservabilityHook =
   | 'emitBusinessMetric'
   | 'emitAuditEvent'
-  | 'emitTraceContext';
+  | 'emitTraceContext'
+  | 'emitEventContractViolation';
 
 export type ModuleObservabilitySignal = 'metrics' | 'audit' | 'trace';
 
@@ -67,4 +70,21 @@ export interface ModuleSdkManifest {
     hooks: ModuleObservabilityHook[];
   };
   compliance: ModuleComplianceFlags;
+}
+
+export interface ModuleEventContract {
+  name: string;
+  version: number;
+  schemaHash: string;
+  producerModuleId: string;
+  description?: string;
+}
+
+export interface ModuleEventEnvelope<Payload = unknown> {
+  name: string;
+  version: number;
+  schemaHash: string;
+  timestamp: number;
+  payload: Payload;
+  meta?: Record<string, unknown>;
 }

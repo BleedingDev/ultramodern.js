@@ -30,6 +30,62 @@ const ensureFileExists = filePath => {
   }
 };
 
+const isPathInsideDirectory = ({ baseDir, targetDir }) => {
+  const relative = path.relative(baseDir, targetDir);
+  return (
+    relative === '' ||
+    (!relative.startsWith('..') && !path.isAbsolute(relative))
+  );
+};
+
+const findNearestPackageDirectory = ({ startDir, rootDir }) => {
+  const boundaryDir = path.resolve(rootDir || process.cwd());
+  let cursor = path.resolve(startDir);
+
+  while (isPathInsideDirectory({ baseDir: boundaryDir, targetDir: cursor })) {
+    if (fs.existsSync(path.join(cursor, 'package.json'))) {
+      return cursor;
+    }
+    if (cursor === boundaryDir) {
+      break;
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      break;
+    }
+    cursor = parent;
+  }
+
+  return undefined;
+};
+
+const isLikelyBuildArtifactPath = targetPath =>
+  /(^|[\\/])dist(?:-[^\\/]+)?([\\/]|$)/.test(String(targetPath));
+
+const executeCommand = ({ command, cwd, commandRunner, failureMessage }) => {
+  if (typeof commandRunner === 'function') {
+    commandRunner({
+      command,
+      cwd,
+    });
+    return;
+  }
+
+  const result = spawnSync(command, {
+    cwd,
+    shell: true,
+    stdio: 'inherit',
+  });
+
+  if (typeof result.status === 'number' && result.status !== 0) {
+    throw new Error(`${failureMessage} (exit code ${String(result.status)})`);
+  }
+
+  if (result.error) {
+    throw new Error(`${failureMessage}\n${result.error.message}`);
+  }
+};
+
 const validateProfileShape = profile => {
   if (!profile || typeof profile !== 'object') {
     throw new Error('Profile must be a JSON object');
@@ -170,12 +226,63 @@ const validateEvidence = ({
   return report;
 };
 
-const validateMigrationContracts = ({ targets, rootDir }) => {
+const validateMigrationContracts = ({
+  targets,
+  rootDir,
+  allowAutoBuildArtifacts = false,
+  commandRunner,
+}) => {
   const baseDir = path.resolve(rootDir || process.cwd());
   const report = [];
+  const preparedPackages = new Set();
 
   for (const target of targets) {
     const targetPath = path.resolve(baseDir, target.path);
+
+    if (
+      !fs.existsSync(targetPath) &&
+      allowAutoBuildArtifacts &&
+      isLikelyBuildArtifactPath(target.path)
+    ) {
+      const packageDir = findNearestPackageDirectory({
+        startDir: path.dirname(targetPath),
+        rootDir: baseDir,
+      });
+      if (!packageDir) {
+        throw new Error(
+          `Migration contract "${target.id}" target is missing and could not resolve package root for auto-build: ${targetPath}`,
+        );
+      }
+
+      if (!preparedPackages.has(packageDir)) {
+        const packageJsonPath = path.join(packageDir, 'package.json');
+        const packageJson = readJsonFile(packageJsonPath);
+        const buildScript =
+          packageJson &&
+          packageJson.scripts &&
+          typeof packageJson.scripts.build === 'string'
+            ? packageJson.scripts.build.trim()
+            : '';
+        if (!buildScript) {
+          throw new Error(
+            `Migration contract "${target.id}" target is missing and package ${packageDir} does not define scripts.build`,
+          );
+        }
+
+        const buildCommand = `pnpm --dir "${packageDir}" run build`;
+        console.log(
+          `[release-gates] Auto-building migration artifact for "${target.id}" via ${buildCommand}`,
+        );
+        executeCommand({
+          command: buildCommand,
+          cwd: baseDir,
+          commandRunner,
+          failureMessage: `Auto-build failed for migration contract "${target.id}" with command: ${buildCommand}`,
+        });
+        preparedPackages.add(packageDir);
+      }
+    }
+
     ensureFileExists(targetPath);
 
     const content = fs.readFileSync(targetPath, 'utf8');
@@ -200,23 +307,11 @@ const validateMigrationContracts = ({ targets, rootDir }) => {
 const runGateCommands = ({ commands, cwd }) => {
   const executionDir = path.resolve(cwd || process.cwd());
   for (const command of commands) {
-    const result = spawnSync(command, {
+    executeCommand({
+      command,
       cwd: executionDir,
-      shell: true,
-      stdio: 'inherit',
+      failureMessage: `Gate command failed: ${command}`,
     });
-
-    if (typeof result.status === 'number' && result.status !== 0) {
-      throw new Error(
-        `Gate command failed with exit code ${String(result.status)}: ${command}`,
-      );
-    }
-
-    if (result.error) {
-      throw new Error(
-        `Gate command failed to execute: ${command}\n${result.error.message}`,
-      );
-    }
   }
 };
 
@@ -306,6 +401,71 @@ const writeGateSnapshot = ({
   };
 };
 
+const validateGateSnapshotShape = snapshot => {
+  if (!snapshot || typeof snapshot !== 'object') {
+    throw new Error('Gate snapshot must be a JSON object');
+  }
+
+  if (
+    typeof snapshot.schemaVersion !== 'number' ||
+    snapshot.schemaVersion <= 0
+  ) {
+    throw new Error('Gate snapshot schemaVersion must be a positive number');
+  }
+
+  if (typeof snapshot.updatedAt !== 'number' || snapshot.updatedAt <= 0) {
+    throw new Error('Gate snapshot updatedAt must be a positive timestamp');
+  }
+
+  if (!snapshot.gates || typeof snapshot.gates !== 'object') {
+    throw new Error('Gate snapshot gates must be an object');
+  }
+};
+
+const validateGateSnapshotFile = ({ snapshotPath, requiredGateNames = [] }) => {
+  const resolvedSnapshotPath = path.resolve(snapshotPath);
+  ensureFileExists(resolvedSnapshotPath);
+  const snapshot = readJsonFile(resolvedSnapshotPath);
+  validateGateSnapshotShape(snapshot);
+
+  const gates = snapshot.gates;
+  const gateNames = Object.keys(gates);
+
+  for (const gateName of requiredGateNames) {
+    if (!gateNames.includes(gateName)) {
+      throw new Error(
+        `Gate snapshot is missing required gate "${gateName}" in ${resolvedSnapshotPath}`,
+      );
+    }
+  }
+
+  for (const [gateName, gateValue] of Object.entries(gates)) {
+    if (!gateValue || typeof gateValue !== 'object') {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must be an object in ${resolvedSnapshotPath}`,
+      );
+    }
+
+    if (typeof gateValue.passed !== 'boolean') {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must include boolean "passed"`,
+      );
+    }
+
+    if (typeof gateValue.updatedAt !== 'number' || gateValue.updatedAt <= 0) {
+      throw new Error(
+        `Gate snapshot entry "${gateName}" must include positive numeric "updatedAt"`,
+      );
+    }
+  }
+
+  return {
+    snapshotPath: resolvedSnapshotPath,
+    gateCount: gateNames.length,
+    gates: gateNames.sort(),
+  };
+};
+
 module.exports = {
   SCHEMA_VERSION,
   readJsonFile,
@@ -314,4 +474,5 @@ module.exports = {
   validateMigrationContracts,
   runGateCommands,
   writeGateSnapshot,
+  validateGateSnapshotFile,
 };

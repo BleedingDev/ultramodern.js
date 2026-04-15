@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import path from 'path';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, compatibleRequire, findExists, logger } from '@modern-js/utils';
@@ -15,6 +16,7 @@ const JS_OR_TS_EXTS = [
 
 const DEFAULT_REQUEST_CREATOR = '@modern-js/plugin-bff/client';
 const DEFAULT_DATA_PLATFORM_IMPORT = '@modern-js/plugin-bff/data-platform';
+const DEFAULT_OPERATION_VERSION = 1;
 
 type EffectEndpointMeta = {
   apiId: string;
@@ -151,6 +153,36 @@ function getPackageName(appDir: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function createEffectOperationSchemaHash(
+  endpoints: EffectEndpointMeta[],
+  requestId: string,
+) {
+  const operationEntries = endpoints
+    .map(endpoint => ({
+      name: endpoint.endpointName,
+      httpMethod: endpoint.method.toUpperCase(),
+      routePath: endpoint.routePath,
+    }))
+    .sort((a, b) => {
+      const keyA = `${a.routePath}:${a.httpMethod}:${a.name}`;
+      const keyB = `${b.routePath}:${b.httpMethod}:${b.name}`;
+      return keyA.localeCompare(keyB);
+    });
+
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        operations: operationEntries.map(item => ({
+          name: item.name,
+          httpMethod: item.httpMethod,
+          routePath: item.routePath,
+        })),
+        requestId,
+      }),
+    )
+    .digest('hex');
 }
 
 async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
@@ -303,6 +335,12 @@ function renderEffectClientCode(
     options.target === 'bundle'
       ? packageName || process.env.npm_package_name
       : undefined;
+  const normalizedRequestId = requestId || 'default';
+  const operationVersion = DEFAULT_OPERATION_VERSION;
+  const schemaHash = createEffectOperationSchemaHash(
+    endpoints,
+    normalizedRequestId,
+  );
   const batchConfig = options.dataPlatformBatch;
   const batchEndpoint = resolveBatchEndpoint(
     options.prefix,
@@ -325,11 +363,20 @@ function renderEffectClientCode(
     const senderVar = `__sender_${toSafeIdentifier(endpoint.groupName)}_${toSafeIdentifier(endpoint.endpointName)}_${index}`;
     const callVar = `__call_${toSafeIdentifier(endpoint.groupName)}_${toSafeIdentifier(endpoint.endpointName)}_${index}`;
     const operationVar = `__operation_${toSafeIdentifier(endpoint.groupName)}_${toSafeIdentifier(endpoint.endpointName)}_${index}`;
+    const operationId = `${endpoint.method}:${endpoint.routePath}`;
+    const operationContextCode = JSON.stringify({
+      operationId,
+      routePath: endpoint.routePath,
+      method: endpoint.method,
+      schemaHash,
+      operationVersion,
+    });
 
     const createRequestOptions = `{
       path: ${JSON.stringify(endpoint.routePath)},
       method: ${JSON.stringify(endpoint.method)},
       port: ${portCode},
+      operationContext: ${operationContextCode},
       httpMethodDecider: ${JSON.stringify(httpMethodDecider)}${
         requestId ? `, requestId: ${JSON.stringify(requestId)}` : ''
       }
@@ -344,7 +391,12 @@ function renderEffectClientCode(
         apiId: endpoint.apiId,
         group: endpoint.groupName,
         endpoint: endpoint.endpointName,
-        version: 1,
+        operationId,
+        routePath: endpoint.routePath,
+        method: endpoint.method,
+        operationVersion,
+        schemaHash,
+        version: operationVersion,
       })};`,
     );
     callerDeclarations.push(
@@ -426,6 +478,17 @@ const __RUNTIME_FETCH =
 if (__REQUEST_ID && __configureRequest) {
   const __configurePayload = {
     requestId: __REQUEST_ID,
+    requireEnvelope: true,
+    identityBinding: {
+      enabled: true,
+      strict: true,
+    },
+    operationContract: {
+      enabled: true,
+      strict: true,
+      requireSchemaHash: true,
+      requireOperationVersion: true,
+    },
     setDomain: () => {
       if (
         typeof window !== 'undefined' &&
@@ -709,6 +772,11 @@ export type EffectOperationDescriptor = {
   apiId: string;
   group: string;
   endpoint: string;
+  operationId: string;
+  routePath: string;
+  method: string;
+  operationVersion: number;
+  schemaHash: string;
   version: number;
 };
 export type EffectOperationManifest = Record<

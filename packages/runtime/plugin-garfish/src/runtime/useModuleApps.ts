@@ -5,6 +5,7 @@ import { logger } from '../util';
 import { GarfishContext } from './utils/Context';
 
 export type Options = typeof garfish.options;
+export type MicroFrontendProductionProfile = 'off' | 'balanced' | 'strict';
 export type RuntimeCompatibilityMode = 'off' | 'warn' | 'strict';
 export type RuntimeCompatibilityIssueReason =
   | 'digest_mismatch'
@@ -144,6 +145,7 @@ export type ModernGarfishConfig = {
   runtimeCompatibility?: RuntimeCompatibilityPolicy;
   remoteTrust?: RemoteTrustPolicy;
   fallbackTelemetry?: MfFallbackTelemetryConfig;
+  productionProfile?: MicroFrontendProductionProfile;
 };
 
 export type MicroComponentProps = {

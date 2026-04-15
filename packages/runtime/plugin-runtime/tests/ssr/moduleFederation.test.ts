@@ -83,6 +83,7 @@ const createEnvironmentConfigTransformer = ({
 describe('module federation SSR output compatibility', () => {
   afterEach(() => {
     delete process.env.MF_SSR_PRJ;
+    delete process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT;
   });
 
   it('detects module federation markers', () => {
@@ -107,6 +108,19 @@ describe('module federation SSR output compatibility', () => {
     expect(
       shouldUseModuleFederationNodeOutput({
         output: { target: 'node' },
+      }),
+    ).toBe(true);
+  });
+
+  it('treats node-prefixed targets as server targets for module federation detection', () => {
+    expect(
+      shouldUseModuleFederationNodeOutput({
+        output: { target: 'node18' },
+        source: {
+          define: {
+            REMOTE_IP_STRATEGY: '"inherit"',
+          },
+        },
       }),
     ).toBe(true);
   });
@@ -157,6 +171,9 @@ describe('module federation SSR output compatibility', () => {
 
     expect(result.output.module).toBe(false);
     expect(result.output.target).toBe('node');
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
+      'true',
+    );
     expect(typeof result.tools?.bundlerChain).toBe('function');
 
     const targetCalls: any[] = [];
@@ -200,6 +217,84 @@ describe('module federation SSR output compatibility', () => {
         },
       ],
     ]);
+  });
+
+  it('forces module federation node output for custom node targets', () => {
+    const transform = createEnvironmentConfigTransformer();
+    const result = transform({
+      output: {
+        target: 'node18',
+      },
+      source: {
+        define: {
+          REMOTE_IP_STRATEGY: '"inherit"',
+        },
+      },
+    });
+
+    expect(result.output.module).toBe(false);
+    expect(result.output.target).toBe('node18');
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
+      'true',
+    );
+  });
+
+  it('warns when module federation SSR is auto-detected without explicit stable flag', () => {
+    const warnSpy = rs.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const transform = createEnvironmentConfigTransformer({
+        normalizedConfig: {
+          server: {
+            ssr: {
+              mode: 'stream',
+            },
+          },
+        },
+      });
+
+      transform({
+        output: {
+          target: 'node',
+        },
+        source: {
+          define: {
+            REMOTE_IP_STRATEGY: '"inherit"',
+          },
+        },
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(String(warnSpy.mock.calls[0]?.[0] || '')).toContain('mf-ssr');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('fails fast when explicit mf ssr flag is required but missing', () => {
+    process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT = 'true';
+
+    const transform = createEnvironmentConfigTransformer({
+      normalizedConfig: {
+        server: {
+          ssr: {
+            mode: 'stream',
+          },
+        },
+      },
+    });
+
+    expect(() =>
+      transform({
+        output: {
+          target: 'node',
+        },
+        source: {
+          define: {
+            REMOTE_IP_STRATEGY: '"inherit"',
+          },
+        },
+      }),
+    ).toThrow('MODERN_MF_APP_SSR_REQUIRE_EXPLICIT=true');
   });
 
   it('does not force module federation node output when SSR and SSG are disabled', () => {

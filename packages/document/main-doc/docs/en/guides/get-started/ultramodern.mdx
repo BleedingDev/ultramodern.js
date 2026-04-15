@@ -35,14 +35,14 @@ This page is the complete public difference reference for the published V3 line.
 | Telemetry exporters | Export pipeline is app-defined | Built-in OTLP and VictoriaMetrics exporters | Implemented | Exporters are non-fatal on failure |
 | Telemetry backpressure contract | No standard queue policy | Registry queue with max size, dropped-event counter, periodic flush | Implemented | Emits `telemetry.queue.dropped` on pressure |
 | Metrics/trace correlation | SSR metrics tags do not parse W3C trace context | `traceparent` is parsed and emits `trace_id` / `span_id` tags | Implemented | Improves cross-system observability joins |
-| App-level MF SSR contract flag | No dedicated app-level MF SSR stability contract switch | Adds `server.ssr.moduleFederationAppSSR` staged-stability contract | Implemented (staged-stability contract) | Sets `process.env.MODERN_MF_APP_SSR` |
-| App-level MF SSR runtime bridge | Not a stable default bridge path | V3 exposes contract/env only, full bridge remains staged rollout | Partial by design | Use behind controlled rollout |
+| App-level MF SSR contract flag | No dedicated app-level MF SSR stability contract switch | Adds `server.ssr.moduleFederationAppSSR` contract and auto-enables env wiring when MF SSR markers are detected | Implemented | Sets `process.env.MODERN_MF_APP_SSR` |
+| App-level MF SSR runtime bridge | Not a stable default bridge path | V3 applies stable bridge defaults for MF SSR node output/runtime env when server rendering + MF markers are present | Implemented | Keeps explicit opt-out path via config/env |
 | MF remote loader reliability contracts | Remote loading fallback patterns are typically app-defined | Adds deterministic timeout/network/contract-error fallback matrix and distributed OTEL continuity assertions | Implemented | `routes-tanstack-mf` reliability suite |
 | BFF runtime choices | Hono runtime path only in Modern.js V3 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-only MF data contracts plus failure-injection coverage for federated data fetch | Implemented (Effect-default + strict split) | Stream is explicit about no Zod introduction |
 | Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable family contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
 | Release/module certification gate automation | No super-app release evidence profile in baseline | Adds RC + module-certification gate profiles, evidence metadata validation, and dedicated CI workflows | Implemented | `.github/workflows/release-contract-gates.yml` + module/bun gate workflows |
-| Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR staged-contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
+| Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR MF contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
 | Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the canonical V3 reference |
 
 ## Detailed V3 Differences
@@ -153,7 +153,7 @@ When an incoming request contains W3C `traceparent`, UltraModern.js V3 parses an
 
 into SSR metric tags, improving correlation between app metrics and distributed tracing backends.
 
-### 5) App-level MF SSR staged contract (`server.ssr.moduleFederationAppSSR`)
+### 5) App-level MF SSR stable contract (`server.ssr.moduleFederationAppSSR`)
 
 UltraModern.js V3 adds:
 
@@ -171,9 +171,7 @@ export default defineConfig({
 });
 ```
 
-:::warning
-In UltraModern.js V3, this flag provides stable contract/env wiring. The full app-level Module Federation SSR runtime bridge is still a staged rollout item.
-:::
+When MF SSR markers are detected in server-rendered entries, V3 now enables the same env/bridge contract path by default and keeps config/env switches as explicit opt-out controls.
 
 ### 6) Contract-level test hardening in V3
 
@@ -182,7 +180,7 @@ UltraModern.js V3 adds dedicated coverage for:
 - RsDoctor default behavior and opt-out semantics.
 - BFF `requestId` generation/runtime isolation and fail-fast checks.
 - Telemetry redaction/backpressure/exporter behavior.
-- SSR staged-contract detection and env injection.
+- SSR MF contract detection and env injection.
 
 ### 7) Module SDK contract + boundary anti-pattern guards
 
@@ -275,7 +273,6 @@ UltraModern.js V3 includes a machine-verifiable gate model beyond baseline Moder
 
 The following are intentionally out of scope for this published V3 line:
 
-- Full app-level MF SSR runtime bridge as a stable default.
 - Forcing Effect-only data-fetch runtime as the mandatory default for every app.
 
 ## Baseline Switches (Opt-out)
@@ -286,7 +283,7 @@ The default UltraModern create-template enables stricter platform contracts. The
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
 - `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` (default: `true`): Enables telemetry exporters in baseline config. Disable when the environment has no telemetry backend yet.
 - `MODERN_BASELINE_APP_ID` (default: `basename(process.cwd())`): Overrides baseline `bff.requestId` identity. Set this when you need a fixed platform-wide producer ID convention.
-- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/metrics`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/logs`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
 - `MODERN_TELEMETRY_VICTORIA_ENDPOINT` (default: `http://127.0.0.1:8428/api/v1/import/prometheus`): VictoriaMetrics exporter endpoint. Override when you use a different VM ingress endpoint.
 - `MODERN_TELEMETRY_FAIL_LOUD_STARTUP` (default: `true`): Fails startup if configured exporters fail startup health checks. Disable in local/dev environments where temporary telemetry outage should not block boot.
 

@@ -3,6 +3,7 @@ import nock from 'nock';
 import {
   CrossOriginEnvelopePolicyError,
   IdentityBindingViolationError,
+  OperationContractViolationError,
   ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
   configure,
@@ -256,6 +257,9 @@ describe('configure', () => {
 
       configure({
         requestId: producer,
+        operationContract: {
+          enabled: false,
+        },
         setDomain: () => producerUrl,
       });
 
@@ -306,11 +310,17 @@ describe('configure', () => {
     configure({
       request: customRequestA as unknown as typeof fetch,
       requestId: producerA,
+      operationContract: {
+        enabled: false,
+      },
       setDomain: () => urlA,
     });
     configure({
       request: customRequestB as unknown as typeof fetch,
       requestId: producerB,
+      operationContract: {
+        enabled: false,
+      },
       setDomain: () => urlB,
     });
 
@@ -357,6 +367,9 @@ describe('configure', () => {
         configure({
           requestId: producer,
           allowedHeaders: ['authorization'],
+          operationContract: {
+            enabled: false,
+          },
           setDomain: () => producerUrl,
         });
 
@@ -399,6 +412,9 @@ describe('configure', () => {
         configure({
           requestId: producer,
           allowedHeaders: ['authorization', 'x-tenant-id'],
+          operationContract: {
+            enabled: false,
+          },
           resolveHeaders: ({ incomingHeaders }) => ({
             ...incomingHeaders,
             'x-tenant-id': 'tenant-masked',
@@ -422,7 +438,7 @@ describe('configure', () => {
     );
   });
 
-  test('should strip client-supplied tenant headers by default for non-default producer clients', async () => {
+  test('should reject client-supplied tenant headers by default for non-default producer clients', async () => {
     const producer = 'producer-identity-strip';
     const producerUrl = 'http://127.0.0.1:9085';
 
@@ -435,6 +451,9 @@ describe('configure', () => {
 
       configure({
         requestId: producer,
+        operationContract: {
+          enabled: false,
+        },
         setDomain: () => producerUrl,
       });
 
@@ -447,13 +466,13 @@ describe('configure', () => {
         producer,
       );
 
-      const data = await request({
-        headers: {
-          'x-tenant-id': 'tenant-client',
-        },
-      });
-
-      expect(data).toStrictEqual(response);
+      expect(() =>
+        request({
+          headers: {
+            'x-tenant-id': 'tenant-client',
+          },
+        }),
+      ).toThrow(IdentityBindingViolationError);
     });
   });
 
@@ -478,6 +497,12 @@ describe('configure', () => {
 
         configure({
           requestId: producer,
+          operationContract: {
+            enabled: false,
+          },
+          identityBinding: {
+            strict: false,
+          },
           setDomain: () => producerUrl,
         });
 
@@ -508,6 +533,9 @@ describe('configure', () => {
     configure({
       requestId: producer,
       setDomain: () => 'http://127.0.0.1:9087',
+      operationContract: {
+        enabled: false,
+      },
       identityBinding: {
         strict: true,
       },
@@ -544,6 +572,9 @@ describe('configure', () => {
         try {
           configure({
             requestId: producer,
+            operationContract: {
+              enabled: false,
+            },
             setDomain: () => 'https://producer.internal',
           });
 
@@ -584,6 +615,9 @@ describe('configure', () => {
           configure({
             request: customRequest as unknown as typeof fetch,
             requestId: producer,
+            operationContract: {
+              enabled: false,
+            },
             setDomain: () => producerUrl,
             allowCrossOriginEnvelope: ({
               requestId,
@@ -643,6 +677,14 @@ describe('configure', () => {
         undefined,
         undefined,
         producer,
+        {
+          operationId: `GET:${path}`,
+          routePath: path,
+          method,
+          schemaHash: 'schema-test',
+          operationVersion: 1,
+          traceparent,
+        },
       );
       await request();
 
@@ -658,6 +700,50 @@ describe('configure', () => {
       expect(operationContext.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
       expect(operationContext.spanId).toBe('00f067aa0ba902b7');
     });
+  });
+
+  test('should reject requests missing schema/version operation contract metadata by default', () => {
+    const producer = 'producer-operation-contract-default';
+
+    configure({
+      requestId: producer,
+      setDomain: () => 'http://127.0.0.1:19080',
+    });
+
+    const request = createRequest(
+      path,
+      method,
+      8080,
+      undefined,
+      undefined,
+      producer,
+    );
+
+    expect(() => request()).toThrow(OperationContractViolationError);
+  });
+
+  test('should enforce operation contract metadata for default requestId when strict-default mode is enabled', () => {
+    process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID = 'true';
+    try {
+      configure({
+        operationContract: {
+          enabled: true,
+          strict: true,
+          requireSchemaHash: true,
+          requireOperationVersion: true,
+        },
+      });
+
+      const request = createRequest(path, method, 8080);
+      expect(() => request()).toThrow(OperationContractViolationError);
+    } finally {
+      configure({
+        operationContract: {
+          enabled: false,
+        },
+      });
+      delete process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID;
+    }
   });
 
   test('should retry with backoff and emit degraded telemetry events', async () => {

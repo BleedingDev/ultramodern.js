@@ -1,14 +1,27 @@
 const DEFAULT_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
 const DEFAULT_OPERATION_CONTEXT_HEADER = 'x-operation-id';
+const DEFAULT_OPERATION_CONTEXT_DETAIL_HEADER =
+  'x-modernjs-bff-operation-context';
 const DEFAULT_DENY_STATUS = 403;
+
+type CrossProjectOperationContract = {
+  schemaHash?: string;
+  operationVersion?: number;
+};
 
 export interface CrossProjectPolicyConfig {
   enabled?: boolean;
   requireEnvelope?: boolean;
   requireOperationContext?: boolean;
+  requireOperationContextDetails?: boolean;
+  requireOperationSchemaHash?: boolean;
+  requireOperationVersion?: boolean;
   allowedNamespaces?: string[];
   envelopeHeader?: string;
   operationContextHeader?: string;
+  operationContextDetailHeader?: string;
+  expectedOperationContracts?: Record<string, CrossProjectOperationContract>;
+  allowUnknownOperations?: boolean;
   denyStatus?: number;
 }
 
@@ -20,7 +33,15 @@ export interface CrossProjectPolicyViolation {
     | 'missing_request_id'
     | 'namespace_not_allowed'
     | 'missing_operation_context'
-    | 'operation_context_mismatch';
+    | 'operation_context_mismatch'
+    | 'missing_operation_context_details'
+    | 'invalid_operation_context_details'
+    | 'operation_context_details_request_id_mismatch'
+    | 'missing_operation_schema_hash'
+    | 'missing_operation_version'
+    | 'unknown_operation_contract'
+    | 'operation_schema_hash_mismatch'
+    | 'operation_version_mismatch';
   message: string;
   status: number;
 }
@@ -87,6 +108,11 @@ export const evaluateCrossProjectPolicy = (
   const status = normalizeStatusCode(policy.denyStatus);
   const requireEnvelope = policy.requireEnvelope ?? true;
   const requireOperationContext = policy.requireOperationContext ?? true;
+  const requireOperationContextDetails =
+    policy.requireOperationContextDetails ?? true;
+  const requireOperationSchemaHash = policy.requireOperationSchemaHash ?? true;
+  const requireOperationVersion = policy.requireOperationVersion ?? true;
+  const allowUnknownOperations = policy.allowUnknownOperations ?? false;
   const envelopeHeader = normalizeHeaderName(
     policy.envelopeHeader,
     DEFAULT_ENVELOPE_HEADER,
@@ -94,6 +120,10 @@ export const evaluateCrossProjectPolicy = (
   const operationContextHeader = normalizeHeaderName(
     policy.operationContextHeader,
     DEFAULT_OPERATION_CONTEXT_HEADER,
+  );
+  const operationContextDetailHeader = normalizeHeaderName(
+    policy.operationContextDetailHeader,
+    DEFAULT_OPERATION_CONTEXT_DETAIL_HEADER,
   );
 
   const envelopeRaw = readHeader(headers, envelopeHeader);
@@ -162,6 +192,117 @@ export const evaluateCrossProjectPolicy = (
         `Operation context header "${operationContextHeader}" does not match requestId "${requestId}"`,
         status,
       );
+    }
+
+    const operationContextDetailsRaw = readHeader(
+      headers,
+      operationContextDetailHeader,
+    );
+
+    if (!operationContextDetailsRaw) {
+      if (requireOperationContextDetails) {
+        return createViolation(
+          'missing_operation_context_details',
+          `Missing operation context details header "${operationContextDetailHeader}"`,
+          status,
+        );
+      }
+      return null;
+    }
+
+    let operationContextDetails: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(operationContextDetailsRaw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('invalid operation context details object');
+      }
+      operationContextDetails = parsed as Record<string, unknown>;
+    } catch (_error) {
+      return createViolation(
+        'invalid_operation_context_details',
+        `Invalid operation context details header "${operationContextDetailHeader}"`,
+        status,
+      );
+    }
+
+    const detailRequestId = String(
+      operationContextDetails.requestId || '',
+    ).trim();
+    if (detailRequestId && detailRequestId !== requestId) {
+      return createViolation(
+        'operation_context_details_request_id_mismatch',
+        `Operation context details requestId "${detailRequestId}" does not match envelope requestId "${requestId}"`,
+        status,
+      );
+    }
+
+    const detailSchemaHash = String(
+      operationContextDetails.schemaHash || '',
+    ).trim();
+    if (requireOperationSchemaHash && !detailSchemaHash) {
+      return createViolation(
+        'missing_operation_schema_hash',
+        `Operation context details header "${operationContextDetailHeader}" must include schemaHash`,
+        status,
+      );
+    }
+
+    const detailOperationVersion = operationContextDetails.operationVersion;
+    if (requireOperationVersion && typeof detailOperationVersion !== 'number') {
+      return createViolation(
+        'missing_operation_version',
+        `Operation context details header "${operationContextDetailHeader}" must include operationVersion`,
+        status,
+      );
+    }
+
+    const expectedContracts = policy.expectedOperationContracts;
+    if (
+      expectedContracts &&
+      typeof expectedContracts === 'object' &&
+      Object.keys(expectedContracts).length > 0
+    ) {
+      const method = String(operationContextDetails.method || '').toUpperCase();
+      const routePath = String(operationContextDetails.routePath || '').trim();
+      const operationId = String(
+        operationContextDetails.operationId || '',
+      ).trim();
+      const expectedContract =
+        expectedContracts[`${method}:${routePath}`] ||
+        expectedContracts[`operation:${operationId}`];
+
+      if (!expectedContract) {
+        if (!allowUnknownOperations) {
+          return createViolation(
+            'unknown_operation_contract',
+            `No expected operation contract found for operation "${operationId || `${method}:${routePath}`}"`,
+            status,
+          );
+        }
+      } else {
+        if (
+          expectedContract.schemaHash &&
+          detailSchemaHash &&
+          expectedContract.schemaHash !== detailSchemaHash
+        ) {
+          return createViolation(
+            'operation_schema_hash_mismatch',
+            `Operation schema hash mismatch for "${operationId || `${method}:${routePath}`}"`,
+            status,
+          );
+        }
+        if (
+          typeof expectedContract.operationVersion === 'number' &&
+          typeof detailOperationVersion === 'number' &&
+          expectedContract.operationVersion !== detailOperationVersion
+        ) {
+          return createViolation(
+            'operation_version_mismatch',
+            `Operation version mismatch for "${operationId || `${method}:${routePath}`}"`,
+            status,
+          );
+        }
+      }
     }
   }
 
