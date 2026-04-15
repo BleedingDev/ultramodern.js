@@ -3,6 +3,9 @@ import React, { type ReactElement } from 'react';
 import { Body } from './Body';
 import { DocumentStructureContext } from './DocumentStructureContext';
 import { Head } from './Head';
+import { Links } from './Links';
+import { Root } from './Root';
+import { Scripts } from './Scripts';
 
 /**
  * get the directly son element by name
@@ -19,6 +22,31 @@ function findTargetChildByComponent(
   children: ReactElement[],
 ) {
   return children.find(item => item?.type === component);
+}
+
+/**
+ * get the children(grandChild included) with target component reference
+ * @param component the component reference
+ * @param children son element
+ * @returns target element
+ */
+function findTargetElementByComponent(
+  component: unknown,
+  children: ReactElement<any>[],
+): ReactElement<{ children?: ReactElement<any> }> | null {
+  if (children.length === 0) {
+    return null;
+  }
+  let nextChildren: ReactElement<{ children: ReactElement<any> }>[] = [];
+  for (const item of children) {
+    if (item?.type === component) {
+      return item;
+    }
+    if (item?.props?.children) {
+      nextChildren = nextChildren.concat(item.props.children);
+    }
+  }
+  return findTargetElementByComponent(component, nextChildren);
 }
 
 /**
@@ -64,13 +92,22 @@ export function Html(
     findTargetChildByComponent(Head, children) ||
       findTargetChildByName('Head', children),
   );
-  const hasSetScripts = Boolean(findTargetElement('Scripts', children));
-  const hasSetLinks = Boolean(findTargetElement('Links', children));
+  const hasSetScripts = Boolean(
+    findTargetElementByComponent(Scripts, children) ||
+      findTargetChildByName('Scripts', children),
+  );
+  const hasSetLinks = Boolean(
+    findTargetElementByComponent(Links, children) ||
+      findTargetChildByName('Links', children),
+  );
   const hasSetBody = Boolean(
-    findTargetChildByComponent(Body, children) ||
+    findTargetElementByComponent(Body, children) ||
       findTargetChildByName('Body', children),
   );
-  const hasSetRoot = Boolean(findTargetElement('Root', children));
+  const hasSetRoot = Boolean(
+    findTargetElementByComponent(Root, children) ||
+      findTargetChildByName('Root', children),
+  );
   const hasSetTitle = Boolean(findTargetElement('title', children));
   const notMissMustChild = [
     hasSetHead,

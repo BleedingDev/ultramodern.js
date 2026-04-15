@@ -234,6 +234,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "coreJs": "3.48",
                       "mode": "entry",
@@ -298,6 +299,7 @@ exports[`builder environment compat > should generator environment config correc
                   "exportedEnum": false,
                   "typeExports": true,
                 },
+                "detectSyntax": "auto",
                 "env": {
                   "coreJs": "3.48",
                   "mode": "entry",
@@ -864,6 +866,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "coreJs": "3.48",
                       "mode": "entry",
@@ -938,6 +941,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "coreJs": "3.48",
                       "mode": "entry",
@@ -1054,6 +1058,7 @@ exports[`builder environment compat > should generator environment config correc
         "force": false,
       },
       "chunkFilename": "static/js/async/[name].js",
+      "devtoolFallbackModuleFilenameTemplate": [Function],
       "devtoolModuleFilenameTemplate": [Function],
       "filename": "static/js/[name].js",
       "path": "<WORKSPACE>/packages/cli/builder/dist",
@@ -1348,6 +1353,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -1404,6 +1410,7 @@ exports[`builder environment compat > should generator environment config correc
                   "exportedEnum": false,
                   "typeExports": true,
                 },
+                "detectSyntax": "auto",
                 "env": {
                   "targets": [
                     "node >= 16",
@@ -1770,6 +1777,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -1839,6 +1847,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -1929,6 +1938,7 @@ exports[`builder environment compat > should generator environment config correc
         "force": false,
       },
       "chunkFilename": "[name].js",
+      "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
       "devtoolModuleFilenameTemplate": "[relative-resource-path]",
       "filename": "[name].js",
       "library": {
@@ -2127,6 +2137,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -2183,6 +2194,7 @@ exports[`builder environment compat > should generator environment config correc
                   "exportedEnum": false,
                   "typeExports": true,
                 },
+                "detectSyntax": "auto",
                 "env": {
                   "targets": [
                     "node >= 16",
@@ -2530,6 +2542,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -2599,6 +2612,7 @@ exports[`builder environment compat > should generator environment config correc
                       "exportedEnum": false,
                       "typeExports": true,
                     },
+                    "detectSyntax": "auto",
                     "env": {
                       "targets": [
                         "node >= 16",
@@ -2688,6 +2702,7 @@ exports[`builder environment compat > should generator environment config correc
         "force": false,
       },
       "chunkFilename": "[name].js",
+      "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
       "devtoolModuleFilenameTemplate": "[relative-resource-path]",
       "filename": "[name].js",
       "library": {

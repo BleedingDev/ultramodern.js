@@ -5,21 +5,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test:rspack": "pnpm test:builder:rspack && pnpm test:framework",
-    "test:framework": "vitest run -c vitest.framework.config.mjs",
-    "test:framework:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.framework.config.mjs",
-    "test:framework:effect": "vitest run -c vitest.effect.config.mjs",
-    "test:framework:effect:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.effect.config.mjs",
+    "test": "pnpm test:builder && pnpm test:framework && pnpm test:rstest-adapter",
+    "test:rstest": "pnpm test:framework && pnpm test:rstest-adapter",
+    "test:framework": "cross-env MODERN_SERVER_LOG_LEVEL=info rstest",
+    "test:rstest-adapter": "rstest -c rstest.adapter.config.mts",
     "test:builder": "cd e2e/builder && pnpm test",
     "test:builder:rspack": "cd e2e/builder && pnpm test",
+    "test:rspack": "pnpm test:builder:rspack && pnpm test:framework",
     "test:module-tools": "jest -c jest.module-tools.config.js",
     "test:superapp-contracts": "jest -c jest.superapp-contracts.config.js",
-    "test": "pnpm test --filter api-service-koa & pnpm test:framework",
-    "test:ut": "node --conditions=jsnext:source -r tsm ./node_modules/jest/bin/jest.js -c jest-ut.config.js --maxWorkers=2",
-    "prepare": "node -e \"import('puppeteer/install.mjs')\"",
-    "test:mwa": "ts-node -T generator/mwa.ts",
-    "test:module": "ts-node -T generator/module.ts",
-    "test:monorepo": "ts-node -T generator/monorepo.ts"
+    "prepare": "node node_modules/puppeteer/install.mjs",
+    "pretest:rstest-adapter": "pnpm --dir integration/rstest/basic-app-rstest-browser exec playwright install"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",

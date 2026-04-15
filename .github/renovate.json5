@@ -7,7 +7,7 @@
   "schedule": ["every weekend"],
   "ignorePaths": ["**/node_modules/**", "packages/toolkit/utils/tests/fixtures/plugin"],
   "lockFileMaintenance": {
-    "enabled": false
+    "enabled": true
   },
   "ignoreScripts": false,
   "packageRules": [
@@ -27,6 +27,13 @@
       ],
       "groupName": "rspress monorepo",
       "groupSlug": "rspress",
+    },
+    {
+      "matchPackageNames": [
+        "@rstest/**",
+      ],
+      "groupName": "rstest monorepo",
+      "groupSlug": "rstest",
     },
     {
       "matchPackageNames": [

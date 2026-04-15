@@ -2,6 +2,7 @@ import {
   type MiddlewareHandler,
   defineServerConfig,
 } from '@modern-js/server-runtime';
+import { value } from '@shared/repro';
 import plugin1 from './plugins/serverPlugin';
 
 const timing: MiddlewareHandler = async (c, next) => {
@@ -32,9 +33,18 @@ const requestTiming: MiddlewareHandler = async (c, next) => {
 export default defineServerConfig({
   middlewares: [
     {
+      name: 'options-handler',
+      method: 'options',
+      path: '/api/options',
+      handler: c => {
+        c.res.headers.set('x-options-handler', 'ok');
+        return c.body(null, 204);
+      },
+    },
+    {
       name: 'set-message',
       handler: async (c, next) => {
-        c.set('message', 'hi');
+        c.set('message', value);
         await next();
       },
     },

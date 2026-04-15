@@ -12,6 +12,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { expectPageToMatchTextContent } from '../../../utils/rstestPuppeteer';
 
 const appDir = path.resolve(__dirname, '../');
 
@@ -164,7 +165,8 @@ const supportHandleConfig = async (page: Page, appPort: number) => {
     waitUntil: ['networkidle0'],
   });
 
-  await (expect(page) as any).toMatchTextContent(
+  await expectPageToMatchTextContent(
+    page,
     'root/user.profile.name.layout/user.profile.name.page',
   );
 };

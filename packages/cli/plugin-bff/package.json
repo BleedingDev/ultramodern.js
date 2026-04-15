@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.0.2",
+  "version": "3.1.3",
   "types": "./src/cli.ts",
   "main": "./dist/cjs/cli.js",
   "exports": {
@@ -115,7 +115,6 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.9",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
@@ -123,9 +122,10 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.18",
-    "effect": "4.0.0-beta.9",
-    "qs": "^6.15.0",
-    "type-is": "^2.0.1"
+    "qs": "^6.15.1",
+    "type-is": "^2.0.1",
+    "@effect/opentelemetry": "4.0.0-beta.9",
+    "effect": "4.0.0-beta.9"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -134,8 +134,8 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsbuild/core": "2.0.0-beta.4",
-    "@rslib/core": "0.19.6",
+    "@rsbuild/core": "2.0.0-rc.0",
+    "@rslib/core": "0.21.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.3.0",
     "@types/qs": "^6.14.0",

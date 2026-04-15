@@ -1,5 +1,29 @@
 # @modern-js/plugin-v2
 
+## 3.1.3
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.1.3
+- @modern-js/types@3.1.3
+- @modern-js/utils@3.1.3
+
+## 3.1.2
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.1.2
+- @modern-js/types@3.1.2
+- @modern-js/utils@3.1.2
+
+## 3.1.1
+
+### Patch Changes
+
+- @modern-js/runtime-utils@3.1.1
+- @modern-js/types@3.1.1
+- @modern-js/utils@3.1.1
+
 ## 3.1.0
 
 ### Patch Changes

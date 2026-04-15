@@ -1,5 +1,32 @@
 # @modern-js/server-plugin
 
+## 3.1.3
+
+### Patch Changes
+
+- @modern-js/plugin@3.1.3
+- @modern-js/runtime-utils@3.1.3
+- @modern-js/utils@3.1.3
+
+## 3.1.2
+
+### Patch Changes
+
+- fa4cde0: feat: support OPTIONS handler on ServerBase
+  feat: 为 serverBase 添加 options handler
+- ddd55fa: Update to address flatted crit cve https://security.snyk.io/vuln/SNYK-JS-FLATTED-15700433
+  - @modern-js/plugin@3.1.2
+  - @modern-js/runtime-utils@3.1.2
+  - @modern-js/utils@3.1.2
+
+## 3.1.1
+
+### Patch Changes
+
+- @modern-js/plugin@3.1.1
+- @modern-js/runtime-utils@3.1.1
+- @modern-js/utils@3.1.1
+
 ## 3.1.0
 
 ### Patch Changes

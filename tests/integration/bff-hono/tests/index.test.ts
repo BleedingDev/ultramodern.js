@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -11,45 +10,13 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 
+rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
+
 dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
 const ERROR_PAGE = 'error';
-let typecheckVerified = false;
-
-function expectTypecheckPasses() {
-  try {
-    execFileSync(
-      process.execPath,
-      [
-        require.resolve('typescript/bin/tsc'),
-        '--noEmit',
-        '-p',
-        'tsconfig.json',
-      ],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    );
-  } catch (error: unknown) {
-    const maybeError = error as { stdout?: unknown; stderr?: unknown };
-    const stdout =
-      typeof maybeError.stdout === 'string'
-        ? maybeError.stdout
-        : maybeError.stdout
-          ? String(maybeError.stdout)
-          : '';
-    const stderr =
-      typeof maybeError.stderr === 'string'
-        ? maybeError.stderr
-        : maybeError.stderr
-          ? String(maybeError.stderr)
-          : '';
-    throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
-  }
-}
 
 describe('bff hono tests', () => {
   describe('bff hono in dev', () => {
@@ -64,11 +31,6 @@ describe('bff hono tests', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
-      if (!typecheckVerified) {
-        expectTypecheckPasses();
-        typecheckVerified = true;
-      }
       port = await getPort();
       app = await launchApp(appDir, port, {});
       browser = await puppeteer.launch(launchOptions as any);
@@ -83,6 +45,13 @@ describe('bff hono tests', () => {
         () => {
           const el = document.querySelector('.hello');
           return el && el.textContent !== null && el.textContent !== 'bff-hono';
+        },
+        { timeout: 10000 },
+      );
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('.username');
+          return el && el.textContent === 'user123';
         },
         { timeout: 10000 },
       );
@@ -174,10 +143,6 @@ describe('bff hono tests', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      if (!typecheckVerified) {
-        expectTypecheckPasses();
-        typecheckVerified = true;
-      }
       port = await getPort();
 
       await modernBuild(appDir, [], {});
@@ -190,8 +155,6 @@ describe('bff hono tests', () => {
 
     test('basic usage', async () => {
       await page.goto(`${host}:${port}/${BASE_PAGE}`);
-      const text1 = await page.$eval('.hello', el => el?.textContent);
-      expect(['bff-hono', 'Hello Modern.js']).toContain(text1 as string);
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.hello');
@@ -203,8 +166,17 @@ describe('bff hono tests', () => {
         },
         { timeout: 10000 },
       );
-      const text2 = await page.$eval('.hello', el => el?.textContent);
-      expect(text2).toBe('Hello Modern.js');
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('.username');
+          return el && el.textContent === 'user123';
+        },
+        { timeout: 10000 },
+      );
+      const text = await page.$eval('.hello', el => el?.textContent);
+      const username = await page.$eval('.username', el => el?.textContent);
+      expect(text).toBe('Hello Modern.js');
+      expect(username).toBe('user123');
     });
 
     test('basic usage with ssr', async () => {

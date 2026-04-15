@@ -20,16 +20,16 @@ export const serverAppContextTemplate = (appContext: AppToolsContext) => {
     metaName,
     bffRuntimeFramework,
   } = appContext;
+
+  const getRelativePathTemplate = (targetDirectory: string) =>
+    `path.join(__dirname, ${JSON.stringify(
+      normalizePath(path.relative(appDirectory, targetDirectory)),
+    )})`;
+
   return {
-    sharedDirectory: `path.join(__dirname, "${normalizePath(
-      path.relative(appDirectory, sharedDirectory),
-    )}")`,
-    apiDirectory: `path.join(__dirname, "${normalizePath(
-      path.relative(appDirectory, apiDirectory),
-    )}")`,
-    lambdaDirectory: `path.join(__dirname, "${normalizePath(
-      path.relative(appDirectory, lambdaDirectory),
-    )}")`,
+    sharedDirectory: getRelativePathTemplate(sharedDirectory),
+    apiDirectory: getRelativePathTemplate(apiDirectory),
+    lambdaDirectory: getRelativePathTemplate(lambdaDirectory),
     metaName,
     bffRuntimeFramework: bffRuntimeFramework || 'hono',
   };
@@ -58,7 +58,7 @@ export const getPluginsCode = (plugins: PluginItem[]) => {
 };
 
 export const getServerConfigPath = (meta: string) =>
-  `"${normalizePath(path.join(SERVER_DIR, `${meta}.server`))}"`;
+  `path.join(__dirname, "${SERVER_DIR}", "${meta}.server")`;
 
 export interface GenerateHandlerOptions {
   template: string;

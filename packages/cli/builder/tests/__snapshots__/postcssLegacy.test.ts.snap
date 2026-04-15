@@ -1375,7 +1375,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                         "postcssPlugin": "cssnano-util-raw-cache",
                       },
                     ],
-                    "version": "8.5.6",
+                    "version": "8.5.9",
                   },
                   {
                     "browsers": [
@@ -1571,7 +1571,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                         "postcssPlugin": "cssnano-util-raw-cache",
                       },
                     ],
-                    "version": "8.5.6",
+                    "version": "8.5.9",
                   },
                   {
                     "browsers": [

@@ -7,16 +7,9 @@ import {
   launchApp,
   launchOptions,
 } from '../../../utils/modernTestUtils';
+import { expectPageToMatchTextContent } from '../../../utils/rstestPuppeteer';
 
 const fixtureDir = path.resolve(__dirname, '../fixtures');
-
-async function waitForUserData(page: Page, expectedText: string) {
-  await page.waitForFunction(
-    text => document.body.textContent?.includes(text),
-    { timeout: 10_000 },
-    expectedText,
-  );
-}
 
 async function basicUsage(page: Page, appPort: number) {
   const res = await page.goto(`http://localhost:${appPort}/about`, {
@@ -42,7 +35,7 @@ async function deferredData(page: Page, appPort: number) {
     waitUntil: ['networkidle0'],
   });
 
-  await waitForUserData(page, 'user1-18');
+  await expectPageToMatchTextContent(page, /user1-18/);
 }
 
 async function deferredDataInNavigation(page: Page, appPort: number) {
@@ -51,7 +44,7 @@ async function deferredDataInNavigation(page: Page, appPort: number) {
   });
 
   await page.click('#user-btn');
-  await waitForUserData(page, 'user1-18');
+  await expectPageToMatchTextContent(page, /user1-18/);
 }
 
 async function errorThrownInLoader(page: Page, appPort: number) {
@@ -141,7 +134,7 @@ describe('Streaming SSR', () => {
 
   afterAll(async () => {
     if (browser) {
-      browser.close();
+      await browser.close();
     }
     if (app) {
       await killApp(app);

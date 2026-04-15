@@ -13,6 +13,8 @@ import {
   waitForHydration,
 } from '../../test-utils';
 
+rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
+
 async function waitForAppReady(port: number, maxRetries = 30) {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -69,7 +71,6 @@ describe('mf-i18n-tests', () => {
   let appProviderBrowser: Browser;
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 5);
     releaseLock = await acquireTestLock('i18n-mf');
     componentProviderApp = await launchApp(
       componentProviderDir,
@@ -281,7 +282,6 @@ describe('mf-i18n-tests', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 3);
       consumerApp = await launchApp(
         consumerDir,
         CONSUMER_PORT,
@@ -390,7 +390,6 @@ describe('mf-i18n-tests', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 3);
       consumerApp = await launchApp(
         consumerDir,
         CONSUMER_PORT,

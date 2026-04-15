@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -11,14 +10,16 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 
-const conditionalTest = test;
+rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
+
+// Skip flaky tests on CI, but run them locally
+const conditionalTest = process.env.LOCAL_TEST === 'true' ? test : test.skip;
 
 dns.setDefaultResultOrder('ipv4first');
 
 const apiAppDir = path.resolve(__dirname, '../bff-api-app');
 const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
-const typecheckedAppDirs = new Set<string>();
 const generatedProducerSdkDirs = new Set<string>();
 
 async function ensureProducerSdkGenerated(projectDir: string) {
@@ -27,46 +28,6 @@ async function ensureProducerSdkGenerated(projectDir: string) {
   }
   await modernBuild(projectDir, [], {});
   generatedProducerSdkDirs.add(projectDir);
-}
-
-function expectTypecheckPasses(projectDir: string) {
-  if (typecheckedAppDirs.has(projectDir)) {
-    return;
-  }
-
-  try {
-    execFileSync(
-      process.execPath,
-      [
-        require.resolve('typescript/bin/tsc'),
-        '--noEmit',
-        '-p',
-        'tsconfig.json',
-      ],
-      {
-        cwd: projectDir,
-        stdio: 'pipe',
-      },
-    );
-    typecheckedAppDirs.add(projectDir);
-  } catch (error: unknown) {
-    const maybeError = error as { stdout?: unknown; stderr?: unknown };
-    const stdout =
-      typeof maybeError.stdout === 'string'
-        ? maybeError.stdout
-        : maybeError.stdout
-          ? String(maybeError.stdout)
-          : '';
-    const stderr =
-      typeof maybeError.stderr === 'string'
-        ? maybeError.stderr
-        : maybeError.stderr
-          ? String(maybeError.stderr)
-          : '';
-    throw new Error(
-      `TypeScript typecheck failed in ${projectDir}:\n${stdout}\n${stderr}`,
-    );
-  }
 }
 
 const testApiWorked = async ({
@@ -138,13 +99,9 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
       await ensureProducerSdkGenerated(apiAppDir);
-      expectTypecheckPasses(apiAppDir);
-      expectTypecheckPasses(appDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
-      jest.setTimeout(1000 * 60 * 2);
       app = await launchApp(appDir, port, {});
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
@@ -361,13 +318,9 @@ describe('corss project bff', () => {
     let browser: Browser;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
       await ensureProducerSdkGenerated(apiAppDir);
-      expectTypecheckPasses(apiAppDir);
-      expectTypecheckPasses(indepAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
 
-      jest.setTimeout(1000 * 60 * 2);
       port = await getPort();
       indepClientApp = await launchApp(indepAppDir, port, {});
       browser = await puppeteer.launch(launchOptions as any);

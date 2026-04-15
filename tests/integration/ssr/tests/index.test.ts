@@ -12,8 +12,6 @@ const fixtureDir = path.resolve(__dirname, '../fixtures');
 
 dns.setDefaultResultOrder('ipv4first');
 
-jest.setTimeout(1000 * 20);
-
 describe('init with SSR', () => {
   let app: any;
   let appPort: number;
@@ -31,7 +29,7 @@ describe('init with SSR', () => {
 
   afterAll(async () => {
     if (browser) {
-      browser.close();
+      await browser.close();
     }
     if (app) {
       await killApp(app);

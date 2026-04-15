@@ -1,5 +1,61 @@
 # @modern-js/app-tools
 
+## 3.1.3
+
+### Patch Changes
+
+- fbefc27: docs: remove unused code in vercel deployment plugin
+  docs: 移除 Vercel 部署插件中未使用的代码
+  - @modern-js/builder@3.1.3
+  - @modern-js/plugin-data-loader@3.1.3
+  - @modern-js/server-core@3.1.3
+  - @modern-js/prod-server@3.1.3
+  - @modern-js/server@3.1.3
+  - @modern-js/server-utils@3.1.3
+  - @modern-js/i18n-utils@3.1.3
+  - @modern-js/plugin@3.1.3
+  - @modern-js/types@3.1.3
+  - @modern-js/utils@3.1.3
+
+## 3.1.2
+
+### Patch Changes
+
+- 8357729: fix: restore dev server runtime stability for server config
+  fix: 处理 dev server runtime 的稳定性
+- ddd55fa: Update to address flatted crit cve https://security.snyk.io/vuln/SNYK-JS-FLATTED-15700433
+- 89fea12: fix: use Node 22 native loader for tsconfig path aliases
+  fix: 使用 node v22 原生 loader 处理 tsconfig path aliases
+- Updated dependencies [fa4cde0]
+- Updated dependencies [ddd55fa]
+  - @modern-js/server-core@3.1.2
+  - @modern-js/plugin-data-loader@3.1.2
+  - @modern-js/prod-server@3.1.2
+  - @modern-js/server@3.1.2
+  - @modern-js/server-utils@3.1.2
+  - @modern-js/builder@3.1.2
+  - @modern-js/i18n-utils@3.1.2
+  - @modern-js/plugin@3.1.2
+  - @modern-js/types@3.1.2
+  - @modern-js/utils@3.1.2
+
+## 3.1.1
+
+### Patch Changes
+
+- 369d18e: fix: netlify use different request by module export way
+  fix: netlify 在不同的 module 导出方式下使用不同的版本，进而有不同的 request
+  - @modern-js/builder@3.1.1
+  - @modern-js/plugin-data-loader@3.1.1
+  - @modern-js/server-core@3.1.1
+  - @modern-js/prod-server@3.1.1
+  - @modern-js/server@3.1.1
+  - @modern-js/server-utils@3.1.1
+  - @modern-js/i18n-utils@3.1.1
+  - @modern-js/plugin@3.1.1
+  - @modern-js/types@3.1.1
+  - @modern-js/utils@3.1.1
+
 ## 3.1.0
 
 ### Minor Changes

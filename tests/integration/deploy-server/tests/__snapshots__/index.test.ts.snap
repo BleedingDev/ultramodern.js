@@ -1,4 +1,4 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+// Rstest Snapshot v1
 
 exports[`deploy > support server when deploy target is netlify 1`] = `"/* /.netlify/functions/index 200"`;
 
@@ -44,59 +44,6 @@ exports[`deploy > support server when deploy target is vercel 1`] = `
 `;
 
 exports[`deploy > support server when deploy target is vercel 2`] = `
-{
-  "handler": "index.js",
-  "launcherType": "Nodejs",
-  "runtime": Any<String>,
-  "shouldAddHelpers": false,
-  "supportsResponseStreaming": true,
-}
-`;
-
-exports[`deploy support server when deploy target is netlify 1`] = `"/* /.netlify/functions/index 200"`;
-
-exports[`deploy support server when deploy target is vercel 1`] = `
-{
-  "default": {
-    "routes": [
-      {
-        "continue": true,
-        "headers": {
-          "cache-control": "s-maxage=31536000, immutable",
-        },
-        "src": "/static/(.*)",
-      },
-      {
-        "handle": "filesystem",
-      },
-      {
-        "dest": "/index",
-        "src": "/(.*)",
-      },
-    ],
-    "version": 3,
-  },
-  "routes": [
-    {
-      "continue": true,
-      "headers": {
-        "cache-control": "s-maxage=31536000, immutable",
-      },
-      "src": "/static/(.*)",
-    },
-    {
-      "handle": "filesystem",
-    },
-    {
-      "dest": "/index",
-      "src": "/(.*)",
-    },
-  ],
-  "version": 3,
-}
-`;
-
-exports[`deploy support server when deploy target is vercel 2`] = `
 {
   "handler": "index.js",
   "launcherType": "Nodejs",

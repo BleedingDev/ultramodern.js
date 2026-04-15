@@ -8,7 +8,23 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 
+rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
+
 dns.setDefaultResultOrder('ipv4first');
+
+const waitForServer = async (url: string, retries = 30, interval = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await fetch(url);
+      return;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+  throw new Error(
+    `Server at ${url} did not become ready after ${retries} retries`,
+  );
+};
 
 const supportServerRenderMiddleware = async ({
   host,
@@ -50,7 +66,7 @@ const supportServerMiddleware = async ({
 
   const { headers } = res;
   expect(headers.get('X-Middleware')).toMatch('request');
-  expect(headers.get('x-message')).toMatch('hi');
+  expect(headers.get('x-message')).toMatch('alias test');
 };
 
 const supportServerPlugin = async ({
@@ -69,6 +85,24 @@ const supportServerPlugin = async ({
   expect(headers.get('x-plugin-render-middleware')).toMatch('plugin');
 };
 
+const supportOptionsMiddleware = async ({
+  host,
+  port,
+  expectHeader = true,
+}: {
+  host: string;
+  port: number;
+  expectHeader?: boolean;
+}) => {
+  const res = await fetch(`${host}:${port}/api/options`, {
+    method: 'OPTIONS',
+  });
+  expect(res.status).toBe(204);
+  if (expectHeader) {
+    expect(res.headers.get('x-options-handler')).toBe('ok');
+  }
+};
+
 describe('server config', () => {
   describe('dev', () => {
     let port = 8080;
@@ -77,11 +111,11 @@ describe('server config', () => {
     let app: any;
 
     beforeAll(async () => {
-      jest.setTimeout(1000 * 60 * 2);
       port = await getPort();
       app = await launchApp(appPath, port, {
         cwd: appPath,
       });
+      await waitForServer(`${host}:${port}/`);
     });
 
     test('renderMiddleware should works', async () => {
@@ -109,6 +143,14 @@ describe('server config', () => {
       await supportServerPlugin({
         host,
         port,
+      });
+    });
+
+    test('options method middleware should works', async () => {
+      await supportOptionsMiddleware({
+        host,
+        port,
+        expectHeader: false,
       });
     });
 
@@ -133,6 +175,7 @@ describe('server config', () => {
       app = await modernServe(appPath, port, {
         cwd: appPath,
       });
+      await waitForServer(`${host}:${port}/`);
     });
 
     test('renderMiddleware should works', async () => {
@@ -158,6 +201,13 @@ describe('server config', () => {
 
     test('plugin should works', async () => {
       await supportServerPlugin({
+        host,
+        port,
+      });
+    });
+
+    test('options method middleware should works', async () => {
+      await supportOptionsMiddleware({
         host,
         port,
       });

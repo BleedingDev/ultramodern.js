@@ -8,6 +8,8 @@ import {
   runContinuousTask,
 } from '../../../utils/modernTestUtils';
 
+rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
+
 const appDir = path.resolve(__dirname, '../');
 
 function expectTypecheckPasses() {
