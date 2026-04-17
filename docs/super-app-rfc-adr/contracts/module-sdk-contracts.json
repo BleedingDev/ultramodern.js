@@ -4,7 +4,6 @@
   "sharedRequirements": {
     "requiredManifestFields": [
       "moduleId",
-      "family",
       "version",
       "runtime",
       "sourceDir",
@@ -18,140 +17,27 @@
       "usesPolicyMiddleware",
       "usesObservabilityHooks"
     ],
-    "requiredObservabilitySignals": ["metrics", "audit", "trace"]
+    "requiredObservabilitySignals": ["metrics", "audit", "trace"],
+    "requiredLifecycleHooks": [
+      "registerRoutes",
+      "registerCapabilities",
+      "registerMigrations"
+    ],
+    "requiredPolicyHooks": [
+      "authorize",
+      "enforceTenantScope",
+      "validateOperationContext"
+    ],
+    "requiredObservabilityHooks": [
+      "emitBusinessMetric",
+      "emitAuditEvent",
+      "emitTraceContext"
+    ],
+    "forbiddenCodePatterns": [
+      "createRequest\\(",
+      "x-modernjs-bff-envelope",
+      "x-operation-id"
+    ]
   },
-  "families": {
-    "crm": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    },
-    "project-management": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    },
-    "invoicing": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    },
-    "docs": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    },
-    "chat": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    },
-    "automation": {
-      "requiredLifecycleHooks": [
-        "registerRoutes",
-        "registerCapabilities",
-        "registerMigrations"
-      ],
-      "requiredPolicyHooks": [
-        "authorize",
-        "enforceTenantScope",
-        "validateOperationContext"
-      ],
-      "requiredObservabilityHooks": [
-        "emitBusinessMetric",
-        "emitAuditEvent",
-        "emitTraceContext"
-      ],
-      "forbiddenCodePatterns": [
-        "createRequest\\(",
-        "x-modernjs-bff-envelope",
-        "x-operation-id"
-      ]
-    }
-  }
+  "profiles": {}
 }

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   readJsonFile,
+  resolveManifestRequirementSet,
   validateContractShape,
   validateManifests,
 } = require('../module-sdk-contracts/validator');
@@ -306,12 +307,18 @@ const validateModuleForbiddenPatterns = ({
   manifestPaths.forEach(manifestPath => {
     const resolvedManifestPath = path.resolve(manifestPath);
     const manifest = readJsonFile(resolvedManifestPath);
-    const familyContract = contract.families[manifest.family];
-    if (!familyContract) {
-      violations.push({
-        type: 'manifest-family',
+    let requirements;
+    try {
+      requirements = resolveManifestRequirementSet({
+        contract,
+        manifest,
         manifestPath: resolvedManifestPath,
-        message: `Unknown family "${String(manifest.family)}"`,
+      });
+    } catch (error) {
+      violations.push({
+        type: 'manifest-profile',
+        manifestPath: resolvedManifestPath,
+        message: error.message,
       });
       return;
     }
@@ -328,7 +335,7 @@ const validateModuleForbiddenPatterns = ({
     }
 
     const files = walkFiles(sourceDir, scanExtensions);
-    const patterns = familyContract.forbiddenCodePatterns.map(toRegex);
+    const patterns = requirements.forbiddenCodePatterns.map(toRegex);
     files.forEach(filePath => {
       const content = fs.readFileSync(filePath, 'utf8');
       patterns.forEach((pattern, index) => {
@@ -337,8 +344,8 @@ const validateModuleForbiddenPatterns = ({
             type: 'forbidden-pattern',
             manifestPath: resolvedManifestPath,
             filePath,
-            pattern: familyContract.forbiddenCodePatterns[index],
-            message: `Forbidden code pattern "${familyContract.forbiddenCodePatterns[index]}" matched in ${filePath}`,
+            pattern: requirements.forbiddenCodePatterns[index],
+            message: `Forbidden code pattern "${requirements.forbiddenCodePatterns[index]}" matched in ${filePath}`,
           });
         }
       });

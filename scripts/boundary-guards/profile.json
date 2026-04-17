@@ -15,9 +15,9 @@
         "packages/cli"
       ],
       "bannedImportPatterns": [
-        "^@modules/(crm|project-management|invoicing|docs|chat|automation)(/|$)",
-        "/modules/(crm|project-management|invoicing|docs|chat|automation)(/|$)",
-        "^@integrations/(bank|email|chat|office|workflow)(/|$)"
+        "^@modules/[^/]+(/|$)",
+        "/modules/[^/]+(/|$)",
+        "^@integrations/[^/]+(/|$)"
       ]
     }
   ],

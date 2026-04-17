@@ -1,9 +1,8 @@
 {
-  "moduleId": "crm-sales",
-  "family": "crm",
+  "moduleId": "example-module",
   "version": "1.0.0",
   "runtime": "effect-first",
-  "sourceDir": "tests/integration/module-sdk-fixtures/crm-sales",
+  "sourceDir": "tests/integration/module-sdk-fixtures/example-module",
   "lifecycleHooks": [
     "registerRoutes",
     "registerCapabilities",

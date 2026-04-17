@@ -24,11 +24,10 @@ const removeDir = directory => {
 };
 
 const createValidManifest = () => ({
-  moduleId: 'crm-sales',
-  family: 'crm',
+  moduleId: 'example-module',
   version: '1.0.0',
   runtime: 'effect-first',
-  sourceDir: 'packages/modules/crm-sales',
+  sourceDir: 'packages/modules/example-module',
   lifecycleHooks: [
     'registerRoutes',
     'registerCapabilities',
@@ -51,13 +50,13 @@ test('validateContractShape accepts canonical module SDK contract', () => {
   assert.doesNotThrow(() => validateContractShape(contract));
 });
 
-test('validateContractShape rejects missing required family', () => {
+test('validateContractShape rejects missing shared core requirements', () => {
   const contract = readJsonFile(CONTRACT_PATH);
-  delete contract.families.chat;
+  contract.sharedRequirements.requiredLifecycleHooks = ['registerRoutes'];
 
   assert.throws(
     () => validateContractShape(contract),
-    /required family "chat"/,
+    /missing required value "registerCapabilities"/,
   );
 });
 
@@ -90,11 +89,27 @@ test('validateManifestShape rejects non-compliant manifest', () => {
   );
 });
 
+test('validateManifestShape rejects unknown optional profile', () => {
+  const contract = readJsonFile(CONTRACT_PATH);
+  const manifest = createValidManifest();
+  manifest.profile = 'vertical-a';
+
+  assert.throws(
+    () =>
+      validateManifestShape({
+        manifest,
+        contract,
+        manifestPath: 'memory://manifest.json',
+      }),
+    /unsupported profile "vertical-a"/,
+  );
+});
+
 test('validateManifests validates directory manifests', () => {
   const dir = makeTempDir();
   try {
     const contract = readJsonFile(CONTRACT_PATH);
-    const manifestPath = path.join(dir, 'crm-sales.json');
+    const manifestPath = path.join(dir, 'example-module.json');
     fs.writeFileSync(
       manifestPath,
       JSON.stringify(createValidManifest(), null, 2),
@@ -107,7 +122,7 @@ test('validateManifests validates directory manifests', () => {
     });
 
     assert.equal(report.validated.length, 1);
-    assert.equal(report.validated[0].moduleId, 'crm-sales');
+    assert.equal(report.validated[0].moduleId, 'example-module');
   } finally {
     removeDir(dir);
   }

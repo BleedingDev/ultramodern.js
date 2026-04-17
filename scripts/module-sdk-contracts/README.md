@@ -5,7 +5,7 @@ This directory provides validation tooling for ticket `modernjs-44t.6.2`.
 ## Files
 
 1. `validator.js`
-   - reusable contract + module-manifest validators.
+   - reusable validators for the shared module contract and optional profile overlays.
 2. `validate-module-sdk-contracts.js`
    - CLI entrypoint for CI and local checks.
 

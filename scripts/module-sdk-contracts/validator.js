@@ -2,15 +2,22 @@ const fs = require('fs');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
-const REQUIRED_FAMILIES = [
-  'crm',
-  'project-management',
-  'invoicing',
-  'docs',
-  'chat',
-  'automation',
-];
 const REQUIRED_COMPATIBILITY_LANES = ['effect-first', 'tanstack-first'];
+const REQUIRED_MANIFEST_FIELDS = [
+  'moduleId',
+  'version',
+  'runtime',
+  'sourceDir',
+  'lifecycleHooks',
+  'policyHooks',
+  'observability',
+  'compliance',
+];
+const REQUIRED_COMPLIANCE_FLAGS = [
+  'usesSdkContracts',
+  'usesPolicyMiddleware',
+  'usesObservabilityHooks',
+];
 const REQUIRED_LIFECYCLE_HOOKS = [
   'registerRoutes',
   'registerCapabilities',
@@ -27,6 +34,11 @@ const REQUIRED_OBSERVABILITY_HOOKS = [
   'emitTraceContext',
 ];
 const REQUIRED_OBSERVABILITY_SIGNALS = ['metrics', 'audit', 'trace'];
+const REQUIRED_FORBIDDEN_CODE_PATTERNS = [
+  'createRequest\\(',
+  'x-modernjs-bff-envelope',
+  'x-operation-id',
+];
 
 const readJsonFile = filePath => {
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -67,30 +79,155 @@ const ensureIncludesAll = ({
   }
 };
 
-const validateFamilyContractShape = (familyName, familyContract) => {
-  if (!familyContract || typeof familyContract !== 'object') {
-    throw new Error(`families.${familyName} must be an object`);
+const ensureOptionalStringArray = (value, context) => {
+  if (value === undefined) {
+    return;
+  }
+
+  ensureStringArray(value, context);
+};
+
+const mergeRequirementArrays = (...values) => {
+  const merged = new Set();
+  values
+    .filter(value => Array.isArray(value))
+    .forEach(value => value.forEach(item => merged.add(item)));
+  return Array.from(merged.values());
+};
+
+const validateSharedRequirementsShape = sharedRequirements => {
+  if (!sharedRequirements || typeof sharedRequirements !== 'object') {
+    throw new Error('sharedRequirements must be an object');
   }
 
   ensureIncludesAll({
-    actual: familyContract.requiredLifecycleHooks,
+    actual: sharedRequirements.requiredManifestFields,
+    required: REQUIRED_MANIFEST_FIELDS,
+    context: 'sharedRequirements.requiredManifestFields',
+  });
+  ensureIncludesAll({
+    actual: sharedRequirements.requiredComplianceFlags,
+    required: REQUIRED_COMPLIANCE_FLAGS,
+    context: 'sharedRequirements.requiredComplianceFlags',
+  });
+  ensureIncludesAll({
+    actual: sharedRequirements.requiredObservabilitySignals,
+    required: REQUIRED_OBSERVABILITY_SIGNALS,
+    context: 'sharedRequirements.requiredObservabilitySignals',
+  });
+  ensureIncludesAll({
+    actual: sharedRequirements.requiredLifecycleHooks,
     required: REQUIRED_LIFECYCLE_HOOKS,
-    context: `families.${familyName}.requiredLifecycleHooks`,
+    context: 'sharedRequirements.requiredLifecycleHooks',
   });
   ensureIncludesAll({
-    actual: familyContract.requiredPolicyHooks,
+    actual: sharedRequirements.requiredPolicyHooks,
     required: REQUIRED_POLICY_HOOKS,
-    context: `families.${familyName}.requiredPolicyHooks`,
+    context: 'sharedRequirements.requiredPolicyHooks',
   });
   ensureIncludesAll({
-    actual: familyContract.requiredObservabilityHooks,
+    actual: sharedRequirements.requiredObservabilityHooks,
     required: REQUIRED_OBSERVABILITY_HOOKS,
-    context: `families.${familyName}.requiredObservabilityHooks`,
+    context: 'sharedRequirements.requiredObservabilityHooks',
   });
-  ensureStringArray(
-    familyContract.forbiddenCodePatterns,
-    `families.${familyName}.forbiddenCodePatterns`,
+  ensureIncludesAll({
+    actual: sharedRequirements.forbiddenCodePatterns,
+    required: REQUIRED_FORBIDDEN_CODE_PATTERNS,
+    context: 'sharedRequirements.forbiddenCodePatterns',
+  });
+};
+
+const validateProfileContractShape = (profileName, profileContract) => {
+  if (!profileContract || typeof profileContract !== 'object') {
+    throw new Error(`profiles.${profileName} must be an object`);
+  }
+
+  ensureOptionalStringArray(
+    profileContract.requiredManifestFields,
+    `profiles.${profileName}.requiredManifestFields`,
   );
+  ensureOptionalStringArray(
+    profileContract.requiredComplianceFlags,
+    `profiles.${profileName}.requiredComplianceFlags`,
+  );
+  ensureOptionalStringArray(
+    profileContract.requiredObservabilitySignals,
+    `profiles.${profileName}.requiredObservabilitySignals`,
+  );
+  ensureOptionalStringArray(
+    profileContract.requiredLifecycleHooks,
+    `profiles.${profileName}.requiredLifecycleHooks`,
+  );
+  ensureOptionalStringArray(
+    profileContract.requiredPolicyHooks,
+    `profiles.${profileName}.requiredPolicyHooks`,
+  );
+  ensureOptionalStringArray(
+    profileContract.requiredObservabilityHooks,
+    `profiles.${profileName}.requiredObservabilityHooks`,
+  );
+  ensureOptionalStringArray(
+    profileContract.forbiddenCodePatterns,
+    `profiles.${profileName}.forbiddenCodePatterns`,
+  );
+};
+
+const resolveManifestRequirementSet = ({ contract, manifest, manifestPath }) => {
+  const sharedRequirements = contract.sharedRequirements;
+  const manifestProfile =
+    typeof manifest.profile === 'string' && manifest.profile.trim().length > 0
+      ? manifest.profile.trim()
+      : undefined;
+
+  if (manifest.profile !== undefined && !manifestProfile) {
+    throw new Error(
+      `Manifest ${manifestPath} has invalid profile "${String(
+        manifest.profile,
+      )}"`,
+    );
+  }
+
+  let profileRequirements;
+  if (manifestProfile) {
+    profileRequirements = contract.profiles?.[manifestProfile];
+    if (!profileRequirements) {
+      throw new Error(
+        `Manifest ${manifestPath} has unsupported profile "${manifestProfile}"`,
+      );
+    }
+  }
+
+  return {
+    profile: manifestProfile,
+    requiredManifestFields: mergeRequirementArrays(
+      sharedRequirements.requiredManifestFields,
+      profileRequirements?.requiredManifestFields,
+    ),
+    requiredComplianceFlags: mergeRequirementArrays(
+      sharedRequirements.requiredComplianceFlags,
+      profileRequirements?.requiredComplianceFlags,
+    ),
+    requiredObservabilitySignals: mergeRequirementArrays(
+      sharedRequirements.requiredObservabilitySignals,
+      profileRequirements?.requiredObservabilitySignals,
+    ),
+    requiredLifecycleHooks: mergeRequirementArrays(
+      sharedRequirements.requiredLifecycleHooks,
+      profileRequirements?.requiredLifecycleHooks,
+    ),
+    requiredPolicyHooks: mergeRequirementArrays(
+      sharedRequirements.requiredPolicyHooks,
+      profileRequirements?.requiredPolicyHooks,
+    ),
+    requiredObservabilityHooks: mergeRequirementArrays(
+      sharedRequirements.requiredObservabilityHooks,
+      profileRequirements?.requiredObservabilityHooks,
+    ),
+    forbiddenCodePatterns: mergeRequirementArrays(
+      sharedRequirements.forbiddenCodePatterns,
+      profileRequirements?.forbiddenCodePatterns,
+    ),
+  };
 };
 
 const validateContractShape = contract => {
@@ -112,41 +249,18 @@ const validateContractShape = contract => {
     context: 'compatibilityLanes',
   });
 
-  if (
-    !contract.sharedRequirements ||
-    typeof contract.sharedRequirements !== 'object'
-  ) {
-    throw new Error('sharedRequirements must be an object');
-  }
+  validateSharedRequirementsShape(contract.sharedRequirements);
 
-  ensureStringArray(
-    contract.sharedRequirements.requiredManifestFields,
-    'sharedRequirements.requiredManifestFields',
-  );
-  ensureIncludesAll({
-    actual: contract.sharedRequirements.requiredComplianceFlags,
-    required: [
-      'usesSdkContracts',
-      'usesPolicyMiddleware',
-      'usesObservabilityHooks',
-    ],
-    context: 'sharedRequirements.requiredComplianceFlags',
-  });
-  ensureIncludesAll({
-    actual: contract.sharedRequirements.requiredObservabilitySignals,
-    required: REQUIRED_OBSERVABILITY_SIGNALS,
-    context: 'sharedRequirements.requiredObservabilitySignals',
-  });
-
-  if (!contract.families || typeof contract.families !== 'object') {
-    throw new Error('families must be an object');
-  }
-
-  for (const familyName of REQUIRED_FAMILIES) {
-    if (!contract.families[familyName]) {
-      throw new Error(`families is missing required family "${familyName}"`);
+  if (contract.profiles !== undefined) {
+    if (!contract.profiles || typeof contract.profiles !== 'object') {
+      throw new Error('profiles must be an object when provided');
     }
-    validateFamilyContractShape(familyName, contract.families[familyName]);
+
+    for (const [profileName, profileContract] of Object.entries(
+      contract.profiles,
+    )) {
+      validateProfileContractShape(profileName, profileContract);
+    }
   }
 };
 
@@ -155,22 +269,18 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
     throw new Error(`Manifest ${manifestPath} must be a JSON object`);
   }
 
-  const requiredFields = contract.sharedRequirements.requiredManifestFields;
+  const requirements = resolveManifestRequirementSet({
+    contract,
+    manifest,
+    manifestPath,
+  });
+  const requiredFields = requirements.requiredManifestFields;
   for (const field of requiredFields) {
     if (!(field in manifest)) {
       throw new Error(
         `Manifest ${manifestPath} is missing required field "${field}"`,
       );
     }
-  }
-
-  const familyContract = contract.families[manifest.family];
-  if (!familyContract) {
-    throw new Error(
-      `Manifest ${manifestPath} has unsupported family "${String(
-        manifest.family,
-      )}"`,
-    );
   }
 
   if (
@@ -186,12 +296,12 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
 
   ensureIncludesAll({
     actual: manifest.lifecycleHooks,
-    required: familyContract.requiredLifecycleHooks,
+    required: requirements.requiredLifecycleHooks,
     context: `manifest(${manifestPath}).lifecycleHooks`,
   });
   ensureIncludesAll({
     actual: manifest.policyHooks,
-    required: familyContract.requiredPolicyHooks,
+    required: requirements.requiredPolicyHooks,
     context: `manifest(${manifestPath}).policyHooks`,
   });
 
@@ -203,12 +313,12 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
 
   ensureIncludesAll({
     actual: manifest.observability.signals,
-    required: contract.sharedRequirements.requiredObservabilitySignals,
+    required: requirements.requiredObservabilitySignals,
     context: `manifest(${manifestPath}).observability.signals`,
   });
   ensureIncludesAll({
     actual: manifest.observability.hooks,
-    required: familyContract.requiredObservabilityHooks,
+    required: requirements.requiredObservabilityHooks,
     context: `manifest(${manifestPath}).observability.hooks`,
   });
 
@@ -216,7 +326,7 @@ const validateManifestShape = ({ manifest, contract, manifestPath }) => {
     throw new Error(`Manifest ${manifestPath} must include compliance object`);
   }
 
-  for (const flag of contract.sharedRequirements.requiredComplianceFlags) {
+  for (const flag of requirements.requiredComplianceFlags) {
     if (manifest.compliance[flag] !== true) {
       throw new Error(
         `Manifest ${manifestPath} compliance flag "${flag}" must be true`,
@@ -283,7 +393,7 @@ const validateManifests = ({
     validated.push({
       path: manifestPath,
       moduleId: manifest.moduleId,
-      family: manifest.family,
+      profile: manifest.profile,
       runtime: manifest.runtime,
     });
   }
@@ -295,9 +405,9 @@ const validateManifests = ({
 
 module.exports = {
   SCHEMA_VERSION,
-  REQUIRED_FAMILIES,
   readJsonFile,
   resolveManifestPaths,
+  resolveManifestRequirementSet,
   validateContractShape,
   validateManifestShape,
   validateManifests,

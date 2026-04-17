@@ -11,7 +11,7 @@
 Define a canonical boundary matrix that keeps UltraModern close to upstream Modern.js while making super-app scale practical:
 
 1. Framework core stays domain-agnostic and stable.
-2. Module layer owns business domain behavior (ERP/CRM/etc.).
+2. Module layer owns business-domain behavior.
 3. External integration layer owns vendor/protocol specifics.
 
 This prevents business logic creep into framework internals and makes independent deployment + parallel delivery sustainable.
@@ -32,18 +32,18 @@ Core contains reusable platform primitives only:
 
 Module layer contains domain/business behavior:
 
-1. CRM entities, workflows, automations, reporting semantics.
-2. ERP invoicing/project/task rules and state transitions.
-3. Product-specific user journeys, permissions policy variants, and UI patterns.
+1. Domain entities, workflows, automations, and reporting semantics.
+2. Domain-specific rules, state transitions, and policy variants.
+3. Product-specific user journeys and UI patterns built on top of core primitives.
 4. Module SDK adapters composed on top of core primitives.
 
 ### 2.3 External Integration Layer (allowed)
 
 External layer contains vendor-specific connectors and protocol clients:
 
-1. Banking/payment APIs, invoicing authorities, accounting exports.
-2. Email providers (SMTP/IMAP/Graph API), chat/video providers, storage/document suites.
-3. Workflow platforms (n8n/Make/Zapier) and BI/monitoring sinks.
+1. Payment, messaging, storage, and document APIs.
+2. Provider-specific protocol clients and export bridges.
+3. Workflow, BI, and monitoring sink adapters.
 
 ## 3. Canonical Matrix
 
@@ -57,15 +57,15 @@ External layer contains vendor-specific connectors and protocol clients:
 | Remote trust checks (origin/integrity/attestation) | Yes | No | No | Core security invariant |
 | Telemetry envelope, exporter interfaces, SLO hooks | Yes | No | No | Core observability invariant |
 | RsDoctor artifact contract and release gates | Yes | No | No | Core release invariant |
-| CRM pipeline stages/opportunity semantics | No | Yes | No | Product-domain behavior |
-| Task/project workflow semantics (Gantt/KPI rules) | No | Yes | No | Product-domain behavior |
-| Invoice business rules (country/accounting semantics) | No | Yes | No | Product-domain behavior |
-| Test management model (test case/run semantics) | No | Yes | No | Product-domain behavior |
-| Customer portal business workflows | No | Yes | No | Product-domain behavior |
-| Email provider implementation details | No | No | Yes | Vendor/protocol-specific connector |
-| Bank pairing implementation details | No | No | Yes | Vendor/protocol-specific connector |
-| OnlyOffice/LibreOffice/Drive integration specifics | No | No | Yes | Vendor/protocol-specific connector |
-| Video/chat provider transport semantics | No | No | Yes | Vendor/protocol-specific connector |
+| Domain entity semantics and lifecycle rules | No | Yes | No | Product-domain behavior |
+| Domain workflow/KPI semantics | No | Yes | No | Product-domain behavior |
+| Regional/legal business rules | No | Yes | No | Product-domain behavior |
+| Business workflow models and state machines | No | Yes | No | Product-domain behavior |
+| End-user business journeys | No | Yes | No | Product-domain behavior |
+| Provider implementation details | No | No | Yes | Vendor/protocol-specific connector |
+| Protocol/client transport semantics | No | No | Yes | Vendor/protocol-specific connector |
+| Document/storage suite specifics | No | No | Yes | Vendor/protocol-specific connector |
+| Messaging/video provider transport semantics | No | No | Yes | Vendor/protocol-specific connector |
 
 ## 4. Non-Negotiable Rules
 
@@ -83,11 +83,11 @@ External layer contains vendor-specific connectors and protocol clients:
 
 ## 6. Out Of Scope For Framework Core
 
-1. ERP/CRM entity schema standards.
-2. BPMN workflow DSL semantics for specific verticals.
+1. Domain-specific entity schema standards.
+2. Workflow DSL semantics for specific verticals.
 3. Pricing/catalog logic.
-4. Country-specific finance/tax integrations.
-5. Office/chat/email provider product UX features.
+4. Regional finance/tax integrations.
+5. Provider-specific product UX features.
 
 ## 7. Enforcement Hooks (feeds `modernjs-44t.6.3`)
 

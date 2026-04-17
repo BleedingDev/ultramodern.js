@@ -16,7 +16,6 @@
       "commit_sha",
       "workflow_run_url",
       "module_id",
-      "module_family",
       "runtime_lane"
     ],
     "minimumReviewers": 2
@@ -29,7 +28,8 @@
         "includes": [
           "\"schemaVersion\": 1",
           "\"requiredComplianceFlags\"",
-          "\"families\""
+          "\"requiredLifecycleHooks\"",
+          "\"profiles\""
         ]
       },
       {
@@ -37,7 +37,7 @@
         "path": "docs/super-app-rfc-adr/contracts/module-manifest.example.json",
         "includes": [
           "\"moduleId\":",
-          "\"family\":",
+          "\"runtime\":",
           "\"usesSdkContracts\": true",
           "\"usesPolicyMiddleware\": true",
           "\"usesObservabilityHooks\": true"

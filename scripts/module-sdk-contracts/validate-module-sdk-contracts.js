@@ -63,7 +63,7 @@ const main = () => {
   const summary = {
     contractPath,
     schemaVersion: contract.schemaVersion,
-    families: Object.keys(contract.families || {}).length,
+    profiles: Object.keys(contract.profiles || {}).length,
     validatedManifests: manifestReport.validated.length,
     skipManifestValidation: args.skipManifestValidation,
   };

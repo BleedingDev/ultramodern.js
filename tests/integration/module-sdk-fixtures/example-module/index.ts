@@ -1,11 +1,11 @@
 export const registerRoutes = () => {
-  return 'crm-routes-registered';
+  return 'example-routes-registered';
 };
 
 export const registerCapabilities = () => {
-  return ['crm:deals:read', 'crm:deals:write'];
+  return ['module:read', 'module:write'];
 };
 
 export const registerMigrations = () => {
-  return ['crm-sales-v1'];
+  return ['example-module-v1'];
 };

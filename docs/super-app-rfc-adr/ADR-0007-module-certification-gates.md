@@ -50,8 +50,7 @@ Under `docs/super-app-rfc-adr/evidence/module-certification/current`:
 4. `commit_sha`
 5. `workflow_run_url`
 6. `module_id`
-7. `module_family`
-8. `runtime_lane`
+7. `runtime_lane`
 
 ### 3.3 Minimum review requirement
 
@@ -70,7 +69,7 @@ Positive:
 
 1. module readiness is standardized and machine-verifiable.
 2. SDK contract and boundary checks are required before onboarding.
-3. governance artifacts are explicit and reusable across module families.
+3. governance artifacts are explicit and reusable across domain-neutral modules and any optional profile overlays.
 
 Tradeoff:
 

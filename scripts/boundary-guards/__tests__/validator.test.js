@@ -47,14 +47,14 @@ test('validateImportGuards detects banned imports', () => {
   const dir = makeTempDir();
   try {
     const filePath = path.join(dir, 'input.ts');
-    fs.writeFileSync(filePath, "import crm from '@modules/crm';\n");
+    fs.writeFileSync(filePath, "import exampleModule from '@modules/example-module';\n");
 
     const report = validateImportGuards({
       importGuards: [
         {
           id: 'no-domain',
           roots: [dir],
-          bannedImportPatterns: ['^@modules/(crm|chat)'],
+          bannedImportPatterns: ['^@modules/[^/]+'],
         },
       ],
       rootDir: process.cwd(),
@@ -71,17 +71,17 @@ test('validateImportGuards detects banned imports', () => {
 test('extractImportSpecifiers includes export-from statements', () => {
   const content = [
     "import sdk from '@modern-js/runtime';",
-    "export * from '@modules/crm';",
-    "export { helper } from '@integrations/email';",
-    "const dep = require('@modules/chat');",
+    "export * from '@modules/example-module';",
+    "export { helper } from '@integrations/provider';",
+    "const dep = require('@modules/secondary-module');",
   ].join('\n');
 
   const specifiers = extractImportSpecifiers(content);
   assert.deepEqual(specifiers, [
     '@modern-js/runtime',
-    '@modules/crm',
-    '@integrations/email',
-    '@modules/chat',
+    '@modules/example-module',
+    '@integrations/provider',
+    '@modules/secondary-module',
   ]);
 });
 
@@ -89,14 +89,14 @@ test('validateImportGuards detects banned re-export specifiers', () => {
   const dir = makeTempDir();
   try {
     const filePath = path.join(dir, 'barrel.ts');
-    fs.writeFileSync(filePath, "export * from '@modules/crm';\n");
+    fs.writeFileSync(filePath, "export * from '@modules/example-module';\n");
 
     const report = validateImportGuards({
       importGuards: [
         {
           id: 'no-domain-reexport',
           roots: [dir],
-          bannedImportPatterns: ['^@modules/(crm|chat)'],
+          bannedImportPatterns: ['^@modules/[^/]+'],
         },
       ],
       rootDir: process.cwd(),
@@ -105,7 +105,7 @@ test('validateImportGuards detects banned re-export specifiers', () => {
 
     assert.equal(report.violations.length, 1);
     assert.equal(report.violations[0].guardId, 'no-domain-reexport');
-    assert.equal(report.violations[0].specifier, '@modules/crm');
+    assert.equal(report.violations[0].specifier, '@modules/example-module');
   } finally {
     removeDir(dir);
   }
@@ -155,7 +155,6 @@ test('runBoundaryGuardChecks validates happy path', () => {
           sharedRequirements: {
             requiredManifestFields: [
               'moduleId',
-              'family',
               'version',
               'runtime',
               'sourceDir',
@@ -170,117 +169,28 @@ test('runBoundaryGuardChecks validates happy path', () => {
               'usesObservabilityHooks',
             ],
             requiredObservabilitySignals: ['metrics', 'audit', 'trace'],
+            requiredLifecycleHooks: [
+              'registerRoutes',
+              'registerCapabilities',
+              'registerMigrations',
+            ],
+            requiredPolicyHooks: [
+              'authorize',
+              'enforceTenantScope',
+              'validateOperationContext',
+            ],
+            requiredObservabilityHooks: [
+              'emitBusinessMetric',
+              'emitAuditEvent',
+              'emitTraceContext',
+            ],
+            forbiddenCodePatterns: [
+              'createRequest\\(',
+              'x-modernjs-bff-envelope',
+              'x-operation-id',
+            ],
           },
-          families: {
-            crm: {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-            'project-management': {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-            invoicing: {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-            docs: {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-            chat: {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-            automation: {
-              requiredLifecycleHooks: [
-                'registerRoutes',
-                'registerCapabilities',
-                'registerMigrations',
-              ],
-              requiredPolicyHooks: [
-                'authorize',
-                'enforceTenantScope',
-                'validateOperationContext',
-              ],
-              requiredObservabilityHooks: [
-                'emitBusinessMetric',
-                'emitAuditEvent',
-                'emitTraceContext',
-              ],
-              forbiddenCodePatterns: ['createRequest\\('],
-            },
-          },
+          profiles: {},
         },
         null,
         2,
@@ -291,8 +201,7 @@ test('runBoundaryGuardChecks validates happy path', () => {
       manifestPath,
       JSON.stringify(
         {
-          moduleId: 'crm',
-          family: 'crm',
+          moduleId: 'example-module',
           version: '1.0.0',
           runtime: 'effect-first',
           sourceDir: path.relative(dir, sourceDir),
@@ -323,7 +232,7 @@ test('runBoundaryGuardChecks validates happy path', () => {
 
     fs.writeFileSync(
       path.join(sourceDir, 'index.ts'),
-      'export const crm = "ok";\n',
+      'export const moduleValue = "ok";\n',
     );
     fs.writeFileSync(
       runtimeFile,

@@ -1,11 +1,3 @@
-export type ModuleFamily =
-  | 'crm'
-  | 'project-management'
-  | 'invoicing'
-  | 'docs'
-  | 'chat'
-  | 'automation';
-
 export type ModuleRuntimeLane =
   | 'effect-first'
   | 'tanstack-first'
@@ -31,6 +23,17 @@ export type ModuleObservabilityHook =
   | 'emitEventContractViolation';
 
 export type ModuleObservabilitySignal = 'metrics' | 'audit' | 'trace';
+export type ModuleComplianceFlagName =
+  | keyof ModuleComplianceFlags
+  | (string & {});
+export type ModuleLifecycleHookName = ModuleLifecycleHook | (string & {});
+export type ModulePolicyHookName = ModulePolicyHook | (string & {});
+export type ModuleObservabilityHookName =
+  | ModuleObservabilityHook
+  | (string & {});
+export type ModuleObservabilitySignalName =
+  | ModuleObservabilitySignal
+  | (string & {});
 
 export interface ModuleComplianceFlags {
   usesSdkContracts: boolean;
@@ -38,38 +41,46 @@ export interface ModuleComplianceFlags {
   usesObservabilityHooks: boolean;
 }
 
-export interface ModuleSdkFamilyContract {
-  family: ModuleFamily;
-  requiredLifecycleHooks: ModuleLifecycleHook[];
-  requiredPolicyHooks: ModulePolicyHook[];
-  requiredObservabilityHooks: ModuleObservabilityHook[];
+export interface ModuleSdkSharedRequirements {
+  requiredManifestFields: string[];
+  requiredComplianceFlags: ModuleComplianceFlagName[];
+  requiredObservabilitySignals: ModuleObservabilitySignalName[];
+  requiredLifecycleHooks: ModuleLifecycleHookName[];
+  requiredPolicyHooks: ModulePolicyHookName[];
+  requiredObservabilityHooks: ModuleObservabilityHookName[];
   forbiddenCodePatterns: string[];
+}
+
+export interface ModuleSdkProfileContract {
+  requiredManifestFields?: string[];
+  requiredComplianceFlags?: ModuleComplianceFlagName[];
+  requiredObservabilitySignals?: ModuleObservabilitySignalName[];
+  requiredLifecycleHooks?: ModuleLifecycleHookName[];
+  requiredPolicyHooks?: ModulePolicyHookName[];
+  requiredObservabilityHooks?: ModuleObservabilityHookName[];
+  forbiddenCodePatterns?: string[];
 }
 
 export interface ModuleSdkContracts {
   schemaVersion: number;
   compatibilityLanes: ModuleRuntimeLane[];
-  sharedRequirements: {
-    requiredManifestFields: string[];
-    requiredComplianceFlags: Array<keyof ModuleComplianceFlags>;
-    requiredObservabilitySignals: ModuleObservabilitySignal[];
-  };
-  families: Record<ModuleFamily, Omit<ModuleSdkFamilyContract, 'family'>>;
+  sharedRequirements: ModuleSdkSharedRequirements;
+  profiles?: Record<string, ModuleSdkProfileContract>;
 }
 
 export interface ModuleSdkManifest {
   moduleId: string;
-  family: ModuleFamily;
+  profile?: string;
   version: string;
   runtime: ModuleRuntimeLane;
   sourceDir: string;
-  lifecycleHooks: ModuleLifecycleHook[];
-  policyHooks: ModulePolicyHook[];
+  lifecycleHooks: ModuleLifecycleHookName[];
+  policyHooks: ModulePolicyHookName[];
   observability: {
-    signals: ModuleObservabilitySignal[];
-    hooks: ModuleObservabilityHook[];
+    signals: ModuleObservabilitySignalName[];
+    hooks: ModuleObservabilityHookName[];
   };
-  compliance: ModuleComplianceFlags;
+  compliance: ModuleComplianceFlags & Record<string, boolean>;
 }
 
 export interface ModuleEventContract {

@@ -3,8 +3,7 @@ timestamp: 2026-02-22T00:00:00Z
 ticket_id: modernjs-44t.6.4
 commit_sha: ae52fa565e80-dirty
 workflow_run_url: local://module-certification
-module_id: crm-sales
-module_family: crm
+module_id: example-module
 runtime_lane: effect-first
 
 # Architecture Evidence

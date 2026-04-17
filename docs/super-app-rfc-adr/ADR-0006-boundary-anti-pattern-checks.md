@@ -51,9 +51,9 @@ Fail if required hardening snippets disappear from critical paths:
 3. cross-project operation context + trace propagation in browser/node create-request runtimes.
 4. cross-project policy enforcement invariants in BFF core.
 
-### 3.3 Forbidden pattern checks by module family
+### 3.3 Forbidden pattern checks by shared contract and optional profile
 
-For each declared module manifest, scan module source directory and fail on family-defined forbidden patterns (for example direct `createRequest(...)` bypass).
+For each declared module manifest, scan module source directory and fail on forbidden patterns defined by the shared contract plus any optional profile overlay (for example direct `createRequest(...)` bypass).
 
 ## 4. Consequences
 

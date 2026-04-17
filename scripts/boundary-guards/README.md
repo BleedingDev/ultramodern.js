@@ -10,7 +10,7 @@ This directory contains CI/local anti-pattern checks for ticket `modernjs-44t.6.
    - reusable checks:
    - import boundary guards
    - required snippet assertions
-   - module forbidden-pattern scanning via SDK contract families
+   - module forbidden-pattern scanning via shared SDK contract rules and optional profiles
 3. `check-boundary-violations.js`
    - CLI entrypoint for CI and local runs.
 

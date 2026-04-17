@@ -1,4 +1,4 @@
-# SDK-0001: Module SDK Contracts by Family
+# SDK-0001: Module SDK Core Contract and Optional Profiles
 
 - Status: Active
 - Date: 2026-02-22
@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-Define a stable module SDK contract for module families without coupling framework core to ERP/CRM-specific workflows.
+Define a stable module SDK contract around domain-neutral module requirements, with optional profile overlays for downstream specializations.
 
 This contract is machine-readable and enforced through CI anti-pattern checks.
 
@@ -24,23 +24,24 @@ Schema highlights:
 1. `schemaVersion`
 2. `compatibilityLanes`
 3. `sharedRequirements`
-4. `families.<family>.requiredLifecycleHooks`
-5. `families.<family>.requiredPolicyHooks`
-6. `families.<family>.requiredObservabilityHooks`
-7. `families.<family>.forbiddenCodePatterns`
+4. `sharedRequirements.requiredLifecycleHooks`
+5. `sharedRequirements.requiredPolicyHooks`
+6. `sharedRequirements.requiredObservabilityHooks`
+7. `sharedRequirements.forbiddenCodePatterns`
+8. `profiles.<profile>.requiredLifecycleHooks` (optional overlay)
+9. `profiles.<profile>.requiredPolicyHooks` (optional overlay)
+10. `profiles.<profile>.requiredObservabilityHooks` (optional overlay)
+11. `profiles.<profile>.forbiddenCodePatterns` (optional overlay)
 
-## 3. Supported Module Families
+## 3. Profile Model
 
-1. `crm`
-2. `project-management`
-3. `invoicing`
-4. `docs`
-5. `chat`
-6. `automation`
+1. Framework-core certification is driven entirely by `sharedRequirements`.
+2. `profiles` are optional overlays, not part of the mandatory certification shape.
+3. Profile identifiers are downstream-owned strings and must not encode a framework-level product taxonomy.
 
 ## 4. Required Hook Categories
 
-Each family contract requires:
+Each shared contract requires:
 
 1. Lifecycle hooks:
    - `registerRoutes`
@@ -69,11 +70,12 @@ All must be `true` for certification readiness.
 
 Intentionally excluded from framework core:
 
-1. CRM stage semantics.
-2. PM workflow semantics.
-3. Invoicing/legal/tax semantics.
-4. Chat moderation semantics.
-5. Automation DAG/business logic semantics.
+1. Fixed product-family bucket lists baked into framework contracts.
+2. CRM stage semantics.
+3. PM workflow semantics.
+4. Invoicing/legal/tax semantics.
+5. Chat moderation semantics.
+6. Automation DAG/business logic semantics.
 
 ## 7. Validation
 
