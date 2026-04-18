@@ -1,0 +1,112 @@
+{
+  "generated_at": "2026-04-18T21:59:51.999924+00:00",
+  "graph_id": "mv-first-framework-hardening",
+  "plan_set_hash": "d1dabd669f",
+  "selection_hash": "c3798016d6",
+  "plan_count": 1,
+  "edge_count": 0,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/mv-first-framework-hardening.plan.md"
+  ],
+  "edges": [],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/mv-first-framework-hardening.plan.md",
+      "slug": "mv-first-framework-hardening",
+      "name": "MV-First Framework Hardening",
+      "overview": "Recover the previously proposed \"next order\" for Ultramodern and encode it as an executable plan graph. This plan hardens the framework around MV-first composition with TanStack-first routing, Effect-first server/runtime contracts, and Module Federation-compatible SSR boundaries. It is intentionally limited to framework and platform work. It does not represent full Micro Verticals completion, and it does not include any compatibility facade for unpublished previous Ultramodern.js versions.",
+      "todos": [
+        {
+          "id": "mvfh-01",
+          "content": "Finish the product-taxonomy purge and make the boundary enforcement irreversible in framework contracts and certification gates.",
+          "status": "in_progress",
+          "ordinal": 1
+        },
+        {
+          "id": "mvfh-02",
+          "content": "Open the post-44t MV-first framework hardening epic and split this plan into concrete Beads child issues owned by framework workstreams.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "mvfh-03",
+          "content": "Reach TanStack plugin parity for exported hooks, SSR ownership, hydration and dehydrate paths, and route creation or mutation hooks.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "mvfh-04",
+          "content": "Define the MV-first SSR contract for shell-to-vertical composition, including request propagation, trace and locale flow, fallback semantics, and independently deployed vertical compatibility rules.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "mvfh-05",
+          "content": "Make Effect a true first-class path across runtime context, client generation, server adapters, MF boundary contracts, and coverage, rather than only a partial BFF-generation lane.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "mvfh-06",
+          "content": "Add Modern.js compatibility tests and migration notes for the new MV-first, TanStack-first, and Effect-first defaults without introducing any unpublished-Ultramodern legacy facade.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "mvfh-07",
+          "content": "Update release gates, docs, and certification evidence so the framework ships as stronger-default Modern.js rather than an ungoverned fork.",
+          "status": "pending",
+          "ordinal": 7
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "mv-first-framework-hardening",
+      "plan_name": "MV-First Framework Hardening",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/mv-first-framework-hardening.plan.md",
+      "plan_status": "in_progress",
+      "state": "in_progress",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "mvfh-01",
+          "content": "Finish the product-taxonomy purge and make the boundary enforcement irreversible in framework contracts and certification gates.",
+          "status": "in_progress",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "mvfh-02",
+          "content": "Open the post-44t MV-first framework hardening epic and split this plan into concrete Beads child issues owned by framework workstreams.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "mvfh-03",
+          "content": "Reach TanStack plugin parity for exported hooks, SSR ownership, hydration and dehydrate paths, and route creation or mutation hooks.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "mvfh-04",
+          "content": "Define the MV-first SSR contract for shell-to-vertical composition, including request propagation, trace and locale flow, fallback semantics, and independently deployed vertical compatibility rules.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 0,
+      "total": 7
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
