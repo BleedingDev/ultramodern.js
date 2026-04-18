@@ -89,19 +89,66 @@ test('validateManifestShape rejects non-compliant manifest', () => {
   );
 });
 
-test('validateManifestShape rejects unknown optional profile', () => {
+test('validateManifestShape accepts unknown optional profile without overlay', () => {
   const contract = readJsonFile(CONTRACT_PATH);
   const manifest = createValidManifest();
   manifest.profile = 'vertical-a';
 
-  assert.throws(
-    () =>
-      validateManifestShape({
-        manifest,
-        contract,
-        manifestPath: 'memory://manifest.json',
-      }),
-    /unsupported profile "vertical-a"/,
+  assert.doesNotThrow(() =>
+    validateManifestShape({
+      manifest,
+      contract,
+      manifestPath: 'memory://manifest.json',
+    }),
+  );
+});
+
+test('validateManifestShape applies overlay requirements for matching profile', () => {
+  const contract = readJsonFile(CONTRACT_PATH);
+  contract.profiles = {
+    'vertical-a': {
+      requiredManifestFields: ['featureSet'],
+      requiredComplianceFlags: ['usesFeatureFlags'],
+      requiredObservabilitySignals: ['usage'],
+      requiredLifecycleHooks: ['registerFeatureRoutes'],
+      requiredPolicyHooks: ['authorizeFeatureAccess'],
+      requiredObservabilityHooks: ['emitFeatureMetric'],
+      forbiddenCodePatterns: ['x-feature-flag'],
+    },
+  };
+
+  const manifest = createValidManifest();
+  manifest.profile = 'vertical-a';
+  manifest.featureSet = 'enabled';
+  manifest.lifecycleHooks = [
+    'registerRoutes',
+    'registerCapabilities',
+    'registerMigrations',
+    'registerFeatureRoutes',
+  ];
+  manifest.policyHooks = [
+    'authorize',
+    'enforceTenantScope',
+    'validateOperationContext',
+    'authorizeFeatureAccess',
+  ];
+  manifest.observability = {
+    signals: ['metrics', 'audit', 'trace', 'usage'],
+    hooks: ['emitBusinessMetric', 'emitAuditEvent', 'emitTraceContext', 'emitFeatureMetric'],
+  };
+  manifest.compliance = {
+    usesSdkContracts: true,
+    usesPolicyMiddleware: true,
+    usesObservabilityHooks: true,
+    usesFeatureFlags: true,
+  };
+
+  assert.doesNotThrow(() =>
+    validateManifestShape({
+      manifest,
+      contract,
+      manifestPath: 'memory://manifest.json',
+    }),
   );
 });
 

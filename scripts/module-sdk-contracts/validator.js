@@ -190,11 +190,6 @@ const resolveManifestRequirementSet = ({ contract, manifest, manifestPath }) => 
   let profileRequirements;
   if (manifestProfile) {
     profileRequirements = contract.profiles?.[manifestProfile];
-    if (!profileRequirements) {
-      throw new Error(
-        `Manifest ${manifestPath} has unsupported profile "${manifestProfile}"`,
-      );
-    }
   }
 
   return {
