@@ -26,6 +26,14 @@ Adopt an SSR strategy for app-level MF:
   - trace context
 - Deterministic fallback to CSR boundary when remote SSR fails.
 
+## 3.1 Contract Invariants
+
+- The host owns shell SSR, request capture, remote resolution, and the decision to fall back.
+- Remotes own only their app-level boundary and must stay independently deployable through a stable server-entry plus client-entry pair.
+- The host forwards request context into the remote SSR entry, including locale and trace information, so remote loaders and views render against the same request boundary.
+- If remote SSR is unavailable, incompatible, times out, or throws, the host must render a deterministic CSR boundary instead of partially hydrating a broken remote tree.
+- Compatibility is defined by the manifest and entry contract, not by shared deployment timing; host and remote can move independently as long as the dual-entry shape and request-context handoff remain intact.
+
 ## 4. Implementation Plan
 
 1. Define SSR remote contract and manifest schema additions.
@@ -65,6 +73,7 @@ Adopt an SSR strategy for app-level MF:
 ## 8. Acceptance Criteria
 
 - App-level MF SSR stable path works in dev and serve.
+- Host SSR, remote SSR, request-context propagation, and locale/trace handoff remain observable through the contract tests.
 - No critical hydration regressions in test matrix.
 - Remote SSR failure gracefully degrades to CSR with observability signals.
 

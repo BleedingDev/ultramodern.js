@@ -114,6 +114,7 @@ describe('mf-i18n app-level SSR serve mode', () => {
       const { status, html } = await fetchHtml(CONSUMER_PORT, '/en/remote-2');
       expect(status).toBe(200);
       expect(html).toContain('data-mf-app-loading="app-remote-custom"');
+      expect(html).toContain('"lng":"en"');
       expect(html).not.toContain('__modern_ssr_fallback_reason__');
     },
   );

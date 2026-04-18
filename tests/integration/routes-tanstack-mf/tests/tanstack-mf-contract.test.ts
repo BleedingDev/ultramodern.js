@@ -70,6 +70,8 @@ describe('tanstack + module federation contracts', () => {
     );
     expect(remoteShared).toContain('@tanstack/react-router');
     expect(remote2Shared).toContain('@tanstack/react-router');
+    expect(remoteManifest.remotes).toEqual([]);
+    expect(remote2Manifest.remotes).toEqual([]);
   });
 
   test('generated host tanstack router preserves loader bridge for MF routes', () => {
@@ -82,5 +84,9 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain('route_mf_page');
     expect(code).toContain('path: "mf"');
     expect(code).toContain('createMemoryHistory');
+    expect(code).toContain('const request = baseRequest');
+    expect(code).toContain('const baseRequest: Request | undefined =');
+    expect(code).toContain('requestContext?: unknown;');
+    expect(code).toContain('context: ctx?.context?.requestContext');
   });
 });

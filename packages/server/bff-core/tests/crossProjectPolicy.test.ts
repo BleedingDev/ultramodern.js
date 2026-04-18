@@ -1,3 +1,6 @@
+import {
+  buildOperationContractMap,
+} from '../src/security/operationContracts';
 import { evaluateCrossProjectPolicy } from '../src/security/crossProjectPolicy';
 
 describe('cross-project policy', () => {
@@ -105,6 +108,52 @@ describe('cross-project policy', () => {
       {
         enabled: true,
         allowedNamespaces: ['crm', 'billing'],
+      },
+    );
+
+    expect(violation).toBeNull();
+  });
+
+  test('should accept generated operation contract metadata for effect-first producer clients', () => {
+    const contracts = buildOperationContractMap({
+      handlers: [
+        {
+          name: 'getProfile',
+          httpMethod: 'GET',
+          routePath: '/api/profile',
+        },
+      ],
+      requestId: 'crm.producer-a',
+    });
+    const contract = contracts['GET:/api/profile'];
+    expect(contract).toBeDefined();
+    if (!contract) {
+      throw new Error('Expected generated operation contract');
+    }
+
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: contract.requestId,
+        }),
+        'x-operation-id': contract.operationId,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: contract.requestId,
+          operationId: contract.operationId,
+          method: contract.method,
+          routePath: contract.routePath,
+          schemaHash: contract.schemaHash,
+          operationVersion: contract.operationVersion,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: {
+          [`${contract.method}:${contract.routePath}`]: {
+            schemaHash: contract.schemaHash,
+            operationVersion: contract.operationVersion,
+          },
+        },
       },
     );
 

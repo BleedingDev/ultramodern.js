@@ -7,19 +7,19 @@ todos:
     status: completed
   - id: mvfh-02
     content: Open the post-44t MV-first framework hardening epic and split this plan into concrete Beads child issues owned by framework workstreams.
-    status: in_progress
+    status: completed
   - id: mvfh-03
     content: Reach TanStack plugin parity for exported hooks, SSR ownership, hydration and dehydrate paths, and route creation or mutation hooks.
-    status: pending
+    status: completed
   - id: mvfh-04
     content: Define the MV-first SSR contract for shell-to-vertical composition, including request propagation, trace and locale flow, fallback semantics, and independently deployed vertical compatibility rules.
-    status: pending
+    status: completed
   - id: mvfh-05
     content: Make Effect a true first-class path across runtime context, client generation, server adapters, MF boundary contracts, and coverage, rather than only a partial BFF-generation lane.
-    status: pending
+    status: completed
   - id: mvfh-06
     content: Add Modern.js compatibility tests and migration notes for the new MV-first, TanStack-first, and Effect-first defaults without introducing any unpublished-Ultramodern legacy facade.
-    status: pending
+    status: in_progress
   - id: mvfh-07
     content: Update release gates, docs, and certification evidence so the framework ships as stronger-default Modern.js rather than an ungoverned fork.
     status: pending
@@ -42,7 +42,7 @@ The governing order is:
 6. Close with explicit upstream Modern.js compatibility proof and migration notes.
 7. Wire the whole thing into gates and release evidence.
 
-The current first todo is marked `in_progress` because the user indicated that product-oriented cleanup is already underway. Everything else remains pending until the user approves the plan shape and the backlog is decomposed.
+`mvfh-03` is marked `completed` after the TanStack router subpath export was published and the create-routes contract coverage passed. `mvfh-04` is marked `completed` after its SSR-contract doc/test bundle landed and targeted verification passed. `mvfh-05` is marked `completed` after the Effect-first generator, create-request, and policy contract coverage passed. `mvfh-06` is now the active frontier because compatibility and migration-note work has been claimed as the next primary lane.
 
 ## Constraints
 

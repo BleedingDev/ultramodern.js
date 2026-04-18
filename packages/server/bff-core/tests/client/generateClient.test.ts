@@ -79,4 +79,36 @@ describe('client', () => {
     expect(result.value).toContain(`export const operationVersion`);
     expect(result.value).toContain(`export const operationManifest`);
   });
+
+  test('generateClient should default bundle producer clients to secure bootstrap path', async () => {
+    const prefix = '/';
+    const port = 3000;
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/normal/origin/index.ts',
+    );
+    const source = await fs.readFile(resourcePath, 'utf-8');
+
+    const result = await generateClient({
+      appDir: __dirname,
+      prefix,
+      port,
+      resourcePath,
+      source,
+      apiDir: PWD,
+      lambdaDir: path.join(PWD, './lambda'),
+      requireResolve: ((input: any) => input) as any,
+      target: 'bundle',
+      requestId: 'producer-app',
+    });
+
+    expect(result.isOk).toBeTruthy();
+    expect(result.value).toContain('export const initProducerClient =');
+    expect(result.value).toContain('requestId: "producer-app"');
+    expect(result.value).toContain('requireEnvelope: true');
+    expect(result.value).toContain('enabled: true');
+    expect(result.value).toContain('strict: true');
+    expect(result.value).toContain('requireSchemaHash: true');
+    expect(result.value).toContain('requireOperationVersion: true');
+  });
 });

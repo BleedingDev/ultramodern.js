@@ -11,9 +11,9 @@
 
 ## Current Focus
 
-- active plan todo: `mvfh-02`
+- active plan todo: `mvfh-06`
 - status owner: primary agent
-- reason: `mvfh-01` is complete after validator, gate, and public-doc drift were reconciled; `mvfh-02` is now active because the post-`44t` epic exists and child-issue decomposition has begun.
+- reason: `mvfh-03`, `mvfh-04`, and `mvfh-05` are complete with local verification and Beads closures; `modernjs-njp` is now claimed as the next compatibility and migration-notes frontier.
 
 ## Wave 1
 
