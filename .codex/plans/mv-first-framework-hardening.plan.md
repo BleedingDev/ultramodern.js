@@ -4,10 +4,10 @@ overview: Recover the previously proposed "next order" for Ultramodern and encod
 todos:
   - id: mvfh-01
     content: Finish the product-taxonomy purge and make the boundary enforcement irreversible in framework contracts and certification gates.
-    status: in_progress
+    status: completed
   - id: mvfh-02
     content: Open the post-44t MV-first framework hardening epic and split this plan into concrete Beads child issues owned by framework workstreams.
-    status: pending
+    status: in_progress
   - id: mvfh-03
     content: Reach TanStack plugin parity for exported hooks, SSR ownership, hydration and dehydrate paths, and route creation or mutation hooks.
     status: pending

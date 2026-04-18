@@ -28,8 +28,7 @@
         "includes": [
           "\"schemaVersion\": 1",
           "\"requiredComplianceFlags\"",
-          "\"requiredLifecycleHooks\"",
-          "\"profiles\""
+          "\"requiredLifecycleHooks\""
         ]
       },
       {
