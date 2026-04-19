@@ -13,7 +13,7 @@
 
 - active plan todo: none
 - status owner: primary agent
-- reason: `modernjs-2ko` is implemented locally; stronger-default Modern.js release gates, docs positioning, starter surface, and evidence packs were refreshed, and `mvfh-07` is ready to close after commit/push.
+- reason: `mvfh-07` is landed and pushed on `bleedingdev/main-ultramodern`; the plan graph is complete, the saved snapshot is refreshed, and the remaining helm work is tracker cleanup plus selecting the next ready issue.
 
 ## Wave 1
 
@@ -53,4 +53,4 @@
 
 | lane | agent id | owner / write scope | dependency / blocker | current status | next action |
 | --- | --- | --- | --- | --- | --- |
-| local-mvfh07-closeout | primary | `.github/workflows/release-contract-gates.yml`, `scripts/release-gates/rc-contract-profile.json`, `scripts/release-gates/README.md`, `docs/super-app-rfc-adr/evidence/{release-candidate,module-certification}/current/**`, `packages/document/docs/**/ultramodern.mdx`, `packages/document/main-doc/docs/**/ultramodern.mdx`, `packages/toolkit/create/template/**`, `packages/toolkit/sandpack-react/src/templates/mwa.ts`, plan status for `mvfh-07` | full `pnpm run validate:rc-gates` remains blocked by pre-existing `@modern-js/builder` snapshot drift outside mvfh-07 | completed | targeted validator test, `validate:module-certification-gates`, PR-equivalent RC gate validation (`--skip-commands`), gate snapshot validation, and sandpack regeneration all passed |
+| local-mvfh07-closeout | primary | `.github/workflows/release-contract-gates.yml`, `scripts/release-gates/rc-contract-profile.json`, `scripts/release-gates/README.md`, `docs/super-app-rfc-adr/evidence/{release-candidate,module-certification}/current/**`, `packages/document/docs/**/ultramodern.mdx`, `packages/document/main-doc/docs/**/ultramodern.mdx`, `packages/toolkit/create/template/**`, `packages/toolkit/sandpack-react/src/templates/mwa.ts`, plan status for `mvfh-07` | full `pnpm run validate:rc-gates` remains blocked by pre-existing `@modern-js/builder` snapshot drift outside mvfh-07 | completed | work landed in commits `974b6e95ce` and `5f28c75cd9`; branch is pushed and `mvfh-07` is closed in the canonical plan |

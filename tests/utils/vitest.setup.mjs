@@ -16,6 +16,12 @@ globalThis.jest ??= {
   retryTimes: () => {},
 };
 
+// Vitest-backed integration suites still call rstest.setConfig() after the
+// rstest migration, but the framework runner does not register a rstest global.
+globalThis.rstest ??= {
+  setConfig: () => {},
+};
+
 expect.extend({
   async toMatchTextContent(received, expected) {
     if (!received || typeof received.$eval !== 'function') {

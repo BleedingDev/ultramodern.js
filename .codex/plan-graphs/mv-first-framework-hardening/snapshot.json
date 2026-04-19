@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-19T09:53:24+02:00",
+  "generated_at": "2026-04-19T09:53:25.236046+00:00",
   "graph_id": "mv-first-framework-hardening",
   "plan_set_hash": "d1dabd669f",
   "selection_hash": "c3798016d6",
@@ -57,7 +57,7 @@
         {
           "id": "mvfh-07",
           "content": "Update release gates, docs, and certification evidence so the framework ships as stronger-default Modern.js rather than an ungoverned fork.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 7
         }
       ],
@@ -71,19 +71,12 @@
       "plan_slug": "mv-first-framework-hardening",
       "plan_name": "MV-First Framework Hardening",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/mv-first-framework-hardening.plan.md",
-      "plan_status": "in_progress",
-      "state": "in_progress",
+      "plan_status": "completed",
+      "state": "done",
       "blocked_by": [],
       "active": [],
-      "upcoming": [
-        {
-          "id": "mvfh-07",
-          "content": "Update release gates, docs, and certification evidence so the framework ships as stronger-default Modern.js rather than an ungoverned fork.",
-          "status": "pending",
-          "ordinal": 7
-        }
-      ],
-      "completed": 6,
+      "upcoming": [],
+      "completed": 7,
       "total": 7
     }
   ],
