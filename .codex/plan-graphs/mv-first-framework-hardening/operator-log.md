@@ -11,9 +11,9 @@
 
 ## Current Focus
 
-- active plan todo: `mvfh-06`
+- active plan todo: `mvfh-07`
 - status owner: primary agent
-- reason: `mvfh-03`, `mvfh-04`, and `mvfh-05` are complete with local verification and Beads closures; `modernjs-njp` is now claimed as the next compatibility and migration-notes frontier.
+- reason: `modernjs-njp` is closed after canonical migration notes and app-level MF SSR contract coverage landed with passing verification; `modernjs-2ko` is now the explicit Beads follow-up for stronger-default Modern.js gates and evidence.
 
 ## Wave 1
 
@@ -36,3 +36,15 @@
 - `W1` is the only writer for validator/test seam files.
 - `E1` is read-only.
 - shared contract, gate semantics, and plan status remain local-only until the first merge point.
+- `W2-create-compat` owned the app-level MF SSR contract proof only.
+- `W3-migration-docs` owned canonical `packages/document/docs/**/ultramodern.mdx` migration-note updates only.
+- `.codex/plans/mv-first-framework-hardening.plan.md` status remains primary-owned.
+
+## Wave 2
+
+| lane | agent id | owner / write scope | dependency / blocker | current status | next action |
+| --- | --- | --- | --- | --- | --- |
+| E2-compat-tests | `019da4ad-5792-7da1-bbbd-600a968e4261` | read-only test seam audit for `mvfh-06` | none | completed | identified missing app-level MF SSR contract coverage in `rstest.superapp-contracts` and stayed out of docs/gate scope |
+| E3-migration-surface | `019da4ad-58db-7410-aeec-a946cb085bc4` | read-only doc/gate boundary audit for `mvfh-06` vs `mvfh-07` | none | completed | confirmed canonical docs root is `packages/document/docs/**` and marked gate/evidence files as `mvfh-07` only |
+| W2-create-compat | `019da4b3-4943-7101-bc19-03a41e039cdb` | `tests/rstest.superapp-contracts.config.ts`, `tests/integration/i18n/mf/test/app-level-mf-ssr-contract.test.ts` | none | completed | added app-level MF SSR contract proof and passed targeted + full `rstest.superapp-contracts` verification |
+| W3-migration-docs | `019da4b3-4abb-7740-b027-0bc7f501cae1` | `packages/document/docs/en/guides/get-started/ultramodern.mdx`, `packages/document/docs/zh/guides/get-started/ultramodern.mdx` | none | completed | landed canonical mvfh-06 migration guidance and kept `main-doc` / gate files untouched |

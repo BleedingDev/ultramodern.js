@@ -48,13 +48,14 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 - 运行时保持 `effect` 与 `hono` 双模式并存，但不提供隐式回退。
 - 除非稳定性硬需求，否则避免引入破坏性 API 变更。
 
-## 迁移建议
+## 迁移说明（mvfh-06）
 
-如果你已经在使用 Modern.js v3：
+对于已经在使用 Modern.js v3 的团队，mvfh-06 的迁移路径是“兼容优先”：保持 Modern.js 的心智模型不变，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，同时把兼容分支明确保留下来。
 
-1. 保持现有应用结构不变。
-2. 仅在需要的平台场景接入 UltraModern 能力（跨项目 BFF 契约、telemetry 导出器、MF SSR 稳定契约）。
-3. 持续跟进上游 Modern.js 更新，UltraModern 即按该模式设计。
+1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
+2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
+3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
+4. 将 mvfh-07 工作单独处理。这里仅说明兼容性与迁移步骤；发布 gate、认证流程和证据归属不属于 mvfh-06 范围。
 
 ## 基线开关（可按需关闭）
 

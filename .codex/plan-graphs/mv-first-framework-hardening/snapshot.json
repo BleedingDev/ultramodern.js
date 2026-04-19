@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-19T01:00:00+02:00",
+  "generated_at": "2026-04-19T09:53:24+02:00",
   "graph_id": "mv-first-framework-hardening",
   "plan_set_hash": "d1dabd669f",
   "selection_hash": "c3798016d6",
@@ -51,7 +51,7 @@
         {
           "id": "mvfh-06",
           "content": "Add Modern.js compatibility tests and migration notes for the new MV-first, TanStack-first, and Effect-first defaults without introducing any unpublished-Ultramodern legacy facade.",
-          "status": "in_progress",
+          "status": "completed",
           "ordinal": 6
         },
         {
@@ -74,14 +74,7 @@
       "plan_status": "in_progress",
       "state": "in_progress",
       "blocked_by": [],
-      "active": [
-        {
-          "id": "mvfh-06",
-          "content": "Add Modern.js compatibility tests and migration notes for the new MV-first, TanStack-first, and Effect-first defaults without introducing any unpublished-Ultramodern legacy facade.",
-          "status": "in_progress",
-          "ordinal": 6
-        }
-      ],
+      "active": [],
       "upcoming": [
         {
           "id": "mvfh-07",
@@ -90,7 +83,7 @@
           "ordinal": 7
         }
       ],
-      "completed": 5,
+      "completed": 6,
       "total": 7
     }
   ],

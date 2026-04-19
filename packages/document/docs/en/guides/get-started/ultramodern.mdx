@@ -48,13 +48,14 @@ UltraModern additions are designed to be optional or backward-compatible whereve
 - We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
 - We avoid incompatible API changes unless there is a hard reliability requirement.
 
-## Practical Guidance
+## Migration Note (mvfh-06)
 
-If you are already on Modern.js v3:
+For teams already on Modern.js v3, the mvfh-06 path is compatibility-first: keep the Modern.js mental model, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you migrate.
 
-1. Keep your existing app structure.
-2. Adopt UltraModern platform capabilities only where needed (BFF cross-project contracts, telemetry exporters, MF SSR stable contract).
-3. Keep tracking upstream Modern.js updates; UltraModern is designed for that workflow.
+1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route migration, but the React Router lane remains supported while teams move on their own schedule.
+2. Prefer `bff.runtimeFramework: 'effect'` for new or migrated BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
+3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
+4. Keep mvfh-07 work separate. This note is only about compatibility and migration steps; release gates, certification, and evidence ownership are outside the mvfh-06 scope.
 
 ## Baseline Switches (Opt-out)
 
