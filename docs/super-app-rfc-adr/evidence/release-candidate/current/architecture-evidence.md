@@ -1,12 +1,12 @@
-author: Codex
-timestamp: 2026-02-22T05:16:00+07:00
-ticket_id: modernjs-mqj
-commit_sha: ae52fa565e-dirty
-workflow_run_url: local://manual/validate-rc-gates
+author: codex
+timestamp: 2026-04-19T09:18:18Z
+ticket_id: modernjs-2ko
+commit_sha: 974b6e95ce48-dirty
+workflow_run_url: local://modernjs-2ko/release-contract-gates
 
 # Architecture Evidence
 
-- Scope: restore release-candidate evidence pack required by `rc-contract-profile.json`.
-- Decision: keep gate profile unchanged and regenerate missing evidence files under `docs/super-app-rfc-adr/evidence/release-candidate/current`.
-- Rationale: preserve contract-driven release process and avoid weakening gate requirements.
-- Compatibility: no runtime/framework behavior changes; this is documentation/evidence-only.
+- Scope: extend release-contract gates to cover stronger-default Modern.js positioning and starter baseline artifacts.
+- Decision: treat public stronger-default docs, starter README/workflow surface, and sandpack starter sync as release-gated contract targets.
+- Rationale: stricter defaults without auditable docs/starter gates read like an ungoverned fork instead of governed Modern.js defaults.
+- Compatibility: defaults remain opt-out via baseline env switches, while React Router and Hono stay explicit compatibility lanes.

@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: mvfh-07
     content: Update release gates, docs, and certification evidence so the framework ships as stronger-default Modern.js rather than an ungoverned fork.
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -42,7 +42,7 @@ The governing order is:
 6. Close with explicit upstream Modern.js compatibility proof and migration notes.
 7. Wire the whole thing into gates and release evidence.
 
-`mvfh-03` is marked `completed` after the TanStack router subpath export was published and the create-routes contract coverage passed. `mvfh-04` is marked `completed` after its SSR-contract doc/test bundle landed and targeted verification passed. `mvfh-05` is marked `completed` after the Effect-first generator, create-request, and policy contract coverage passed. `mvfh-06` is marked `completed` after canonical Modern.js migration notes landed in the public docs and the superapp contract suite gained explicit app-level MF SSR compatibility coverage. `mvfh-07` is now the next frontier for stronger-default Modern.js gate, docs, and certification evidence work.
+`mvfh-03` is marked `completed` after the TanStack router subpath export was published and the create-routes contract coverage passed. `mvfh-04` is marked `completed` after its SSR-contract doc/test bundle landed and targeted verification passed. `mvfh-05` is marked `completed` after the Effect-first generator, create-request, and policy contract coverage passed. `mvfh-06` is marked `completed` after canonical Modern.js migration notes landed in the public docs and the superapp contract suite gained explicit app-level MF SSR compatibility coverage. `mvfh-07` is marked `completed` after release-contract gate coverage expanded to stronger-default docs/starter surfaces, public and V3-reference docs were reframed around stronger-default Modern.js positioning, starter scaffolds exposed baseline gates by default, and both release/module evidence packs were refreshed with passing targeted verification.
 
 ## Constraints
 

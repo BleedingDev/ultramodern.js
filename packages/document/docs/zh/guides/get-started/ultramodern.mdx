@@ -7,14 +7,14 @@ sidebar_position: 2
 
 本文对比 **UltraModern.js v3** 与 **Modern.js v3**（基线：`v3.0.2`）。
 
-UltraModern.js 的定位是“兼容优先”的发行版：尽量保持与上游 Modern.js 一致，只在 Super App / ERP 场景补充少量平台级契约能力。
+UltraModern.js 在这里更像是“更强默认值的 Modern.js 配置档案”这一参考名词：目标是在不把 Modern.js 分叉成另一套框架的前提下，为 Super App / ERP 场景加固默认基线。
 
 ## 设计原则
 
 - 差异要小且明确。
-- 默认优先沿用上游 API 与行为。
+- 保持上游 Modern.js 的心智模型与可持续回灌能力。
 - 仅在跨团队稳定性场景增加平台契约。
-- 保持可持续的上游合并/回灌能力。
+- 保留按应用关闭和显式兼容分支的能力。
 
 ## 兼容性承诺
 
@@ -24,7 +24,7 @@ UltraModern.js v3 保持以下不变：
 - 既有项目结构与命令使用方式。
 - 渐进式接入路径（应用无需大规模重构）。
 
-UltraModern 的增强能力尽量以可选或向后兼容方式提供。
+UltraModern 的增强能力会尽量以“更强默认值”“显式兼容分支”或“可审计 gate”的形式落地，而不是演化成另一套独立产品面。
 
 ## 有意引入的差异（v3 线）
 
@@ -40,6 +40,7 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 | 模块准入治理 | 基线无模块认证证据化 gate profile | 新增模块 SDK 契约、边界反模式守卫与发布/模块认证 gate 工作流 |
 | 路由运行时 | 默认运行时路径以 React Router 为中心 | 增加 TanStack Router 运行时/CLI 一等支持（React Router 继续可用） |
 | 脚手架模板 | 默认 create 模板以 React Router 起步路径为中心 | 增加 TanStack-ready 与 Tailwind-ready 的 create 模板 |
+| Starter 基线约束 | 生成应用默认没有基线 gate 工作流 | 生成脚手架会附带 `baseline:check`、可关闭的 env 开关，以及 `.github/workflows/uniform-baseline-gates.yml` |
 
 ## 我们刻意不做的事情
 
@@ -48,18 +49,18 @@ UltraModern 的增强能力尽量以可选或向后兼容方式提供。
 - 运行时保持 `effect` 与 `hono` 双模式并存，但不提供隐式回退。
 - 除非稳定性硬需求，否则避免引入破坏性 API 变更。
 
-## 迁移说明（mvfh-06）
+## 迁移说明
 
-对于已经在使用 Modern.js v3 的团队，mvfh-06 的迁移路径是“兼容优先”：保持 Modern.js 的心智模型不变，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，同时把兼容分支明确保留下来。
+对于已经在使用 Modern.js v3 的团队，迁移路径依然是“兼容优先”：保持 Modern.js 的心智模型不变，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，同时把兼容分支明确保留下来。
 
 1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
 3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
-4. 将 mvfh-07 工作单独处理。这里仅说明兼容性与迁移步骤；发布 gate、认证流程和证据归属不属于 mvfh-06 范围。
+4. 这套更强默认值档案现在已经附带显式的发布 / 认证 gate。生成脚手架也会自带 `.github/workflows/uniform-baseline-gates.yml`，因此 `pnpm run baseline:check` 与 `pnpm run build` 从第一天开始就是接入契约的一部分。
 
 ## 基线开关（可按需关闭）
 
-UltraModern 默认脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
+默认的 stronger-default Modern.js 脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
 
 - `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。

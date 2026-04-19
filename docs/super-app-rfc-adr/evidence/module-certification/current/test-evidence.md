@@ -1,8 +1,8 @@
 author: codex
-timestamp: 2026-02-22T00:00:00Z
-ticket_id: modernjs-44t.6.4
-commit_sha: ae52fa565e80-dirty
-workflow_run_url: local://module-certification
+timestamp: 2026-04-19T09:18:18Z
+ticket_id: modernjs-2ko
+commit_sha: 974b6e95ce48-dirty
+workflow_run_url: local://modernjs-2ko/module-certification-gates
 module_id: example-module
 runtime_lane: effect-first
 
@@ -15,4 +15,4 @@ runtime_lane: effect-first
 
 ## Result
 
-All targeted test suites pass.
+All targeted module-certification gate test suites pass.

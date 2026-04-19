@@ -11,9 +11,9 @@
 
 ## Current Focus
 
-- active plan todo: `mvfh-07`
+- active plan todo: none
 - status owner: primary agent
-- reason: `modernjs-njp` is closed after canonical migration notes and app-level MF SSR contract coverage landed with passing verification; `modernjs-2ko` is now the explicit Beads follow-up for stronger-default Modern.js gates and evidence.
+- reason: `modernjs-2ko` is implemented locally; stronger-default Modern.js release gates, docs positioning, starter surface, and evidence packs were refreshed, and `mvfh-07` is ready to close after commit/push.
 
 ## Wave 1
 
@@ -48,3 +48,9 @@
 | E3-migration-surface | `019da4ad-58db-7410-aeec-a946cb085bc4` | read-only doc/gate boundary audit for `mvfh-06` vs `mvfh-07` | none | completed | confirmed canonical docs root is `packages/document/docs/**` and marked gate/evidence files as `mvfh-07` only |
 | W2-create-compat | `019da4b3-4943-7101-bc19-03a41e039cdb` | `tests/rstest.superapp-contracts.config.ts`, `tests/integration/i18n/mf/test/app-level-mf-ssr-contract.test.ts` | none | completed | added app-level MF SSR contract proof and passed targeted + full `rstest.superapp-contracts` verification |
 | W3-migration-docs | `019da4b3-4abb-7740-b027-0bc7f501cae1` | `packages/document/docs/en/guides/get-started/ultramodern.mdx`, `packages/document/docs/zh/guides/get-started/ultramodern.mdx` | none | completed | landed canonical mvfh-06 migration guidance and kept `main-doc` / gate files untouched |
+
+## Wave 3
+
+| lane | agent id | owner / write scope | dependency / blocker | current status | next action |
+| --- | --- | --- | --- | --- | --- |
+| local-mvfh07-closeout | primary | `.github/workflows/release-contract-gates.yml`, `scripts/release-gates/rc-contract-profile.json`, `scripts/release-gates/README.md`, `docs/super-app-rfc-adr/evidence/{release-candidate,module-certification}/current/**`, `packages/document/docs/**/ultramodern.mdx`, `packages/document/main-doc/docs/**/ultramodern.mdx`, `packages/toolkit/create/template/**`, `packages/toolkit/sandpack-react/src/templates/mwa.ts`, plan status for `mvfh-07` | full `pnpm run validate:rc-gates` remains blocked by pre-existing `@modern-js/builder` snapshot drift outside mvfh-07 | completed | targeted validator test, `validate:module-certification-gates`, PR-equivalent RC gate validation (`--skip-commands`), gate snapshot validation, and sandpack regeneration all passed |

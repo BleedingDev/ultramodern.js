@@ -1,15 +1,15 @@
-author: Codex
-timestamp: 2026-02-22T05:16:00+07:00
-ticket_id: modernjs-mqj
-commit_sha: ae52fa565e-dirty
-workflow_run_url: local://manual/validate-rc-gates
+author: codex
+timestamp: 2026-04-19T09:18:18Z
+ticket_id: modernjs-2ko
+commit_sha: 974b6e95ce48-dirty
+workflow_run_url: local://modernjs-2ko/release-contract-gates
 
 # Test Evidence
 
-- Command: `proto run pnpm -- --dir tests run test:module-tools`
-- Outcome: passed.
-- Summary: 49/49 test suites, 126/126 tests, 13 snapshots passed.
+1. `node --test scripts/release-gates/__tests__/validator.test.js`
+2. `pnpm --filter @modern-js/sandpack-react exec ts-node ./scripts/template.ts`
+3. `node scripts/release-gates/validate-gate-snapshot.js --snapshot-path .modern/contract-gates.json --required-gate release-candidate-contract-gates --required-gate module-onboarding-certification-gates`
 
-- Notes:
-- This test path now runs with `tests/rstest.module-tools.config.ts` (Node environment, no Puppeteer global setup).
-- Restored tracked module fixture files under `tests/integration/module/fixtures/build/**/node_modules` to recover deterministic fixture-based integration coverage.
+## Result
+
+Gate validator tests pass, the sandpack template regenerates cleanly, and the shared gate snapshot contains both required release/module gate records.

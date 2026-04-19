@@ -280,6 +280,45 @@
           ".rsdoctor",
           "schemaVersion: 1"
         ]
+      },
+      {
+        "id": "stronger-default-public-doc-contract",
+        "path": "packages/document/docs/en/guides/get-started/ultramodern.mdx",
+        "includes": [
+          "stronger-default Modern.js profile",
+          "without forking Modern.js into a separate framework",
+          "generated starter baseline also ships `.github/workflows/uniform-baseline-gates.yml`",
+          "Starter baseline enforcement"
+        ]
+      },
+      {
+        "id": "stronger-default-starter-readme-contract",
+        "path": "packages/toolkit/create/template/README.md",
+        "includes": [
+          "# Modern.js with Stronger Defaults",
+          "pnpm dev",
+          ".github/workflows/uniform-baseline-gates.yml",
+          "pnpm run baseline:check"
+        ]
+      },
+      {
+        "id": "stronger-default-template-workflow-contract",
+        "path": "packages/toolkit/create/template/.github/workflows/uniform-baseline-gates.yml.handlebars",
+        "includes": [
+          "Uniform Baseline Gates",
+          "pnpm run baseline:check",
+          "pnpm run build"
+        ]
+      },
+      {
+        "id": "stronger-default-sandpack-starter-contract",
+        "path": "packages/toolkit/sandpack-react/src/templates/mwa.ts",
+        "includes": [
+          "stronger-default Modern.js baseline",
+          "Stronger Defaults",
+          "pnpm run baseline:check",
+          ".github/workflows/uniform-baseline-gates.yml"
+        ]
       }
     ]
   },

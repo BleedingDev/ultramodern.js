@@ -6,6 +6,7 @@ This folder contains release-candidate gate tooling for `modernjs-44t.5.5`.
 
 1. `rc-contract-profile.json`
    - source-of-truth profile for required evidence files, migration contract assertions, and representative gate commands.
+   - also covers stronger-default Modern.js starter/docs contract surfaces (public positioning guide, starter README/workflow, sandpack sync).
 2. `module-certification-profile.json`
    - module onboarding certification profile (SDK contract + boundary anti-pattern readiness).
 3. `validator.js`

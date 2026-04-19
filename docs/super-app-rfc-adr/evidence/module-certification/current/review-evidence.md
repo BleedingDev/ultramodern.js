@@ -1,23 +1,23 @@
 author: codex
-timestamp: 2026-02-22T00:00:00Z
-ticket_id: modernjs-44t.6.4
-commit_sha: ae52fa565e80-dirty
-workflow_run_url: local://module-certification
+timestamp: 2026-04-19T09:18:18Z
+ticket_id: modernjs-2ko
+commit_sha: 974b6e95ce48-dirty
+workflow_run_url: local://modernjs-2ko/module-certification-gates
 module_id: example-module
 runtime_lane: effect-first
-reviewer_1: subagent-unavailable-thread-limit
-reviewer_2: manual-secondary-pass
+reviewer_1: manual-pass/module-certification-surface
+reviewer_2: manual-pass/evidence-and-command-matrix
 
 # Review Evidence
 
 ## Reviewer A
 
-- reviewer: subagent-unavailable-thread-limit
-- status: blocked by platform limit (`agent thread limit reached (max 16)`)
-- findings: none new; blocker recorded
+- reviewer: manual-pass/module-certification-surface
+- status: completed
+- findings: module-certification evidence now reflects the stronger-default Modern.js positioning without changing module onboarding governance semantics
 
 ## Reviewer B
 
-- reviewer: manual-secondary-pass
+- reviewer: manual-pass/evidence-and-command-matrix
 - status: completed
-- findings: no unresolved high-risk findings in module-certification gate profile/workflow wiring
+- findings: no unresolved high-risk findings in module-certification gate profile/workflow wiring or refreshed evidence metadata

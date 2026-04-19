@@ -26,16 +26,19 @@ const Index = () => {
       </Helmet>
       <main>
         <div className="title">
-          Welcome to
+          Modern.js
           <img
             className="logo"
             src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/modern-js-logo.svg"
             alt="Modern.js Logo"
           />
-          <p className="name">Modern.js</p>
+          <p className="name">Stronger Defaults</p>
         </div>
         <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          Get started by editing <code className="code">src/routes/page.tsx</code>
+          This starter ships a stronger-default Modern.js baseline. Start in
+          <code className="code">modern.config.ts</code>, keep
+          <code className="code">pnpm run baseline:check</code> green, and opt
+          out only where your app needs a softer lane.
         </p>
 {{#if useEffectBff}}
         <p className="description effect-message{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
@@ -44,68 +47,68 @@ const Index = () => {
 {{/if}}
         <div className="grid">
           <a
-            href="https://modernjs.dev/guides/get-started/introduction.html"
+            href="https://modernjs.dev/en/guides/get-started/ultramodern.html"
             target="_blank"
             rel="noopener noreferrer"
             className="card"
           >
             <h2>
-              Guide
+              Stronger Defaults
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Guide"
               />
             </h2>
-            <p>Follow the guides to use all features of Modern.js.</p>
+            <p>Review the MV-first, TanStack-ready, Effect-ready baseline profile.</p>
           </a>
           <a
-            href="https://modernjs.dev/tutorials/foundations/introduction.html"
+            href="https://modernjs.dev/en/configure/app/usage.html"
             target="_blank"
             className="card"
             rel="noreferrer"
           >
             <h2>
-              Tutorials
+              Configure Baseline
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Tutorials"
               />
             </h2>
-            <p>Learn to use Modern.js to create your first application.</p>
+            <p>Tune the generated defaults in <code className="code">modern.config.ts</code>.</p>
           </a>
           <a
-            href="https://modernjs.dev/configure/app/usage.html"
+            href="https://github.com/web-infra-dev/modern.js/blob/main/packages/toolkit/create/template/.github/workflows/uniform-baseline-gates.yml.handlebars"
             target="_blank"
             className="card"
             rel="noreferrer"
           >
             <h2>
-              Config
+              Baseline Gates
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Config"
               />
             </h2>
-            <p>Find all configuration options provided by Modern.js.</p>
+            <p>The starter includes a PR workflow for <code className="code">baseline:check</code> and build.</p>
           </a>
           <a
-            href="https://github.com/web-infra-dev/modern.js"
+            href="https://modernjs.dev/en/configure/app/bff/effect.html"
             target="_blank"
             rel="noopener noreferrer"
             className="card"
           >
             <h2>
-              GitHub
+              BFF + Effect
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Github"
               />
             </h2>
-            <p>View the source code on GitHub; feel free to contribute.</p>
+            <p>Keep Effect as the preferred BFF lane while Hono stays an explicit fallback.</p>
           </a>
         </div>
       </main>

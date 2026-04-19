@@ -1,17 +1,18 @@
-author: Codex
-timestamp: 2026-02-22T05:16:00+07:00
-ticket_id: modernjs-mqj
-commit_sha: ae52fa565e-dirty
-workflow_run_url: local://manual/validate-rc-gates
+author: codex
+timestamp: 2026-04-19T09:18:18Z
+ticket_id: modernjs-2ko
+commit_sha: 974b6e95ce48-dirty
+workflow_run_url: local://modernjs-2ko/release-contract-gates
 
 # Validation Evidence
 
-- Command: `proto run pnpm -- run validate:bun-smoke`
-- Result: passed.
+1. `node --test scripts/release-gates/__tests__/validator.test.js`
+2. `node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands`
 
-- Command: `proto run pnpm -- run validate:module-certification-gates`
-- Result: passed.
+## Result
 
-- Command: `proto run pnpm -- run validate:rc-gates`
-- Result before fix: failed due missing required evidence directory/files.
-- Result after fix: passed.
+Both gate-tooling validation and pull-request-equivalent release-candidate gate validation pass with the stronger-default docs/starter contract targets in place.
+
+## Residual Blocker
+
+`pnpm run validate:rc-gates` is still red outside this change scope because existing `@modern-js/builder` snapshot tests fail in `tests/default.test.ts`, `tests/environment.test.ts`, and `tests/postcssLegacy.test.ts`.

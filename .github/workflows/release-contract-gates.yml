@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'docs/super-app-rfc-adr/evidence/release-candidate/**'
+      - 'packages/document/docs/**/guides/get-started/ultramodern.mdx'
+      - 'packages/document/main-doc/docs/**/guides/get-started/ultramodern.mdx'
+      - 'packages/toolkit/create/template/README.md'
+      - 'packages/toolkit/create/template/.github/workflows/uniform-baseline-gates.yml.handlebars'
+      - 'packages/toolkit/create/template/src/routes/page.tsx.handlebars'
+      - 'packages/toolkit/sandpack-react/src/templates/mwa.ts'
       - 'scripts/release-gates/**'
       - '.github/workflows/release-contract-gates.yml'
   workflow_dispatch:

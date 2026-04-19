@@ -5,9 +5,9 @@ sidebar_position: 6
 
 # UltraModern.js V3 vs Modern.js V3
 
-UltraModern.js V3 is a compatibility-first distribution built on top of Modern.js V3 for large, independently deployable super-app and ERP-style systems.
+UltraModern.js V3 documents a stronger-default Modern.js reference profile for large, independently deployable super-app and ERP-style systems.
 
-This page is the complete public difference reference for the published V3 line.
+This page is the complete public difference reference for that documented V3 profile.
 
 ## Scope (V3 Only)
 
@@ -25,6 +25,7 @@ This page is the complete public difference reference for the published V3 line.
 | Static asset precompression defaults | Precompressed artifacts and serving are app-defined | Adds default-on `output.precompress` for production web builds and static middleware `Accept-Encoding` negotiation for `.br` / `.gz` | Implemented | Can be disabled or tuned per codec |
 | Router runtime choice | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI route tree support | Implemented | React Router path remains available |
 | Scaffolding template path | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates | Implemented | React Router starter path remains available |
+| Starter baseline gate workflow | Generated starter has no stronger-default verification workflow | Adds `baseline:check`, opt-out env switches, and `.github/workflows/uniform-baseline-gates.yml` to the stronger-default starter | Implemented | Keeps generated apps auditable from the first commit |
 | BFF producer contract wiring | `bff` config does not include producer identity | Adds `bff.requestId` and carries it through client generation | Implemented | Enables explicit producer scoping |
 | Generated BFF client call shape | `createRequest(...)` optional args stop at `fetch` | Generated client appends `requestId` to `createRequest(...)` when configured | Implemented | Keeps legacy call path when no `requestId` |
 | `create-request` runtime isolation | Single mutable request config path | Per-`requestId` request/domain/header config maps | Implemented | Supports multiple producer clients in one app |
@@ -43,7 +44,7 @@ This page is the complete public difference reference for the published V3 line.
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
 | Release/module certification gate automation | No super-app release evidence profile in baseline | Adds RC + module-certification gate profiles, evidence metadata validation, and dedicated CI workflows | Implemented | `.github/workflows/release-contract-gates.yml` + module/bun gate workflows |
 | Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR MF contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
-| Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the canonical V3 reference |
+| Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the reference page for this stronger-default profile |
 
 ## Detailed V3 Differences
 
@@ -250,7 +251,7 @@ Reference materials:
 
 ### 11) Release and module certification gate model
 
-UltraModern.js V3 includes a machine-verifiable gate model beyond baseline Modern.js V3:
+This stronger-default Modern.js profile includes a machine-verifiable gate model beyond baseline Modern.js V3:
 
 - Gate profiles:
   - `scripts/release-gates/rc-contract-profile.json`
@@ -268,16 +269,20 @@ UltraModern.js V3 includes a machine-verifiable gate model beyond baseline Moder
   - `.github/workflows/release-contract-gates.yml`
   - `.github/workflows/module-certification-gates.yml`
   - `.github/workflows/bun-superapp-smoke.yml`
+- Generated starter workflow:
+  - `.github/workflows/uniform-baseline-gates.yml`
+  - runs `pnpm run baseline:check` and `pnpm run build`
 
 ## Not Part of UltraModern.js V3
 
-The following are intentionally out of scope for this published V3 line:
+The following are intentionally out of scope for this stronger-default V3 profile:
 
 - Forcing Effect-only data-fetch runtime as the mandatory default for every app.
+- Forcing app-level MF SSR for every app regardless of readiness.
 
 ## Baseline Switches (Opt-out)
 
-The default UltraModern create-template enables stricter platform contracts. These env switches are read by generated `modern.config.ts` and can be disabled/overridden per app or per environment:
+The default stronger-default Modern.js create template enables stricter platform contracts. These env switches are read by generated `modern.config.ts` and can be disabled/overridden per app or per environment:
 
 - `MODERN_BASELINE_ENABLE_MF_SSR` (default: `true`): Enables app-level MF SSR baseline contract (`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`). Disable when the app does not use app-level MF SSR, or when you need plain SSR/CSR behavior first.
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
