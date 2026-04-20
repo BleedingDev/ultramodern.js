@@ -7,6 +7,7 @@ configure({
   setDomain() {
     return apiOrigin;
   },
+  allowCrossOriginEnvelope: true,
   interceptor(request) {
     return async (url, params) => {
       const urlString = typeof url === 'string' ? url : url.toString();

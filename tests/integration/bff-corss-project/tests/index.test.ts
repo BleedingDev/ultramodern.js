@@ -1,4 +1,5 @@
 import dns from 'node:dns';
+import fs from 'node:fs';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -22,13 +23,22 @@ const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
 const buildDoneMarker = /(?:^|\n)File \((?:client|server)\)\s+/i;
 const generatedProducerSdkDirs = new Set<string>();
+const producerSdkArtifacts = [
+  path.join('dist-1', 'client', 'index.js'),
+  path.join('dist-1', 'runtime', 'index.js'),
+  path.join('dist-1', 'plugin', 'index.js'),
+];
 
 function getApiOrigin(port: number) {
   return `http://127.0.0.1:${port}`;
 }
 
 async function ensureProducerSdkGenerated(projectDir: string) {
-  if (generatedProducerSdkDirs.has(projectDir)) {
+  const hasProducerSdkArtifacts = producerSdkArtifacts.every(artifactPath =>
+    fs.existsSync(path.join(projectDir, artifactPath)),
+  );
+
+  if (generatedProducerSdkDirs.has(projectDir) && hasProducerSdkArtifacts) {
     return;
   }
   await modernBuild(projectDir, [], { stdout: false, stderr: false });

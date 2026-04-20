@@ -9,6 +9,7 @@ configure({
   setDomain() {
     return apiOrigin;
   },
+  allowCrossOriginEnvelope: true,
 });
 
 const App = () => {

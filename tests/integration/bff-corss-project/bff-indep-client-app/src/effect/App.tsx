@@ -7,6 +7,7 @@ configure({
   setDomain() {
     return apiOrigin;
   },
+  allowCrossOriginEnvelope: true,
 });
 
 type EffectGreetingResponse = {
