@@ -49,7 +49,7 @@ const getPrimaryPrefix = (prefix: string | string[] | undefined) =>
 function resolveRuntimeFramework(
   runtimeFramework: BffUserConfig['runtimeFramework'],
 ): RuntimeFramework {
-  return runtimeFramework === 'hono' ? 'hono' : 'effect';
+  return runtimeFramework === 'effect' ? 'effect' : 'hono';
 }
 
 type PrepareApiServerNext = (

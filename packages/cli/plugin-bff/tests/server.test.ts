@@ -128,5 +128,33 @@ describe('bff server plugin', () => {
       await hooks.prepareApiServer.call({ pwd, prefix: '/' });
       expect(apiHandlerInfos).toBeUndefined();
     });
+
+    it('should treat unresolved runtime framework as hono', async () => {
+      let apiHandlerInfos: Array<{ routePath: string }> | null = null;
+      const mockApiPlugin: ServerPlugin = {
+        name: 'mock-api',
+        setup(api) {
+          api.prepareApiServer(((input: any, next: any) => {
+            const appContext = api.getServerContext();
+            apiHandlerInfos = appContext.apiHandlerInfos;
+            return next(input);
+          }) as any);
+        },
+      };
+
+      const hooks = await serverInit({
+        plugins: [plugin(), mockApiPlugin],
+        appContext: {
+          bffRuntimeFramework: undefined,
+        },
+      });
+
+      await hooks.prepareApiServer.call({ pwd, prefix: '/' });
+      expect(apiHandlerInfos?.map(item => item.routePath)).toEqual([
+        '/hello',
+        '/upload',
+        '/user/:id',
+      ]);
+    });
   });
 });

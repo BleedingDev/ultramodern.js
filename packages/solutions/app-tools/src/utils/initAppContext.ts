@@ -23,7 +23,7 @@ export const initAppContext = ({
   const {
     apiDir = 'api',
     sharedDir = 'shared',
-    bffRuntimeFramework = 'effect',
+    bffRuntimeFramework = 'hono',
   } = options || {};
   const pkgPath = path.resolve(appDirectory, './package.json');
 
