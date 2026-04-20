@@ -134,6 +134,12 @@ const EXCLUDED_SCRIPT_NAMES = new Set([
   'test:all:parallel:analyze',
 ]);
 const EXCLUDED_SCRIPT_PATTERN = /watch/i;
+const TEST_WORKSPACE_WRAPPER_SCRIPT_NAMES = new Set([
+  'test',
+  'test:rstest',
+  'test:rspack',
+  'test:ut',
+]);
 
 const discoverCommands = () => {
   const packageFiles = collectPackageJsonFiles();
@@ -148,19 +154,26 @@ const discoverCommands = () => {
       continue;
     }
 
+    const packageDir = path.dirname(pkgFile);
+    const packagePath = rel(pkgFile) || 'package.json';
     const scripts = packageJson.scripts || {};
     const scriptNames = Object.keys(scripts)
       .filter(name => /^test(?::|$)/.test(name))
       .filter(name => !EXCLUDED_SCRIPT_NAMES.has(name))
       .filter(name => !EXCLUDED_SCRIPT_PATTERN.test(name))
+      .filter(
+        name =>
+          !(
+            packagePath === 'tests/package.json' &&
+            TEST_WORKSPACE_WRAPPER_SCRIPT_NAMES.has(name)
+          ),
+      )
       .sort((a, b) => a.localeCompare(b));
 
     if (scriptNames.length === 0) {
       continue;
     }
 
-    const packageDir = path.dirname(pkgFile);
-    const packagePath = rel(pkgFile) || 'package.json';
     for (const scriptName of scriptNames) {
       const dedupeKey = `${packageDir}::${scriptName}`;
       if (seen.has(dedupeKey)) {
@@ -196,13 +209,15 @@ const discoverCommands = () => {
 };
 
 const detectRunawayScript = command =>
-  command.packagePath === 'tests/package.json' && command.scriptName === 'test';
+  /\btest-orchestrator-runaway\b/i.test(
+    `${command.scriptName} ${command.scriptCommand}`,
+  );
 
 const detectFrameworkScript = command => {
   const source = `${command.packagePath}#${command.scriptName} ${command.scriptCommand}`;
   return (
     /test:framework|test:rspack/i.test(source) ||
-    /vitest\\.framework\\.config|vitest\\.effect\\.config/i.test(source)
+    /vitest\.framework\.config|vitest\.effect\.config/i.test(source)
   );
 };
 
@@ -214,6 +229,10 @@ const detectBuilderScript = command => {
 const detectGeneratorScript = command =>
   command.packagePath === 'tests/package.json' &&
   ['test:module', 'test:monorepo', 'test:mwa'].includes(command.scriptName);
+
+const detectRstestAdapterScript = command =>
+  command.packagePath === 'tests/package.json' &&
+  command.scriptName === 'test:rstest-adapter';
 
 const laneForCommand = command => {
   if (detectRunawayScript(command)) {
@@ -228,6 +247,9 @@ const laneForCommand = command => {
   if (detectGeneratorScript(command)) {
     return 'generators';
   }
+  if (detectRstestAdapterScript(command)) {
+    return 'rstest-adapter';
+  }
   if (/--passWithNoTests/.test(command.scriptCommand)) {
     return 'fast-passwithnotests';
   }
@@ -241,7 +263,11 @@ const timeoutForCommand = ({ command, args }) => {
   if (detectRunawayScript(command)) {
     return args.timeoutRunawayMs;
   }
-  if (detectFrameworkScript(command) || detectBuilderScript(command)) {
+  if (
+    detectFrameworkScript(command) ||
+    detectBuilderScript(command) ||
+    detectRstestAdapterScript(command)
+  ) {
     return args.timeoutHeavyMs;
   }
   return args.timeoutDefaultMs;
@@ -272,19 +298,6 @@ const killProcessTree = pid => {
       process.kill(pid, 'SIGKILL');
     } catch {}
   }, 10000);
-};
-
-const killKnownRunawayProcesses = () => {
-  const patterns = [
-    'pnpm test --filter api-service-koa',
-    'vitest.framework.config.mjs --filter api-service-koa',
-  ];
-
-  for (const pattern of patterns) {
-    try {
-      spawnSync('pkill', ['-f', pattern], { stdio: 'ignore' });
-    } catch {}
-  }
 };
 
 const toMillis = value => {
@@ -417,9 +430,6 @@ const runCommand = ({ command, logFilePath, args, quiet }) =>
         `\n[test-orchestrator-timeout] exceeded ${String(timeoutMs)}ms\n`,
       );
       killProcessTree(child.pid);
-      if (detectRunawayScript(command)) {
-        killKnownRunawayProcesses();
-      }
     }, timeoutMs);
 
     child.stdout.on('data', chunk => {
@@ -760,6 +770,44 @@ const writeSummaryArtifacts = ({ runRoot, summary }) => {
   };
 };
 
+const resolveCurrentCommandForAnalyze = ({ packagePath, scriptName }) => {
+  const discoveredCommands = discoverCommands();
+  const discovered = discoveredCommands.find(
+    command =>
+      command.packagePath === packagePath && command.scriptName === scriptName,
+  );
+  if (discovered) {
+    return discovered;
+  }
+
+  const pkgFile = path.join(REPO_ROOT, packagePath);
+  if (fs.existsSync(pkgFile)) {
+    try {
+      const packageJson = readJson(pkgFile);
+      const scriptCommand = packageJson.scripts?.[scriptName];
+      if (typeof scriptCommand === 'string') {
+        return {
+          packageDir: path.dirname(pkgFile),
+          packagePath,
+          scriptName,
+          scriptCommand,
+          id: `${packagePath}#${scriptName}`,
+          index: 0,
+        };
+      }
+    } catch {}
+  }
+
+  return {
+    packageDir: path.dirname(path.join(REPO_ROOT, packagePath)),
+    packagePath,
+    scriptName,
+    scriptCommand: 'n/a (analyze mode)',
+    id: `${packagePath}#${scriptName}`,
+    index: 0,
+  };
+};
+
 const resolveRunDirForAnalyze = args => {
   if (args.runDir) {
     const resolved = path.resolve(args.runDir);
@@ -803,6 +851,10 @@ const buildSummaryFromExistingRun = ({ runDir, args }) => {
     const index = match ? Number.parseInt(match[1], 10) : 0;
     const packagePath = match ? match[2].replace(/__/g, '/') : 'unknown';
     const scriptName = match ? match[3].replace(/_/g, ':') : 'test';
+    const command = resolveCurrentCommandForAnalyze({
+      packagePath,
+      scriptName,
+    });
 
     const status = /\[test-orchestrator-timeout\]|\[tail-timeout\]|\[manual-timeout\]/.test(
       logContent,
@@ -816,12 +868,15 @@ const buildSummaryFromExistingRun = ({ runDir, args }) => {
 
     return {
       index,
-      id: `${packagePath}#${scriptName}`,
+      id: command.id,
       packagePath,
       scriptName,
-      scriptCommand: 'n/a (analyze mode)',
-      lane: 'analyze',
-      timeoutMs: 0,
+      scriptCommand: command.scriptCommand,
+      lane: laneForCommand(command),
+      timeoutMs: timeoutForCommand({
+        command,
+        args,
+      }),
       timedOut: status === 'timeout',
       status,
       exitCode: status === 'pass' ? 0 : 1,
