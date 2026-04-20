@@ -1,4 +1,3 @@
-import type { RsbuildPlugins } from '@modern-js/builder';
 import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin';
 import type { BffUserConfig, ServerUserConfig } from '@modern-js/server-core';
 import type { RsbuildConfig } from '@rsbuild/core';
@@ -21,6 +20,8 @@ import type { ToolsUserConfig } from './tools';
 
 export * from './output';
 
+export type AppToolsBuilderPlugins = NonNullable<RsbuildConfig['plugins']>;
+
 export interface AppToolsUserConfig {
   resolve?: ResolveUserConfig;
   server?: ServerUserConfig;
@@ -39,7 +40,7 @@ export interface AppToolsUserConfig {
   tools?: ToolsUserConfig;
   security?: SecurityUserConfig;
   testing?: TestingUserConfig;
-  builderPlugins?: RsbuildPlugins;
+  builderPlugins?: AppToolsBuilderPlugins;
   performance?: PerformanceUserConfig;
   environments?: RsbuildConfig['environments'];
   splitChunks?: RsbuildConfig['splitChunks'];

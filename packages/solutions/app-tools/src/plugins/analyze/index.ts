@@ -1,6 +1,6 @@
 import { isPromise } from 'node:util/types';
 import * as path from 'path';
-import type { RsbuildPlugin, RsbuildPlugins } from '@modern-js/builder';
+import type { RsbuildPlugin } from '@rsbuild/core';
 import type { ServerRoute } from '@modern-js/types';
 import {
   fs,
@@ -13,7 +13,12 @@ import {
 import { getMeta } from '@modern-js/utils';
 import { createBuilderGenerator } from '../../builder';
 import { initialNormalizedConfig } from '../../config';
-import type { AppNormalizedConfig, AppTools, CliPlugin } from '../../types';
+import type {
+  AppNormalizedConfig,
+  AppTools,
+  AppToolsBuilderPlugins,
+  CliPlugin,
+} from '../../types';
 import { emitResolvedConfig } from '../../utils/config';
 import { getSelectedEntries } from '../../utils/getSelectedEntries';
 import { printInstructions } from '../../utils/printInstructions';
@@ -260,13 +265,15 @@ export default (): CliPlugin<AppTools> => ({
           await hooks.onAfterDev.call({ port });
         });
 
-        const getFlattenedPlugins = async (pluginOptions: RsbuildPlugins) => {
+        const getFlattenedPlugins = async (
+          pluginOptions: AppToolsBuilderPlugins,
+        ) => {
           let plugins = pluginOptions;
           do {
             plugins = (await Promise.all(plugins)).flat(
               Number.POSITIVE_INFINITY as 1,
             );
-          } while (plugins.some(v => isPromise(v)));
+          } while (plugins.some((value: unknown) => isPromise(value)));
 
           return plugins as RsbuildPlugin[];
         };

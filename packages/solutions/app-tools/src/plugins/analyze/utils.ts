@@ -5,7 +5,7 @@ import {
   getCommand,
   normalizeToPosixPath,
 } from '@modern-js/utils';
-import { transform } from '@swc/core';
+import { transform } from 'esbuild';
 import { parse } from 'es-module-lexer';
 
 export const walkDirectory = (dir: string): string[] =>
@@ -43,19 +43,22 @@ export const parseModule = async ({
 
   if (JS_EXTENSIONS.some(ext => filename.endsWith(ext))) {
     const ext = path.extname(filename);
-    const isTs = ext === '.ts' || ext === '.tsx';
-    const isJsx = ext === '.jsx' || ext === '.tsx';
     const result = await transform(content, {
-      filename,
-      isModule: true,
-      module: { type: 'es6' },
-      jsc: {
-        parser: isTs
-          ? { syntax: 'typescript', tsx: isJsx, decorators: true }
-          : { syntax: 'ecmascript', jsx: isJsx, decorators: true },
-        transform: { legacyDecorator: true },
-        target: 'es2022',
-        keepClassNames: true,
+      sourcefile: filename,
+      format: 'esm',
+      loader:
+        ext === '.ts'
+          ? 'ts'
+          : ext === '.tsx'
+            ? 'tsx'
+            : ext === '.jsx'
+              ? 'jsx'
+              : 'js',
+      target: 'es2022',
+      tsconfigRaw: {
+        compilerOptions: {
+          experimentalDecorators: true,
+        },
       },
     });
     content = result.code;
