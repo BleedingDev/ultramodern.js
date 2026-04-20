@@ -14,6 +14,11 @@ dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
+const ensureWorkspacePackages = [
+  '@modern-js/plugin-bff',
+  '@modern-js/server-core',
+  '@modern-js/server-runtime',
+];
 
 type Runtime = 'hono' | 'effect';
 type Mode = 'dev' | 'prod';
@@ -234,9 +239,16 @@ async function collectSnapshot(
   };
 
   if (mode === 'dev') {
-    app = await launchApp(appDir, port, {}, env);
+    app = await launchApp(
+      appDir,
+      port,
+      {
+        ensureWorkspacePackages,
+      },
+      env,
+    );
   } else {
-    await modernBuild(appDir, [], { env });
+    await modernBuild(appDir, [], { env, ensureWorkspacePackages });
     app = await modernServe(appDir, port, {
       env: {
         PORT: `${port}`,

@@ -1,10 +1,23 @@
 import * as ah from 'async_hooks';
 
-const createStorage = <T>() => {
-  let storage: ah.AsyncLocalStorage<any>;
+type StorageGlobals = typeof globalThis & {
+  [key: symbol]: ah.AsyncLocalStorage<unknown> | undefined;
+};
+
+const createStorage = <T>(storageKey?: symbol) => {
+  let storage: ah.AsyncLocalStorage<T>;
 
   if (typeof ah.AsyncLocalStorage !== 'undefined') {
-    storage = new ah.AsyncLocalStorage();
+    if (storageKey) {
+      const globalStore = globalThis as StorageGlobals;
+      const sharedStorage = globalStore[storageKey];
+      storage =
+        (sharedStorage as ah.AsyncLocalStorage<T> | undefined) ??
+        new ah.AsyncLocalStorage<T>();
+      globalStore[storageKey] = storage;
+    } else {
+      storage = new ah.AsyncLocalStorage<T>();
+    }
   }
 
   const run = <O>(context: T, cb: () => O | Promise<O>): Promise<O> => {

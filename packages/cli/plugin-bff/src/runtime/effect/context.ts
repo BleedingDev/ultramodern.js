@@ -7,7 +7,18 @@ export type EffectContext = {
   method: string;
 };
 
-const effectContextStorage = new AsyncLocalStorage<EffectContext>();
+const kEffectContextStorage = Symbol.for(
+  'modernjs.plugin-bff.effectContextStorage',
+);
+
+const globalStore = globalThis as typeof globalThis & {
+  [key: symbol]: AsyncLocalStorage<EffectContext> | undefined;
+};
+
+const effectContextStorage =
+  globalStore[kEffectContextStorage] ??
+  (globalStore[kEffectContextStorage] =
+    new AsyncLocalStorage<EffectContext>());
 
 export const runWithEffectContext = <T>(
   context: EffectContext,

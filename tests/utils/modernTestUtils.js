@@ -12,6 +12,10 @@ const kModernAppTools = path.join(
   '../node_modules/@modern-js/app-tools/bin/modern.js',
 );
 const kWorkspacePackageBuilds = new Map();
+const kWorkspaceSearchRoots = [
+  path.join(kRepoRoot, 'packages'),
+  path.join(kRepoRoot, 'tests'),
+];
 
 function getNewestModifiedAt(targetPath) {
   if (!fs.existsSync(targetPath)) {
@@ -42,27 +46,84 @@ function getNewestModifiedAt(targetPath) {
 }
 
 function resolveWorkspacePackageInfo(packageName) {
-  const resolvedEntryPath = require.resolve(packageName, {
-    paths: [kTestsRoot],
-  });
-  let packageDir = fs.realpathSync(path.dirname(resolvedEntryPath));
-  let packageJsonPath = path.join(packageDir, 'package.json');
+  try {
+    const resolvedEntryPath = require.resolve(packageName, {
+      paths: [kTestsRoot],
+    });
+    let packageDir = fs.realpathSync(path.dirname(resolvedEntryPath));
+    let packageJsonPath = path.join(packageDir, 'package.json');
 
-  while (!fs.existsSync(packageJsonPath)) {
-    const parentDir = path.dirname(packageDir);
-    if (parentDir === packageDir) {
-      throw new Error(`Failed to locate package.json for ${packageName}`);
+    while (!fs.existsSync(packageJsonPath)) {
+      const parentDir = path.dirname(packageDir);
+      if (parentDir === packageDir) {
+        throw new Error(`Failed to locate package.json for ${packageName}`);
+      }
+      packageDir = parentDir;
+      packageJsonPath = path.join(packageDir, 'package.json');
     }
-    packageDir = parentDir;
-    packageJsonPath = path.join(packageDir, 'package.json');
+
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+    return {
+      packageDir,
+      packageJson,
+    };
+  } catch (error) {
+    if (error?.code !== 'MODULE_NOT_FOUND') {
+      throw error;
+    }
   }
 
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  for (const searchRoot of kWorkspaceSearchRoots) {
+    const found = findWorkspacePackageInfo(packageName, searchRoot);
+    if (found) {
+      return found;
+    }
+  }
 
-  return {
-    packageDir,
-    packageJson,
-  };
+  throw new Error(`Failed to resolve workspace package ${packageName}`);
+}
+
+function findWorkspacePackageInfo(packageName, currentDir) {
+  if (!fs.existsSync(currentDir)) {
+    return null;
+  }
+
+  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    if (
+      entry.name === 'node_modules' ||
+      entry.name === 'dist' ||
+      entry.name.startsWith('.')
+    ) {
+      continue;
+    }
+
+    const entryPath = path.join(currentDir, entry.name);
+    const packageJsonPath = path.join(entryPath, 'package.json');
+
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      if (packageJson.name === packageName) {
+        return {
+          packageDir: entryPath,
+          packageJson,
+        };
+      }
+    }
+
+    const nested = findWorkspacePackageInfo(packageName, entryPath);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
 }
 
 function resolvePackageDistEntry(packageDir, packageJson) {
