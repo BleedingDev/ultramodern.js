@@ -63,10 +63,7 @@ export async function parseConfig(
     rsbuildPlugins.push(rscClientBrowserFallbackPlugin());
   }
 
-  const rsdoctorPlugin = pluginRsdoctor(
-    rsdoctorConfig,
-    process.env.NODE_ENV === 'production',
-  );
+  const rsdoctorPlugin = pluginRsdoctor(rsdoctorConfig);
   if (rsdoctorPlugin) {
     rsbuildPlugins.push(rsdoctorPlugin);
   }

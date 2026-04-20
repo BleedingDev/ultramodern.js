@@ -3,10 +3,9 @@ import type { RsdoctorUserConfig } from '../types';
 
 const isRsdoctorEnabled = (
   config: RsdoctorUserConfig | undefined,
-  defaultEnabled: boolean,
 ) => {
   if (config === undefined) {
-    return defaultEnabled;
+    return false;
   }
   if (typeof config === 'boolean') {
     return config;
@@ -14,7 +13,7 @@ const isRsdoctorEnabled = (
   if (typeof config?.enabled === 'boolean') {
     return config.enabled;
   }
-  return defaultEnabled;
+  return true;
 };
 
 const getRsdoctorPluginOptions = (
@@ -33,9 +32,8 @@ const getRsdoctorPluginOptions = (
 
 export const pluginRsdoctor = (
   config: RsdoctorUserConfig | undefined,
-  defaultEnabled: boolean,
 ): RsbuildPlugin | null => {
-  if (!isRsdoctorEnabled(config, defaultEnabled)) {
+  if (!isRsdoctorEnabled(config)) {
     return null;
   }
 

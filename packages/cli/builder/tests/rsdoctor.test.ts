@@ -6,13 +6,13 @@ describe('rsdoctor defaults', () => {
     rs.unstubAllEnvs();
   });
 
-  test('enables rsdoctor by default in production build', async () => {
+  test('does not enable rsdoctor by default in production build', async () => {
     rs.stubEnv('NODE_ENV', 'production');
 
     const { rsbuildPlugins } = await parseConfig({}, { cwd: '' });
     expect(
       rsbuildPlugins.some(plugin => plugin.name === 'builder:rsdoctor'),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test('does not enable rsdoctor by default in development mode', async () => {
@@ -81,7 +81,14 @@ describe('rsdoctor defaults', () => {
   test('defaults disableClientServer to true to avoid hanging build process', async () => {
     rs.stubEnv('NODE_ENV', 'production');
 
-    const { rsbuildPlugins } = await parseConfig({}, { cwd: '' });
+    const { rsbuildPlugins } = await parseConfig(
+      {
+        performance: {
+          rsdoctor: true,
+        },
+      },
+      { cwd: '' },
+    );
     const rsdoctorPlugin = rsbuildPlugins.find(
       plugin => plugin.name === 'builder:rsdoctor',
     );
@@ -114,7 +121,6 @@ describe('rsdoctor defaults', () => {
       {
         performance: {
           rsdoctor: {
-            enabled: true,
             disableClientServer: false,
           },
         },
