@@ -45,4 +45,41 @@ describe('SSRDataCollector (stream parity)', () => {
     expect(chunkSet.ssrScripts).not.toMatch('cookie');
     expect(chunkSet.ssrScripts).not.toMatch('x-internal-secret');
   });
+
+  it('should append router hydration script from the shared router snapshot', () => {
+    const chunkSet = {
+      renderLevel: RenderLevel.SERVER_RENDER,
+      ssrScripts: '',
+      jsChunk: '',
+      cssChunk: '',
+    };
+
+    const collector = new SSRDataCollector({
+      runtimeContext: {
+        initialData: {},
+        __i18nData__: {},
+        routerServerSnapshot: {
+          hydrationScript: '<script>window.__HYDRATE__ = "router";</script>',
+        },
+      } as any,
+      request: new Request('http://localhost/'),
+      chunkSet,
+      ssrContext: {
+        request: {
+          params: {},
+          query: {},
+          pathname: '/',
+          host: 'localhost',
+          url: 'http://localhost/',
+          headers: {},
+        },
+        reporter: { sessionId: 'session-1' },
+      } as any,
+      ssrConfig: {} as any,
+    });
+
+    collector.effect();
+
+    expect(chunkSet.ssrScripts).toContain('window.__HYDRATE__ = "router";');
+  });
 });

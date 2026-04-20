@@ -74,6 +74,7 @@ export async function buildShellBeforeTemplate(
     async function getCssChunks() {
       const {
         routeManifest,
+        routerServerSnapshot,
         routerContext,
         routes,
         tanstackMatchedModernRouteIds,
@@ -90,8 +91,12 @@ export async function buildShellBeforeTemplate(
 
       let matchedRouteManifests: RouteManifest[] | undefined = undefined;
 
-      if (tanstackMatchedModernRouteIds?.length) {
-        matchedRouteManifests = tanstackMatchedModernRouteIds
+      const matchedRouteIds =
+        routerServerSnapshot?.matchedRouteIds ||
+        tanstackMatchedModernRouteIds;
+
+      if (matchedRouteIds?.length) {
+        matchedRouteManifests = matchedRouteIds
           .map(routeId => routeAssets[routeId] as RouteManifest | undefined)
           .filter(Boolean) as RouteManifest[];
       } else if (routerContext && routes) {

@@ -56,6 +56,17 @@ export interface RouteManifest {
   routeAssets: RouteAssets;
 }
 
+export interface InternalRouterServerSnapshot {
+  statusCode?: number;
+  errors?: Record<string, unknown>;
+  routerData?: {
+    loaderData?: Record<string, unknown>;
+    errors?: Record<string, unknown>;
+  };
+  hydrationScript?: string;
+  matchedRouteIds?: string[];
+}
+
 export interface RouteAssets {
   [routeId: string]: {
     chunkIds?: (string | number)[];

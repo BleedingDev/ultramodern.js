@@ -5,6 +5,13 @@ const createScripts = (options?: {
   useJsonScript?: boolean;
   nonce?: string;
   unsafeHeaders?: string[];
+  routerServerSnapshot?: {
+    routerData?: {
+      loaderData?: Record<string, unknown>;
+      errors?: Record<string, unknown>;
+    };
+    hydrationScript?: string;
+  };
 }) => {
   const chunkSet = {
     renderLevel: RenderLevel.SERVER_RENDER,
@@ -17,6 +24,7 @@ const createScripts = (options?: {
     runtimeContext: {
       initialData: { name: 'modern.js' },
       __i18nData__: {},
+      routerServerSnapshot: options?.routerServerSnapshot,
     } as any,
     request: new Request('http://localhost/'),
     chunkSet,
@@ -66,5 +74,21 @@ describe('SSR data script generation', () => {
     expect(scripts).not.toMatch('authorization');
     expect(scripts).not.toMatch('cookie');
     expect(scripts).not.toMatch('x-internal-secret');
+  });
+
+  it('should use router snapshot data and hydration script when present', () => {
+    const scripts = createScripts({
+      routerServerSnapshot: {
+        routerData: {
+          loaderData: { route: { ok: true } },
+          errors: {},
+        },
+        hydrationScript: '<script>window.__ROUTER_SSR__ = true;</script>',
+      },
+    });
+
+    expect(scripts).toContain('window.__ROUTER_SSR__ = true;');
+    expect(scripts).toContain('loaderData');
+    expect(scripts).toContain('"ok":true');
   });
 });

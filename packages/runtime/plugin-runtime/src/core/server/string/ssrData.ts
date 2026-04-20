@@ -28,15 +28,10 @@ export class SSRDataCollector implements Collector {
   }
 
   effect() {
-    const { routerContext, chunkSet } = this.#options;
+    const { chunkSet } = this.#options;
 
     const ssrData = this.#getSSRData();
-    const routerData = routerContext
-      ? {
-          loaderData: routerContext.loaderData,
-          errors: serializeErrors(routerContext.errors),
-        }
-      : undefined;
+    const routerData = this.#getRouterData();
 
     const ssrDataScripts = this.#getSSRDataScripts(ssrData, routerData);
 
@@ -84,12 +79,33 @@ export class SSRDataCollector implements Collector {
     };
   }
 
+  #getRouterData() {
+    const { routerContext, runtimeContext } = this.#options;
+    const snapshotRouterData = runtimeContext.routerServerSnapshot?.routerData;
+
+    if (snapshotRouterData) {
+      return {
+        loaderData: snapshotRouterData.loaderData,
+        errors: serializeErrors(snapshotRouterData.errors || null),
+      };
+    }
+
+    return routerContext
+      ? {
+          loaderData: routerContext.loaderData,
+          errors: serializeErrors(routerContext.errors),
+        }
+      : undefined;
+  }
+
   #getSSRDataScripts(
     ssrData: Record<string, any>,
     routerData?: Record<string, any>,
   ) {
     const { nonce, useJsonScript = false } = this.#options;
-    const { tanstackSsrScript } = this.#options.runtimeContext;
+    const hydrationScript =
+      this.#options.runtimeContext.routerServerSnapshot?.hydrationScript ??
+      this.#options.runtimeContext.tanstackSsrScript;
     const serializeSSRData = serializeJson(ssrData);
     const attrsStr = attributesToString({ nonce });
 
@@ -104,8 +120,8 @@ export class SSRDataCollector implements Collector {
         : `\n<script${attrsStr}>window._ROUTER_DATA = ${serializedRouterData}</script>`;
     }
 
-    if (tanstackSsrScript) {
-      ssrDataScripts += `\n${tanstackSsrScript}`;
+    if (hydrationScript) {
+      ssrDataScripts += `\n${hydrationScript}`;
     }
 
     return ssrDataScripts;

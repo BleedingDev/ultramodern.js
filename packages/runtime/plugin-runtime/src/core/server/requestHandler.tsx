@@ -288,18 +288,21 @@ export const createRequestHandler: CreateRequestHandler = async (
         const beforeRenderResult = await runBeforeRender(context);
 
         // Support data loader to return `new Response` and set status code
+        const routerServerSnapshot = context.routerServerSnapshot;
+        const routerStatusCode =
+          routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
         if (
-          context.routerContext?.statusCode &&
-          context.routerContext?.statusCode !== 200
+          routerStatusCode &&
+          routerStatusCode !== 200
         ) {
-          context.ssrContext?.response.status(
-            context.routerContext?.statusCode,
-          );
+          context.ssrContext?.response.status(routerStatusCode);
         }
 
         // log error by monitors when data loader throw error
         const errors = Object.values(
-          (context.routerContext?.errors || {}) as Record<string, Error>,
+          (routerServerSnapshot?.errors ||
+            context.routerContext?.errors ||
+            {}) as Record<string, Error>,
         );
         if (errors.length > 0) {
           options.onError(errors[0], SSRErrors.LOADER_ERROR);

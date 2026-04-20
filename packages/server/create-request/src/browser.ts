@@ -2,6 +2,12 @@ import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
 import { executeWithResilience } from './transport';
+import {
+  BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS,
+  BFF_ENVELOPE_HEADER as ENVELOPE_HEADER,
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER as OPERATION_CONTEXT_DETAIL_HEADER,
+  BFF_OPERATION_CONTEXT_HEADER as OPERATION_CONTEXT_HEADER,
+} from './types';
 import type {
   AllowCrossOriginEnvelope,
   BFFRequestPayload,
@@ -32,17 +38,8 @@ const realOperationContract: Map<string, OperationContractOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
 const isEmptyDomain = (domain?: string) =>
   typeof domain !== 'string' || domain.trim() === '';
-const ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
-const OPERATION_CONTEXT_HEADER = 'x-operation-id';
-const OPERATION_CONTEXT_DETAIL_HEADER = 'x-modernjs-bff-operation-context';
 const TRACEPARENT_HEADER = 'traceparent';
 const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
-const DEFAULT_PROTECTED_IDENTITY_HEADERS = [
-  'x-tenant-id',
-  'x-subject-id',
-  'x-user-id',
-  'x-operation-id',
-];
 const readProcessEnv = (key: string) => {
   if (
     typeof process === 'undefined' ||
@@ -468,7 +465,8 @@ export const createRequest: RequestCreator = ((
       const identityBindingStrict =
         identityBinding?.strict ?? isSecuredRequestId(requestId);
       const protectedIdentityHeaders = (
-        identityBinding?.protectedHeaders || DEFAULT_PROTECTED_IDENTITY_HEADERS
+        identityBinding?.protectedHeaders ||
+        BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS
       ).map(header => header.toLowerCase());
 
       if (identityBindingEnabled) {

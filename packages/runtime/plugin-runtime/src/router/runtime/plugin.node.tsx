@@ -5,6 +5,7 @@ import {
 } from '@modern-js/runtime-utils/node';
 import { createStaticHandler } from '@modern-js/runtime-utils/router';
 import {
+  type StaticHandlerContext,
   StaticRouterProvider,
   createStaticRouter,
 } from '@modern-js/runtime-utils/router';
@@ -37,7 +38,10 @@ import {
   handleRSCRedirect,
   prepareRSCRoutes,
 } from './rsc-router';
-import type { RouterConfig } from './types';
+import type {
+  InternalRouterServerSnapshot,
+  RouterConfig,
+} from './types';
 import { createRouteObjectsFromConfig, renderRoutes, urlJoin } from './utils';
 
 function createRemixReuqest(request: Request) {
@@ -50,6 +54,24 @@ function createRemixReuqest(request: Request) {
     headers,
     signal: controller.signal,
   });
+}
+
+function createRouterServerSnapshot(
+  routerContext: StaticHandlerContext,
+): InternalRouterServerSnapshot {
+  const matchedRouteIds = routerContext.matches
+    .map(match => match.route.id)
+    .filter((routeId): routeId is string => typeof routeId === 'string');
+
+  return {
+    statusCode: routerContext.statusCode,
+    errors: routerContext.errors as Record<string, unknown> | undefined,
+    routerData: {
+      loaderData: routerContext.loaderData,
+      errors: routerContext.errors as Record<string, unknown> | undefined,
+    },
+    matchedRouteIds,
+  };
 }
 
 export const routerPlugin = (
@@ -195,6 +217,10 @@ export const routerPlugin = (
           payload = createServerPayload(routerContext, routes);
           setServerPayload(payload);
         }
+
+        context.routerServerSnapshot = createRouterServerSnapshot(
+          routerContext,
+        );
 
         // private api, pass to React Component in `wrapRoot`
         Object.defineProperty(context, 'routes', {

@@ -1,13 +1,14 @@
-const DEFAULT_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
-const DEFAULT_OPERATION_CONTEXT_HEADER = 'x-operation-id';
-const DEFAULT_OPERATION_CONTEXT_DETAIL_HEADER =
-  'x-modernjs-bff-operation-context';
-const DEFAULT_DENY_STATUS = 403;
+import {
+  BFF_ENVELOPE_HEADER,
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
+  BFF_OPERATION_CONTEXT_HEADER,
+} from '../../../create-request/src/types';
+import type {
+  CrossProjectOperationContract,
+  CrossProjectPolicyViolation,
+} from '../../../create-request/src/types';
 
-type CrossProjectOperationContract = {
-  schemaHash?: string;
-  operationVersion?: number;
-};
+const DEFAULT_DENY_STATUS = 403;
 
 export interface CrossProjectPolicyConfig {
   enabled?: boolean;
@@ -23,27 +24,6 @@ export interface CrossProjectPolicyConfig {
   expectedOperationContracts?: Record<string, CrossProjectOperationContract>;
   allowUnknownOperations?: boolean;
   denyStatus?: number;
-}
-
-export interface CrossProjectPolicyViolation {
-  code: 'BFF_CROSS_PROJECT_POLICY_DENIED';
-  reason:
-    | 'missing_envelope'
-    | 'invalid_envelope'
-    | 'missing_request_id'
-    | 'namespace_not_allowed'
-    | 'missing_operation_context'
-    | 'operation_context_mismatch'
-    | 'missing_operation_context_details'
-    | 'invalid_operation_context_details'
-    | 'operation_context_details_request_id_mismatch'
-    | 'missing_operation_schema_hash'
-    | 'missing_operation_version'
-    | 'unknown_operation_contract'
-    | 'operation_schema_hash_mismatch'
-    | 'operation_version_mismatch';
-  message: string;
-  status: number;
 }
 
 const normalizeHeaderName = (
@@ -115,15 +95,15 @@ export const evaluateCrossProjectPolicy = (
   const allowUnknownOperations = policy.allowUnknownOperations ?? false;
   const envelopeHeader = normalizeHeaderName(
     policy.envelopeHeader,
-    DEFAULT_ENVELOPE_HEADER,
+    BFF_ENVELOPE_HEADER,
   );
   const operationContextHeader = normalizeHeaderName(
     policy.operationContextHeader,
-    DEFAULT_OPERATION_CONTEXT_HEADER,
+    BFF_OPERATION_CONTEXT_HEADER,
   );
   const operationContextDetailHeader = normalizeHeaderName(
     policy.operationContextDetailHeader,
-    DEFAULT_OPERATION_CONTEXT_DETAIL_HEADER,
+    BFF_OPERATION_CONTEXT_DETAIL_HEADER,
   );
 
   const envelopeRaw = readHeader(headers, envelopeHeader);

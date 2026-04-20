@@ -1,5 +1,16 @@
 import type { HttpMethodDecider } from '@modern-js/types';
 
+export const BFF_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
+export const BFF_OPERATION_CONTEXT_HEADER = 'x-operation-id';
+export const BFF_OPERATION_CONTEXT_DETAIL_HEADER =
+  'x-modernjs-bff-operation-context';
+export const BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS = [
+  'x-tenant-id',
+  'x-subject-id',
+  'x-user-id',
+  BFF_OPERATION_CONTEXT_HEADER,
+] as const;
+
 export type BFFRequestPayload = {
   params?: Record<string, any>;
   query?: Record<string, any>;
@@ -124,6 +135,34 @@ export type OperationContractViolation = {
   method?: string;
   schemaHash?: string;
   operationVersion?: number;
+};
+
+export type CrossProjectOperationContract = {
+  schemaHash?: string;
+  operationVersion?: number;
+};
+
+export type CrossProjectPolicyViolationReason =
+  | 'missing_envelope'
+  | 'invalid_envelope'
+  | 'missing_request_id'
+  | 'namespace_not_allowed'
+  | 'missing_operation_context'
+  | 'operation_context_mismatch'
+  | 'missing_operation_context_details'
+  | 'invalid_operation_context_details'
+  | 'operation_context_details_request_id_mismatch'
+  | 'missing_operation_schema_hash'
+  | 'missing_operation_version'
+  | 'unknown_operation_contract'
+  | 'operation_schema_hash_mismatch'
+  | 'operation_version_mismatch';
+
+export type CrossProjectPolicyViolation = {
+  code: 'BFF_CROSS_PROJECT_POLICY_DENIED';
+  reason: CrossProjectPolicyViolationReason;
+  message: string;
+  status: number;
 };
 
 export type OperationContractOptions = {

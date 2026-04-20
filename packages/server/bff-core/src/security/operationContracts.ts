@@ -20,7 +20,7 @@ export type OperationContractDefinition = {
 
 export type OperationContractMap = Record<string, OperationContractDefinition>;
 
-const DEFAULT_OPERATION_VERSION = 1;
+export const DEFAULT_OPERATION_VERSION = 1;
 
 type ModuleOperationEntry = OperationContractEntry & {
   filename?: string;

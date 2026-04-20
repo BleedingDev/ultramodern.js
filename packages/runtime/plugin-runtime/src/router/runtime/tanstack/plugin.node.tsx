@@ -9,6 +9,7 @@ import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
 import {
+  type AnyRouter,
   RouterProvider,
   createMemoryHistory,
   createRouter,
@@ -24,7 +25,10 @@ import {
 } from '../../../core/context';
 import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import type { RouterExtendsHooks } from '../hooks';
-import type { RouterConfig } from '../types';
+import type {
+  InternalRouterServerSnapshot,
+  RouterConfig,
+} from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import {
@@ -80,6 +84,31 @@ function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
         children: stripSyntheticNotFoundRoute(route.children),
       };
     });
+}
+
+function collectRouterErrors(
+  tanstackRouter: AnyRouter,
+): Record<string, unknown> | undefined {
+  const matches = Array.isArray((tanstackRouter as any).state?.matches)
+    ? (tanstackRouter as any).state.matches
+    : [];
+  const errors = matches.reduce((acc: Record<string, unknown>, match: any) => {
+    if (!match?.error) {
+      return acc;
+    }
+
+    const routeId =
+      typeof match.routeId === 'string'
+        ? match.routeId
+        : typeof match.route?.id === 'string'
+          ? match.route.id
+          : `match-${Object.keys(acc).length}`;
+
+    acc[routeId] = match.error;
+    return acc;
+  }, {});
+
+  return Object.keys(errors).length > 0 ? errors : undefined;
 }
 
 export const tanstackRouterPlugin = (
@@ -206,10 +235,21 @@ export const tanstackRouterPlugin = (
         const ssrScriptTag = (
           tanstackRouter as any
         ).serverSsr?.takeBufferedScripts?.();
+        const matchedRouteIds = getModernRouteIdsFromMatches(
+          tanstackRouter as any,
+        );
+        const routerServerSnapshot: InternalRouterServerSnapshot = {
+          statusCode: tanstackRouter.state.statusCode,
+          errors: collectRouterErrors(tanstackRouter as any),
+          matchedRouteIds,
+          hydrationScript: routerManagedTagToHtml(ssrScriptTag),
+        };
+        (context as TInternalRuntimeContext).routerServerSnapshot =
+          routerServerSnapshot;
         (context as TInternalRuntimeContext).tanstackSsrScript =
-          routerManagedTagToHtml(ssrScriptTag);
+          routerServerSnapshot.hydrationScript;
         (context as TInternalRuntimeContext).tanstackMatchedModernRouteIds =
-          getModernRouteIdsFromMatches(tanstackRouter as any);
+          matchedRouteIds;
         (context as TInternalRuntimeContext).tanstackRouter =
           tanstackRouter as any;
       });

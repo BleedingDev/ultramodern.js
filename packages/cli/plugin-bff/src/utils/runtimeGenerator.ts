@@ -80,30 +80,35 @@ async function runtimeGenerator({
   await fs.ensureFile(pluginPath);
   await fs.writeFile(pluginPath, source);
 
-  const tsSource = `type IOptions<F = typeof fetch> = {
-    request?: F;
-    interceptor?: (request: F) => F;
-    allowedHeaders?: string[];
-    requireEnvelope?: boolean;
-    allowCrossOriginEnvelope?: boolean;
-    identityBinding?: {
-      enabled?: boolean;
-      strict?: boolean;
-      protectedHeaders?: string[];
-    };
-    operationContract?: {
-      enabled?: boolean;
-      strict?: boolean;
-      requireSchemaHash?: boolean;
-      requireOperationVersion?: boolean;
-    };
-    setDomain?: (ops?: {
-      target: 'node' | 'browser';
-      requestId: string;
-    }) => string;
-    requestId?: string;
-  };
-  export declare const initProducerClient: (options: IOptions) => void;
+  const tsSource = `type ProducerRuntimeModule = typeof import(${runtimeImportPath});
+  type ProducerClientOptions = ProducerRuntimeModule extends {
+    configure: (options: infer TOptions) => unknown;
+  }
+    ? TOptions
+    : {
+        request?: typeof fetch;
+        interceptor?: (request: typeof fetch) => typeof fetch;
+        allowedHeaders?: string[];
+        requireEnvelope?: boolean;
+        allowCrossOriginEnvelope?: boolean;
+        identityBinding?: {
+          enabled?: boolean;
+          strict?: boolean;
+          protectedHeaders?: string[];
+        };
+        operationContract?: {
+          enabled?: boolean;
+          strict?: boolean;
+          requireSchemaHash?: boolean;
+          requireOperationVersion?: boolean;
+        };
+        setDomain?: (ops?: {
+          target: 'server' | 'browser';
+          requestId?: string;
+        }) => string;
+        requestId?: string;
+      };
+  export declare const initProducerClient: (options: ProducerClientOptions) => void;
   export declare const configure: typeof initProducerClient;`;
   const pluginTypePath = path.join(pluginDir, 'index.d.ts');
   await fs.ensureFile(pluginTypePath);

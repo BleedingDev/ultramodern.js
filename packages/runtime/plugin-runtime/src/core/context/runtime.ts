@@ -4,7 +4,10 @@ import type { BaseSSRServerContext } from '@modern-js/types';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
 import type { AnyRouter } from '@tanstack/react-router';
 import { createContext, useContext } from 'react';
-import type { RouteManifest } from '../../router/runtime/types';
+import type {
+  InternalRouterServerSnapshot,
+  RouteManifest,
+} from '../../router/runtime/types';
 import type { RequestContext, SSRServerContext } from '../types';
 
 export interface TRuntimeContext {
@@ -24,6 +27,7 @@ export interface TRuntimeContext {
  */
 export interface TInternalRuntimeContext extends TRuntimeContext {
   routeManifest?: RouteManifest;
+  routerServerSnapshot?: InternalRouterServerSnapshot;
   routerContext?: StaticHandlerContext;
   /**
    * TanStack Router instance (when `router.framework === 'tanstack'`).

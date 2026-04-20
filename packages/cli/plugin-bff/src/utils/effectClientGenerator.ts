@@ -1,5 +1,9 @@
-import { createHash } from 'crypto';
 import path from 'path';
+import {
+  DEFAULT_OPERATION_VERSION,
+  createOperationEntries,
+  createOperationSchemaHash,
+} from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, compatibleRequire, findExists, logger } from '@modern-js/utils';
 
@@ -16,8 +20,6 @@ const JS_OR_TS_EXTS = [
 
 const DEFAULT_REQUEST_CREATOR = '@modern-js/plugin-bff/client';
 const DEFAULT_DATA_PLATFORM_IMPORT = '@modern-js/plugin-bff/data-platform';
-const DEFAULT_OPERATION_VERSION = 1;
-
 type EffectEndpointMeta = {
   apiId: string;
   groupName: string;
@@ -153,36 +155,6 @@ function getPackageName(appDir: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function createEffectOperationSchemaHash(
-  endpoints: EffectEndpointMeta[],
-  requestId: string,
-) {
-  const operationEntries = endpoints
-    .map(endpoint => ({
-      name: endpoint.endpointName,
-      httpMethod: endpoint.method.toUpperCase(),
-      routePath: endpoint.routePath,
-    }))
-    .sort((a, b) => {
-      const keyA = `${a.routePath}:${a.httpMethod}:${a.name}`;
-      const keyB = `${b.routePath}:${b.httpMethod}:${b.name}`;
-      return keyA.localeCompare(keyB);
-    });
-
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        operations: operationEntries.map(item => ({
-          name: item.name,
-          httpMethod: item.httpMethod,
-          routePath: item.routePath,
-        })),
-        requestId,
-      }),
-    )
-    .digest('hex');
 }
 
 async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
@@ -336,9 +308,18 @@ function renderEffectClientCode(
       ? packageName || process.env.npm_package_name
       : undefined;
   const normalizedRequestId = requestId || 'default';
-  const operationVersion = DEFAULT_OPERATION_VERSION;
-  const schemaHash = createEffectOperationSchemaHash(
-    endpoints,
+  const operationVersion =
+    typeof DEFAULT_OPERATION_VERSION === 'number'
+      ? DEFAULT_OPERATION_VERSION
+      : 1;
+  const schemaHash = createOperationSchemaHash(
+    createOperationEntries(
+      endpoints.map(endpoint => ({
+        name: endpoint.endpointName,
+        httpMethod: endpoint.method,
+        routePath: endpoint.routePath,
+      })),
+    ),
     normalizedRequestId,
   );
   const batchConfig = options.dataPlatformBatch;

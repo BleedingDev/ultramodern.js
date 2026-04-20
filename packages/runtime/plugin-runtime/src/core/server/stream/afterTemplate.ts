@@ -114,9 +114,11 @@ function createReplaceSSRData(options: {
     ? `<script type="application/json" id="${SSR_DATA_JSON_ID}">${serializeSSRData}</script>`
     : `<script${attrsStr}>window._SSR_DATA = ${serializeSSRData}</script>`;
 
-  const tanstackSsrScript = runtimeContext.tanstackSsrScript;
-  const ssrScripts = tanstackSsrScript
-    ? `${ssrDataScript}\n${tanstackSsrScript}`
+  const hydrationScript =
+    runtimeContext.routerServerSnapshot?.hydrationScript ??
+    runtimeContext.tanstackSsrScript;
+  const ssrScripts = hydrationScript
+    ? `${ssrDataScript}\n${hydrationScript}`
     : ssrDataScript;
 
   return (template: string) =>

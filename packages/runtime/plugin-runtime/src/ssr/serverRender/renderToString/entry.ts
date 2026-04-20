@@ -135,13 +135,18 @@ export default class Entry {
       return '';
     }
 
-    const { routerContext } = context;
-    const routerData = routerContext
+    const { routerContext, routerServerSnapshot } = context;
+    const routerData = routerServerSnapshot?.routerData
       ? {
-          loaderData: routerContext.loaderData,
-          errors: serializeErrors(routerContext.errors),
+          loaderData: routerServerSnapshot.routerData.loaderData,
+          errors: serializeErrors(routerServerSnapshot.routerData.errors),
         }
-      : undefined;
+      : routerContext
+        ? {
+            loaderData: routerContext.loaderData,
+            errors: serializeErrors(routerContext.errors),
+          }
+        : undefined;
 
     const templateData = buildTemplateData(
       ssrContext,

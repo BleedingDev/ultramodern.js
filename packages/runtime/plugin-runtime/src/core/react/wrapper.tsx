@@ -16,6 +16,7 @@ export function wrapRuntimeContextProvider(
     routes,
     context,
     routeManifest,
+    routerServerSnapshot,
     routerContext,
     unstable_getBlockNavState,
     ssrContext,

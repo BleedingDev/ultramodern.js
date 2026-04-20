@@ -126,6 +126,7 @@ describe('plugin-bff regressions', () => {
       expect(runtimeCode).toContain('const configure = initProducerClient;');
       expect(runtimeCode).toMatch(/requestId:\s*['"]runtime-app['"]/);
       expect(runtimeTypes).toContain('initProducerClient');
+      expect(runtimeTypes).toContain('typeof import("@modern-js/plugin-bff/client")');
       expect(runtimeTypes).toContain(
         'export declare const configure: typeof initProducerClient;',
       );
