@@ -263,7 +263,7 @@ const ssrBuilderPlugin = (
       const userConfig = modernAPI.getNormalizedConfig();
       const hasServerRendering = hasServerRenderingConfig(userConfig);
       const hasModuleFederationRuntimeMarker =
-        shouldUseModuleFederationNodeOutput(config);
+        hasServerRendering && shouldUseModuleFederationNodeOutput(config);
       const hasExplicitMfSsrFlag = isModuleFederationAppSSREnabled(userConfig);
       const requireExplicitMfSsrFlag =
         process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT === 'true';
@@ -283,14 +283,11 @@ const ssrBuilderPlugin = (
         // eslint-disable-next-line no-console
         console.warn(warningMessage);
       }
-      const isModuleFederationAppSSR =
-        hasServerRendering &&
-        (hasExplicitMfSsrFlag || hasModuleFederationRuntimeMarker);
+      const isModuleFederationAppSSR = hasServerRendering && hasExplicitMfSsrFlag;
       const useModuleFederationNodeOutput =
         hasServerRendering &&
-        (hasModuleFederationRuntimeMarker ||
-          (isModuleFederationAppSSR &&
-            isNodeEnvironmentTarget(config.output.target)));
+        isModuleFederationAppSSR &&
+        isNodeEnvironmentTarget(config.output.target);
 
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =

@@ -156,21 +156,20 @@ function applyProfile({
 
 const isRsdoctorEnabled = (
   config: RsdoctorConfig | undefined,
-  defaultEnabled: boolean,
 ) => {
-  if (config === undefined) {
-    return defaultEnabled;
-  }
-
   if (typeof config === 'boolean') {
     return config;
   }
 
-  if (typeof config.enabled === 'boolean') {
-    return config.enabled;
+  if (config && typeof config === 'object') {
+    if (typeof config.enabled === 'boolean') {
+      return config.enabled;
+    }
+
+    return true;
   }
 
-  return defaultEnabled;
+  return false;
 };
 
 const getRsdoctorPluginOptions = (
@@ -226,9 +225,8 @@ export const builderPluginPerformance = (): DefaultBuilderPlugin => ({
       }
 
       const rsdoctorConfig = api.getNormalizedConfig().performance.rsdoctor;
-      const isProd = process.env.NODE_ENV === 'production';
 
-      if (!isRsdoctorEnabled(rsdoctorConfig, isProd)) {
+      if (!isRsdoctorEnabled(rsdoctorConfig)) {
         return;
       }
 

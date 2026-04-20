@@ -31,7 +31,6 @@ export function createDefaultConfig(
     cleanDistPath: true,
     enableInlineRouteManifests: true,
     disableInlineRouteManifests: false,
-    precompress: true,
   };
 
   const source: AppUserConfig['source'] & {

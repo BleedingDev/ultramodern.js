@@ -5,7 +5,7 @@ title: runtimeFramework
 # bff.runtimeFramework
 
 - **类型：** `'hono' | 'effect'`
-- **默认值：** `'effect'`
+- **默认值：** `'hono'`
 
 import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 
@@ -25,3 +25,4 @@ export default defineConfig({
 - 设置为 `'hono'` 时，仅从 `api/lambda/**` 的文件约定处理函数运行 BFF。
 
 两种运行时之间没有隐式回退，应用需要显式选择其一。
+如果需要优先使用 Effect 的 stronger-default 配置，请在应用中显式设置，或使用 create 模板提供的 Effect 脚手架路径。

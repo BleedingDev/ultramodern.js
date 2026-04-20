@@ -107,7 +107,7 @@ describe('plugins/performance', () => {
     expect(chain.profile).toHaveBeenCalledWith(true);
   });
 
-  it('should enable rsdoctor by default in production rspack build', async () => {
+  it('should not enable rsdoctor by default in production rspack build', async () => {
     const { onBeforeCreateCompilerCb } = createPluginApi({});
     const bundlerConfigs: Array<Record<string, unknown>> = [{}];
     const { NODE_ENV } = process.env;
@@ -119,13 +119,7 @@ describe('plugins/performance', () => {
 
     process.env.NODE_ENV = NODE_ENV;
 
-    const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
-      options?: unknown;
-    };
-    expect(bundlerConfigs[0].plugins).toHaveLength(2);
-    expect(rsdoctorPlugin.options).toEqual({
-      disableClientServer: true,
-    });
+    expect(bundlerConfigs[0].plugins).toBeUndefined();
   });
 
   it('should not enable rsdoctor by default in development build', async () => {
@@ -165,6 +159,34 @@ describe('plugins/performance', () => {
     expect(bundlerConfigs[0].plugins).toHaveLength(2);
     expect(rsdoctorPlugin.options).toEqual({
       disableClientServer: true,
+    });
+  });
+
+  it('should enable rsdoctor when configured with options object', async () => {
+    const { onBeforeCreateCompilerCb } = createPluginApi({
+      performance: {
+        rsdoctor: {
+          mode: 'brief',
+        },
+      },
+    });
+    const bundlerConfigs: Array<Record<string, unknown>> = [{}];
+    const { NODE_ENV } = process.env;
+    process.env.NODE_ENV = 'development';
+
+    await onBeforeCreateCompilerCb?.({
+      bundlerConfigs,
+    });
+
+    process.env.NODE_ENV = NODE_ENV;
+
+    const rsdoctorPlugin = bundlerConfigs[0].plugins?.[0] as {
+      options?: unknown;
+    };
+    expect(bundlerConfigs[0].plugins).toHaveLength(2);
+    expect(rsdoctorPlugin.options).toEqual({
+      disableClientServer: true,
+      mode: 'brief',
     });
   });
 
@@ -259,7 +281,11 @@ describe('plugins/performance', () => {
   });
 
   it('should emit diagnostics contract artifact', async () => {
-    const { onBeforeCreateCompilerCb } = createPluginApi({});
+    const { onBeforeCreateCompilerCb } = createPluginApi({
+      performance: {
+        rsdoctor: true,
+      },
+    });
     const bundlerConfigs: Array<Record<string, unknown>> = [{}];
     const { NODE_ENV } = process.env;
     process.env.NODE_ENV = 'production';

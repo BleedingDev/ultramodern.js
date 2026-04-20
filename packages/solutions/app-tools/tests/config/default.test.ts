@@ -1,7 +1,7 @@
 import { createDefaultConfig } from '../../src/config/default';
 
 describe('create default config', () => {
-  it('should enable precompress by default', () => {
+  it('should leave precompress unset in core defaults', () => {
     const config = createDefaultConfig({
       metaName: 'modern-js',
       internalDirAlias: '@_modern_internal',
@@ -11,6 +11,6 @@ describe('create default config', () => {
       sharedDirectory: '/tmp/shared',
     } as any);
 
-    expect(config.output?.precompress).toBe(true);
+    expect(config.output?.precompress).toBeUndefined();
   });
 });

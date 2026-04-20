@@ -74,11 +74,11 @@ const resolvePrecompressConfig = (
   normalizedConfig: AppNormalizedConfig,
 ): PrecompressConfig | false => {
   const precompress = normalizedConfig.output.precompress;
-  if (precompress === false) {
+  if (precompress === false || precompress === undefined) {
     return false;
   }
 
-  if (precompress === true || precompress === undefined) {
+  if (precompress === true) {
     return {};
   }
 
