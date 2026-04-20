@@ -13,6 +13,11 @@ import {
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
 const appDir = path.resolve(__dirname, '../');
+const ensureWorkspacePackages = [
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/server-utils',
+];
 const buildDoneMarker = /(?:^|\n)File \((?:client|server)\)\s+/i;
 dns.setDefaultResultOrder('ipv4first');
 
@@ -67,7 +72,9 @@ describe('in dev', () => {
 
   beforeAll(async () => {
     port = await getPort();
-    app = await launchApp(appDir, port);
+    app = await launchApp(appDir, port, {
+      ensureWorkspacePackages,
+    });
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
     await waitForApiInfoReady(host, port);
@@ -122,6 +129,7 @@ describe('in prod', () => {
       stdout: false,
       stderr: false,
       marker: buildDoneMarker,
+      ensureWorkspacePackages,
     });
 
     app = await modernServe(appDir, port, {});

@@ -1,4 +1,4 @@
-import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import path from 'path';
 import type { ServerRoute } from '@modern-js/types';
 import {
@@ -56,19 +56,68 @@ export const getTemplatePath = (file: string) =>
 export const readTemplate = async (file: string) =>
   (await fse.readFile(getTemplatePath(file))).toString();
 
-export const resolveESMDependency = async (entry: string) => {
-  const conditions = new Set(['node', 'import', 'module', 'default']);
+const localRequire = createRequire(path.join(__dirname, 'package.json'));
 
+const findNearestPackageJson = (resolvedEntry: string) => {
+  let currentDir = path.dirname(resolvedEntry);
+
+  while (currentDir !== path.dirname(currentDir)) {
+    const manifestPath = path.join(currentDir, 'package.json');
+    if (fse.existsSync(manifestPath)) {
+      return manifestPath;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+};
+
+const splitPackageSpecifier = (entry: string) => {
+  const segments = entry.split('/');
+
+  if (entry.startsWith('@')) {
+    const [scope, name, ...rest] = segments;
+    return {
+      packageName: `${scope}/${name}`,
+      exportKey: rest.length > 0 ? `./${rest.join('/')}` : '.',
+    };
+  }
+
+  const [name, ...rest] = segments;
+  return {
+    packageName: name,
+    exportKey: rest.length > 0 ? `./${rest.join('/')}` : '.',
+  };
+};
+
+export const resolveESMDependency = async (entry: string) => {
   try {
-    const { moduleResolve } = await import('import-meta-resolve');
-    return normalizePath(
-      moduleResolve(
-        entry,
-        pathToFileURL(`${__dirname}/`),
-        conditions,
-        false,
-      ).pathname.replace(/^\/(\w)\:/, '$1:'),
+    const { packageName, exportKey } = splitPackageSpecifier(entry);
+    const resolvedEntry = localRequire.resolve(entry);
+    const packageJsonPath = findNearestPackageJson(
+      localRequire.resolve(packageName),
     );
+
+    if (!packageJsonPath) {
+      return normalizePath(resolvedEntry);
+    }
+
+    const packageDir = path.dirname(packageJsonPath);
+    const packageJson = fse.readJSONSync(packageJsonPath) as {
+      exports?: Record<string, any>;
+    };
+    const exportConfig = packageJson.exports?.[exportKey];
+
+    if (typeof exportConfig === 'string') {
+      return normalizePath(path.join(packageDir, exportConfig));
+    }
+
+    const esmExportPath =
+      exportConfig?.node?.import || exportConfig?.import || exportConfig?.default;
+
+    if (typeof esmExportPath === 'string') {
+      return normalizePath(path.join(packageDir, esmExportPath));
+    }
+
+    return normalizePath(resolvedEntry);
   } catch (err) {
     // ignore
   }

@@ -1,13 +1,197 @@
 const path = require('path');
+const fs = require('node:fs');
 const net = require('node:net');
 const spawn = require('cross-spawn');
 const treeKill = require('tree-kill');
 const { launchOptions } = require('./launchOptions');
 
+const kRepoRoot = path.join(__dirname, '../..');
+const kTestsRoot = path.join(__dirname, '..');
 const kModernAppTools = path.join(
   __dirname,
   '../node_modules/@modern-js/app-tools/bin/modern.js',
 );
+const kWorkspacePackageBuilds = new Map();
+
+function getNewestModifiedAt(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return 0;
+  }
+
+  const stat = fs.statSync(targetPath);
+  if (!stat.isDirectory()) {
+    return stat.mtimeMs;
+  }
+
+  let newestModifiedAt = stat.mtimeMs;
+  const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.name === 'dist' || entry.name === 'node_modules') {
+      continue;
+    }
+
+    const entryPath = path.join(targetPath, entry.name);
+    newestModifiedAt = Math.max(
+      newestModifiedAt,
+      getNewestModifiedAt(entryPath),
+    );
+  }
+
+  return newestModifiedAt;
+}
+
+function resolveWorkspacePackageInfo(packageName) {
+  const resolvedEntryPath = require.resolve(packageName, {
+    paths: [kTestsRoot],
+  });
+  let packageDir = fs.realpathSync(path.dirname(resolvedEntryPath));
+  let packageJsonPath = path.join(packageDir, 'package.json');
+
+  while (!fs.existsSync(packageJsonPath)) {
+    const parentDir = path.dirname(packageDir);
+    if (parentDir === packageDir) {
+      throw new Error(`Failed to locate package.json for ${packageName}`);
+    }
+    packageDir = parentDir;
+    packageJsonPath = path.join(packageDir, 'package.json');
+  }
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+  return {
+    packageDir,
+    packageJson,
+  };
+}
+
+function resolvePackageDistEntry(packageDir, packageJson) {
+  if (packageJson.main) {
+    return path.join(packageDir, packageJson.main);
+  }
+
+  const rootExport = packageJson.exports?.['.'];
+  if (typeof rootExport === 'string') {
+    return path.join(packageDir, rootExport);
+  }
+  if (rootExport?.node?.require) {
+    return path.join(packageDir, rootExport.node.require);
+  }
+  if (rootExport?.default) {
+    return path.join(packageDir, rootExport.default);
+  }
+
+  return path.join(packageDir, 'dist/cjs/index.js');
+}
+
+function shouldRefreshWorkspacePackageBuild(packageDir, packageJson) {
+  if (!packageDir.includes(`${path.sep}packages${path.sep}`)) {
+    return false;
+  }
+
+  const distEntry = resolvePackageDistEntry(packageDir, packageJson);
+  if (!fs.existsSync(distEntry)) {
+    return true;
+  }
+
+  const watchedEntries = [
+    'src',
+    'bin',
+    'package.json',
+    'tsconfig.json',
+    'rslib.config.ts',
+    'rslib.config.js',
+  ];
+
+  const newestSourceModifiedAt = watchedEntries.reduce((latest, entry) => {
+    return Math.max(latest, getNewestModifiedAt(path.join(packageDir, entry)));
+  }, 0);
+
+  return fs.statSync(distEntry).mtimeMs < newestSourceModifiedAt;
+}
+
+function runProcess(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const instance = spawn(command, args, {
+      cwd: options.cwd,
+      env: {
+        ...process.env,
+        ...(options.env || {}),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    instance.stdout.on('data', chunk => {
+      stdout += chunk;
+      if (options.stdout) {
+        process.stdout.write(chunk);
+      }
+    });
+
+    instance.stderr.on('data', chunk => {
+      stderr += chunk;
+      if (options.stderr) {
+        process.stderr.write(chunk);
+      }
+    });
+
+    instance.on('error', error => {
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    });
+
+    instance.on('close', code => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+
+      const detail = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
+      const message = detail
+        ? `${command} ${args.join(' ')} failed with code ${code}.\n${detail}`
+        : `${command} ${args.join(' ')} failed with code ${code}.`;
+      const error = new Error(message);
+      error.code = code;
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    });
+  });
+}
+
+function ensureWorkspacePackageBuilt(packageName) {
+  if (!kWorkspacePackageBuilds.has(packageName)) {
+    const buildPromise = (async () => {
+      const { packageDir, packageJson } = resolveWorkspacePackageInfo(packageName);
+
+      if (!shouldRefreshWorkspacePackageBuild(packageDir, packageJson)) {
+        return;
+      }
+
+      await runProcess(
+        'pnpm',
+        ['--dir', packageDir, 'exec', 'rslib', 'build', '--no-dts'],
+        {
+          cwd: kRepoRoot,
+        },
+      );
+    })();
+
+    kWorkspacePackageBuilds.set(packageName, buildPromise);
+  }
+
+  return kWorkspacePackageBuilds.get(packageName);
+}
+
+async function ensureWorkspacePackagesBuilt(packageNames = []) {
+  for (const packageName of packageNames) {
+    await ensureWorkspacePackageBuilt(packageName);
+  }
+}
 
 
 function runModernCommand(argv, options = {}) {
@@ -19,65 +203,69 @@ function runModernCommand(argv, options = {}) {
   };
 
   return new Promise((resolve, reject) => {
-    const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
-      ...options.spawnOptions,
-      cwd,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const launch = async () => {
+      await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
 
-    if (typeof options.instance === 'function') {
-      options.instance(instance);
-    }
-
-    let stderrOutput = '';
-    instance.stderr.on('data', chunk => {
-      stderrOutput += chunk;
-    });
-
-    let stdoutOutput = '';
-    // if (options.stdout) {
-    instance.stdout.on('data', async chunk => {
-      let { marker } = options;
-      if (cmd === 'deploy') {
-        marker = /end deploy!/i;
-      }
-      stdoutOutput += chunk;
-      const message = chunk.toString();
-
-      const compileErrorMarker = /Compile error/i;
-
-      if (
-        cmd === 'build' &&
-        rejectOnCompileError &&
-        compileErrorMarker.test(message)
-      ) {
-        reject(new Error(message));
-      }
-
-      if (marker?.test(stdoutOutput)) {
-        resolve({
-          code: 0,
-          stdout: stdoutOutput,
-        });
-        await killApp(instance);
-      }
-    });
-    // }
-
-    instance.on('close', code => {
-      resolve({
-        code,
-        stdout: stdoutOutput,
-        stderr: stderrOutput,
+      const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
+        ...options.spawnOptions,
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
-    });
 
-    instance.on('error', err => {
-      err.stdout = stdoutOutput;
-      err.stderr = stderrOutput;
-      reject(err);
-    });
+      if (typeof options.instance === 'function') {
+        options.instance(instance);
+      }
+
+      let stderrOutput = '';
+      instance.stderr.on('data', chunk => {
+        stderrOutput += chunk;
+      });
+
+      let stdoutOutput = '';
+      instance.stdout.on('data', async chunk => {
+        let { marker } = options;
+        if (cmd === 'deploy') {
+          marker = /end deploy!/i;
+        }
+        stdoutOutput += chunk;
+        const message = chunk.toString();
+
+        const compileErrorMarker = /Compile error/i;
+
+        if (
+          cmd === 'build' &&
+          rejectOnCompileError &&
+          compileErrorMarker.test(message)
+        ) {
+          reject(new Error(message));
+        }
+
+        if (marker?.test(stdoutOutput)) {
+          resolve({
+            code: 0,
+            stdout: stdoutOutput,
+          });
+          await killApp(instance);
+        }
+      });
+
+      instance.on('close', code => {
+        resolve({
+          code,
+          stdout: stdoutOutput,
+          stderr: stderrOutput,
+        });
+      });
+
+      instance.on('error', err => {
+        err.stdout = stdoutOutput;
+        err.stderr = stderrOutput;
+        reject(err);
+      });
+    };
+
+    launch().catch(reject);
   });
 }
 
@@ -89,66 +277,151 @@ function runModernCommandDev(argv, stdOut, options = {}) {
   };
 
   return new Promise((resolve, reject) => {
-    const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
-      cwd,
+    const launch = async () => {
+      await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
+
+      const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
+        cwd,
+        env,
+      });
+
+      let didResolve = false;
+      let stdoutOutput = '';
+      let stderrOutput = '';
+
+      function handleStdout(data) {
+        const message = data.toString();
+        stdoutOutput += message;
+        const bootupMarkers = {
+          dev: /> Local:/i,
+          serve: /> Local:/i,
+        };
+        const compileErrorMarker = /Compile error/i;
+
+        if (rejectOnCompileError && compileErrorMarker.test(message)) {
+          if (!didResolve) {
+            didResolve = true;
+            reject(new Error(message));
+          }
+        }
+
+        if (
+          bootupMarkers[options.modernServe ? 'serve' : 'dev'].test(message)
+        ) {
+          if (!didResolve) {
+            didResolve = true;
+            resolve(stdOut ? message : instance);
+          }
+        }
+
+        if (typeof options.onStdout === 'function') {
+          options.onStdout(message);
+        }
+
+        if (stdOut !== false && options.stdout !== false) {
+          process.stdout.write(message);
+        }
+      }
+
+      instance.stdout.on('data', handleStdout);
+      instance.stderr.on('data', data => {
+        const message = data.toString();
+        stderrOutput += message;
+
+        if (typeof options.onStderr === 'function') {
+          options.onStderr(message);
+        }
+
+        const compileErrorMarker = /Compile error/i;
+        if (rejectOnCompileError && compileErrorMarker.test(message)) {
+          if (!didResolve) {
+            didResolve = true;
+            const error = new Error(message);
+            error.stdout = stdoutOutput;
+            error.stderr = stderrOutput;
+            reject(error);
+          }
+        }
+
+        if (options.stderr !== false) {
+          process.stderr.write(message);
+        }
+      });
+
+      instance.on('error', error => {
+        error.stdout = stdoutOutput;
+        error.stderr = stderrOutput;
+        reject(error);
+      });
+
+      instance.on('close', code => {
+        instance.stdout.removeListener('data', handleStdout);
+        if (!didResolve) {
+          const phase = options.modernServe ? 'serve' : 'dev';
+          const output = [stdoutOutput.trim(), stderrOutput.trim()]
+            .filter(Boolean)
+            .join('\n');
+          const detail = output ? `\n${output}` : '';
+          const exitCode = code === null ? 'unknown' : String(code);
+          const error = new Error(
+            `modern ${phase} exited before readiness marker with code ${exitCode}.${detail}`,
+          );
+          error.stdout = stdoutOutput;
+          error.stderr = stderrOutput;
+          didResolve = true;
+          reject(error);
+        }
+      });
+    };
+
+    launch().catch(reject);
+  });
+}
+
+function runContinuousTask(argv, stdOut, options = {}) {
+  const env = {
+    ...process.env,
+    ...options.env,
+  };
+  const command = options.command || process.execPath;
+  const waitMessage = options.waitMessage;
+
+  return new Promise((resolve, reject) => {
+    const instance = spawn(command, argv, {
+      cwd: options.cwd,
       env,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     let didResolve = false;
     let stdoutOutput = '';
     let stderrOutput = '';
 
-    function handleStdout(data) {
+    const tryResolve = message => {
+      if (didResolve || !waitMessage) {
+        return;
+      }
+
+      if (waitMessage.test(message)) {
+        didResolve = true;
+        resolve(stdOut ? message : instance);
+      }
+    };
+
+    instance.stdout.on('data', data => {
       const message = data.toString();
       stdoutOutput += message;
-      const bootupMarkers = {
-        dev: /> Local:/i,
-        serve: /> Local:/i,
-      };
-      const compileErrorMarker = /Compile error/i;
-
-      if (rejectOnCompileError && compileErrorMarker.test(message)) {
-        if (!didResolve) {
-          didResolve = true;
-          reject(new Error(message));
-        }
-      }
-
-      if (bootupMarkers[options.modernServe ? 'serve' : 'dev'].test(message)) {
-        if (!didResolve) {
-          didResolve = true;
-          resolve(stdOut ? message : instance);
-        }
-      }
-
-      if (typeof options.onStdout === 'function') {
-        options.onStdout(message);
-      }
+      tryResolve(stdoutOutput);
 
       if (stdOut !== false && options.stdout !== false) {
         process.stdout.write(message);
       }
-    }
+    });
 
-    instance.stdout.on('data', handleStdout);
     instance.stderr.on('data', data => {
       const message = data.toString();
       stderrOutput += message;
-
-      if (typeof options.onStderr === 'function') {
-        options.onStderr(message);
-      }
-
-      const compileErrorMarker = /Compile error/i;
-      if (rejectOnCompileError && compileErrorMarker.test(message)) {
-        if (!didResolve) {
-          didResolve = true;
-          const error = new Error(message);
-          error.stdout = stdoutOutput;
-          error.stderr = stderrOutput;
-          reject(error);
-        }
-      }
+      tryResolve(stderrOutput);
 
       if (options.stderr !== false) {
         process.stderr.write(message);
@@ -162,16 +435,14 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     });
 
     instance.on('close', code => {
-      instance.stdout.removeListener('data', handleStdout);
       if (!didResolve) {
-        const phase = options.modernServe ? 'serve' : 'dev';
         const output = [stdoutOutput.trim(), stderrOutput.trim()]
           .filter(Boolean)
           .join('\n');
         const detail = output ? `\n${output}` : '';
         const exitCode = code === null ? 'unknown' : String(code);
         const error = new Error(
-          `modern ${phase} exited before readiness marker with code ${exitCode}.${detail}`,
+          `Process exited before readiness marker with code ${exitCode}.${detail}`,
         );
         error.stdout = stdoutOutput;
         error.stderr = stderrOutput;
@@ -309,5 +580,6 @@ module.exports = {
   killApp,
   getPort,
   sleep,
+  runContinuousTask,
   launchOptions,
 };

@@ -8,6 +8,11 @@ import {
 } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');
+const ensureWorkspacePackages = [
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/server-utils',
+];
 
 async function checkAppRun(host: string) {
   // Page render
@@ -43,6 +48,7 @@ describe('deploy', () => {
         TEST_DIST: 'dist-deploy',
         TEST_BUNDLE_SERVER: 'false',
       },
+      ensureWorkspacePackages,
     });
   });
 
@@ -67,12 +73,17 @@ describe('deploy', () => {
     const staticDirectory = path.join(outputDirectory, 'static');
     const htmlDirectory = path.join(outputDirectory, 'html');
     const apiFile = path.join(outputDirectory, 'api/lambda/index.js');
+    const apiInfoFile = path.join(outputDirectory, 'api/lambda/info.js');
     const bootstrapPath = path.join(outputDirectory, 'index.js');
 
     expect(await fse.pathExists(staticDirectory)).toBe(true);
     expect(await fse.pathExists(htmlDirectory)).toBe(true);
     expect(await fse.pathExists(apiFile)).toBe(true);
+    expect(await fse.pathExists(apiInfoFile)).toBe(true);
     expect(await fse.pathExists(bootstrapPath)).toBe(true);
+    expect(await fse.readFile(apiInfoFile, 'utf8')).toContain(
+      'from "../service/user.js"',
+    );
 
     // check server run
     const port = await getPort();
