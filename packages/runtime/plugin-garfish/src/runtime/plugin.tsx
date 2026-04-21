@@ -5,7 +5,10 @@ import React from 'react';
 import { logger } from '../util';
 import { applyMfEntryCachePolicy } from './cachePolicy';
 import { validateRuntimeCompatibility } from './compatibility';
-import { emitErrorFallbackTelemetry } from './fallbackTelemetry';
+import {
+  emitErrorFallbackTelemetry,
+  inferFallbackPhase,
+} from './fallbackTelemetry';
 import { enforceRemoteTrustPolicy } from './trust';
 import type {
   Config,
@@ -235,7 +238,7 @@ export default (config: Config): Plugin => ({
                 emitErrorFallbackTelemetry(
                   {
                     error,
-                    phase: 'bootstrap',
+                    phase: inferFallbackPhase(error, 'bootstrap'),
                     metadata: {
                       source: 'plugin-garfish:init',
                     },

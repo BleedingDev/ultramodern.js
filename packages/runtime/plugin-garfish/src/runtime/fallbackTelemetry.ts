@@ -59,6 +59,33 @@ export function inferFallbackReason(error: unknown): MfFallbackReason {
   return 'runtime_init_failed';
 }
 
+export function inferFallbackPhase(
+  error: unknown,
+  defaultPhase: MfFallbackEvent['phase'] = 'bootstrap',
+): MfFallbackEvent['phase'] {
+  if (error instanceof RuntimeCompatibilityError) {
+    return 'compatibility';
+  }
+
+  if (error instanceof RemoteTrustPolicyError) {
+    switch (error.issue.reason) {
+      case 'integrity_missing':
+      case 'integrity_invalid_format':
+      case 'integrity_fetch_failed':
+      case 'integrity_timeout':
+      case 'integrity_verification_unavailable':
+      case 'integrity_mismatch':
+      case 'attestation_missing':
+      case 'attestation_mismatch':
+        return 'integrity';
+      default:
+        return defaultPhase;
+    }
+  }
+
+  return defaultPhase;
+}
+
 export function createFallbackEvent(
   baseEvent: Omit<MfFallbackEvent, 'timestamp'>,
 ): MfFallbackEvent {

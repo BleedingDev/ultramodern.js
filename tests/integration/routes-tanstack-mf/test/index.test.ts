@@ -141,6 +141,80 @@ function createTraceparent() {
   };
 }
 
+async function assertEffectLocalePropagation(
+  page: Page,
+  hostPort: number,
+  remotePort: number,
+  errors: string[],
+) {
+  const initialErrorCount = errors.length;
+  const acceptLanguage = 'zh-CN,zh;q=0.9';
+
+  await page.goto(`http://localhost:${hostPort}/mf`, {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+
+  const trace = createTraceparent();
+  const runResult = (await page.evaluate(
+    input =>
+      fetch('/host-api/effect/trace/reset', {
+        method: 'POST',
+      }).then(resetHost =>
+        fetch(
+          `http://localhost:${input.remotePort}/remote-api/effect/trace/reset`,
+          {
+            method: 'POST',
+          },
+        ).then(resetRemote =>
+          fetch('/host-api/effect/trace/run', {
+            method: 'GET',
+            headers: {
+              traceparent: input.traceparent,
+              'accept-language': input.acceptLanguage,
+            },
+          }).then(runResponse =>
+            runResponse.json().then(runBody => ({
+              resetHostStatus: resetHost.status,
+              resetRemoteStatus: resetRemote.status,
+              runStatus: runResponse.status,
+              runBody,
+            })),
+          ),
+        ),
+      ),
+    {
+      traceparent: trace.traceparent,
+      acceptLanguage,
+      remotePort,
+    },
+  )) as {
+    resetHostStatus: number;
+    resetRemoteStatus: number;
+    runStatus: number;
+    runBody: {
+      status?: 'ok';
+      remoteStatus?: 'ok';
+      traceparent?: string;
+      locale?: string;
+      remoteLocale?: string;
+    };
+  };
+
+  expect(runResult.resetHostStatus).toBe(200);
+  expect(runResult.resetRemoteStatus).toBe(200);
+  expect(runResult.runStatus).toBe(200);
+  expect(runResult.runBody).toEqual({
+    status: 'ok',
+    traceparent: trace.traceparent,
+    remoteStatus: 'ok',
+    locale: acceptLanguage,
+    remoteLocale: acceptLanguage,
+  });
+
+  expect(errors.slice(initialErrorCount)).toEqual([]);
+}
+
 async function waitForTraceSpans(
   url: string,
   expectedNames: string[],
@@ -658,6 +732,10 @@ describe('routes-tanstack-mf', () => {
       errors,
     );
   });
+
+  test('propagates accept-language through host -> remote effect trace run', async () => {
+    await assertEffectLocalePropagation(page, HOST_PORT, REMOTE_PORT, errors);
+  });
 });
 
 describe('routes-tanstack-mf serve mode', () => {
@@ -747,5 +825,9 @@ describe('routes-tanstack-mf serve mode', () => {
       REMOTE_PORT,
       errors,
     );
+  });
+
+  test('propagates accept-language through host -> remote effect trace run in serve mode', async () => {
+    await assertEffectLocalePropagation(page, HOST_PORT, REMOTE_PORT, errors);
   });
 });

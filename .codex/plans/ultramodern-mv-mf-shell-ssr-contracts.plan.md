@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: ummsc-03
     content: Expose fallback and degradation hooks plus observable status telemetry at the shell and vertical boundary.
-    status: pending
+    status: in_progress
   - id: ummsc-04
     content: Extend integration coverage for timeout, network, compatibility mismatch, locale and trace propagation, and SSR fallback behavior.
-    status: pending
+    status: in_progress
 isProject: false
 ---
 

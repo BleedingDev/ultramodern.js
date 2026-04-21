@@ -70,6 +70,7 @@ const greetingsLayer = HttpApiBuilder.group(
     const handledTraceChild = handledHello.handle(
       'traceChild',
       ({ headers, request }) => {
+        const locale = request.headers['accept-language'] ?? undefined;
         const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
           onNone: () => undefined,
           onSome: value => value,
@@ -87,6 +88,7 @@ const greetingsLayer = HttpApiBuilder.group(
           return {
             status: 'ok' as const,
             traceparent: headers.traceparent,
+            ...(locale ? { locale } : {}),
           };
         }).pipe(
           Effect.withSpan('mf.remote.trace.run', {

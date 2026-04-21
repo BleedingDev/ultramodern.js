@@ -1,6 +1,7 @@
 import { RuntimeCompatibilityError } from '../src/runtime/compatibility';
 import {
   emitFallbackTelemetry,
+  inferFallbackPhase,
   inferFallbackReason,
 } from '../src/runtime/fallbackTelemetry';
 import { RemoteTrustPolicyError } from '../src/runtime/trust';
@@ -24,6 +25,9 @@ describe('fallback telemetry contract', () => {
     expect(inferFallbackReason(new RuntimeCompatibilityError(issue))).toBe(
       'runtime_incompatible',
     );
+    expect(inferFallbackPhase(new RuntimeCompatibilityError(issue))).toBe(
+      'compatibility',
+    );
   });
 
   test('maps trust integrity mismatch to integrity_mismatch reason', () => {
@@ -36,6 +40,7 @@ describe('fallback telemetry contract', () => {
     });
 
     expect(inferFallbackReason(error)).toBe('integrity_mismatch');
+    expect(inferFallbackPhase(error)).toBe('integrity');
   });
 
   test('maps trust origin isolation violations to origin_isolation_violation reason', () => {
@@ -48,6 +53,7 @@ describe('fallback telemetry contract', () => {
     });
 
     expect(inferFallbackReason(error)).toBe('origin_isolation_violation');
+    expect(inferFallbackPhase(error)).toBe('bootstrap');
   });
 
   test('maps trust attestation mismatch to attestation_mismatch reason', () => {

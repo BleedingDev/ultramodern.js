@@ -30,6 +30,7 @@ export const remoteEffectApi = HttpApi.make('RemoteEffectApi').add(
         success: Schema.Struct({
           status: Schema.Literal('ok'),
           traceparent: Schema.optional(Schema.String),
+          locale: Schema.optional(Schema.String),
         }),
       }),
     )

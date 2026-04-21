@@ -206,3 +206,38 @@
   - blocker: full contract suite in this workspace lacks built `dist` fixtures for the manifest assertions
   - status: completed
   - next action: `ummsc-02` is explicit in generated TanStack route metadata; remaining MF shell work moves to `ummsc-03` and `ummsc-04`
+- `mf-shell-telemetry-scout`
+  - agent_id: `019dafc9-b09a-7ba3-b5eb-75acf2c23807`
+  - owner: `Helmholtz`
+  - write scope: read-only scout for `ummsc-03` fallback/degradation hooks and observable telemetry
+  - blocker: none
+  - status: completed and closed
+  - next action: confirmed `ummsc-03` still needs a narrow runtime/test slice in `plugin-garfish`
+- `mf-shell-coverage-scout`
+  - agent_id: `019dafc9-b20e-78f3-a00b-43c918f1bf72`
+  - owner: `Noether`
+  - write scope: read-only scout for `ummsc-04` coverage gaps across MF integration and runtime tests
+  - blocker: none
+  - status: completed and closed
+  - next action: narrowed `ummsc-04` to locale propagation plus explicit SSR placeholder assertions; compatibility mismatch still needs separate fixture plumbing
+- `mf-shell-locale-coverage-worker`
+  - agent_id: `019dafcc-13c2-7f03-b239-8e056d2c1f7f`
+  - owner: `Hooke`
+  - write scope: `tests/integration/routes-tanstack-mf/mf-host/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/mf-remote/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-remote/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/test/index.test.ts`
+  - blocker: none
+  - status: closed after drift correction
+  - next action: useful locale propagation changes were integrated locally; accidental `router.gen.ts` drift was restored locally to the landed `ummsc-02` contract before verification
+- `helm-local-mf-telemetry-hardening`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/runtime/plugin-garfish/src/runtime/plugin.tsx`, `packages/runtime/plugin-garfish/src/runtime/fallbackTelemetry.ts`, `packages/runtime/plugin-garfish/tests/fallbackTelemetry.test.ts`, `packages/runtime/plugin-garfish/tests/reliabilityMatrix.test.ts`, `packages/runtime/plugin-garfish/tests/runtimePlugin.test.tsx`
+  - blocker: package-local browser-style test execution in this checkout still fails module resolution for `debug` and `react`; source-vs-dist drift around `src/runtime/utils/Context.tsx` was repaired locally, but call-site verification remains limited by runner wiring
+  - status: in progress
+  - next action: keep `ummsc-03` open while phase mapping stays landed in source and `reliabilityMatrix.test.ts` is green; return for browser/runtime call-site verification once plugin-garfish runner wiring is repaired
+- `helm-local-mf-coverage-integration`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `tests/integration/routes-tanstack-mf/mf-host/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/mf-remote/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-remote/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/test/index.test.ts`
+  - blocker: compatibility mismatch still lacks dedicated fixture plumbing; the attempted SSR placeholder extension was disproven by live HTML output and was not kept
+  - status: in progress
+  - next action: locale propagation coverage is green in dev and serve mode; remaining `ummsc-04` gap is compatibility mismatch coverage at the integration boundary

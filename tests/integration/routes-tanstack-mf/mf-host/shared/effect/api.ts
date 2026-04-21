@@ -31,6 +31,8 @@ export const hostEffectApi = HttpApi.make('HostEffectApi').add(
           status: Schema.Literal('ok'),
           traceparent: Schema.optional(Schema.String),
           remoteStatus: Schema.Literal('ok'),
+          locale: Schema.optional(Schema.String),
+          remoteLocale: Schema.optional(Schema.String),
         }),
       }),
     )

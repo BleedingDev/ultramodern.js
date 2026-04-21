@@ -1,19 +1,24 @@
 import { createHash } from 'crypto';
-import type { ModulesInfo, RemoteTrustIssue } from '../src/runtime';
-import { RuntimeCompatibilityError } from '../src/runtime';
-import { validateRuntimeCompatibility } from '../src/runtime/compatibility';
+import {
+  RuntimeCompatibilityError,
+  validateRuntimeCompatibility,
+} from '../src/runtime/compatibility';
 import { inferFallbackReason } from '../src/runtime/fallbackTelemetry';
 import {
   RemoteTrustPolicyError,
   enforceRemoteTrustPolicy,
 } from '../src/runtime/trust';
+import type {
+  ModulesInfo,
+  RemoteTrustIssue,
+} from '../src/runtime/useModuleApps';
 
 describe('mf reliability matrix', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
     global.fetch = originalFetch;
-    jest.restoreAllMocks();
+    rstest.restoreAllMocks();
   });
 
   test('digest mismatch fails fast and maps to runtime_incompatible fallback', () => {
@@ -42,7 +47,9 @@ describe('mf reliability matrix', () => {
   });
 
   test('integrity verification reports network failures', async () => {
-    global.fetch = jest.fn().mockRejectedValue(new Error('network failed'));
+    global.fetch = rstest
+      .fn()
+      .mockRejectedValue(new Error('network failed')) as typeof fetch;
     const payload = 'remote entry payload';
     const digest = createHash('sha256').update(payload).digest('base64');
 
@@ -75,7 +82,7 @@ describe('mf reliability matrix', () => {
   });
 
   test('integrity verification reports timeout failures', async () => {
-    global.fetch = jest.fn((_url, init?: RequestInit) => {
+    global.fetch = rstest.fn((_url, init?: RequestInit) => {
       return new Promise((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => {
           const abortError = new Error('timeout');
@@ -83,7 +90,7 @@ describe('mf reliability matrix', () => {
           reject(abortError);
         });
       });
-    }) as any;
+    }) as typeof fetch;
 
     let thrown: unknown;
     try {
@@ -145,5 +152,44 @@ describe('mf reliability matrix', () => {
       reason: 'origin_not_allowed',
       origin: 'https://bad-origin.example.com',
     });
+  });
+
+  test('compatibility warn mode surfaces onIncompatible without throwing', () => {
+    const issues: Array<{
+      appName: string;
+      hostDigest: string;
+      remoteDigest?: string;
+      reason: string;
+    }> = [];
+
+    expect(() => {
+      validateRuntimeCompatibility(
+        [
+          {
+            name: 'dashboard',
+            entry: 'https://remote.example.com/dashboard/remoteEntry.js',
+            runtimeDigest: 'remote-v2',
+          },
+        ] as ModulesInfo,
+        {
+          policy: {
+            hostDigest: 'host-v1',
+            mode: 'warn',
+            onIncompatible: issue => {
+              issues.push(issue);
+            },
+          },
+        },
+      );
+    }).not.toThrow();
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        appName: 'dashboard',
+        hostDigest: 'host-v1',
+        remoteDigest: 'remote-v2',
+        reason: 'digest_mismatch',
+      }),
+    ]);
   });
 });

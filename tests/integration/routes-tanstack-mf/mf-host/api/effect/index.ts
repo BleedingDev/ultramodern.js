@@ -108,6 +108,7 @@ const greetingsLayer = HttpApiBuilder.group(
       'traceRun',
       ({ headers, request }) => {
         const incomingTrace = parseTraceparent(headers.traceparent);
+        const locale = request.headers['accept-language'] ?? undefined;
         const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
           onNone: () => undefined,
           onSome: value => value,
@@ -140,11 +141,15 @@ const greetingsLayer = HttpApiBuilder.group(
             const syntheticTraceparent = incomingTrace
               ? `00-${incomingTrace.traceId}-${syntheticHostRemoteCallSpanId}-01`
               : undefined;
-            const requestHeaders = syntheticTraceparent
-              ? { traceparent: syntheticTraceparent }
-              : traceparent
-                ? { traceparent }
-                : undefined;
+            const requestHeaders: Record<string, string> = {};
+            if (syntheticTraceparent) {
+              requestHeaders.traceparent = syntheticTraceparent;
+            } else if (traceparent) {
+              requestHeaders.traceparent = traceparent;
+            }
+            if (locale) {
+              requestHeaders['accept-language'] = locale;
+            }
 
             return yield* Effect.promise(() =>
               fetch(`${remoteOrigin}/remote-api/effect/trace/child`, {
@@ -165,14 +170,21 @@ const greetingsLayer = HttpApiBuilder.group(
           }
 
           const remoteBody = yield* Effect.promise(
-            () => remoteResponse.json() as Promise<{ status?: 'ok' }>,
+            () =>
+              remoteResponse.json() as Promise<{
+                status?: 'ok';
+                locale?: string;
+              }>,
           );
           const remoteStatus = remoteBody.status ?? 'ok';
+          const remoteLocale = remoteBody.locale;
 
           return {
             status: 'ok' as const,
             traceparent: headers.traceparent,
             remoteStatus,
+            ...(locale ? { locale } : {}),
+            ...(remoteLocale ? { remoteLocale } : {}),
           };
         }).pipe(
           Effect.withSpan('mf.host.trace.run', {
