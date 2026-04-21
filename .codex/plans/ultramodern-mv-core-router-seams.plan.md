@@ -4,7 +4,7 @@ overview: Expose router-agnostic runtime seams required for TanStack-first SSR a
 todos:
   - id: umcrs-01
     content: Freeze a router-neutral target contract for router creation, SSR load and dehydrate, hydration bootstrap, redirects, notFound, and matched-route asset ownership.
-    status: in_progress
+    status: completed
   - id: umcrs-02
     content: Add lifecycle hooks around router creation and SSR hydration so TanStack and React Router paths can be swapped without hidden framework internals.
     status: pending

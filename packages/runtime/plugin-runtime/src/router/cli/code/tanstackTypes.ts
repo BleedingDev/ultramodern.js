@@ -77,6 +77,29 @@ function isIndexRoute(route: NestedRouteForCli | PageRoute) {
   return (route as any).type === 'nested' && Boolean((route as any).index);
 }
 
+function createRouteStaticDataSnippet(opts: {
+  modernRouteId?: string;
+  loaderName?: string | null;
+}) {
+  const staticDataLines: string[] = [];
+
+  if (opts.modernRouteId) {
+    staticDataLines.push(`modernRouteId: ${quote(opts.modernRouteId)},`);
+  }
+
+  if (opts.loaderName) {
+    staticDataLines.push(`modernRouteLoader: ${opts.loaderName},`);
+  }
+
+  if (!staticDataLines.length) {
+    return null;
+  }
+
+  return `staticData: createRouteStaticData({\n    ${staticDataLines.join(
+    '\n    ',
+  )}\n  }),`;
+}
+
 export async function isTanstackRouterFrameworkEnabled(
   appContext: AppToolsContext,
 ): Promise<boolean> {
@@ -212,6 +235,14 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       );
     }
 
+    const staticDataSnippet = createRouteStaticDataSnippet({
+      modernRouteId: (route as any).id as string | undefined,
+      loaderName,
+    });
+    if (staticDataSnippet) {
+      routeOpts.push(staticDataSnippet);
+    }
+
     statements.push(
       `const ${varName} = createRoute({\n  ${routeOpts.join('\n  ')}\n});`,
     );
@@ -301,6 +332,23 @@ function mapParamsForModernLoader(params: Record<string, string>, hasSplat: bool
   return rest;
 }
 
+function createRouteStaticData(opts: {
+  modernRouteId?: string;
+  modernRouteLoader?: unknown;
+}) {
+  const staticData: Record<string, unknown> = {};
+
+  if (opts.modernRouteId) {
+    staticData.modernRouteId = opts.modernRouteId;
+  }
+
+  if (opts.modernRouteLoader) {
+    staticData.modernRouteLoader = opts.modernRouteLoader;
+  }
+
+  return Object.keys(staticData).length > 0 ? staticData : undefined;
+}
+
 function modernLoaderToTanstack<TLoader extends (args: any) => any>(
   opts: { hasSplat: boolean },
   modernLoader: TLoader,
@@ -366,6 +414,10 @@ ${imports.join('\n')}
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   ${rootOpts.join('\n  ')}
+  ${createRouteStaticDataSnippet({
+    modernRouteId: (rootModern as any)?.id as string | undefined,
+    loaderName: rootLoaderName,
+  }) || ''}
 });
 
 ${statements.join('\n\n')}

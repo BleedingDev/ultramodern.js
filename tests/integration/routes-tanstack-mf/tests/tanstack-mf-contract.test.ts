@@ -79,8 +79,10 @@ describe('tanstack + module federation contracts', () => {
       'integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts',
     );
 
+    expect(code).toContain('function createRouteStaticData');
     expect(code).toContain('function modernLoaderToTanstack');
     expect(code).toContain('throwTanstackRedirect(location)');
+    expect(code).toContain('throw notFound();');
     expect(code).toContain('route_mf_page');
     expect(code).toContain('path: "mf"');
     expect(code).toContain('createMemoryHistory');
@@ -88,5 +90,8 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain('const baseRequest: Request | undefined =');
     expect(code).toContain('requestContext?: unknown;');
     expect(code).toContain('context: ctx?.context?.requestContext');
+    expect(code).toContain('staticData: createRouteStaticData({');
+    expect(code).toContain('modernRouteId: "mf-page"');
+    expect(code).toContain('modernRouteLoader: loader_1');
   });
 });

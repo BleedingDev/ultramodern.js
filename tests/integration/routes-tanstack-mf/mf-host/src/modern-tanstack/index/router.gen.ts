@@ -51,6 +51,23 @@ function mapParamsForModernLoader(params: Record<string, string>, hasSplat: bool
   return rest;
 }
 
+function createRouteStaticData(opts: {
+  modernRouteId?: string;
+  modernRouteLoader?: unknown;
+}) {
+  const staticData: Record<string, unknown> = {};
+
+  if (opts.modernRouteId) {
+    staticData.modernRouteId = opts.modernRouteId;
+  }
+
+  if (opts.modernRouteLoader) {
+    staticData.modernRouteLoader = opts.modernRouteLoader;
+  }
+
+  return Object.keys(staticData).length > 0 ? staticData : undefined;
+}
+
 function modernLoaderToTanstack<TLoader extends (args: any) => any>(
   opts: { hasSplat: boolean },
   modernLoader: TLoader,
@@ -117,17 +134,28 @@ import { loader as loader_1 } from "../../routes/mf/page.data";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
+  staticData: createRouteStaticData({
+    modernRouteId: "layout",
+    modernRouteLoader: loader_0,
+  }),
 });
 
 const route_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  staticData: createRouteStaticData({
+    modernRouteId: "page",
+  }),
 });
 
 const route_mf_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "mf",
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
+  staticData: createRouteStaticData({
+    modernRouteId: "mf-page",
+    modernRouteLoader: loader_1,
+  }),
 });
 
 export const routeTree = rootRoute.addChildren([route_page, route_mf_page]);

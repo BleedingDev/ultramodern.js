@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ummsc-02
     content: Define route ownership, loader context, redirect, and notFound handoff rules between shell and vertical remotes for TanStack-first SSR.
-    status: pending
+    status: completed
   - id: ummsc-03
     content: Expose fallback and degradation hooks plus observable status telemetry at the shell and vertical boundary.
     status: pending

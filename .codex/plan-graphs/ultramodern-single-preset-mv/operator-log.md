@@ -162,8 +162,8 @@
   - owner: `Codex`
   - write scope: `packages/server/create-request/src/types.ts`, `packages/server/create-request/src/node.ts`, `packages/server/create-request/src/browser.ts`, `packages/server/bff-core/src/security/crossProjectPolicy.ts`
   - blocker: none
-  - status: in progress, canonical primitives and generator/runtime alignment patches verified
-  - next action: keep `umebc-02` open for downstream propagation/runtime slices while router lane advances in parallel
+  - status: completed
+  - next action: foundation BFF contract seam is stable; remaining work moves to `umebc-03` and `umebc-04`
 - `bff-contract-consumer-rescout`
   - agent_id: `019dad30-7bee-7102-8092-c5a906190965`
   - owner: `Nash`
@@ -183,5 +183,26 @@
   - owner: `Codex`
   - write scope: `packages/runtime/plugin-runtime/src/router/runtime/types.ts`, `packages/runtime/plugin-runtime/src/core/context/runtime.ts`, `packages/runtime/plugin-runtime/src/router/runtime/plugin.node.tsx`, `packages/runtime/plugin-runtime/src/router/runtime/tanstack/plugin.node.tsx`, `packages/runtime/plugin-runtime/src/core/server/requestHandler.tsx`, `packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts`, `packages/runtime/plugin-runtime/src/core/server/stream/beforeTemplate.ts`, `packages/runtime/plugin-runtime/src/core/server/stream/afterTemplate.ts`, `packages/runtime/plugin-runtime/src/core/react/wrapper.tsx`, and owned SSR/router tests
   - blocker: none
-  - status: in progress
-  - next action: land the first router-neutral SSR snapshot contract before touching hooks or MF shell SSR surfaces
+  - status: completed
+  - next action: initial router-neutral SSR snapshot contract is stable; remaining router work moves to `umcrs-02`, `umcrs-03`, and `umcrs-04`
+- `mf-shell-ssr-contract-scout`
+  - agent_id: `019daecd-14bc-7bd0-b6f9-9e24c567d3e6`
+  - owner: `Boyle`
+  - write scope: read-only scout for `ummsc-02` handoff contract gap
+  - blocker: none
+  - status: completed and closed
+  - next action: partially superseded by a narrower generated-route contract slice
+- `mf-shell-ssr-contract-rescout`
+  - agent_id: `019daed6-2933-7592-a6a6-90e8976d518b`
+  - owner: `Sagan`
+  - write scope: read-only scout for the smallest `ummsc-02` write set
+  - blocker: none
+  - status: completed and closed
+  - next action: consumed into local TanStack generator metadata patching and MF contract assertions
+- `helm-local-mf-shell-contract`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/runtime/plugin-runtime/src/router/cli/code/tanstackTypes.ts`, `tests/integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts`, `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts`
+  - blocker: full contract suite in this workspace lacks built `dist` fixtures for the manifest assertions
+  - status: completed
+  - next action: `ummsc-02` is explicit in generated TanStack route metadata; remaining MF shell work moves to `ummsc-03` and `ummsc-04`

@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: umebc-02
     content: Define one stable request, envelope, runtime-compatibility, and error contract shared by shell, remotes, and independent microservices.
-    status: in_progress
+    status: completed
   - id: umebc-03
     content: Expose stable request, identity, locale, and trace propagation APIs for generated clients and Module Federation boundaries.
     status: pending
