@@ -1,11 +1,11 @@
-name: Uniform Baseline Gates
+name: Ultramodern Gates
 
 on:
   push:
   pull_request:
 
 jobs:
-  baseline-gates:
+  ultramodern-gates:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,9 +23,8 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Validate Baseline Contract
-        run: pnpm run baseline:check
+      - name: Validate Ultramodern Contract
+        run: pnpm run ultramodern:check
 
       - name: Build
         run: pnpm run build
-

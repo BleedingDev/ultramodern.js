@@ -31,7 +31,7 @@ npx @modern-js/create@latest myapp --tailwind
 npx @modern-js/create@latest myapp --router tanstack --tailwind
 ```
 
-初始化默认 Effect 运行时的 BFF 模板：
+初始化当前默认运行时的 BFF 模板：
 
 ```bash
 npx @modern-js/create@latest myapp --bff
@@ -103,6 +103,9 @@ npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --work
 
 当启用 `--tailwind` 时，项目根目录会额外生成 `postcss.config.mjs` 和 `tailwind.config.ts`。
 
-当启用 `--bff`（默认 Effect 运行时）或 `--bff-runtime effect` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
+当启用 `--bff` 或 `--bff-runtime effect` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
 当启用 `--bff-runtime hono` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/lambda/hello.ts`，并将 `bff.runtimeFramework` 设置为 `hono`。
 当启用 `--workspace` 时，`@modern-js/*` 依赖会使用 `workspace:*` 版本，便于本地 monorepo 联调。
+
+如果你需要公开的 UltraModern 预设路径，请从生成的
+`presetUltramodern(...)` 脚手架开始，再显式选择运行时分支。

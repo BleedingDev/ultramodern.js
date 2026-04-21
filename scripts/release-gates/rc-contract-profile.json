@@ -266,7 +266,7 @@
         "id": "audit-context-trace-propagation-contract",
         "path": "packages/server/create-request/src/node.ts",
         "includes": [
-          "x-modernjs-bff-operation-context",
+          "OPERATION_CONTEXT_DETAIL_HEADER",
           "traceparent",
           "traceId",
           "spanId"
@@ -282,54 +282,84 @@
         ]
       },
       {
-        "id": "stronger-default-public-doc-contract",
+        "id": "ultramodern-public-doc-contract",
         "path": "packages/document/docs/en/guides/get-started/ultramodern.mdx",
         "includes": [
-          "stronger-default Modern.js profile",
+          "public `presetUltramodern(...)` Modern.js profile",
           "without forking Modern.js into a separate framework",
-          "generated starter baseline also ships `.github/workflows/uniform-baseline-gates.yml`",
-          "Starter baseline enforcement"
+          "generated starter also ships `.github/workflows/ultramodern-gates.yml`",
+          "Starter preset enforcement"
         ]
       },
       {
-        "id": "stronger-default-starter-readme-contract",
+        "id": "ultramodern-starter-readme-contract",
         "path": "packages/toolkit/create/template/README.md",
         "includes": [
-          "# Modern.js with Stronger Defaults",
+          "# Modern.js `presetUltramodern` Starter",
           "pnpm dev",
-          ".github/workflows/uniform-baseline-gates.yml",
-          "pnpm run baseline:check"
+          ".github/workflows/ultramodern-gates.yml",
+          "pnpm run ultramodern:check"
         ]
       },
       {
-        "id": "stronger-default-template-workflow-contract",
-        "path": "packages/toolkit/create/template/.github/workflows/uniform-baseline-gates.yml.handlebars",
+        "id": "ultramodern-template-workflow-contract",
+        "path": "packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars",
         "includes": [
-          "Uniform Baseline Gates",
-          "pnpm run baseline:check",
+          "Ultramodern Gates",
+          "pnpm run ultramodern:check",
           "pnpm run build"
         ]
       },
       {
-        "id": "stronger-default-sandpack-starter-contract",
+        "id": "ultramodern-sandpack-starter-contract",
         "path": "packages/toolkit/sandpack-react/src/templates/mwa.ts",
         "includes": [
-          "stronger-default Modern.js baseline",
-          "Stronger Defaults",
-          "pnpm run baseline:check",
-          ".github/workflows/uniform-baseline-gates.yml"
+          "presetUltramodern(...)",
+          "presetUltramodern",
+          "pnpm run ultramodern:check",
+          ".github/workflows/ultramodern-gates.yml"
+        ]
+      },
+      {
+        "id": "ultramodern-create-readme-contract",
+        "path": "packages/toolkit/create/README.md",
+        "includes": [
+          "current default runtime",
+          "presetUltramodern(...)",
+          "--bff-runtime effect",
+          "--bff-runtime hono"
+        ]
+      },
+      {
+        "id": "ultramodern-init-app-doc-contract",
+        "path": "packages/document/docs/en/components/init-app.mdx",
+        "includes": [
+          "current default runtime",
+          "presetUltramodern(...)",
+          "--bff-runtime effect",
+          "--bff-runtime hono"
+        ]
+      },
+      {
+        "id": "ultramodern-bff-runtime-framework-doc-contract",
+        "path": "packages/document/docs/en/configure/app/bff/runtime-framework.mdx",
+        "includes": [
+          "public UltraModern preset",
+          "api/effect/index",
+          "api/lambda/**",
+          "Choose one runtime mode per app."
         ]
       }
     ]
   },
   "gateCommands": [
-    "pnpm --filter @scripts/vitest-config... run build",
-    "pnpm --filter @modern-js/builder test -- tests/plugins/performance.test.ts",
+    "pnpm --dir packages/cli/builder exec rstest run tests/plugins/performance.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/create-request test",
     "pnpm --filter @modern-js/bff-core test",
     "pnpm --filter @modern-js/plugin-express test",
     "pnpm --filter @modern-js/plugin-koa test",
-    "pnpm exec rstest run -c packages/runtime/plugin-garfish/rstest.config.mts packages/runtime/plugin-garfish/tests/reliabilityMatrix.test.ts packages/runtime/plugin-garfish/tests/compatibility.test.ts packages/runtime/plugin-garfish/tests/trust.test.ts packages/runtime/plugin-garfish/tests/cachePolicy.test.ts packages/runtime/plugin-garfish/tests/fallbackTelemetry.test.ts --passWithNoTests",
+    "pnpm --dir packages/solutions/app-tools exec rstest run tests/index.test.ts tests/baseline.test.ts tests/presetUltramodern.test.ts --passWithNoTests",
+    "pnpm exec rstest run -c packages/runtime/plugin-garfish/rstest.config.mts packages/runtime/plugin-garfish/tests/reliabilityMatrix.test.ts packages/runtime/plugin-garfish/tests/compatibility.test.ts packages/runtime/plugin-garfish/tests/trust.test.ts packages/runtime/plugin-garfish/tests/cachePolicy.test.ts packages/runtime/plugin-garfish/tests/fallbackTelemetry.test.ts packages/runtime/plugin-garfish/tests/runtimePlugin.test.tsx --passWithNoTests",
     "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
     "pnpm --filter @modern-js/prod-server test -- telemetry.test.ts runtimeSignals.test.ts runtimeFallbackWorkerLane.test.ts",
     "pnpm run validate:mcp-cli-parity",

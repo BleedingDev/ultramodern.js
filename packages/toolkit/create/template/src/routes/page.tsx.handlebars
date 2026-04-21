@@ -32,13 +32,13 @@ const Index = () => {
             src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/modern-js-logo.svg"
             alt="Modern.js Logo"
           />
-          <p className="name">Stronger Defaults</p>
+          <p className="name">presetUltramodern</p>
         </div>
         <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          This starter ships a stronger-default Modern.js baseline. Start in
+          This starter ships the public <code className="code">presetUltramodern(...)</code> profile. Start in
           <code className="code">modern.config.ts</code>, keep
-          <code className="code">pnpm run baseline:check</code> green, and opt
-          out only where your app needs a softer lane.
+          <code className="code">pnpm run ultramodern:check</code> green, and
+          tune the generated preset only where your app needs a softer lane.
         </p>
 {{#if useEffectBff}}
         <p className="description effect-message{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
@@ -53,14 +53,14 @@ const Index = () => {
             className="card"
           >
             <h2>
-              Stronger Defaults
+              presetUltramodern Guide
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Guide"
               />
             </h2>
-            <p>Review the MV-first, TanStack-ready, Effect-ready baseline profile.</p>
+            <p>Review the MV-first, TanStack-ready, Effect-ready public preset.</p>
           </a>
           <a
             href="https://modernjs.dev/en/configure/app/usage.html"
@@ -69,7 +69,7 @@ const Index = () => {
             rel="noreferrer"
           >
             <h2>
-              Configure Baseline
+              Configure presetUltramodern
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
@@ -79,20 +79,20 @@ const Index = () => {
             <p>Tune the generated defaults in <code className="code">modern.config.ts</code>.</p>
           </a>
           <a
-            href="https://github.com/web-infra-dev/modern.js/blob/main/packages/toolkit/create/template/.github/workflows/uniform-baseline-gates.yml.handlebars"
+            href="https://github.com/web-infra-dev/modern.js/blob/main/packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars"
             target="_blank"
             className="card"
             rel="noreferrer"
           >
             <h2>
-              Baseline Gates
+              Ultramodern Gates
               <img
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
                 alt="Config"
               />
             </h2>
-            <p>The starter includes a PR workflow for <code className="code">baseline:check</code> and build.</p>
+            <p>The starter includes a PR workflow for <code className="code">ultramodern:check</code> and build.</p>
           </a>
           <a
             href="https://modernjs.dev/en/configure/app/bff/effect.html"

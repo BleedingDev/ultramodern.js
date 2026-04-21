@@ -255,3 +255,24 @@
   - blocker: none
   - status: completed
   - next action: `presetUltramodern(...)` is now the public opinionated starter entrypoint via a thin wrapper over the existing baseline helper while `withAppBaseline(...)` stays as a compatibility alias; remaining rollout work moves to docs, release-gate, and certification evidence surfaces under `uspr-03` and `uspr-04`
+- `preset-rollout-template-scout`
+  - agent_id: `019db24e-aa5a-7e71-acdd-3ef24e1ab8a8`
+  - owner: `Bernoulli`
+  - write scope: starter template and workflow public-surface audit for `uspr-03`
+  - blocker: subagent returned no useful work before repeated heartbeat timeouts
+  - status: stalled and closed
+  - next action: superseded by local helm implementation using the existing rollout contract
+- `preset-rollout-docs-scout`
+  - agent_id: `019db24e-a878-7221-9130-5247df4f9ca5`
+  - owner: `Erdos`
+  - write scope: docs, release-gate, and certification surface audit for `uspr-03` and `uspr-04`
+  - blocker: subagent returned no useful work before repeated heartbeat timeouts
+  - status: stalled and closed
+  - next action: superseded by local helm implementation using the existing rollout contract
+- `helm-local-preset-rollout-surfaces`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `.github/workflows/release-contract-gates.yml`, `packages/document/docs/**/components/init-app.mdx`, `packages/document/docs/**/configure/app/bff/runtime-framework.mdx`, `packages/document/docs/**/guides/get-started/ultramodern.mdx`, `packages/document/main-doc/docs/**/guides/get-started/ultramodern.mdx`, `packages/toolkit/create/README.md`, `packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars`, `packages/toolkit/create/template/package.json.handlebars`, `packages/toolkit/create/template/scripts/validate-ultramodern.mjs.handlebars`, `packages/toolkit/create/template/src/routes/page.tsx.handlebars`, `packages/toolkit/sandpack-react/src/templates/mwa.ts`, `scripts/release-gates/README.md`, `scripts/release-gates/rc-contract-profile.json`, `ultramodern-single-preset-rollout.plan.md`, and `ultramodern-single-preset-mv-program.plan.md`
+  - blocker: stale release-gate commands (`@scripts/vitest-config...` filter and overly broad builder test runner) initially prevented full evidence validation
+  - status: completed
+  - next action: public preset rollout surfaces now consistently point to `presetUltramodern(...)`, `ultramodern:check`, and `ultramodern-gates`; full `validate-release-candidate-gates.js` execution passed with 13 commands, so `uspr-02`, `uspr-03`, `uspr-04`, `uspmv-02`, and `uspmv-03` are complete and the saved graph has no remaining active lanes

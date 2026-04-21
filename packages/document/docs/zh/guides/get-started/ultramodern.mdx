@@ -40,7 +40,7 @@ UltraModern 的增强能力会尽量以“更强默认值”“显式兼容分�
 | 模块准入治理 | 基线无模块认证证据化 gate profile | 新增模块 SDK 契约、边界反模式守卫与发布/模块认证 gate 工作流 |
 | 路由运行时 | 默认运行时路径以 React Router 为中心 | 增加 TanStack Router 运行时/CLI 一等支持（React Router 继续可用） |
 | 脚手架模板 | 默认 create 模板以 React Router 起步路径为中心 | 增加 TanStack-ready 与 Tailwind-ready 的 create 模板 |
-| Starter 基线约束 | 生成应用默认没有基线 gate 工作流 | 生成脚手架会附带 `baseline:check`、可关闭的 env 开关，以及 `.github/workflows/uniform-baseline-gates.yml` |
+| Starter 预设约束 | 生成应用默认没有 UltraModern 预设 gate 工作流 | 生成脚手架会附带 `ultramodern:check`、可关闭的 env 开关，以及 `.github/workflows/ultramodern-gates.yml` |
 
 ## 我们刻意不做的事情
 
@@ -56,11 +56,11 @@ UltraModern 的增强能力会尽量以“更强默认值”“显式兼容分�
 1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
 3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
-4. 这套更强默认值档案现在已经附带显式的发布 / 认证 gate。生成脚手架也会自带 `.github/workflows/uniform-baseline-gates.yml`，因此 `pnpm run baseline:check` 与 `pnpm run build` 从第一天开始就是接入契约的一部分。
+4. 这套公开预设现在已经附带显式的发布 / 认证 gate。生成脚手架也会自带 `.github/workflows/ultramodern-gates.yml`，因此 `pnpm run ultramodern:check` 与 `pnpm run build` 从第一天开始就是接入契约的一部分。
 
 ## 基线开关（可按需关闭）
 
-默认的 stronger-default Modern.js 脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
+生成的 `presetUltramodern(...)` 脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
 
 - `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。

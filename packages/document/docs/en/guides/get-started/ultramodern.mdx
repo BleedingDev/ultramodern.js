@@ -7,7 +7,7 @@ sidebar_position: 2
 
 This page compares **UltraModern.js v3** with **Modern.js v3** (baseline: `v3.0.2`).
 
-UltraModern.js serves here as the reference name for a stronger-default Modern.js profile. The goal is to harden the baseline for super-app and ERP-scale systems without forking Modern.js into a separate framework.
+UltraModern.js serves here as the reference name for the public `presetUltramodern(...)` Modern.js profile. The goal is to harden the baseline for super-app and ERP-scale systems without forking Modern.js into a separate framework.
 
 ## Design Principles
 
@@ -40,7 +40,7 @@ UltraModern additions are designed to land as stronger defaults, explicit compat
 | Module onboarding governance | No module-certification evidence profile in baseline | Adds module SDK contracts, boundary anti-pattern guards, and release/module certification gate workflows |
 | Router runtime | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI path (React Router remains supported) |
 | Scaffolding templates | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates |
-| Starter baseline enforcement | No generated baseline gate workflow | Generated starters include `baseline:check`, opt-out env switches, and `.github/workflows/uniform-baseline-gates.yml` |
+| Starter preset enforcement | No generated UltraModern preset gate workflow | Generated starters include `ultramodern:check`, opt-out env switches, and `.github/workflows/ultramodern-gates.yml` |
 
 ## What We Intentionally Do Not Change
 
@@ -56,11 +56,11 @@ For teams already on Modern.js v3, the path remains compatibility-first: keep th
 1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route migration, but the React Router lane remains supported while teams move on their own schedule.
 2. Prefer `bff.runtimeFramework: 'effect'` for new or migrated BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
 3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
-4. The stronger-default profile now ships with explicit release and certification gates. The generated starter baseline also ships `.github/workflows/uniform-baseline-gates.yml`, so `pnpm run baseline:check` and `pnpm run build` stay part of the adoption contract from day one.
+4. The public preset now ships with explicit release and certification gates. The generated starter also ships `.github/workflows/ultramodern-gates.yml`, so `pnpm run ultramodern:check` and `pnpm run build` stay part of the adoption contract from day one.
 
 ## Baseline Switches (Opt-out)
 
-The default stronger-default Modern.js starter baseline enables strict platform contracts. Use these env switches to opt out per app or per environment:
+The generated `presetUltramodern(...)` starter enables strict platform contracts. Use these env switches to opt out per app or per environment:
 
 - `MODERN_BASELINE_ENABLE_MF_SSR` (default: `true`): Enables app-level MF SSR baseline contract (`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`). Disable when the app does not use app-level MF SSR, or when you need plain SSR/CSR behavior first.
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.

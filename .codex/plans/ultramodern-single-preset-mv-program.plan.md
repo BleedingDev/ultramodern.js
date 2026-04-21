@@ -7,10 +7,10 @@ todos:
     status: completed
   - id: uspmv-02
     content: Execute the router, Module Federation SSR, BFF contract, and preset rollout plans in dependency order.
-    status: in_progress
+    status: completed
   - id: uspmv-03
     content: Publish final merge-safety, compatibility, and rollout evidence for the one-preset MV direction.
-    status: pending
+    status: completed
 isProject: true
 ---
 

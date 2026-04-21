@@ -25,7 +25,7 @@ UltraModern.js V3 记录的是一套“更强默认值的 Modern.js 参考档案
 | 静态资源预压缩默认行为 | 预压缩产物与回源策略通常由业务自定义 | 生产 Web 构建默认开启 `output.precompress`，并在 Node 静态中间件按 `Accept-Encoding` 协商 `.br` / `.gz` | 已实现 | 可按 codec 关闭或细调 |
 | 路由运行时选型 | 默认运行时路径以 React Router 为中心 | 新增 TanStack Router 运行时与 CLI 路由树支持 | 已实现 | React Router 路径仍保留 |
 | 脚手架模板选型 | 默认 create 模板以 React Router 起步路径为中心 | 新增 TanStack-ready 与 Tailwind-ready 的 create 模板 | 已实现 | React Router 起步路径仍保留 |
-| Starter 基线 Gate 工作流 | 生成脚手架默认没有更强默认值校验工作流 | 在 stronger-default starter 中新增 `baseline:check`、可关闭 env 开关与 `.github/workflows/uniform-baseline-gates.yml` | 已实现 | 让生成应用从第一笔提交起就可审计 |
+| Starter 预设 Gate 工作流 | 生成脚手架默认没有 UltraModern 预设校验工作流 | 在公开预设 starter 中新增 `ultramodern:check`、可关闭 env 开关与 `.github/workflows/ultramodern-gates.yml` | 已实现 | 让生成应用从第一笔提交起就可审计 |
 | BFF Producer 契约标识 | `bff` 配置不包含 producer 身份 | 新增 `bff.requestId`，并打通到客户端生成链路 | 已实现 | 支持显式 producer 隔离 |
 | BFF 生成客户端签名 | `createRequest(...)` 可选参数到 `fetch` 结束 | 配置 `requestId` 时，生成代码会附加 `requestId` 参数 | 已实现 | 未配置时保持兼容旧路径 |
 | `create-request` 运行时隔离 | 单一可变请求配置 | 以 `requestId` 为维度隔离 request/domain/header 配置 | 已实现 | 支持同一应用多 producer |
@@ -44,7 +44,7 @@ UltraModern.js V3 记录的是一套“更强默认值的 Modern.js 参考档案
 | 边界反模式 CI 守卫 | 无专门边界反模式工作流 | 新增基于 profile 的边界检查（导入边界/必需钩子/模块禁用模式） | 已实现 | `.github/workflows/boundary-anti-patterns.yml` |
 | 发布 / 模块认证 Gate 自动化 | 基线无 super-app 证据化 gate profile | 新增 RC + 模块认证 gate profile、证据元数据校验与专用 CI 工作流 | 已实现 | `.github/workflows/release-contract-gates.yml` + 模块/Bun gate 工作流 |
 | 合约测试覆盖 | 基线中无上述差异项配套测试 | 增加 RsDoctor、BFF requestId、Telemetry、SSR MF 合约环境变量的针对性测试 | 已实现 | 降低 super-app 场景回归风险 |
-| 公开文档面 | 无 UltraModern V3 差异总览页 | 新增 V3 专用差异页并补齐关联配置文档 | 已实现 | 本页作为这套 stronger-default 档案的公开参考页 |
+| 公开文档面 | 无 UltraModern V3 差异总览页 | 新增 V3 专用差异页并补齐关联配置文档 | 已实现 | 本页作为这套公开预设档案的参考页 |
 
 ## V3 详细差异说明
 
@@ -251,7 +251,7 @@ UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
 
 ### 11) 发布与模块认证 Gate 模型
 
-这套 stronger-default Modern.js 档案在基线 Modern.js V3 之外补齐了可机审的发布 gate：
+这套公开 UltraModern 预设在基线 Modern.js V3 之外补齐了可机审的发布 gate：
 
 - Gate profile：
   - `scripts/release-gates/rc-contract-profile.json`
@@ -270,19 +270,19 @@ UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
   - `.github/workflows/module-certification-gates.yml`
   - `.github/workflows/bun-superapp-smoke.yml`
 - 生成 starter 自带工作流：
-  - `.github/workflows/uniform-baseline-gates.yml`
-  - 默认执行 `pnpm run baseline:check` 与 `pnpm run build`
+  - `.github/workflows/ultramodern-gates.yml`
+  - 默认执行 `pnpm run ultramodern:check` 与 `pnpm run build`
 
 ## 不属于 UltraModern.js V3 的能力
 
-以下能力刻意不纳入这套 stronger-default V3 档案：
+以下能力刻意不纳入这套公开 V3 预设档案：
 
 - 将应用级 MF SSR 强制为所有应用的默认路径。
 - 将 Effect-only 数据获取运行时强制为所有应用的默认路径。
 
 ## 基线开关（可按需关闭）
 
-默认的 stronger-default Modern.js create 模板会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
+生成的 `presetUltramodern(...)` create 模板会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
 
 - `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
 - `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。

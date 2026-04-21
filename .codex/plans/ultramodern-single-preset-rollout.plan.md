@@ -7,13 +7,13 @@ todos:
     status: completed
   - id: uspr-02
     content: Encode presetUltramodern as one public policy entrypoint with internal option layers for microVerticals, moduleFederation, strictTrust, strictBff, router, and runtime targets.
-    status: in_progress
+    status: completed
   - id: uspr-03
     content: Wire create templates, docs, release gates, and certification surfaces so presetUltramodern is the only public opinionated entrypoint.
-    status: pending
+    status: completed
   - id: uspr-04
     content: Add rollout evidence covering Bun and Node, TanStack and React Router compatibility, Effect and Hono compatibility, and Module Federation SSR behavior.
-    status: pending
+    status: completed
 isProject: false
 ---
 

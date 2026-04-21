@@ -20,9 +20,9 @@ const missing = requiredTokens.filter(token => !content.includes(token));
 
 if (missing.length > 0) {
   console.error(
-    `Baseline contract check failed. Missing tokens: ${missing.join(', ')}`,
+    `Ultramodern contract check failed. Missing tokens: ${missing.join(', ')}`,
   );
   process.exit(1);
 }
 
-console.log('Baseline contract check passed.');
+console.log('Ultramodern contract check passed.');
