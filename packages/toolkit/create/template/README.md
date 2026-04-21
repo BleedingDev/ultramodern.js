@@ -40,6 +40,9 @@ The generated starter also includes `.github/workflows/uniform-baseline-gates.ym
 That workflow runs `pnpm run baseline:check` and `pnpm run build` on every push
 and pull request so the stronger-default baseline stays explicit.
 
+The public opinionated entrypoint is `presetUltramodern(...)`, while
+`withAppBaseline(...)` remains only as a compatibility alias.
+
 Preview the production build locally:
 
 ```bash

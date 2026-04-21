@@ -1,5 +1,6 @@
 import { RuntimeCompatibilityError } from '../src/runtime/compatibility';
 import {
+  emitErrorFallbackTelemetry,
   emitFallbackTelemetry,
   inferFallbackPhase,
   inferFallbackReason,
@@ -30,6 +31,34 @@ describe('fallback telemetry contract', () => {
     );
   });
 
+  test('derives runtime compatibility appName when emitting structured fallback telemetry', () => {
+    const issue: RuntimeCompatibilityIssue = {
+      appName: 'dashboard',
+      hostDigest: 'host-v1',
+      remoteDigest: 'remote-v2',
+      reason: 'digest_mismatch',
+    };
+
+    const payload = emitErrorFallbackTelemetry(
+      {
+        error: new RuntimeCompatibilityError(issue),
+        phase: 'compatibility',
+      },
+      {
+        emitConsole: false,
+        emitWindowEvent: false,
+        reportToServer: false,
+      },
+    );
+
+    expect(payload).toMatchObject({
+      appName: 'dashboard',
+      reason: 'runtime_incompatible',
+      phase: 'compatibility',
+      code: 'MODERN_MF_RUNTIME_INCOMPATIBLE',
+    });
+  });
+
   test('maps trust integrity mismatch to integrity_mismatch reason', () => {
     const error = new RemoteTrustPolicyError({
       appName: 'dashboard',
@@ -41,6 +70,35 @@ describe('fallback telemetry contract', () => {
 
     expect(inferFallbackReason(error)).toBe('integrity_mismatch');
     expect(inferFallbackPhase(error)).toBe('integrity');
+  });
+
+  test('derives trust error appName and entry when emitting structured fallback telemetry', () => {
+    const error = new RemoteTrustPolicyError({
+      appName: 'dashboard',
+      entry: 'https://remote.example.com/remoteEntry.js',
+      reason: 'integrity_mismatch',
+      expectedIntegrity: 'sha256-expected',
+      actualIntegrity: 'sha256-actual',
+    });
+
+    const payload = emitErrorFallbackTelemetry(
+      {
+        error,
+        phase: 'integrity',
+      },
+      {
+        emitConsole: false,
+        emitWindowEvent: false,
+        reportToServer: false,
+      },
+    );
+
+    expect(payload).toMatchObject({
+      appName: 'dashboard',
+      entry: 'https://remote.example.com/remoteEntry.js',
+      reason: 'integrity_mismatch',
+      phase: 'integrity',
+    });
   });
 
   test('maps trust origin isolation violations to origin_isolation_violation reason', () => {

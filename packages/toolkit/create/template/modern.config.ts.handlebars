@@ -1,4 +1,4 @@
-import { appTools, defineConfig, withAppBaseline } from '@modern-js/app-tools';
+import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import path from 'node:path';
 {{#if enableBff}}import { bffPlugin } from '@modern-js/plugin-bff';
 {{/if}}
@@ -15,7 +15,7 @@ const telemetryFailLoudStartup =
 
 // https://modernjs.dev/en/configure/app/usage
 export default defineConfig(
-  withAppBaseline(
+  presetUltramodern(
     {
       plugins: [appTools(){{#if enableBff}}, bffPlugin(){{/if}}],
 {{#if enableBff}}

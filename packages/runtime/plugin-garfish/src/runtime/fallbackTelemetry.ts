@@ -25,6 +25,34 @@ function getErrorCode(error: unknown) {
   return undefined;
 }
 
+function resolveErrorContext(
+  error: unknown,
+  appName?: string,
+  entry?: string,
+): {
+  appName?: string;
+  entry?: string;
+} {
+  if (error instanceof RuntimeCompatibilityError) {
+    return {
+      appName: appName ?? error.issue.appName,
+      entry,
+    };
+  }
+
+  if (error instanceof RemoteTrustPolicyError) {
+    return {
+      appName: appName ?? error.issue.appName,
+      entry: entry ?? error.issue.entry,
+    };
+  }
+
+  return {
+    appName,
+    entry,
+  };
+}
+
 export function inferFallbackReason(error: unknown): MfFallbackReason {
   if (error instanceof RuntimeCompatibilityError) {
     return 'runtime_incompatible';
@@ -130,12 +158,13 @@ export function emitErrorFallbackTelemetry(
   config?: MfFallbackTelemetryConfig,
 ) {
   const { error, phase, appName, entry, metadata } = options;
+  const resolvedContext = resolveErrorContext(error, appName, entry);
   return emitFallbackTelemetry(
     {
       reason: inferFallbackReason(error),
       phase,
-      appName,
-      entry,
+      appName: resolvedContext.appName,
+      entry: resolvedContext.entry,
       metadata,
       message: getErrorMessage(error),
       code: getErrorCode(error),

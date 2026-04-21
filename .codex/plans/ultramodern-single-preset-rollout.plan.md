@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: uspr-02
     content: Encode presetUltramodern as one public policy entrypoint with internal option layers for microVerticals, moduleFederation, strictTrust, strictBff, router, and runtime targets.
-    status: pending
+    status: in_progress
   - id: uspr-03
     content: Wire create templates, docs, release gates, and certification surfaces so presetUltramodern is the only public opinionated entrypoint.
     status: pending

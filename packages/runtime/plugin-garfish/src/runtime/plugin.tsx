@@ -162,6 +162,15 @@ export default (config: Config): Plugin => ({
       remoteTrust,
       runtimeCompatibility,
       productionProfile,
+    ).then(
+      result => ({
+        status: 'fulfilled' as const,
+        value: result,
+      }),
+      error => ({
+        status: 'rejected' as const,
+        reason: error,
+      }),
     );
     const telemetryConfigCandidate: Partial<MfFallbackTelemetryConfig> = {
       ...fallbackTelemetry,
@@ -215,7 +224,11 @@ export default (config: Config): Plugin => ({
                   ],
                   apps: [],
                 });
-                const GarfishConfig = await promise;
+                const initResult = await promise;
+                if (initResult.status === 'rejected') {
+                  throw initResult.reason;
+                }
+                const GarfishConfig = initResult.value;
                 const { appInfoList, apps } = generateApps(
                   GarfishConfig,
                   manifest,

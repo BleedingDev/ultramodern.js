@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ummsc-04
     content: Extend integration coverage for timeout, network, compatibility mismatch, locale and trace propagation, and SSR fallback behavior.
-    status: in_progress
+    status: completed
 isProject: false
 ---
 

@@ -35,6 +35,7 @@ const commonConfig = {
   source: {
     alias: {
       debug: path.join(__dirname, 'tests/shims/debug.ts'),
+      garfish: path.join(__dirname, 'tests/shims/garfish.ts'),
       '@modern-js/utils/webpack-chain': path.join(
         __dirname,
         '../../toolkit/utils/compiled/webpack-chain/index.js',
@@ -44,7 +45,19 @@ const commonConfig = {
         '@modern-js/core/dist/index.js',
       ),
       react: resolvePnpmPackageEntry('react@', 'react/index.js'),
+      'react/jsx-runtime': resolvePnpmPackageEntry(
+        'react@',
+        'react/jsx-runtime.js',
+      ),
+      'react/jsx-dev-runtime': resolvePnpmPackageEntry(
+        'react@',
+        'react/jsx-dev-runtime.js',
+      ),
       'react-dom': resolvePnpmPackageEntry('react-dom@', 'react-dom/index.js'),
+      'react-dom/client': resolvePnpmPackageEntry(
+        'react-dom@',
+        'react-dom/client.js',
+      ),
     },
   },
 };
@@ -69,6 +82,7 @@ export default {
       include: [
         'tests/cli.test.tsx',
         'tests/fallbackTelemetry.test.ts',
+        'tests/runtimePlugin.test.tsx',
         'tests/runtimeExport.test.tsx',
       ],
     },

@@ -238,6 +238,20 @@
   - agent_id: `local`
   - owner: `Codex`
   - write scope: `tests/integration/routes-tanstack-mf/mf-host/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-host/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/mf-remote/shared/effect/api.ts`, `tests/integration/routes-tanstack-mf/mf-remote/api/effect/index.ts`, `tests/integration/routes-tanstack-mf/test/index.test.ts`
-  - blocker: compatibility mismatch still lacks dedicated fixture plumbing; the attempted SSR placeholder extension was disproven by live HTML output and was not kept
-  - status: in progress
-  - next action: locale propagation coverage is green in dev and serve mode, and the full contract suite now rebuilds missing manifests cleanly; remaining `ummsc-04` gap is compatibility mismatch coverage at the integration boundary
+  - blocker: none
+  - status: completed
+  - next action: locale propagation coverage is green in dev and serve mode, and compatibility mismatch is now covered at the real `plugin-garfish` init boundary instead of being faked through the `loadRemote(...)` TanStack fixture
+- `helm-local-mf-compatibility-boundary`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/runtime/plugin-garfish/src/runtime/plugin.tsx`, `packages/runtime/plugin-garfish/src/runtime/fallbackTelemetry.ts`, `packages/runtime/plugin-garfish/tests/fallbackTelemetry.test.ts`, `packages/runtime/plugin-garfish/tests/runtimePlugin.test.tsx`, `packages/runtime/plugin-garfish/tests/shims/garfish.ts`, `packages/runtime/plugin-garfish/rstest.config.mts`
+  - blocker: none
+  - status: completed
+  - next action: strict digest mismatch now emits structured compatibility telemetry with derived app context, does not register remote apps, and no longer leaks an `unhandledRejection` before the shell fallback path catches the error
+- `helm-local-preset-public-entrypoint`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/solutions/app-tools/src/presetUltramodern.ts`, `packages/solutions/app-tools/src/index.ts`, `packages/solutions/app-tools/tests/presetUltramodern.test.ts`, `packages/solutions/app-tools/tests/index.test.ts`, `packages/toolkit/create/template/modern.config.ts.handlebars`, `packages/toolkit/create/template/scripts/validate-baseline.mjs.handlebars`, `packages/toolkit/create/template/README.md`
+  - blocker: none
+  - status: completed
+  - next action: `presetUltramodern(...)` is now the public opinionated starter entrypoint via a thin wrapper over the existing baseline helper while `withAppBaseline(...)` stays as a compatibility alias; remaining rollout work moves to docs, release-gate, and certification evidence surfaces under `uspr-03` and `uspr-04`
