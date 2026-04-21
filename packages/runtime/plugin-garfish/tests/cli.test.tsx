@@ -1,11 +1,18 @@
-import '@testing-library/jest-dom';
 import type { AppUserConfig } from '@modern-js/app-tools';
 import { type CliPlugin, manager } from '@modern-js/core';
-import { CHAIN_ID } from '@modern-js/utils';
 import WebpackChain from '@modern-js/utils/webpack-chain';
 import { externals, garfishPlugin } from '../src/cli';
 import type { UseConfig } from '../src/cli';
 import { getRuntimeConfig, setRuntimeConfig } from '../src/cli/utils';
+
+const useTestAppContext = () => ({
+  internalDirectory: 'dist/.rstest-temp/test',
+});
+const testChainId = {
+  PLUGIN: {
+    BANNER: 'banner',
+  },
+};
 
 describe('plugin-garfish cli', () => {
   test('cli garfish basename', async () => {
@@ -117,6 +124,7 @@ describe('plugin-garfish cli', () => {
     const main = manager
       .clone({
         useResolvedConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
 
@@ -130,9 +138,9 @@ describe('plugin-garfish cli', () => {
     webpackConfig.plugin('html-main').use(HTMLWebpackPlugin);
 
     config[0].tools.bundlerChain(webpackConfig, {
-      webpack: jest.fn(),
+      webpack: rstest.fn(),
       env: 'development',
-      CHAIN_ID,
+      CHAIN_ID: testChainId,
       bundler: {
         BannerPlugin: class {
           params: any;
@@ -170,6 +178,7 @@ describe('plugin-garfish cli', () => {
     const main = manager
       .clone({
         useResolvedConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
     const runner = await main.init();
@@ -181,9 +190,9 @@ describe('plugin-garfish cli', () => {
     webpackConfig.plugin('html-main').use(HTMLWebpackPlugin);
 
     config[0].tools.bundlerChain(webpackConfig, {
-      webpack: jest.fn(),
+      webpack: rstest.fn(),
       env: 'development',
-      CHAIN_ID,
+      CHAIN_ID: testChainId,
       bundler: {
         BannerPlugin: class {
           params: any;
@@ -224,6 +233,7 @@ describe('plugin-garfish cli', () => {
       .clone({
         useResolvedConfigContext: () => resolveConfig as any,
         useConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
 
@@ -249,6 +259,7 @@ describe('plugin-garfish cli', () => {
       .clone({
         useResolvedConfigContext: () => resolveConfig as any,
         useConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
     const runner = await main.init();
@@ -264,6 +275,7 @@ describe('plugin-garfish cli', () => {
       .clone({
         useResolvedConfigContext: () => resolveConfig as any,
         useConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
     const runner = await main.init();
@@ -287,6 +299,7 @@ describe('plugin-garfish cli', () => {
       .clone({
         useResolvedConfigContext: () => resolveConfig as any,
         useConfigContext: () => resolveConfig,
+        useAppContext: useTestAppContext,
       })
       .usePlugin(garfishPlugin as CliPlugin);
     const runner = await main.init();

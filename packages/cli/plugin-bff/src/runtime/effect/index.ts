@@ -28,6 +28,8 @@ import {
 export * from 'effect/unstable/http';
 export * from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
+export { HttpTraceContext } from 'effect/unstable/http';
+export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';

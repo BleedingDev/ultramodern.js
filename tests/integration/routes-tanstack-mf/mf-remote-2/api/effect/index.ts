@@ -9,7 +9,7 @@ import { remoteTwoEffectApi } from '../../shared/effect/api';
 const greetingsLayer = HttpApiBuilder.group(
   remoteTwoEffectApi,
   'greetings',
-  handlers =>
+  (handlers: any) =>
     handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from remote2 Effect API',

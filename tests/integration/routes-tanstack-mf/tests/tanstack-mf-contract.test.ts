@@ -1,16 +1,79 @@
 /**
  * @jest-environment node
  */
+import { createRequire } from 'module';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 const projectRoot = path.resolve(__dirname, '../../..');
+const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
+const require = createRequire(import.meta.url);
+const { modernBuild } = require('../../../utils/modernTestUtils.js');
+
+function resolvePnpmCommand() {
+  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+}
+
+function runPnpmBuild(dir: string) {
+  const result = spawnSync(resolvePnpmCommand(), ['run', 'build'], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: process.env,
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `Failed to build workspace package at ${dir}.\n${result.stdout || ''}\n${result.stderr || ''}`,
+    );
+  }
+}
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
 
 const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
+
+async function ensureTanstackMfDistFixtures() {
+  const requiredFixtures = [
+    'integration/routes-tanstack-mf/mf-host/dist/mf-manifest.json',
+    'integration/routes-tanstack-mf/mf-remote/dist/mf-manifest.json',
+    'integration/routes-tanstack-mf/mf-remote-2/dist/mf-manifest.json',
+  ];
+
+  if (
+    requiredFixtures.every(relativePath =>
+      fs.existsSync(path.join(projectRoot, relativePath)),
+    )
+  ) {
+    return;
+  }
+
+  for (const packageDir of [
+    path.join(projectRoot, '../packages/server/create-request'),
+    path.join(projectRoot, '../packages/server/bff-core'),
+    path.join(projectRoot, '../packages/runtime/plugin-runtime'),
+    path.join(projectRoot, '../packages/cli/plugin-bff'),
+  ]) {
+    runPnpmBuild(packageDir);
+  }
+
+  for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
+    const result = await modernBuild(path.join(tanstackMfRoot, appName));
+
+    if (result.code !== 0) {
+      throw new Error(
+        `Failed to build routes-tanstack-mf fixture ${appName}.\n` +
+          `${result.stdout || ''}\n${result.stderr || ''}`,
+      );
+    }
+  }
+}
+
+beforeAll(async () => {
+  await ensureTanstackMfDistFixtures();
+});
 
 describe('tanstack + module federation contracts', () => {
   test('host manifest keeps remote aliases and shared tanstack runtime contracts', () => {
@@ -91,7 +154,7 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain('requestContext?: unknown;');
     expect(code).toContain('context: ctx?.context?.requestContext');
     expect(code).toContain('staticData: createRouteStaticData({');
-    expect(code).toContain('modernRouteId: "mf-page"');
+    expect(code).toContain('modernRouteId: "mf/page"');
     expect(code).toContain('modernRouteLoader: loader_1');
   });
 });

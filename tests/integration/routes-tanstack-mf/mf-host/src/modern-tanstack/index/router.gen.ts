@@ -153,7 +153,7 @@ const route_mf_page = createRoute({
   path: "mf",
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
   staticData: createRouteStaticData({
-    modernRouteId: "mf-page",
+    modernRouteId: "mf/page",
     modernRouteLoader: loader_1,
   }),
 });

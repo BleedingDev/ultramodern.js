@@ -1,12 +1,35 @@
-import {
-  BFF_ENVELOPE_HEADER,
-  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
-  BFF_OPERATION_CONTEXT_HEADER,
-} from '../../../create-request/src/types';
-import type {
-  CrossProjectOperationContract,
-  CrossProjectPolicyViolation,
-} from '../../../create-request/src/types';
+export const BFF_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
+export const BFF_OPERATION_CONTEXT_HEADER = 'x-operation-id';
+export const BFF_OPERATION_CONTEXT_DETAIL_HEADER =
+  'x-modernjs-bff-operation-context';
+
+export type CrossProjectOperationContract = {
+  schemaHash?: string;
+  operationVersion?: number;
+};
+
+export type CrossProjectPolicyViolationReason =
+  | 'missing_envelope'
+  | 'invalid_envelope'
+  | 'missing_request_id'
+  | 'namespace_not_allowed'
+  | 'missing_operation_context'
+  | 'operation_context_mismatch'
+  | 'missing_operation_context_details'
+  | 'invalid_operation_context_details'
+  | 'operation_context_details_request_id_mismatch'
+  | 'missing_operation_schema_hash'
+  | 'missing_operation_version'
+  | 'unknown_operation_contract'
+  | 'operation_schema_hash_mismatch'
+  | 'operation_version_mismatch';
+
+export type CrossProjectPolicyViolation = {
+  code: 'BFF_CROSS_PROJECT_POLICY_DENIED';
+  reason: CrossProjectPolicyViolationReason;
+  message: string;
+  status: number;
+};
 
 const DEFAULT_DENY_STATUS = 403;
 

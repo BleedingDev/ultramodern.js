@@ -29,6 +29,19 @@ type ParsedTraceparent = {
   spanId: string;
 };
 
+type TraceHeaders = Record<string, string | undefined>;
+type TraceHandlerArgs = {
+  headers: TraceHeaders;
+  request: {
+    headers: TraceHeaders;
+  };
+};
+type TraceQueryArgs = {
+  query: {
+    traceId?: string;
+  };
+};
+
 const traceSpans: TraceSpanSnapshot[] = [];
 const remoteOrigin = process.env.MF_REMOTE_ORIGIN ?? 'http://localhost:3010';
 
@@ -55,9 +68,13 @@ function parseTraceparent(
   if (!match) {
     return undefined;
   }
+  const [, traceId, spanId] = match;
+  if (!traceId || !spanId) {
+    return undefined;
+  }
   return {
-    traceId: match[1].toLowerCase(),
-    spanId: match[2].toLowerCase(),
+    traceId: traceId.toLowerCase(),
+    spanId: spanId.toLowerCase(),
   };
 }
 
@@ -82,7 +99,7 @@ function toTraceparentHeader(span: {
 
 const traceSpanProcessor: TraceSpanProcessor = {
   onStart: () => {},
-  onEnd: span => {
+  onEnd: (span: FinishedSpan) => {
     traceSpans.push(toSpanSnapshot(span));
   },
   forceFlush: async () => {
@@ -96,7 +113,7 @@ const traceSpanProcessor: TraceSpanProcessor = {
 const greetingsLayer = HttpApiBuilder.group(
   hostEffectApi,
   'greetings',
-  handlers => {
+  (handlers: any) => {
     const handledHello = handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from host Effect API',
@@ -106,12 +123,12 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceRun = handledHello.handle(
       'traceRun',
-      ({ headers, request }) => {
+      ({ headers, request }: TraceHandlerArgs) => {
         const incomingTrace = parseTraceparent(headers.traceparent);
         const locale = request.headers['accept-language'] ?? undefined;
         const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
           onNone: () => undefined,
-          onSome: value => value,
+          onSome: (value: unknown) => value,
         });
 
         return Effect.gen(function* () {
@@ -136,7 +153,11 @@ const greetingsLayer = HttpApiBuilder.group(
             const currentSpan = yield* Effect.option(Effect.currentSpan);
             const traceparent = Option.match(currentSpan, {
               onNone: () => headers.traceparent,
-              onSome: span => toTraceparentHeader(span),
+              onSome: (span: {
+                traceId: string;
+                spanId: string;
+                sampled: boolean;
+              }) => toTraceparentHeader(span),
             });
             const syntheticTraceparent = incomingTrace
               ? `00-${incomingTrace.traceId}-${syntheticHostRemoteCallSpanId}-01`
@@ -197,7 +218,7 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceSpans = handledTraceRun.handle(
       'traceSpans',
-      ({ query }) =>
+      ({ query }: TraceQueryArgs) =>
         Effect.succeed({
           spans: getTraceSpans(query.traceId),
         }),

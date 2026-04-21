@@ -23,6 +23,19 @@ type TraceSpanSnapshot = {
   parentSpanId?: string;
 };
 
+type TraceHeaders = Record<string, string | undefined>;
+type TraceHandlerArgs = {
+  headers: TraceHeaders;
+  request: {
+    headers: TraceHeaders;
+  };
+};
+type TraceQueryArgs = {
+  query: {
+    traceId?: string;
+  };
+};
+
 const traceSpans: TraceSpanSnapshot[] = [];
 
 function toSpanSnapshot(span: FinishedSpan): TraceSpanSnapshot {
@@ -45,7 +58,7 @@ function getTraceSpans(traceId?: string) {
 
 const traceSpanProcessor: TraceSpanProcessor = {
   onStart: () => {},
-  onEnd: span => {
+  onEnd: (span: FinishedSpan) => {
     traceSpans.push(toSpanSnapshot(span));
   },
   forceFlush: async () => {
@@ -59,7 +72,7 @@ const traceSpanProcessor: TraceSpanProcessor = {
 const greetingsLayer = HttpApiBuilder.group(
   remoteEffectApi,
   'greetings',
-  handlers => {
+  (handlers: any) => {
     const handledHello = handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from remote Effect API',
@@ -69,11 +82,11 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceChild = handledHello.handle(
       'traceChild',
-      ({ headers, request }) => {
+      ({ headers, request }: TraceHandlerArgs) => {
         const locale = request.headers['accept-language'] ?? undefined;
         const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
           onNone: () => undefined,
-          onSome: value => value,
+          onSome: (value: unknown) => value,
         });
         return Effect.gen(function* () {
           yield* Effect.succeed('ok').pipe(
@@ -101,7 +114,7 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceSpans = handledTraceChild.handle(
       'traceSpans',
-      ({ query }) =>
+      ({ query }: TraceQueryArgs) =>
         Effect.succeed({
           spans: getTraceSpans(query.traceId),
         }),

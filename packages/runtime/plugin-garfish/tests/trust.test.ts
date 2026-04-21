@@ -17,7 +17,7 @@ describe('remote trust policy', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
-    jest.restoreAllMocks();
+    rstest.restoreAllMocks();
   });
 
   test('strict mode fails when origin is not allowlisted', async () => {
@@ -147,10 +147,10 @@ describe('remote trust policy', () => {
   });
 
   test('strict mode fails when integrity digest does not match remote artifact', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = rstest.fn().mockResolvedValue({
       ok: true,
       text: async () => 'remote entry payload',
-    } as Response);
+    } as Response) as typeof fetch;
 
     await expect(
       enforceRemoteTrustPolicy(
@@ -173,10 +173,10 @@ describe('remote trust policy', () => {
   test('strict mode accepts verified SRI integrity metadata', async () => {
     const payload = 'remote entry payload';
     const digest = createHash('sha256').update(payload).digest('base64');
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = rstest.fn().mockResolvedValue({
       ok: true,
       text: async () => payload,
-    } as Response);
+    } as Response) as typeof fetch;
 
     await expect(
       enforceRemoteTrustPolicy(

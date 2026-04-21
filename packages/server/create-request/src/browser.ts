@@ -679,3 +679,5 @@ export const createUploader: UploadCreator = ({
 
   return sender;
 };
+
+export * from './types';

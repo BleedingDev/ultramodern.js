@@ -1,12 +1,11 @@
 import React from 'react';
 import { garfishPlugin } from '../src/cli';
-import '@testing-library/jest-dom';
 
 global.React = React;
 
 const addExportList: any[] = [];
-jest.mock('@modern-js/utils', () => {
-  const originalModule = jest.requireActual('@modern-js/utils');
+rstest.mock('@modern-js/utils', () => {
+  const originalModule = rstest.requireActual('@modern-js/utils');
   return {
     __esModule: true,
     ...originalModule,
@@ -31,7 +30,7 @@ describe('plugin-garfish', () => {
       useResolvedConfigContext: () => resolveConfig,
       useConfigContext: () => resolveConfig,
       useAppContext: () => ({
-        internalDirectory: 'test',
+        internalDirectory: 'dist/.rstest-temp/test',
       }),
     } as any);
 
@@ -56,7 +55,7 @@ describe('plugin-garfish', () => {
       useResolvedConfigContext: () => resolveConfig,
       useConfigContext: () => resolveConfig,
       useAppContext: () => ({
-        internalDirectory: 'test',
+        internalDirectory: 'dist/.rstest-temp/test',
       }),
     } as any);
 
