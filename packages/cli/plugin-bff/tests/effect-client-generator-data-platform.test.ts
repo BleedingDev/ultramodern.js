@@ -80,6 +80,9 @@ module.exports = { api };
       expect(generated).toContain('operationContext');
       expect(generated).toContain('"schemaHash"');
       expect(generated).toContain('"operationVersion":1');
+      expect(generated).toContain('createEffectRequestContext');
+      expect(generated).toContain('request.requestContext');
+      expect(generated).toContain('createRequestContextHeaders');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }
@@ -88,6 +91,8 @@ module.exports = { api };
   test('declaration includes operation manifest contract', () => {
     const declaration = renderEffectClientDeclaration();
     expect(declaration).toContain('EffectOperationManifest');
+    expect(declaration).toContain('EffectRequestContext');
+    expect(declaration).toContain('createEffectRequestContext');
     expect(declaration).toContain('operationManifest');
   });
 });

@@ -1,8 +1,12 @@
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RuntimePlugin } from '../../core';
 import {
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onAfterHydrateRouter as onAfterHydrateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
   modifyRoutes as modifyRoutesHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
+  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
 } from './hooks';
 import type { RouterExtendsHooks } from './hooks';
 import { routerPlugin as reactRouterPlugin } from './plugin';
@@ -14,12 +18,16 @@ export const routerPlugin = (
 ): RuntimePlugin<{
   extendHooks: RouterExtendsHooks;
 }> => {
-  return {
-    name: '@modern-js/plugin-router',
-    registryHooks: {
-      modifyRoutes: modifyRoutesHook,
-      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
-    },
+    return {
+      name: '@modern-js/plugin-router',
+      registryHooks: {
+        onAfterCreateRouter: onAfterCreateRouterHook,
+        onAfterHydrateRouter: onAfterHydrateRouterHook,
+        onBeforeCreateRouter: onBeforeCreateRouterHook,
+        modifyRoutes: modifyRoutesHook,
+        onBeforeCreateRoutes: onBeforeCreateRoutesHook,
+        onBeforeHydrateRouter: onBeforeHydrateRouterHook,
+      },
     setup: api => {
       const mergedConfig = merge(
         api.getRuntimeConfig().router || {},

@@ -51,12 +51,15 @@ export type RouterConfig = {
 };
 
 export type Routes = RouterConfig['routesConfig']['routes'];
+export type RouterFramework = NonNullable<RouterConfig['framework']>;
 
 export interface RouteManifest {
   routeAssets: RouteAssets;
 }
 
 export interface InternalRouterServerSnapshot {
+  framework?: RouterFramework;
+  basename?: string;
   statusCode?: number;
   errors?: Record<string, unknown>;
   routerData?: {
@@ -65,6 +68,15 @@ export interface InternalRouterServerSnapshot {
   };
   hydrationScript?: string;
   matchedRouteIds?: string[];
+}
+
+export interface InternalRouterRuntimeState {
+  framework: RouterFramework;
+  basename?: string;
+  instance?: unknown;
+  hydrationScript?: string;
+  matchedRouteIds?: string[];
+  serverSnapshot?: InternalRouterServerSnapshot;
 }
 
 export interface RouteAssets {

@@ -58,6 +58,22 @@ For teams already on Modern.js v3, the path remains compatibility-first: keep th
 3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
 4. The public preset now ships with explicit release and certification gates. The generated starter also ships `.github/workflows/ultramodern-gates.yml`, so `pnpm run ultramodern:check` and `pnpm run build` stay part of the adoption contract from day one.
 
+## Micro Vertical Delivery Path
+
+`presetUltramodern(...)` is also the single public entrypoint for Micro Verticals. The intended adoption sequence is:
+
+1. start with one app and keep route/data ownership inside the shell,
+2. extract stable route subtrees into MF remotes once fallback and compatibility behavior are explicit,
+3. extract shared workflows into strict Effect services when request, identity, locale, and trace context must survive deployment boundaries,
+4. keep Hono only as an explicit compatibility lane for existing Modern.js-style BFF handlers.
+
+In this repo, the reference examples are:
+
+- `routes-tanstack-mf` for shell + remote composition and MF SSR contracts,
+- `bff-corss-project` for cross-project producer/consumer wiring,
+- `bff-runtime-parity` for generated-client build/serve parity,
+- `bff-hono` for the compatibility lane.
+
 ## Baseline Switches (Opt-out)
 
 The generated `presetUltramodern(...)` starter enables strict platform contracts. Use these env switches to opt out per app or per environment:

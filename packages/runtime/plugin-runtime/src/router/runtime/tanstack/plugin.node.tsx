@@ -25,6 +25,7 @@ import {
 } from '../../../core/context';
 import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import type { RouterExtendsHooks } from '../hooks';
+import { applyRouterRuntimeState, type RouterLifecycleContext } from '../lifecycle';
 import type {
   InternalRouterServerSnapshot,
   RouterConfig,
@@ -189,6 +190,14 @@ export const tanstackRouterPlugin = (
         });
 
         const rewrite = createModernBasepathRewrite(_basename);
+        const routerLifecycleContext: RouterLifecycleContext = {
+          framework: 'tanstack',
+          phase: 'ssr-prepare',
+          routes: modifiedRouteObjects,
+          runtimeContext: context as TInternalRuntimeContext,
+          basename: _basename,
+        };
+        hooks.onBeforeCreateRouter.call(routerLifecycleContext);
 
         const tanstackRouter = createRouter({
           routeTree,
@@ -239,19 +248,33 @@ export const tanstackRouterPlugin = (
           tanstackRouter as any,
         );
         const routerServerSnapshot: InternalRouterServerSnapshot = {
+          framework: 'tanstack',
+          basename: _basename,
           statusCode: tanstackRouter.state.statusCode,
           errors: collectRouterErrors(tanstackRouter as any),
           matchedRouteIds,
           hydrationScript: routerManagedTagToHtml(ssrScriptTag),
         };
-        (context as TInternalRuntimeContext).routerServerSnapshot =
-          routerServerSnapshot;
-        (context as TInternalRuntimeContext).tanstackSsrScript =
-          routerServerSnapshot.hydrationScript;
-        (context as TInternalRuntimeContext).tanstackMatchedModernRouteIds =
-          matchedRouteIds;
-        (context as TInternalRuntimeContext).tanstackRouter =
-          tanstackRouter as any;
+        const runtimeContext = applyRouterRuntimeState(
+          context as TInternalRuntimeContext,
+          {
+            framework: 'tanstack',
+            basename: _basename,
+            instance: tanstackRouter as any,
+            hydrationScript: routerServerSnapshot.hydrationScript,
+            matchedRouteIds,
+            serverSnapshot: routerServerSnapshot,
+          },
+        );
+        runtimeContext.tanstackSsrScript = routerServerSnapshot.hydrationScript;
+        runtimeContext.tanstackMatchedModernRouteIds = matchedRouteIds;
+        runtimeContext.tanstackRouter = tanstackRouter as any;
+        hooks.onAfterCreateRouter.call({
+          ...routerLifecycleContext,
+          router: tanstackRouter as any,
+          serverSnapshot: routerServerSnapshot,
+          runtimeContext,
+        });
       });
 
       api.wrapRoot(App => {

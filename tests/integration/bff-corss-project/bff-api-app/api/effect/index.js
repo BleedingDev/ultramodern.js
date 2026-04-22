@@ -10,12 +10,20 @@ const greetingsLayer = HttpApiBuilder.group(
   bffCrossProjectEffectApi,
   'greetings',
   handlers =>
-    handlers.handle('hello', () =>
-      Effect.succeed({
-        message: 'Hello get bff-api-app effect',
-        runtime: 'effect',
-      }),
-    ),
+    handlers
+      .handle('hello', () =>
+        Effect.succeed({
+          message: 'Hello get bff-api-app effect',
+          runtime: 'effect',
+        }),
+      )
+      .handle('traceHeader', ({ headers }) =>
+        Effect.succeed({
+          runtime: 'effect',
+          traceparent: headers.traceparent,
+          locale: headers['accept-language'],
+        }),
+      ),
 );
 
 /** @type {any} */

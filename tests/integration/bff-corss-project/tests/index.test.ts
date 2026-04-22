@@ -189,11 +189,19 @@ describe.sequential('corss project bff', () => {
 
     test('support effect sdk import', async () => {
       await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
-      await page.waitForFunction(() =>
-        document.querySelector('.effect')?.textContent?.includes('effect:'),
-      );
-      const text = await page.$eval('.effect', el => el?.textContent);
+      await page.waitForFunction(() => {
+        const effect = document.querySelector('.effect')?.textContent;
+        const context = document.querySelector('.effect-context')?.textContent;
+        return effect?.includes('effect:') && context?.includes('effect:');
+      });
+      const [text, contextText] = await Promise.all([
+        page.$eval('.effect', el => el?.textContent),
+        page.$eval('.effect-context', el => el?.textContent),
+      ]);
       expect(text).toBe('effect:Hello get bff-api-app effect');
+      expect(contextText).toBe(
+        'effect:cs-CZ:00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      );
     });
 
     afterAll(async () => {
@@ -307,11 +315,19 @@ describe.sequential('corss project bff', () => {
 
     test('support effect sdk import', async () => {
       await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
-      await page.waitForFunction(() =>
-        document.querySelector('.effect')?.textContent?.includes('effect:'),
-      );
-      const text = await page.$eval('.effect', el => el?.textContent);
+      await page.waitForFunction(() => {
+        const effect = document.querySelector('.effect')?.textContent;
+        const context = document.querySelector('.effect-context')?.textContent;
+        return effect?.includes('effect:') && context?.includes('effect:');
+      });
+      const [text, contextText] = await Promise.all([
+        page.$eval('.effect', el => el?.textContent),
+        page.$eval('.effect-context', el => el?.textContent),
+      ]);
       expect(text).toBe('effect:Hello get bff-api-app effect');
+      expect(contextText).toBe(
+        'effect:cs-CZ:00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      );
     });
 
     afterAll(async () => {
@@ -389,11 +405,19 @@ describe.sequential('corss project bff', () => {
 
     test('support effect sdk import', async () => {
       await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
-      await page.waitForFunction(() =>
-        document.querySelector('.effect')?.textContent?.includes('effect:'),
-      );
-      const text = await page.$eval('.effect', el => el?.textContent);
+      await page.waitForFunction(() => {
+        const effect = document.querySelector('.effect')?.textContent;
+        const context = document.querySelector('.effect-context')?.textContent;
+        return effect?.includes('effect:') && context?.includes('effect:');
+      });
+      const [text, contextText] = await Promise.all([
+        page.$eval('.effect', el => el?.textContent),
+        page.$eval('.effect-context', el => el?.textContent),
+      ]);
       expect(text).toBe('effect:Hello get bff-api-app effect');
+      expect(contextText).toBe(
+        'effect:cs-CZ:00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      );
     });
 
     test('bff response should not be compressed', async () => {
@@ -485,11 +509,19 @@ describe.sequential('corss project bff', () => {
 
     test('support effect sdk import', async () => {
       await page.goto(`${host}:${port}/${EFFECT_PAGE}`);
-      await page.waitForFunction(() =>
-        document.querySelector('.effect')?.textContent?.includes('effect:'),
-      );
-      const text = await page.$eval('.effect', el => el?.textContent);
+      await page.waitForFunction(() => {
+        const effect = document.querySelector('.effect')?.textContent;
+        const context = document.querySelector('.effect-context')?.textContent;
+        return effect?.includes('effect:') && context?.includes('effect:');
+      });
+      const [text, contextText] = await Promise.all([
+        page.$eval('.effect', el => el?.textContent),
+        page.$eval('.effect-context', el => el?.textContent),
+      ]);
       expect(text).toBe('effect:Hello get bff-api-app effect');
+      expect(contextText).toBe(
+        'effect:cs-CZ:00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      );
     });
 
     afterAll(async () => {

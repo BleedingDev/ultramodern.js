@@ -2,7 +2,15 @@
 import {
   configure,
   createRequest,
+  createRequestContextHeaders,
+  createRequestContextSnapshot,
   createUploader,
 } from '@modern-js/create-request';
 
-export { configure, createRequest, createUploader };
+export {
+  configure,
+  createRequest,
+  createRequestContextHeaders,
+  createRequestContextSnapshot,
+  createUploader,
+};

@@ -28,10 +28,16 @@ import {
 import { setServerPayload } from '../../core/context/serverPayload/index.server';
 import DeferredDataScripts from './DeferredDataScripts.node';
 import {
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
   type RouterExtendsHooks,
   modifyRoutes as modifyRoutesHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
 } from './hooks';
+import {
+  applyRouterRuntimeState,
+  type RouterLifecycleContext,
+} from './lifecycle';
 import {
   RSCStaticRouter,
   createServerPayload,
@@ -58,12 +64,15 @@ function createRemixReuqest(request: Request) {
 
 function createRouterServerSnapshot(
   routerContext: StaticHandlerContext,
+  basename?: string,
 ): InternalRouterServerSnapshot {
   const matchedRouteIds = routerContext.matches
     .map(match => match.route.id)
     .filter((routeId): routeId is string => typeof routeId === 'string');
 
   return {
+    framework: 'react-router',
+    basename,
     statusCode: routerContext.statusCode,
     errors: routerContext.errors as Record<string, unknown> | undefined,
     routerData: {
@@ -82,6 +91,8 @@ export const routerPlugin = (
   return {
     name: '@modern-js/plugin-router',
     registryHooks: {
+      onAfterCreateRouter: onAfterCreateRouterHook,
+      onBeforeCreateRouter: onBeforeCreateRouterHook,
       modifyRoutes: modifyRoutesHook,
       onBeforeCreateRoutes: onBeforeCreateRoutesHook,
     },
@@ -152,6 +163,15 @@ export const routerPlugin = (
 
         routes = hooks.modifyRoutes.call(routes);
 
+        const routerLifecycleContext: RouterLifecycleContext = {
+          framework: 'react-router',
+          phase: 'ssr-prepare',
+          routes,
+          runtimeContext: context,
+          basename: _basename,
+        };
+        hooks.onBeforeCreateRouter.call(routerLifecycleContext);
+
         const { query } = createStaticHandler(routes, {
           basename: _basename,
         });
@@ -202,6 +222,24 @@ export const routerPlugin = (
           throw errors[0];
         }
         context.routerContext = routerContext;
+        const routerServerSnapshot = createRouterServerSnapshot(
+          routerContext,
+          _basename,
+        );
+
+        applyRouterRuntimeState(context, {
+          framework: 'react-router',
+          basename: _basename,
+          instance: routerContext,
+          matchedRouteIds: routerServerSnapshot.matchedRouteIds,
+          serverSnapshot: routerServerSnapshot,
+        });
+        hooks.onAfterCreateRouter.call({
+          ...routerLifecycleContext,
+          router: routerContext,
+          serverSnapshot: routerServerSnapshot,
+          runtimeContext: context,
+        });
 
         let payload: ServerPayload;
         if (enableRsc) {
@@ -217,10 +255,6 @@ export const routerPlugin = (
           payload = createServerPayload(routerContext, routes);
           setServerPayload(payload);
         }
-
-        context.routerServerSnapshot = createRouterServerSnapshot(
-          routerContext,
-        );
 
         // private api, pass to React Component in `wrapRoot`
         Object.defineProperty(context, 'routes', {

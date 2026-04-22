@@ -425,7 +425,7 @@ function renderEffectClientCode(
     },
   );
 
-  const operationManifestObject = operationManifestEntries.length
+const operationManifestObject = operationManifestEntries.length
     ? `{
   ${operationManifestEntries.join(',\n  ')}
 }`
@@ -444,6 +444,10 @@ const createRequest = __requestRuntime.createRequest;
 const __configureRequest =
   typeof __requestRuntime.configure === 'function'
     ? __requestRuntime.configure
+    : undefined;
+const __createRequestContextHeaders =
+  typeof __requestRuntime.createRequestContextHeaders === 'function'
+    ? __requestRuntime.createRequestContextHeaders
     : undefined;
 
 const __METHODS_WITHOUT_BODY = new Set(['GET', 'DELETE', 'HEAD', 'OPTIONS']);
@@ -656,8 +660,49 @@ const __toEnvelopeInput = normalizedRequest => {
   return payload;
 };
 
+const createEffectRequestContext = requestContext => {
+  if (!__isRecord(requestContext)) {
+    return {};
+  }
+
+  const headers = __createRequestContextHeaders
+    ? __createRequestContextHeaders(requestContext)
+    : {};
+
+  return {
+    ...requestContext,
+    headers,
+  };
+};
+
+const __applyRequestContext = (normalizedRequest, request = {}) => {
+  if (!__isRecord(request) || !__isRecord(request.requestContext)) {
+    return normalizedRequest;
+  }
+
+  const requestContext = createEffectRequestContext(request.requestContext);
+  const requestHeaders = __isRecord(requestContext.headers)
+    ? requestContext.headers
+    : {};
+
+  if (Object.keys(requestHeaders).length === 0) {
+    return normalizedRequest;
+  }
+
+  return {
+    ...normalizedRequest,
+    headers: {
+      ...requestHeaders,
+      ...(__isRecord(normalizedRequest.headers) ? normalizedRequest.headers : {}),
+    },
+  };
+};
+
 const __prepareEffectRequest = (method, routePath, operation, request = {}) => {
-  const normalizedRequest = __normalizeRequest(method, request);
+  const normalizedRequest = __applyRequestContext(
+    __normalizeRequest(method, request),
+    request,
+  );
   const dataPlatform = __isRecord(request) && __isRecord(request.dataPlatform)
     ? request.dataPlatform
     : {};
@@ -735,9 +780,13 @@ ${callerDeclarations.join('\n')}
 
 const client = ${clientObject};
 const operationManifest = ${operationManifestObject};
-const effectBffModule = { client, operationManifest };
+const effectBffModule = {
+  client,
+  operationManifest,
+  createEffectRequestContext,
+};
 
-export { client, operationManifest };
+export { client, createEffectRequestContext, operationManifest };
 export default effectBffModule;
 `;
 }
@@ -764,11 +813,22 @@ export type EffectOperationManifest = Record<
   string,
   Record<string, EffectOperationDescriptor>
 >;
+export type EffectRequestContext = {
+  headers?: Record<string, string>;
+  locale?: string;
+  traceparent?: string;
+  traceId?: string;
+  spanId?: string;
+};
 
 export declare const client: EffectClient;
+export declare const createEffectRequestContext: (
+  requestContext: Record<string, unknown>,
+) => EffectRequestContext;
 export declare const operationManifest: EffectOperationManifest;
 declare const effectBffModule: {
   client: EffectClient;
+  createEffectRequestContext: typeof createEffectRequestContext;
   operationManifest: EffectOperationManifest;
 };
 

@@ -11,6 +11,7 @@ const readFixture = (relativePath: string) =>
 
 const assertTanstackLoaderContract = (code: string) => {
   expect(code).toContain('function modernLoaderToTanstack');
+  expect(code).toContain('function createRouteStaticData');
   expect(code).toContain('ctx?.abortController?.signal');
   expect(code).toContain('ctx?.signal ||');
   expect(code).toContain('new Request(href, { signal })');
@@ -21,6 +22,8 @@ const assertTanstackLoaderContract = (code: string) => {
   expect(code).toContain('throwTanstackRedirect(location)');
   expect(code).toContain('if (result.status === 404)');
   expect(code).toContain('throw notFound()');
+  expect(code).toContain('staticData: createRouteStaticData({');
+  expect(code).toContain('modernRouteId:');
 };
 
 describe('tanstack generated data-flow contracts', () => {

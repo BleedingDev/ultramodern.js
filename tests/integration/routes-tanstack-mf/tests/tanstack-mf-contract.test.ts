@@ -157,4 +157,17 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain('modernRouteId: "mf/page"');
     expect(code).toContain('modernRouteLoader: loader_1');
   });
+
+  test('host effect boundary uses shared request-context propagation helper', () => {
+    const code = readFixture(
+      'integration/routes-tanstack-mf/mf-host/api/effect/index.ts',
+    );
+
+    expect(code).toContain(
+      "import { createRequestContextHeaders } from '@modern-js/plugin-bff/client';",
+    );
+    expect(code).toContain('const requestHeaders = createRequestContextHeaders({');
+    expect(code).toContain('locale,');
+    expect(code).toContain('traceparent: syntheticTraceparent || traceparent,');
+  });
 });

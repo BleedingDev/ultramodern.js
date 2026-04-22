@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: umebc-03
     content: Expose stable request, identity, locale, and trace propagation APIs for generated clients and Module Federation boundaries.
-    status: pending
+    status: completed
   - id: umebc-04
     content: Add integration coverage for shell-to-remote-to-service flows in Effect-first mode with explicit Hono compatibility lanes.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -24,6 +24,14 @@ isProject: false
 The recent refactor already moved stronger defaults behind explicit seams and restored a more merge-friendly core posture. That was necessary groundwork, but it does not yet guarantee that shell apps, MF remotes, and independent microservices all share the same transport and context contract.
 
 This plan turns the current partial Effect-first path into a stable MV contract instead of a mostly generator-level preference.
+
+`umebc-03` and `umebc-04` are completed after:
+
+- shared request-context propagation primitives landed in `packages/server/create-request/src/requestContext.ts`,
+- generated Effect clients began exporting and consuming `createEffectRequestContext(...)`,
+- cross-project Effect fixtures proved locale and `traceparent` propagation end-to-end in build/serve parity,
+- the MF host trace path switched to the same shared helper instead of ad hoc header wiring,
+- and the explicit Hono compatibility lane passed again via `tests/integration/bff-hono/tests/index.test.ts`.
 
 ## Constraints
 

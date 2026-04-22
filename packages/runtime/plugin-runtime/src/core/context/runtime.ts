@@ -5,7 +5,9 @@ import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
 import type { AnyRouter } from '@tanstack/react-router';
 import { createContext, useContext } from 'react';
 import type {
+  InternalRouterRuntimeState,
   InternalRouterServerSnapshot,
+  RouterFramework,
   RouteManifest,
 } from '../../router/runtime/types';
 import type { RequestContext, SSRServerContext } from '../types';
@@ -14,6 +16,7 @@ export interface TRuntimeContext {
   initialData?: Record<string, unknown>;
   isBrowser: boolean;
   routes?: RouteObject[];
+  routerFramework?: RouterFramework;
   requestContext: RequestContext;
   /**
    * @deprecated Use `requestContext` instead
@@ -27,6 +30,10 @@ export interface TRuntimeContext {
  */
 export interface TInternalRuntimeContext extends TRuntimeContext {
   routeManifest?: RouteManifest;
+  routerRuntime?: InternalRouterRuntimeState;
+  routerInstance?: unknown;
+  routerHydrationScript?: string;
+  routerMatchedRouteIds?: string[];
   routerServerSnapshot?: InternalRouterServerSnapshot;
   routerContext?: StaticHandlerContext;
   /**

@@ -255,6 +255,37 @@
   - blocker: none
   - status: completed
   - next action: `presetUltramodern(...)` is now the public opinionated starter entrypoint via a thin wrapper over the existing baseline helper while `withAppBaseline(...)` stays as a compatibility alias; remaining rollout work moves to docs, release-gate, and certification evidence surfaces under `uspr-03` and `uspr-04`
+- `helm-local-router-seam-completion`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/runtime/plugin-runtime/src/router/runtime/**`, `packages/runtime/plugin-runtime/src/core/context/runtime.ts`, `packages/runtime/plugin-runtime/src/core/react/wrapper.tsx`, and owned router tests
+  - blocker: none
+  - status: completed
+  - next action: router lifecycle hooks, router-neutral runtime state, and public `routerFramework` are landed and verified against the TanStack parity suites
+- `helm-local-effect-bff-propagation`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `packages/server/create-request/src/**`, `packages/cli/plugin-bff/src/utils/effectClientGenerator.ts`, owned parity fixtures, and BFF contract tests
+  - blocker: none
+  - status: completed
+  - next action: shared locale/trace propagation helpers are stable across generated clients, MF host wiring, cross-project parity, and the Hono compatibility lane
+- `helm-local-mv-delivery-reference`
+  - agent_id: `local`
+  - owner: `Codex`
+  - write scope: `.codex/plans/ultramodern-mv-delivery-layer.plan.md`, `docs/super-app-rfc-adr/DELIVERY-0001-micro-vertical-reference-delivery.md`, and Ultramodern guide docs
+  - blocker: none
+  - status: completed
+  - next action: the previously missing full MV delivery layer is now explicit as a reference topology, extraction workflow, and ownership guide anchored to existing repo examples
+
+## Final State
+
+- `ultramodern-mv-core-router-seams`: completed
+- `ultramodern-mv-effect-bff-contracts`: completed
+- `ultramodern-mv-mf-shell-ssr-contracts`: completed
+- `ultramodern-single-preset-rollout`: completed
+- `ultramodern-single-preset-mv-program`: completed
+- follow-on `ultramodern-mv-delivery-layer`: completed as reference documentation and adoption guidance
+- `bd ready`: `No ready work found (all issues have blocking dependencies)`
 - `preset-rollout-template-scout`
   - agent_id: `019db24e-aa5a-7e71-acdd-3ef24e1ab8a8`
   - owner: `Bernoulli`

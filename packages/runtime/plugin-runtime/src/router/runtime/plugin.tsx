@@ -24,10 +24,18 @@ import {
 import { getGlobalIsRscClient } from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import {
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onAfterHydrateRouter as onAfterHydrateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
   type RouterExtendsHooks,
   modifyRoutes as modifyRoutesHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
+  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
 } from './hooks';
+import {
+  applyRouterRuntimeState,
+  type RouterLifecycleContext,
+} from './lifecycle';
 import { createClientRouterFromPayload } from './rsc-router';
 import type { RouterConfig, Routes } from './types';
 import {
@@ -75,8 +83,12 @@ export const routerPlugin = (
   return {
     name: '@modern-js/plugin-router',
     registryHooks: {
+      onAfterCreateRouter: onAfterCreateRouterHook,
+      onAfterHydrateRouter: onAfterHydrateRouterHook,
+      onBeforeCreateRouter: onBeforeCreateRouterHook,
       modifyRoutes: modifyRoutesHook,
       onBeforeCreateRoutes: onBeforeCreateRoutesHook,
+      onBeforeHydrateRouter: onBeforeHydrateRouterHook,
     },
     setup: api => {
       const routesContainer = {
@@ -300,6 +312,15 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
     }
 
     const modifiedRoutes = hooks.modifyRoutes.call(routes);
+    const routerLifecycleContext: RouterLifecycleContext = {
+      framework: 'react-router',
+      phase: 'client-create',
+      routes: modifiedRoutes,
+      runtimeContext,
+      basename: _basename,
+      hydrationData,
+    };
+    hooks.onBeforeCreateRouter.call(routerLifecycleContext);
 
     const router = supportHtml5History
       ? createBrowserRouter(modifiedRoutes, {
@@ -310,6 +331,31 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
           basename: _basename,
           hydrationData,
         });
+    applyRouterRuntimeState(runtimeContext, {
+      framework: 'react-router',
+      basename: _basename,
+      instance: router,
+    });
+    hooks.onAfterCreateRouter.call({
+      ...routerLifecycleContext,
+      router,
+      runtimeContext,
+    });
+
+    if (hydrationData) {
+      hooks.onBeforeHydrateRouter.call({
+        ...routerLifecycleContext,
+        phase: 'hydrate',
+        router,
+        runtimeContext,
+      });
+      hooks.onAfterHydrateRouter.call({
+        ...routerLifecycleContext,
+        phase: 'hydrate',
+        router,
+        runtimeContext,
+      });
+    }
 
     const originSubscribe = router.subscribe;
     router.subscribe = (listener: RouterSubscriber) => {

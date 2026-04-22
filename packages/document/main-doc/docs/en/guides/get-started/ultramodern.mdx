@@ -280,6 +280,22 @@ The following are intentionally out of scope for this public V3 preset profile:
 - Forcing Effect-only data-fetch runtime as the mandatory default for every app.
 - Forcing app-level MF SSR for every app regardless of readiness.
 
+## Micro Vertical Delivery Path
+
+`presetUltramodern(...)` is also the single public entrypoint for Micro Verticals. The intended adoption sequence is:
+
+1. start with one app and keep route/data ownership inside the shell,
+2. extract stable route subtrees into MF remotes once fallback and compatibility behavior are explicit,
+3. extract shared workflows into strict Effect services when request, identity, locale, and trace context must survive deployment boundaries,
+4. keep Hono only as an explicit compatibility lane for existing Modern.js-style BFF handlers.
+
+In this repo, the reference examples are:
+
+- `routes-tanstack-mf` for shell + remote composition and MF SSR contracts,
+- `bff-corss-project` for cross-project producer/consumer wiring,
+- `bff-runtime-parity` for generated-client build/serve parity,
+- `bff-hono` for the compatibility lane.
+
 ## Baseline Switches (Opt-out)
 
 The generated `presetUltramodern(...)` create template enables stricter platform contracts. These env switches are read by generated `modern.config.ts` and can be disabled/overridden per app or per environment:

@@ -7,13 +7,13 @@ todos:
     status: completed
   - id: umcrs-02
     content: Add lifecycle hooks around router creation and SSR hydration so TanStack and React Router paths can be swapped without hidden framework internals.
-    status: pending
+    status: completed
   - id: umcrs-03
     content: Unify runtime context shape across router implementations instead of keeping divergent routerContext and tanstackRouter internals.
-    status: pending
+    status: completed
   - id: umcrs-04
     content: Add parity coverage for SSR, hydration, redirect, blocker, loader, mutation, and asset-manifest behavior across TanStack and React Router lanes.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -24,6 +24,13 @@ isProject: false
 This plan comes directly from the current chat conclusion that `presetUltramodern` can enforce direction, but it cannot invent missing runtime hooks. The present repo already has two separate router implementations, but the seam is still too thin to treat TanStack as a fully first-class replacement path for SSR plus MF composition.
 
 The goal is not to delete React Router support. The goal is to make the framework depend on one stable router contract and let both TanStack and React Router implement that contract.
+
+`umcrs-02` through `umcrs-04` are completed after:
+
+- router lifecycle hooks landed for before/after create and before/after hydrate phases,
+- runtime context exposed one router-neutral state shape plus public `routerFramework`,
+- targeted router seam tests landed under `packages/runtime/plugin-runtime/tests/router/lifecycle.test.tsx`,
+- and TanStack route parity coverage passed again through `tests/integration/routes-tanstack/tests/tanstack-data-flow-contract.test.ts` plus `tests/integration/routes-tanstack/tests/index.test.ts`.
 
 ## Constraints
 

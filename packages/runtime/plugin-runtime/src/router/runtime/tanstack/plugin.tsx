@@ -17,6 +17,14 @@ import * as React from 'react';
 import { useContext, useMemo } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onAfterHydrateRouter as onAfterHydrateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
+  type RouterExtendsHooks,
+  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
+} from '../hooks';
+import { applyRouterRuntimeState, type RouterLifecycleContext } from '../lifecycle';
+import {
   InternalRuntimeContext,
   getGlobalLayoutApp,
   getGlobalRoutes,
@@ -53,9 +61,17 @@ function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
 
 export const tanstackRouterPlugin = (
   userConfig: Partial<RouterConfig> = {},
-): RuntimePlugin => {
+): RuntimePlugin<{
+  extendHooks: RouterExtendsHooks;
+}> => {
   return {
     name: '@modern-js/plugin-router-tanstack',
+    registryHooks: {
+      onAfterCreateRouter: onAfterCreateRouterHook,
+      onAfterHydrateRouter: onAfterHydrateRouterHook,
+      onBeforeCreateRouter: onBeforeCreateRouterHook,
+      onBeforeHydrateRouter: onBeforeHydrateRouterHook,
+    },
     setup: api => {
       api.onBeforeRender(context => {
         context.router = {
@@ -159,7 +175,21 @@ export const tanstackRouterPlugin = (
           }
 
           const router = useMemo(() => {
+            const lifecycleContext: RouterLifecycleContext = {
+              framework: 'tanstack',
+              phase: 'client-create',
+              routes: getRouteObjects(),
+              runtimeContext,
+              basename: _basename,
+            };
+            hooks.onBeforeCreateRouter.call(lifecycleContext);
+
             if (cachedRouter && cachedRouterBasepath === _basename) {
+              hooks.onAfterCreateRouter.call({
+                ...lifecycleContext,
+                router: cachedRouter,
+                runtimeContext,
+              });
               return cachedRouter;
             }
 
@@ -177,13 +207,40 @@ export const tanstackRouterPlugin = (
               context: {},
             });
             cachedRouterBasepath = _basename;
+            hooks.onAfterCreateRouter.call({
+              ...lifecycleContext,
+              router: cachedRouter,
+              runtimeContext,
+            });
 
             return cachedRouter;
-          }, [_basename, routeTree, supportHtml5History]);
+          }, [_basename, routeTree, supportHtml5History, runtimeContext]);
+          const runtimeState = applyRouterRuntimeState(runtimeContext, {
+            framework: 'tanstack',
+            basename: _basename,
+            instance: router,
+          });
+          runtimeState.tanstackRouter = router as any;
+          const lifecycleContext: RouterLifecycleContext = {
+            framework: 'tanstack',
+            phase: 'client-create',
+            routes: getRouteObjects(),
+            runtimeContext: runtimeState,
+            basename: _basename,
+            router,
+          };
 
           // TanStack SSR hydration sets window.$_TSR. If present, use RouterClient to hydrate.
           const hasSSRBootstrap =
             typeof window !== 'undefined' && (window as any).$_TSR;
+          if (hasSSRBootstrap) {
+            hooks.onBeforeHydrateRouter.call({
+              ...lifecycleContext,
+              phase: 'hydrate',
+              router,
+              runtimeContext: runtimeState,
+            });
+          }
 
           const RouterContent = hasSSRBootstrap ? (
             <React.Suspense fallback={null}>
@@ -192,6 +249,14 @@ export const tanstackRouterPlugin = (
           ) : (
             <RouterProvider router={router} />
           );
+          if (hasSSRBootstrap) {
+            hooks.onAfterHydrateRouter.call({
+              ...lifecycleContext,
+              phase: 'hydrate',
+              router,
+              runtimeContext: runtimeState,
+            });
+          }
 
           return App ? <App>{RouterContent}</App> : RouterContent;
         };

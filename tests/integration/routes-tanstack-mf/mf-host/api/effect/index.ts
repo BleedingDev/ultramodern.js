@@ -8,6 +8,7 @@ import {
   Option,
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
+import { createRequestContextHeaders } from '@modern-js/plugin-bff/client';
 import { hostEffectApi } from '../../shared/effect/api';
 
 type TraceSpanProcessor = Exclude<
@@ -162,15 +163,10 @@ const greetingsLayer = HttpApiBuilder.group(
             const syntheticTraceparent = incomingTrace
               ? `00-${incomingTrace.traceId}-${syntheticHostRemoteCallSpanId}-01`
               : undefined;
-            const requestHeaders: Record<string, string> = {};
-            if (syntheticTraceparent) {
-              requestHeaders.traceparent = syntheticTraceparent;
-            } else if (traceparent) {
-              requestHeaders.traceparent = traceparent;
-            }
-            if (locale) {
-              requestHeaders['accept-language'] = locale;
-            }
+            const requestHeaders = createRequestContextHeaders({
+              locale,
+              traceparent: syntheticTraceparent || traceparent,
+            });
 
             return yield* Effect.promise(() =>
               fetch(`${remoteOrigin}/remote-api/effect/trace/child`, {
