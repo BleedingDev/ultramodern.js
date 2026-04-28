@@ -4,34 +4,34 @@ overview: Must-pass contract and governance gate before any Wave 1 implementatio
 todos:
   - id: uw0-01
     content: Define MF-vs-Garfish parity contract with explicit known non-equivalences.
-    status: pending
+    status: completed
   - id: uw0-02
     content: Define topology manifest schema (URL indirection, integrity, attestation, TTL, LKG, revocation).
-    status: pending
+    status: completed
   - id: uw0-03
     content: Define Zephyr vanilla profile contract and constraints.
-    status: pending
+    status: completed
   - id: uw0-04
     content: Define extraction boundary contract (no cross-vertical imports, explicit auth/session/trace contracts).
-    status: pending
+    status: completed
   - id: uw0-05
     content: Define DS platform contract (vendor-neutral) and adapter requirements.
-    status: pending
+    status: completed
   - id: uw0-06
     content: Define template manifest contract and supply-chain policy for external templates.
-    status: pending
+    status: completed
   - id: uw0-07
     content: Define support matrix and CI economics contract.
-    status: pending
+    status: completed
   - id: uw0-08
     content: Define ownership schema and graph-aware blast-radius policy.
-    status: pending
+    status: completed
   - id: uw0-09
     content: Define runtime kill-switch and incident/rollback contract.
-    status: pending
+    status: completed
   - id: uw0-10
     content: Publish binary Wave 1 entry checklist and validation command.
-    status: pending
+    status: completed
 isProject: true
 ---
 

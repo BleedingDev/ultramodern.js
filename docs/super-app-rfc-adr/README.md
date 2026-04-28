@@ -24,6 +24,16 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0007-module-certification-gates.md`
 - `ADR-0008-bun-superapp-smoke-gates.md`
 - `ADR-0009-mcp-cli-capability-parity.md`
+- `ADR-0010-mv-wave0-contract-first-gates.md`
+- `ADR-0011-mf-vs-garfish-runtime-parity-contract.md`
+- `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
+- `ADR-0013-mv-ds-platform-contract.md`
+- `ADR-0014-mv-template-supply-chain-policy.md`
+- `ADR-0015-mv-ownership-and-blast-radius-gates.md`
 - `contracts/ai-capabilities.json`
+- `contracts/mv-runtime-parity-contract.json`
+- `contracts/mv-topology-manifest.schema.json`
+- `contracts/mv-template-manifest.schema.json`
+- `contracts/mv-ownership.schema.json`
 - `IMPLEMENTATION-BACKLOG.md`
 - `RELEASE-V4-BACKPORT-PLAN.md`

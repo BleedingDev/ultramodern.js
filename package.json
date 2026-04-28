@@ -49,6 +49,7 @@
     "validate:module-sdk-contracts": "node scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --skip-manifest-validation",
     "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
     "validate:module-certification-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
+    "validate:wave0-mv-contracts": "node scripts/wave0-mv-contracts/validate-wave0-mv-contracts.js",
     "validate:gate-snapshot": "node scripts/release-gates/validate-gate-snapshot.js --snapshot-path .modern/contract-gates.json",
     "validate:mcp-cli-parity": "node scripts/ai-capabilities/validate-mcp-cli-parity.js --contract docs/super-app-rfc-adr/contracts/ai-capabilities.json --out .modern/mcp-cli-parity.json",
     "generate:mcp-adapter": "node scripts/ai-capabilities/generate-mcp-adapter.js --contract docs/super-app-rfc-adr/contracts/ai-capabilities.json --out .modern/mcp/adapter-manifest.json --mcporter-out .modern/mcporter.json",

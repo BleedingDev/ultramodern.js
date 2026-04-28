@@ -4,7 +4,7 @@ overview: Contract-first execution plan for turning main-ultramodern into a prod
 todos:
   - id: ucmv-00
     content: Complete Wave 0 contract gates (must-pass) before implementation streams start.
-    status: pending
+    status: completed
   - id: ucmv-01
     content: Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).
     status: pending

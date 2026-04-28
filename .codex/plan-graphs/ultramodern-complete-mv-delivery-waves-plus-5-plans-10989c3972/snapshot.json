@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T21:12:19.029275+00:00",
+  "generated_at": "2026-04-28T22:02:18.507479+00:00",
   "graph_id": "ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972",
   "plan_set_hash": "e5598838c4",
   "selection_hash": "10989c3972",
@@ -47,7 +47,7 @@
         {
           "id": "ucmv-00",
           "content": "Complete Wave 0 contract gates (must-pass) before implementation streams start.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -88,61 +88,61 @@
         {
           "id": "uw0-01",
           "content": "Define MF-vs-Garfish parity contract with explicit known non-equivalences.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uw0-02",
           "content": "Define topology manifest schema (URL indirection, integrity, attestation, TTL, LKG, revocation).",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uw0-03",
           "content": "Define Zephyr vanilla profile contract and constraints.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uw0-04",
           "content": "Define extraction boundary contract (no cross-vertical imports, explicit auth/session/trace contracts).",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "uw0-05",
           "content": "Define DS platform contract (vendor-neutral) and adapter requirements.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "uw0-06",
           "content": "Define template manifest contract and supply-chain policy for external templates.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         },
         {
           "id": "uw0-07",
           "content": "Define support matrix and CI economics contract.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 7
         },
         {
           "id": "uw0-08",
           "content": "Define ownership schema and graph-aware blast-radius policy.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 8
         },
         {
           "id": "uw0-09",
           "content": "Define runtime kill-switch and incident/rollback contract.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 9
         },
         {
           "id": "uw0-10",
           "content": "Publish binary Wave 1 entry checklist and validation command.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 10
         }
       ],
@@ -305,80 +305,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-wave0-contract-first-execution",
-      "plan_name": "Ultramodern Wave 0 Contract-First Execution",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave0-contract-first-execution.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "uw0-01",
-          "content": "Define MF-vs-Garfish parity contract with explicit known non-equivalences.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uw0-02",
-          "content": "Define topology manifest schema (URL indirection, integrity, attestation, TTL, LKG, revocation).",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uw0-03",
-          "content": "Define Zephyr vanilla profile contract and constraints.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 10
-    },
-    {
-      "plan_slug": "ultramodern-complete-mv-delivery-waves",
-      "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-wave4-hardening-and-lane-policy"
-      ],
-      "active": [
-        {
-          "id": "ucmv-00",
-          "content": "Complete Wave 0 contract gates (must-pass) before implementation streams start.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ucmv-01",
-          "content": "Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ucmv-02",
-          "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-wave1-parallel-implementation-streams",
       "plan_name": "Ultramodern Wave 1 Parallel Implementation Streams",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave1-parallel-implementation-streams.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-wave0-contract-first-execution"
-      ],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "uw1-r",
@@ -402,6 +334,40 @@
         }
       ],
       "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-complete-mv-delivery-waves",
+      "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "ultramodern-wave4-hardening-and-lane-policy"
+      ],
+      "active": [
+        {
+          "id": "ucmv-01",
+          "content": "Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).",
+          "status": "pending",
+          "ordinal": 2
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ucmv-02",
+          "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "ucmv-03",
+          "content": "Complete Wave 3 production rollout and certification.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 1,
       "total": 5
     },
     {
@@ -505,6 +471,18 @@
       ],
       "completed": 0,
       "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-wave0-contract-first-execution",
+      "plan_name": "Ultramodern Wave 0 Contract-First Execution",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave0-contract-first-execution.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 10,
+      "total": 10
     }
   ],
   "errors": [],
