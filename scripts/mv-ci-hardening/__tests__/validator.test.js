@@ -45,7 +45,8 @@ test('default profile validates without network or package scripts', () => {
 
   assert.equal(evidenceSummary.name, 'mv-ci-tier-budgets-and-flake-policy');
   assert.equal(evidenceSummary.checksByTier.golden.checkCount, 1);
-  assert.equal(evidenceSummary.checksByTier.compat.flakeWaiverCount, 1);
+  assert.equal(evidenceSummary.checksByTier.compat.flakeWaiverCount, 0);
+  assert.equal(evidenceSummary.checks[1].retryAttempts, 1);
   assert.equal(evidenceSummary.checksByTier.experimental.checkCount, 1);
 });
 

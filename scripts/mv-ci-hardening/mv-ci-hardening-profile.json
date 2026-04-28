@@ -48,19 +48,8 @@
       "timeoutMinutes": 30,
       "command": "node --test scripts/mv-integration-pilot/__tests__/remote-failure-drills.test.js scripts/mv-integration-pilot/__tests__/rollback-kill-switch-drill.test.js",
       "retryPolicy": {
-        "maxAttempts": 2,
-        "issueRef": "modernjs-465",
-        "reason": "compat lane may retry once only while CI hardening evidence is introduced"
-      },
-      "flakeWaivers": [
-        {
-          "issueRef": "modernjs-465",
-          "owner": "migration-platform",
-          "openedOn": "2026-04-28",
-          "expiresOn": "2026-05-12",
-          "reason": "temporary compat runtime budget observation during Wave 4 rollout"
-        }
-      ]
+        "maxAttempts": 1
+      }
     },
     {
       "id": "mv-experimental-smoke",

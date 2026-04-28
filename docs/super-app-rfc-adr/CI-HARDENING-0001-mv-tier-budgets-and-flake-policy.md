@@ -10,8 +10,8 @@
 
 Wave 4 micro-vertical CI must keep high-confidence checks while preventing
 unbounded runtime and silent flake normalization. This policy assigns every MV
-check to one tier, caps runtime by tier, and makes retry/flake exceptions
-explicit, owned, tracked, and short-lived.
+check to one tier, caps runtime by tier, and keeps retry/flake exceptions out of
+the active profile unless a tracked, short-lived waiver is explicitly approved.
 
 ## 2. Tier Budgets
 
@@ -22,9 +22,10 @@ explicit, owned, tracked, and short-lived.
 | Experimental | 12 minutes | 12 minutes | 1 active waiver | Explicit opt-in smoke evidence only |
 
 Golden is the production-default path. It is not allowed to carry flake waivers
-or retry masking. Compat may retry once while tracked compatibility migration
-evidence is active. Experimental must stay smoke-bounded unless promoted to
-Compat or Golden through a separate policy change.
+or retry masking. The active Compat check runs with one attempt and no active
+waiver; any future retry masking must be added back as a tracked, expiring
+exception. Experimental must stay smoke-bounded unless promoted to Compat or
+Golden through a separate policy change.
 
 ## 3. Flake Policy
 
@@ -35,7 +36,8 @@ Compat or Golden through a separate policy change.
 4. Placeholder owners or reasons are blockers.
 5. Golden checks cannot use flake waivers.
 6. A retry count above one must include a tracked bead or GitHub issue and a
-   non-placeholder reason.
+   non-placeholder reason, and must not appear in the active profile without an
+   approved waiver.
 7. Retrying without a tracked issue is treated as hiding a failing check and is
    rejected.
 
@@ -71,6 +73,11 @@ The active profile starts with three representative checks:
 
 Runtime budget changes must update the profile and this policy together so the
 budget contract and executable enforcement remain aligned.
+
+The Wave 4 temporary Compat waiver tracked by `modernjs-465` has been removed
+from the active profile. The validator still keeps waiver and retry rejection
+coverage in fixtures so a future exception cannot silently bypass ownership,
+expiry, or issue-reference requirements.
 
 ## 6. Acceptance Criteria
 
