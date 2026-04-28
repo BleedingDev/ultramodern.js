@@ -1,0 +1,471 @@
+{
+  "schemaVersion": 1,
+  "id": "wave3-progressive-production-rollout",
+  "description": "Wave 3 progressive production adoption strategy by vertical and environment.",
+  "verticals": [
+    {
+      "id": "remote-commerce",
+      "ownerTeam": "commerce-experience",
+      "environments": ["development", "staging", "canary", "production"],
+      "gates": [
+        {
+          "environment": "development",
+          "percentage": 10,
+          "holdWindow": "PT2H",
+          "entryCriteriaRef": "evidence/wave3/remote-commerce/development/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-commerce/development/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#development",
+            "manifestRef": "manifests/wave3/remote-commerce/development/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-commerce/wave3-dev",
+            "attestationRef": "attestations/wave3/remote-commerce/development.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "client-error-rate",
+              "budget": 1,
+              "observed": 0.15,
+              "evidenceRef": "evidence/wave3/remote-commerce/development/client-error-rate.json"
+            },
+            {
+              "name": "checkout-p95-latency-ms",
+              "budget": 900,
+              "observed": 612,
+              "evidenceRef": "evidence/wave3/remote-commerce/development/checkout-p95.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "client-error-rate",
+              "threshold": ">1%",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#rollback"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-commerce.disable",
+            "owner": "commerce-experience",
+            "runbookRef": "runbooks/wave3/remote-commerce.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-commerce/development/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "commerce-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-20T09:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/development/approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "staging",
+          "percentage": 25,
+          "holdWindow": "PT6H",
+          "entryCriteriaRef": "evidence/wave3/remote-commerce/staging/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-commerce/staging/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#staging",
+            "manifestRef": "manifests/wave3/remote-commerce/staging/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-commerce/wave3-staging",
+            "attestationRef": "attestations/wave3/remote-commerce/staging.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "client-error-rate",
+              "budget": 0.75,
+              "observed": 0.18,
+              "evidenceRef": "evidence/wave3/remote-commerce/staging/client-error-rate.json"
+            },
+            {
+              "name": "checkout-p95-latency-ms",
+              "budget": 850,
+              "observed": 640,
+              "evidenceRef": "evidence/wave3/remote-commerce/staging/checkout-p95.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "checkout-p95-latency-ms",
+              "threshold": ">850ms for 10m",
+              "action": "hold",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#staging-hold"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-commerce.disable",
+            "owner": "commerce-experience",
+            "runbookRef": "runbooks/wave3/remote-commerce.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-commerce/staging/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "commerce-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-20T15:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/staging/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-20T15:15:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/staging/platform-approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "canary",
+          "percentage": 50,
+          "holdWindow": "PT12H",
+          "entryCriteriaRef": "evidence/wave3/remote-commerce/canary/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-commerce/canary/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#canary",
+            "manifestRef": "manifests/wave3/remote-commerce/canary/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-commerce/wave3-canary",
+            "attestationRef": "attestations/wave3/remote-commerce/canary.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "client-error-rate",
+              "budget": 0.5,
+              "observed": 0.22,
+              "evidenceRef": "evidence/wave3/remote-commerce/canary/client-error-rate.json"
+            },
+            {
+              "name": "checkout-p95-latency-ms",
+              "budget": 800,
+              "observed": 675,
+              "evidenceRef": "evidence/wave3/remote-commerce/canary/checkout-p95.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "client-error-rate",
+              "threshold": ">0.5% for 5m",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#canary-rollback"
+            },
+            {
+              "metric": "trust-policy-deny-rate",
+              "threshold": ">0.1% for 5m",
+              "action": "disable",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#trust-policy-disable"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-commerce.disable",
+            "owner": "commerce-experience",
+            "runbookRef": "runbooks/wave3/remote-commerce.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-commerce/canary/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "commerce-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-21T03:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/canary/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-21T03:10:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/canary/platform-approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "production",
+          "percentage": 100,
+          "holdWindow": "P1D",
+          "entryCriteriaRef": "evidence/wave3/remote-commerce/production/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-commerce/production/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#production",
+            "manifestRef": "manifests/wave3/remote-commerce/production/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-commerce/wave3-production",
+            "attestationRef": "attestations/wave3/remote-commerce/production.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "client-error-rate",
+              "budget": 0.5,
+              "observed": 0.25,
+              "evidenceRef": "evidence/wave3/remote-commerce/production/client-error-rate.json"
+            },
+            {
+              "name": "checkout-p95-latency-ms",
+              "budget": 800,
+              "observed": 702,
+              "evidenceRef": "evidence/wave3/remote-commerce/production/checkout-p95.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "client-error-rate",
+              "threshold": ">0.5% for 5m",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#production-rollback"
+            },
+            {
+              "metric": "signed-manifest-validation-failure",
+              "threshold": ">0",
+              "action": "disable",
+              "evidenceRef": "runbooks/wave3/remote-commerce.md#manifest-disable"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-commerce.disable",
+            "owner": "commerce-experience",
+            "runbookRef": "runbooks/wave3/remote-commerce.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-commerce/production/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "commerce-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-22T03:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/production/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-22T03:10:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/production/platform-approval.md"
+            },
+            {
+              "owner": "production-readiness-council",
+              "role": "release-approver",
+              "approvedAt": "2026-04-22T03:20:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-commerce/production/release-approval.md"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "remote-identity",
+      "ownerTeam": "identity-experience",
+      "environments": ["development", "staging", "canary", "production"],
+      "gates": [
+        {
+          "environment": "development",
+          "percentage": 5,
+          "holdWindow": "PT2H",
+          "entryCriteriaRef": "evidence/wave3/remote-identity/development/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-identity/development/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#development",
+            "manifestRef": "manifests/wave3/remote-identity/development/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-identity/wave3-dev",
+            "attestationRef": "attestations/wave3/remote-identity/development.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "login-error-rate",
+              "budget": 0.75,
+              "observed": 0.11,
+              "evidenceRef": "evidence/wave3/remote-identity/development/login-error-rate.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "login-error-rate",
+              "threshold": ">0.75%",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-identity.md#rollback"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-identity.disable",
+            "owner": "identity-experience",
+            "runbookRef": "runbooks/wave3/remote-identity.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-identity/development/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "identity-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-20T10:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/development/approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "staging",
+          "percentage": 25,
+          "holdWindow": "PT6H",
+          "entryCriteriaRef": "evidence/wave3/remote-identity/staging/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-identity/staging/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#staging",
+            "manifestRef": "manifests/wave3/remote-identity/staging/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-identity/wave3-staging",
+            "attestationRef": "attestations/wave3/remote-identity/staging.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "login-error-rate",
+              "budget": 0.5,
+              "observed": 0.13,
+              "evidenceRef": "evidence/wave3/remote-identity/staging/login-error-rate.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "login-error-rate",
+              "threshold": ">0.5% for 10m",
+              "action": "hold",
+              "evidenceRef": "runbooks/wave3/remote-identity.md#staging-hold"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-identity.disable",
+            "owner": "identity-experience",
+            "runbookRef": "runbooks/wave3/remote-identity.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-identity/staging/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "identity-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-20T16:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/staging/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-20T16:10:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/staging/platform-approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "canary",
+          "percentage": 50,
+          "holdWindow": "PT12H",
+          "entryCriteriaRef": "evidence/wave3/remote-identity/canary/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-identity/canary/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#canary",
+            "manifestRef": "manifests/wave3/remote-identity/canary/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-identity/wave3-canary",
+            "attestationRef": "attestations/wave3/remote-identity/canary.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "login-error-rate",
+              "budget": 0.35,
+              "observed": 0.16,
+              "evidenceRef": "evidence/wave3/remote-identity/canary/login-error-rate.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "login-error-rate",
+              "threshold": ">0.35% for 5m",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-identity.md#canary-rollback"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-identity.disable",
+            "owner": "identity-experience",
+            "runbookRef": "runbooks/wave3/remote-identity.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-identity/canary/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "identity-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-21T04:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/canary/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-21T04:10:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/canary/platform-approval.md"
+            }
+          ]
+        },
+        {
+          "environment": "production",
+          "percentage": 100,
+          "holdWindow": "P1D",
+          "entryCriteriaRef": "evidence/wave3/remote-identity/production/entry.md",
+          "exitCriteriaRef": "evidence/wave3/remote-identity/production/exit.md",
+          "signedManifest": {
+            "enforced": true,
+            "policyRef": "docs/super-app-rfc-adr/wave3/signed-manifest.md#production",
+            "manifestRef": "manifests/wave3/remote-identity/production/current.json",
+            "signatureRef": "sigstore://rekor.example.internal/entries/remote-identity/wave3-production",
+            "attestationRef": "attestations/wave3/remote-identity/production.intoto.jsonl"
+          },
+          "sloChecks": [
+            {
+              "name": "login-error-rate",
+              "budget": 0.35,
+              "observed": 0.18,
+              "evidenceRef": "evidence/wave3/remote-identity/production/login-error-rate.json"
+            }
+          ],
+          "rollbackTriggers": [
+            {
+              "metric": "login-error-rate",
+              "threshold": ">0.35% for 5m",
+              "action": "rollback",
+              "evidenceRef": "runbooks/wave3/remote-identity.md#production-rollback"
+            },
+            {
+              "metric": "signed-manifest-validation-failure",
+              "threshold": ">0",
+              "action": "disable",
+              "evidenceRef": "runbooks/wave3/remote-identity.md#manifest-disable"
+            }
+          ],
+          "killSwitch": {
+            "available": true,
+            "flag": "mv.wave3.remote-identity.disable",
+            "owner": "identity-experience",
+            "runbookRef": "runbooks/wave3/remote-identity.md#kill-switch",
+            "evidenceRef": "evidence/wave3/remote-identity/production/kill-switch.md"
+          },
+          "approvals": [
+            {
+              "owner": "identity-experience",
+              "role": "vertical-owner",
+              "approvedAt": "2026-04-22T04:00:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/production/approval.md"
+            },
+            {
+              "owner": "super-app-platform",
+              "role": "platform-owner",
+              "approvedAt": "2026-04-22T04:10:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/production/platform-approval.md"
+            },
+            {
+              "owner": "production-readiness-council",
+              "role": "release-approver",
+              "approvedAt": "2026-04-22T04:20:00.000Z",
+              "evidenceRef": "evidence/wave3/remote-identity/production/release-approval.md"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

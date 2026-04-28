@@ -2,7 +2,7 @@
 
 - graph_id: `ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972`
 - selection_hash: `10989c3972`
-- active issue: `modernjs-jnt`
+- active issue: `modernjs-8zx`
 
 ## Wave 1 Launch: Wave 0 Contract Gates
 
@@ -78,3 +78,29 @@ Plan state policy: root agent owns `.codex/plans/ultramodern-wave2-integration-p
 - Reference topology lane owns only the topology fixture/helper/test files named above.
 - Drill scout is read-only and must not edit files.
 - Later write lanes must not mutate the reference topology shape without root reassignment.
+
+## Wave 4 Launch: Wave 3 Production Rollout and Certification
+
+Plan state policy: root agent owns `.codex/plans/ultramodern-wave3-production-rollout-certification.plan.md` status updates because Wave 3 lanes converge on certification state and evidence requirements. Workers report complete, partial, or blocked; root updates plan status after verification.
+
+| Lane | Agent | Owner / Write Scope | Dependency | Status | Next Action |
+| --- | --- | --- | --- | --- | --- |
+| Progressive rollout strategy | `019dd65d-eb19-71c2-97d9-805486985bac` Bernoulli | `scripts/mv-production-rollout/rollout-strategy.js`, `scripts/mv-production-rollout/__fixtures__/rollout-strategy.json`, `scripts/mv-production-rollout/__tests__/rollout-strategy.test.js` | Wave 2 complete | Complete | Root verified rollout strategy test and biome |
+| Certification/SOP scout | `019dd65d-ebbd-7a61-90ba-32f279514c1a` Franklin | read-only | Wave 2 evidence | Complete | Recommended disjoint scopes for `uw3-02` through `uw3-04` |
+| Production certification profile | `019dd660-42d9-7a82-9908-af5c3f37080c` Lovelace | `scripts/mv-production-rollout/production-certification-profile.json`, `scripts/mv-production-rollout/__tests__/production-certification-profile.test.js`, optional README | Wave 2 evidence | Complete | Root verified profile shape, release-gates validator, and biome |
+| Incident SOP | `019dd660-4357-7542-b43b-8c431b4cc4d5` Averroes | `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/**` | Wave 2 evidence | Complete | Root verified incident SOP diff hygiene |
+| First production vertical certification | `019dd664-cdac-7682-b741-8c5e3e88dec2` Plato | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/**` | Certification profile and incident SOP | Complete | Root validated production certification profile with gate commands |
+
+## Wave 3 Integration Result
+
+- Plan todos `uw3-01`, `uw3-02`, `uw3-03`, and `uw3-04` are completed.
+- Root verification passed for rollout strategy, production certification profile, incident SOP hygiene, and the `remote-commerce` evidence package.
+- Production certification validation passed with 8 evidence files, 7 migration targets, and 5 gate commands executed.
+- Next frontier after graph refresh: Wave 4 hardening and lane policy.
+
+## Wave 3 Conflict Rules
+
+- Root-only: `.codex/plans/*`, `.codex/plan-graphs/*`, root `package.json`, Beads state, final commits, and cross-lane certification summary.
+- Rollout strategy lane owns only the three rollout strategy files named above.
+- Certification/SOP scout is read-only and must not edit files.
+- Later write lanes should prefer `scripts/mv-production-rollout/**` and avoid mutating Wave 2 pilot artifacts unless root explicitly reassigns ownership.

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "name": "mv-production-rollout-certification-gates",
+  "evidence": {
+    "defaultDir": "docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current",
+    "requiredFiles": [
+      "extraction-evidence.md",
+      "trust-evidence.md",
+      "fallback-evidence.md",
+      "rollback-evidence.md",
+      "design-system-evidence.md",
+      "rollout-evidence.md",
+      "incident-evidence.md",
+      "review-evidence.md"
+    ],
+    "requiredMetadataFields": [
+      "author",
+      "timestamp",
+      "ticket_id",
+      "commit_sha",
+      "workflow_run_url",
+      "rollout_id",
+      "production_environment"
+    ],
+    "minimumReviewers": 2
+  },
+  "migrationContracts": {
+    "targets": [
+      {
+        "id": "mv-extraction-drill-contract",
+        "path": "scripts/mv-integration-pilot/vertical-extraction-drill.js",
+        "includes": [
+          "validateExtractedVertical",
+          "drill.rollback.evidenceRef",
+          "drill.ownershipEvidence"
+        ]
+      },
+      {
+        "id": "mv-trust-topology-contract",
+        "path": "scripts/mv-integration-pilot/reference-topology.js",
+        "includes": [
+          "validateArtifactMetadata",
+          "provenanceAttestation",
+          "contentDigest",
+          "integrity"
+        ]
+      },
+      {
+        "id": "mv-fallback-drill-contract",
+        "path": "scripts/mv-integration-pilot/remote-failure-drills.js",
+        "includes": [
+          "REQUIRED_FAILURE_MODES",
+          "fallbackTelemetryPresent",
+          "telemetry.evidenceRef",
+          "CANONICAL_FALLBACKS"
+        ]
+      },
+      {
+        "id": "mv-rollback-kill-switch-contract",
+        "path": "scripts/mv-integration-pilot/rollback-kill-switch-drill.js",
+        "includes": [
+          "FALLBACK_ORDER",
+          "validateIncidentSlo",
+          "rollbackRunbookRef",
+          "killSwitchRunbookRef"
+        ]
+      },
+      {
+        "id": "mv-design-system-bad-release-contract",
+        "path": "scripts/mv-integration-pilot/design-system-bad-release-drill.js",
+        "includes": [
+          "horizontal-design-system",
+          "rollbackArtifactId",
+          "validateDesignSystemBadReleaseDrill"
+        ]
+      },
+      {
+        "id": "mv-rollout-adr-contract",
+        "path": "docs/super-app-rfc-adr/ADR-0012-mv-topology-manifest-and-zephyr-profile.md",
+        "includes": [
+          "production",
+          "environment overlays",
+          "kill-switch",
+          "fallback telemetry"
+        ]
+      },
+      {
+        "id": "mv-incident-ownership-contract",
+        "path": "docs/super-app-rfc-adr/contracts/mv-ownership.schema.json",
+        "includes": [
+          "\"incidentOwners\"",
+          "\"incidentHooks\"",
+          "\"incident-declared\"",
+          "\"rollout-paused\""
+        ]
+      }
+    ]
+  },
+  "gateCommands": [
+    "node --test scripts/mv-integration-pilot/__tests__/vertical-extraction-drill.test.js",
+    "node --test scripts/mv-integration-pilot/__tests__/remote-failure-drills.test.js",
+    "node --test scripts/mv-integration-pilot/__tests__/rollback-kill-switch-drill.test.js",
+    "node --test scripts/mv-integration-pilot/__tests__/design-system-bad-release-drill.test.js",
+    "node --test scripts/mv-production-rollout/__tests__/production-certification-profile.test.js"
+  ]
+}

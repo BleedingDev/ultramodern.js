@@ -4,16 +4,16 @@ overview: Controlled production adoption with canary rollout, certification evid
 todos:
   - id: uw3-01
     content: Define progressive rollout strategy by vertical and environment.
-    status: pending
+    status: completed
   - id: uw3-02
     content: Extend certification profile with extraction/trust/fallback/rollback evidence requirements.
-    status: pending
+    status: completed
   - id: uw3-03
     content: Certify first production vertical under new gates.
-    status: pending
+    status: completed
   - id: uw3-04
     content: Publish incident SOP for remote/DS/trust-policy failures.
-    status: pending
+    status: completed
 isProject: false
 ---
 

@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ucmv-03
     content: Complete Wave 3 production rollout and certification.
-    status: pending
+    status: completed
   - id: ucmv-04
     content: Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.
     status: pending
