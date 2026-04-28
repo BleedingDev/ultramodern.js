@@ -53,3 +53,8 @@ If new work cannot be mapped to one of those three lanes, it is probably either 
 - [docs/super-app-rfc-adr/SDK-0001-module-sdk-contracts.md](/Users/satan/side/experiments/modernjs/docs/super-app-rfc-adr/SDK-0001-module-sdk-contracts.md)
 - [docs/super-app-rfc-adr/ADR-0007-module-certification-gates.md](/Users/satan/side/experiments/modernjs/docs/super-app-rfc-adr/ADR-0007-module-certification-gates.md)
 - [packages/toolkit/create/README.md](/Users/satan/side/experiments/modernjs/packages/toolkit/create/README.md)
+- [.codex/plans/ultramodern-wave0-contract-first-execution.plan.md](/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave0-contract-first-execution.plan.md)
+- [.codex/plans/ultramodern-wave1-parallel-implementation-streams.plan.md](/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave1-parallel-implementation-streams.plan.md)
+- [.codex/plans/ultramodern-wave2-integration-pilot.plan.md](/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave2-integration-pilot.plan.md)
+- [.codex/plans/ultramodern-wave3-production-rollout-certification.plan.md](/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave3-production-rollout-certification.plan.md)
+- [.codex/plans/ultramodern-wave4-hardening-and-lane-policy.plan.md](/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave4-hardening-and-lane-policy.plan.md)

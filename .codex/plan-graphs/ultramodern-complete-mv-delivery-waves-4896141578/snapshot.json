@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-04-28T20:51:51.872953+00:00",
+  "graph_id": "ultramodern-complete-mv-delivery-waves-4896141578",
+  "plan_set_hash": "ae22becc3d",
+  "selection_hash": "4896141578",
+  "plan_count": 1,
+  "edge_count": 0,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md"
+  ],
+  "edges": [],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
+      "slug": "ultramodern-complete-mv-delivery-waves",
+      "name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
+      "overview": "Contract-first execution plan for turning main-ultramodern into a production-grade Micro-Verticals-first framework while preserving Modern.js capabilities, Zephyr compatibility, and compatibility lanes.",
+      "todos": [
+        {
+          "id": "ucmv-00",
+          "content": "Complete Wave 0 contract gates (must-pass) before implementation streams start.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "ucmv-01",
+          "content": "Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ucmv-02",
+          "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "ucmv-03",
+          "content": "Complete Wave 3 production rollout and certification.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "ucmv-04",
+          "content": "Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-complete-mv-delivery-waves",
+      "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "ucmv-00",
+          "content": "Complete Wave 0 contract gates (must-pass) before implementation streams start.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ucmv-01",
+          "content": "Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ucmv-02",
+          "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "generated-selection"
+}
