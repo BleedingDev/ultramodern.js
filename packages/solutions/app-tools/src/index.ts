@@ -45,6 +45,7 @@ import { restart } from './utils/restart';
 export * from './defineConfig';
 export * from './baseline';
 export * from './presetUltramodern';
+export * from './ultramodern/designSystem';
 
 export const appTools = (): CliPlugin<AppTools> => ({
   name: '@modern-js/app-tools',

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -9,6 +10,118 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(__dirname, '..', 'template');
 type RouterFramework = 'react-router' | 'tanstack';
 type BffRuntime = 'none' | 'hono' | 'effect';
+type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
+
+type TemplateManifest = {
+  schemaVersion: 1;
+  template: {
+    id: string;
+    version: string;
+    displayName?: string;
+    description?: string;
+    compatibilityLane:
+      | 'ultramodern-mv'
+      | 'ultramodern-shell'
+      | 'ultramodern-remote';
+    minimumModernVersion?: string;
+  };
+  source:
+    | {
+        type: 'builtin';
+        name: string;
+        repositoryPath?: string;
+      }
+    | {
+        type: 'npm';
+        packageName: string;
+        version: string;
+        registry?: string;
+        tarballSha256: string;
+      }
+    | {
+        type: 'git';
+        repository: string;
+        ref:
+          | {
+              kind: 'sha';
+              sha: string;
+            }
+          | {
+              kind: 'tag';
+              tag: string;
+              tagSha: string;
+            };
+        checkoutSha: string;
+        subdirectory?: string;
+      }
+    | {
+        type: 'local';
+        path: string;
+        allowOutsideWorkspace?: boolean;
+      };
+  integrity: {
+    checksums: Array<{
+      algorithm: 'sha256';
+      value: string;
+      scope: 'manifest' | 'source-archive' | 'source-tree' | 'lockfile';
+    }>;
+    provenance: {
+      kind: 'repo-local' | 'npm-provenance' | 'slsa' | 'manual-attestation';
+      issuer: string;
+      subject: string;
+      attestationUrl?: string;
+      buildSha?: string;
+    };
+    lockfile?: {
+      path: string;
+      sha256: string;
+    };
+  };
+  materialization: {
+    targetRoot: 'generated-project-root' | 'workspace-package-root';
+    allowedPaths: string[];
+    deniedPaths: string[];
+    overwritePolicy?: 'deny-existing' | 'allow-generated-only';
+  };
+  lifecyclePolicy: {
+    denyByDefault: true;
+    deniedScripts: string[];
+    allowedScripts: string[];
+    requiresExplicitOptIn?: true;
+  };
+  validation: {
+    schemaValidation: true;
+    sourceValidation: string[];
+    materializationValidation: string[];
+    postMaterializationValidation: string[];
+    expectedCommands?: string[];
+  };
+};
+
+const semverPattern =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const semverTagPattern =
+  /^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/;
+const sha1Pattern = /^[0-9a-f]{40}$/;
+const sha256Pattern = /^[0-9a-f]{64}$/;
+const templateIdPattern = /^[a-z0-9][a-z0-9._-]*$/;
+const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
+const requiredDeniedPaths = [
+  '.git/**',
+  '.github/**',
+  '.npmrc',
+  '.yarnrc',
+  '.env',
+  '.env.*',
+  'node_modules/**',
+  'dist/**',
+];
+const requiredLifecycleDeniedScripts = [
+  'preinstall',
+  'install',
+  'postinstall',
+  'prepare',
+];
 
 function getOptionValue(args: string[], names: string[]): string | undefined {
   for (const name of names) {
@@ -153,6 +266,445 @@ function renderTemplate(
   });
 
   return result;
+}
+
+function normalizePathForManifest(filePath: string): string {
+  return filePath.split(path.sep).join('/');
+}
+
+function isUnsafeRelativePath(filePath: string): boolean {
+  return (
+    filePath.length === 0 ||
+    path.isAbsolute(filePath) ||
+    filePath.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(filePath) ||
+    filePath.split(/[\\/]+/).includes('..')
+  );
+}
+
+function hashFile(filePath: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(filePath))
+    .digest('hex');
+}
+
+function getTemplateFiles(dir: string): string[] {
+  const files: string[] = [];
+
+  function collect(currentDir: string) {
+    const entries = fs
+      .readdirSync(currentDir, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        collect(entryPath);
+      } else if (entry.isFile()) {
+        files.push(normalizePathForManifest(path.relative(dir, entryPath)));
+      }
+    }
+  }
+
+  collect(dir);
+  return files;
+}
+
+function hashTemplateTree(dir: string): string {
+  const hash = crypto.createHash('sha256');
+
+  for (const relativePath of getTemplateFiles(dir)) {
+    const fileHash = hashFile(path.join(dir, relativePath));
+    hash.update(relativePath);
+    hash.update('\0');
+    hash.update(fileHash);
+    hash.update('\0');
+  }
+
+  return hash.digest('hex');
+}
+
+function createBuiltinTemplateManifest(version: string): TemplateManifest {
+  return {
+    schemaVersion: 1,
+    template: {
+      id: 'modernjs-ultramodern-app',
+      version,
+      displayName: 'Modern.js Ultramodern App',
+      description:
+        'Repository-owned Modern.js application scaffold with UltraModern preset defaults.',
+      compatibilityLane: 'ultramodern-mv',
+      minimumModernVersion: version,
+    },
+    source: {
+      type: 'builtin',
+      name: 'modernjs-ultramodern-app',
+      repositoryPath: 'packages/toolkit/create/template',
+    },
+    integrity: {
+      checksums: [
+        {
+          algorithm: 'sha256',
+          value: hashTemplateTree(templateDir),
+          scope: 'source-tree',
+        },
+      ],
+      provenance: {
+        kind: 'repo-local',
+        issuer: '@modern-js/create',
+        subject: 'packages/toolkit/create/template',
+      },
+    },
+    materialization: {
+      targetRoot: 'generated-project-root',
+      allowedPaths: [
+        '.browserslistrc',
+        '.gitignore',
+        '.modernjs/**',
+        '.nvmrc',
+        'README.md',
+        'api/**',
+        'biome.json',
+        'modern.config.ts',
+        'package.json',
+        'postcss.config.mjs',
+        'scripts/**',
+        'shared/**',
+        'src/**',
+        'tailwind.config.ts',
+        'tsconfig.json',
+      ],
+      deniedPaths: requiredDeniedPaths,
+      overwritePolicy: 'deny-existing',
+    },
+    lifecyclePolicy: {
+      denyByDefault: true,
+      deniedScripts: requiredLifecycleDeniedScripts,
+      allowedScripts: [],
+      requiresExplicitOptIn: true,
+    },
+    validation: {
+      schemaValidation: true,
+      sourceValidation: [
+        'source-type-supported',
+        'checksum-verified',
+        'provenance-present',
+      ],
+      materializationValidation: [
+        'path-boundary-allowlist',
+        'path-boundary-denylist',
+        'no-path-traversal',
+        'no-absolute-paths',
+        'overwrite-policy-enforced',
+      ],
+      postMaterializationValidation: [
+        'ultramodern-contract-check',
+        'dependency-install-with-lifecycle-deny',
+        'template-manifest-retained',
+      ],
+      expectedCommands: [
+        'pnpm install --ignore-scripts',
+        'pnpm run ultramodern:check',
+      ],
+    },
+  };
+}
+
+function assertTemplateManifest(
+  condition: unknown,
+  message: string,
+): asserts condition {
+  if (!condition) {
+    throw new Error(`Template manifest validation failed: ${message}`);
+  }
+}
+
+function assertSafeManifestPath(filePath: string, label: string) {
+  assertTemplateManifest(!isUnsafeRelativePath(filePath), `${label} is unsafe`);
+}
+
+function validateTemplateSource(source: TemplateManifest['source']) {
+  const sourceType = source.type as TemplateSourceType;
+  assertTemplateManifest(
+    sourceType === 'builtin' ||
+      sourceType === 'npm' ||
+      sourceType === 'git' ||
+      sourceType === 'local',
+    `unsupported source type "${source.type}"`,
+  );
+
+  if (source.type === 'builtin') {
+    assertTemplateManifest(
+      templateIdPattern.test(source.name),
+      'builtin source name must be a template id',
+    );
+    if (source.repositoryPath) {
+      assertSafeManifestPath(source.repositoryPath, 'builtin repositoryPath');
+    }
+  }
+
+  if (source.type === 'npm') {
+    assertTemplateManifest(
+      packageNamePattern.test(source.packageName),
+      'npm packageName must be exact package metadata',
+    );
+    assertTemplateManifest(
+      semverPattern.test(source.version),
+      'npm source version must be an exact semver',
+    );
+    assertTemplateManifest(
+      sha256Pattern.test(source.tarballSha256),
+      'npm source tarballSha256 must be sha256 hex',
+    );
+  }
+
+  if (source.type === 'git') {
+    assertTemplateManifest(
+      sha1Pattern.test(source.checkoutSha),
+      'git checkoutSha must pin a commit',
+    );
+    if (source.ref.kind === 'sha') {
+      assertTemplateManifest(
+        sha1Pattern.test(source.ref.sha),
+        'git sha ref must be pinned to a commit',
+      );
+    } else {
+      assertTemplateManifest(
+        semverTagPattern.test(source.ref.tag),
+        'git tag ref must be a semver tag',
+      );
+      assertTemplateManifest(
+        sha1Pattern.test(source.ref.tagSha),
+        'git tag ref must include the resolved tag sha',
+      );
+    }
+    if (source.subdirectory) {
+      assertSafeManifestPath(source.subdirectory, 'git subdirectory');
+    }
+  }
+
+  if (source.type === 'local') {
+    assertSafeManifestPath(source.path, 'local source path');
+    assertTemplateManifest(
+      source.allowOutsideWorkspace !== true,
+      'local source cannot allow outside workspace materialization',
+    );
+  }
+}
+
+function validateTemplateManifest(manifest: TemplateManifest) {
+  assertTemplateManifest(
+    manifest.schemaVersion === 1,
+    'schemaVersion must be 1',
+  );
+  assertTemplateManifest(
+    templateIdPattern.test(manifest.template.id),
+    'template.id must be a template id',
+  );
+  assertTemplateManifest(
+    semverPattern.test(manifest.template.version),
+    'template.version must be exact semver',
+  );
+  assertTemplateManifest(
+    manifest.template.compatibilityLane === 'ultramodern-mv' ||
+      manifest.template.compatibilityLane === 'ultramodern-shell' ||
+      manifest.template.compatibilityLane === 'ultramodern-remote',
+    'template.compatibilityLane is unsupported',
+  );
+  if (manifest.template.minimumModernVersion) {
+    assertTemplateManifest(
+      semverPattern.test(manifest.template.minimumModernVersion),
+      'template.minimumModernVersion must be exact semver',
+    );
+  }
+
+  validateTemplateSource(manifest.source);
+
+  assertTemplateManifest(
+    manifest.integrity.checksums.length > 0,
+    'integrity.checksums must not be empty',
+  );
+  for (const checksum of manifest.integrity.checksums) {
+    assertTemplateManifest(
+      checksum.algorithm === 'sha256',
+      'checksum algorithm must be sha256',
+    );
+    assertTemplateManifest(
+      sha256Pattern.test(checksum.value),
+      'checksum value must be sha256 hex',
+    );
+    assertTemplateManifest(
+      checksum.scope === 'manifest' ||
+        checksum.scope === 'source-archive' ||
+        checksum.scope === 'source-tree' ||
+        checksum.scope === 'lockfile',
+      'checksum scope is unsupported',
+    );
+  }
+  assertTemplateManifest(
+    manifest.integrity.provenance.kind &&
+      manifest.integrity.provenance.issuer &&
+      manifest.integrity.provenance.subject,
+    'provenance kind, issuer, and subject are required',
+  );
+
+  if (manifest.integrity.lockfile) {
+    assertSafeManifestPath(manifest.integrity.lockfile.path, 'lockfile path');
+    assertTemplateManifest(
+      sha256Pattern.test(manifest.integrity.lockfile.sha256),
+      'lockfile sha256 must be sha256 hex',
+    );
+  }
+
+  assertTemplateManifest(
+    manifest.materialization.targetRoot === 'generated-project-root' ||
+      manifest.materialization.targetRoot === 'workspace-package-root',
+    'materialization.targetRoot is unsupported',
+  );
+  assertTemplateManifest(
+    manifest.materialization.allowedPaths.length > 0,
+    'materialization.allowedPaths must not be empty',
+  );
+  for (const allowedPath of manifest.materialization.allowedPaths) {
+    assertSafeManifestPath(
+      allowedPath.replace(/\/\*\*$/, '/placeholder'),
+      'allowed path',
+    );
+  }
+  for (const deniedPath of manifest.materialization.deniedPaths) {
+    assertSafeManifestPath(
+      deniedPath.replace(/\/\*\*$/, '/placeholder'),
+      'denied path',
+    );
+  }
+  for (const deniedPath of requiredDeniedPaths) {
+    assertTemplateManifest(
+      manifest.materialization.deniedPaths.includes(deniedPath),
+      `materialization.deniedPaths must include ${deniedPath}`,
+    );
+  }
+  assertTemplateManifest(
+    !manifest.materialization.overwritePolicy ||
+      manifest.materialization.overwritePolicy === 'deny-existing' ||
+      manifest.materialization.overwritePolicy === 'allow-generated-only',
+    'materialization.overwritePolicy is unsupported',
+  );
+
+  assertTemplateManifest(
+    manifest.lifecyclePolicy.denyByDefault === true,
+    'lifecyclePolicy.denyByDefault must be true',
+  );
+  for (const scriptName of requiredLifecycleDeniedScripts) {
+    assertTemplateManifest(
+      manifest.lifecyclePolicy.deniedScripts.includes(scriptName),
+      `lifecyclePolicy.deniedScripts must include ${scriptName}`,
+    );
+  }
+  assertTemplateManifest(
+    manifest.lifecyclePolicy.allowedScripts.length === 0,
+    'lifecyclePolicy.allowedScripts must be empty for builtin materialization',
+  );
+
+  assertTemplateManifest(
+    manifest.validation.schemaValidation === true,
+    'validation.schemaValidation must be true',
+  );
+  for (const token of [
+    'source-type-supported',
+    'checksum-verified',
+    'provenance-present',
+  ]) {
+    assertTemplateManifest(
+      manifest.validation.sourceValidation.includes(token),
+      `validation.sourceValidation must include ${token}`,
+    );
+  }
+  for (const token of [
+    'path-boundary-allowlist',
+    'path-boundary-denylist',
+    'no-path-traversal',
+    'no-absolute-paths',
+    'overwrite-policy-enforced',
+  ]) {
+    assertTemplateManifest(
+      manifest.validation.materializationValidation.includes(token),
+      `validation.materializationValidation must include ${token}`,
+    );
+  }
+  assertTemplateManifest(
+    manifest.validation.postMaterializationValidation.includes(
+      'template-manifest-retained',
+    ),
+    'validation.postMaterializationValidation must retain manifest evidence',
+  );
+}
+
+function matchesManifestPattern(
+  pattern: string,
+  relativePath: string,
+): boolean {
+  if (pattern.endsWith('/**')) {
+    const prefix = pattern.slice(0, -3);
+    return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
+  }
+
+  if (pattern.endsWith('.*')) {
+    const prefix = pattern.slice(0, -1);
+    return relativePath.startsWith(prefix);
+  }
+
+  return relativePath === pattern;
+}
+
+function canMaterializePath(
+  manifest: TemplateManifest,
+  relativePath: string,
+): boolean {
+  if (isUnsafeRelativePath(relativePath)) {
+    throw new Error(`Unsafe template path rejected: ${relativePath}`);
+  }
+
+  if (
+    manifest.materialization.deniedPaths.some(pattern =>
+      matchesManifestPattern(pattern, relativePath),
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    !manifest.materialization.allowedPaths.some(pattern =>
+      matchesManifestPattern(pattern, relativePath),
+    )
+  ) {
+    throw new Error(
+      `Template path is not allowed by manifest: ${relativePath}`,
+    );
+  }
+
+  return true;
+}
+
+function writeTemplateManifestEvidence(
+  targetDir: string,
+  manifest: TemplateManifest,
+) {
+  const evidencePath = path.join(
+    targetDir,
+    '.modernjs',
+    'mv-template-manifest.json',
+  );
+  const evidenceRelativePath = normalizePathForManifest(
+    path.relative(targetDir, evidencePath),
+  );
+
+  if (!canMaterializePath(manifest, evidenceRelativePath)) {
+    throw new Error('Template manifest evidence path is denied by manifest');
+  }
+
+  fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
+  fs.writeFileSync(evidencePath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 function showVersion() {
@@ -376,6 +928,8 @@ async function main() {
   const enableTailwind = detectTailwindFlag();
   const useWorkspaceProtocol = detectWorkspaceProtocolFlag();
   const dependencyVersion = useWorkspaceProtocol ? 'workspace:*' : version;
+  const templateManifest = createBuiltinTemplateManifest(version);
+  validateTemplateManifest(templateManifest);
 
   copyTemplate(templateDir, targetDir, {
     packageName: projectName,
@@ -384,6 +938,7 @@ async function main() {
     routerFramework,
     bffRuntime,
     enableTailwind,
+    templateManifest,
   });
 
   const targetPackageJson = path.join(targetDir, 'package.json');
@@ -408,6 +963,7 @@ async function main() {
     targetPackageJson,
     `${JSON.stringify(packageJson, null, 2)}\n`,
   );
+  writeTemplateManifestEvidence(targetDir, templateManifest);
 
   // ANSI escape codes: \x1b[2m = dim, \x1b[3m = italic, \x1b[0m = reset
   const dim = '\x1b[2m\x1b[3m';
@@ -434,6 +990,7 @@ function copyTemplate(
     routerFramework: RouterFramework;
     bffRuntime: BffRuntime;
     enableTailwind: boolean;
+    templateManifest: TemplateManifest;
   },
 ) {
   fs.mkdirSync(dest, { recursive: true });
@@ -455,6 +1012,22 @@ function copyTemplate(
 
       const srcPath = path.join(srcDir, entry.name);
       let destPath = path.join(destDir, entry.name);
+      const sourceRelativePath = normalizePathForManifest(
+        path.relative(src, srcPath),
+      );
+      const finalRelativePath = normalizePathForManifest(
+        sourceRelativePath.replace(/\.handlebars$/, ''),
+      );
+
+      if (
+        !canMaterializePath(options.templateManifest, finalRelativePath) ||
+        (entry.isDirectory() &&
+          options.templateManifest.materialization.deniedPaths.some(pattern =>
+            matchesManifestPattern(pattern, finalRelativePath),
+          ))
+      ) {
+        continue;
+      }
 
       if (entry.isDirectory()) {
         fs.mkdirSync(destPath, { recursive: true });
@@ -481,8 +1054,26 @@ function copyTemplate(
             continue;
           }
           destPath = destPath.replace(/\.handlebars$/, '');
+          if (
+            options.templateManifest.materialization.overwritePolicy ===
+              'deny-existing' &&
+            fs.existsSync(destPath)
+          ) {
+            throw new Error(
+              `Template refused to overwrite existing file: ${finalRelativePath}`,
+            );
+          }
           fs.writeFileSync(destPath, rendered, 'utf-8');
         } else {
+          if (
+            options.templateManifest.materialization.overwritePolicy ===
+              'deny-existing' &&
+            fs.existsSync(destPath)
+          ) {
+            throw new Error(
+              `Template refused to overwrite existing file: ${finalRelativePath}`,
+            );
+          }
           fs.copyFileSync(srcPath, destPath);
         }
       }

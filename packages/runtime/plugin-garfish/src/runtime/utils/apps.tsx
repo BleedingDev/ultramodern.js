@@ -179,7 +179,7 @@ function getAppInstance(
           });
           emitFallbackTelemetry(
             {
-              reason: 'remote_load_failed',
+              reason: 'entry_load_failed',
               phase: 'load',
               appName: appInfo.name,
               entry: appInfo.entry,
@@ -205,7 +205,7 @@ function getAppInstance(
             Promise.resolve(appRef.current?.hide()).catch(error => {
               emitFallbackTelemetry(
                 {
-                  reason: 'remote_unmount_failed',
+                  reason: 'lifecycle_failed',
                   phase: 'unmount',
                   appName: appInfo.name,
                   entry: appInfo.entry,
@@ -228,7 +228,7 @@ function getAppInstance(
             Promise.resolve(appRef.current?.unmount()).catch(error => {
               emitFallbackTelemetry(
                 {
-                  reason: 'remote_unmount_failed',
+                  reason: 'lifecycle_failed',
                   phase: 'unmount',
                   appName: appInfo.name,
                   entry: appInfo.entry,

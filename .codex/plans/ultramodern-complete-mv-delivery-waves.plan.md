@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ucmv-01
     content: Execute Wave 1 implementation streams in parallel (runtime parity, scaffolding, DS, Zephyr profile, ownership gates).
-    status: pending
+    status: completed
   - id: ucmv-02
     content: Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).
     status: pending

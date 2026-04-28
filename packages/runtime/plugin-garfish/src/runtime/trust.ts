@@ -8,7 +8,7 @@ import type {
 } from './useModuleApps';
 
 export class RemoteTrustPolicyError extends Error {
-  code = 'MODERN_MF_REMOTE_TRUST_VIOLATION';
+  code: string;
 
   issue: RemoteTrustIssue;
 
@@ -16,6 +16,32 @@ export class RemoteTrustPolicyError extends Error {
     super(formatIssueMessage(issue));
     this.name = 'RemoteTrustPolicyError';
     this.issue = issue;
+    this.code = getIssueCode(issue);
+  }
+}
+
+function getIssueCode(issue: RemoteTrustIssue) {
+  switch (issue.reason) {
+    case 'origin_not_allowed':
+      return 'MV_ORIGIN_NOT_ALLOWED';
+    case 'origin_isolation_violation':
+      return 'MV_ORIGIN_ISOLATION_VIOLATION';
+    case 'integrity_missing':
+      return 'MV_INTEGRITY_MISSING';
+    case 'integrity_invalid_format':
+    case 'integrity_mismatch':
+      return 'MV_INTEGRITY_MISMATCH';
+    case 'integrity_timeout':
+    case 'integrity_verification_unavailable':
+      return 'MV_INTEGRITY_TIMEOUT';
+    case 'integrity_fetch_failed':
+      return 'MV_ENTRY_LOAD_FAILED';
+    case 'attestation_missing':
+      return 'MV_ATTESTATION_MISSING';
+    case 'attestation_mismatch':
+      return 'MV_ATTESTATION_MISMATCH';
+    default:
+      return 'MV_UNKNOWN';
   }
 }
 

@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const configPath = path.resolve(process.cwd(), 'modern.config.ts');
+const templateManifestPath = path.resolve(
+  process.cwd(),
+  '.modernjs/mv-template-manifest.json',
+);
 
 if (!fs.existsSync(configPath)) {
   console.error('modern.config.ts not found');
@@ -21,6 +25,76 @@ const missing = requiredTokens.filter(token => !content.includes(token));
 if (missing.length > 0) {
   console.error(
     `Ultramodern contract check failed. Missing tokens: ${missing.join(', ')}`,
+  );
+  process.exit(1);
+}
+
+if (!fs.existsSync(templateManifestPath)) {
+  console.error('.modernjs/mv-template-manifest.json not found');
+  process.exit(1);
+}
+
+const templateManifest = JSON.parse(
+  fs.readFileSync(templateManifestPath, 'utf8'),
+);
+const requiredDeniedPaths = [
+  '.git/**',
+  '.github/**',
+  '.npmrc',
+  '.yarnrc',
+  '.env',
+  '.env.*',
+  'node_modules/**',
+  'dist/**',
+];
+const requiredPostMaterialization = [
+  'ultramodern-contract-check',
+  'dependency-install-with-lifecycle-deny',
+  'template-manifest-retained',
+];
+const manifestErrors = [];
+
+if (templateManifest.schemaVersion !== 1) {
+  manifestErrors.push('schemaVersion');
+}
+
+if (templateManifest.source?.type !== 'builtin') {
+  manifestErrors.push('source.type');
+}
+
+if (
+  !Array.isArray(templateManifest.integrity?.checksums) ||
+  !templateManifest.integrity.checksums.some(
+    checksum =>
+      checksum.algorithm === 'sha256' &&
+      checksum.scope === 'source-tree' &&
+      /^[0-9a-f]{64}$/.test(checksum.value),
+  )
+) {
+  manifestErrors.push('integrity.checksums[source-tree]');
+}
+
+for (const deniedPath of requiredDeniedPaths) {
+  if (!templateManifest.materialization?.deniedPaths?.includes(deniedPath)) {
+    manifestErrors.push(`materialization.deniedPaths:${deniedPath}`);
+  }
+}
+
+if (templateManifest.lifecyclePolicy?.denyByDefault !== true) {
+  manifestErrors.push('lifecyclePolicy.denyByDefault');
+}
+
+for (const token of requiredPostMaterialization) {
+  if (!templateManifest.validation?.postMaterializationValidation?.includes(token)) {
+    manifestErrors.push(`validation.postMaterializationValidation:${token}`);
+  }
+}
+
+if (manifestErrors.length > 0) {
+  console.error(
+    `Ultramodern template manifest check failed. Invalid fields: ${manifestErrors.join(
+      ', ',
+    )}`,
   );
   process.exit(1);
 }

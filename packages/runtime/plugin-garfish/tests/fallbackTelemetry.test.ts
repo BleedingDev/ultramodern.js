@@ -52,11 +52,19 @@ describe('fallback telemetry contract', () => {
     );
 
     expect(payload).toMatchObject({
+      schemaVersion: 1,
+      runtimeSurface: 'module-federation',
       appName: 'dashboard',
       reason: 'runtime_incompatible',
       phase: 'compatibility',
-      code: 'MODERN_MF_RUNTIME_INCOMPATIBLE',
+      code: 'MV_RUNTIME_INCOMPATIBLE',
+      trustDecision: 'trusted',
+      compatibilityDecision: 'incompatible',
+      parityClaimId: 'mv-runtime-parity',
     });
+    expect(typeof payload.timestamp).toBe('string');
+    expect(Date.parse(payload.timestamp)).not.toBeNaN();
+    expect(typeof payload.traceId).toBe('string');
   });
 
   test('maps trust integrity mismatch to integrity_mismatch reason', () => {
@@ -111,7 +119,7 @@ describe('fallback telemetry contract', () => {
     });
 
     expect(inferFallbackReason(error)).toBe('origin_isolation_violation');
-    expect(inferFallbackPhase(error)).toBe('bootstrap');
+    expect(inferFallbackPhase(error)).toBe('trust');
   });
 
   test('maps trust attestation mismatch to attestation_mismatch reason', () => {
@@ -136,11 +144,15 @@ describe('fallback telemetry contract', () => {
 
     const payload = emitFallbackTelemetry(
       {
-        reason: 'remote_load_failed',
+        reason: 'entry_load_failed',
         phase: 'load',
         appName: 'dashboard',
         entry: 'https://remote.example.com/remoteEntry.js',
         message: 'load failed',
+        metadata: {
+          runtimeDigest: 'runtime-v1',
+          rawAuthorizationHeader: 'redacted-before-send',
+        },
       },
       {
         eventName: 'modernjs:test-mf-fallback',
@@ -152,11 +164,22 @@ describe('fallback telemetry contract', () => {
 
     expect(onFallback).toHaveBeenCalledTimes(1);
     expect(onFallback.mock.calls[0][0]).toMatchObject({
-      reason: 'remote_load_failed',
+      service: 'modernjs',
+      module: 'plugin-garfish',
+      environment: 'test',
+      runtimeSurface: 'module-federation',
+      reason: 'entry_load_failed',
       phase: 'load',
       appName: 'dashboard',
       entry: 'https://remote.example.com/remoteEntry.js',
       message: 'load failed',
+      code: 'MV_ENTRY_LOAD_FAILED',
+      trustDecision: 'trusted',
+      compatibilityDecision: 'compatible',
+      parityClaimId: 'mv-runtime-parity',
+    });
+    expect(onFallback.mock.calls[0][0].metadata).toEqual({
+      runtimeDigest: 'runtime-v1',
     });
 
     expect(eventHandler).toHaveBeenCalledTimes(1);
@@ -167,10 +190,47 @@ describe('fallback telemetry contract', () => {
       appName: payload.appName,
       entry: payload.entry,
     });
-    expect(typeof payload.timestamp).toBe('number');
+    expect(typeof payload.timestamp).toBe('string');
 
     window.removeEventListener(
       'modernjs:test-mf-fallback',
+      eventHandler as EventListener,
+    );
+  });
+
+  test('uses parity event name by default', () => {
+    const eventHandler = rstest.fn();
+    window.addEventListener(
+      'modernjs:mv-runtime-parity',
+      eventHandler as EventListener,
+    );
+
+    emitFallbackTelemetry(
+      {
+        reason: 'origin_not_allowed',
+        phase: 'trust',
+        appName: 'dashboard',
+        entry: 'https://remote.example.com/remoteEntry.js',
+      },
+      {
+        emitConsole: false,
+        reportToServer: false,
+        traceId: 'trace-default-event-name',
+      },
+    );
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+    expect((eventHandler.mock.calls[0][0] as CustomEvent).detail).toMatchObject(
+      {
+        reason: 'origin_not_allowed',
+        code: 'MV_ORIGIN_NOT_ALLOWED',
+        trustDecision: 'blocked',
+        traceId: 'trace-default-event-name',
+      },
+    );
+
+    window.removeEventListener(
+      'modernjs:mv-runtime-parity',
       eventHandler as EventListener,
     );
   });
@@ -216,8 +276,8 @@ describe('fallback telemetry contract', () => {
 
     emitFallbackTelemetry(
       {
-        reason: 'runtime_init_failed',
-        phase: 'bootstrap',
+        reason: 'unknown',
+        phase: 'recovery',
       },
       {
         emitConsole: false,

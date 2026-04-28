@@ -1,5 +1,5 @@
-import React from 'react';
 import GarfishInstance from 'garfish';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import garfishRuntimePlugin from '../src/runtime/plugin';
 
@@ -87,7 +87,11 @@ describe('plugin-garfish runtime plugin', () => {
       reason: 'runtime_incompatible',
       phase: 'compatibility',
       appName: 'dashboard',
-      code: 'MODERN_MF_RUNTIME_INCOMPATIBLE',
+      code: 'MV_RUNTIME_INCOMPATIBLE',
+      runtimeSurface: 'module-federation',
+      trustDecision: 'trusted',
+      compatibilityDecision: 'incompatible',
+      parityClaimId: 'mv-runtime-parity',
       metadata: {
         source: 'plugin-garfish:init',
       },

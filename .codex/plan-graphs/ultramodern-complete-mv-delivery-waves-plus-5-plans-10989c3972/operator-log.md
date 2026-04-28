@@ -2,7 +2,7 @@
 
 - graph_id: `ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972`
 - selection_hash: `10989c3972`
-- active issue: `modernjs-bqq`
+- active issue: `modernjs-jrz`
 
 ## Wave 1 Launch: Wave 0 Contract Gates
 
@@ -24,3 +24,30 @@
 
 - Wave 1 is ready: `uw1-r` runtime parity implementation and failure-mode tests.
 - Umbrella `ucmv-01` remains blocked until Wave 1 plan completion, by design.
+
+## Wave 2 Launch: Wave 1 Implementation Streams
+
+Plan state policy: root agent owns `.codex/plans/ultramodern-wave1-parallel-implementation-streams.plan.md` status updates to avoid multi-worker conflicts in one frontmatter file. Workers report whether their stream is complete, blocked, or partial; root updates plan status after integration.
+
+| Lane | Agent | Owner / Write Scope | Dependency | Status | Next Action |
+| --- | --- | --- | --- | --- | --- |
+| Runtime parity implementation | `019dd633-ef9e-7af1-9df6-e4c821a276b0` Schrodinger | `packages/runtime/plugin-garfish/src/runtime/*`, `packages/runtime/plugin-garfish/tests/*` | Wave 0 contracts | Complete | Root verified targeted runtime rstest suite |
+| Scaffold/template ingestion | `019dd633-f02a-7bb2-8e7a-56486165e463` Boyle | `packages/toolkit/create/src/*`, `packages/toolkit/create/template/**`, package-local tests if present | Wave 0 template/topology schemas | Complete | Root verified create build and targeted biome |
+| Ownership gate tooling | `019dd633-f14d-7920-b03c-f057bace404b` Gauss | `scripts/boundary-guards/*`, optional new `scripts/ownership-gates/*`, related tests | Wave 0 ownership schema | Complete | Root verified node boundary tests |
+| DS + Zephyr implementation scout | `019dd633-f0bb-7590-83db-dc272d85185c` Peirce | read-only | Wave 0 DS/topology contracts | Complete | Split D/Z into low-conflict write lanes |
+| Design system helpers | `019dd639-e478-7960-a8ac-e57c03b963cb` Euclid | `packages/solutions/app-tools/src/ultramodern/*`, `packages/solutions/app-tools/tests/ultramodern/*`, app-tools export | Wave 0 DS contracts | Complete | Root verified app-tools DS test and biome |
+| Zephyr profile validator | `019dd63a-0a77-7213-8143-d8af01fec76b` Ptolemy | `scripts/mv-zephyr-profile/**` | Wave 0 topology contracts | Complete | Root verified node Zephyr tests and biome |
+
+## Wave 1 Conflict Rules
+
+- Root-only: `.codex/plans/*`, `.codex/plan-graphs/*`, root `package.json`, root docs index, Beads state, final commits.
+- Runtime lane must not edit create/scaffold or gate tooling.
+- Scaffold lane must not edit plugin-garfish, boundary/ownership gate tooling, or root package scripts.
+- Ownership lane must not edit runtime plugin or create templates.
+- DS/Zephyr scout is read-only until root assigns a concrete write scope.
+
+## Wave 1 Integration Result
+
+- Plan todos `uw1-r`, `uw1-s`, `uw1-d`, `uw1-z`, and `uw1-o` are completed.
+- Root verification passed for runtime parity, scaffold manifest materialization, DS helper contracts, Zephyr static validation, and ownership blast-radius checks.
+- Next frontier after graph refresh: Wave 2 integration pilot.

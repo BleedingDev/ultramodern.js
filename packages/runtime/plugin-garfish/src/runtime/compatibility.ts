@@ -8,7 +8,7 @@ import type {
 } from './useModuleApps';
 
 export class RuntimeCompatibilityError extends Error {
-  code = 'MODERN_MF_RUNTIME_INCOMPATIBLE';
+  code = 'MV_RUNTIME_INCOMPATIBLE';
 
   issue: RuntimeCompatibilityIssue;
 

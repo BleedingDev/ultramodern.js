@@ -76,7 +76,7 @@ export function generateMApp(
             });
             emitFallbackTelemetry(
               {
-                reason: 'remote_load_failed',
+                reason: 'entry_load_failed',
                 phase: 'load',
                 appName: appInfo.name,
                 entry: appInfo.entry,
@@ -102,7 +102,7 @@ export function generateMApp(
             });
             emitFallbackTelemetry(
               {
-                reason: 'remote_mount_failed',
+                reason: 'lifecycle_failed',
                 phase: 'mount',
                 appName: appInfo.name,
                 entry: appInfo.entry,
@@ -128,7 +128,7 @@ export function generateMApp(
             });
             emitFallbackTelemetry(
               {
-                reason: 'remote_unmount_failed',
+                reason: 'lifecycle_failed',
                 phase: 'unmount',
                 appName: appInfo.name,
                 entry: appInfo.entry,

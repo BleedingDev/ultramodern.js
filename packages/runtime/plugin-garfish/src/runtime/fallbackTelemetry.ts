@@ -3,13 +3,46 @@ import { RuntimeCompatibilityError } from './compatibility';
 import { RemoteTrustPolicyError } from './trust';
 import type {
   MfFallbackEvent,
+  MfFallbackPhase,
   MfFallbackReason,
   MfFallbackTelemetryConfig,
+  RuntimeParityCompatibilityDecision,
+  RuntimeParityTrustDecision,
 } from './useModuleApps';
 
-const DEFAULT_EVENT_NAME = 'modernjs:mf-fallback';
+const DEFAULT_EVENT_NAME = 'modernjs:mv-runtime-parity';
 const DEFAULT_SERVER_REPORT_ENDPOINT =
   '/_modern/contract-gates/runtime-fallback';
+const DEFAULT_SERVICE = 'modernjs';
+const DEFAULT_MODULE = 'plugin-garfish';
+const DEFAULT_RUNTIME_SURFACE = 'module-federation';
+const DEFAULT_PARITY_CLAIM_ID = 'mv-runtime-parity';
+const FALLBACK_CODE_BY_REASON: Record<MfFallbackReason, string> = {
+  runtime_incompatible: 'MV_RUNTIME_INCOMPATIBLE',
+  origin_not_allowed: 'MV_ORIGIN_NOT_ALLOWED',
+  origin_isolation_violation: 'MV_ORIGIN_ISOLATION_VIOLATION',
+  integrity_missing: 'MV_INTEGRITY_MISSING',
+  integrity_mismatch: 'MV_INTEGRITY_MISMATCH',
+  integrity_timeout: 'MV_INTEGRITY_TIMEOUT',
+  attestation_missing: 'MV_ATTESTATION_MISSING',
+  attestation_mismatch: 'MV_ATTESTATION_MISMATCH',
+  entry_missing: 'MV_ENTRY_MISSING',
+  entry_load_failed: 'MV_ENTRY_LOAD_FAILED',
+  manifest_invalid: 'MV_MANIFEST_INVALID',
+  manifest_unavailable: 'MV_MANIFEST_UNAVAILABLE',
+  lifecycle_missing: 'MV_LIFECYCLE_MISSING',
+  lifecycle_failed: 'MV_LIFECYCLE_FAILED',
+  ssr_unavailable: 'MV_SSR_UNAVAILABLE',
+  hydration_mismatch_risk: 'MV_HYDRATION_MISMATCH_RISK',
+  timeout: 'MV_TIMEOUT',
+  unknown: 'MV_UNKNOWN',
+};
+const FORBIDDEN_METADATA_KEYS = new Set([
+  'rawAuthorizationHeader',
+  'sessionCookie',
+  'attestationSecret',
+  'userPersonalData',
+]);
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -67,11 +100,11 @@ export function inferFallbackReason(error: unknown): MfFallbackReason {
       case 'integrity_missing':
         return 'integrity_missing';
       case 'integrity_invalid_format':
-        return 'integrity_invalid';
+        return 'integrity_mismatch';
       case 'integrity_mismatch':
         return 'integrity_mismatch';
       case 'integrity_fetch_failed':
-        return 'integrity_fetch_failed';
+        return 'entry_load_failed';
       case 'integrity_timeout':
       case 'integrity_verification_unavailable':
         return 'integrity_timeout';
@@ -80,31 +113,35 @@ export function inferFallbackReason(error: unknown): MfFallbackReason {
       case 'attestation_mismatch':
         return 'attestation_mismatch';
       default:
-        return 'runtime_init_failed';
+        return 'unknown';
     }
   }
 
-  return 'runtime_init_failed';
+  return 'unknown';
 }
 
 export function inferFallbackPhase(
   error: unknown,
-  defaultPhase: MfFallbackEvent['phase'] = 'bootstrap',
-): MfFallbackEvent['phase'] {
+  defaultPhase: MfFallbackPhase = 'bootstrap',
+): MfFallbackPhase {
   if (error instanceof RuntimeCompatibilityError) {
     return 'compatibility';
   }
 
   if (error instanceof RemoteTrustPolicyError) {
     switch (error.issue.reason) {
+      case 'origin_not_allowed':
+      case 'origin_isolation_violation':
+      case 'attestation_missing':
+      case 'attestation_mismatch':
+        return 'trust';
+      case 'integrity_fetch_failed':
+        return 'load';
       case 'integrity_missing':
       case 'integrity_invalid_format':
-      case 'integrity_fetch_failed':
       case 'integrity_timeout':
       case 'integrity_verification_unavailable':
       case 'integrity_mismatch':
-      case 'attestation_missing':
-      case 'attestation_mismatch':
         return 'integrity';
       default:
         return defaultPhase;
@@ -114,20 +151,178 @@ export function inferFallbackPhase(
   return defaultPhase;
 }
 
+function resolveEnvironment(config?: MfFallbackTelemetryConfig) {
+  return (
+    config?.environment ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV) ||
+    'development'
+  );
+}
+
+function createTraceId(config?: MfFallbackTelemetryConfig) {
+  if (config?.traceId) {
+    return config.traceId;
+  }
+
+  const random =
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `mf-${random}`;
+}
+
+function sanitizeMetadata(metadata: Record<string, unknown> | undefined) {
+  if (!metadata) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(metadata).filter(
+      ([key]) => !FORBIDDEN_METADATA_KEYS.has(key),
+    ),
+  );
+}
+
+function inferTrustDecision(
+  reason: MfFallbackReason,
+  fallbackTrustDecision?: RuntimeParityTrustDecision,
+): RuntimeParityTrustDecision {
+  if (fallbackTrustDecision) {
+    return fallbackTrustDecision;
+  }
+
+  switch (reason) {
+    case 'origin_not_allowed':
+    case 'origin_isolation_violation':
+    case 'integrity_missing':
+    case 'integrity_mismatch':
+    case 'integrity_timeout':
+    case 'attestation_missing':
+    case 'attestation_mismatch':
+      return 'blocked';
+    case 'runtime_incompatible':
+    case 'entry_load_failed':
+    case 'lifecycle_failed':
+    case 'timeout':
+      return 'trusted';
+    default:
+      return 'unknown';
+  }
+}
+
+function inferCompatibilityDecision(
+  reason: MfFallbackReason,
+  fallbackCompatibilityDecision?: RuntimeParityCompatibilityDecision,
+): RuntimeParityCompatibilityDecision {
+  if (fallbackCompatibilityDecision) {
+    return fallbackCompatibilityDecision;
+  }
+
+  switch (reason) {
+    case 'runtime_incompatible':
+    case 'lifecycle_missing':
+      return 'incompatible';
+    case 'entry_load_failed':
+    case 'lifecycle_failed':
+    case 'timeout':
+      return 'compatible';
+    default:
+      return 'unknown';
+  }
+}
+
+function inferErrorTrustDecision(
+  error: unknown,
+  reason: MfFallbackReason,
+): RuntimeParityTrustDecision {
+  if (error instanceof RemoteTrustPolicyError) {
+    return error.issue.reason === 'integrity_verification_unavailable'
+      ? 'unknown'
+      : 'blocked';
+  }
+
+  if (error instanceof RuntimeCompatibilityError) {
+    return 'trusted';
+  }
+
+  return inferTrustDecision(reason);
+}
+
+function inferErrorCompatibilityDecision(
+  error: unknown,
+  reason: MfFallbackReason,
+): RuntimeParityCompatibilityDecision {
+  if (error instanceof RuntimeCompatibilityError) {
+    return 'incompatible';
+  }
+
+  if (error instanceof RemoteTrustPolicyError) {
+    return 'unknown';
+  }
+
+  return inferCompatibilityDecision(reason);
+}
+
+function normalizeFallbackPhase(
+  reason: MfFallbackReason,
+  phase: MfFallbackPhase,
+): MfFallbackPhase {
+  if (reason === 'entry_load_failed') {
+    return 'load';
+  }
+
+  return phase;
+}
+
+type MfFallbackEventInput = Partial<
+  Omit<MfFallbackEvent, 'reason' | 'phase' | 'timestamp'>
+> & {
+  reason: MfFallbackReason;
+  phase: MfFallbackPhase;
+};
+
 export function createFallbackEvent(
-  baseEvent: Omit<MfFallbackEvent, 'timestamp'>,
+  baseEvent: MfFallbackEventInput,
+  config?: MfFallbackTelemetryConfig,
 ): MfFallbackEvent {
+  const reason = baseEvent.reason;
+  const phase = normalizeFallbackPhase(reason, baseEvent.phase);
+
   return {
+    schemaVersion: baseEvent.schemaVersion ?? config?.schemaVersion ?? 1,
+    timestamp: new Date().toISOString(),
+    service: baseEvent.service ?? config?.service ?? DEFAULT_SERVICE,
+    module: baseEvent.module ?? config?.module ?? DEFAULT_MODULE,
+    environment: baseEvent.environment ?? resolveEnvironment(config),
+    runtimeSurface:
+      baseEvent.runtimeSurface ??
+      config?.runtimeSurface ??
+      DEFAULT_RUNTIME_SURFACE,
+    appName: baseEvent.appName ?? 'unknown',
     ...baseEvent,
-    timestamp: Date.now(),
+    phase,
+    code: FALLBACK_CODE_BY_REASON[reason],
+    trustDecision: inferTrustDecision(reason, baseEvent.trustDecision),
+    compatibilityDecision: inferCompatibilityDecision(
+      reason,
+      baseEvent.compatibilityDecision,
+    ),
+    parityClaimId:
+      baseEvent.parityClaimId ??
+      config?.parityClaimId ??
+      DEFAULT_PARITY_CLAIM_ID,
+    traceId: baseEvent.traceId ?? createTraceId(config),
+    spanId: baseEvent.spanId ?? config?.spanId,
+    metadata: sanitizeMetadata(baseEvent.metadata),
   };
 }
 
 export function emitFallbackTelemetry(
-  event: Omit<MfFallbackEvent, 'timestamp'>,
+  event: MfFallbackEventInput,
   config?: MfFallbackTelemetryConfig,
 ) {
-  const payload = createFallbackEvent(event);
+  const payload = createFallbackEvent(event, config);
 
   config?.onFallback?.(payload);
 
@@ -150,7 +345,7 @@ export function emitFallbackTelemetry(
 export function emitErrorFallbackTelemetry(
   options: {
     error: unknown;
-    phase: MfFallbackEvent['phase'];
+    phase: MfFallbackPhase;
     appName?: string;
     entry?: string;
     metadata?: Record<string, unknown>;
@@ -159,15 +354,18 @@ export function emitErrorFallbackTelemetry(
 ) {
   const { error, phase, appName, entry, metadata } = options;
   const resolvedContext = resolveErrorContext(error, appName, entry);
+  const reason = inferFallbackReason(error);
   return emitFallbackTelemetry(
     {
-      reason: inferFallbackReason(error),
+      reason,
       phase,
       appName: resolvedContext.appName,
       entry: resolvedContext.entry,
       metadata,
       message: getErrorMessage(error),
       code: getErrorCode(error),
+      trustDecision: inferErrorTrustDecision(error, reason),
+      compatibilityDecision: inferErrorCompatibilityDecision(error, reason),
     },
     config,
   );

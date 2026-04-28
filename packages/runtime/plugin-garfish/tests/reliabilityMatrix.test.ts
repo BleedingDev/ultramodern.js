@@ -3,7 +3,11 @@ import {
   RuntimeCompatibilityError,
   validateRuntimeCompatibility,
 } from '../src/runtime/compatibility';
-import { inferFallbackReason } from '../src/runtime/fallbackTelemetry';
+import {
+  emitErrorFallbackTelemetry,
+  inferFallbackPhase,
+  inferFallbackReason,
+} from '../src/runtime/fallbackTelemetry';
 import {
   RemoteTrustPolicyError,
   enforceRemoteTrustPolicy,
@@ -44,6 +48,27 @@ describe('mf reliability matrix', () => {
 
     expect(thrown).toBeInstanceOf(RuntimeCompatibilityError);
     expect(inferFallbackReason(thrown)).toBe('runtime_incompatible');
+    expect(
+      emitErrorFallbackTelemetry(
+        {
+          error: thrown,
+          phase: inferFallbackPhase(thrown),
+        },
+        {
+          emitConsole: false,
+          emitWindowEvent: false,
+          reportToServer: false,
+          traceId: 'trace-digest-mismatch',
+        },
+      ),
+    ).toMatchObject({
+      reason: 'runtime_incompatible',
+      phase: 'compatibility',
+      code: 'MV_RUNTIME_INCOMPATIBLE',
+      trustDecision: 'trusted',
+      compatibilityDecision: 'incompatible',
+      traceId: 'trace-digest-mismatch',
+    });
   });
 
   test('integrity verification reports network failures', async () => {
@@ -78,7 +103,29 @@ describe('mf reliability matrix', () => {
     expect((thrown as RemoteTrustPolicyError).issue.reason).toBe(
       'integrity_fetch_failed',
     );
-    expect(inferFallbackReason(thrown)).toBe('integrity_fetch_failed');
+    expect(inferFallbackReason(thrown)).toBe('entry_load_failed');
+    expect(inferFallbackPhase(thrown)).toBe('load');
+    expect(
+      emitErrorFallbackTelemetry(
+        {
+          error: thrown,
+          phase: inferFallbackPhase(thrown),
+        },
+        {
+          emitConsole: false,
+          emitWindowEvent: false,
+          reportToServer: false,
+          traceId: 'trace-network-failure',
+        },
+      ),
+    ).toMatchObject({
+      reason: 'entry_load_failed',
+      phase: 'load',
+      code: 'MV_ENTRY_LOAD_FAILED',
+      trustDecision: 'blocked',
+      compatibilityDecision: 'unknown',
+      traceId: 'trace-network-failure',
+    });
   });
 
   test('integrity verification reports timeout failures', async () => {
@@ -119,6 +166,73 @@ describe('mf reliability matrix', () => {
       'integrity_timeout',
     );
     expect(inferFallbackReason(thrown)).toBe('integrity_timeout');
+    expect(
+      emitErrorFallbackTelemetry(
+        {
+          error: thrown,
+          phase: inferFallbackPhase(thrown),
+        },
+        {
+          emitConsole: false,
+          emitWindowEvent: false,
+          reportToServer: false,
+          traceId: 'trace-integrity-timeout',
+        },
+      ),
+    ).toMatchObject({
+      reason: 'integrity_timeout',
+      phase: 'integrity',
+      code: 'MV_INTEGRITY_TIMEOUT',
+      trustDecision: 'blocked',
+      compatibilityDecision: 'unknown',
+      traceId: 'trace-integrity-timeout',
+    });
+  });
+
+  test('strict origin isolation violation emits canonical blocked trust telemetry', async () => {
+    let thrown: unknown;
+    try {
+      await enforceRemoteTrustPolicy(
+        [
+          {
+            name: 'dashboard',
+            entry: 'https://remote.example.com/dashboard/remoteEntry.js',
+          },
+        ] as ModulesInfo,
+        {
+          mode: 'strict',
+          productionOnly: false,
+          isolatedOrigins: {
+            dashboard: 'https://isolated.example.com',
+          },
+        },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(RemoteTrustPolicyError);
+    expect(
+      emitErrorFallbackTelemetry(
+        {
+          error: thrown,
+          phase: inferFallbackPhase(thrown),
+        },
+        {
+          emitConsole: false,
+          emitWindowEvent: false,
+          reportToServer: false,
+          traceId: 'trace-origin-isolation',
+        },
+      ),
+    ).toMatchObject({
+      reason: 'origin_isolation_violation',
+      phase: 'trust',
+      code: 'MV_ORIGIN_ISOLATION_VIOLATION',
+      trustDecision: 'blocked',
+      compatibilityDecision: 'unknown',
+      traceId: 'trace-origin-isolation',
+    });
   });
 
   test('warn mode allows partial degradation while surfacing violations', async () => {

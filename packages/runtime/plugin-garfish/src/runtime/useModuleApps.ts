@@ -7,6 +7,17 @@ import { GarfishContext } from './utils/Context';
 export type Options = typeof garfish.options;
 export type MicroFrontendProductionProfile = 'off' | 'balanced' | 'strict';
 export type RuntimeCompatibilityMode = 'off' | 'warn' | 'strict';
+export type RuntimeSurface = 'garfish' | 'module-federation';
+export type RuntimeParityTrustDecision =
+  | 'trusted'
+  | 'warn'
+  | 'blocked'
+  | 'unknown';
+export type RuntimeParityCompatibilityDecision =
+  | 'compatible'
+  | 'compatible_with_degradation'
+  | 'incompatible'
+  | 'unknown';
 export type RuntimeCompatibilityIssueReason =
   | 'digest_mismatch'
   | 'missing_remote_digest';
@@ -63,32 +74,50 @@ export type MfFallbackReason =
   | 'origin_not_allowed'
   | 'origin_isolation_violation'
   | 'integrity_missing'
-  | 'integrity_invalid'
   | 'integrity_mismatch'
-  | 'integrity_fetch_failed'
   | 'integrity_timeout'
   | 'attestation_missing'
   | 'attestation_mismatch'
-  | 'runtime_init_failed'
-  | 'remote_load_failed'
-  | 'remote_mount_failed'
-  | 'remote_unmount_failed';
+  | 'entry_missing'
+  | 'entry_load_failed'
+  | 'manifest_invalid'
+  | 'manifest_unavailable'
+  | 'lifecycle_missing'
+  | 'lifecycle_failed'
+  | 'ssr_unavailable'
+  | 'hydration_mismatch_risk'
+  | 'timeout'
+  | 'unknown';
 export type MfFallbackPhase =
   | 'bootstrap'
+  | 'discovery'
+  | 'trust'
   | 'compatibility'
   | 'integrity'
   | 'load'
   | 'mount'
-  | 'unmount';
+  | 'update'
+  | 'unmount'
+  | 'recovery';
 export type MfFallbackEvent = {
+  schemaVersion: number;
+  timestamp: string;
+  service: string;
+  module: string;
+  environment: string;
+  runtimeSurface: RuntimeSurface;
   reason: MfFallbackReason;
   phase: MfFallbackPhase;
-  appName?: string;
+  appName: string;
   entry?: string;
   message?: string;
-  code?: string;
+  code: string;
+  trustDecision: RuntimeParityTrustDecision;
+  compatibilityDecision: RuntimeParityCompatibilityDecision;
+  parityClaimId: string;
+  traceId: string;
+  spanId?: string;
   metadata?: Record<string, unknown>;
-  timestamp: number;
 };
 export type MfFallbackTelemetryConfig = {
   onFallback?: (event: MfFallbackEvent) => void;
@@ -99,6 +128,14 @@ export type MfFallbackTelemetryConfig = {
   reportEndpoint?: string;
   reportHeaders?: Record<string, string>;
   reportIncludeCredentials?: boolean;
+  schemaVersion?: number;
+  service?: string;
+  module?: string;
+  environment?: string;
+  runtimeSurface?: RuntimeSurface;
+  parityClaimId?: string;
+  traceId?: string;
+  spanId?: string;
 };
 export type ModuleInfo = GarfishInterfaces.AppInfo & {
   Component?: React.ComponentType | React.ElementType;

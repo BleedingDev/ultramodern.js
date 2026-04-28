@@ -4,19 +4,19 @@ overview: Parallel execution streams for runtime parity, scaffolding, DS contrac
 todos:
   - id: uw1-r
     content: Stream R — implement MF runtime parity enforcement and failure-mode tests.
-    status: pending
+    status: completed
   - id: uw1-s
     content: Stream S — implement scaffolding/template ingestion with manifest validation.
-    status: pending
+    status: completed
   - id: uw1-d
     content: Stream D — implement DS adapters, brand packs, and consumer breakage checks.
-    status: pending
+    status: completed
   - id: uw1-z
     content: Stream Z — implement Zephyr profile and deploy/rollback checks.
-    status: pending
+    status: completed
   - id: uw1-o
     content: Stream O — implement ownership + graph-aware blast-radius CI gates.
-    status: pending
+    status: completed
 isProject: false
 ---
 
