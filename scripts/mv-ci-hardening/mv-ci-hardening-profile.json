@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "name": "mv-ci-tier-budgets-and-flake-policy",
+  "validationDate": "2026-04-28",
+  "policy": {
+    "maxFlakeWaiverDays": 14,
+    "maxRetryAttempts": 2
+  },
+  "tiers": {
+    "golden": {
+      "maxRuntimeMinutes": 45,
+      "maxTimeoutMinutes": 45,
+      "maxFlakeWaivers": 0,
+      "requiredEvidence": "full contract, failure, rollback, and certification evidence"
+    },
+    "compat": {
+      "maxRuntimeMinutes": 30,
+      "maxTimeoutMinutes": 30,
+      "maxFlakeWaivers": 1,
+      "requiredEvidence": "migration, compatibility, and regression evidence"
+    },
+    "experimental": {
+      "maxRuntimeMinutes": 12,
+      "maxTimeoutMinutes": 12,
+      "maxFlakeWaivers": 1,
+      "requiredEvidence": "opt-in smoke evidence only"
+    }
+  },
+  "checks": [
+    {
+      "id": "mv-golden-contract-certification",
+      "tier": "golden",
+      "owner": "super-app-platform",
+      "riskClass": "production-default",
+      "runtimeBudgetMinutes": 40,
+      "timeoutMinutes": 45,
+      "command": "node --test scripts/mv-integration-pilot/__tests__/*.test.js scripts/mv-production-rollout/__tests__/*.test.js",
+      "retryPolicy": {
+        "maxAttempts": 1
+      }
+    },
+    {
+      "id": "mv-compat-runtime-regression",
+      "tier": "compat",
+      "owner": "migration-platform",
+      "riskClass": "supported-migration",
+      "runtimeBudgetMinutes": 24,
+      "timeoutMinutes": 30,
+      "command": "node --test scripts/mv-integration-pilot/__tests__/remote-failure-drills.test.js scripts/mv-integration-pilot/__tests__/rollback-kill-switch-drill.test.js",
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "issueRef": "modernjs-465",
+        "reason": "compat lane may retry once only while CI hardening evidence is introduced"
+      },
+      "flakeWaivers": [
+        {
+          "issueRef": "modernjs-465",
+          "owner": "migration-platform",
+          "openedOn": "2026-04-28",
+          "expiresOn": "2026-05-12",
+          "reason": "temporary compat runtime budget observation during Wave 4 rollout"
+        }
+      ]
+    },
+    {
+      "id": "mv-experimental-smoke",
+      "tier": "experimental",
+      "owner": "experimentation-platform",
+      "riskClass": "opt-in",
+      "runtimeBudgetMinutes": 8,
+      "timeoutMinutes": 10,
+      "command": "node --test scripts/mv-integration-pilot/__tests__/reference-topology.test.js",
+      "retryPolicy": {
+        "maxAttempts": 1
+      }
+    }
+  ]
+}
