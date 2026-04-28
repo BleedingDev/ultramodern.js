@@ -1,0 +1,28 @@
+{
+  "laneDefinitions": [
+    {
+      "id": "experimental-mf-react-router-effect",
+      "tier": "experimental",
+      "runtime": "module-federation",
+      "router": "react-router",
+      "service": "effect",
+      "gates": [
+        "wave0-contracts",
+        "topology-manifest",
+        "smoke",
+        "explicit-opt-in",
+        "owner-blast-radius",
+        "fallback-telemetry"
+      ],
+      "evidence": [
+        "topology-manifest-validation",
+        "smoke-test-output",
+        "explicit-owner-opt-in",
+        "owner-blast-radius-report"
+      ],
+      "ciBudget": "bounded-smoke",
+      "productionDefault": true,
+      "explicitOptIn": true
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "laneDefinitions": [
+    {
+      "id": "golden-mf-tanstack-effect",
+      "tier": "golden",
+      "runtime": "module-federation",
+      "router": "tanstack-router",
+      "service": "effect",
+      "gates": [
+        "wave0-contracts",
+        "runtime-parity",
+        "topology-manifest",
+        "signed-manifest",
+        "trust-integrity-attestation",
+        "remote-failure-drills",
+        "rollback-kill-switch-slo",
+        "design-system-contract",
+        "module-certification",
+        "owner-blast-radius",
+        "fallback-telemetry",
+        "dual-review"
+      ],
+      "evidence": [
+        "runtime-parity-matrix",
+        "topology-manifest-validation",
+        "signed-manifest-attestation",
+        "remote-failure-drill-results",
+        "rollback-kill-switch-results",
+        "design-system-contract-proof",
+        "module-certification-report",
+        "production-rollout-evidence",
+        "owner-blast-radius-report",
+        "fallback-telemetry-sample",
+        "dual-review-record"
+      ],
+      "ciBudget": "full",
+      "productionDefault": true,
+      "explicitOptIn": false
+    }
+  ]
+}

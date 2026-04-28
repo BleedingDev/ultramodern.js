@@ -1,0 +1,97 @@
+{
+  "laneDefinitions": [
+    {
+      "id": "golden-mf-tanstack-effect",
+      "tier": "golden",
+      "runtime": "module-federation",
+      "router": "tanstack-router",
+      "service": "effect",
+      "gates": [
+        "wave0-contracts",
+        "runtime-parity",
+        "topology-manifest",
+        "signed-manifest",
+        "trust-integrity-attestation",
+        "remote-failure-drills",
+        "rollback-kill-switch-slo",
+        "design-system-contract",
+        "module-certification",
+        "production-rollout",
+        "owner-blast-radius",
+        "fallback-telemetry",
+        "dual-review"
+      ],
+      "evidence": [
+        "runtime-parity-matrix",
+        "topology-manifest-validation",
+        "signed-manifest-attestation",
+        "remote-failure-drill-results",
+        "rollback-kill-switch-results",
+        "design-system-contract-proof",
+        "module-certification-report",
+        "production-rollout-evidence",
+        "owner-blast-radius-report",
+        "fallback-telemetry-sample",
+        "dual-review-record"
+      ],
+      "ciBudget": "full",
+      "productionDefault": true,
+      "explicitOptIn": false
+    },
+    {
+      "id": "compat-garfish-react-router-hono",
+      "tier": "compat",
+      "runtime": "garfish",
+      "router": "react-router",
+      "service": "hono",
+      "gates": [
+        "wave0-contracts",
+        "runtime-parity",
+        "topology-manifest",
+        "trust-integrity-attestation",
+        "migration-regression",
+        "rollback-kill-switch-slo",
+        "owner-blast-radius",
+        "fallback-telemetry",
+        "dual-review"
+      ],
+      "evidence": [
+        "runtime-parity-matrix",
+        "topology-manifest-validation",
+        "migration-regression-report",
+        "rollback-kill-switch-results",
+        "owner-blast-radius-report",
+        "fallback-telemetry-sample",
+        "dual-review-record"
+      ],
+      "ciBudget": "migration-regression",
+      "productionDefault": false,
+      "explicitOptIn": false
+    },
+    {
+      "id": "experimental-mf-react-router-effect",
+      "tier": "experimental",
+      "runtime": "module-federation",
+      "router": "react-router",
+      "service": "effect",
+      "gates": [
+        "wave0-contracts",
+        "topology-manifest",
+        "smoke",
+        "explicit-opt-in",
+        "owner-blast-radius",
+        "fallback-telemetry"
+      ],
+      "evidence": [
+        "topology-manifest-validation",
+        "smoke-test-output",
+        "explicit-owner-opt-in",
+        "owner-blast-radius-report",
+        "fallback-telemetry-sample"
+      ],
+      "ciBudget": "bounded-smoke",
+      "productionDefault": false,
+      "explicitOptIn": true
+    }
+  ]
+}
