@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ucmv-04
     content: Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.
-    status: pending
+    status: completed
 isProject: true
 ---
 

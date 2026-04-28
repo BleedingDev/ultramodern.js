@@ -2,7 +2,7 @@
 
 - graph_id: `ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972`
 - selection_hash: `10989c3972`
-- active issue: `modernjs-8zx`
+- active issue: `modernjs-1gq`
 
 ## Wave 1 Launch: Wave 0 Contract Gates
 
@@ -104,3 +104,27 @@ Plan state policy: root agent owns `.codex/plans/ultramodern-wave3-production-ro
 - Rollout strategy lane owns only the three rollout strategy files named above.
 - Certification/SOP scout is read-only and must not edit files.
 - Later write lanes should prefer `scripts/mv-production-rollout/**` and avoid mutating Wave 2 pilot artifacts unless root explicitly reassigns ownership.
+
+## Wave 4 Hardening Launch
+
+Plan state policy: root agent owns `.codex/plans/ultramodern-wave4-hardening-and-lane-policy.plan.md` and umbrella status updates. Workers report complete, partial, or blocked; root updates plan status after verification.
+
+| Lane | Agent | Owner / Write Scope | Dependency | Status | Next Action |
+| --- | --- | --- | --- | --- | --- |
+| Lane policy enforcement | `019dd66d-fef5-7ff0-9392-bf0e6534fbd1` Kant | `scripts/mv-lane-policy/**`, `docs/super-app-rfc-adr/LANE-POLICY-0001-golden-compat-experimental.md`, optional `.github/workflows/mv-lane-policy.yml` | Wave 3 complete | Complete | Root verified validator, tests, Biome, and workflow lint |
+| CI budget and flake hardening | `019dd66e-2e75-7573-9f94-e38715dc547b` Singer | `scripts/mv-ci-hardening/**`, `docs/super-app-rfc-adr/CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md`, optional `.github/workflows/mv-ci-hardening.yml` | Wave 3 complete | Complete | Root wired package script and CI workflow, then verified validator, tests, Biome, and workflow lint |
+| Migration and sunset docs | `019dd66e-5a70-7551-b738-6d0d1e237ef6` Bohr | `docs/super-app-rfc-adr/MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`, `docs/super-app-rfc-adr/SUNSET-DECISION-0001-compatibility-lanes.md`, optional `docs/super-app-rfc-adr/evidence/mv-wave4/compatibility-sunset/**` | Wave 3 complete | Complete | Root verified docs are linked from ADR index and diff hygiene passed |
+
+## Wave 4 Integration Result
+
+- Plan todos `uw4-01`, `uw4-02`, `uw4-03`, and `uw4-04` are completed.
+- Root verification passed for lane policy validation, CI hardening validation, Wave 4 validator tests, Biome, workflow lint, and plan graph validation.
+- Package scripts now expose `validate:mv-lane-policy` and `validate:mv-ci-hardening`.
+- One follow-up remains tracked outside the completed wave: `modernjs-465` for the temporary Compat flake waiver expiring on 2026-05-12.
+
+## Wave 4 Conflict Rules
+
+- Root-only: `.codex/plans/*`, `.codex/plan-graphs/*`, root `package.json`, Beads state, final commits, and cross-lane release wiring.
+- Policy lane must not edit CI hardening or migration/sunset docs.
+- CI hardening lane must not edit lane policy or migration/sunset docs.
+- Migration/sunset lane is docs-only and must not edit scripts, workflows, or package metadata.

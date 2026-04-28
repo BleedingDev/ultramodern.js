@@ -13,6 +13,10 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `REVIEW-0001-architecture-board-log.md`
 - `GATES-0001-ticket-execution-gates.md`
 - `CI-GATES-0001-check-and-artifact-map.md`
+- `LANE-POLICY-0001-golden-compat-experimental.md`
+- `CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md`
+- `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
+- `SUNSET-DECISION-0001-compatibility-lanes.md`
 - `DEPENDENCY-0001-parallel-lane-matrix.md`
 - `DIAG-0001-rsdoctor-diagnostics-contract.md`
 - `ADR-0001-rsdoctor-default-on.md`

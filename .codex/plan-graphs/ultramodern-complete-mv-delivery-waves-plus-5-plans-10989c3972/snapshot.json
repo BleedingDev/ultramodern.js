@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T23:25:14.278773+00:00",
+  "generated_at": "2026-04-28T23:43:42.250662+00:00",
   "graph_id": "ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972",
   "plan_set_hash": "e5598838c4",
   "selection_hash": "10989c3972",
@@ -71,7 +71,7 @@
         {
           "id": "ucmv-04",
           "content": "Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -276,25 +276,25 @@
         {
           "id": "uw4-01",
           "content": "Finalize lane policy (Golden/Compat/Experimental) and publish enforcement.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uw4-02",
           "content": "Reduce CI flake and enforce runtime budget by tier.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uw4-03",
           "content": "Publish migration playbook for existing teams.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uw4-04",
           "content": "Decide and document any compatibility-lane sunset path.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -305,56 +305,15 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-wave4-hardening-and-lane-policy",
-      "plan_name": "Ultramodern Wave 4 Hardening and Lane Policy",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave4-hardening-and-lane-policy.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "uw4-01",
-          "content": "Finalize lane policy (Golden/Compat/Experimental) and publish enforcement.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uw4-02",
-          "content": "Reduce CI flake and enforce runtime budget by tier.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uw4-03",
-          "content": "Publish migration playbook for existing teams.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 4
-    },
-    {
       "plan_slug": "ultramodern-complete-mv-delivery-waves",
       "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-wave4-hardening-and-lane-policy"
-      ],
-      "active": [
-        {
-          "id": "ucmv-04",
-          "content": "Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
       "upcoming": [],
-      "completed": 4,
+      "completed": 5,
       "total": 5
     },
     {
@@ -397,6 +356,18 @@
       "plan_slug": "ultramodern-wave3-production-rollout-certification",
       "plan_name": "Ultramodern Wave 3 Production Rollout and Certification",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave3-production-rollout-certification.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-wave4-hardening-and-lane-policy",
+      "plan_name": "Ultramodern Wave 4 Hardening and Lane Policy",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave4-hardening-and-lane-policy.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],

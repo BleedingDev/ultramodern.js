@@ -1,15 +1,15 @@
-name: MV Lane Policy
+name: MV CI Hardening
 
 on:
   pull_request:
     paths:
-      - 'scripts/mv-lane-policy/**'
-      - 'docs/super-app-rfc-adr/LANE-POLICY-0001-golden-compat-experimental.md'
-      - '.github/workflows/mv-lane-policy.yml'
+      - 'scripts/mv-ci-hardening/**'
+      - 'docs/super-app-rfc-adr/CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md'
+      - '.github/workflows/mv-ci-hardening.yml'
   workflow_dispatch:
 
 jobs:
-  mv-lane-policy:
+  mv-ci-hardening:
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
@@ -22,5 +22,5 @@ jobs:
         with:
           node-version: 20
 
-      - name: Validate MV Lane Policy
-        run: node scripts/mv-lane-policy/validate-lane-policy.js
+      - name: Validate MV CI hardening profile
+        run: node scripts/mv-ci-hardening/validate-ci-hardening.js

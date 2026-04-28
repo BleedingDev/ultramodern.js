@@ -4,16 +4,16 @@ overview: Final hardening, CI efficiency tuning, and policy decisions for compat
 todos:
   - id: uw4-01
     content: Finalize lane policy (Golden/Compat/Experimental) and publish enforcement.
-    status: pending
+    status: completed
   - id: uw4-02
     content: Reduce CI flake and enforce runtime budget by tier.
-    status: pending
+    status: completed
   - id: uw4-03
     content: Publish migration playbook for existing teams.
-    status: pending
+    status: completed
   - id: uw4-04
     content: Decide and document any compatibility-lane sunset path.
-    status: pending
+    status: completed
 isProject: false
 ---
 
