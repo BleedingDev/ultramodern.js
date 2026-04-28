@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "id": "wave2-remote-failure-drills",
+  "description": "Remote timeout, network failure, and integrity mismatch drills for the Wave 2 reference topology.",
+  "passCases": [
+    {
+      "id": "uw2-02-timeout-remote-commerce",
+      "title": "Commerce remote manifest timeout falls back to LKG shell surface",
+      "failureMode": "remote-timeout",
+      "environment": "staging",
+      "affectedRemoteId": "remote-commerce",
+      "expectedFallbackComponentId": "shell-super-app",
+      "expectedFallback": {
+        "reason": "timeout",
+        "code": "MV_TIMEOUT",
+        "phase": "load"
+      },
+      "expectations": {
+        "shellSurvives": true,
+        "fallbackTelemetryPresent": true,
+        "affectedRemoteIsolated": true,
+        "unaffectedComponentIds": [
+          "shell-super-app",
+          "remote-identity",
+          "remote-design-system",
+          "service-recommendations-effect"
+        ]
+      },
+      "telemetry": {
+        "eventName": "mv.remote.fallback",
+        "fallback": {
+          "reason": "timeout",
+          "code": "MV_TIMEOUT",
+          "phase": "load"
+        },
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-timeout-remote-commerce.jsonl"
+      },
+      "remediation": {
+        "ownerTeam": "commerce-experience",
+        "runbookRef": "runbooks/wave2/remote-commerce.md#manifest-timeout",
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-timeout-remote-commerce.md"
+      }
+    },
+    {
+      "id": "uw2-02-network-remote-identity",
+      "title": "Identity remote network failure leaves shell and other remotes available",
+      "failureMode": "network-failure",
+      "environment": "production",
+      "affectedRemoteId": "remote-identity",
+      "expectedFallbackComponentId": "shell-super-app",
+      "expectedFallback": {
+        "reason": "entry_load_failed",
+        "code": "MV_ENTRY_LOAD_FAILED",
+        "phase": "load"
+      },
+      "expectations": {
+        "shellSurvives": true,
+        "fallbackTelemetryPresent": true,
+        "affectedRemoteIsolated": true,
+        "unaffectedComponentIds": [
+          "shell-super-app",
+          "remote-commerce",
+          "remote-design-system",
+          "service-recommendations-effect"
+        ]
+      },
+      "telemetry": {
+        "eventName": "mv.remote.fallback",
+        "fallback": {
+          "reason": "entry_load_failed",
+          "code": "MV_ENTRY_LOAD_FAILED",
+          "phase": "load"
+        },
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-network-remote-identity.jsonl"
+      },
+      "remediation": {
+        "ownerTeam": "identity-platform",
+        "runbookRef": "runbooks/wave2/remote-identity.md#network-failure",
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-network-remote-identity.md"
+      }
+    },
+    {
+      "id": "uw2-02-integrity-remote-design-system",
+      "title": "Design-system integrity mismatch is rejected before activation",
+      "failureMode": "integrity-mismatch",
+      "environment": "staging",
+      "affectedRemoteId": "remote-design-system",
+      "expectedFallbackComponentId": "remote-design-system",
+      "expectedFallback": {
+        "reason": "integrity_mismatch",
+        "code": "MV_INTEGRITY_MISMATCH",
+        "phase": "integrity"
+      },
+      "expectations": {
+        "shellSurvives": true,
+        "fallbackTelemetryPresent": true,
+        "affectedRemoteIsolated": true,
+        "unaffectedComponentIds": [
+          "shell-super-app",
+          "remote-commerce",
+          "remote-identity",
+          "service-recommendations-effect"
+        ]
+      },
+      "telemetry": {
+        "eventName": "mv.remote.fallback",
+        "fallback": {
+          "reason": "integrity_mismatch",
+          "code": "MV_INTEGRITY_MISMATCH",
+          "phase": "integrity"
+        },
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-integrity-remote-design-system.jsonl"
+      },
+      "remediation": {
+        "ownerTeam": "design-platform",
+        "runbookRef": "runbooks/wave2/remote-design-system.md#integrity-mismatch",
+        "evidenceRef": "evidence/wave2/remote-failure/uw2-02-integrity-remote-design-system.md"
+      }
+    }
+  ],
+  "failCases": [
+    {
+      "id": "uw2-02-fail-shell-survivability",
+      "title": "Invalid drill missing shell survivability proof",
+      "failureMode": "remote-timeout",
+      "environment": "staging",
+      "affectedRemoteId": "remote-commerce",
+      "expectedFallbackComponentId": "shell-super-app",
+      "expectedFallback": {
+        "reason": "timeout",
+        "code": "MV_TIMEOUT",
+        "phase": "load"
+      },
+      "expectations": {
+        "shellSurvives": false,
+        "fallbackTelemetryPresent": true,
+        "affectedRemoteIsolated": true,
+        "unaffectedComponentIds": ["remote-identity", "remote-design-system"]
+      },
+      "telemetry": {
+        "eventName": "mv.remote.fallback",
+        "fallback": {
+          "reason": "timeout",
+          "code": "MV_TIMEOUT",
+          "phase": "load"
+        },
+        "evidenceRef": "evidence/wave2/remote-failure/fail-shell-survivability.jsonl"
+      },
+      "remediation": {
+        "ownerTeam": "commerce-experience",
+        "runbookRef": "runbooks/wave2/remote-commerce.md#manifest-timeout",
+        "evidenceRef": "evidence/wave2/remote-failure/fail-shell-survivability.md"
+      }
+    },
+    {
+      "id": "uw2-02-fail-missing-telemetry",
+      "title": "Invalid drill missing fallback telemetry proof",
+      "failureMode": "network-failure",
+      "environment": "production",
+      "affectedRemoteId": "remote-identity",
+      "expectedFallbackComponentId": "shell-super-app",
+      "expectedFallback": {
+        "reason": "entry_load_failed",
+        "code": "MV_ENTRY_LOAD_FAILED",
+        "phase": "load"
+      },
+      "expectations": {
+        "shellSurvives": true,
+        "fallbackTelemetryPresent": false,
+        "affectedRemoteIsolated": true,
+        "unaffectedComponentIds": [
+          "shell-super-app",
+          "remote-commerce",
+          "remote-design-system"
+        ]
+      },
+      "telemetry": {
+        "eventName": "mv.remote.fallback",
+        "fallback": {
+          "reason": "entry_load_failed",
+          "code": "MV_ENTRY_LOAD_FAILED",
+          "phase": "load"
+        },
+        "evidenceRef": "evidence/wave2/remote-failure/fail-missing-telemetry.jsonl"
+      },
+      "remediation": {
+        "ownerTeam": "identity-platform",
+        "runbookRef": "runbooks/wave2/remote-identity.md#network-failure",
+        "evidenceRef": "evidence/wave2/remote-failure/fail-missing-telemetry.md"
+      }
+    }
+  ]
+}

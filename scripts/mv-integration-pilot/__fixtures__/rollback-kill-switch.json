@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "id": "uw2-05-rollback-kill-switch-slo",
+  "description": "Rollback and kill-switch drill for manifest artifact selection under an explicit incident SLO.",
+  "environment": "staging",
+  "targetComponentId": "remote-commerce",
+  "incidentSlo": {
+    "name": "tier-1 remote rollback containment",
+    "severity": "sev-2",
+    "detectBudgetMs": 120000,
+    "mitigateBudgetMs": 300000,
+    "totalBudgetMs": 420000,
+    "detectedInMs": 64000,
+    "mitigatedInMs": 181000,
+    "totalElapsedMs": 245000
+  },
+  "artifacts": [
+    {
+      "id": "artifact-remote-commerce-2026-04-20-rollback-bad",
+      "stage": "current",
+      "version": "5.4.0-wave2.bad",
+      "manifestRef": "https://deploy.example.internal/mf/remote-commerce/current.json",
+      "evidenceRef": "evidence/wave2/rollback-kill-switch/current-bad-manifest.json"
+    },
+    {
+      "id": "artifact-remote-commerce-2026-04-19-overlay-bad",
+      "stage": "environment-overlay",
+      "version": "5.4.0-wave2.overlay",
+      "manifestRef": "https://deploy.example.internal/mf/remote-commerce/staging-canary-10.json",
+      "evidenceRef": "evidence/wave2/rollback-kill-switch/staging-overlay-manifest.json"
+    },
+    {
+      "id": "artifact-remote-commerce-2026-04-15-007",
+      "stage": "lkg",
+      "version": "5.3.0-wave2.4",
+      "manifestRef": "https://deploy.example.internal/mf/remote-commerce/prod-lkg.json",
+      "evidenceRef": "evidence/wave2/rollback-kill-switch/lkg-manifest.json"
+    },
+    {
+      "id": "artifact-shell-commerce-csr-fallback-2026-04-15-001",
+      "stage": "csr-fallback",
+      "version": "shell-csr-fallback.2",
+      "manifestRef": "https://deploy.example.internal/mf/shell-super-app/commerce-csr-fallback.json",
+      "evidenceRef": "evidence/wave2/rollback-kill-switch/csr-fallback.json"
+    }
+  ],
+  "fallbackPlan": {
+    "order": ["current", "environment-overlay", "lkg", "csr-fallback"],
+    "artifacts": {
+      "current": "artifact-remote-commerce-2026-04-20-rollback-bad",
+      "environment-overlay": "artifact-remote-commerce-2026-04-19-overlay-bad",
+      "lkg": "artifact-remote-commerce-2026-04-15-007",
+      "csr-fallback": "artifact-shell-commerce-csr-fallback-2026-04-15-001"
+    },
+    "selectedStage": "lkg",
+    "selectedArtifactId": "artifact-remote-commerce-2026-04-15-007"
+  },
+  "killSwitch": {
+    "enabled": true,
+    "targetId": "remote-commerce",
+    "flag": "mv.wave2.remote-commerce.disable",
+    "replacementArtifactId": "artifact-remote-commerce-2026-04-15-007",
+    "evidenceRef": "evidence/wave2/rollback-kill-switch/kill-switch-target-remote-commerce.json"
+  },
+  "revocation": {
+    "revokedArtifactIds": [
+      "artifact-remote-commerce-2026-04-20-rollback-bad",
+      "artifact-remote-commerce-2026-04-19-overlay-bad"
+    ],
+    "overridesFallbackSelection": true,
+    "policyRef": "docs/super-app-rfc-adr/wave2/revocation-policy.md#remote-commerce",
+    "evidenceRef": "evidence/wave2/rollback-kill-switch/revocation-precedence.json"
+  },
+  "telemetry": {
+    "eventName": "mv.rollback.kill_switch.slo",
+    "decisionEventName": "mv.manifest.fallback.selected",
+    "metricRefs": [
+      "metrics/wave2/rollback-kill-switch/detection-latency.prom",
+      "metrics/wave2/rollback-kill-switch/mitigation-latency.prom",
+      "metrics/wave2/rollback-kill-switch/total-incident-latency.prom"
+    ],
+    "evidenceRef": "evidence/wave2/rollback-kill-switch/telemetry.jsonl"
+  },
+  "evidence": {
+    "incidentRef": "incidents/wave2/uw2-05-rollback-kill-switch.md",
+    "rollbackRunbookRef": "runbooks/wave2/remote-commerce.md#rollback-to-lkg",
+    "killSwitchRunbookRef": "runbooks/wave2/remote-commerce.md#kill-switch",
+    "operatorLogRef": "operator-log/wave2/uw2-05-rollback-kill-switch.md",
+    "relatedDrillReports": [
+      {
+        "id": "wave2-remote-failure-drills",
+        "summaryRef": "evidence/wave2/remote-failure/summary.json"
+      },
+      {
+        "id": "uw2-03-design-system-bad-release",
+        "summaryRef": "evidence/wave2/design-system-bad-release/summary.json"
+      },
+      {
+        "id": "uw2-04-vertical-extraction-drill",
+        "summaryRef": "evidence/wave2/vertical-extraction/summary.json"
+      }
+    ]
+  }
+}

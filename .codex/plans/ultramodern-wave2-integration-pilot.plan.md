@@ -4,19 +4,19 @@ overview: Prove architecture in a realistic reference topology and run extractio
 todos:
   - id: uw2-01
     content: Build reference topology (shell + 2 remotes + 1 horizontal DS remote + 1 Effect service).
-    status: pending
+    status: completed
   - id: uw2-02
     content: Run remote failure drills and prove shell survivability.
-    status: pending
+    status: completed
   - id: uw2-03
     content: Run DS bad-release drill and verify consumer isolation/rollback.
-    status: pending
+    status: completed
   - id: uw2-04
     content: Extract one vertical to independent deploy (possibly different cloud) without shell refactor.
-    status: pending
+    status: completed
   - id: uw2-05
     content: Run manifest rollback/kill-switch drills under explicit SLO.
-    status: pending
+    status: completed
 isProject: false
 ---
 

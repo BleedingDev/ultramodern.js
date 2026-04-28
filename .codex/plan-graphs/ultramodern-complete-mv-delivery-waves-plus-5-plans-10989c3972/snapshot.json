@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T22:41:11.494564+00:00",
+  "generated_at": "2026-04-28T23:03:40.303974+00:00",
   "graph_id": "ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972",
   "plan_set_hash": "e5598838c4",
   "selection_hash": "10989c3972",
@@ -59,7 +59,7 @@
         {
           "id": "ucmv-02",
           "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -200,31 +200,31 @@
         {
           "id": "uw2-01",
           "content": "Build reference topology (shell + 2 remotes + 1 horizontal DS remote + 1 Effect service).",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uw2-02",
           "content": "Run remote failure drills and prove shell survivability.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uw2-03",
           "content": "Run DS bad-release drill and verify consumer isolation/rollback.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uw2-04",
           "content": "Extract one vertical to independent deploy (possibly different cloud) without shell refactor.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "uw2-05",
           "content": "Run manifest rollback/kill-switch drills under explicit SLO.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -305,80 +305,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-wave2-integration-pilot",
-      "plan_name": "Ultramodern Wave 2 Integration Pilot",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave2-integration-pilot.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "uw2-01",
-          "content": "Build reference topology (shell + 2 remotes + 1 horizontal DS remote + 1 Effect service).",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uw2-02",
-          "content": "Run remote failure drills and prove shell survivability.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uw2-03",
-          "content": "Run DS bad-release drill and verify consumer isolation/rollback.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
-      "plan_slug": "ultramodern-complete-mv-delivery-waves",
-      "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-wave4-hardening-and-lane-policy"
-      ],
-      "active": [
-        {
-          "id": "ucmv-02",
-          "content": "Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ucmv-03",
-          "content": "Complete Wave 3 production rollout and certification.",
-          "status": "pending",
-          "ordinal": 4
-        },
-        {
-          "id": "ucmv-04",
-          "content": "Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "completed": 2,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-wave3-production-rollout-certification",
       "plan_name": "Ultramodern Wave 3 Production Rollout and Certification",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave3-production-rollout-certification.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-wave2-integration-pilot"
-      ],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "uw3-01",
@@ -403,6 +335,34 @@
       ],
       "completed": 0,
       "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-complete-mv-delivery-waves",
+      "plan_name": "Ultramodern Complete MV Delivery Waves (Wave 0\u20134)",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "ultramodern-wave4-hardening-and-lane-policy"
+      ],
+      "active": [
+        {
+          "id": "ucmv-03",
+          "content": "Complete Wave 3 production rollout and certification.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ucmv-04",
+          "content": "Complete Wave 4 hardening, lane policy finalization, and compatibility-lane sunset decisions.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "completed": 3,
+      "total": 5
     },
     {
       "plan_slug": "ultramodern-wave4-hardening-and-lane-policy",
@@ -454,6 +414,18 @@
       "plan_slug": "ultramodern-wave1-parallel-implementation-streams",
       "plan_name": "Ultramodern Wave 1 Parallel Implementation Streams",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave1-parallel-implementation-streams.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-wave2-integration-pilot",
+      "plan_name": "Ultramodern Wave 2 Integration Pilot",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-wave2-integration-pilot.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],

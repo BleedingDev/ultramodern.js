@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ucmv-02
     content: Complete Wave 2 integration pilot (reference superapp, extraction drill, chaos/failure drills).
-    status: pending
+    status: completed
   - id: ucmv-03
     content: Complete Wave 3 production rollout and certification.
     status: pending

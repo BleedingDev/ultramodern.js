@@ -2,7 +2,7 @@
 
 - graph_id: `ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972`
 - selection_hash: `10989c3972`
-- active issue: `modernjs-jrz`
+- active issue: `modernjs-jnt`
 
 ## Wave 1 Launch: Wave 0 Contract Gates
 
@@ -51,3 +51,30 @@ Plan state policy: root agent owns `.codex/plans/ultramodern-wave1-parallel-impl
 - Plan todos `uw1-r`, `uw1-s`, `uw1-d`, `uw1-z`, and `uw1-o` are completed.
 - Root verification passed for runtime parity, scaffold manifest materialization, DS helper contracts, Zephyr static validation, and ownership blast-radius checks.
 - Next frontier after graph refresh: Wave 2 integration pilot.
+
+## Wave 3 Launch: Wave 2 Integration Pilot
+
+Plan state policy: root agent owns `.codex/plans/ultramodern-wave2-integration-pilot.plan.md` status updates because Wave 2 lanes converge on one plan file and shared pilot evidence. Workers report complete, partial, or blocked; root updates plan status after verification.
+
+| Lane | Agent | Owner / Write Scope | Dependency | Status | Next Action |
+| --- | --- | --- | --- | --- | --- |
+| Reference topology | `019dd647-8935-7733-bade-aa62d6ca1c67` Pauli | `scripts/mv-integration-pilot/reference-topology.js`, `scripts/mv-integration-pilot/__fixtures__/reference-topology.json`, `scripts/mv-integration-pilot/__tests__/reference-topology.test.js` | Wave 1 complete | Complete | Root verified topology test and biome |
+| Drill scope scout | `019dd647-aae0-74c1-863e-3eb5dbeba93a` Lorentz | read-only | Reference topology shape | Complete | Recommended disjoint write scopes for `uw2-02` through `uw2-05` |
+| Remote failure drills | `019dd64c-c5a9-77b3-87c3-7e1fd406e590` Meitner | `scripts/mv-integration-pilot/remote-failure-drills.js`, `scripts/mv-integration-pilot/__fixtures__/remote-failure-drills.json`, `scripts/mv-integration-pilot/__tests__/remote-failure-drills.test.js` | Reference topology | Complete | Root aligned fallback taxonomy to Wave 0 contract and verified drill test |
+| DS bad-release drill | `019dd64c-c62f-7b10-b23d-d52cc29972d6` Beauvoir | `scripts/mv-integration-pilot/design-system-bad-release-drill.js`, `scripts/mv-integration-pilot/__fixtures__/design-system-bad-release.json`, `scripts/mv-integration-pilot/__tests__/design-system-bad-release-drill.test.js` | Reference topology | Complete | Root verified DS drill test and biome |
+| Vertical extraction drill | `019dd64c-c6c0-70a3-b658-c7d8ea5b2485` Arendt | `scripts/mv-integration-pilot/vertical-extraction-drill.js`, `scripts/mv-integration-pilot/__fixtures__/vertical-extraction.json`, `scripts/mv-integration-pilot/__tests__/vertical-extraction-drill.test.js` | Reference topology | Complete | Root verified extraction drill test and biome |
+| Rollback/kill-switch SLO drill | `019dd651-c6cb-7dc3-9751-7740004e336e` Turing | `scripts/mv-integration-pilot/rollback-kill-switch-drill.js`, `scripts/mv-integration-pilot/__fixtures__/rollback-kill-switch.json`, `scripts/mv-integration-pilot/__tests__/rollback-kill-switch-drill.test.js` | Completed drills | Complete | Root verified rollback/kill-switch SLO drill test and biome |
+
+## Wave 2 Integration Result
+
+- Plan todos `uw2-01`, `uw2-02`, `uw2-03`, `uw2-04`, and `uw2-05` are completed.
+- Root verification passed for reference topology, remote failure drills, DS bad-release isolation, vertical extraction, and rollback/kill-switch SLO.
+- Remote failure drill taxonomy was corrected to Wave 0 canonical fallback reasons/codes before acceptance.
+- Next frontier after graph refresh: Wave 3 production rollout and certification.
+
+## Wave 2 Conflict Rules
+
+- Root-only: `.codex/plans/*`, `.codex/plan-graphs/*`, root `package.json`, Beads state, final commits, and cross-lane evidence summary.
+- Reference topology lane owns only the topology fixture/helper/test files named above.
+- Drill scout is read-only and must not edit files.
+- Later write lanes must not mutate the reference topology shape without root reassignment.
