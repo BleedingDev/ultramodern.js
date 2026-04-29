@@ -115,14 +115,21 @@ const parseTraceparent = (value: unknown) => {
     return undefined;
   }
 
+  const [, traceId, spanId] = match;
+  if (!traceId || !spanId) {
+    return undefined;
+  }
+
   return {
-    traceId: match[1].toLowerCase(),
-    spanId: match[2].toLowerCase(),
+    traceId: traceId.toLowerCase(),
+    spanId: spanId.toLowerCase(),
   };
 };
 
 const extractPathParamNames = (path: string): string[] =>
-  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).map(([, key]) => key);
+  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).flatMap(([, key]) =>
+    key ? [key] : [],
+  );
 
 const originFetch = (...params: Parameters<typeof fetch>) => {
   const [url, init] = params;

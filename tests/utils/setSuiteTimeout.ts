@@ -24,4 +24,23 @@ export function setSuiteTimeout(timeoutMs: number) {
     testTimeout: timeoutMs,
     hookTimeout: timeoutMs,
   });
+
+  const maybeRstest = (
+    globalThis as {
+      rstest?: {
+        setTimeout?: (timeout: number) => void;
+        setConfig?: (config: {
+          testTimeout?: number;
+          hookTimeout?: number;
+        }) => void;
+      };
+    }
+  ).rstest;
+  if (maybeRstest?.setTimeout) {
+    maybeRstest.setTimeout(timeoutMs);
+  }
+  maybeRstest?.setConfig?.({
+    testTimeout: timeoutMs,
+    hookTimeout: timeoutMs,
+  });
 }

@@ -9,6 +9,7 @@ const runtimeVersion = (
 
 export default createModuleFederationConfig({
   name: 'tanstackRemote2',
+  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
   dev: {
     disableDynamicRemoteTypeHints: true,
   },

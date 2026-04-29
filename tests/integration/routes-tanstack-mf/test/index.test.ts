@@ -9,6 +9,9 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+
+setSuiteTimeout(1000 * 60 * 8);
 
 async function waitForAppReady(url: string, maxRetries = 60) {
   for (let i = 0; i < maxRetries; i++) {
@@ -328,6 +331,12 @@ async function assertModuleFederationAssets(remotePort: number) {
   expect(remoteEntryCode.startsWith('<!DOCTYPE html>')).toBe(false);
 }
 
+async function buildFederatedFixtureApp(appDir: string) {
+  await modernBuild(appDir, [], {
+    marker: /ready\s+built in/i,
+  });
+}
+
 async function assertRemoteLoadFailureFallback(input: {
   page: Page;
   hostPort: number;
@@ -514,6 +523,7 @@ async function assertDistributedTraceFromBrowser(
       status?: 'ok';
       remoteStatus?: 'ok';
       traceparent?: string;
+      remoteLocale?: string;
     };
   };
 
@@ -524,6 +534,7 @@ async function assertDistributedTraceFromBrowser(
     status: 'ok',
     traceparent: trace.traceparent,
     remoteStatus: 'ok',
+    remoteLocale: '*',
   });
 
   const hostTrace = await waitForTraceSpansWithFallback(
@@ -597,8 +608,6 @@ describe('routes-tanstack-mf', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 5);
-
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
@@ -747,15 +756,13 @@ describe('routes-tanstack-mf serve mode', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 8);
-
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
 
-    await modernBuild(remoteDir);
-    await modernBuild(remoteTwoDir);
-    await modernBuild(hostDir);
+    await buildFederatedFixtureApp(remoteDir);
+    await buildFederatedFixtureApp(remoteTwoDir);
+    await buildFederatedFixtureApp(hostDir);
 
     remoteApp = await modernServe(remoteDir, REMOTE_PORT);
     await waitForAppReady(`http://localhost:${REMOTE_PORT}/mf-manifest.json`);

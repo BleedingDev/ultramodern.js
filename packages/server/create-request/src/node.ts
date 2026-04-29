@@ -110,9 +110,14 @@ const parseTraceparent = (value: unknown) => {
     return undefined;
   }
 
+  const [, traceId, spanId] = match;
+  if (!traceId || !spanId) {
+    return undefined;
+  }
+
   return {
-    traceId: match[1].toLowerCase(),
-    spanId: match[2].toLowerCase(),
+    traceId: traceId.toLowerCase(),
+    spanId: spanId.toLowerCase(),
   };
 };
 

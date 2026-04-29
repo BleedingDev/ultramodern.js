@@ -13,7 +13,10 @@ export const getUploadPayload = (args: any) => {
   for (const [key, value] of Object.entries(files)) {
     if (value instanceof FileList) {
       for (let i = 0; i < value.length; i++) {
-        formdata.append(key, value[i]);
+        const file = value.item(i);
+        if (file) {
+          formdata.append(key, file);
+        }
       }
     } else {
       formdata.append(key, value);
