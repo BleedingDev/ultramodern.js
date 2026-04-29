@@ -425,7 +425,7 @@ function renderEffectClientCode(
     },
   );
 
-const operationManifestObject = operationManifestEntries.length
+  const operationManifestObject = operationManifestEntries.length
     ? `{
   ${operationManifestEntries.join(',\n  ')}
 }`
@@ -535,45 +535,34 @@ const __normalizeRequest = (method, request = {}) => {
     return {};
   }
 
-  if (
-    'params' in request ||
-    'query' in request ||
-    'data' in request ||
-    'body' in request ||
-    'formData' in request ||
-    'formUrlencoded' in request
-  ) {
-    return request;
-  }
+  const payload = { ...request };
 
-  const payload = {};
-
-  if (__isRecord(request.path)) {
+  if (__isRecord(request.path) && !__isRecord(payload.params)) {
     payload.params = request.path;
   }
 
-  if (__isRecord(request.urlParams)) {
+  if (__isRecord(request.urlParams) && !__isRecord(payload.query)) {
     payload.query = request.urlParams;
   }
 
-  if (__isRecord(request.headers)) {
+  if (__isRecord(request.headers) && !__isRecord(payload.headers)) {
     payload.headers = request.headers;
   }
 
   if ('payload' in request && request.payload !== undefined) {
-    if (request.payload instanceof FormData) {
+    if (request.payload instanceof FormData && !('formData' in payload)) {
       payload.formData = request.payload;
     } else if (__METHODS_WITHOUT_BODY.has(method)) {
       if (__isRecord(request.payload)) {
         payload.query = __isRecord(payload.query)
           ? { ...payload.query, ...request.payload }
           : request.payload;
-      } else {
+      } else if (!('body' in payload)) {
         payload.body = request.payload;
       }
-    } else if (__isRecord(request.payload)) {
+    } else if (__isRecord(request.payload) && !('data' in payload)) {
       payload.data = request.payload;
-    } else {
+    } else if (!('body' in payload)) {
       payload.body = request.payload;
     }
   }

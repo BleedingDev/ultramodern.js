@@ -13,6 +13,7 @@ export default applyBaseConfig({
   },
   html: {
     scriptLoading: 'defer',
+    template: './src/html/index.html',
   },
   output: {
     filenameHash: false,
@@ -23,5 +24,4 @@ export default applyBaseConfig({
       mode: 'string',
     },
   },
-  splitChunks: false,
 });

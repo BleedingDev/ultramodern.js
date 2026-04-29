@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -22,6 +23,19 @@ const browserLaunchOptions = launchOptions as Parameters<
 >[0];
 
 type AppProcess = Awaited<ReturnType<typeof launchApp>>;
+
+function captureBrowserErrors(page: Page) {
+  const errors: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error') {
+      errors.push(message.text());
+    }
+  });
+  page.on('pageerror', error => {
+    errors.push(error.message);
+  });
+  return errors;
+}
 
 async function resetSuperApp(port: number) {
   const response = await fetch(`${host}:${port}/bff-api/effect/reset`, {
@@ -114,6 +128,44 @@ async function expectEffectContracts(port: number) {
   });
 }
 
+async function expectProductionShell(port: number) {
+  const response = await fetch(`${host}:${port}/`);
+  expect(response.status).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('Acme Global Operations');
+  expect(html).toContain('tanstack-effect-superapp');
+  expect(html).toContain('Command Center');
+  expect(html).toContain('executive-command-center');
+  expect(html).not.toContain('html-rspack-plugin');
+  expect(html).not.toContain('hot-update');
+}
+
+function expectProductionRouteManifest() {
+  const manifestPath = path.join(appDir, 'dist/routes-manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+  const serialized = JSON.stringify(manifest);
+  expect(serialized).not.toContain('hot-update');
+  expect(serialized).not.toContain('html-rspack-plugin');
+
+  for (const route of Object.values(manifest.routeAssets) as Array<{
+    assets?: string[];
+  }>) {
+    for (const asset of route.assets ?? []) {
+      expect(asset).toMatch(/^\/static\//);
+      expect(existsSync(path.join(appDir, 'dist', asset.slice(1)))).toBe(true);
+    }
+  }
+
+  expect(manifest.routeAssets.index.assets).toContain('/static/js/index.js');
+  expect(manifest.routeAssets.index.assets).toContain('/static/css/index.css');
+  expect(manifest.routeAssets['approvals/page'].assets).toContain(
+    '/static/js/async/approvals/page.js',
+  );
+  expect(manifest.routeAssets['chat/page'].assets).toContain(
+    '/static/js/async/chat/page.js',
+  );
+}
+
 async function expectSuperAppUi(page: Page, port: number) {
   await resetSuperApp(port);
 
@@ -192,12 +244,14 @@ describe('Effect + TanStack SuperApp ERP readiness fixture', () => {
     let browser: Browser;
     let page: Page;
     let port: number;
+    let browserErrors: string[];
 
     beforeAll(async () => {
       port = await getPort();
       app = await launchApp(appDir, port, {});
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();
+      browserErrors = captureBrowserErrors(page);
     });
 
     afterAll(async () => {
@@ -209,12 +263,16 @@ describe('Effect + TanStack SuperApp ERP readiness fixture', () => {
     test('serves Effect API contracts and TanStack-driven workflows', async () => {
       await expectEffectContracts(port);
       await expectSuperAppUi(page, port);
+      expect(browserErrors).toEqual([]);
     });
   });
 
   describe('production build and serve', () => {
     let app: AppProcess;
+    let browser: Browser;
+    let page: Page;
     let port: number;
+    let browserErrors: string[];
 
     beforeAll(async () => {
       port = await getPort();
@@ -223,14 +281,23 @@ describe('Effect + TanStack SuperApp ERP readiness fixture', () => {
       app = await modernServe(appDir, port, {
         cwd: appDir,
       });
+      browser = await puppeteer.launch(browserLaunchOptions);
+      page = await browser.newPage();
+      browserErrors = captureBrowserErrors(page);
     });
 
     afterAll(async () => {
+      await page?.close();
+      await browser?.close();
       await killApp(app);
     });
 
-    test('keeps Effect API contracts working after build', async () => {
+    test('keeps SSR shell, Effect API contracts, and TanStack workflows working after build', async () => {
+      await expectProductionShell(port);
+      expectProductionRouteManifest();
       await expectEffectContracts(port);
+      await expectSuperAppUi(page, port);
+      expect(browserErrors).toEqual([]);
     });
   });
 });

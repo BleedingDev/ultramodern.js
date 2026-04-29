@@ -27,7 +27,7 @@ export default function ApprovalsPage() {
       params: {
         id: firstPending.id,
       },
-      data: {
+      payload: {
         decision: 'approved',
         actor: 'finance.lead',
       },

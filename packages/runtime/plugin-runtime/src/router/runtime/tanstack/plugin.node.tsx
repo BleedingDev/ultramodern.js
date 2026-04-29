@@ -16,7 +16,7 @@ import {
 } from '@tanstack/react-router';
 import { attachRouterServerSsrUtils } from '@tanstack/react-router/ssr/server';
 import type React from 'react';
-import { useContext } from 'react';
+import { Suspense, useContext } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
   InternalRuntimeContext,
@@ -25,11 +25,11 @@ import {
 } from '../../../core/context';
 import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import type { RouterExtendsHooks } from '../hooks';
-import { applyRouterRuntimeState, type RouterLifecycleContext } from '../lifecycle';
-import type {
-  InternalRouterServerSnapshot,
-  RouterConfig,
-} from '../types';
+import {
+  type RouterLifecycleContext,
+  applyRouterRuntimeState,
+} from '../lifecycle';
+import type { InternalRouterServerSnapshot, RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import {
@@ -288,7 +288,11 @@ export const tanstackRouterPlugin = (
               return App ? <App {...props} /> : null;
             }
 
-            const routerWrapper = <RouterProvider router={router as any} />;
+            const routerWrapper = (
+              <Suspense fallback={null}>
+                <RouterProvider router={router as any} />
+              </Suspense>
+            );
 
             return App ? <App>{routerWrapper}</App> : routerWrapper;
           }) as React.FC<any>;
