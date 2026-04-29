@@ -97,6 +97,75 @@ describe('plugin-bff regressions', () => {
     }
   });
 
+  test('client generator marks generated client output as ESM', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-client-module-'),
+    );
+    const previousCwd = process.cwd();
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const effectDir = path.join(apiDir, 'effect');
+      const lambdaDir = path.join(apiDir, 'lambda');
+      await fs.promises.mkdir(effectDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: 'module-app', version: '1.0.0' }, null, 2),
+      );
+      await fs.promises.writeFile(
+        path.join(effectDir, 'index.js'),
+        `const {
+  HttpApi,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Schema,
+} = require('@modern-js/plugin-bff/effect-client');
+
+const api = HttpApi.make('ModuleApi').add(
+  HttpApiGroup.make('greetings').add(
+    HttpApiEndpoint.get('ping', '/effect/ping', {
+      success: Schema.Struct({
+        ok: Schema.Boolean,
+      }),
+    }),
+  ),
+);
+
+module.exports = { api };
+`,
+      );
+
+      process.chdir(appDir);
+      await clientGenerator({
+        prefix: '/api',
+        appDir,
+        apiDir,
+        lambdaDir,
+        existLambda: false,
+        port: 8080,
+        relativeDistPath: '.modern-js',
+        relativeApiPath: './api',
+        bffRuntimeFramework: 'effect',
+      });
+
+      const clientPackageJson = JSON.parse(
+        await fs.promises.readFile(
+          path.join(appDir, '.modern-js', 'client', 'package.json'),
+          'utf8',
+        ),
+      );
+      expect(clientPackageJson).toEqual({ type: 'module' });
+      await expect(
+        fs.promises.stat(
+          path.join(appDir, '.modern-js', 'client', 'effect', 'index.js'),
+        ),
+      ).resolves.toBeDefined();
+    } finally {
+      process.chdir(previousCwd);
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('runtime generator exposes initProducerClient alias', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-runtime-'),

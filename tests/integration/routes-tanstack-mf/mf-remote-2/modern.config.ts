@@ -3,6 +3,16 @@ import { bffPlugin } from '@modern-js/plugin-bff';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
 export default defineConfig({
+  tools: {
+    devServer: {
+      headers: {
+        'Access-Control-Allow-Headers':
+          'Accept, Authorization, Content-Type, X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Origin': 'http://localhost:3011',
+      },
+    },
+  },
   server: {
     port: 3012,
   },

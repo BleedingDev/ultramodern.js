@@ -291,6 +291,16 @@ async function writeTargetFile(absTargetDir: string, content: string) {
   await fs.writeFile(absTargetDir, content);
 }
 
+async function writeClientModuleBoundary(
+  appDirectory: string,
+  relativeDistPath: string,
+) {
+  await writeTargetFile(
+    path.resolve(appDirectory, relativeDistPath, CLIENT_DIR, 'package.json'),
+    `${JSON.stringify({ type: 'module' }, null, 2)}\n`,
+  );
+}
+
 async function setPackage(
   files: {
     exportKey: string;
@@ -509,6 +519,13 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
     logger.info(`Client bundle generate succeed`);
   } catch (error) {
     logger.error(`Client bundle generate failed: ${error}`);
+  }
+
+  if (generatedSourceList.length > 0) {
+    await writeClientModuleBoundary(
+      draftOptions.appDir,
+      draftOptions.relativeDistPath,
+    );
   }
 
   await setPackage(
