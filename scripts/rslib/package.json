@@ -15,8 +15,8 @@
     }
   },
   "devDependencies": {
-    "@rsbuild/plugin-react": "1.4.5",
-    "@rslib/core": "0.21.0",
+    "@rsbuild/plugin-react": "2.0.0",
+    "@rslib/core": "0.21.3",
     "@types/node": "^25.3.0",
     "typescript": "6.0.3"
   }

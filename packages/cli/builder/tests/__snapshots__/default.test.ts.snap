@@ -256,8 +256,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -321,8 +319,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                 },
                 "parser": {
                   "decorators": true,
-                  "syntax": "typescript",
-                  "tsx": true,
                 },
                 "transform": {
                   "decoratorMetadata": true,
@@ -888,8 +884,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -963,8 +957,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -1000,7 +992,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
                 },
               },
               {
-                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/compiled/url-loader/index.js",
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
                 "options": {
                   "limit": 10000,
                   "name": "static/svg/[name].[contenthash:10].svg",
@@ -1053,9 +1045,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
   },
   "output": {
     "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
-    "bundlerInfo": {
-      "force": false,
-    },
     "chunkFilename": "static/js/async/[name].js",
     "devtoolFallbackModuleFilenameTemplate": [Function],
     "devtoolModuleFilenameTemplate": [Function],
@@ -1179,7 +1168,6 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
         ],
         "injectEntry": true,
         "injectLoader": true,
-        "overlay": false,
         "reactRefreshLoader": "builtin:react-refresh-loader",
         "reloadOnRuntimeErrors": false,
         "resourceQuery": {
@@ -1393,8 +1381,6 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -1450,8 +1436,6 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
                 },
                 "parser": {
                   "decorators": true,
-                  "syntax": "typescript",
-                  "tsx": true,
                 },
                 "transform": {
                   "decoratorMetadata": true,
@@ -1817,8 +1801,6 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -1887,8 +1869,6 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -1924,7 +1904,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
                 },
               },
               {
-                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/compiled/url-loader/index.js",
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
                 "options": {
                   "limit": 10000,
                   "name": "static/svg/[name].[contenthash:10].svg",
@@ -1956,9 +1936,6 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
   },
   "output": {
     "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
-    "bundlerInfo": {
-      "force": false,
-    },
     "chunkFilename": "[name].js",
     "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
     "devtoolModuleFilenameTemplate": "[relative-resource-path]",
@@ -2317,8 +2294,6 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -2382,8 +2357,6 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                 },
                 "parser": {
                   "decorators": true,
-                  "syntax": "typescript",
-                  "tsx": true,
                 },
                 "transform": {
                   "decoratorMetadata": true,
@@ -2949,8 +2922,6 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -3024,8 +2995,6 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -3061,7 +3030,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
                 },
               },
               {
-                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/compiled/url-loader/index.js",
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
                 "options": {
                   "limit": 10000,
                   "name": "static/svg/[name].[contenthash:10].svg",
@@ -3150,9 +3119,6 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
   },
   "output": {
     "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
-    "bundlerInfo": {
-      "force": false,
-    },
     "chunkFilename": "static/js/async/[name].[contenthash:10].js",
     "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
     "devtoolModuleFilenameTemplate": "[relative-resource-path]",
@@ -3440,8 +3406,6 @@ exports[`builder rspack > should generator rspack config correctly when service-
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -3497,8 +3461,6 @@ exports[`builder rspack > should generator rspack config correctly when service-
                 },
                 "parser": {
                   "decorators": true,
-                  "syntax": "typescript",
-                  "tsx": true,
                 },
                 "transform": {
                   "decoratorMetadata": true,
@@ -3845,8 +3807,6 @@ exports[`builder rspack > should generator rspack config correctly when service-
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -3915,8 +3875,6 @@ exports[`builder rspack > should generator rspack config correctly when service-
                     },
                     "parser": {
                       "decorators": true,
-                      "syntax": "typescript",
-                      "tsx": true,
                     },
                     "transform": {
                       "decoratorMetadata": true,
@@ -3952,7 +3910,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
                 },
               },
               {
-                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/compiled/url-loader/index.js",
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
                 "options": {
                   "limit": 10000,
                   "name": "static/svg/[name].[contenthash:10].svg",
@@ -4019,9 +3977,6 @@ exports[`builder rspack > should generator rspack config correctly when service-
   },
   "output": {
     "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
-    "bundlerInfo": {
-      "force": false,
-    },
     "chunkFilename": "[name].js",
     "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
     "devtoolModuleFilenameTemplate": "[relative-resource-path]",

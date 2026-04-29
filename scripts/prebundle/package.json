@@ -15,7 +15,7 @@
     "@vercel/ncc": "0.38.4",
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
-    "postcss": "^8.5.9",
+    "postcss": "^8.5.10",
     "typescript": "6.0.3"
   },
   "devDependencies": {
@@ -29,7 +29,7 @@
     "@types/inquirer": "9.0.9",
     "@types/js-yaml": "4.0.9",
     "@types/less": "3.0.8",
-    "@types/lodash": "^4.17.23",
+    "@types/lodash": "^4.17.24",
     "@types/mime-types": "3.0.1",
     "@types/minimist": "1.2.5",
     "@types/normalize-path": "3.0.2",
