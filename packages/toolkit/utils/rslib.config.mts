@@ -33,7 +33,6 @@ const dependencies = [
   'mime-types',
   'strip-ansi',
   'gzip-size',
-  'pkg-up',
   {
     name: 'json5',
     externals: {

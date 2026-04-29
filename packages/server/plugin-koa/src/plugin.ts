@@ -1,4 +1,5 @@
 import * as path from 'path';
+import Router from '@koa/router';
 import {
   type APIHandlerInfo,
   buildOperationContractMap,
@@ -9,7 +10,6 @@ import { fs, compatRequire } from '@modern-js/utils';
 import Koa, { type Middleware } from 'koa';
 import type Application from 'koa';
 import koaBody from 'koa-body';
-import Router from 'koa-router';
 import { run } from './context';
 import registerRoutes from './registerRoutes';
 

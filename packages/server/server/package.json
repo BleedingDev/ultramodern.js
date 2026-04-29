@@ -62,7 +62,6 @@
     "@rslib/core": "0.21.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/connect-history-api-fallback": "^1.5.4",
-    "@types/minimatch": "^6.0.0",
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
     "node-mocks-http": "^1.17.2",
