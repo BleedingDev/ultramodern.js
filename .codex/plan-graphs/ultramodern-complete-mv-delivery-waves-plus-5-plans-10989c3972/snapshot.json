@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T23:43:42.250662+00:00",
+  "generated_at": "2026-04-29T15:43:05.991233+00:00",
   "graph_id": "ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972",
   "plan_set_hash": "e5598838c4",
   "selection_hash": "10989c3972",
@@ -379,5 +379,5 @@
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "matched-plan-set"
+  "graph_source": "explicit"
 }

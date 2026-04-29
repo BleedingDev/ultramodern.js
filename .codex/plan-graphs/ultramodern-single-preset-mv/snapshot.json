@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-20T22:17:48.512323+00:00",
+  "generated_at": "2026-04-29T15:43:05.999534+00:00",
   "graph_id": "ultramodern-single-preset-mv",
   "plan_set_hash": "fc887dad49",
   "selection_hash": "764c70f056",
@@ -120,25 +120,25 @@
         {
           "id": "umcrs-01",
           "content": "Freeze a router-neutral target contract for router creation, SSR load and dehydrate, hydration bootstrap, redirects, notFound, and matched-route asset ownership.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "umcrs-02",
           "content": "Add lifecycle hooks around router creation and SSR hydration so TanStack and React Router paths can be swapped without hidden framework internals.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "umcrs-03",
           "content": "Unify runtime context shape across router implementations instead of keeping divergent routerContext and tanstackRouter internals.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "umcrs-04",
           "content": "Add parity coverage for SSR, hydration, redirect, blocker, loader, mutation, and asset-manifest behavior across TanStack and React Router lanes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -161,19 +161,19 @@
         {
           "id": "umebc-02",
           "content": "Define one stable request, envelope, runtime-compatibility, and error contract shared by shell, remotes, and independent microservices.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "umebc-03",
           "content": "Expose stable request, identity, locale, and trace propagation APIs for generated clients and Module Federation boundaries.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "umebc-04",
           "content": "Add integration coverage for shell-to-remote-to-service flows in Effect-first mode with explicit Hono compatibility lanes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -196,19 +196,19 @@
         {
           "id": "ummsc-02",
           "content": "Define route ownership, loader context, redirect, and notFound handoff rules between shell and vertical remotes for TanStack-first SSR.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "ummsc-03",
           "content": "Expose fallback and degradation hooks plus observable status telemetry at the shell and vertical boundary.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "ummsc-04",
           "content": "Extend integration coverage for timeout, network, compatibility mismatch, locale and trace propagation, and SSR fallback behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -225,19 +225,19 @@
         {
           "id": "uspmv-01",
           "content": "Capture the dependency order and execution graph for the single-preset MV program by combining the completed MV-first framework hardening foundation with the current single-preset architecture direction.",
-          "status": "in_progress",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uspmv-02",
           "content": "Execute the router, Module Federation SSR, BFF contract, and preset rollout plans in dependency order.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uspmv-03",
           "content": "Publish final merge-safety, compatibility, and rollout evidence for the one-preset MV direction.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         }
       ],
@@ -260,19 +260,19 @@
         {
           "id": "uspr-02",
           "content": "Encode presetUltramodern as one public policy entrypoint with internal option layers for microVerticals, moduleFederation, strictTrust, strictBff, router, and runtime targets.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uspr-03",
           "content": "Wire create templates, docs, release gates, and certification surfaces so presetUltramodern is the only public opinionated entrypoint.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uspr-04",
           "content": "Add rollout evidence covering Bun and Node, TanStack and React Router compatibility, Effect and Hono compatibility, and Module Federation SSR behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -282,175 +282,6 @@
     }
   ],
   "frontier": [
-    {
-      "plan_slug": "ultramodern-mv-core-router-seams",
-      "plan_name": "Ultramodern MV Core Router Seams",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-core-router-seams.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "umcrs-01",
-          "content": "Freeze a router-neutral target contract for router creation, SSR load and dehydrate, hydration bootstrap, redirects, notFound, and matched-route asset ownership.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "umcrs-02",
-          "content": "Add lifecycle hooks around router creation and SSR hydration so TanStack and React Router paths can be swapped without hidden framework internals.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "umcrs-03",
-          "content": "Unify runtime context shape across router implementations instead of keeping divergent routerContext and tanstackRouter internals.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 4
-    },
-    {
-      "plan_slug": "ultramodern-mv-effect-bff-contracts",
-      "plan_name": "Ultramodern MV Effect BFF Contracts",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-effect-bff-contracts.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "umebc-02",
-          "content": "Define one stable request, envelope, runtime-compatibility, and error contract shared by shell, remotes, and independent microservices.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "umebc-03",
-          "content": "Expose stable request, identity, locale, and trace propagation APIs for generated clients and Module Federation boundaries.",
-          "status": "pending",
-          "ordinal": 3
-        },
-        {
-          "id": "umebc-04",
-          "content": "Add integration coverage for shell-to-remote-to-service flows in Effect-first mode with explicit Hono compatibility lanes.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "completed": 1,
-      "total": 4
-    },
-    {
-      "plan_slug": "ultramodern-mv-mf-shell-ssr-contracts",
-      "plan_name": "Ultramodern MV MF Shell SSR Contracts",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-mf-shell-ssr-contracts.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-mv-core-router-seams",
-        "ultramodern-mv-effect-bff-contracts"
-      ],
-      "active": [
-        {
-          "id": "ummsc-02",
-          "content": "Define route ownership, loader context, redirect, and notFound handoff rules between shell and vertical remotes for TanStack-first SSR.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ummsc-03",
-          "content": "Expose fallback and degradation hooks plus observable status telemetry at the shell and vertical boundary.",
-          "status": "pending",
-          "ordinal": 3
-        },
-        {
-          "id": "ummsc-04",
-          "content": "Extend integration coverage for timeout, network, compatibility mismatch, locale and trace propagation, and SSR fallback behavior.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "completed": 1,
-      "total": 4
-    },
-    {
-      "plan_slug": "ultramodern-single-preset-mv-program",
-      "plan_name": "Ultramodern Single Preset MV Program",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-single-preset-mv-program.plan.md",
-      "plan_status": "in_progress",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-single-preset-rollout"
-      ],
-      "active": [
-        {
-          "id": "uspmv-01",
-          "content": "Capture the dependency order and execution graph for the single-preset MV program by combining the completed MV-first framework hardening foundation with the current single-preset architecture direction.",
-          "status": "in_progress",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uspmv-02",
-          "content": "Execute the router, Module Federation SSR, BFF contract, and preset rollout plans in dependency order.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uspmv-03",
-          "content": "Publish final merge-safety, compatibility, and rollout evidence for the one-preset MV direction.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 3
-    },
-    {
-      "plan_slug": "ultramodern-single-preset-rollout",
-      "plan_name": "Ultramodern Single Preset Rollout",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-single-preset-rollout.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-mv-core-router-seams",
-        "ultramodern-mv-effect-bff-contracts",
-        "ultramodern-mv-mf-shell-ssr-contracts"
-      ],
-      "active": [
-        {
-          "id": "uspr-02",
-          "content": "Encode presetUltramodern as one public policy entrypoint with internal option layers for microVerticals, moduleFederation, strictTrust, strictBff, router, and runtime targets.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uspr-03",
-          "content": "Wire create templates, docs, release gates, and certification surfaces so presetUltramodern is the only public opinionated entrypoint.",
-          "status": "pending",
-          "ordinal": 3
-        },
-        {
-          "id": "uspr-04",
-          "content": "Add rollout evidence covering Bun and Node, TanStack and React Router compatibility, Effect and Hono compatibility, and Module Federation SSR behavior.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "completed": 1,
-      "total": 4
-    },
     {
       "plan_slug": "mv-first-framework-hardening",
       "plan_name": "MV-First Framework Hardening",
@@ -462,6 +293,66 @@
       "upcoming": [],
       "completed": 7,
       "total": 7
+    },
+    {
+      "plan_slug": "ultramodern-mv-core-router-seams",
+      "plan_name": "Ultramodern MV Core Router Seams",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-core-router-seams.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-mv-effect-bff-contracts",
+      "plan_name": "Ultramodern MV Effect BFF Contracts",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-effect-bff-contracts.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-mv-mf-shell-ssr-contracts",
+      "plan_name": "Ultramodern MV MF Shell SSR Contracts",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mv-mf-shell-ssr-contracts.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-single-preset-mv-program",
+      "plan_name": "Ultramodern Single Preset MV Program",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-single-preset-mv-program.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 3,
+      "total": 3
+    },
+    {
+      "plan_slug": "ultramodern-single-preset-rollout",
+      "plan_name": "Ultramodern Single Preset Rollout",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-single-preset-rollout.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
     }
   ],
   "errors": [],
