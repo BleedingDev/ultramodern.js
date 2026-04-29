@@ -1,3 +1,5 @@
 {
+  "private": true,
+  "name": "@modern-js-test/routes-tanstack-mf-remote-shared-effect",
   "type": "module"
 }

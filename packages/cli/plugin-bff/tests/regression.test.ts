@@ -154,7 +154,11 @@ module.exports = { api };
           'utf8',
         ),
       );
-      expect(clientPackageJson).toEqual({ type: 'module' });
+      expect(clientPackageJson).toEqual({
+        private: true,
+        name: 'module-app-bff-client',
+        type: 'module',
+      });
       await expect(
         fs.promises.stat(
           path.join(appDir, '.modern-js', 'client', 'effect', 'index.js'),
@@ -195,7 +199,9 @@ module.exports = { api };
       expect(runtimeCode).toContain('const configure = initProducerClient;');
       expect(runtimeCode).toMatch(/requestId:\s*['"]runtime-app['"]/);
       expect(runtimeTypes).toContain('initProducerClient');
-      expect(runtimeTypes).toContain('typeof import("@modern-js/plugin-bff/client")');
+      expect(runtimeTypes).toContain(
+        'typeof import("@modern-js/plugin-bff/client")',
+      );
       expect(runtimeTypes).toContain(
         'export declare const configure: typeof initProducerClient;',
       );

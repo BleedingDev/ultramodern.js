@@ -353,7 +353,7 @@
     ]
   },
   "gateCommands": [
-    "pnpm --dir packages/cli/builder exec rstest run tests/plugins/performance.test.ts --passWithNoTests",
+    "pnpm --dir packages/cli/builder exec rstest run tests/rsdoctor.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/create-request test",
     "pnpm --filter @modern-js/bff-core test",
     "pnpm --filter @modern-js/plugin-express test",

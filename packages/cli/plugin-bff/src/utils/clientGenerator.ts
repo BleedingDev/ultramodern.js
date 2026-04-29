@@ -291,13 +291,33 @@ async function writeTargetFile(absTargetDir: string, content: string) {
   await fs.writeFile(absTargetDir, content);
 }
 
+function getClientPackageName(appDirectory: string): string {
+  const packageName =
+    getPackageName(appDirectory) || path.basename(appDirectory);
+
+  if (packageName.startsWith('@') && packageName.includes('/')) {
+    const [scope, name] = packageName.split('/');
+    return `${scope}/${name}-bff-client`;
+  }
+
+  return `${packageName}-bff-client`;
+}
+
 async function writeClientModuleBoundary(
   appDirectory: string,
   relativeDistPath: string,
 ) {
   await writeTargetFile(
     path.resolve(appDirectory, relativeDistPath, CLIENT_DIR, 'package.json'),
-    `${JSON.stringify({ type: 'module' }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        private: true,
+        name: getClientPackageName(appDirectory),
+        type: 'module',
+      },
+      null,
+      2,
+    )}\n`,
   );
 }
 
