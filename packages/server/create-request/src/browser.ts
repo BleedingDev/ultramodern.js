@@ -4,8 +4,8 @@ import { handleRes } from './handleRes';
 import { executeWithResilience } from './transport';
 import {
   BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS,
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
   BFF_ENVELOPE_HEADER as ENVELOPE_HEADER,
-  BFF_OPERATION_CONTEXT_DETAIL_HEADER as OPERATION_CONTEXT_DETAIL_HEADER,
   BFF_OPERATION_CONTEXT_HEADER as OPERATION_CONTEXT_HEADER,
 } from './types';
 import type {
@@ -39,6 +39,8 @@ const domainMap: Map<string, string> = new Map();
 const isEmptyDomain = (domain?: string) =>
   typeof domain !== 'string' || domain.trim() === '';
 const TRACEPARENT_HEADER = 'traceparent';
+const OPERATION_CONTEXT_DETAIL_HEADER =
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER satisfies 'x-modernjs-bff-operation-context';
 const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
 const readProcessEnv = (key: string) => {
   if (

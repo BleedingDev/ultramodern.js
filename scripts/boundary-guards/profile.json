@@ -42,8 +42,8 @@
       "path": "packages/runtime/plugin-garfish/src/runtime/utils/apps.tsx",
       "includes": [
         "emitFallbackTelemetry",
-        "reason: 'remote_load_failed'",
-        "reason: 'remote_unmount_failed'"
+        "reason: 'entry_load_failed'",
+        "reason: 'lifecycle_failed'"
       ]
     },
     {

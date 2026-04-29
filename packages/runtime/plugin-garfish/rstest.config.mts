@@ -20,7 +20,12 @@ const commonConfig = {
   root: __dirname,
   globals: true,
   passWithNoTests: true,
-  exclude: ['**/node_modules/**', '**/dist/**', '**/.{idea,git,cache,output,temp}/**', '**/dist/.rstest-temp'],
+  exclude: [
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/.{idea,git,cache,output,temp}/**',
+    '**/dist/.rstest-temp',
+  ],
   tools: {
     swc: {
       jsc: {
@@ -32,13 +37,21 @@ const commonConfig = {
       },
     },
   },
-  source: {
+  resolve: {
     alias: {
       debug: path.join(__dirname, 'tests/shims/debug.ts'),
       garfish: path.join(__dirname, 'tests/shims/garfish.ts'),
+      '@modern-js/utils': path.join(
+        __dirname,
+        'tests/shims/modern-js-utils.ts',
+      ),
       '@modern-js/utils/webpack-chain': path.join(
         __dirname,
         '../../toolkit/utils/compiled/webpack-chain/index.js',
+      ),
+      'hoist-non-react-statics': resolvePnpmPackageEntry(
+        'hoist-non-react-statics@',
+        'hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js',
       ),
       '@modern-js/core': resolvePnpmPackageEntry(
         '@modern-js+core@',

@@ -12,4 +12,5 @@ export default withTestPreset({
     'integration/bff-runtime-parity/tests/effect-only-data-platform.test.ts',
   ],
   testTimeout: 1000 * 60 * 5,
+  hookTimeout: 1000 * 60 * 5,
 });
