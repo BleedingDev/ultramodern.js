@@ -44,7 +44,7 @@
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.21.0",
     "@types/node": "^25.3.0",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

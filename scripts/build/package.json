@@ -12,8 +12,8 @@
   "devDependencies": {
     "@modern-js/core": "2.70.4",
     "@modern-js/module-tools": "2.70.4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.3.0",
-    "typescript": "6.0.0-beta",
-    "@types/jest": "^30.0.0"
+    "typescript": "6.0.3"
   }
 }

@@ -191,7 +191,7 @@
     "ioredis-mock": "^8.13.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "sideEffects": false
 }

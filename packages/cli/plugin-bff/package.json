@@ -115,6 +115,7 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
+    "@effect/opentelemetry": "4.0.0-beta.9",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
@@ -122,10 +123,9 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.18",
+    "effect": "4.0.0-beta.9",
     "qs": "^6.15.1",
-    "type-is": "^2.0.1",
-    "@effect/opentelemetry": "4.0.0-beta.9",
-    "effect": "4.0.0-beta.9"
+    "type-is": "^2.0.1"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -141,7 +141,7 @@
     "@types/qs": "^6.14.0",
     "@types/type-is": "^1.6.7",
     "memfs": "^4.56.10",
-    "typescript": "6.0.0-beta",
+    "typescript": "6.0.3",
     "zod": "^4.3.6"
   },
   "sideEffects": false,

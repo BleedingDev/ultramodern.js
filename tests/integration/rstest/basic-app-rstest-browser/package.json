@@ -16,8 +16,8 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "@modern-js/app-tools": "workspace:*",
     "@modern-js/adapter-rstest": "workspace:*",
+    "@modern-js/app-tools": "workspace:*",
     "@rstest/browser": "0.9.5",
     "@rstest/browser-react": "0.9.4",
     "@rstest/core": "0.9.5",
@@ -25,6 +25,6 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "playwright": "^1.58.2",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   }
 }

@@ -17,6 +17,7 @@
     "@modern-js/utils": "workspace:*",
     "@playwright/test": "1.58.2",
     "@rsbuild/core": "2.0.0-rc.0",
+    "@tailwindcss/postcss": "^4.2.0",
     "@types/connect": "^3.4.38",
     "@types/lodash": "^4.17.23",
     "@types/node": "^25.3.0",
@@ -26,7 +27,6 @@
     "connect": "^3.7.0",
     "serve-static": "^2.2.1",
     "tailwindcss": "^4.2.0",
-    "typescript": "6.0.0-beta",
-    "@tailwindcss/postcss": "^4.2.0"
+    "typescript": "6.0.3"
   }
 }

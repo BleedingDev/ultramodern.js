@@ -93,7 +93,7 @@
     "@types/merge-deep": "^3.0.3",
     "@types/node": "^25.3.0",
     "http-proxy-middleware": "^3.0.5",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "sideEffects": false,
   "publishConfig": {

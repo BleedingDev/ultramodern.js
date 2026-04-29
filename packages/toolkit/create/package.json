@@ -44,7 +44,7 @@
     "@rslib/core": "0.21.0",
     "@types/node": "^25.3.0",
     "tsx": "^4.21.0",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "publishConfig": {
     "main": "./dist/index.js",

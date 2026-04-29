@@ -63,7 +63,7 @@
     "@rslib/core": "0.21.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.3.0",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "sideEffects": false,
   "publishConfig": {

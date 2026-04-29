@@ -16,7 +16,7 @@
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
     "postcss": "^8.5.9",
-    "typescript": "6.0.0-beta"
+    "typescript": "6.0.3"
   },
   "devDependencies": {
     "@rollup/plugin-json": "6.1.0",

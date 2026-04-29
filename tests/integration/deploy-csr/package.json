@@ -17,10 +17,10 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "6.0.0-beta",
-    "@types/jest": "^30.0.0"
+    "typescript": "6.0.3"
   }
 }

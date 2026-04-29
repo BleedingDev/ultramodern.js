@@ -68,7 +68,7 @@
     "node-mocks-http": "^1.17.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "4.2.0",
-    "typescript": "6.0.0-beta",
+    "typescript": "6.0.3",
     "websocket": "^1.0.35"
   },
   "peerDependencies": {
