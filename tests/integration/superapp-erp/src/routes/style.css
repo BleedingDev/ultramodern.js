@@ -1,0 +1,102 @@
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  color: #182029;
+  background: #f4f6f8;
+  font-family: Arial, sans-serif;
+}
+
+.sidebar {
+  padding: 24px;
+  background: #111827;
+  color: #f9fafb;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.region {
+  margin-top: 6px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.nav {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.nav a {
+  color: #d1d5db;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.nav a.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.workspace {
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module,
+.message,
+.approval {
+  border: 1px solid #d8dee5;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.degraded {
+  border-color: #f59e0b;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+input {
+  min-width: 360px;
+  padding: 8px;
+}
+
+button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
