@@ -4,16 +4,16 @@ overview: Define the runtime operations, certification, rollout, and incident-re
 todos:
   - id: umoc-01
     content: Define release-train and deployment-topology guidance for shell, remotes, and services, including canary, rollback, and version-skew expectations.
-    status: pending
+    status: completed
   - id: umoc-02
     content: Extend certification and evidence profiles to cover vertical adoption readiness, external remotes, trust/compatibility enforcement, and fallback rehearsal requirements.
-    status: pending
+    status: completed
   - id: umoc-03
     content: Publish observability and incident SOPs for remote failure, compatibility mismatch, trust-policy rejection, and service degradation across shell or remote boundaries.
-    status: pending
+    status: completed
   - id: umoc-04
     content: Add an acceptance matrix for Bun or Node runtime targets, Effect or Hono service lanes, external remotes, remote-unavailable behavior, digest mismatch, and rollback drills.
-    status: pending
+    status: completed
 isProject: false
 ---
 

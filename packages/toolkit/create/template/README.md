@@ -40,6 +40,24 @@ The generated starter also includes `.github/workflows/ultramodern-gates.yml`.
 That workflow runs `pnpm run ultramodern:check` and `pnpm run build` on every
 push and pull request so the `presetUltramodern(...)` contract stays explicit.
 
+## Micro Vertical Workspaces
+
+Inside a Micro Vertical workspace, generate shell, remote, and service packages
+with `--sub` so the workspace root owns package-manager and CI policy:
+
+```bash
+npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
+npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
+npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
+```
+
+The canonical topology is documented in
+`docs/super-app-rfc-adr/WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`.
+Shell packages own route assembly and topology selection, remote packages own
+route subtrees and degraded UI, service packages own Effect or explicit Hono
+contracts, and shared packages are limited to tokens, primitives, generated
+clients, or domain-neutral utilities.
+
 The public opinionated entrypoint is `presetUltramodern(...)`. The older
 `withAppBaseline(...)` helper remains only as a compatibility alias.
 

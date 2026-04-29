@@ -4,16 +4,16 @@ overview: Codify the ownership, extraction, dependency, and module-governance ru
 todos:
   - id: umeg-01
     content: Define an extraction rubric for when a feature stays shell-local, when it graduates into an MF remote, and when it must become an independent service.
-    status: pending
+    status: completed
   - id: umeg-02
     content: Extend module and ownership metadata so routes, remotes, services, and shared packages can be certified and reviewed as vertical boundaries instead of ad hoc code moves.
-    status: pending
+    status: completed
   - id: umeg-03
     content: Publish shared design-system and shared-package governance rules that keep tokens, primitives, and feature composites from collapsing vertical boundaries.
-    status: pending
+    status: completed
   - id: umeg-04
     content: Publish a migration and review playbook for extracting existing Modern.js apps into Micro Verticals while preserving upstream mergeability and compatibility lanes.
-    status: pending
+    status: completed
 isProject: false
 ---
 

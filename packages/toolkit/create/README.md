@@ -64,6 +64,27 @@ You can combine TanStack Router + Tailwind + Effect BFF in one command:
 npx @modern-js/create my-app --router tanstack --tailwind --bff-runtime effect
 ```
 
+### Micro Vertical Workspace Recipes
+
+Use the existing create flags to scaffold packages inside a Micro Vertical
+workspace. The shell and remotes use TanStack Router; services use Effect by
+default, with Hono kept as an explicit compatibility lane.
+
+```bash
+npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
+npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
+npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
+npx @modern-js/create services/legacy-api --bff-runtime hono --workspace --sub
+```
+
+Shared packages should be regular workspace packages for tokens, primitives,
+generated clients, or domain-neutral utilities. Keep feature composites and
+workflow logic owned by a shell, remote, or service package.
+
+See
+`docs/super-app-rfc-adr/WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`
+for the canonical workspace topology and local orchestration model.
+
 ### Local Monorepo Testing
 
 When testing unreleased Modern.js packages from a local monorepo checkout, use

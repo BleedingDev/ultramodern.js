@@ -4,13 +4,13 @@ overview: Drive the post-foundation adoption program required for true Micro Ver
 todos:
   - id: ufmv-01
     content: Finalize the dependency order and milestone model for the post-foundation Micro Verticals program.
-    status: pending
+    status: completed
   - id: ufmv-02
     content: Execute the workspace, governance, and operations plans so presetUltramodern has a complete downstream adoption story for shell, remote, and service teams.
-    status: pending
+    status: completed
   - id: ufmv-03
     content: Publish the final adoption package for teams building and operating true Micro Verticals on top of Ultramodern.
-    status: pending
+    status: completed
 isProject: true
 ---
 

@@ -10,6 +10,10 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `BASELINE-0001-current-vs-target-contracts.md`
 - `BOUNDARY-0001-framework-core-vs-module-vs-external-matrix.md`
 - `SDK-0001-module-sdk-contracts.md`
+- `WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`
+- `GOVERNANCE-0001-micro-vertical-extraction-governance.md`
+- `OPERATIONS-0001-micro-vertical-certification-and-operations.md`
+- `ADOPTION-0001-micro-vertical-downstream-adoption-package.md`
 - `REVIEW-0001-architecture-board-log.md`
 - `GATES-0001-ticket-execution-gates.md`
 - `CI-GATES-0001-check-and-artifact-map.md`

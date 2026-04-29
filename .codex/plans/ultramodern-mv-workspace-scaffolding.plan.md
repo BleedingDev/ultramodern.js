@@ -4,16 +4,16 @@ overview: Turn the completed single-preset Micro Vertical reference model into a
 todos:
   - id: umws-01
     content: Define the canonical repository and workspace topology for shell, remote, service, and shared-package ownership under presetUltramodern.
-    status: pending
+    status: completed
   - id: umws-02
     content: Extend create and generator surfaces so teams can scaffold shell, remote, service, and shared-package slices without inventing custom folder structures.
-    status: pending
+    status: completed
   - id: umws-03
     content: Add local-development orchestration guidance for running shell, remotes, and services together, including workspace-protocol flows and version-skew simulation.
-    status: pending
+    status: completed
   - id: umws-04
     content: Add reference starter and smoke-test coverage that proves generated MV workspace topology stays compatible with the completed router, MF, and BFF contract seams.
-    status: pending
+    status: completed
 isProject: false
 ---
 
