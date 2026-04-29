@@ -27,7 +27,7 @@
           "const operationManifest =",
           "\"version\":1",
           "\"appNamespace\":\"bff-api-app\"",
-          "export { client, operationManifest };"
+          "export { client, createEffectRequestContext, operationManifest };"
         ]
       },
       {
@@ -113,7 +113,7 @@
         "id": "plugin-garfish-runtime-compatibility-contract",
         "path": "packages/runtime/plugin-garfish/src/runtime/compatibility.ts",
         "includes": [
-          "MODERN_MF_RUNTIME_INCOMPATIBLE",
+          "MV_RUNTIME_INCOMPATIBLE",
           "missing_remote_digest",
           "digest_mismatch",
           "validateRuntimeCompatibility"
@@ -123,7 +123,7 @@
         "id": "plugin-garfish-remote-trust-contract",
         "path": "packages/runtime/plugin-garfish/src/runtime/trust.ts",
         "includes": [
-          "MODERN_MF_REMOTE_TRUST_VIOLATION",
+          "MV_ORIGIN_ISOLATION_VIOLATION",
           "origin_isolation_violation",
           "integrity_mismatch",
           "attestation_mismatch"
@@ -133,7 +133,7 @@
         "id": "plugin-garfish-fallback-telemetry-contract",
         "path": "packages/runtime/plugin-garfish/src/runtime/fallbackTelemetry.ts",
         "includes": [
-          "modernjs:mf-fallback",
+          "modernjs:mv-runtime-parity",
           "runtime_incompatible",
           "inferFallbackReason",
           "emitFallbackTelemetry"
