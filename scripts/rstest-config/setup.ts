@@ -11,6 +11,11 @@ process.env.FORCE_COLOR = '0';
 expect.addSnapshotSerializer(
   createSnapshotSerializer({
     workspace: path.join(__dirname, '..', '..'),
+    afterSerialize: serialized =>
+      serialized.replaceAll(
+        '<PNPM_INNER>',
+        '<WORKSPACE>/node_modules/<PNPM_INNER>',
+      ),
     replace: [
       {
         mark: 'fragment',
