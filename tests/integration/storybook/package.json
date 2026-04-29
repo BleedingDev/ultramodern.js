@@ -20,13 +20,13 @@
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
-    "antd": "^5.29.3",
-    "hono": "^4.11.7",
+    "antd": "^6.3.0",
+    "hono": "^4.12.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "3.15.0",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -35,7 +35,7 @@
     "@storybook/addon-docs": "^10.2.19",
     "@storybook/addon-onboarding": "^10.2.19",
     "@storybook/react": "^10.2.19",
-    "@types/node": "^20",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "http-proxy": "^1.18.1",
@@ -43,7 +43,7 @@
     "storybook-addon-modernjs": "3.3.3",
     "storybook-react-rsbuild": "3.3.3",
     "tsconfig-paths": "~3.15.0",
-    "typescript": "^5"
+    "typescript": "6.0.0-beta"
   },
   "exports": {
     "./context/index": {

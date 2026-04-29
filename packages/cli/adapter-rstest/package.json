@@ -37,8 +37,8 @@
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.21.0",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^20",
-    "typescript": "^5"
+    "@types/node": "^25.3.0",
+    "typescript": "6.0.0-beta"
   },
   "sideEffects": false,
   "publishConfig": {

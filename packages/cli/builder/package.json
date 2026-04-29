@@ -64,7 +64,7 @@
     "postcss-page-break": "3.0.4",
     "rspack-manifest-plugin": "5.2.1",
     "ts-deepmerge": "7.0.3",
-    "@rsdoctor/rspack-plugin": "^1.5.2",
+    "@rsdoctor/rspack-plugin": "^1.5.7",
     "postcss-load-config": "6.0.1"
   },
   "devDependencies": {

@@ -94,9 +94,9 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "check-dependency-version-consistency": "4.1.1",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "husky": "^8.0.3",
-    "lint-staged": "~13.3.0",
+    "lint-staged": "~16.2.7",
     "nx": "^22.5.4",
     "rimraf": "^6.1.3"
   },
