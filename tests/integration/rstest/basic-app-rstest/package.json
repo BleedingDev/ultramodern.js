@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@modern-js/adapter-rstest": "workspace:*",
@@ -22,7 +22,7 @@
     "@rstest/core": "0.9.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "happy-dom": "^20.8.9",

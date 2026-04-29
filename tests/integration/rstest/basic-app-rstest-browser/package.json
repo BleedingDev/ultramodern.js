@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@modern-js/adapter-rstest": "workspace:*",
@@ -21,7 +21,7 @@
     "@rstest/browser": "0.9.9",
     "@rstest/browser-react": "0.9.9",
     "@rstest/core": "0.9.9",
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "playwright": "^1.58.2",

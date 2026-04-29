@@ -141,19 +141,19 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@swc/helpers": "^0.5.18",
-    "caniuse-lite": "^1.0.30001770",
+    "@swc/helpers": "^0.5.21",
+    "caniuse-lite": "^1.0.30001791",
     "import-meta-resolve": "^4.2.0",
     "lodash": "^4.18.1",
     "lodash-es": "^4.18.1",
-    "rslog": "^2.0.0"
+    "rslog": "^2.1.1"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.21.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.6.0",
     "happy-dom": "^20.8.9",
     "typescript": "6.0.3"
   },
