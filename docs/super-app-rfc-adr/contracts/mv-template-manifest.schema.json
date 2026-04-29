@@ -219,7 +219,12 @@
     "validation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schemaValidation", "sourceValidation", "materializationValidation", "postMaterializationValidation"],
+      "required": [
+        "schemaValidation",
+        "sourceValidation",
+        "materializationValidation",
+        "postMaterializationValidation"
+      ],
       "properties": {
         "schemaValidation": {
           "type": "boolean",

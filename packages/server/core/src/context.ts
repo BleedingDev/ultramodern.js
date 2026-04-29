@@ -5,8 +5,7 @@ const kHonoContextStorage = Symbol.for(
   'modernjs.server-core.honoContextStorage',
 );
 
-const { run, useContext: useHonoContext } = createStorage<Context>(
-  kHonoContextStorage,
-);
+const { run, useContext: useHonoContext } =
+  createStorage<Context>(kHonoContextStorage);
 
 export { run, useHonoContext };

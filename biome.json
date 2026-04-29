@@ -92,6 +92,7 @@
   "files": {
     "ignoreUnknown": true,
     "ignore": [
+      ".beads/**/*",
       ".vscode/**/*",
       ".nx/**/*",
       "coverage/**/*",
@@ -110,6 +111,7 @@
       "packages/server/core/tests/fixtures/mock/cjs/config/mock/**/*",
       "packages/server/server/tests/fixtures/mock/cjs/config/mock/**/*",
       "tests/integration/ssr/fixtures/preload/**/*",
+      "tests/e2e/builder/cases/**/dist-tools-*",
       "tests/integration/swc/fixtures/transform-fail/src/App.jsx",
       "tests/integration/module/plugins/vue/**/*",
       "packages/module/plugin-module-node-polyfill/src/globals.js",

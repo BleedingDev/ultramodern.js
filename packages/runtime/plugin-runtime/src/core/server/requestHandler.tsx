@@ -291,10 +291,7 @@ export const createRequestHandler: CreateRequestHandler = async (
         const routerServerSnapshot = context.routerServerSnapshot;
         const routerStatusCode =
           routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
-        if (
-          routerStatusCode &&
-          routerStatusCode !== 200
-        ) {
+        if (routerStatusCode && routerStatusCode !== 200) {
           context.ssrContext?.response.status(routerStatusCode);
         }
 

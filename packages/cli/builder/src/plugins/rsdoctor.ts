@@ -1,9 +1,7 @@
 import type { RsbuildPlugin } from '@rsbuild/core';
 import type { RsdoctorUserConfig } from '../types';
 
-const isRsdoctorEnabled = (
-  config: RsdoctorUserConfig | undefined,
-) => {
+const isRsdoctorEnabled = (config: RsdoctorUserConfig | undefined) => {
   if (config === undefined) {
     return false;
   }

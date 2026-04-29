@@ -1,7 +1,4 @@
-import {
-  createAppBaselineConfig,
-  withAppBaseline,
-} from '../src/baseline';
+import { createAppBaselineConfig, withAppBaseline } from '../src/baseline';
 import {
   createPresetUltramodernConfig,
   presetUltramodern,

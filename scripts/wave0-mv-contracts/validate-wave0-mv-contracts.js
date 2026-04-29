@@ -8,13 +8,7 @@ const rootDir = process.cwd();
 const requiredJsonFiles = [
   {
     path: 'docs/super-app-rfc-adr/contracts/mv-runtime-parity-contract.json',
-    tokens: [
-      'trust',
-      'compatibility',
-      'fallback',
-      'telemetry',
-      'known',
-    ],
+    tokens: ['trust', 'compatibility', 'fallback', 'telemetry', 'known'],
   },
   {
     path: 'docs/super-app-rfc-adr/contracts/mv-topology-manifest.schema.json',
@@ -70,7 +64,9 @@ const readText = relativePath => {
 
 const assertTokens = ({ relativePath, content, tokens }) => {
   const normalized = content.toLowerCase();
-  const missing = tokens.filter(token => !normalized.includes(token.toLowerCase()));
+  const missing = tokens.filter(
+    token => !normalized.includes(token.toLowerCase()),
+  );
   if (missing.length > 0) {
     throw new Error(
       `${relativePath} is missing required contract terms: ${missing.join(', ')}`,
@@ -141,4 +137,3 @@ try {
   console.error(`[wave0-mv-contracts] validation failed: ${error.message}`);
   process.exit(1);
 }
-

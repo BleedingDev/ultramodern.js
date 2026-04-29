@@ -1,7 +1,7 @@
 import fs from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
 import os from 'os';
 import path from 'path';
-import type { IncomingMessage, ServerResponse } from 'http';
 import { PassThrough } from 'stream';
 import {
   TelemetryRegistry,
@@ -154,12 +154,11 @@ describe('prod-server runtime signal handlers', () => {
       await server.handleRuntimeFallbackSignal(trustedReq, trustedRes.res);
       expect(trustedRes.res.statusCode).toBe(202);
       expect(fs.existsSync(snapshotPath)).toBe(true);
-      expect(server.runtimeFallbackSignalConfig.workerLane.workerSuccessCount).toBe(
-        1,
-      );
       expect(
-        server.runtimeFallbackSignalConfig.workerLane
-          .fallbackToMainThreadCount,
+        server.runtimeFallbackSignalConfig.workerLane.workerSuccessCount,
+      ).toBe(1);
+      expect(
+        server.runtimeFallbackSignalConfig.workerLane.fallbackToMainThreadCount,
       ).toBe(0);
 
       const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as {
@@ -302,9 +301,9 @@ describe('prod-server runtime signal handlers', () => {
       );
       expect(payload.runtimeFallbackSignal?.workerLane?.enabled).toBe(true);
       expect(payload.runtimeFallbackSignal?.workerLane?.timeoutMs).toBe(2_000);
-      expect(payload.runtimeFallbackSignal?.workerLane?.workerSuccessCount).toBe(
-        0,
-      );
+      expect(
+        payload.runtimeFallbackSignal?.workerLane?.workerSuccessCount,
+      ).toBe(0);
     } finally {
       await registry.shutdown();
     }

@@ -4,4 +4,3 @@ export const debug = (...args: unknown[]) => {
     console.log('[prod-server]', ...args);
   }
 };
-

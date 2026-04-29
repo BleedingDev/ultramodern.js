@@ -5,7 +5,10 @@ const percentile = (values, p) => {
     return 0;
   }
   const sorted = [...values].sort((a, b) => a - b);
-  const rank = Math.max(0, Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1));
+  const rank = Math.max(
+    0,
+    Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1),
+  );
   return sorted[rank];
 };
 
@@ -38,4 +41,3 @@ module.exports = {
   percentile,
   summarizeLatencies,
 };
-

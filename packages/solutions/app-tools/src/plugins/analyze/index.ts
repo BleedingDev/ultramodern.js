@@ -1,6 +1,5 @@
 import { isPromise } from 'node:util/types';
 import * as path from 'path';
-import type { RsbuildPlugin } from '@rsbuild/core';
 import type { ServerRoute } from '@modern-js/types';
 import {
   fs,
@@ -11,6 +10,7 @@ import {
   minimist,
 } from '@modern-js/utils';
 import { getMeta } from '@modern-js/utils';
+import type { RsbuildPlugin } from '@rsbuild/core';
 import { createBuilderGenerator } from '../../builder';
 import { initialNormalizedConfig } from '../../config';
 import type {

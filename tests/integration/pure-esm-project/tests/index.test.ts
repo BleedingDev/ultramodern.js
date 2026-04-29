@@ -63,113 +63,113 @@ async function expectApiInfo(host: string, port: number) {
 }
 
 describe.sequential('pure-esm-project', () => {
-describe('in dev', () => {
-  let port = 8080;
-  const host = `http://localhost`;
-  let app: any;
-  let page: Page | undefined;
-  let browser: Browser | undefined;
+  describe('in dev', () => {
+    let port = 8080;
+    const host = `http://localhost`;
+    let app: any;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
-  beforeAll(async () => {
-    port = await getPort();
-    app = await launchApp(appDir, port, {
-      ensureWorkspacePackages,
-    });
-    browser = await puppeteer.launch(launchOptions as any);
-    page = await browser.newPage();
-    await waitForApiInfoReady(host, port);
-  });
-
-  test('stream ssr with bff handle web', async () => {
-    await page.goto(`${host}:${port}?name=bytedance`, {
-      waitUntil: ['networkidle0'],
-    });
-    await page.waitForSelector('#data');
-    const text = await page.$eval('#data', el => el?.textContent);
-    expect(text).toMatch('name: bytedance, age: 18');
-  });
-
-  test('stream ssr with bff handle web, client nav', async () => {
-    await page.goto(`${host}:${port}/user`, {
-      waitUntil: ['networkidle0'],
-    });
-    await page.waitForSelector('#home-btn');
-    await page.click('#home-btn');
-    await page.waitForSelector('#data');
-    const text = await page.$eval('#data', el => el?.textContent);
-    expect(text).toMatch('name: modernjs, age: 18');
-  });
-
-  test('api service should serve normally', async () => {
-    await expectApiInfo(host, port);
-  });
-
-  afterAll(async () => {
-    if (page) {
-      await page.close();
-    }
-    if (browser) {
-      await browser.close();
-    }
-    await killApp(app);
-  });
-});
-
-describe('in prod', () => {
-  let port = 8080;
-  const host = `http://localhost`;
-  let app: any;
-  let page: Page | undefined;
-  let browser: Browser | undefined;
-
-  beforeAll(async () => {
-    port = await getPort();
-
-    await modernBuild(appDir, [], {
-      stdout: false,
-      stderr: false,
-      marker: buildDoneMarker,
-      ensureWorkspacePackages,
+    beforeAll(async () => {
+      port = await getPort();
+      app = await launchApp(appDir, port, {
+        ensureWorkspacePackages,
+      });
+      browser = await puppeteer.launch(launchOptions as any);
+      page = await browser.newPage();
+      await waitForApiInfoReady(host, port);
     });
 
-    app = await modernServe(appDir, port, {});
-    browser = await puppeteer.launch(launchOptions as any);
-    page = await browser.newPage();
-    await waitForApiInfoReady(host, port);
-  });
-
-  test('stream ssr with bff handle web', async () => {
-    await page.goto(`${host}:${port}?name=bytedance`, {
-      waitUntil: ['networkidle0'],
+    test('stream ssr with bff handle web', async () => {
+      await page.goto(`${host}:${port}?name=bytedance`, {
+        waitUntil: ['networkidle0'],
+      });
+      await page.waitForSelector('#data');
+      const text = await page.$eval('#data', el => el?.textContent);
+      expect(text).toMatch('name: bytedance, age: 18');
     });
-    await page.waitForSelector('#data');
-    const text = await page.$eval('#data', el => el?.textContent);
-    expect(text).toMatch('name: bytedance, age: 18');
-  });
 
-  test('stream ssr with bff handle web, client nav', async () => {
-    await page.goto(`${host}:${port}/user`, {
-      waitUntil: ['networkidle0'],
+    test('stream ssr with bff handle web, client nav', async () => {
+      await page.goto(`${host}:${port}/user`, {
+        waitUntil: ['networkidle0'],
+      });
+      await page.waitForSelector('#home-btn');
+      await page.click('#home-btn');
+      await page.waitForSelector('#data');
+      const text = await page.$eval('#data', el => el?.textContent);
+      expect(text).toMatch('name: modernjs, age: 18');
     });
-    await page.waitForSelector('#home-btn');
-    await page.click('#home-btn');
-    await page.waitForSelector('#data');
-    const text = await page.$eval('#data', el => el?.textContent);
-    expect(text).toMatch('name: modernjs, age: 18');
+
+    test('api service should serve normally', async () => {
+      await expectApiInfo(host, port);
+    });
+
+    afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
+      await killApp(app);
+    });
   });
 
-  test('api service should serve normally', async () => {
-    await expectApiInfo(host, port);
-  });
+  describe('in prod', () => {
+    let port = 8080;
+    const host = `http://localhost`;
+    let app: any;
+    let page: Page | undefined;
+    let browser: Browser | undefined;
 
-  afterAll(async () => {
-    if (page) {
-      await page.close();
-    }
-    if (browser) {
-      await browser.close();
-    }
-    await killApp(app);
+    beforeAll(async () => {
+      port = await getPort();
+
+      await modernBuild(appDir, [], {
+        stdout: false,
+        stderr: false,
+        marker: buildDoneMarker,
+        ensureWorkspacePackages,
+      });
+
+      app = await modernServe(appDir, port, {});
+      browser = await puppeteer.launch(launchOptions as any);
+      page = await browser.newPage();
+      await waitForApiInfoReady(host, port);
+    });
+
+    test('stream ssr with bff handle web', async () => {
+      await page.goto(`${host}:${port}?name=bytedance`, {
+        waitUntil: ['networkidle0'],
+      });
+      await page.waitForSelector('#data');
+      const text = await page.$eval('#data', el => el?.textContent);
+      expect(text).toMatch('name: bytedance, age: 18');
+    });
+
+    test('stream ssr with bff handle web, client nav', async () => {
+      await page.goto(`${host}:${port}/user`, {
+        waitUntil: ['networkidle0'],
+      });
+      await page.waitForSelector('#home-btn');
+      await page.click('#home-btn');
+      await page.waitForSelector('#data');
+      const text = await page.$eval('#data', el => el?.textContent);
+      expect(text).toMatch('name: modernjs, age: 18');
+    });
+
+    test('api service should serve normally', async () => {
+      await expectApiInfo(host, port);
+    });
+
+    afterAll(async () => {
+      if (page) {
+        await page.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
+      await killApp(app);
+    });
   });
-});
 });

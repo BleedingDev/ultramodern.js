@@ -134,12 +134,15 @@ export const persistRuntimeFallbackContractGateInWorker = async (
       resolve(result);
     };
 
-    const timeoutId = setTimeout(() => {
-      finish({
-        ok: false,
-        error: 'worker_lane_timeout',
-      });
-    }, Math.max(25, config.timeoutMs));
+    const timeoutId = setTimeout(
+      () => {
+        finish({
+          ok: false,
+          error: 'worker_lane_timeout',
+        });
+      },
+      Math.max(25, config.timeoutMs),
+    );
 
     worker.once('message', message => {
       if (message && typeof message === 'object' && message.ok === true) {

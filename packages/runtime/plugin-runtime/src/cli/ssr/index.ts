@@ -283,7 +283,8 @@ const ssrBuilderPlugin = (
         // eslint-disable-next-line no-console
         console.warn(warningMessage);
       }
-      const isModuleFederationAppSSR = hasServerRendering && hasExplicitMfSsrFlag;
+      const isModuleFederationAppSSR =
+        hasServerRendering && hasExplicitMfSsrFlag;
       const useModuleFederationNodeOutput =
         hasServerRendering &&
         isModuleFederationAppSSR &&

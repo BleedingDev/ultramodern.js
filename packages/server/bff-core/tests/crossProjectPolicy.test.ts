@@ -1,7 +1,5 @@
-import {
-  buildOperationContractMap,
-} from '../src/security/operationContracts';
 import { evaluateCrossProjectPolicy } from '../src/security/crossProjectPolicy';
+import { buildOperationContractMap } from '../src/security/operationContracts';
 
 describe('cross-project policy', () => {
   test('should skip policy checks when disabled', () => {

@@ -56,10 +56,7 @@ const validateCliDescriptor = capability => {
   ) {
     throw new Error(`Capability "${capability.id}" has invalid cli.args`);
   }
-  if (
-    capability.cli.argMap !== undefined &&
-    !isRecord(capability.cli.argMap)
-  ) {
+  if (capability.cli.argMap !== undefined && !isRecord(capability.cli.argMap)) {
     throw new Error(`Capability "${capability.id}" has invalid cli.argMap`);
   }
 };
@@ -100,11 +97,7 @@ const validateCapabilityShape = capability => {
     throw new Error(`Capability "${capability.id}" is missing mcp.version`);
   }
   ensureJsonSchema(capability.mcp.inputSchema, capability.id, 'inputSchema');
-  ensureJsonSchema(
-    capability.mcp.outputSchema,
-    capability.id,
-    'outputSchema',
-  );
+  ensureJsonSchema(capability.mcp.outputSchema, capability.id, 'outputSchema');
 
   validateCliDescriptor(capability);
 };
@@ -183,7 +176,11 @@ const generateParityReport = ({ contractPath, contract }) => {
 const writeParityReport = ({ outPath, report }) => {
   const resolvedPath = path.resolve(outPath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  fs.writeFileSync(resolvedPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(
+    resolvedPath,
+    `${JSON.stringify(report, null, 2)}\n`,
+    'utf8',
+  );
   return resolvedPath;
 };
 

@@ -42,5 +42,8 @@ test('runWorkerLaneBenchmark reports gate and usage metadata', async () => {
   assert.equal(report.totals.requests, 2);
   assert.equal(report.totals.ok, 2);
   assert.equal(typeof report.gate.passed, 'boolean');
-  assert.equal(report.totals.workerUsed + report.totals.fallbackToMainThread, 2);
+  assert.equal(
+    report.totals.workerUsed + report.totals.fallbackToMainThread,
+    2,
+  );
 });

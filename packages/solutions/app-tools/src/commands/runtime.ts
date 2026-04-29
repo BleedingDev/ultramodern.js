@@ -255,4 +255,3 @@ export const runtimeCommand = async (
       printOutput(responsePayload, options.json);
     });
 };
-

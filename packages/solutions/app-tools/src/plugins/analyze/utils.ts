@@ -5,8 +5,8 @@ import {
   getCommand,
   normalizeToPosixPath,
 } from '@modern-js/utils';
-import { transform } from 'esbuild';
 import { parse } from 'es-module-lexer';
+import { transform } from 'esbuild';
 
 export const walkDirectory = (dir: string): string[] =>
   fs.readdirSync(dir).reduce<string[]>((previous, filename) => {

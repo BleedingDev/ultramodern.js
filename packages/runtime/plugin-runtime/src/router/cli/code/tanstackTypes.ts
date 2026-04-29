@@ -414,10 +414,12 @@ ${imports.join('\n')}
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   ${rootOpts.join('\n  ')}
-  ${createRouteStaticDataSnippet({
-    modernRouteId: (rootModern as any)?.id as string | undefined,
-    loaderName: rootLoaderName,
-  }) || ''}
+  ${
+    createRouteStaticDataSnippet({
+      modernRouteId: (rootModern as any)?.id as string | undefined,
+      loaderName: rootLoaderName,
+    }) || ''
+  }
 });
 
 ${statements.join('\n\n')}

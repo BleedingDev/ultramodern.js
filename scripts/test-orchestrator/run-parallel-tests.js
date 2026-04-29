@@ -61,7 +61,9 @@ const parseArgs = argv => {
   }
 
   if (!['run', 'analyze'].includes(parsed.mode)) {
-    throw new Error(`Invalid --mode value "${parsed.mode}". Use "run" or "analyze".`);
+    throw new Error(
+      `Invalid --mode value "${parsed.mode}". Use "run" or "analyze".`,
+    );
   }
 
   if (!Number.isFinite(parsed.maxLanes) || parsed.maxLanes <= 0) {
@@ -253,7 +255,10 @@ const laneForCommand = command => {
   if (/--passWithNoTests/.test(command.scriptCommand)) {
     return 'fast-passwithnotests';
   }
-  if (command.packagePath === 'package.json' && command.scriptName === 'test:ut') {
+  if (
+    command.packagePath === 'package.json' &&
+    command.scriptName === 'test:ut'
+  ) {
     return 'root-ut';
   }
   return 'default';
@@ -453,11 +458,7 @@ const runCommand = ({ command, logFilePath, args, quiet }) =>
       const parsed = parseLogInsights(logContent);
 
       const durationMs = finishedAt - startedAt;
-      const status = timedOut
-        ? 'timeout'
-        : exitCode === 0
-          ? 'pass'
-          : 'fail';
+      const status = timedOut ? 'timeout' : exitCode === 0 ? 'pass' : 'fail';
 
       if (!quiet) {
         console.log(
@@ -527,7 +528,8 @@ const runInParallelLanes = async ({ commands, runRoot, args, quiet }) => {
     let smallestLaneName = activeLaneNames[0];
     for (const candidate of activeLaneNames) {
       if (
-        laneBuckets.get(candidate).length < laneBuckets.get(smallestLaneName).length
+        laneBuckets.get(candidate).length <
+        laneBuckets.get(smallestLaneName).length
       ) {
         smallestLaneName = candidate;
       }
@@ -678,7 +680,10 @@ const summarizeRun = ({ results, runRoot, args }) => {
       timeoutRunawayMs: args.timeoutRunawayMs,
     },
     runRoot: rel(runRoot),
-    totalDurationMs: results.reduce((total, result) => total + result.durationMs, 0),
+    totalDurationMs: results.reduce(
+      (total, result) => total + result.durationMs,
+      0,
+    ),
     counts,
     rankedScripts,
     failures,
@@ -700,9 +705,15 @@ const writeSummaryArtifacts = ({ runRoot, summary }) => {
   const reportPath = path.join(runRoot, 'REPORT.md');
 
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
-  fs.writeFileSync(rankingsPath, JSON.stringify(summary.rankedScripts, null, 2));
+  fs.writeFileSync(
+    rankingsPath,
+    JSON.stringify(summary.rankedScripts, null, 2),
+  );
   fs.writeFileSync(failuresPath, JSON.stringify(summary.failures, null, 2));
-  fs.writeFileSync(slowRawPath, JSON.stringify(summary.slowTests.rawTop, null, 2));
+  fs.writeFileSync(
+    slowRawPath,
+    JSON.stringify(summary.slowTests.rawTop, null, 2),
+  );
   fs.writeFileSync(
     slowUniquePath,
     JSON.stringify(summary.slowTests.uniqueTop, null, 2),
@@ -856,15 +867,16 @@ const buildSummaryFromExistingRun = ({ runDir, args }) => {
       scriptName,
     });
 
-    const status = /\[test-orchestrator-timeout\]|\[tail-timeout\]|\[manual-timeout\]/.test(
-      logContent,
-    )
-      ? 'timeout'
-      : /ELIFECYCLE.*Command failed|Test Files\s+\d+\s+failed|CACError:|Cannot find module/.test(
-            logContent,
-          )
-        ? 'fail'
-        : 'pass';
+    const status =
+      /\[test-orchestrator-timeout\]|\[tail-timeout\]|\[manual-timeout\]/.test(
+        logContent,
+      )
+        ? 'timeout'
+        : /ELIFECYCLE.*Command failed|Test Files\s+\d+\s+failed|CACError:|Cannot find module/.test(
+              logContent,
+            )
+          ? 'fail'
+          : 'pass';
 
     return {
       index,
@@ -908,7 +920,9 @@ const run = async args => {
   ensureDir(runRoot);
 
   const commands = discoverCommands();
-  console.log(`[test-orchestrator] discovered ${String(commands.length)} scripts`);
+  console.log(
+    `[test-orchestrator] discovered ${String(commands.length)} scripts`,
+  );
 
   const results = await runInParallelLanes({
     commands,

@@ -19,10 +19,8 @@ export interface MicroProps {
 export function Loadable(WrapComponent: any) {
   return function (defaultLoadable?: LoadableConfig) {
     return function LoadableComponent(props: MicroComponentProps) {
-      const {
-        loadable = defaultLoadable ?? DEFAULT_LOADABLE,
-        ...otherProps
-      } = props;
+      const { loadable = defaultLoadable ?? DEFAULT_LOADABLE, ...otherProps } =
+        props;
       let delayTimer: ReturnType<typeof setTimeout> | null = null;
       let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 

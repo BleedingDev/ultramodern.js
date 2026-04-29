@@ -5,8 +5,8 @@ import {
   fs as fse,
   normalizeToPosixPath,
 } from '@modern-js/utils';
-import { transform } from 'esbuild';
 import { parse } from 'es-module-lexer';
+import { transform } from 'esbuild';
 import { ACTION_EXPORT_NAME, LOADER_EXPORT_NAME } from '../constants';
 
 export const walkDirectory = (dir: string): string[] =>

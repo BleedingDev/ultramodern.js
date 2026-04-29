@@ -17,18 +17,21 @@ import * as React from 'react';
 import { useContext, useMemo } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onAfterHydrateRouter as onAfterHydrateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
-  type RouterExtendsHooks,
-  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
-} from '../hooks';
-import { applyRouterRuntimeState, type RouterLifecycleContext } from '../lifecycle';
-import {
   InternalRuntimeContext,
   getGlobalLayoutApp,
   getGlobalRoutes,
 } from '../../../core/context';
+import {
+  type RouterExtendsHooks,
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onAfterHydrateRouter as onAfterHydrateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
+  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
+} from '../hooks';
+import {
+  type RouterLifecycleContext,
+  applyRouterRuntimeState,
+} from '../lifecycle';
 import type { RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';

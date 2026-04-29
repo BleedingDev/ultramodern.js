@@ -39,12 +39,7 @@
     "ownershipTargets": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "routes",
-        "remotes",
-        "services",
-        "sharedPackages"
-      ],
+      "required": ["routes", "remotes", "services", "sharedPackages"],
       "properties": {
         "routes": {
           "type": "array",
@@ -98,13 +93,7 @@
     "metadata": {
       "type": "object",
       "additionalProperties": {
-        "type": [
-          "string",
-          "number",
-          "integer",
-          "boolean",
-          "null"
-        ]
+        "type": ["string", "number", "integer", "boolean", "null"]
       }
     }
   },
@@ -112,23 +101,14 @@
     "principal": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "type",
-        "displayName"
-      ],
+      "required": ["id", "type", "displayName"],
       "properties": {
         "id": {
           "$ref": "#/$defs/principalId"
         },
         "type": {
           "type": "string",
-          "enum": [
-            "human",
-            "team",
-            "agent",
-            "service-account"
-          ]
+          "enum": ["human", "team", "agent", "service-account"]
         },
         "displayName": {
           "type": "string",
@@ -159,11 +139,7 @@
     },
     "ownershipCommon": {
       "type": "object",
-      "required": [
-        "id",
-        "vertical",
-        "owners"
-      ],
+      "required": ["id", "vertical", "owners"],
       "properties": {
         "id": {
           "$ref": "#/$defs/targetId"
@@ -211,9 +187,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "routePatterns"
-          ],
+          "required": ["routePatterns"],
           "properties": {
             "routePatterns": {
               "$ref": "#/$defs/stringList"
@@ -236,9 +210,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "remoteNames"
-          ],
+          "required": ["remoteNames"],
           "properties": {
             "remoteNames": {
               "$ref": "#/$defs/stringList"
@@ -264,10 +236,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "serviceIds",
-            "apiContractRefs"
-          ],
+          "required": ["serviceIds", "apiContractRefs"],
           "properties": {
             "serviceIds": {
               "$ref": "#/$defs/stringList"
@@ -296,10 +265,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "packageNames",
-            "publicApiRefs"
-          ],
+          "required": ["packageNames", "publicApiRefs"],
           "properties": {
             "packageNames": {
               "$ref": "#/$defs/stringList"
@@ -320,12 +286,7 @@
     "pathRule": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "targetId",
-        "includeGlobs",
-        "rule"
-      ],
+      "required": ["id", "targetId", "includeGlobs", "rule"],
       "properties": {
         "id": {
           "$ref": "#/$defs/targetId"
@@ -341,12 +302,7 @@
         },
         "rule": {
           "type": "string",
-          "enum": [
-            "owned",
-            "shared-readonly",
-            "shared-api-only",
-            "forbidden"
-          ]
+          "enum": ["owned", "shared-readonly", "shared-api-only", "forbidden"]
         },
         "requiresApprovalGateIds": {
           "$ref": "#/$defs/stringList"
@@ -359,11 +315,7 @@
     "dependencyGraphImpact": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "graphSources",
-        "impactRules",
-        "requiredOutputs"
-      ],
+      "required": ["graphSources", "impactRules", "requiredOutputs"],
       "properties": {
         "graphSources": {
           "type": "array",
@@ -371,11 +323,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "id",
-              "type",
-              "path"
-            ],
+            "required": ["id", "type", "path"],
             "properties": {
               "id": {
                 "$ref": "#/$defs/targetId"
@@ -405,11 +353,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "id",
-              "when",
-              "then"
-            ],
+            "required": ["id", "when", "then"],
             "properties": {
               "id": {
                 "$ref": "#/$defs/targetId"
@@ -422,12 +366,7 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": [
-                        "route",
-                        "remote",
-                        "service",
-                        "shared-package"
-                      ]
+                      "enum": ["route", "remote", "service", "shared-package"]
                     },
                     "uniqueItems": true
                   },
@@ -493,11 +432,7 @@
     "approvalGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "name",
-        "requiredApprovals"
-      ],
+      "required": ["id", "name", "requiredApprovals"],
       "properties": {
         "id": {
           "$ref": "#/$defs/targetId"
@@ -527,12 +462,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "route",
-                  "remote",
-                  "service",
-                  "shared-package"
-                ]
+                "enum": ["route", "remote", "service", "shared-package"]
               },
               "uniqueItems": true
             },
@@ -547,10 +477,7 @@
         "requiredApprovals": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "minimumCount",
-            "principalTypes"
-          ],
+          "required": ["minimumCount", "principalTypes"],
           "properties": {
             "minimumCount": {
               "type": "integer",
@@ -561,12 +488,7 @@
               "minItems": 1,
               "items": {
                 "type": "string",
-                "enum": [
-                  "human",
-                  "team",
-                  "agent",
-                  "service-account"
-                ]
+                "enum": ["human", "team", "agent", "service-account"]
               },
               "uniqueItems": true
             },
@@ -693,11 +615,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "id",
-              "event",
-              "owners"
-            ],
+            "required": ["id", "event", "owners"],
             "properties": {
               "id": {
                 "$ref": "#/$defs/targetId"
@@ -726,12 +644,7 @@
     },
     "riskTier": {
       "type": "string",
-      "enum": [
-        "low",
-        "medium",
-        "high",
-        "critical"
-      ]
+      "enum": ["low", "medium", "high", "critical"]
     },
     "stringList": {
       "type": "array",

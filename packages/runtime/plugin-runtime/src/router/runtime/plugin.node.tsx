@@ -28,15 +28,15 @@ import {
 import { setServerPayload } from '../../core/context/serverPayload/index.server';
 import DeferredDataScripts from './DeferredDataScripts.node';
 import {
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
   type RouterExtendsHooks,
   modifyRoutes as modifyRoutesHook,
+  onAfterCreateRouter as onAfterCreateRouterHook,
+  onBeforeCreateRouter as onBeforeCreateRouterHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
 } from './hooks';
 import {
-  applyRouterRuntimeState,
   type RouterLifecycleContext,
+  applyRouterRuntimeState,
 } from './lifecycle';
 import {
   RSCStaticRouter,
@@ -44,10 +44,7 @@ import {
   handleRSCRedirect,
   prepareRSCRoutes,
 } from './rsc-router';
-import type {
-  InternalRouterServerSnapshot,
-  RouterConfig,
-} from './types';
+import type { InternalRouterServerSnapshot, RouterConfig } from './types';
 import { createRouteObjectsFromConfig, renderRoutes, urlJoin } from './utils';
 
 function createRemixReuqest(request: Request) {

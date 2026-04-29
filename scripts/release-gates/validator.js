@@ -258,9 +258,7 @@ const validateMigrationContracts = ({
         const packageJsonPath = path.join(packageDir, 'package.json');
         const packageJson = readJsonFile(packageJsonPath);
         const buildScript =
-          packageJson &&
-          packageJson.scripts &&
-          typeof packageJson.scripts.build === 'string'
+          packageJson?.scripts && typeof packageJson.scripts.build === 'string'
             ? packageJson.scripts.build.trim()
             : '';
         if (!buildScript) {

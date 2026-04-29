@@ -134,7 +134,12 @@ test('validateManifestShape applies overlay requirements for matching profile', 
   ];
   manifest.observability = {
     signals: ['metrics', 'audit', 'trace', 'usage'],
-    hooks: ['emitBusinessMetric', 'emitAuditEvent', 'emitTraceContext', 'emitFeatureMetric'],
+    hooks: [
+      'emitBusinessMetric',
+      'emitAuditEvent',
+      'emitTraceContext',
+      'emitFeatureMetric',
+    ],
   };
   manifest.compliance = {
     usesSdkContracts: true,

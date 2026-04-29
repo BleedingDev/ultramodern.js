@@ -6,10 +6,7 @@ import type {
   RouterFramework,
 } from './types';
 
-export type RouterLifecyclePhase =
-  | 'ssr-prepare'
-  | 'client-create'
-  | 'hydrate';
+export type RouterLifecyclePhase = 'ssr-prepare' | 'client-create' | 'hydrate';
 
 export type RouterLifecycleContext = {
   framework: RouterFramework;

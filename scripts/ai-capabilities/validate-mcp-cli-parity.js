@@ -56,4 +56,3 @@ try {
   console.error(`[mcp-cli-parity] validation failed: ${error.message}`);
   process.exit(1);
 }
-

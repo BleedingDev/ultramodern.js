@@ -150,12 +150,7 @@
     "profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "runtime",
-        "deliveryProvider",
-        "constraints"
-      ],
+      "required": ["name", "runtime", "deliveryProvider", "constraints"],
       "properties": {
         "name": {
           "type": "string",
@@ -616,7 +611,11 @@
     "cachePolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["manifestTtlSeconds", "artifactTtlSeconds", "versionQueryKey"],
+      "required": [
+        "manifestTtlSeconds",
+        "artifactTtlSeconds",
+        "versionQueryKey"
+      ],
       "properties": {
         "manifestTtlSeconds": {
           "type": "integer",
@@ -740,7 +739,12 @@
         },
         "action": {
           "type": "string",
-          "enum": ["disable-remote", "disable-service", "force-csr", "force-lkg"]
+          "enum": [
+            "disable-remote",
+            "disable-service",
+            "force-csr",
+            "force-lkg"
+          ]
         },
         "flagKey": {
           "$ref": "#/$defs/id"

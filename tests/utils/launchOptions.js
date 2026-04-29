@@ -7,7 +7,10 @@ const resolveHeadlessShellExecutable = () => {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
 
-  const rootDir = path.join(os.homedir(), '.cache/puppeteer/chrome-headless-shell');
+  const rootDir = path.join(
+    os.homedir(),
+    '.cache/puppeteer/chrome-headless-shell',
+  );
   if (!fs.existsSync(rootDir)) {
     return undefined;
   }

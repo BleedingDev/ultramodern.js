@@ -33,32 +33,32 @@ import {
 } from '../libs/loadConfig';
 import { metrics as defaultMetrics } from '../libs/metrics';
 import {
-  type TelemetryCanaryDecision,
-  type TelemetryCanaryStatusSnapshot,
+  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
+  persistRuntimeFallbackContractGateInWorker,
+} from '../libs/runtimeFallbackWorkerLane';
+import {
   DEFAULT_RUNTIME_STATUS_ENDPOINT,
-  TelemetryCanaryOrchestrator,
   type RuntimeFallbackSignalAuthConfig,
   type RuntimeFallbackSignalRuntimeState,
   type RuntimeFallbackSignalTrustPolicy,
   type RuntimeSignalError,
+  type TelemetryCanaryDecision,
+  TelemetryCanaryOrchestrator,
+  type TelemetryCanaryStatusSnapshot,
   TelemetryRegistry,
+  createOtlpTelemetryExporter,
   createRuntimeFallbackSignalRuntimeState,
+  createTelemetryAwareMetrics,
+  createVictoriaMetricsTelemetryExporter,
   enforceRuntimeFallbackSignalAuthToken,
   enforceRuntimeFallbackSignalTrustPolicy,
   getRuntimeSignalErrorStatusCode,
+  hasEnabledTelemetryExporters,
   normalizeRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackTrustPolicy,
   parseRuntimeFallbackSignalPayloadFromRawBody,
   resolveRuntimeFallbackSignalEndpoint,
-  createOtlpTelemetryExporter,
-  createTelemetryAwareMetrics,
-  createVictoriaMetricsTelemetryExporter,
-  hasEnabledTelemetryExporters,
 } from '../libs/telemetry';
-import {
-  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
-  persistRuntimeFallbackContractGateInWorker,
-} from '../libs/runtimeFallbackWorkerLane';
 import type {
   ModernServerInterface,
   ModernServerOptions,
@@ -690,7 +690,9 @@ export class Server {
       res.setHeader('content-type', 'application/json');
       res.end(
         `{"ok":false,"error":${JSON.stringify(
-          signalError instanceof Error ? signalError.message : String(signalError),
+          signalError instanceof Error
+            ? signalError.message
+            : String(signalError),
         )}}`,
       );
       this.options.logger?.warn(
@@ -719,7 +721,9 @@ export class Server {
       res.setHeader('content-type', 'application/json');
       res.end(
         `{"ok":false,"error":${JSON.stringify(
-          signalError instanceof Error ? signalError.message : String(signalError),
+          signalError instanceof Error
+            ? signalError.message
+            : String(signalError),
         )}}`,
       );
     }
@@ -733,7 +737,9 @@ export class Server {
       queueStats: ReturnType<TelemetryRegistry['getQueueStats']> | null;
       exporterHealth: ReturnType<TelemetryRegistry['getExporterHealth']>;
     };
-    canary: { enabled: false } | ({ enabled: true } & TelemetryCanaryStatusSnapshot);
+    canary:
+      | { enabled: false }
+      | ({ enabled: true } & TelemetryCanaryStatusSnapshot);
     runtimeFallbackSignal:
       | {
           enabled: false;
@@ -797,13 +803,15 @@ export class Server {
             headerName: this.runtimeFallbackSignalConfig.auth.headerName,
           },
           trustPolicy: {
-            allowedApps: this.runtimeFallbackSignalConfig.trustPolicy.allowedApps,
+            allowedApps:
+              this.runtimeFallbackSignalConfig.trustPolicy.allowedApps,
             allowedEntryOrigins:
               this.runtimeFallbackSignalConfig.trustPolicy.allowedEntryOrigins,
             enforceRuntimeDigest:
               this.runtimeFallbackSignalConfig.trustPolicy.enforceRuntimeDigest,
             expectedRuntimeDigestsCount: Object.keys(
-              this.runtimeFallbackSignalConfig.trustPolicy.expectedRuntimeDigests,
+              this.runtimeFallbackSignalConfig.trustPolicy
+                .expectedRuntimeDigests,
             ).length,
             maxSignalsPerWindow:
               this.runtimeFallbackSignalConfig.trustPolicy.maxSignalsPerWindow,

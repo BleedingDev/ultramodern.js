@@ -1,9 +1,9 @@
+import { spawnSync } from 'child_process';
+import fs from 'fs';
 /**
  * @jest-environment node
  */
 import { createRequire } from 'module';
-import { spawnSync } from 'child_process';
-import fs from 'fs';
 import path from 'path';
 
 const projectRoot = path.resolve(__dirname, '../../..');
@@ -166,7 +166,9 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain(
       "import { createRequestContextHeaders } from '@modern-js/plugin-bff/client';",
     );
-    expect(code).toContain('const requestHeaders = createRequestContextHeaders({');
+    expect(code).toContain(
+      'const requestHeaders = createRequestContextHeaders({',
+    );
     expect(code).toContain('locale,');
     expect(code).toContain('traceparent: syntheticTraceparent || traceparent,');
   });

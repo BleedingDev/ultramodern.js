@@ -14,7 +14,10 @@ describe('runtime command helpers', () => {
     ).toBe('https://service.example.com/_modern/runtime/status');
 
     expect(
-      resolveRuntimeEndpoint('/_modern/runtime/status', '/_modern/runtime/status'),
+      resolveRuntimeEndpoint(
+        '/_modern/runtime/status',
+        '/_modern/runtime/status',
+      ),
     ).toBe('http://127.0.0.1:8080/_modern/runtime/status');
 
     expect(resolveRuntimeEndpoint(undefined, '/_modern/runtime/status')).toBe(
@@ -68,4 +71,3 @@ describe('runtime command helpers', () => {
     });
   });
 });
-

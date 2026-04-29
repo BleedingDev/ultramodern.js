@@ -110,12 +110,9 @@ test('buildCliInvocation maps tool inputs to CLI flags', () => {
 
 test('buildCliInvocation rejects missing required MCP inputs', () => {
   const capability = createContract().capabilities[1];
-  assert.throws(
-    () => {
-      buildCliInvocation(capability, {});
-    },
-    /Missing required input "appName"/,
-  );
+  assert.throws(() => {
+    buildCliInvocation(capability, {});
+  }, /Missing required input "appName"/);
 });
 
 test('createMcpAdapterManifest and createMcporterConfig produce tool-aligned artifacts', () => {

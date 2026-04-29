@@ -1,5 +1,5 @@
-import { parse as parseCookie } from 'cookie';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
+import { parse as parseCookie } from 'cookie';
 import type React from 'react';
 import { getGlobalInternalRuntimeContext } from '../context';
 import { type TRuntimeContext, getInitialContext } from '../context/runtime';

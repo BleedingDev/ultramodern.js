@@ -19,4 +19,3 @@ test('summarizeLatencies computes min/max/avg/percentiles', () => {
   assert.equal(summary.p95, 25);
   assert.equal(summary.p99, 25);
 });
-

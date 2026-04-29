@@ -1,9 +1,9 @@
+import { spawnSync } from 'child_process';
 /**
  * @jest-environment node
  */
 import fs from 'fs';
 import path from 'path';
-import { spawnSync } from 'child_process';
 import { pathToFileURL } from 'url';
 import {
   getPort,
@@ -119,9 +119,11 @@ describe('effect-only cross-project BFF contracts', () => {
   });
 
   test('generated effect client requestContext propagates locale and traceparent end-to-end', async () => {
-    (globalThis as typeof globalThis & {
-      location?: { origin: string };
-    }).location = {
+    (
+      globalThis as typeof globalThis & {
+        location?: { origin: string };
+      }
+    ).location = {
       origin: `http://127.0.0.1:${servePort}`,
     };
     const effectModule = await import(
@@ -132,8 +134,7 @@ describe('effect-only cross-project BFF contracts', () => {
 
     const requestContext = effectModule.createEffectRequestContext({
       locale: 'cs-CZ',
-      traceparent:
-        '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
     });
 
     const response = await effectModule.client.greetings.traceHeader({
@@ -146,8 +147,7 @@ describe('effect-only cross-project BFF contracts', () => {
     expect(response).toEqual({
       runtime: 'effect',
       locale: 'cs-CZ',
-      traceparent:
-        '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
     });
   });
 });

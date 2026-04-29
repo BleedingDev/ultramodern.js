@@ -172,7 +172,11 @@ const validateProfileContractShape = (profileName, profileContract) => {
   );
 };
 
-const resolveManifestRequirementSet = ({ contract, manifest, manifestPath }) => {
+const resolveManifestRequirementSet = ({
+  contract,
+  manifest,
+  manifestPath,
+}) => {
   const sharedRequirements = contract.sharedRequirements;
   const manifestProfile =
     typeof manifest.profile === 'string' && manifest.profile.trim().length > 0

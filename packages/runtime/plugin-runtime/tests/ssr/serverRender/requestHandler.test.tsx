@@ -1,5 +1,8 @@
 import React from 'react';
-import { setGlobalContext, setGlobalInternalRuntimeContext } from '../../../src/core/context';
+import {
+  setGlobalContext,
+  setGlobalInternalRuntimeContext,
+} from '../../../src/core/context';
 import { SSRErrors } from '../../../src/core/server/tracer';
 
 describe('createRequestHandler router snapshot fallback', () => {
@@ -8,9 +11,11 @@ describe('createRequestHandler router snapshot fallback', () => {
     const onError = (...args: unknown[]) => {
       onErrorCalls.push(args);
     };
-    (globalThis as typeof globalThis & {
-      __webpack_require__?: { u: (chunkId: unknown) => string };
-    }).__webpack_require__ = {
+    (
+      globalThis as typeof globalThis & {
+        __webpack_require__?: { u: (chunkId: unknown) => string };
+      }
+    ).__webpack_require__ = {
       u: chunkId => String(chunkId),
     };
 

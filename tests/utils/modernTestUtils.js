@@ -227,7 +227,8 @@ function runProcess(command, args, options = {}) {
 function ensureWorkspacePackageBuilt(packageName) {
   if (!kWorkspacePackageBuilds.has(packageName)) {
     const buildPromise = (async () => {
-      const { packageDir, packageJson } = resolveWorkspacePackageInfo(packageName);
+      const { packageDir, packageJson } =
+        resolveWorkspacePackageInfo(packageName);
 
       if (!shouldRefreshWorkspacePackageBuild(packageDir, packageJson)) {
         return;
@@ -253,7 +254,6 @@ async function ensureWorkspacePackagesBuilt(packageNames = []) {
     await ensureWorkspacePackageBuilt(packageName);
   }
 }
-
 
 function runModernCommand(argv, options = {}) {
   const { cwd, rejectOnCompileError = true } = options;

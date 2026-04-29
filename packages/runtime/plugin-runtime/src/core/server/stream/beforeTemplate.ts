@@ -92,8 +92,7 @@ export async function buildShellBeforeTemplate(
       let matchedRouteManifests: RouteManifest[] | undefined = undefined;
 
       const matchedRouteIds =
-        routerServerSnapshot?.matchedRouteIds ||
-        tanstackMatchedModernRouteIds;
+        routerServerSnapshot?.matchedRouteIds || tanstackMatchedModernRouteIds;
 
       if (matchedRouteIds?.length) {
         matchedRouteManifests = matchedRouteIds

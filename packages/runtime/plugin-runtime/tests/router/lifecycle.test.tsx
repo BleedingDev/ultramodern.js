@@ -1,5 +1,4 @@
 import { getInitialContext } from '../../src/core/context';
-import { applyRouterRuntimeState } from '../../src/router/runtime/lifecycle';
 import {
   modifyRoutes,
   onAfterCreateRouter,
@@ -8,6 +7,7 @@ import {
   onBeforeCreateRoutes,
   onBeforeHydrateRouter,
 } from '../../src/router/runtime/hooks';
+import { applyRouterRuntimeState } from '../../src/router/runtime/lifecycle';
 
 describe('router lifecycle seams', () => {
   it('should expose generic router runtime state helpers', () => {

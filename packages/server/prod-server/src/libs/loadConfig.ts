@@ -1,10 +1,10 @@
 import path from 'path';
 import {
+  fs,
   OUTPUT_CONFIG_FILE,
+  lodash as _,
   compatibleRequire,
   ensureAbsolutePath,
-  fs,
-  lodash as _,
 } from '@modern-js/utils';
 import { parse } from 'flatted';
 
@@ -22,7 +22,9 @@ export const getServerConfigPath = (
   return path.join(distDirectory, fileName);
 };
 
-export const requireConfig = (serverConfigPath: string): Record<string, any> => {
+export const requireConfig = (
+  serverConfigPath: string,
+): Record<string, any> => {
   if (fs.pathExistsSync(serverConfigPath)) {
     return compatibleRequire(serverConfigPath) || {};
   }
@@ -46,4 +48,3 @@ export const loadConfig = ({
 
   return _.merge({}, outputConfig, serverConfig || {}, cliConfig || {});
 };
-

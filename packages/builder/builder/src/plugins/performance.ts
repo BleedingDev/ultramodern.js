@@ -154,9 +154,7 @@ function applyProfile({
   chain.profile(profile);
 }
 
-const isRsdoctorEnabled = (
-  config: RsdoctorConfig | undefined,
-) => {
+const isRsdoctorEnabled = (config: RsdoctorConfig | undefined) => {
   if (typeof config === 'boolean') {
     return config;
   }

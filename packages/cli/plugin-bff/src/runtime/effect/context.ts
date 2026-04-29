@@ -17,8 +17,7 @@ const globalStore = globalThis as typeof globalThis & {
 
 const effectContextStorage =
   globalStore[kEffectContextStorage] ??
-  (globalStore[kEffectContextStorage] =
-    new AsyncLocalStorage<EffectContext>());
+  (globalStore[kEffectContextStorage] = new AsyncLocalStorage<EffectContext>());
 
 export const runWithEffectContext = <T>(
   context: EffectContext,

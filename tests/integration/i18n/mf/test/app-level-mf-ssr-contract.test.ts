@@ -33,9 +33,7 @@ describe('mf i18n app-level SSR contracts', () => {
       expect(code).toContain('moduleFederationAppSSR: true');
       expect(code).toContain('source: {');
       expect(code).toContain('define: {');
-      expect(code).toContain(
-        "REMOTE_IP_STRATEGY: JSON.stringify('inherit')",
-      );
+      expect(code).toContain("REMOTE_IP_STRATEGY: JSON.stringify('inherit')");
       expect(code).toContain('moduleFederationPlugin(),');
     });
   });

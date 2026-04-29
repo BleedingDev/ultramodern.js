@@ -14,9 +14,10 @@ describe('wrapRuntimeContextProvider', () => {
 
     const Probe = () => {
       runtimeValue = useContext(RuntimeContext) as Record<string, unknown>;
-      internalValue = useContext(
-        InternalRuntimeContext,
-      ) as Record<string, unknown>;
+      internalValue = useContext(InternalRuntimeContext) as Record<
+        string,
+        unknown
+      >;
       return null;
     };
 
@@ -28,7 +29,10 @@ describe('wrapRuntimeContextProvider', () => {
     };
 
     renderToString(
-      wrapRuntimeContextProvider(<Probe />, context as Record<string, unknown> as any),
+      wrapRuntimeContextProvider(
+        <Probe />,
+        context as Record<string, unknown> as any,
+      ),
     );
 
     expect(internalValue?.routerServerSnapshot).toEqual({

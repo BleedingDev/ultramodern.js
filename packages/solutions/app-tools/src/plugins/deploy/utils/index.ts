@@ -111,7 +111,9 @@ export const resolveESMDependency = async (entry: string) => {
     }
 
     const esmExportPath =
-      exportConfig?.node?.import || exportConfig?.import || exportConfig?.default;
+      exportConfig?.node?.import ||
+      exportConfig?.import ||
+      exportConfig?.default;
 
     if (typeof esmExportPath === 'string') {
       return normalizePath(path.join(packageDir, esmExportPath));

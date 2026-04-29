@@ -1,9 +1,9 @@
-import type { AppUserConfig } from './types';
 import {
-  createAppBaselineConfig,
   type AppBaselineOptions,
+  createAppBaselineConfig,
   withAppBaseline,
 } from './baseline';
+import type { AppUserConfig } from './types';
 
 export interface PresetUltramodernOptions extends AppBaselineOptions {}
 

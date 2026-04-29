@@ -241,7 +241,8 @@ const summarizeResult = results => {
       requests: results.length,
       ok: okCount,
       failed: results.length - okCount,
-      failureRate: results.length === 0 ? 0 : (results.length - okCount) / results.length,
+      failureRate:
+        results.length === 0 ? 0 : (results.length - okCount) / results.length,
     },
     latencies: summarizeLatencies(latencies),
     nonOkStatuses,

@@ -48,7 +48,10 @@ const applyVersionQuery = (entry, token) => {
 
 const applyCachePolicyMainThread = (
   apps,
-  options = { manifestRuntimeDigest: undefined, globalRuntimeDigest: undefined },
+  options = {
+    manifestRuntimeDigest: undefined,
+    globalRuntimeDigest: undefined,
+  },
 ) =>
   apps.map(app => {
     const version = resolveVersionToken(app, options);
@@ -163,12 +166,15 @@ const runWorkerTransform = ({ apps, options, timeoutMs }) =>
       resolve(result);
     };
 
-    const timer = setTimeout(() => {
-      finish({
-        ok: false,
-        error: 'worker_lane_timeout',
-      });
-    }, Math.max(25, timeoutMs));
+    const timer = setTimeout(
+      () => {
+        finish({
+          ok: false,
+          error: 'worker_lane_timeout',
+        });
+      },
+      Math.max(25, timeoutMs),
+    );
 
     worker.once('message', message => {
       if (message && message.ok === true && Array.isArray(message.apps)) {
@@ -221,7 +227,9 @@ const runConcurrent = async ({ iterations, concurrency, worker }) => {
 
 const summarizeWorkerLaneResults = (results, thresholds) => {
   const latencies = results.map(item => item.latencyMs);
-  const fallbackCount = results.filter(item => item.fallbackToMainThread).length;
+  const fallbackCount = results.filter(
+    item => item.fallbackToMainThread,
+  ).length;
   const workerUsedCount = results.filter(item => item.workerUsed).length;
   const errorKinds = {};
   results
@@ -231,7 +239,8 @@ const summarizeWorkerLaneResults = (results, thresholds) => {
       errorKinds[key] = (errorKinds[key] || 0) + 1;
     });
 
-  const fallbackRate = results.length === 0 ? 0 : fallbackCount / results.length;
+  const fallbackRate =
+    results.length === 0 ? 0 : fallbackCount / results.length;
   const latenciesSummary = summarizeLatencies(latencies);
   const gate = {
     maxFallbackRate: thresholds.maxFallbackRate,

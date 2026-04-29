@@ -1,4 +1,4 @@
-import CompressionPlugin from 'compression-webpack-plugin';
+import type CompressionPlugin from 'compression-webpack-plugin';
 import { builderPluginAdapterPrecompress } from '../../src/builder/shared/builderPlugins/adapterPrecompress';
 
 type CompressionPluginOptions = NonNullable<

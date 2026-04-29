@@ -24,17 +24,17 @@ import {
 import { getGlobalIsRscClient } from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import {
+  type RouterExtendsHooks,
+  modifyRoutes as modifyRoutesHook,
   onAfterCreateRouter as onAfterCreateRouterHook,
   onAfterHydrateRouter as onAfterHydrateRouterHook,
   onBeforeCreateRouter as onBeforeCreateRouterHook,
-  type RouterExtendsHooks,
-  modifyRoutes as modifyRoutesHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
 } from './hooks';
 import {
-  applyRouterRuntimeState,
   type RouterLifecycleContext,
+  applyRouterRuntimeState,
 } from './lifecycle';
 import { createClientRouterFromPayload } from './rsc-router';
 import type { RouterConfig, Routes } from './types';

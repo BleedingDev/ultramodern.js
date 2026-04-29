@@ -10,8 +10,7 @@ describe('request context helpers', () => {
     expect(
       createRequestContextHeaders({
         locale: 'cs-CZ',
-        traceparent:
-          '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+        traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
       }),
     ).toEqual({
       [BFF_LOCALE_HEADER]: 'cs-CZ',
@@ -32,12 +31,10 @@ describe('request context helpers', () => {
     ).toEqual({
       headers: {
         'accept-language': 'en-US,en;q=0.8',
-        traceparent:
-          '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+        traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
       },
       locale: 'en-US,en;q=0.8',
-      traceparent:
-        '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
       traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
       spanId: '00f067aa0ba902b7',
     });
