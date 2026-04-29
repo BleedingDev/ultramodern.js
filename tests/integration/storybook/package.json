@@ -25,8 +25,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "3.15.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -42,7 +41,7 @@
     "storybook": "^10.3.6",
     "storybook-addon-modernjs": "3.3.3",
     "storybook-react-rsbuild": "3.3.3",
-    "tsconfig-paths": "~3.15.0",
+    "tsconfig-paths": "4.2.0",
     "tslib": "2.8.1",
     "typescript": "6.0.3"
   },

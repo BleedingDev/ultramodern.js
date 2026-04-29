@@ -230,7 +230,7 @@
     "@types/loadable__component": "^5.13.10",
     "@types/react-helmet": "^6.1.11",
     "cookie": "1.1.1",
-    "entities": "^7.0.1",
+    "entities": "^8.0.0",
     "es-module-lexer": "^2.1.0",
     "esbuild": "^0.28.0",
     "invariant": "^2.2.4",

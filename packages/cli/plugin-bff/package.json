@@ -142,7 +142,7 @@
     "@types/type-is": "^1.6.7",
     "memfs": "^4.57.2",
     "typescript": "6.0.3",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -11,7 +11,9 @@
     "@modern-js/utils": "workspace:*",
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
-    "finalhandler": "^2.1.1"
+    "finalhandler": "^2.1.1",
+    "formidable": "^3.5.4",
+    "type-is": "^2.0.1"
   },
   "devDependencies": {
     "@scripts/rstest-config": "workspace:*",
@@ -19,7 +21,7 @@
     "@types/express": "^5.0.6",
     "@types/finalhandler": "^1.2.3",
     "@types/node": "^25.6.0",
-    "@types/supertest": "^6.0.3",
+    "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
     "typescript": "6.0.3"
   }

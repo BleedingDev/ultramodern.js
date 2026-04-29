@@ -50,12 +50,20 @@ export default defineConfig({
       ? {
           threads: true,
           isolate: true,
+          fileParallelism: true,
           maxThreads,
           minThreads,
+          maxWorkers: maxThreads,
+          minWorkers: minThreads,
         }
       : {
           threads: false,
           isolate: false,
+          fileParallelism: false,
+          maxThreads: 1,
+          minThreads: 1,
+          maxWorkers: 1,
+          minWorkers: 1,
         }),
     testTimeout: 300000,
     hookTimeout: 300000,

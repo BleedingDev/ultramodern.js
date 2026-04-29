@@ -22,7 +22,7 @@
     "react-dom": "^19.2.5",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "4.2.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",

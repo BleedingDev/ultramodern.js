@@ -34,9 +34,9 @@
   "dependencies": {
     "@modern-js/utils": "workspace:*",
     "@rsbuild/core": "2.0.3",
-    "@rsbuild/plugin-assets-retry": "1.5.2",
+    "@rsbuild/plugin-assets-retry": "2.0.0",
     "@rsbuild/plugin-check-syntax": "1.6.1",
-    "@rsbuild/plugin-css-minimizer": "1.1.1",
+    "@rsbuild/plugin-css-minimizer": "2.0.0",
     "@rsbuild/plugin-less": "1.6.3",
     "@rsbuild/plugin-react": "2.0.0",
     "@rsbuild/plugin-rem": "1.0.5",
