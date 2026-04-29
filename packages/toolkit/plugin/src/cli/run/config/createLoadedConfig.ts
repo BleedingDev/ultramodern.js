@@ -1,7 +1,7 @@
 import {
-  fs,
   CONFIG_FILE_EXTENSIONS,
   chalk,
+  fs,
   getCommand,
   getNodeEnv,
   isDevCommand,

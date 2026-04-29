@@ -1,8 +1,7 @@
-import { pathToFileURL } from 'url';
 import { findMatchedSourcePath, findSourceEntry } from '@modern-js/utils';
 import { createMatchPath } from '@modern-js/utils/tsconfig-paths';
-import { resolve as tsNodeResolve } from 'ts-node/esm';
-import { load as tsNodeLoad } from 'ts-node/esm';
+import { load as tsNodeLoad, resolve as tsNodeResolve } from 'ts-node/esm';
+import { pathToFileURL } from 'url';
 
 let matchPath;
 

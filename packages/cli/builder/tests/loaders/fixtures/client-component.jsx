@@ -26,7 +26,7 @@ const bar = 2;
 
 const ComponentF = () => React.createElement(`div`);
 
-export { D as ComponentD, bar, ComponentE, ComponentF };
+export { bar, ComponentE, ComponentF, D as ComponentD };
 
 function D() {
   return React.createElement(`div`);

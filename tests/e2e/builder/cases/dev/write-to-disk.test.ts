@@ -1,6 +1,6 @@
-import { join } from 'path';
 import { expect, test } from '@playwright/test';
 import { dev, getHrefByEntryName, getRandomPort } from '@scripts/shared';
+import { join } from 'path';
 
 const fixtures = __dirname;
 

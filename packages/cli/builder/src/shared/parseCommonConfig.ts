@@ -1,9 +1,9 @@
 import {
+  mergeRsbuildConfig,
   type ResolveConfig,
   type RsbuildConfig,
   type RsbuildPlugin,
   type ToolsConfig,
-  mergeRsbuildConfig,
 } from '@rsbuild/core';
 import { pluginCssMinimizer } from '@rsbuild/plugin-css-minimizer';
 import { pluginLess } from '@rsbuild/plugin-less';

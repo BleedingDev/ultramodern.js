@@ -1,12 +1,12 @@
-import path from 'path';
 import {
-  fs,
-  OUTPUT_CONFIG_FILE,
   lodash as _,
   compatibleRequire,
   ensureAbsolutePath,
+  fs,
+  OUTPUT_CONFIG_FILE,
 } from '@modern-js/utils';
 import { parse } from 'flatted';
+import path from 'path';
 
 type LoadConfigOptions = {
   cliConfig: Record<string, any>;

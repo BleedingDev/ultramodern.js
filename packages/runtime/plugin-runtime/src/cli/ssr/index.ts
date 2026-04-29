@@ -1,4 +1,3 @@
-import path from 'path';
 import type {
   AppTools,
   AppToolsNormalizedConfig,
@@ -7,12 +6,13 @@ import type {
 } from '@modern-js/app-tools';
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { Entrypoint } from '@modern-js/types';
-import { LOADABLE_STATS_FILE, isUseSSRBundle } from '@modern-js/utils';
+import { isUseSSRBundle, LOADABLE_STATS_FILE } from '@modern-js/utils';
 import type {
   MergedEnvironmentConfig,
   RsbuildPlugin,
   RspackChain,
 } from '@rsbuild/core';
+import path from 'path';
 import LoadableBundlerPlugin from './loadable-bundler-plugin';
 import { resolveSSRMode } from './mode';
 

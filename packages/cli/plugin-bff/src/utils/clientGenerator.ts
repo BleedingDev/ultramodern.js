@@ -1,7 +1,7 @@
-import path from 'path';
 import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, logger } from '@modern-js/utils';
+import path from 'path';
 import {
   generateEffectClientCode,
   renderEffectClientDeclaration,

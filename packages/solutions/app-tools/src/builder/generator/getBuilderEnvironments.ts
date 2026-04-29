@@ -1,8 +1,8 @@
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import {
   isProd,
-  isSSR,
   isServiceWorker,
+  isSSR,
   isUseRsc,
   isUseSSRBundle,
 } from '@modern-js/utils';

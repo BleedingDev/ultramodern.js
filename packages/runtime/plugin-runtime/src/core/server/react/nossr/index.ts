@@ -1,5 +1,4 @@
-import React from 'react';
-import { type ReactElement, useEffect, useState } from 'react';
+import React, { type ReactElement, useEffect, useState } from 'react';
 
 export const NoSSR = (
   props?: React.PropsWithChildren<{ fallback?: ReactElement | string }>,

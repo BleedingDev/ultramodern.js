@@ -14,7 +14,7 @@ import {
   SSR_DATA_PLACEHOLDER,
 } from '../constants';
 import { createReplaceHelemt } from '../helmet';
-import { type BuildHtmlCb, type RenderString, buildHtml } from '../shared';
+import { type BuildHtmlCb, buildHtml, type RenderString } from '../shared';
 import { SSRErrors, SSRTimings, type Tracer } from '../tracer';
 import { getSSRConfigByEntry, safeReplace } from '../utils';
 import { LoadableCollector } from './loadable';

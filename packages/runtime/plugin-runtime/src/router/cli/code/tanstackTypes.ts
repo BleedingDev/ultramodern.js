@@ -1,7 +1,7 @@
-import path from 'path';
 import type { AppToolsContext } from '@modern-js/app-tools';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
-import { fs, findExists, formatImportPath, slash } from '@modern-js/utils';
+import { findExists, formatImportPath, fs, slash } from '@modern-js/utils';
+import path from 'path';
 import { makeLegalIdentifier } from './makeLegalIdentifier';
 import { getPathWithoutExt } from './utils';
 

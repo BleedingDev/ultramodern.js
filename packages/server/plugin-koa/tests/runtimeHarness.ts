@@ -1,7 +1,7 @@
 import {
-  type ServerPlugin,
   compatPlugin,
   createServerBase,
+  type ServerPlugin,
 } from '@modern-js/server-core';
 
 type PluginFactory = (() => ServerPlugin) | ServerPlugin;
@@ -49,13 +49,7 @@ class TestServerManager {
     return this;
   }
 
-  async prepareApiServer({
-    pwd,
-    prefix,
-  }: {
-    pwd: string;
-    prefix: string;
-  }) {
+  async prepareApiServer({ pwd, prefix }: { pwd: string; prefix: string }) {
     const runtimeConfig = ConfigContext.get();
     const mergedConfig = {
       ...DEFAULT_CONFIG,

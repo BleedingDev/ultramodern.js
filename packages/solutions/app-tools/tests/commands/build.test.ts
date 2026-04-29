@@ -1,4 +1,4 @@
-import { type Plugin, createPluginManager } from '@modern-js/plugin';
+import { createPluginManager, type Plugin } from '@modern-js/plugin';
 import { build } from '../../src/commands/build';
 
 const mockGenerateRoutes = rstest.fn();

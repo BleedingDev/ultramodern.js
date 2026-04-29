@@ -1,2 +1,2 @@
-export { default } from './runtime';
 export * from './runtime';
+export { default } from './runtime';

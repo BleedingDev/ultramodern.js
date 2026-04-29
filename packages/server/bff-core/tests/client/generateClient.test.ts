@@ -1,5 +1,5 @@
-import path from 'path';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import { generateClient } from '../../src/client/generateClient';
 
 const PWD = path.resolve(__dirname, '../fixtures/function');

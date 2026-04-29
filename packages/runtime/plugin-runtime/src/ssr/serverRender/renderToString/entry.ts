@@ -18,9 +18,9 @@ import {
   type SSRServerContext,
 } from '../types';
 import {
+  attributesToString,
   ROUTER_DATA_JSON_ID,
   SSR_DATA_JSON_ID,
-  attributesToString,
 } from '../utils';
 import {
   buildHtml,

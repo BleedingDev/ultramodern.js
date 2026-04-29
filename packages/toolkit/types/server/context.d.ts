@@ -1,3 +1,4 @@
+import type { SSRMode } from 'common';
 import type {
   Server as HttpServer,
   IncomingHttpHeaders,
@@ -5,7 +6,6 @@ import type {
   ServerResponse,
 } from 'http';
 import type qs from 'querystring';
-import type { SSRMode } from 'common';
 import type { Logger, Metrics, Reporter, ServerTiming } from './utils';
 
 export interface RequestPayload {

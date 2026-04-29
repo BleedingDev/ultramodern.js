@@ -1,6 +1,6 @@
-import * as path from 'path';
 import type { NestedRouteForCli } from '@modern-js/types';
 import { fs, JS_EXTENSIONS, normalizeToPosixPath } from '@modern-js/utils';
+import * as path from 'path';
 import { NESTED_ROUTE } from '../constants';
 import { getPathWithoutExt, hasAction, replaceWithAlias } from './utils';
 

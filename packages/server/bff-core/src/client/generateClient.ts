@@ -1,5 +1,5 @@
-import * as path from 'path';
 import type { HttpMethodDecider } from '@modern-js/types';
+import * as path from 'path';
 import { ApiRouter } from '../router';
 import {
   createOperationEntries,

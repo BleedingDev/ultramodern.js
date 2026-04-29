@@ -1,4 +1,4 @@
-import { type RuntimePlugin, defineRuntimeConfig } from '@modern-js/runtime';
+import { defineRuntimeConfig, type RuntimePlugin } from '@modern-js/runtime';
 import type { RouteObject } from '@modern-js/runtime/router';
 import { Link, Outlet, useMatch } from '@modern-js/runtime/tanstack-router';
 

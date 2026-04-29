@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import path from 'path';
 import { execa, fs as fse } from '@modern-js/utils';
+import path from 'path';
 import {
   getPort,
   killApp,

@@ -1,7 +1,7 @@
 import appToolsDefault, {
   appTools,
-  mergeConfig,
   createPresetUltramodernConfig,
+  mergeConfig,
   presetUltramodern,
   withAppBaseline,
 } from '../src';

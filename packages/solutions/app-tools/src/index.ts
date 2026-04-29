@@ -1,4 +1,3 @@
-import path from 'path';
 import { castArray } from '@modern-js/builder';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { createAsyncHook } from '@modern-js/plugin';
@@ -9,6 +8,7 @@ import {
   getArgv,
   getCommand,
 } from '@modern-js/utils';
+import path from 'path';
 import {
   buildCommand,
   deployCommand,
@@ -42,8 +42,8 @@ import { generateWatchFiles } from './utils/generateWatchFiles';
 import { initAppContext } from './utils/initAppContext';
 import { restart } from './utils/restart';
 
-export * from './defineConfig';
 export * from './baseline';
+export * from './defineConfig';
 export * from './presetUltramodern';
 export * from './ultramodern/designSystem';
 
@@ -172,18 +172,16 @@ export const appTools = (): CliPlugin<AppTools> => ({
   },
 });
 
-export { defineConfig } from './defineConfig';
-
 export { dev } from './commands/dev';
 export { serve } from './commands/serve';
-export type { DevOptions } from './utils/types';
-export { generateWatchFiles } from './utils/generateWatchFiles';
+export { defineConfig } from './defineConfig';
 export {
-  resolveModernRsbuildConfig,
   type ResolveModernRsbuildConfigOptions,
+  resolveModernRsbuildConfig,
 } from './rsbuild';
-
 export * from './types';
+export { generateWatchFiles } from './utils/generateWatchFiles';
+export type { DevOptions } from './utils/types';
 
 export { initAppContext };
 

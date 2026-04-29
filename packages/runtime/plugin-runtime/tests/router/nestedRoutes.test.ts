@@ -1,5 +1,5 @@
-import path from 'path';
 import type { NestedRouteForCli } from '@modern-js/types';
+import path from 'path';
 import { optimizeRoute, walk } from '../../src/router/cli/code/nestedRoutes';
 
 const fixtures = path.join(__dirname, 'fixtures');

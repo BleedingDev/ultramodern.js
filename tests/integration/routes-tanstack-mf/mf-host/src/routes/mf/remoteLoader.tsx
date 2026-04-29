@@ -2,10 +2,10 @@ import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 import * as React from 'react';
 import {
   type LoadRemoteModuleBaseOptions,
+  loadRemoteModuleWithRetryBase,
   RemoteComponentContractError,
   RemoteLoadError,
   RemoteLoadTimeoutError,
-  loadRemoteModuleWithRetryBase,
   resolveRemoteComponentBase,
 } from './remoteLoaderCore';
 

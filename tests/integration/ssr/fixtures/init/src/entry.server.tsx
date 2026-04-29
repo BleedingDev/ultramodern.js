@@ -1,6 +1,6 @@
 import {
-  type HandleRequest,
   createRequestHandler,
+  type HandleRequest,
   renderString,
 } from '@modern-js/runtime/ssr/server';
 

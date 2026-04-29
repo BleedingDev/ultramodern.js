@@ -25,9 +25,7 @@ export function getHookRunners(
     prepare: () => {
       return hooks.onPrepare.call();
     },
-    reset: (params: {
-      event: ResetEvent;
-    }) => {
+    reset: (params: { event: ResetEvent }) => {
       return hooks.onReset.call(params);
     },
     fallback: (input: FallbackInput) => {

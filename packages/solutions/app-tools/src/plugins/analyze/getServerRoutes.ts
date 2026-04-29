@@ -1,16 +1,16 @@
-import path from 'path';
 import type { Entrypoint, ServerRoute } from '@modern-js/types';
 import {
   fs,
-  ROUTE_SPEC_FILE,
-  SERVER_BUNDLE_DIRECTORY,
-  SERVER_WORKER_BUNDLE_DIRECTORY,
   getEntryOptions,
   isPlainObject,
+  ROUTE_SPEC_FILE,
   removeLeadingSlash,
   removeTailSlash,
+  SERVER_BUNDLE_DIRECTORY,
+  SERVER_WORKER_BUNDLE_DIRECTORY,
   urlJoin,
 } from '@modern-js/utils';
+import path from 'path';
 import type { AppNormalizedConfig } from '../../types';
 import type { AppToolsContext } from '../../types/plugin';
 import { isMainEntry } from '../../utils/routes';
@@ -123,9 +123,7 @@ const collectHtmlRoutes = (
   const {
     source: { mainEntryName },
     html: { outputStructure },
-    output: {
-      distPath: { html: htmlPath } = {},
-    },
+    output: { distPath: { html: htmlPath } = {} },
     server: { baseUrl, routes, ssr, ssrByEntries, rsc },
     deploy,
   } = config;

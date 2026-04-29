@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import React from 'react';
-import { act } from 'react';
+import React, { act } from 'react';
 import type { Fetcher } from '../../src/router/runtime/tanstack/dataMutation';
 import {
   Form,

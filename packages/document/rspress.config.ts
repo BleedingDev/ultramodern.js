@@ -1,7 +1,7 @@
-import path from 'path';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { defineConfig } from '@rspress/core';
 import { transformerNotationHighlight } from '@shikijs/transformers';
+import path from 'path';
 import { pluginOpenGraph } from 'rsbuild-plugin-open-graph';
 
 const docPath = path.join(__dirname, 'docs');

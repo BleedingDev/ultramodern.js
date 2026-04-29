@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
 import type { ModulesInfo, RemoteTrustIssue } from '../src/runtime';
 import {
-  RemoteTrustPolicyError,
   enforceRemoteTrustPolicy,
+  RemoteTrustPolicyError,
 } from '../src/runtime/trust';
 
 describe('remote trust policy', () => {

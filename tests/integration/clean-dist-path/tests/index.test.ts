@@ -1,5 +1,5 @@
-import path from 'path';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 describe('clean dist path', () => {

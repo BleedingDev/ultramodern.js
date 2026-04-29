@@ -21,9 +21,9 @@ import type {
   RemoteTrustPolicy,
   RuntimeCompatibilityPolicy,
 } from './useModuleApps';
+import { type AppMap, generateApps } from './utils/apps';
 import { GarfishProvider } from './utils/Context';
 import { generateMApp } from './utils/MApp';
-import { type AppMap, generateApps } from './utils/apps';
 import setExternal from './utils/setExternal';
 
 const resolveProductionProfile = (

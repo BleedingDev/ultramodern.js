@@ -1,19 +1,19 @@
-import type { IncomingMessage } from 'http';
-import path from 'path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import { ApiRouter } from '@modern-js/bff-core';
 import type { ToolsDevServerConfig } from '@modern-js/builder';
 import { compile } from '@modern-js/server-utils';
 import type { ServerRoute } from '@modern-js/types';
 import {
-  fs,
-  API_DIR,
   type Alias,
+  API_DIR,
   DEFAULT_API_PREFIX,
-  SHARED_DIR,
+  fs,
   normalizeOutputPath,
+  SHARED_DIR,
 } from '@modern-js/utils';
 import type { ConfigChain } from '@rsbuild/core';
+import type { IncomingMessage } from 'http';
+import path from 'path';
 import clientGenerator from './utils/clientGenerator';
 import pluginGenerator from './utils/pluginGenerator';
 import runtimeGenerator from './utils/runtimeGenerator';

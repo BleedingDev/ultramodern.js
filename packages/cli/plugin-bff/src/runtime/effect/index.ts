@@ -14,29 +14,29 @@ import {
   RpcServer,
 } from 'effect/unstable/rpc';
 import {
-  DEFAULT_DATA_BATCH_ENDPOINT,
-  DEFAULT_DATA_BATCH_HEADER,
-  DEFAULT_DATA_ENVELOPE_HEADER,
   type DataBatchRequestPayload,
   type DataBatchResponseItem,
   type DataBatchResponsePayload,
+  DEFAULT_DATA_BATCH_ENDPOINT,
+  DEFAULT_DATA_BATCH_HEADER,
+  DEFAULT_DATA_ENVELOPE_HEADER,
   decodeRequestEnvelopeHeader,
   validateRequestEnvelope,
   validateSelectionPlan,
 } from '../data-platform';
 
-export * from 'effect/unstable/http';
-export * from 'effect/unstable/httpapi';
-export * from 'effect/unstable/rpc';
-export { HttpTraceContext } from 'effect/unstable/http';
-export { HttpApiBuilder } from 'effect/unstable/httpapi';
+export * as OpenTelemetry from '@effect/opentelemetry';
+export * as Config from 'effect/Config';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
-export * as Schema from 'effect/Schema';
-export * as Config from 'effect/Config';
 export * as Option from 'effect/Option';
-export * as OpenTelemetry from '@effect/opentelemetry';
-export { useEffectContext, type EffectContext } from './context';
+export * as Schema from 'effect/Schema';
+export * from 'effect/unstable/http';
+export { HttpTraceContext } from 'effect/unstable/http';
+export * from 'effect/unstable/httpapi';
+export { HttpApiBuilder } from 'effect/unstable/httpapi';
+export * from 'effect/unstable/rpc';
+export { type EffectContext, useEffectContext } from './context';
 
 export type EffectRuntimeLayer = Layer.Layer<any, unknown, any>;
 export type EffectRpcSerialization =
@@ -95,9 +95,10 @@ type EffectApiPromiseClient<TClient> = {
 
 export type EffectApiClientFromApi<
   TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
-> = TApi extends HttpApi.HttpApi<infer _ApiId, infer Groups>
-  ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, unknown, never>
-  : never;
+> =
+  TApi extends HttpApi.HttpApi<infer _ApiId, infer Groups>
+    ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, unknown, never>
+    : never;
 
 export type EffectApiPromiseClientFromApi<
   TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,

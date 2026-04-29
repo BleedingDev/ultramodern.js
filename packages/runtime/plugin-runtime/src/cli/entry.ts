@@ -1,5 +1,5 @@
+import { findExists, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';
-import { JS_EXTENSIONS, findExists } from '@modern-js/utils';
 import { APP_FILE_NAME } from './constants';
 
 export const hasApp = (dir: string) =>

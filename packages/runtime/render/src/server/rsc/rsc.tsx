@@ -1,9 +1,11 @@
 export { renderToReadableStream } from 'react-server-dom-rspack/server.node';
+
 import {
+  decodeReply,
   loadServerAction,
   renderToReadableStream,
 } from 'react-server-dom-rspack/server.node';
-import { decodeReply } from 'react-server-dom-rspack/server.node';
+
 export { createFromReadableStream } from 'react-server-dom-rspack/client.node';
 export {
   registerClientReference,

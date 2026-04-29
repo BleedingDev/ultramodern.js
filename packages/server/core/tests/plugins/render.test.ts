@@ -1,5 +1,5 @@
-import path from 'path';
 import type { Logger, ServerRoute } from '@modern-js/types';
+import path from 'path';
 import { injectResourcePlugin } from '../../src/adapters/node/plugins';
 import { createDefaultPlugins, renderPlugin } from '../../src/plugins';
 import { createServerBase } from '../../src/serverBase';

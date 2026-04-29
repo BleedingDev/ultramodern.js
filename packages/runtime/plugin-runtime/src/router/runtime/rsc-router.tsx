@@ -1,17 +1,17 @@
 import {
-  ElementsContext,
   createFromReadableStream,
+  ElementsContext,
 } from '@modern-js/render/client';
 import {
+  createBrowserRouter,
+  createStaticRouter,
   type DataStrategyMatch,
   type DataStrategyResult,
   type RouteObject,
   type RouterState,
+  redirect,
   type StaticHandlerContext,
   StaticRouterProvider,
-  createBrowserRouter,
-  createStaticRouter,
-  redirect,
 } from '@modern-js/runtime-utils/router';
 import React from 'react';
 import type { PayloadRoute, ServerPayload } from '../../core/context';

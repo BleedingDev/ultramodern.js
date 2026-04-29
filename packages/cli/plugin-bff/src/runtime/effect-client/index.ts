@@ -22,8 +22,18 @@ import {
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
-export { HttpApi, HttpApiClient, HttpApiEndpoint, HttpApiGroup, HttpApiSchema };
-export { Rpc, RpcClient, RpcGroup, RpcSchema, RpcSerialization };
+export {
+  HttpApi,
+  HttpApiClient,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  HttpApiSchema,
+  Rpc,
+  RpcClient,
+  RpcGroup,
+  RpcSchema,
+  RpcSerialization,
+};
 
 export type EffectHttpApiClientOptions = {
   baseUrl?: URL | string;
@@ -31,22 +41,20 @@ export type EffectHttpApiClientOptions = {
 
 type Nullish = null | undefined;
 type NonNullish<T> = Exclude<T, Nullish>;
-type PreserveNullish<T, Next> = Extract<T, Nullish> extends never
-  ? Next
-  : Next | Extract<T, Nullish>;
+type PreserveNullish<T, Next> =
+  Extract<T, Nullish> extends never ? Next : Next | Extract<T, Nullish>;
 
-type EffectViewObjectSelection<T> = NonNullish<T> extends Record<
-  string,
-  unknown
->
-  ? EffectViewSelection<NonNullish<T>>
-  : never;
+type EffectViewObjectSelection<T> =
+  NonNullish<T> extends Record<string, unknown>
+    ? EffectViewSelection<NonNullish<T>>
+    : never;
 
-type EffectViewSelectionValue<T> = NonNullish<T> extends readonly (infer Item)[]
-  ? true | EffectViewObjectSelection<Item>
-  : NonNullish<T> extends Record<string, unknown>
-    ? true | EffectViewSelection<NonNullish<T>>
-    : true;
+type EffectViewSelectionValue<T> =
+  NonNullish<T> extends readonly (infer Item)[]
+    ? true | EffectViewObjectSelection<Item>
+    : NonNullish<T> extends Record<string, unknown>
+      ? true | EffectViewSelection<NonNullish<T>>
+      : true;
 
 type EffectMaskedValue<T, Selection> = Selection extends true
   ? T

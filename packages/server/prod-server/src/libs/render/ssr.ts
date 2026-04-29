@@ -1,12 +1,12 @@
-import path from 'path';
 import type { ModernServerContext } from '@modern-js/types';
 import {
   fs,
   LOADABLE_STATS_FILE,
+  mime,
   ROUTE_MANIFEST_FILE,
   SERVER_RENDER_FUNCTION_NAME,
-  mime,
 } from '@modern-js/utils';
+import path from 'path';
 import type { RenderResult, ServerHookRunner } from '../../type';
 import cache from './cache';
 import { createLogger, createMetrics } from './measure';

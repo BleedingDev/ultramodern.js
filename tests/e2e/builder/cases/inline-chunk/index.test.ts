@@ -1,7 +1,7 @@
-import path from 'path';
 import { type BundlerChain, RUNTIME_CHUNK_NAME } from '@modern-js/builder';
 import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
+import path from 'path';
 
 const hasRuntimeChunkScriptTag = (html: string): boolean =>
   /<script[^>]*src="\/static\/js\/builder-runtime\.[^"]+\.js"/.test(html);

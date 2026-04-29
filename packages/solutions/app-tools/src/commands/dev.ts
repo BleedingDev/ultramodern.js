@@ -3,15 +3,15 @@ import type { CLIPluginAPI } from '@modern-js/plugin';
 import { applyPlugins } from '@modern-js/prod-server';
 import {
   type ApplyPlugins,
-  type ModernDevServerOptions,
   createDevServer,
+  type ModernDevServerOptions,
 } from '@modern-js/server';
 import {
   type Alias,
   DEFAULT_DEV_HOST,
-  SERVER_DIR,
   getMeta,
   logger,
+  SERVER_DIR,
 } from '@modern-js/utils';
 import type { ConfigChain } from '@rsbuild/core';
 import type { AppNormalizedConfig, AppTools } from '../types';

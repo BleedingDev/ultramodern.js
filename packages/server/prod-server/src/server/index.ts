@@ -1,30 +1,29 @@
-import { promises as nodeFs } from 'fs';
-import type {
-  IncomingMessage,
-  ServerResponse,
-  Server as httpServer,
-} from 'http';
-
-import type { ListenOptions } from 'net';
-import path from 'path';
 import {
   AppContext,
   ConfigContext,
-  type ServerConfig,
   loadPlugins,
+  type ServerConfig,
   serverManager,
 } from '@modern-js/server-core';
 import type { ISAppContext } from '@modern-js/types';
 import {
-  fs,
-  INTERNAL_SERVER_PLUGINS,
-  OUTPUT_CONFIG_FILE,
-  SHARED_DIR,
   createLogger,
   dotenv,
   dotenvExpand,
   ensureAbsolutePath,
+  fs,
+  INTERNAL_SERVER_PLUGINS,
+  OUTPUT_CONFIG_FILE,
+  SHARED_DIR,
 } from '@modern-js/utils';
+import { promises as nodeFs } from 'fs';
+import type {
+  Server as httpServer,
+  IncomingMessage,
+  ServerResponse,
+} from 'http';
+import type { ListenOptions } from 'net';
+import path from 'path';
 import { ContractGateAutopilot } from '../libs/contractGateAutopilot';
 import {
   getServerConfigPath,
@@ -37,19 +36,11 @@ import {
   persistRuntimeFallbackContractGateInWorker,
 } from '../libs/runtimeFallbackWorkerLane';
 import {
-  DEFAULT_RUNTIME_STATUS_ENDPOINT,
-  type RuntimeFallbackSignalAuthConfig,
-  type RuntimeFallbackSignalRuntimeState,
-  type RuntimeFallbackSignalTrustPolicy,
-  type RuntimeSignalError,
-  type TelemetryCanaryDecision,
-  TelemetryCanaryOrchestrator,
-  type TelemetryCanaryStatusSnapshot,
-  TelemetryRegistry,
   createOtlpTelemetryExporter,
   createRuntimeFallbackSignalRuntimeState,
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
+  DEFAULT_RUNTIME_STATUS_ENDPOINT,
   enforceRuntimeFallbackSignalAuthToken,
   enforceRuntimeFallbackSignalTrustPolicy,
   getRuntimeSignalErrorStatusCode,
@@ -57,7 +48,15 @@ import {
   normalizeRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackTrustPolicy,
   parseRuntimeFallbackSignalPayloadFromRawBody,
+  type RuntimeFallbackSignalAuthConfig,
+  type RuntimeFallbackSignalRuntimeState,
+  type RuntimeFallbackSignalTrustPolicy,
+  type RuntimeSignalError,
   resolveRuntimeFallbackSignalEndpoint,
+  type TelemetryCanaryDecision,
+  TelemetryCanaryOrchestrator,
+  type TelemetryCanaryStatusSnapshot,
+  TelemetryRegistry,
 } from '../libs/telemetry';
 import type {
   ModernServerInterface,

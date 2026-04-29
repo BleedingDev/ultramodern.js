@@ -6,8 +6,12 @@ import type {
   PageRoute,
   ServerRoute,
 } from '@modern-js/types';
-import { fs, NESTED_ROUTE_SPEC_FILE, findExists } from '@modern-js/utils';
-import { filterRoutesForServer } from '@modern-js/utils';
+import {
+  filterRoutesForServer,
+  findExists,
+  fs,
+  NESTED_ROUTE_SPEC_FILE,
+} from '@modern-js/utils';
 import { isRouteEntry } from './entry';
 import {
   handleFileChange,

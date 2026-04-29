@@ -1,5 +1,5 @@
+import { createDebugger, fs, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';
-import { fs, JS_EXTENSIONS, createDebugger } from '@modern-js/utils';
 import { FILE_SYSTEM_ROUTES_IGNORED_REGEX } from '../../constants';
 
 const debug = createDebugger('get-client-routes');

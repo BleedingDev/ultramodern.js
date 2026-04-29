@@ -1,8 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import { getPublicDirRoutePrefixes } from '@modern-js/server-core';
 import type { Entrypoint } from '@modern-js/types';
+import fs from 'fs';
+import path from 'path';
 import type { BackendOptions, LocaleDetectionOptions } from '../shared/type';
 import { getBackendOptions, getLocaleDetectionOptions } from '../shared/utils';
 

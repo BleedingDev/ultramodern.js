@@ -1,5 +1,6 @@
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RuntimePlugin } from '../../core';
+import type { RouterExtendsHooks } from './hooks';
 import {
   modifyRoutes as modifyRoutesHook,
   onAfterCreateRouter as onAfterCreateRouterHook,
@@ -8,7 +9,6 @@ import {
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
 } from './hooks';
-import type { RouterExtendsHooks } from './hooks';
 import { routerPlugin as reactRouterPlugin } from './plugin';
 import { tanstackRouterPlugin } from './tanstack/plugin';
 import type { RouterConfig, SingleRouteConfig } from './types';
@@ -44,7 +44,7 @@ export const routerPlugin = (
 };
 
 export default routerPlugin;
-export type { SingleRouteConfig, RouterConfig };
 export type { RouterExtendsHooks } from './hooks';
-export { renderRoutes } from './utils';
 export { modifyRoutes } from './plugin';
+export { renderRoutes } from './utils';
+export type { RouterConfig, SingleRouteConfig };

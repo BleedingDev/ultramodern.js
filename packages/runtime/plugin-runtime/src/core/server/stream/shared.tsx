@@ -2,8 +2,8 @@ import type { OnError } from '@modern-js/app-tools';
 import { time } from '@modern-js/runtime-utils/time';
 import type {
   ClientManifest as RscClientManifest,
-  SSRManifest as RscSSRManifest,
   ServerManifest as RscServerManifest,
+  SSRManifest as RscSSRManifest,
 } from '@modern-js/types/server';
 import { isbot as checkIsBot } from 'isbot';
 import type React from 'react';
@@ -135,7 +135,9 @@ export function createRenderStreaming(
 
     const StreamServerRootWrapper = ({
       children,
-    }: { children: React.ReactNode }) => {
+    }: {
+      children: React.ReactNode;
+    }) => {
       return (
         <>
           {children}

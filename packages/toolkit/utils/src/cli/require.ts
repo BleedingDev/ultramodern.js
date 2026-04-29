@@ -140,7 +140,7 @@ const tryResolveESM = (name: string, ...resolvePath: string[]) => {
         pathToFileURL(`${p}/`),
         conditions,
         false,
-      ).pathname.replace(/^\/(\w)\:/, '$1:');
+      ).pathname.replace(/^\/(\w):/, '$1:');
     } catch (err) {
       // ignore
     }

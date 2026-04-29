@@ -1,23 +1,22 @@
-import assert from 'assert';
 import type { PathLike } from 'node:fs';
 import net from 'node:net';
-import { join } from 'path';
-import { URL } from 'url';
 import type {
-  BuilderConfig,
   CreateBuilderOptions as _CreateBuilderOptions,
+  BuilderConfig,
 } from '@modern-js/builder';
-import { getPort } from '@modern-js/utils';
-import { type GlobbyOptions, upath } from '@modern-js/utils';
+import { type GlobbyOptions, getPort, upath } from '@modern-js/utils';
 import fs from '@modern-js/utils/fs-extra';
 import _ from '@modern-js/utils/lodash';
 import {
   type ConsoleType,
-  type RsbuildPlugin,
   logger,
   mergeRsbuildConfig,
+  type RsbuildPlugin,
 } from '@rsbuild/core';
+import assert from 'assert';
 import createServer from 'connect';
+import { join } from 'path';
+import { URL } from 'url';
 import serveStaticMiddle from './static.js';
 
 logger.level = 'error';

@@ -8,8 +8,8 @@ import type {
 } from '@modern-js/types';
 import type {
   ClientManifest as RscClientManifest,
-  SSRManifest as RscSSRManifest,
   ServerManifest as RscServerManifest,
+  SSRManifest as RscSSRManifest,
 } from '@modern-js/types/server';
 import type { SSRRenderOptions } from '../plugins/render/ssrRender';
 import type {
@@ -118,7 +118,7 @@ export type {
   Context,
   Env,
   HonoRequest,
-  Next,
   MiddlewareHandler,
   MiddlewareHandler as Middleware,
+  Next,
 } from 'hono';

@@ -2,8 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
-  type RuntimeFallbackWorkerLanePayload,
   persistRuntimeFallbackContractGateInWorker,
+  type RuntimeFallbackWorkerLanePayload,
 } from '../src/libs/runtimeFallbackWorkerLane';
 
 const makeTempDir = () =>

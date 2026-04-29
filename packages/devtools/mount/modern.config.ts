@@ -1,6 +1,6 @@
-import path from 'path';
 import { appTools, defineConfig } from '@modern-js/app-tools';
 import { nanoid } from 'nanoid';
+import path from 'path';
 import packageMeta from './package.json';
 
 const DEVTOOLS_MARK = nanoid();

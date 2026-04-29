@@ -1,5 +1,5 @@
-import { join } from 'path';
 import { describe, expect, it } from '@rstest/core';
+import { join } from 'path';
 import { createBuilder } from '../src';
 
 describe('builder rspack with cache', () => {

@@ -3,15 +3,13 @@ import {
   createRequestContext,
   reporterCtx,
 } from '@modern-js/runtime-utils/node';
-import { createStaticHandler } from '@modern-js/runtime-utils/router';
 import {
+  createRoutesFromElements,
+  createStaticHandler,
+  createStaticRouter,
+  type RouteObject,
   type StaticHandlerContext,
   StaticRouterProvider,
-  createStaticRouter,
-} from '@modern-js/runtime-utils/router';
-import {
-  type RouteObject,
-  createRoutesFromElements,
 } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
@@ -19,30 +17,30 @@ import type React from 'react';
 import { useContext } from 'react';
 import type { RuntimePlugin } from '../../core';
 import {
-  InternalRuntimeContext,
-  type ServerPayload,
   getGlobalEnableRsc,
   getGlobalLayoutApp,
   getGlobalRoutes,
+  InternalRuntimeContext,
+  type ServerPayload,
 } from '../../core/context';
 import { setServerPayload } from '../../core/context/serverPayload/index.server';
 import DeferredDataScripts from './DeferredDataScripts.node';
 import {
-  type RouterExtendsHooks,
   modifyRoutes as modifyRoutesHook,
   onAfterCreateRouter as onAfterCreateRouterHook,
   onBeforeCreateRouter as onBeforeCreateRouterHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
+  type RouterExtendsHooks,
 } from './hooks';
 import {
-  type RouterLifecycleContext,
   applyRouterRuntimeState,
+  type RouterLifecycleContext,
 } from './lifecycle';
 import {
-  RSCStaticRouter,
   createServerPayload,
   handleRSCRedirect,
   prepareRSCRoutes,
+  RSCStaticRouter,
 } from './rsc-router';
 import type { InternalRouterServerSnapshot, RouterConfig } from './types';
 import { createRouteObjectsFromConfig, renderRoutes, urlJoin } from './utils';

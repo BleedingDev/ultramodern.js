@@ -1,10 +1,10 @@
 import { Tab, Tabs } from '@rspress/core/theme';
 import React, {
-  type PropsWithChildren,
-  useMemo,
   cloneElement,
-  useRef,
+  type PropsWithChildren,
   useEffect,
+  useMemo,
+  useRef,
 } from 'react';
 
 /**

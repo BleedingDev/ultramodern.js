@@ -1,5 +1,5 @@
-import path from 'path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
+import path from 'path';
 
 export const PACKAGE_NAME = '{packageName}';
 export const PREFIX = '{prefix}';

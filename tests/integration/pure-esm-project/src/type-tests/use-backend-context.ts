@@ -2,11 +2,10 @@ import type { Context } from '@modern-js/server-runtime';
 import { useHonoContext } from '@modern-js/server-runtime';
 
 type IsAny<T> = 0 extends 1 & T ? true : false;
-type IsEqual<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B
-  ? 1
-  : 2
-  ? true
-  : false;
+type IsEqual<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
 type Expect<T extends true> = T;
 
 type HookContext = ReturnType<typeof useHonoContext>;

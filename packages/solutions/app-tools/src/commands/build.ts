@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { CLIPluginAPI } from '@modern-js/plugin';
-import { fs, type Alias, logger } from '@modern-js/utils';
+import { type Alias, fs, logger } from '@modern-js/utils';
 import type { ConfigChain } from '@rsbuild/core';
 import type { AppTools } from '../types';
 import { loadServerPlugins } from '../utils/loadPlugins';

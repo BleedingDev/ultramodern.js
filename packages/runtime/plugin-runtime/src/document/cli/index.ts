@@ -1,35 +1,34 @@
-import Module from 'module';
-import { builtinModules } from 'module';
-import path from 'path';
 import type {
   AppTools,
   CliPlugin,
   AppNormalizedConfig as NormalizedConfig,
 } from '@modern-js/app-tools';
 import type { Entrypoint } from '@modern-js/types/cli';
-import { fs, createDebugger, findExists, logger } from '@modern-js/utils';
+import { createDebugger, findExists, fs, logger } from '@modern-js/utils';
 import type { Rspack, RspackChain } from '@rsbuild/core';
 import { decodeHTML } from 'entities';
+import Module, { builtinModules } from 'module';
+import path from 'path';
 
 import {
   BODY_PARTICALS_SEPARATOR,
+  DOC_EXT,
   DOCUMENT_CHUNKSMAP_PLACEHOLDER,
   DOCUMENT_COMMENT_PLACEHOLDER_END,
   DOCUMENT_COMMENT_PLACEHOLDER_START,
   DOCUMENT_FILE_NAME,
   DOCUMENT_LINKS_PLACEHOLDER,
   DOCUMENT_META_PLACEHOLDER,
-  DOCUMENT_SCRIPTS_PLACEHOLDER,
   DOCUMENT_SCRIPT_ATTRIBUTES_END,
   DOCUMENT_SCRIPT_ATTRIBUTES_START,
   DOCUMENT_SCRIPT_PLACEHOLDER_END,
   DOCUMENT_SCRIPT_PLACEHOLDER_START,
-  DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
+  DOCUMENT_SCRIPTS_PLACEHOLDER,
   DOCUMENT_SSR_PLACEHOLDER,
+  DOCUMENT_SSRDATASCRIPT_PLACEHOLDER,
   DOCUMENT_STYLE_PLACEHOLDER_END,
   DOCUMENT_STYLE_PLACEHOLDER_START,
   DOCUMENT_TITLE_PLACEHOLDER,
-  DOC_EXT,
   HEAD_PARTICALS_SEPARATOR,
   HTML_SEPARATOR,
   PLACEHOLDER_REPLACER_MAP,

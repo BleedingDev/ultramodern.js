@@ -1,7 +1,7 @@
-import path from 'path';
 import type { ServerOptions } from '@modern-js/server-core';
 import type { ModernServerContext } from '@modern-js/types';
 import { cutNameByHyphen, mime } from '@modern-js/utils';
+import path from 'path';
 import { ERROR_DIGEST } from '../../constants';
 import type { RenderResult, ServerHookRunner } from '../../type';
 import { shouldFlushServerHeader } from '../preload/shouldFlushServerHeader';

@@ -1,7 +1,7 @@
+import { compatibleRequire, fs, globby } from '@modern-js/utils';
 import type { Stats } from 'fs';
-import path from 'path';
-import { fs, compatibleRequire, globby } from '@modern-js/utils';
 import { createJiti } from 'jiti';
+import path from 'path';
 
 export const getConfigFilePath = (
   appDirectory: string,

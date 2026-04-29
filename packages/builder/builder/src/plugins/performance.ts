@@ -1,5 +1,3 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import type {
   BundlerChain,
   BundlerConfig,
@@ -7,6 +5,8 @@ import type {
   RsdoctorConfig,
   SharedNormalizedConfig,
 } from '@modern-js/builder-shared';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 type RsdoctorPluginOptions = {
   disableClientServer: boolean;

@@ -1,4 +1,3 @@
-import path from 'path';
 import type {
   AppNormalizedConfig,
   AppTools,
@@ -8,6 +7,7 @@ import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { Entrypoint, NestedRouteForCli } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
 import { cloneDeep } from '@modern-js/utils/lodash';
+import path from 'path';
 import { modifyEntrypoints } from '../entry';
 import { generateRoutesForEntry } from './index';
 
@@ -44,7 +44,7 @@ function convertRouteToInspectFormat(
   // Extract dynamic route parameters
   if (route.path?.includes(':')) {
     const params =
-      route.path.match(/:[^\/]+/g)?.map(param => param.slice(1)) || [];
+      route.path.match(/:[^/]+/g)?.map(param => param.slice(1)) || [];
     inspectRoute.params = params;
   }
 

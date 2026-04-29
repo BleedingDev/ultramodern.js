@@ -2,18 +2,12 @@ import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
 import { executeWithResilience } from './transport';
-import {
-  BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS,
-  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
-  BFF_ENVELOPE_HEADER as ENVELOPE_HEADER,
-  BFF_OPERATION_CONTEXT_HEADER as OPERATION_CONTEXT_HEADER,
-} from './types';
 import type {
   AllowCrossOriginEnvelope,
   BFFRequestPayload,
-  IOptions,
   IdentityBindingOptions,
   IdentityBindingViolation,
+  IOptions,
   OperationContext,
   OperationContractOptions,
   OperationContractViolation,
@@ -22,6 +16,12 @@ import type {
   Sender,
   TransportResilienceOptions,
   UploadCreator,
+} from './types';
+import {
+  BFF_DEFAULT_PROTECTED_IDENTITY_HEADERS,
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
+  BFF_ENVELOPE_HEADER as ENVELOPE_HEADER,
+  BFF_OPERATION_CONTEXT_HEADER as OPERATION_CONTEXT_HEADER,
 } from './types';
 import { getUploadPayload } from './utiles';
 
@@ -689,5 +689,5 @@ export const createUploader: UploadCreator = ({
   return sender;
 };
 
-export * from './types';
 export * from './requestContext';
+export * from './types';

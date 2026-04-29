@@ -1,7 +1,7 @@
-import EventEmitter from 'events';
-import { Readable } from 'stream';
 import type { NodeRequest, NodeResponse } from '@modern-js/types';
+import EventEmitter from 'events';
 import httpMocks from 'node-mocks-http';
+import { Readable } from 'stream';
 
 export type Options = {
   url: string;

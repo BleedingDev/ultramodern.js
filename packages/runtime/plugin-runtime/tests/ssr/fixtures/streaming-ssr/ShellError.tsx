@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Suspense, lazy } from 'react';
+import { lazy, Suspense } from 'react';
 
 const Home = lazy(() => import('./Home'));
 

@@ -1,5 +1,5 @@
-import path from 'path';
 import axios from 'axios';
+import path from 'path';
 import {
   getPort,
   killApp,

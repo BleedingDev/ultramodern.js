@@ -1,9 +1,9 @@
-import { createRsbuild } from '@rsbuild/core';
 import type {
   RsbuildConfig,
   RsbuildInstance,
   RsbuildPlugin,
 } from '@rsbuild/core';
+import { createRsbuild } from '@rsbuild/core';
 import { getRscPlugins } from './plugins/rscConfig';
 import { pluginRsdoctor } from './plugins/rsdoctor';
 import { parseCommonConfig } from './shared/parseCommonConfig';

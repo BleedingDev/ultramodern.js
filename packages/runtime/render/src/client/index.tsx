@@ -1,14 +1,19 @@
-import React from 'react';
-import { type ReactNode, createContext, useContext, useState } from 'react';
+import React, {
+  createContext,
+  type ReactNode,
+  useContext,
+  useState,
+} from 'react';
 import {
   createFromReadableStream,
   createServerReference,
   setServerCallback,
 } from 'react-server-dom-rspack/client.browser';
-export { rscStream } from '../rsc-html-stream/client';
-export { createFromReadableStream, createServerReference };
-export { callServer } from './callServer';
+
 export { createFromFetch } from 'react-server-dom-rspack/client.browser';
+export { rscStream } from '../rsc-html-stream/client';
+export { callServer } from './callServer';
+export { createFromReadableStream, createServerReference };
 
 declare global {
   interface Window {
@@ -27,7 +32,9 @@ export { setServerCallback };
 
 export function RscClientRoot({
   rscPayload,
-}: { rscPayload: Promise<React.ReactNode> }) {
+}: {
+  rscPayload: Promise<React.ReactNode>;
+}) {
   const elements = React.use(rscPayload);
   const [root, setRoot] = useState<React.ReactNode>(elements);
   return (

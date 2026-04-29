@@ -1,15 +1,9 @@
 /* eslint-disable max-lines */
-import {
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-  createServer,
-} from 'http';
-import path from 'path';
+
 import { time } from '@modern-js/runtime-utils/time';
 import type {
-  APIServerStartInput,
   Adapter,
+  APIServerStartInput,
   LoaderHandler,
   ServerOptions,
   WebAdapter,
@@ -17,11 +11,18 @@ import type {
 import type { ModernServerContext, ServerRoute } from '@modern-js/types';
 import {
   fs,
-  ROUTE_SPEC_FILE,
   isPromise,
   isWebOnly,
   mime,
+  ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'http';
+import path from 'path';
 import {
   AGGRED_DIR,
   ERROR_DIGEST,
@@ -38,7 +39,7 @@ import {
 } from '../libs/hook-api';
 import { resolveMfAssetCacheHeaders } from '../libs/mfCache';
 import { createProxyHandler } from '../libs/proxy';
-import { type RenderHandler, createRenderHandler } from '../libs/render';
+import { createRenderHandler, type RenderHandler } from '../libs/render';
 import * as reader from '../libs/render/reader';
 import {
   type ModernRoute,

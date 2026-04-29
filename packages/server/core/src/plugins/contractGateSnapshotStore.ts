@@ -1,6 +1,6 @@
+import { fs } from '@modern-js/utils';
 import { promises as nodeFs } from 'fs';
 import path from 'path';
-import { fs } from '@modern-js/utils';
 
 export const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
 export const DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH =

@@ -1,5 +1,5 @@
-import path, { join } from 'path';
 import { fs } from '@modern-js/utils';
+import path, { join } from 'path';
 import puppeteer from 'puppeteer';
 import {
   getPort,

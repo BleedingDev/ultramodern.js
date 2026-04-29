@@ -1,5 +1,4 @@
 import {
-  type SelectionPlan,
   buildQueryKey,
   buildScopeKey,
   createHydrationEnvelope,
@@ -9,6 +8,7 @@ import {
   deriveChildTraceContext,
   formatTraceparentHeader,
   parseTraceparentHeader,
+  type SelectionPlan,
   shouldApplyInvalidation,
   validateHydrationEnvelope,
   validateRequestEnvelope,

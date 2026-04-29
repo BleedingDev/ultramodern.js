@@ -1,6 +1,6 @@
 import { isBrowser } from '@modern-js/runtime';
-import { createContext, useCallback, useContext, useMemo } from 'react';
 import type { FC, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 import type { I18nInstance } from './i18n';
 import type { SdkBackend } from './i18n/backend/sdk-backend';
 import { cacheUserLanguage } from './i18n/detection';

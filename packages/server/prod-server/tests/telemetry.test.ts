@@ -1,14 +1,14 @@
-import { createServer } from 'http';
 import type { IncomingHttpHeaders } from 'http';
+import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import {
+  createOtlpTelemetryExporter,
+  createTelemetryAwareMetrics,
+  createVictoriaMetricsTelemetryExporter,
   TelemetryCanaryOrchestrator,
   type TelemetryEnvelope,
   TelemetryRegistry,
   TelemetryStartupHealthError,
-  createOtlpTelemetryExporter,
-  createTelemetryAwareMetrics,
-  createVictoriaMetricsTelemetryExporter,
 } from '../src/libs/telemetry';
 
 const createEnvelope = (

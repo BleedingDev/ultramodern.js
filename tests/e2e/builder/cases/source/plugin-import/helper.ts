@@ -1,8 +1,8 @@
-import path from 'path';
 import { expect, test } from '@playwright/test';
 import type { RsbuildConfig, SourceConfig } from '@rsbuild/core';
 import { build } from '@scripts/shared';
 import { copySync, ensureDirSync } from 'fs-extra';
+import path from 'path';
 
 export const cases: Parameters<typeof shareTest>[] = [
   [

@@ -1,5 +1,5 @@
-import path from 'path';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
+import path from 'path';
 
 // Constants for RSC configuration
 const ASYNC_STORAGE_PATTERN = /universal[/\\]async_storage/;

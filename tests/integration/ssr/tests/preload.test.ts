@@ -1,5 +1,5 @@
-import path from 'path';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import { getPort, killApp, launchApp } from '../../../utils/modernTestUtils';
 
 const fixtureDir = path.resolve(__dirname, '../fixtures');

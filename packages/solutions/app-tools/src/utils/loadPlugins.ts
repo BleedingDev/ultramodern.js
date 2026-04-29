@@ -1,9 +1,7 @@
-import type { CLIPluginAPI } from '@modern-js/plugin';
-import type { Plugin } from '@modern-js/plugin';
+import type { CLIPluginAPI, Plugin } from '@modern-js/plugin';
 import type { ServerPlugin as ServerPluginInstance } from '@modern-js/server-core';
 import { loadServerPlugins as loadServerPluginInstances } from '@modern-js/server-core/node';
-import type { ServerPlugin } from '@modern-js/types';
-import type { InternalPlugins } from '@modern-js/types';
+import type { InternalPlugins, ServerPlugin } from '@modern-js/types';
 import {
   compatibleRequire,
   createDebugger,
@@ -12,6 +10,7 @@ import {
   tryResolve,
 } from '@modern-js/utils';
 import type { AppTools } from '../types';
+
 const debug = createDebugger('load-plugins');
 
 export async function getServerPlugins(

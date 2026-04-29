@@ -67,8 +67,8 @@ export interface OutputUserConfig
 }
 
 export type {
+  SSGConfig,
+  SSGMultiEntryOptions,
   SSGRouteOptions,
   SSGSingleEntryOptions,
-  SSGMultiEntryOptions,
-  SSGConfig,
 } from '@modern-js/types';

@@ -1,5 +1,5 @@
+import { address, fs } from '@modern-js/utils';
 import path from 'path';
-import { fs, address } from '@modern-js/utils';
 
 export const initAppContext = ({
   metaName,

@@ -1,7 +1,7 @@
+import { chokidar, createDebugger, isDevCommand } from '@modern-js/utils';
 import crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { chokidar, createDebugger, isDevCommand } from '@modern-js/utils';
 import type { InternalContext } from '../../../types';
 import type { CLIPluginExtends } from '../../../types/cli/plugin';
 

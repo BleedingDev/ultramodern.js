@@ -1,5 +1,14 @@
+export { default as Garfish, default as garfish } from 'garfish';
+export { RuntimeCompatibilityError } from './compatibility';
+export {
+  createFallbackEvent,
+  emitErrorFallbackTelemetry,
+  emitFallbackTelemetry,
+  inferFallbackPhase,
+  inferFallbackReason,
+} from './fallbackTelemetry';
 export { default } from './plugin';
-export { useModuleApps, useModuleApp } from './useModuleApps';
+export { RemoteTrustPolicyError } from './trust';
 export type {
   Config,
   Manifest,
@@ -8,24 +17,15 @@ export type {
   MfFallbackReason,
   MfFallbackTelemetryConfig,
   ModuleInfo,
-  RuntimeCompatibilityIssue,
-  RuntimeCompatibilityMode,
-  RuntimeCompatibilityPolicy,
   RemoteTrustIssue,
   RemoteTrustIssueReason,
   RemoteTrustMode,
   RemoteTrustPolicy,
+  RuntimeCompatibilityIssue,
+  RuntimeCompatibilityMode,
+  RuntimeCompatibilityPolicy,
   RuntimeParityCompatibilityDecision,
   RuntimeParityTrustDecision,
   RuntimeSurface,
 } from './useModuleApps';
-export { RuntimeCompatibilityError } from './compatibility';
-export { RemoteTrustPolicyError } from './trust';
-export {
-  createFallbackEvent,
-  emitErrorFallbackTelemetry,
-  emitFallbackTelemetry,
-  inferFallbackPhase,
-  inferFallbackReason,
-} from './fallbackTelemetry';
-export { default as Garfish, default as garfish } from 'garfish';
+export { useModuleApp, useModuleApps } from './useModuleApps';

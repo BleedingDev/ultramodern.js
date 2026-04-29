@@ -1,7 +1,7 @@
-import fs from 'fs';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types';
+import fs from 'fs';
 
 const isFunction = (
   node:

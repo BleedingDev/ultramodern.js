@@ -1,6 +1,6 @@
-import path, { join } from 'path';
 import { fs } from '@modern-js/utils';
 import axios from 'axios';
+import path, { join } from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   getPort,

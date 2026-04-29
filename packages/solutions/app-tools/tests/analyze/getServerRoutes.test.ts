@@ -1,5 +1,5 @@
-import path from 'path';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils';
+import path from 'path';
 import type { Entrypoint } from '../../src/plugins/analyze/getFileSystemEntry';
 import { getServerRoutes } from '../../src/plugins/analyze/getServerRoutes';
 import type { AppNormalizedConfig, AppToolsContext } from '../../src/types';

@@ -2,9 +2,9 @@
 // The first time was in ssg html created, the seoncd time was in prod-server start.
 // but the second wound causes route error.
 
-import { type Readable, Transform } from 'stream';
 import { sanitizeSSRPayload } from '@modern-js/runtime-utils/node';
 import type { ModernServerContext } from '@modern-js/types';
+import { type Readable, Transform } from 'stream';
 
 const SERVER_DATA_MARKUP = (payload: string) =>
   `<script type="application/json" id="__MODERN_SERVER_DATA__">${payload}</script>`;

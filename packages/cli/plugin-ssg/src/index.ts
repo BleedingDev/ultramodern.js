@@ -1,4 +1,3 @@
-import path from 'path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type {
   NestedRouteForCli,
@@ -6,6 +5,7 @@ import type {
   SSGSingleEntryOptions,
 } from '@modern-js/types';
 import { filterRoutesForServer, logger } from '@modern-js/utils';
+import path from 'path';
 import { makeRoute } from './libs/make';
 import { writeHtmlFile } from './libs/output';
 import { replaceRoute } from './libs/replace';
@@ -49,11 +49,7 @@ export const ssgPlugin = (): CliPlugin<AppTools> => ({
 
       const { appDirectory, entrypoints } = appContext;
       const { output, server } = resolvedConfig;
-      const {
-        ssg,
-        ssgByEntries,
-        distPath: { root: outputPath } = {},
-      } = output;
+      const { ssg, ssgByEntries, distPath: { root: outputPath } = {} } = output;
 
       const ssgOptions: SSGConfig =
         (Array.isArray(ssg) ? ssg.pop() : ssg) ?? true;

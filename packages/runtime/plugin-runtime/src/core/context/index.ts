@@ -5,14 +5,14 @@ import type { RuntimeExtends } from '../plugin/types';
 import type { ServerPayload } from './serverPayload/index';
 
 export {
-  type TRuntimeContext,
-  type TInternalRuntimeContext,
-  RuntimeContext,
-  InternalRuntimeContext,
   getInitialContext,
+  InternalRuntimeContext,
+  RuntimeContext,
+  type TInternalRuntimeContext,
+  type TRuntimeContext,
 } from './runtime';
 
-export type { ServerPayload, PayloadRoute } from './serverPayload/index';
+export type { PayloadRoute, ServerPayload } from './serverPayload/index';
 
 interface GlobalContext {
   entryName?: string;

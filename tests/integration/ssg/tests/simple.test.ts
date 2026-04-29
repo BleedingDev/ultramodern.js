@@ -1,5 +1,5 @@
-import path, { join } from 'path';
 import { fs } from '@modern-js/utils';
+import path, { join } from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });

@@ -1,20 +1,20 @@
-import * as path from 'path';
 import {
+  isHtmlDisabled,
   type Rspack,
   SERVICE_WORKER_ENVIRONMENT_NAME,
-  isHtmlDisabled,
 } from '@modern-js/builder';
 import { fs, isUseRsc, isUseSSRBundle } from '@modern-js/utils';
 import {
+  mergeRsbuildConfig,
   type RsbuildPlugin,
   type RspackChain,
-  mergeRsbuildConfig,
 } from '@rsbuild/core';
+import * as path from 'path';
 import { getServerCombinedModuleFile } from '../../../plugins/analyze/utils';
 import type {
   AppNormalizedConfig,
-  SSGMultiEntryOptions,
   ServerUserConfig,
+  SSGMultiEntryOptions,
 } from '../../../types';
 import { HtmlAsyncChunkPlugin, RouterPlugin } from '../bundlerPlugins';
 import type { BuilderOptions } from '../types';

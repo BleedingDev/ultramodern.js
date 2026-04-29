@@ -9,10 +9,7 @@ const DEFAULT_LOADABLE: LoadableConfig = {
 };
 
 export interface MicroProps {
-  setLoadingState: (state: {
-    isLoading?: boolean;
-    error?: unknown;
-  }) => void;
+  setLoadingState: (state: { isLoading?: boolean; error?: unknown }) => void;
   [key: string]: any;
 }
 

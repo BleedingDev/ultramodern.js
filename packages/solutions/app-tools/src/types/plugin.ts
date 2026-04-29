@@ -17,8 +17,8 @@ import type {
   ServerPlugin,
   ServerRoute,
 } from '@modern-js/types';
-import type { AppTools } from '.';
 import type { getHookRunners } from '../compat/hooks';
+import type { AppTools } from '.';
 import type { AppToolsNormalizedConfig, AppToolsUserConfig } from './config';
 
 export type AfterPrepareFn = () => Promise<void> | void;

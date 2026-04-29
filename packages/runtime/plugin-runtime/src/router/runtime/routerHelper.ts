@@ -1,6 +1,6 @@
-import type Module from 'module';
 import type { ShouldRevalidateFunction } from '@modern-js/runtime-utils/router';
 import { ROUTE_MODULES } from '@modern-js/utils/universal/constants';
+import type Module from 'module';
 
 export const createShouldRevalidate = (
   routeId: string,

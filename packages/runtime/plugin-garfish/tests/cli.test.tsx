@@ -1,8 +1,8 @@
 import type { AppUserConfig } from '@modern-js/app-tools';
 import { type CliPlugin, manager } from '@modern-js/core';
 import WebpackChain from '@modern-js/utils/webpack-chain';
-import { externals, garfishPlugin } from '../src/cli';
 import type { UseConfig } from '../src/cli';
+import { externals, garfishPlugin } from '../src/cli';
 import { getRuntimeConfig, setRuntimeConfig } from '../src/cli/utils';
 
 const useTestAppContext = () => ({

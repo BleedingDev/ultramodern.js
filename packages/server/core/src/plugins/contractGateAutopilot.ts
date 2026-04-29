@@ -1,8 +1,8 @@
 import {
   type ContractGateSnapshotStore,
+  createFileContractGateSnapshotStore,
   type GateSnapshot,
   type GateSnapshotGateValue,
-  createFileContractGateSnapshotStore,
 } from './contractGateSnapshotStore';
 import type { TelemetryCanaryOrchestrator } from './telemetry';
 

@@ -1,4 +1,4 @@
-import { type RuntimePlugin, defineRuntimeConfig } from '@modern-js/runtime';
+import { defineRuntimeConfig, type RuntimePlugin } from '@modern-js/runtime';
 import { createStaticHandler } from '@modern-js/runtime-utils/router';
 import { routes } from './routes';
 

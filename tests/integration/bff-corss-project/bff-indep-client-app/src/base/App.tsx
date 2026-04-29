@@ -3,7 +3,7 @@ import { configure as innerConfigure } from '@modern-js/plugin-bff/client';
 import type { AxiosRequestHeaders as Headers, Method } from 'axios';
 import axios from 'axios';
 import context from 'bff-api-app/api/context/index';
-import hello, { postHello, post } from 'bff-api-app/api/index';
+import hello, { post, postHello } from 'bff-api-app/api/index';
 import getUser from 'bff-api-app/api/user/[id]';
 import { configure } from 'bff-api-app/runtime';
 import { useEffect, useState } from 'react';

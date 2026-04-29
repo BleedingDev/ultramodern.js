@@ -7,12 +7,13 @@
  * Copyright 2021 Remix Software Inc.
  * https://github.com/remix-run/remix/blob/2b5e1a72fc628d0408e27cf4d72e537762f1dc5b/LICENSE.md
  */
-import { TextEncoder } from 'util';
+
 import type {
   DeferredData,
   TrackedPromise,
 } from '@modern-js/runtime-utils/browser';
 import { serializeJson } from '@modern-js/runtime-utils/node';
+import { TextEncoder } from 'util';
 
 function isTrackedPromise(value: any): value is TrackedPromise {
   return (

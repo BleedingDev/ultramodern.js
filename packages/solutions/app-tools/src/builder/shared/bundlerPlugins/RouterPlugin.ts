@@ -1,8 +1,8 @@
-import { createHash } from 'crypto';
 import { ROUTE_MANIFEST_FILE } from '@modern-js/utils';
 import { merge, mergeWith } from '@modern-js/utils/lodash';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
 import type { Rspack, ScriptLoading } from '@rsbuild/core';
+import { createHash } from 'crypto';
 
 const PLUGIN_NAME = 'ModernjsRoutePlugin';
 

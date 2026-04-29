@@ -59,10 +59,11 @@ declare module 'react-server-dom-rspack' {
 // Server Node
 declare module 'react-server-dom-rspack/server.node' {
   import type {
-    TemporaryReferenceSet,
     ServerEntry,
+    TemporaryReferenceSet,
   } from 'react-server-dom-rspack';
-  export type { TemporaryReferenceSet, ServerEntry };
+
+  export type { ServerEntry, TemporaryReferenceSet };
 
   export function renderToReadableStream(
     model: unknown,
@@ -155,10 +156,11 @@ declare module 'react-server-dom-rspack/server.node' {
 // Server Edge
 declare module 'react-server-dom-rspack/server.edge' {
   import type {
-    TemporaryReferenceSet,
     ServerEntry,
+    TemporaryReferenceSet,
   } from 'react-server-dom-rspack';
-  export type { TemporaryReferenceSet, ServerEntry };
+
+  export type { ServerEntry, TemporaryReferenceSet };
 
   export function renderToReadableStream(
     model: unknown,
@@ -230,10 +232,11 @@ declare module 'react-server-dom-rspack/server.edge' {
 // Server Browser
 declare module 'react-server-dom-rspack/server.browser' {
   import type {
-    TemporaryReferenceSet,
     ServerEntry,
+    TemporaryReferenceSet,
   } from 'react-server-dom-rspack';
-  export type { TemporaryReferenceSet, ServerEntry };
+
+  export type { ServerEntry, TemporaryReferenceSet };
 
   export function renderToReadableStream(
     model: unknown,
@@ -305,6 +308,7 @@ declare module 'react-server-dom-rspack/server.browser' {
 // Client Browser
 declare module 'react-server-dom-rspack/client.browser' {
   import type { TemporaryReferenceSet } from 'react-server-dom-rspack';
+
   export type { TemporaryReferenceSet };
 
   export type CallServerCallback = (
@@ -367,6 +371,7 @@ declare module 'react-server-dom-rspack/client.browser' {
 // Client Edge
 declare module 'react-server-dom-rspack/client.edge' {
   import type { TemporaryReferenceSet } from 'react-server-dom-rspack';
+
   export type { TemporaryReferenceSet };
 
   export const createTemporaryReferenceSet: (
@@ -425,22 +430,23 @@ declare module 'react-server-dom-rspack/client.edge' {
 declare module 'react-server-dom-rspack/client.node' {
   import type { Readable } from 'node:stream';
   import type {
-    TemporaryReferenceSet,
     EncodeFormActionCallback,
     ReactCustomFormAction,
+    TemporaryReferenceSet,
   } from 'react-server-dom-rspack/client.edge';
-  export type {
-    TemporaryReferenceSet,
-    EncodeFormActionCallback,
-    ReactCustomFormAction,
-  };
+
   export {
-    createTemporaryReferenceSet,
-    createServerReference,
     createFromFetch,
     createFromReadableStream,
+    createServerReference,
+    createTemporaryReferenceSet,
     encodeReply,
   } from 'react-server-dom-rspack/client.edge';
+  export type {
+    EncodeFormActionCallback,
+    ReactCustomFormAction,
+    TemporaryReferenceSet,
+  };
 
   export interface Options {
     nonce?: string;

@@ -67,7 +67,6 @@ export function Api<
         return inputs;
       },
       set inputs(val) {
-        // biome-ignore lint/style/noParameterAssign: <explanation>
         inputs = val;
       },
     };

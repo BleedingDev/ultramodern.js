@@ -3,8 +3,8 @@ import type {
   CoreMonitor,
   CounterEvent,
   LogEvent,
-  LogLevel,
   Logger,
+  LogLevel,
   Monitors,
   TimingEvent,
 } from '@modern-js/types';

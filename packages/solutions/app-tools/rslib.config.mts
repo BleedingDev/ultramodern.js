@@ -1,6 +1,6 @@
-import path from 'path';
 import { rslibConfig } from '@modern-js/rslib';
 import { defineConfig } from '@rslib/core';
+import path from 'path';
 
 export default defineConfig({
   ...rslibConfig,

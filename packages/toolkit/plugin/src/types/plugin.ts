@@ -1,6 +1,5 @@
 import type { PluginHook } from './hooks';
-import type { Falsy } from './utils';
-import type { MaybePromise } from './utils';
+import type { Falsy, MaybePromise } from './utils';
 
 export type TransformFunction<T> = (arg: T) => T | Promise<T>;
 

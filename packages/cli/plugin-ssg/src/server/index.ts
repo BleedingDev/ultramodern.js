@@ -1,19 +1,19 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import path from 'path';
 import type {
   AppNormalizedConfig,
   AppToolsContext,
 } from '@modern-js/app-tools';
 import {
-  type ProdServerOptions,
   createProdServer,
   loadServerPlugins,
+  type ProdServerOptions,
 } from '@modern-js/prod-server';
 import type {
   ServerRoute as ModernRoute,
   ServerPlugin,
 } from '@modern-js/types';
-import { SERVER_DIR, createLogger, getMeta, logger } from '@modern-js/utils';
+import { createLogger, getMeta, logger, SERVER_DIR } from '@modern-js/utils';
+import path from 'path';
 import { chunkArray, openRouteSSR } from '../libs/util';
 import type { SsgRoute } from '../types';
 

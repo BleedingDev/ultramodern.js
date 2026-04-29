@@ -1,7 +1,7 @@
 import {
-  TelemetryRegistry,
   createOtlpTelemetryExporter,
   createVictoriaMetricsTelemetryExporter,
+  TelemetryRegistry,
 } from '../../src/plugins/telemetry';
 
 const createEnvelope = (partial: Record<string, unknown> = {}) => ({

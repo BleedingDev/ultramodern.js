@@ -1,11 +1,11 @@
-import fs from 'fs';
-import path from 'path';
 import type { Entrypoint } from '@modern-js/types';
 import {
-  JS_EXTENSIONS,
   ensureAbsolutePath,
   findExists,
+  JS_EXTENSIONS,
 } from '@modern-js/utils';
+import fs from 'fs';
+import path from 'path';
 import type { AppNormalizedConfig } from '../../types';
 import type { AppToolsContext, AppToolsHooks } from '../../types/plugin';
 import { ENTRY_FILE_NAME } from './constants';

@@ -3,10 +3,10 @@
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import {
-  RouterProvider,
   createBrowserHistory,
   createHashHistory,
   createRouter,
+  RouterProvider,
   useLocation,
   useMatches,
   useNavigate,
@@ -17,20 +17,20 @@ import * as React from 'react';
 import { useContext, useMemo } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
-  InternalRuntimeContext,
   getGlobalLayoutApp,
   getGlobalRoutes,
+  InternalRuntimeContext,
 } from '../../../core/context';
 import {
-  type RouterExtendsHooks,
   onAfterCreateRouter as onAfterCreateRouterHook,
   onAfterHydrateRouter as onAfterHydrateRouterHook,
   onBeforeCreateRouter as onBeforeCreateRouterHook,
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
+  type RouterExtendsHooks,
 } from '../hooks';
 import {
-  type RouterLifecycleContext,
   applyRouterRuntimeState,
+  type RouterLifecycleContext,
 } from '../lifecycle';
 import type { RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';

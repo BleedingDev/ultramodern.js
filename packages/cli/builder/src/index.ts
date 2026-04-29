@@ -1,41 +1,36 @@
 import { type BuilderInstance, createRspackBuilder } from './createBuilder';
 import type { CreateBuilderOptions } from './types';
 
-export type { CreateBuilderOptions, BuilderInstance };
-
-export type {
-  BuilderConfig,
-  BundlerType,
-  ToolsDevServerConfig,
-  MetaOptions,
-  Stats,
-  MultiStats,
-  RspackConfig,
-  CacheGroup,
-} from './types';
-
-export { createRspackBuilder as createBuilder };
-
 export {
-  logger,
+  type ChainIdentifier,
   type ConfigChain,
+  logger,
+  type NormalizedConfig,
+  type RsbuildConfig,
+  type RsbuildContext,
   type RsbuildPlugin,
   type RsbuildPlugins,
-  type ChainIdentifier,
-  type RspackChain,
-  type Rspack,
-  type RsbuildContext,
-  type RsbuildConfig,
   type RsbuildTarget,
-  type NormalizedConfig,
+  type Rspack,
+  type RspackChain,
 } from '@rsbuild/core';
-
+export { parseConfig as parseRspackConfig } from './createBuilder';
 export {
+  castArray,
+  isHtmlDisabled,
   RUNTIME_CHUNK_NAME,
   RUNTIME_CHUNK_REGEX,
   SERVICE_WORKER_ENVIRONMENT_NAME,
-  isHtmlDisabled,
-  castArray,
 } from './shared/utils';
-
-export { parseConfig as parseRspackConfig } from './createBuilder';
+export type {
+  BuilderConfig,
+  BundlerType,
+  CacheGroup,
+  MetaOptions,
+  MultiStats,
+  RspackConfig,
+  Stats,
+  ToolsDevServerConfig,
+} from './types';
+export type { BuilderInstance, CreateBuilderOptions };
+export { createRspackBuilder as createBuilder };

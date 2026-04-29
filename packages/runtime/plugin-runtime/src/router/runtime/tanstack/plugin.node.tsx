@@ -2,32 +2,32 @@
 
 import { merge } from '@modern-js/runtime-utils/merge';
 import {
-  type RequestContext,
   createRequestContext,
+  type RequestContext,
 } from '@modern-js/runtime-utils/node';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
 import {
   type AnyRouter,
-  RouterProvider,
   createMemoryHistory,
   createRouter,
+  RouterProvider,
 } from '@tanstack/react-router';
 import { attachRouterServerSsrUtils } from '@tanstack/react-router/ssr/server';
 import type React from 'react';
 import { Suspense, useContext } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
-  InternalRuntimeContext,
   getGlobalLayoutApp,
   getGlobalRoutes,
+  InternalRuntimeContext,
 } from '../../../core/context';
 import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import type { RouterExtendsHooks } from '../hooks';
 import {
-  type RouterLifecycleContext,
   applyRouterRuntimeState,
+  type RouterLifecycleContext,
 } from '../lifecycle';
 import type { InternalRouterServerSnapshot, RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';

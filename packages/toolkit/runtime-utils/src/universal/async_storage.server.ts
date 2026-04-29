@@ -1,6 +1,6 @@
-import type { IncomingHttpHeaders } from 'http';
 import type { Monitors } from '@modern-js/types';
 import * as ah from 'async_hooks';
+import type { IncomingHttpHeaders } from 'http';
 
 const createStorage = <T>() => {
   let storage: ah.AsyncLocalStorage<any>;
@@ -61,7 +61,7 @@ const storage = createStorage<{
 
 type Storage = typeof storage;
 
-export { storage, type Storage };
+export { type Storage, storage };
 
 export const getAsyncLocalStorage = async (): Promise<Storage> => {
   return storage;

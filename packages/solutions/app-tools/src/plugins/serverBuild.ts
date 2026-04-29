@@ -1,7 +1,7 @@
+import { compile } from '@modern-js/server-utils';
+import { getMeta, SERVER_DIR, SHARED_DIR } from '@modern-js/utils';
 import fs from 'fs';
 import path from 'path';
-import { compile } from '@modern-js/server-utils';
-import { SERVER_DIR, SHARED_DIR, getMeta } from '@modern-js/utils';
 import type { AppTools, CliPlugin } from '../types';
 
 const TS_CONFIG_FILENAME = 'tsconfig.json';

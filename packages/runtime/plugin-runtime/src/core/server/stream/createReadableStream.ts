@@ -1,7 +1,7 @@
-import { PassThrough, Readable, Transform } from 'stream';
 import { storage } from '@modern-js/runtime-utils/node';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type { ReactElement } from 'react';
+import { PassThrough, Readable, Transform } from 'stream';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
 import { getGlobalInternalRuntimeContext } from '../../context';
@@ -9,9 +9,9 @@ import { getMonitors } from '../../context/monitors';
 import { enqueueFromEntries } from './deferredScript';
 import {
   type CreateReadableStreamFromElement,
-  ShellChunkStatus,
   getReadableStreamFromString,
   resolveStreamingMode,
+  ShellChunkStatus,
 } from './shared';
 import { getTemplates } from './template';
 

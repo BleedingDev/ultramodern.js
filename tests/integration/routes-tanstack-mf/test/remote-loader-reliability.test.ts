@@ -1,7 +1,7 @@
 import {
+  loadRemoteModuleWithRetryBase,
   RemoteComponentContractError,
   RemoteLoadError,
-  loadRemoteModuleWithRetryBase,
   resolveRemoteComponentBase,
 } from '../mf-host/src/routes/mf/remoteLoaderCore';
 

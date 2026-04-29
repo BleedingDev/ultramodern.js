@@ -1,5 +1,5 @@
-import path from 'path';
 import { pkgUp } from '@modern-js/utils';
+import path from 'path';
 
 export const initAppDir = async (currentDir?: string): Promise<string> => {
   const cwd: string = currentDir || process.cwd();

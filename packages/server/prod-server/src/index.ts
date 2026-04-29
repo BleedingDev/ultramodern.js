@@ -9,27 +9,24 @@ import {
 import { applyPlugins } from './apply';
 import type { BaseEnv, ProdServerOptions } from './types';
 
-export { applyPlugins, type ApplyPlugins } from './apply';
-export { loadServerPlugins };
-
-export {
-  TelemetryRegistry,
-  TelemetryCanaryOrchestrator,
-  createOtlpTelemetryExporter,
-  TelemetryStartupHealthError,
-  createVictoriaMetricsTelemetryExporter,
-  createTelemetryAwareMetrics,
-  hasEnabledTelemetryExporters,
-} from './libs/telemetry';
+export type { ServerPlugin } from '@modern-js/server-core';
+export { type ApplyPlugins, applyPlugins } from './apply';
 export type {
   TelemetryCanaryDecision,
-  TelemetrySloAlert,
   TelemetryQueueStats,
+  TelemetrySloAlert,
 } from './libs/telemetry';
-
-export type { ServerPlugin } from '@modern-js/server-core';
-
-export type { ProdServerOptions, BaseEnv } from './types';
+export {
+  createOtlpTelemetryExporter,
+  createTelemetryAwareMetrics,
+  createVictoriaMetricsTelemetryExporter,
+  hasEnabledTelemetryExporters,
+  TelemetryCanaryOrchestrator,
+  TelemetryRegistry,
+  TelemetryStartupHealthError,
+} from './libs/telemetry';
+export type { BaseEnv, ProdServerOptions } from './types';
+export { loadServerPlugins };
 
 export const createProdServer = async (options: ProdServerOptions) => {
   await loadServerEnv(options);

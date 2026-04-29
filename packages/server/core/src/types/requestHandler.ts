@@ -2,8 +2,8 @@ import type { Logger, Metrics, Reporter, ServerRoute } from '@modern-js/types';
 import type {
   Monitors,
   ClientManifest as RscClientManifest,
-  SSRManifest as RscSSRManifest,
   ServerManifest as RscServerManifest,
+  SSRManifest as RscSSRManifest,
 } from '@modern-js/types/server';
 import type { ServerUserConfig, SourceUserConfig } from './config';
 

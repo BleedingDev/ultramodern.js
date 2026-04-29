@@ -1,5 +1,5 @@
-import type { Buffer } from 'buffer';
 import Fs from '@modern-js/utils/fs-extra';
+import type { Buffer } from 'buffer';
 import { createMemoryStorage } from './storer';
 import type { Storage } from './storer/storage';
 

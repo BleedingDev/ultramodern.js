@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
   "vcs": {
     "enabled": true,
     "defaultBranch": "main",
@@ -9,18 +9,22 @@
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
-    "ignore": [
-      "package.json",
-      "packages/document/main-doc/scripts/summary.*.json",
-      "packages/runtime/plugin-runtime/tests/document/feature/document/_tempTsconfig.json",
-      "packages/generator/sandpack-react/src/templates/**",
-      "tests/integration/swc/fixtures/minify-css/src/bootstrap.css",
-      "tests/integration/swc/fixtures/config-function/src/bootstrap.css",
-      "packages/runtime/plugin-runtime/static/**",
-      "tests/integration/i18n/mf-consumer/@mf-types/**"
+    "includes": [
+      "**",
+      "!**/package.json",
+      "!**/packages/document/main-doc/scripts/summary.*.json",
+      "!**/packages/runtime/plugin-runtime/tests/document/feature/document/_tempTsconfig.json",
+      "!**/packages/generator/sandpack-react/src/templates/**",
+      "!**/tests/integration/swc/fixtures/minify-css/src/bootstrap.css",
+      "!**/tests/integration/swc/fixtures/config-function/src/bootstrap.css",
+      "!**/packages/runtime/plugin-runtime/static/**",
+      "!**/tests/integration/i18n/mf-consumer/@mf-types/**"
     ]
   },
   "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
     "formatter": {
       "quoteStyle": "single"
     }
@@ -42,7 +46,11 @@
         "noNonNullAssertion": "off",
         "noUnusedTemplateLiteral": "off",
         "noUselessElse": "off",
-        "useNumberNamespace": "off"
+        "useNumberNamespace": "off",
+        "useImportType": "off",
+        "noParameterAssign": "off",
+        "useTemplate": "off",
+        "useDefaultParameterLast": "off"
       },
       "suspicious": {
         "noExplicitAny": "off",
@@ -53,72 +61,91 @@
         "noRedeclare": "off",
         "noDuplicateFontNames": "off",
         "noShorthandPropertyOverrides": "off",
-        "noDuplicateAtImportRules": "off"
+        "noDuplicateAtImportRules": "off",
+        "useIterableCallbackReturn": "off",
+        "noDuplicateProperties": "off",
+        "noNonNullAssertedOptionalChain": "off",
+        "noControlCharactersInRegex": "off",
+        "noExportsInTest": "off",
+        "noTsIgnore": "off"
       },
       "complexity": {
         "noForEach": "off",
         "useArrowFunction": "off",
         "useFlatMap": "off",
-        "noBannedTypes": "off"
+        "noBannedTypes": "off",
+        "noUselessContinue": "off",
+        "noUselessFragments": "off",
+        "useOptionalChain": "off",
+        "noImportantStyles": "off",
+        "noArguments": "off",
+        "useIndexOf": "off",
+        "useDateNow": "off"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",
         "useAltText": "off",
         "useHtmlLang": "off",
         "useKeyWithClickEvents": "off",
-        "noBlankTarget": "off",
         "useButtonType": "off",
-        "useIframeTitle": "off"
+        "useIframeTitle": "off",
+        "noStaticElementInteractions": "off"
       },
       "performance": {
         "noDelete": "off",
         "noAccumulatingSpread": "off"
       },
       "security": {
-        "noDangerouslySetInnerHtml": "off"
+        "noDangerouslySetInnerHtml": "off",
+        "noBlankTarget": "off"
       },
       "correctness": {
         "useExhaustiveDependencies": "off",
-        "noUnnecessaryContinue": "off",
         "noUnreachable": "off",
         "noInvalidUseBeforeDeclaration": "off",
-        "noUnknownProperty": "off"
+        "noUnknownProperty": "off",
+        "noUnusedVariables": "off",
+        "noUnusedImports": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedPrivateClassMembers": "off",
+        "useHookAtTopLevel": "off",
+        "noEmptyPattern": "off"
       }
     }
   },
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "files": {
     "ignoreUnknown": true,
-    "ignore": [
-      ".beads/**/*",
-      ".vscode/**/*",
-      ".nx/**/*",
-      "coverage/**/*",
-      "node_modules/**/*",
-      "dist/**/*",
-      "dist-1/**/*",
-      "dist-2/**/*",
-      "dist-swc/**/*",
-      "output/**/*",
-      ".output/**/*",
-      ".netlify/**/*",
-      "lib/**/*",
-      "compiled/**/*",
-      ".rpt2_cache/**/*",
-      "packages/runtime/plugin-runtime/tests/document/feature/document/_main.html.js",
-      "packages/server/core/tests/fixtures/mock/cjs/config/mock/**/*",
-      "packages/server/server/tests/fixtures/mock/cjs/config/mock/**/*",
-      "tests/integration/ssr/fixtures/preload/**/*",
-      "tests/e2e/builder/cases/**/dist-tools-*",
-      "tests/integration/swc/fixtures/transform-fail/src/App.jsx",
-      "tests/integration/module/plugins/vue/**/*",
-      "packages/module/plugin-module-node-polyfill/src/globals.js",
-      "packages/runtime/plugin-runtime/static/**",
-      "packages/cli/flight-server-transform-plugin/tests/fixture/**/*",
-      "**/@mf-types/**",
-      "packages/toolkit/create/template/**/*"
+    "includes": [
+      "**",
+      "!**/.beads/**/*",
+      "!**/.vscode/**/*",
+      "!**/.nx/**/*",
+      "!**/coverage/**/*",
+      "!**/node_modules/**/*",
+      "!**/dist/**/*",
+      "!**/dist-1/**/*",
+      "!**/dist-2/**/*",
+      "!**/dist-swc/**/*",
+      "!**/output/**/*",
+      "!**/.output/**/*",
+      "!**/.netlify/**/*",
+      "!**/lib/**/*",
+      "!**/compiled/**/*",
+      "!**/.rpt2_cache/**/*",
+      "!**/packages/runtime/plugin-runtime/tests/document/feature/document/_main.html.js",
+      "!**/packages/server/core/tests/fixtures/mock/cjs/config/mock/**/*",
+      "!**/packages/server/server/tests/fixtures/mock/cjs/config/mock/**/*",
+      "!**/tests/integration/ssr/fixtures/preload/**/*",
+      "!**/tests/e2e/builder/cases/html/template/static/**/*.html",
+      "!**/tests/e2e/builder/cases/**/dist-tools-*",
+      "!**/tests/integration/swc/fixtures/transform-fail/src/App.jsx",
+      "!**/tests/integration/module/plugins/vue/**/*",
+      "!**/packages/module/plugin-module-node-polyfill/src/globals.js",
+      "!**/packages/runtime/plugin-runtime/static",
+      "!**/packages/cli/flight-server-transform-plugin/tests/fixture/**/*",
+      "!**/@mf-types",
+      "!**/packages/toolkit/create/template/**/*"
     ]
   }
 }

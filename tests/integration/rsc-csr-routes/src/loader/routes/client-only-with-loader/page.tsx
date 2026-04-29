@@ -1,7 +1,6 @@
 'use client';
 
-import { useLoaderData } from '@modern-js/runtime/router';
-import { Link } from '@modern-js/runtime/router';
+import { Link, useLoaderData } from '@modern-js/runtime/router';
 
 export default function ClientOnlyWithLoaderPage() {
   const loaderData = useLoaderData() as { message: string };

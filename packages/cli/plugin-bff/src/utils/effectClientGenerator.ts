@@ -1,11 +1,11 @@
-import path from 'path';
 import {
-  DEFAULT_OPERATION_VERSION,
   createOperationEntries,
   createOperationSchemaHash,
+  DEFAULT_OPERATION_VERSION,
 } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
-import { fs, compatibleRequire, findExists, logger } from '@modern-js/utils';
+import { compatibleRequire, findExists, fs, logger } from '@modern-js/utils';
+import path from 'path';
 
 const JS_OR_TS_EXTS = [
   '.js',

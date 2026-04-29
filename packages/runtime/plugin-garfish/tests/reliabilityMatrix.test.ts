@@ -9,8 +9,8 @@ import {
   inferFallbackReason,
 } from '../src/runtime/fallbackTelemetry';
 import {
-  RemoteTrustPolicyError,
   enforceRemoteTrustPolicy,
+  RemoteTrustPolicyError,
 } from '../src/runtime/trust';
 import type {
   ModulesInfo,

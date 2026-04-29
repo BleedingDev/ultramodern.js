@@ -1,6 +1,6 @@
 import {
-  type MiddlewareHandler,
   defineServerConfig,
+  type MiddlewareHandler,
 } from '@modern-js/server-runtime';
 import { value } from '@shared/repro';
 import plugin1 from './plugins/serverPlugin';

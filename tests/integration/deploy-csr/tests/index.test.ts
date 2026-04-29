@@ -1,5 +1,5 @@
-import path from 'path';
 import { execa, fs as fse } from '@modern-js/utils';
+import path from 'path';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');

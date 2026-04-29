@@ -44,7 +44,6 @@ const getHostInUrl = (host: string) => {
 };
 
 export const getAddressUrls = (
-  // biome-ignore lint/style/useDefaultParameterLast: <explanation>
   protocol = 'http',
   port: number,
   host?: string,

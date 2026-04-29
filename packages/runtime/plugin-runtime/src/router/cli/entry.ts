@@ -1,6 +1,6 @@
-import path from 'path';
 import type { Entrypoint } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import { hasApp } from '../../cli/entry';
 import { NESTED_ROUTES_DIR } from './constants';
 

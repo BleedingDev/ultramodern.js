@@ -1,6 +1,6 @@
 import {
-  type MiddlewareHandler,
   defineServerConfig,
+  type MiddlewareHandler,
 } from '@modern-js/server-runtime';
 import { cors } from 'hono/cors';
 

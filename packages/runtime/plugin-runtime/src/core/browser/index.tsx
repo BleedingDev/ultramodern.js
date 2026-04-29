@@ -2,7 +2,7 @@ import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { parse as parseCookie } from 'cookie';
 import type React from 'react';
 import { getGlobalInternalRuntimeContext } from '../context';
-import { type TRuntimeContext, getInitialContext } from '../context/runtime';
+import { getInitialContext, type TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import type { SSRContainer } from '../types';
 import { hydrateRoot } from './hydrate';

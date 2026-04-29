@@ -1,12 +1,12 @@
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
   builderPluginPerformance,
   createRsdoctorDiagnosticsContract,
+  RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
 } from '@/plugins/performance';
-import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@rsdoctor/rspack-plugin', () => ({
   RsdoctorRspackPlugin: class RsdoctorRspackPlugin {

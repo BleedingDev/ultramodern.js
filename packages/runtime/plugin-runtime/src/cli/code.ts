@@ -1,4 +1,3 @@
-import path from 'path';
 import type {
   AppToolsContext,
   AppToolsFeatureHooks,
@@ -6,6 +5,7 @@ import type {
 } from '@modern-js/app-tools';
 import type { Entrypoint } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import {
   ENTRY_BOOTSTRAP_FILE_NAME,
   ENTRY_POINT_FILE_NAME,

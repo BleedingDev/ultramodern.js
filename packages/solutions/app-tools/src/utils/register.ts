@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {
-  fs,
   type Alias,
+  fs,
   getAliasConfig,
   isDepExists,
   loadFromProject,

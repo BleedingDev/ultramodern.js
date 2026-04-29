@@ -2,12 +2,12 @@ import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouterSubscriber } from '@modern-js/runtime-utils/router';
 import {
-  type RouteObject,
-  RouterProvider,
-  type RouterProviderProps,
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
+  type RouteObject,
+  RouterProvider,
+  type RouterProviderProps,
   useHref,
   useLocation,
   useMatches,
@@ -17,24 +17,24 @@ import * as React from 'react';
 import { useContext, useEffect, useMemo } from 'react';
 import { RuntimeContext, type RuntimePlugin } from '../../core';
 import {
-  InternalRuntimeContext,
+  getGlobalIsRscClient,
   getGlobalLayoutApp,
   getGlobalRoutes,
+  InternalRuntimeContext,
 } from '../../core/context';
-import { getGlobalIsRscClient } from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import {
-  type RouterExtendsHooks,
   modifyRoutes as modifyRoutesHook,
   onAfterCreateRouter as onAfterCreateRouterHook,
   onAfterHydrateRouter as onAfterHydrateRouterHook,
   onBeforeCreateRouter as onBeforeCreateRouterHook,
   onBeforeCreateRoutes as onBeforeCreateRoutesHook,
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
+  type RouterExtendsHooks,
 } from './hooks';
 import {
-  type RouterLifecycleContext,
   applyRouterRuntimeState,
+  type RouterLifecycleContext,
 } from './lifecycle';
 import { createClientRouterFromPayload } from './rsc-router';
 import type { RouterConfig, Routes } from './types';

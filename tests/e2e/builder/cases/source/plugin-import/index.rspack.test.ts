@@ -1,6 +1,6 @@
-import path from 'path';
 import { expect, test } from '@playwright/test';
 import { build } from '@scripts/shared';
+import path from 'path';
 import { cases, copyPkgToNodeModules, findEntry, shareTest } from './helper';
 
 test('should import with template config', async () => {

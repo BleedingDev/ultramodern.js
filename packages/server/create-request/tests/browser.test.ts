@@ -1,12 +1,12 @@
 import nock from 'nock';
 import {
   CrossOriginEnvelopePolicyError,
+  configure,
+  createRequest,
   IdentityBindingViolationError,
   OperationContractViolationError,
   ProducerClientNotInitializedError,
   ProducerDomainNotConfiguredError,
-  configure,
-  createRequest,
 } from '../src/browser';
 
 describe('configure', () => {

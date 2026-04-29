@@ -1,5 +1,7 @@
 import * as honoPkg from '@modern-js/server-core/hono';
+
 const { languageDetector } = honoPkg;
+
 import type { Context, Next, ServerPlugin } from '@modern-js/server-runtime';
 import {
   DEFAULT_I18NEXT_DETECTION_OPTIONS,
@@ -181,7 +183,6 @@ const isStaticResourceRequest = (
   // Remove language prefix if present and check again
   const pathSegments = pathname.split('/').filter(Boolean);
   if (pathSegments.length > 0 && languages.includes(pathSegments[0])) {
-    // biome-ignore lint/style/useTemplate: <explanation>
     const pathWithoutLang = '/' + pathSegments.slice(1).join('/');
     if (
       standardStaticPrefixes.some(prefix =>

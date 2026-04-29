@@ -1,6 +1,6 @@
+import { expect } from '@rstest/core';
 import { Console } from 'console';
 import path from 'path';
-import { expect } from '@rstest/core';
 import { createSnapshotSerializer } from 'path-serializer';
 
 global.console.Console = Console;

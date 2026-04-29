@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
-import path from 'path';
 import type { ServerRoute } from '@modern-js/types';
 import {
-  ROUTE_SPEC_FILE,
-  SERVER_DIR,
   fs as fse,
   getMeta,
+  ROUTE_SPEC_FILE,
+  SERVER_DIR,
 } from '@modern-js/utils';
+import path from 'path';
 
 export type ServerAppContext = {
   sharedDirectory: string;

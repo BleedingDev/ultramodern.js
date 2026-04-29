@@ -1,6 +1,6 @@
+import { isVersionAtLeast18 } from '@modern-js/utils';
 import fs from 'fs';
 import path from 'path';
-import { isVersionAtLeast18 } from '@modern-js/utils';
 import puppeteer from 'puppeteer';
 import {
   getPort,

@@ -17,13 +17,13 @@ import type {
 
 // Re-export types for backward compatibility
 export type {
-  RouteConfig,
-  RouteFunction,
+  DefineRoutesFunction,
   LayoutFunction,
   PageFunction,
-  WildcardFunction,
+  RouteConfig,
+  RouteFunction,
   RouteFunctions,
-  DefineRoutesFunction,
+  WildcardFunction,
 };
 
 /**

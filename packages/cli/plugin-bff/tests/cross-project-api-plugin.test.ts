@@ -1,7 +1,7 @@
 import {
+  crossProjectApiPlugin,
   PREFIX,
   RUNTIME_FRAMEWORK,
-  crossProjectApiPlugin,
 } from '../src/utils/crossProjectApiPlugin';
 
 function runWithConfig(config: Record<string, any>) {

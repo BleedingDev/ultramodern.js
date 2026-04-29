@@ -3,7 +3,7 @@ import { fs as fse, removeModuleSyncFromExports } from '@modern-js/utils';
 import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { isMainEntry } from '../../../utils/routes';
 import { getTemplatePath, readTemplate, resolveESMDependency } from '../utils';
-import { type PluginItem, generateHandler } from '../utils/generator';
+import { generateHandler, type PluginItem } from '../utils/generator';
 import type { CreatePreset } from './platform';
 
 async function cleanDistDirectory(dir: string) {

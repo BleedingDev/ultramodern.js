@@ -1,20 +1,19 @@
-import path from 'path';
 import type { Plugin as BasePlugin } from '@modern-js/plugin';
 import { server } from '@modern-js/plugin/server';
 import {
-  type ServerConfig,
-  type ServerPlugin,
   compatPlugin,
   handleSetupResult,
+  type ServerConfig,
+  type ServerPlugin,
 } from '@modern-js/server-core';
 import { assign } from '@modern-js/utils/lodash';
+import path from 'path';
 import plugin from '../src/server';
 
 const noop = () => {};
 
 const pwd = path.resolve(__dirname, './fixtures/function');
 
-// biome-ignore lint/suspicious/noExportsInTest: <explanation>
 export async function serverInit({
   plugins,
   serverConfig,

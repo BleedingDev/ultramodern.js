@@ -1,8 +1,8 @@
-import path from 'path';
 import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { logger } from '@modern-js/utils';
 import type { Rspack } from '@rsbuild/core';
+import path from 'path';
 import {
   generateEffectClientCode,
   resolveEffectEntryFile,

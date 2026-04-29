@@ -1,5 +1,5 @@
-import path from 'path';
 import type { RsbuildPlugin } from '@rsbuild/core';
+import path from 'path';
 
 export function rscClientBrowserFallbackPlugin(): RsbuildPlugin {
   return {

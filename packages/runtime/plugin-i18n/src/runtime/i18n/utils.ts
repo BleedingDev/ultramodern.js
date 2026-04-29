@@ -1,11 +1,9 @@
 import { isBrowser } from '@modern-js/runtime';
 import type { BaseBackendOptions } from '../../shared/type';
 import { mergeBackendOptions } from './backend';
-import { HttpBackendWithSave } from './backend/middleware';
-import { useI18nextBackend } from './backend/middleware';
+import { HttpBackendWithSave, useI18nextBackend } from './backend/middleware';
 import { SdkBackend } from './backend/sdk-backend';
-import { cacheUserLanguage } from './detection';
-import { mergeDetectionOptions } from './detection';
+import { cacheUserLanguage, mergeDetectionOptions } from './detection';
 import type { I18nInitOptions, I18nInstance } from './instance';
 import {
   getActualI18nextInstance,

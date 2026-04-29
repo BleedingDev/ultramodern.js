@@ -1,5 +1,4 @@
 import { open as fsOpen } from 'node:fs/promises';
-import path from 'path';
 import type {
   AppNormalizedConfig,
   AppToolsContext,
@@ -13,15 +12,16 @@ import type {
   SSRMode,
 } from '@modern-js/types';
 import {
-  fs,
-  JS_EXTENSIONS,
   findExists,
   formatImportPath,
+  fs,
   getEntryOptions,
   isSSGEntry,
+  JS_EXTENSIONS,
   slash,
 } from '@modern-js/utils';
 import { ROUTE_MODULES } from '@modern-js/utils/universal/constants';
+import path from 'path';
 import {
   APP_CONFIG_NAME,
   APP_INIT_EXPORTED,

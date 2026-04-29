@@ -1,4 +1,3 @@
-import path from 'path';
 import type {
   AppNormalizedConfig,
   AppTools,
@@ -14,19 +13,18 @@ import type {
   SSRMode,
 } from '@modern-js/types';
 import {
+  filterRoutesForServer,
+  filterRoutesLoader,
   fs,
   getEntryOptions,
   isSSGEntry,
   isUseRsc,
   isUseSSRBundle,
   logger,
-} from '@modern-js/utils';
-import {
-  filterRoutesForServer,
-  filterRoutesLoader,
   markRoutes,
 } from '@modern-js/utils';
 import { cloneDeep } from '@modern-js/utils/lodash';
+import path from 'path';
 import { ENTRY_POINT_RUNTIME_GLOBAL_CONTEXT_FILE_NAME } from '../../../cli/constants';
 import { resolveSSRMode } from '../../../cli/ssr/mode';
 import { FILE_SYSTEM_ROUTES_FILE_NAME } from '../constants';

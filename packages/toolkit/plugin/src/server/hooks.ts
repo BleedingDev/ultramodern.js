@@ -6,7 +6,7 @@ import type {
 } from '../types/server/hooks';
 import type { DeepPartial } from '../types/utils';
 
-export type { OnResetFn, OnPrepareFn, ModifyConfigFn };
+export type { ModifyConfigFn, OnPrepareFn, OnResetFn };
 
 export function initHooks<Config>() {
   return {

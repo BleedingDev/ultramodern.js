@@ -1,9 +1,8 @@
-import path from 'path';
 import { fs, ROUTE_MANIFEST_FILE } from '@modern-js/utils';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
-import puppeteer, { type Browser } from 'puppeteer';
-
+import path from 'path';
 import type { Page } from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 import {
   getPort,
   killApp,

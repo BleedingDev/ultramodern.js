@@ -1,16 +1,16 @@
-import path from 'path';
 import { fileReader } from '@modern-js/runtime-utils/fileReader';
 import type { Monitors, ServerRoute } from '@modern-js/types';
 import {
+  compatibleRequire,
   fs,
+  isProd,
   LOADABLE_STATS_FILE,
   MAIN_ENTRY_NAME,
   NESTED_ROUTE_SPEC_FILE,
   ROUTE_MANIFEST_FILE,
   SERVER_BUNDLE_DIRECTORY,
-  compatibleRequire,
-  isProd,
 } from '@modern-js/utils';
+import path from 'path';
 import type {
   Middleware,
   MiddlewareHandler,

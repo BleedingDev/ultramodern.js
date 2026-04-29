@@ -1,6 +1,6 @@
-import path from 'path';
 import type { RuntimePluginConfig } from '@modern-js/app-tools';
-import { JS_EXTENSIONS, findExists, formatImportPath } from '@modern-js/utils';
+import { findExists, formatImportPath, JS_EXTENSIONS } from '@modern-js/utils';
+import path from 'path';
 import {
   ENTRY_POINT_RUNTIME_GLOBAL_CONTEXT_FILE_NAME,
   ENTRY_POINT_RUNTIME_REGISTER_FILE_NAME,

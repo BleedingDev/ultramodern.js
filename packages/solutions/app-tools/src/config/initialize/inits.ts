@@ -1,5 +1,5 @@
-import path, { isAbsolute } from 'path';
 import { findExists } from '@modern-js/utils';
+import path, { isAbsolute } from 'path';
 import type { AppNormalizedConfig } from '../../types';
 import type { AppToolsContext } from '../../types/plugin';
 

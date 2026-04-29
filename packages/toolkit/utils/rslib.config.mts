@@ -1,5 +1,5 @@
 import { rslibConfig } from '@modern-js/rslib';
-import { type RslibConfig, type Rspack, defineConfig } from '@rslib/core';
+import { defineConfig, type RslibConfig, type Rspack } from '@rslib/core';
 
 const dependencies = [
   // zero dependency

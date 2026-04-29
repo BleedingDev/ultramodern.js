@@ -1,6 +1,6 @@
 import type { NodeRequest, NodeResponse } from '@modern-js/types/server';
 import type { Context, Middleware, Next, ServerEnv } from '../../types';
-import { type NodeBindings, isResFinalized } from './helper';
+import { isResFinalized, type NodeBindings } from './helper';
 
 export type ServerNodeEnv = {
   Bindings: NodeBindings;

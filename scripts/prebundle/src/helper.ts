@@ -1,8 +1,8 @@
-import { dirname, join } from 'path';
-import { pathToFileURL } from 'url';
 import { findUp } from 'find-up';
 import fs from 'fs-extra';
 import { moduleResolve } from 'import-meta-resolve';
+import { dirname, join } from 'path';
+import { pathToFileURL } from 'url';
 import { DIST_DIR, PACKAGES_DIR, TASKS } from './constant';
 import type { ParsedTask } from './types';
 
@@ -28,7 +28,7 @@ const resolveESMDependency = (entry: string) => {
       pathToFileURL(`${__dirname}/`),
       conditions,
       false,
-    ).pathname.replace(/^\/(\w)\:/, '$1:');
+    ).pathname.replace(/^\/(\w):/, '$1:');
   } catch (err) {
     // ignore
   }

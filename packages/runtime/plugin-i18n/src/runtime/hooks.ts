@@ -1,12 +1,12 @@
-import { isBrowser } from '@modern-js/runtime';
 import type { TRuntimeContext } from '@modern-js/runtime';
+import { isBrowser } from '@modern-js/runtime';
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import type { I18nInstance } from './i18n';
 import {
+  getI18nSdkBackendId,
   I18N_SDK_RESOURCES_LOADED_EVENT,
   type I18nSdkResourcesLoadedEventDetail,
-  getI18nSdkBackendId,
 } from './i18n/backend/sdk-event';
 import { cacheUserLanguage } from './i18n/detection';
 import {

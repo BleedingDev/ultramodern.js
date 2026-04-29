@@ -1,5 +1,5 @@
-import path from 'path';
 import { fs, logger, normalizeToPosixPath } from '@modern-js/utils';
+import path from 'path';
 import {
   API_DIR,
   DIST_DIR,

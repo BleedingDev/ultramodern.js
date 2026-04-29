@@ -1,5 +1,5 @@
-import path from 'path';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 import { runModernCommand } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');

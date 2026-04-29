@@ -1,4 +1,3 @@
-import path from 'path';
 import type {
   Context,
   Next,
@@ -6,21 +5,22 @@ import type {
   ServerPluginAPI,
 } from '@modern-js/server-core';
 import {
-  fs,
   compatibleRequire,
   findExists,
+  fs,
   isProd,
   logger,
 } from '@modern-js/utils';
 import type * as ServiceMap from 'effect/ServiceMap';
 import { HttpApi } from 'effect/unstable/httpapi';
+import path from 'path';
 import { type EffectContext, runWithEffectContext } from './context';
-import { createHttpApiHandler } from './index';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
   EffectRuntimeLayer,
 } from './index';
+import { createHttpApiHandler } from './index';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 

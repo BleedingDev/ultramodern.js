@@ -1,8 +1,8 @@
+import { createWebRequest, sendResponse } from '@modern-js/server-core/node';
+import type { ServerRoute } from '@modern-js/types';
 import type { IncomingMessage, ServerResponse } from 'http';
 import path from 'path';
 import qs from 'querystring';
-import { createWebRequest, sendResponse } from '@modern-js/server-core/node';
-import type { ServerRoute } from '@modern-js/types';
 import request from 'supertest';
 import { LOADER_ID_PARAM } from '../src/common/constants';
 import { handleRequest } from '../src/runtime';

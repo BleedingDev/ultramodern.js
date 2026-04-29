@@ -11,9 +11,9 @@
 // The Rspack stas & compilation lacks some fields, so `loadable-webpack-plugin` can not run normally in Rspack.
 // So that we write a `loadable-bundler-plugin` based on it.
 
-import path from 'path';
 import type { Rspack } from '@modern-js/app-tools';
 import { fs } from '@modern-js/utils';
+import path from 'path';
 
 interface LoadablePluginOptions {
   filename: string;

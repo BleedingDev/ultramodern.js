@@ -1,6 +1,6 @@
-import path from 'path';
 import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
+import path from 'path';
 
 test('security.sri', async ({ page }) => {
   const builder = await build({

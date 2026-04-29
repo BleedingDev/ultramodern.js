@@ -9,6 +9,7 @@ export type Collector = {
   collect?: (component: React.ReactElement) => React.ReactElement;
   effect: () => void | Promise<void>;
 };
+
 import type React from 'react';
 import type { AsyncInterruptHook, CollectSyncHook, SyncHook } from '../hooks';
 

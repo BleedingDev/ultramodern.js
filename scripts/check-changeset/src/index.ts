@@ -1,6 +1,6 @@
-import path from 'path';
 import readChangesets from '@changesets/read';
-import { type Package, getPackages } from '@manypkg/get-packages';
+import { getPackages, type Package } from '@manypkg/get-packages';
+import path from 'path';
 
 type VersionType = 'major' | 'minor' | 'patch' | 'none';
 type Release = {

@@ -5,8 +5,8 @@ import type {
   Monitors,
   Reporter,
   ClientManifest as RscClientManifest,
-  SSRManifest as RscSSRManifest,
   ServerManifest as RscServerManifest,
+  SSRManifest as RscSSRManifest,
 } from '@modern-js/types';
 import type { NodeRequest } from '@modern-js/types/server';
 import type { ServerManifest } from './server';

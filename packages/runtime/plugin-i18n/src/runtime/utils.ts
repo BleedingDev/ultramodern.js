@@ -1,7 +1,7 @@
 import { isBrowser } from '@modern-js/runtime';
 import {
-  type TInternalRuntimeContext,
   getGlobalBasename,
+  type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
 
 export const getPathname = (context: TInternalRuntimeContext): string => {

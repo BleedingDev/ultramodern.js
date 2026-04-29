@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, describe, expect, test } from '@rstest/core';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { afterAll, beforeAll, describe, expect, test } from '@rstest/core';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   getPort,

@@ -1,6 +1,6 @@
-import path from 'path';
 import { expect, test } from '@playwright/test';
 import { build, proxyConsole } from '@scripts/shared';
+import path from 'path';
 
 test('should not compile file which outside of project by default', async () => {
   const { restore } = proxyConsole();

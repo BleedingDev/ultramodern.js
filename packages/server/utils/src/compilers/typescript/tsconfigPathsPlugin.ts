@@ -1,8 +1,8 @@
-import * as os from 'os';
-import path, { dirname, posix } from 'path';
 import { findMatchedSourcePath, findSourceEntry } from '@modern-js/utils';
 import type { MatchPath } from '@modern-js/utils/tsconfig-paths';
 import { createMatchPath } from '@modern-js/utils/tsconfig-paths';
+import * as os from 'os';
+import path, { dirname, posix } from 'path';
 import * as ts from 'typescript';
 
 // Convert a resolved source path into the specifier that native ESM output

@@ -1,11 +1,11 @@
 import {
+  isBrowser,
   RuntimeContext,
   type RuntimePlugin,
-  isBrowser,
 } from '@modern-js/runtime';
-import { merge } from '@modern-js/runtime-utils/merge';
 import { Helmet } from '@modern-js/runtime/head';
 import type { TInternalRuntimeContext } from '@modern-js/runtime/internal';
+import { merge } from '@modern-js/runtime-utils/merge';
 import type React from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {

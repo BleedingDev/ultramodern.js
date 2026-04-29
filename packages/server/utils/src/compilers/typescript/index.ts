@@ -1,7 +1,7 @@
-import path from 'path';
 import { fs, getAliasConfig, logger } from '@modern-js/utils';
-import type { ParseConfigFileHost, Program } from 'typescript';
+import path from 'path';
 import type ts from 'typescript';
+import type { ParseConfigFileHost, Program } from 'typescript';
 import type { CompileFunc } from '../../common';
 import { tsconfigPathsBeforeHookFactory } from './tsconfigPathsPlugin';
 import { TypescriptLoader } from './typescriptLoader';

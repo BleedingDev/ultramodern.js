@@ -1,7 +1,7 @@
 import hostEffectBff from '@api/effect/index';
 import { useMatch } from '@tanstack/react-router';
 import * as React from 'react';
-import { RemoteErrorBoundary, lazyRemoteComponent } from './remoteLoader';
+import { lazyRemoteComponent, RemoteErrorBoundary } from './remoteLoader';
 import './page.css';
 
 const RemoteWidget = lazyRemoteComponent('remote/Widget');

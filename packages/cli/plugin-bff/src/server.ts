@@ -1,4 +1,3 @@
-import path from 'path';
 import { ApiRouter } from '@modern-js/bff-core';
 import type {
   APIServerStartInput,
@@ -8,8 +7,8 @@ import type {
   ServerPluginAPI,
 } from '@modern-js/server-core';
 import type { ServerNodeMiddleware } from '@modern-js/server-core/node';
-import { API_DIR, isWebOnly } from '@modern-js/utils';
-import { isFunction } from '@modern-js/utils';
+import { API_DIR, isFunction, isWebOnly } from '@modern-js/utils';
+import path from 'path';
 import { EffectAdapter } from './runtime/effect/adapter';
 import { HonoAdapter } from './runtime/hono/adapter';
 

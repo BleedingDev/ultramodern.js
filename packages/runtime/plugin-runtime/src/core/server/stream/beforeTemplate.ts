@@ -89,7 +89,7 @@ export async function buildShellBeforeTemplate(
         referenceCssAssets?: string[];
       };
 
-      let matchedRouteManifests: RouteManifest[] | undefined = undefined;
+      let matchedRouteManifests: RouteManifest[] | undefined;
 
       const matchedRouteIds =
         routerServerSnapshot?.matchedRouteIds || tanstackMatchedModernRouteIds;

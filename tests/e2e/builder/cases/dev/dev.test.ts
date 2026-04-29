@@ -1,7 +1,7 @@
-import { join } from 'path';
 import { fs } from '@modern-js/utils';
 import { expect, test } from '@playwright/test';
 import { build, dev, getHrefByEntryName, getRandomPort } from '@scripts/shared';
+import { join } from 'path';
 
 const fixtures = __dirname;
 

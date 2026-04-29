@@ -1,6 +1,6 @@
 import type {
-  I18nSdkLoadOptions,
   I18nSdkLoader,
+  I18nSdkLoadOptions,
   Resources,
 } from '@modern-js/plugin-i18n/runtime';
 

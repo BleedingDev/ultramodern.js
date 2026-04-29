@@ -1,15 +1,15 @@
 import path from 'node:path';
 import type { ProdServerOptions } from '@modern-js/prod-server';
 import {
-  ROUTE_SPEC_FILE,
-  SERVER_DIR,
   fs as fse,
   getMeta,
+  ROUTE_SPEC_FILE,
+  SERVER_DIR,
 } from '@modern-js/utils';
 import { merge } from '@modern-js/utils/lodash';
-import { normalizePath } from '.';
 import type { AppToolsNormalizedConfig } from '../../../types';
 import type { AppToolsContext } from '../../../types/plugin';
+import { normalizePath } from '.';
 
 export const serverAppContextTemplate = (appContext: AppToolsContext) => {
   const {

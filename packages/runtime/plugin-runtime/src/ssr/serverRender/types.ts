@@ -15,7 +15,7 @@ export type SSRServerContext = BaseSSRServerContext & {
   tracker: SSRTracker;
 };
 export type ModernSSRReactComponent = React.ComponentType<any>;
-export { type RuntimeContext, RenderLevel };
+export { RenderLevel, type RuntimeContext };
 
 export type SSRPluginConfig = {
   crossorigin?: boolean | 'anonymous' | 'use-credentials';

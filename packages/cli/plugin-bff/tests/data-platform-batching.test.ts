@@ -1,6 +1,6 @@
 import {
-  DEFAULT_DATA_BATCH_ENDPOINT,
   createDataBatchTransport,
+  DEFAULT_DATA_BATCH_ENDPOINT,
 } from '../src/runtime/data-platform';
 
 describe('data-platform batch transport', () => {

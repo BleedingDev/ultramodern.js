@@ -1,6 +1,6 @@
-import { join } from 'path';
 import type { RsbuildPlugin } from '@rsbuild/core';
 import { afterEach, describe, expect, it, rs } from '@rstest/core';
+import { join } from 'path';
 import { createBuilder } from '../src';
 
 describe('builder rspack', () => {

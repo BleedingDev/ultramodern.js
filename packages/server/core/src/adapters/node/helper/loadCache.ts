@@ -1,6 +1,6 @@
-import path from 'path';
 import type { CacheOption, Container } from '@modern-js/types';
-import { SERVER_DIR, requireExistModule } from '@modern-js/utils';
+import { requireExistModule, SERVER_DIR } from '@modern-js/utils';
+import path from 'path';
 import type { CacheConfig } from '../../../types';
 
 const CACHE_FILENAME = 'cache';

@@ -8,19 +8,19 @@ import type {
   CacheConfig,
   FallbackReason,
   OnFallback,
+  Render,
   UserConfig,
 } from '../../types';
-import type { Render } from '../../types';
 import type { Params } from '../../types/requestHandler';
-import { uniqueKeyByRoute } from '../../utils';
 import {
-  ErrorDigest,
   createErrorHtml,
+  ErrorDigest,
   getPathname,
   getRuntimeEnv,
   parseHeaders,
   parseQuery,
   sortRoutes,
+  uniqueKeyByRoute,
 } from '../../utils';
 import { csrRscRender } from './csrRscRender';
 import { dataHandler } from './dataHandler';

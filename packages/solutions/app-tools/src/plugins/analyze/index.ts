@@ -1,16 +1,16 @@
 import { isPromise } from 'node:util/types';
-import * as path from 'path';
 import type { ServerRoute } from '@modern-js/types';
 import {
-  fs,
   createDebugger,
+  fs,
   getArgv,
+  getMeta,
   isApiOnly,
   isDevCommand,
   minimist,
 } from '@modern-js/utils';
-import { getMeta } from '@modern-js/utils';
 import type { RsbuildPlugin } from '@rsbuild/core';
+import * as path from 'path';
 import { createBuilderGenerator } from '../../builder';
 import { initialNormalizedConfig } from '../../config';
 import type {

@@ -37,5 +37,5 @@ export const getTargetDir = (
   return path.resolve(targetBaseDir, relativePath);
 };
 
-export * from './data';
 export * from './config';
+export * from './data';

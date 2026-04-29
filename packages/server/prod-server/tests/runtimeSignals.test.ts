@@ -4,10 +4,10 @@ import os from 'os';
 import path from 'path';
 import { PassThrough } from 'stream';
 import {
-  TelemetryRegistry,
   createRuntimeFallbackSignalRuntimeState,
   normalizeRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackTrustPolicy,
+  TelemetryRegistry,
 } from '../src/libs/telemetry';
 import { Server } from '../src/server/index';
 

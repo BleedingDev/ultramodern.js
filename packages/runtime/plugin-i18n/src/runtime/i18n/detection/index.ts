@@ -1,4 +1,4 @@
-import { type TRuntimeContext, isBrowser } from '@modern-js/runtime';
+import { isBrowser, type TRuntimeContext } from '@modern-js/runtime';
 import { detectLanguageFromPath } from '../../utils';
 import type {
   I18nInitOptions,

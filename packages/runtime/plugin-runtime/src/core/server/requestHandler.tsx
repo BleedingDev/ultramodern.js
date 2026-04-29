@@ -10,13 +10,12 @@ import {
   parseHeaders,
   parseQuery,
 } from '@modern-js/runtime-utils/universal/request';
-import React from 'react';
-import { Fragment } from 'react';
+import React, { Fragment } from 'react';
 import { handleRSCRedirect } from '../../router/runtime/rsc-router';
 import {
-  type TInternalRuntimeContext,
   getGlobalInternalRuntimeContext,
   getGlobalRSCRoot,
+  type TInternalRuntimeContext,
 } from '../context';
 import { getInitialContext } from '../context/runtime';
 import { getServerPayload } from '../context/serverPayload';

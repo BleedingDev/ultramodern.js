@@ -1,7 +1,7 @@
 import {
   type AppTools,
-  type CliPlugin,
   appTools,
+  type CliPlugin,
   defineConfig,
 } from '@modern-js/app-tools';
 
