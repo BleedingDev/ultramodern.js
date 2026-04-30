@@ -282,7 +282,7 @@ async function assertModuleFederationAssets(remotePort: number) {
         path?: string;
         name?: string;
       };
-      prefetchInterface?: boolean;
+      publicPath?: string;
     };
     exposes?: Array<{
       name?: string;
@@ -295,7 +295,9 @@ async function assertModuleFederationAssets(remotePort: number) {
       };
     }>;
   };
-  expect(typeof manifest.metaData?.prefetchInterface).toBe('boolean');
+  const publicPath = manifest.metaData?.publicPath;
+  expect(typeof publicPath).toBe('string');
+  expect(publicPath).toBe(`http://localhost:${remotePort}/`);
   const exposes = manifest.exposes || [];
   expect(exposes.length).toBeGreaterThan(0);
   for (const expose of exposes) {

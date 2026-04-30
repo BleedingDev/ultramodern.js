@@ -43,6 +43,7 @@ export default defineConfig({
       '**/node_modules/**',
       'integration/**/api/tests/**',
       'integration/**/module/**',
+      'integration/rstest/**',
     ],
     setupFiles: ['./utils/vitest.setup.mjs'],
     globalSetup: ['./utils/vitest.global-setup.mjs'],

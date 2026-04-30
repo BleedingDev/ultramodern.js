@@ -113,8 +113,13 @@ describe('routes-tanstack', () => {
   });
 
   test('supports link prefetch alias (intent)', async () => {
-    await page.goto(`http://localhost:${appPort}/string`, {
-      waitUntil: ['networkidle0'],
+    const prefetchPage = await browser.newPage();
+    const prefetchErrors: string[] = [];
+    await prefetchPage.setCacheEnabled(false);
+    prefetchPage.on('console', msg => {
+      if (msg.type() === 'error') {
+        prefetchErrors.push(msg.text());
+      }
     });
 
     let requestedUserChunk = false;
@@ -123,15 +128,22 @@ describe('routes-tanstack', () => {
         requestedUserChunk = true;
       }
     };
-    page.on('request', onRequest);
+    prefetchPage.on('request', onRequest);
 
-    await page.waitForSelector('[data-testid="link-user"]');
-    await page.hover('[data-testid="link-user"]');
-    await new Promise(resolve => setTimeout(resolve, 700));
+    try {
+      await prefetchPage.goto(`http://localhost:${appPort}/string`, {
+        waitUntil: ['networkidle0'],
+      });
+      await prefetchPage.waitForSelector('[data-testid="link-user"]');
+      await prefetchPage.hover('[data-testid="link-user"]');
+      await new Promise(resolve => setTimeout(resolve, 700));
 
-    page.off('request', onRequest);
-    expect(requestedUserChunk).toBe(true);
-    expect(errors).toEqual([]);
+      expect(requestedUserChunk).toBe(true);
+      expect(prefetchErrors).toEqual([]);
+    } finally {
+      prefetchPage.off('request', onRequest);
+      await prefetchPage.close();
+    }
   });
 
   test('supports optional params (string + stream)', async () => {
