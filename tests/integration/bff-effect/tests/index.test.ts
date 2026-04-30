@@ -26,16 +26,21 @@ const ensureWorkspacePackages = [
   '@modern-js/server-core',
   '@modern-js/server-runtime',
 ];
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 type AppProcess = Awaited<ReturnType<typeof launchApp>>;
 const browserLaunchOptions = launchOptions as Parameters<
   typeof puppeteer.launch
 >[0];
 
 function expectTypecheckPasses() {
-  execFileSync('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'], {
-    cwd: appDir,
-    stdio: 'pipe',
-  });
+  execFileSync(
+    pnpmCommand,
+    ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'],
+    {
+      cwd: appDir,
+      stdio: 'pipe',
+    },
+  );
 }
 
 async function expectEffectHttpApiRoute(port: number) {

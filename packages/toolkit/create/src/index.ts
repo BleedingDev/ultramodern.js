@@ -908,6 +908,10 @@ async function main() {
     : path.isAbsolute(projectName)
       ? projectName
       : path.resolve(process.cwd(), projectName);
+  const generatedPackageName =
+    useCurrentDir || path.isAbsolute(projectName)
+      ? path.basename(targetDir)
+      : projectName;
 
   if (fs.existsSync(targetDir)) {
     const files = fs.readdirSync(targetDir);
@@ -932,7 +936,7 @@ async function main() {
   validateTemplateManifest(templateManifest);
 
   copyTemplate(templateDir, targetDir, {
-    packageName: projectName,
+    packageName: generatedPackageName,
     version: dependencyVersion,
     isSubproject,
     routerFramework,
@@ -943,7 +947,7 @@ async function main() {
 
   const targetPackageJson = path.join(targetDir, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(targetPackageJson, 'utf-8'));
-  packageJson.name = projectName;
+  packageJson.name = generatedPackageName;
 
   if (isSubproject) {
     delete packageJson['lint-staged'];

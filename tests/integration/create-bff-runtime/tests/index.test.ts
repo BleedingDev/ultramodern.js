@@ -64,6 +64,7 @@ describe('create-bff-runtime', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
+    expect(packageJson.name).toBe('with-bff-effect-default');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
 
     const modernConfig = fs.readFileSync(

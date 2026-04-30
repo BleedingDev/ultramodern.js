@@ -59,6 +59,7 @@ describe('create-tailwind', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
+    expect(packageJson.name).toBe('with-tailwind');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.1.18');
