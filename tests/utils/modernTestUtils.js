@@ -1,6 +1,8 @@
+const crypto = require('node:crypto');
 const path = require('path');
 const fs = require('node:fs');
 const net = require('node:net');
+const os = require('node:os');
 const spawn = require('cross-spawn');
 const treeKill = require('tree-kill');
 const { launchOptions } = require('./launchOptions');
@@ -16,6 +18,57 @@ const kWorkspaceSearchRoots = [
   path.join(kRepoRoot, 'packages'),
   path.join(kRepoRoot, 'tests'),
 ];
+const kWorkspacePackageLockPollInterval = 200;
+const kWorkspacePackageLockStaleAge = 10 * 60 * 1000;
+
+function resolveWorkspacePackageBuildLockDir(packageDir) {
+  const digest = crypto
+    .createHash('sha1')
+    .update(path.resolve(packageDir))
+    .digest('hex');
+
+  return path.join(os.tmpdir(), `modernjs-workspace-package-${digest}.lock`);
+}
+
+async function acquireWorkspacePackageBuildLock(packageDir) {
+  const lockDir = resolveWorkspacePackageBuildLockDir(packageDir);
+
+  while (true) {
+    try {
+      await fs.promises.mkdir(lockDir);
+      await fs.promises.writeFile(
+        path.join(lockDir, 'owner.json'),
+        JSON.stringify({
+          pid: process.pid,
+          packageDir: path.resolve(packageDir),
+          acquiredAt: new Date().toISOString(),
+        }),
+      );
+
+      return async () => {
+        await fs.promises.rm(lockDir, { recursive: true, force: true });
+      };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') {
+        throw error;
+      }
+
+      try {
+        const stat = await fs.promises.stat(lockDir);
+        if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
+          await fs.promises.rm(lockDir, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      await new Promise(resolve =>
+        setTimeout(resolve, kWorkspacePackageLockPollInterval),
+      );
+    }
+  }
+}
 
 function getNewestModifiedAt(targetPath) {
   if (!fs.existsSync(targetPath)) {
@@ -145,6 +198,33 @@ function resolvePackageDistEntry(packageDir, packageJson) {
   return path.join(packageDir, 'dist/cjs/index.js');
 }
 
+function collectExportDistEntries(packageDir, exportValue, entries) {
+  if (typeof exportValue === 'string') {
+    if (exportValue.startsWith('./dist/') && !exportValue.includes('/types/')) {
+      entries.push(path.join(packageDir, exportValue));
+    }
+    return;
+  }
+
+  if (!exportValue || typeof exportValue !== 'object') {
+    return;
+  }
+
+  for (const [condition, conditionValue] of Object.entries(exportValue)) {
+    if (condition === 'types') {
+      continue;
+    }
+    collectExportDistEntries(packageDir, conditionValue, entries);
+  }
+}
+
+function resolveRequiredPackageDistEntries(packageDir, packageJson) {
+  const entries = [];
+  collectExportDistEntries(packageDir, packageJson.exports, entries);
+
+  return [...new Set(entries)];
+}
+
 function shouldRefreshWorkspacePackageBuild(packageDir, packageJson) {
   if (!packageDir.includes(`${path.sep}packages${path.sep}`)) {
     return false;
@@ -152,6 +232,14 @@ function shouldRefreshWorkspacePackageBuild(packageDir, packageJson) {
 
   const distEntry = resolvePackageDistEntry(packageDir, packageJson);
   if (!fs.existsSync(distEntry)) {
+    return true;
+  }
+
+  const requiredDistEntries = resolveRequiredPackageDistEntries(
+    packageDir,
+    packageJson,
+  );
+  if (requiredDistEntries.some(entry => !fs.existsSync(entry))) {
     return true;
   }
 
@@ -229,18 +317,20 @@ function ensureWorkspacePackageBuilt(packageName) {
     const buildPromise = (async () => {
       const { packageDir, packageJson } =
         resolveWorkspacePackageInfo(packageName);
+      const releaseBuildLock =
+        await acquireWorkspacePackageBuildLock(packageDir);
 
-      if (!shouldRefreshWorkspacePackageBuild(packageDir, packageJson)) {
-        return;
-      }
+      try {
+        if (!shouldRefreshWorkspacePackageBuild(packageDir, packageJson)) {
+          return;
+        }
 
-      await runProcess(
-        'pnpm',
-        ['--dir', packageDir, 'exec', 'rslib', 'build', '--no-dts'],
-        {
+        await runProcess('pnpm', ['--dir', packageDir, 'run', 'build'], {
           cwd: kRepoRoot,
-        },
-      );
+        });
+      } finally {
+        await releaseBuildLock();
+      }
     })();
 
     kWorkspacePackageBuilds.set(packageName, buildPromise);
@@ -569,7 +659,7 @@ function modernServe(dir, port, opts = {}) {
 async function killApp(instance) {
   await new Promise((resolve, reject) => {
     if (!instance) {
-      resolve();
+      return resolve();
     }
 
     const startedAt = Date.now();
@@ -643,4 +733,5 @@ module.exports = {
   sleep,
   runContinuousTask,
   launchOptions,
+  ensureWorkspacePackagesBuilt,
 };

@@ -3,6 +3,11 @@ import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
+  ensureWorkspacePackagesBuilt,
   getPort,
   killApp,
   launchApp,
@@ -16,6 +21,11 @@ dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
+const ensureWorkspacePackages = [
+  '@modern-js/plugin-bff',
+  '@modern-js/server-core',
+  '@modern-js/server-runtime',
+];
 type AppProcess = Awaited<ReturnType<typeof launchApp>>;
 const browserLaunchOptions = launchOptions as Parameters<
   typeof puppeteer.launch
@@ -286,15 +296,18 @@ async function expectOpenTelemetryTraceInBrowser(page: Page, port: number) {
 describe('bff effect tests', () => {
   describe('bff effect in dev', () => {
     let app: AppProcess;
-    let browser: Browser;
-    let page: Page;
+    let browser: Browser | undefined;
+    let page: Page | undefined;
+    let releaseFixtureLock: ReleaseFixtureLock | undefined;
     let port = 8080;
 
     beforeAll(async () => {
       setSuiteTimeout(1000 * 60 * 2);
+      releaseFixtureLock = await acquireFixtureLock(appDir);
+      await ensureWorkspacePackagesBuilt(ensureWorkspacePackages);
       expectTypecheckPasses();
       port = await getPort();
-      app = await launchApp(appDir, port, {});
+      app = await launchApp(appDir, port, { ensureWorkspacePackages });
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();
     });
@@ -332,34 +345,43 @@ describe('bff effect tests', () => {
     });
 
     test('client sdk import still works in browser', async () => {
-      await expectClientSdkInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectClientSdkInBrowser(page!, port);
     });
 
     test('custom sdk interceptor works for effect client', async () => {
-      await expectCustomSdkInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectCustomSdkInBrowser(page!, port);
     });
 
     test('opentelemetry traces from browser to effect spans', async () => {
-      await expectOpenTelemetryTraceInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectOpenTelemetryTraceInBrowser(page!, port);
     });
 
     afterAll(async () => {
-      await killApp(app);
-      await page.close();
-      await browser.close();
+      try {
+        await killApp(app);
+        await page?.close();
+        await browser?.close();
+      } finally {
+        await releaseFixtureLock?.();
+      }
     });
   });
 
   describe('bff effect in prod', () => {
     let app: AppProcess;
-    let browser: Browser;
-    let page: Page;
+    let browser: Browser | undefined;
+    let page: Page | undefined;
+    let releaseFixtureLock: ReleaseFixtureLock | undefined;
     let port = 8080;
 
     beforeAll(async () => {
       setSuiteTimeout(1000 * 60 * 2);
+      releaseFixtureLock = await acquireFixtureLock(appDir);
       port = await getPort();
-      await modernBuild(appDir, [], {});
+      await modernBuild(appDir, [], { ensureWorkspacePackages });
       app = await modernServe(appDir, port, {});
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();
@@ -398,21 +420,28 @@ describe('bff effect tests', () => {
     });
 
     test('client sdk import still works in browser', async () => {
-      await expectClientSdkInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectClientSdkInBrowser(page!, port);
     });
 
     test('custom sdk interceptor works for effect client', async () => {
-      await expectCustomSdkInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectCustomSdkInBrowser(page!, port);
     });
 
     test('opentelemetry traces from browser to effect spans', async () => {
-      await expectOpenTelemetryTraceInBrowser(page, port);
+      expect(page).toBeDefined();
+      await expectOpenTelemetryTraceInBrowser(page!, port);
     });
 
     afterAll(async () => {
-      await killApp(app);
-      await page.close();
-      await browser.close();
+      try {
+        await killApp(app);
+        await page?.close();
+        await browser?.close();
+      } finally {
+        await releaseFixtureLock?.();
+      }
     });
   });
 });

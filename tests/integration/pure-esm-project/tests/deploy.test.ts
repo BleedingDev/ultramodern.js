@@ -1,6 +1,10 @@
 import { execa, fs as fse } from '@modern-js/utils';
 import path from 'path';
 import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
   getPort,
   killApp,
   modernBuild,
@@ -41,8 +45,10 @@ async function checkAppRun(host: string) {
 // bff project's dependencies is more complex, so use bff project to test
 describe('deploy', () => {
   const apps = new Set();
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
   beforeAll(async () => {
+    releaseFixtureLock = await acquireFixtureLock(appDir);
     await modernBuild(appDir, [], {
       env: {
         TEST_DIST: 'dist-deploy',
@@ -53,9 +59,13 @@ describe('deploy', () => {
   });
 
   afterAll(async () => {
-    await Promise.all([...apps].map(x => killApp(x, true)));
-    await fse.remove(path.join(appDir, 'dist-deploy'));
-    await fse.remove(path.join(appDir, '.output'));
+    try {
+      await Promise.all([...apps].map(x => killApp(x, true)));
+      await fse.remove(path.join(appDir, 'dist-deploy'));
+      await fse.remove(path.join(appDir, '.output'));
+    } finally {
+      await releaseFixtureLock?.();
+    }
   });
 
   test('support server when deploy target is node', async () => {

@@ -1,10 +1,13 @@
-import { spawnSync } from 'child_process';
 /**
  * @jest-environment node
  */
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
+import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
 import {
   getPort,
   killApp,
@@ -17,24 +20,11 @@ const crossProjectApiApp = path.join(
   projectRoot,
   'integration/bff-corss-project/bff-api-app',
 );
-
-function resolvePnpmCommand() {
-  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-}
-
-function runPnpmBuild(dir: string) {
-  const result = spawnSync(resolvePnpmCommand(), ['run', 'build'], {
-    cwd: dir,
-    encoding: 'utf8',
-    env: process.env,
-  });
-
-  if (result.status !== 0) {
-    throw new Error(
-      `Failed to build workspace package at ${dir}.\n${result.stdout || ''}\n${result.stderr || ''}`,
-    );
-  }
-}
+const ensureWorkspacePackages = [
+  '@modern-js/create-request',
+  '@modern-js/bff-core',
+  '@modern-js/plugin-bff',
+];
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
@@ -42,22 +32,21 @@ const readFixture = (relativePath: string) =>
 describe('effect-only cross-project BFF contracts', () => {
   let servePort = 0;
   let servedApiApp: any;
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
   beforeAll(async () => {
-    for (const packageDir of [
-      path.join(projectRoot, '../packages/server/create-request'),
-      path.join(projectRoot, '../packages/server/bff-core'),
-      path.join(projectRoot, '../packages/cli/plugin-bff'),
-    ]) {
-      runPnpmBuild(packageDir);
-    }
-    await modernBuild(crossProjectApiApp, [], {});
+    releaseFixtureLock = await acquireFixtureLock(crossProjectApiApp);
+    await modernBuild(crossProjectApiApp, [], { ensureWorkspacePackages });
     servePort = await getPort();
     servedApiApp = await modernServe(crossProjectApiApp, servePort, {});
   });
 
   afterAll(async () => {
-    await killApp(servedApiApp);
+    try {
+      await killApp(servedApiApp);
+    } finally {
+      await releaseFixtureLock?.();
+    }
   });
 
   test('generated effect client includes batch transport and envelope integration hooks', () => {

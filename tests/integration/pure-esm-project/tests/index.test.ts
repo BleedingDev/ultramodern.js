@@ -2,6 +2,10 @@ import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
   getPort,
   killApp,
   launchApp,
@@ -69,8 +73,10 @@ describe.sequential('pure-esm-project', () => {
     let app: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLock = await acquireFixtureLock(appDir);
       port = await getPort();
       app = await launchApp(appDir, port, {
         ensureWorkspacePackages,
@@ -105,13 +111,17 @@ describe.sequential('pure-esm-project', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(app);
+      } finally {
+        await releaseFixtureLock?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(app);
     });
   });
 
@@ -121,8 +131,10 @@ describe.sequential('pure-esm-project', () => {
     let app: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLock = await acquireFixtureLock(appDir);
       port = await getPort();
 
       await modernBuild(appDir, [], {
@@ -163,13 +175,17 @@ describe.sequential('pure-esm-project', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(app);
+      } finally {
+        await releaseFixtureLock?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(app);
     });
   });
 });

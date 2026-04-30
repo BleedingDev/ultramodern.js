@@ -33,9 +33,9 @@ describe('SSR preload', () => {
 
     // The preload fixture was removed from active SSR coverage; keep this as
     // a guard to avoid silent reintroduction without dedicated tests.
-    const nonNodeModulesEntries = fs
-      .readdirSync(appDir)
-      .filter(name => name !== 'node_modules');
+    const nonNodeModulesEntries = fs.existsSync(appDir)
+      ? fs.readdirSync(appDir).filter(name => name !== 'node_modules')
+      : [];
     expect(nonNodeModulesEntries.length).toBe(0);
   });
 

@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  acquireFixtureLocks,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
   getPort,
   killApp,
   launchApp,
@@ -112,8 +116,10 @@ describe.sequential('corss project bff', () => {
     let apiApp: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir, appDir]);
       apiPort = await getPort();
       port = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
@@ -205,14 +211,18 @@ describe.sequential('corss project bff', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(app);
+        await killApp(apiApp);
+      } finally {
+        await releaseFixtureLocks?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(app);
-      await killApp(apiApp);
     });
   });
 
@@ -231,8 +241,10 @@ describe.sequential('corss project bff', () => {
     let apiApp: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir, appDir]);
       apiPort = await getPort();
       port = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
@@ -331,14 +343,18 @@ describe.sequential('corss project bff', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(app);
+        await killApp(apiApp);
+      } finally {
+        await releaseFixtureLocks?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(app);
-      await killApp(apiApp);
     });
   });
 
@@ -356,8 +372,10 @@ describe.sequential('corss project bff', () => {
     let apiApp: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir, indepAppDir]);
       apiPort = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
       apiApp = await launchApp(apiAppDir, apiPort, {});
@@ -428,14 +446,18 @@ describe.sequential('corss project bff', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(indepClientApp);
+        await killApp(apiApp);
+      } finally {
+        await releaseFixtureLocks?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(indepClientApp);
-      await killApp(apiApp);
     });
   });
 
@@ -452,8 +474,10 @@ describe.sequential('corss project bff', () => {
     let apiApp: any;
     let page: Page | undefined;
     let browser: Browser | undefined;
+    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
 
     beforeAll(async () => {
+      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir, indepAppDir]);
       apiPort = await getPort();
       await ensureProducerSdkGenerated(apiAppDir);
       await modernBuild(apiAppDir, [], { stdout: false, stderr: false });
@@ -525,14 +549,18 @@ describe.sequential('corss project bff', () => {
     });
 
     afterAll(async () => {
-      if (page) {
-        await page.close();
+      try {
+        if (page) {
+          await page.close();
+        }
+        if (browser) {
+          await browser.close();
+        }
+        await killApp(indepClientApp);
+        await killApp(apiApp);
+      } finally {
+        await releaseFixtureLocks?.();
       }
-      if (browser) {
-        await browser.close();
-      }
-      await killApp(indepClientApp);
-      await killApp(apiApp);
     });
   });
 });

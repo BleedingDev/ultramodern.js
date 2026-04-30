@@ -1,4 +1,3 @@
-import { spawnSync } from 'child_process';
 import fs from 'fs';
 /**
  * @jest-environment node
@@ -10,24 +9,12 @@ const projectRoot = path.resolve(__dirname, '../../..');
 const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
 const require = createRequire(import.meta.url);
 const { modernBuild } = require('../../../utils/modernTestUtils.js');
-
-function resolvePnpmCommand() {
-  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-}
-
-function runPnpmBuild(dir: string) {
-  const result = spawnSync(resolvePnpmCommand(), ['run', 'build'], {
-    cwd: dir,
-    encoding: 'utf8',
-    env: process.env,
-  });
-
-  if (result.status !== 0) {
-    throw new Error(
-      `Failed to build workspace package at ${dir}.\n${result.stdout || ''}\n${result.stderr || ''}`,
-    );
-  }
-}
+const ensureWorkspacePackages = [
+  '@modern-js/create-request',
+  '@modern-js/bff-core',
+  '@modern-js/runtime',
+  '@modern-js/plugin-bff',
+];
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
@@ -50,17 +37,10 @@ async function ensureTanstackMfDistFixtures() {
     return;
   }
 
-  for (const packageDir of [
-    path.join(projectRoot, '../packages/server/create-request'),
-    path.join(projectRoot, '../packages/server/bff-core'),
-    path.join(projectRoot, '../packages/runtime/plugin-runtime'),
-    path.join(projectRoot, '../packages/cli/plugin-bff'),
-  ]) {
-    runPnpmBuild(packageDir);
-  }
-
   for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
-    const result = await modernBuild(path.join(tanstackMfRoot, appName));
+    const result = await modernBuild(path.join(tanstackMfRoot, appName), [], {
+      ensureWorkspacePackages,
+    });
 
     if (result.code !== 0) {
       throw new Error(
