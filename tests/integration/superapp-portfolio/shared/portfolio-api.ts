@@ -77,6 +77,18 @@ const PilotChaosSchema = Schema.Literals([
   'restart-during-load',
 ]);
 
+const PilotScenarioPlanSchema = Schema.Struct({
+  scenario: PilotScenarioSchema,
+  label: Schema.String,
+  tenant: Schema.String,
+  region: Schema.String,
+  modules: Schema.Array(PilotModuleSchema),
+  routeTransitions: Schema.Array(Schema.String),
+  workflows: Schema.Array(Schema.String),
+  invariants: Schema.Array(Schema.String),
+  chaosModes: Schema.Array(PilotChaosSchema),
+});
+
 const PilotModuleResultSchema = Schema.Struct({
   module: PilotModuleSchema,
   appId: AppIdSchema,
@@ -90,11 +102,13 @@ const PilotRunSchema = Schema.Struct({
   id: Schema.String,
   requestId: Schema.String,
   scenario: PilotScenarioSchema,
+  scenarioLabel: Schema.String,
   tenant: Schema.String,
   actor: Schema.String,
   status: Schema.Literals(['accepted', 'deduped']),
   chaos: PilotChaosSchema,
   moduleResults: Schema.Array(PilotModuleResultSchema),
+  productionChecks: Schema.Array(Schema.String),
   summary: Schema.Struct({
     workflowEvents: Schema.Number,
     chatMessages: Schema.Number,
@@ -140,6 +154,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
       HttpApiEndpoint.get('bootstrap', '/effect/bootstrap', {
         success: Schema.Struct({
           apps: Schema.Array(PortfolioAppSchema),
+          pilotScenarios: Schema.Array(PilotScenarioPlanSchema),
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,

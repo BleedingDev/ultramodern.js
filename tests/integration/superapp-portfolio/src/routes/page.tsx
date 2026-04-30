@@ -6,18 +6,13 @@ import type {
   PilotModuleId,
   PilotRun,
   PilotScenario,
+  PilotScenarioPlan,
   PortfolioApp,
 } from '../../shared/portfolio-state.js';
 
 type BootstrapData = Awaited<
   ReturnType<typeof effectBff.client.portfolio.bootstrap>
 >;
-
-const pilotScenarios: PilotScenario[] = [
-  'grab-marketplace',
-  'mega-erp-command-center',
-  'mobility-erp-chat',
-];
 
 const pilotChaosModes: PilotChaosMode[] = [
   'none',
@@ -48,6 +43,10 @@ export default function PortfolioPage() {
   const [modules, setModules] = useState<PilotModuleId[]>(pilotModules);
   const [pilotRun, setPilotRun] = useState<PilotRun | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const scenarioPlans = (data?.pilotScenarios ?? []) as PilotScenarioPlan[];
+  const selectedPlan =
+    scenarioPlans.find(item => item.scenario === scenario) ?? scenarioPlans[0];
+  const activeChaosModes = selectedPlan?.chaosModes ?? pilotChaosModes;
 
   useEffect(() => {
     refreshPortfolio();
@@ -66,6 +65,17 @@ export default function PortfolioPage() {
         ? current.filter(item => item !== module)
         : [...current, module],
     );
+  };
+
+  const selectScenario = (nextScenario: PilotScenario) => {
+    const nextPlan = scenarioPlans.find(item => item.scenario === nextScenario);
+    setScenario(nextScenario);
+    if (nextPlan) {
+      setModules(nextPlan.modules);
+      if (!nextPlan.chaosModes.includes(chaos)) {
+        setChaos(nextPlan.chaosModes[0] ?? 'none');
+      }
+    }
   };
 
   const resetPilot = async () => {
@@ -122,12 +132,12 @@ export default function PortfolioPage() {
                     data-testid="pilot-scenario"
                     value={scenario}
                     onChange={event =>
-                      setScenario(event.target.value as PilotScenario)
+                      selectScenario(event.target.value as PilotScenario)
                     }
                   >
-                    {pilotScenarios.map(item => (
-                      <option key={item} value={item}>
-                        {item}
+                    {scenarioPlans.map(item => (
+                      <option key={item.scenario} value={item.scenario}>
+                        {item.label}
                       </option>
                     ))}
                   </select>
@@ -141,7 +151,7 @@ export default function PortfolioPage() {
                       setChaos(event.target.value as PilotChaosMode)
                     }
                   >
-                    {pilotChaosModes.map(item => (
+                    {activeChaosModes.map(item => (
                       <option key={item} value={item}>
                         {item}
                       </option>
@@ -149,6 +159,21 @@ export default function PortfolioPage() {
                   </select>
                 </label>
               </div>
+              {selectedPlan ? (
+                <div
+                  className="scenario-playbook"
+                  data-testid="pilot-scenario-plan"
+                >
+                  <strong>{selectedPlan.label}</strong>
+                  <span>tenant:{selectedPlan.tenant}</span>
+                  <span>region:{selectedPlan.region}</span>
+                  <span>
+                    routes:{selectedPlan.routeTransitions.join(' -> ')}
+                  </span>
+                  <span>workflows:{selectedPlan.workflows.length}</span>
+                  <span>invariants:{selectedPlan.invariants.length}</span>
+                </div>
+              ) : null}
               <div className="module-grid" data-testid="pilot-modules">
                 {pilotModules.map(module => (
                   <label key={module}>
@@ -184,7 +209,7 @@ export default function PortfolioPage() {
               <h2>Result</h2>
               <div data-testid="pilot-status">
                 {pilotRun
-                  ? `${pilotRun.scenario}:${pilotRun.status}:${pilotRun.chaos}`
+                  ? `${pilotRun.scenarioLabel}:${pilotRun.status}:${pilotRun.chaos}`
                   : 'idle'}
               </div>
               <div data-testid="pilot-summary">
@@ -192,6 +217,9 @@ export default function PortfolioPage() {
                 {pilotRun?.summary.degradedModules ?? 0};fallbacks:
                 {pilotRun?.summary.remoteFallbacks ?? 0};security:
                 {pilotRun?.summary.securityChecks ?? 0}
+              </div>
+              <div data-testid="pilot-production-checks">
+                checks:{pilotRun?.productionChecks.length ?? 0}
               </div>
               <div
                 className="module-results"

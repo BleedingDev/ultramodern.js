@@ -28,6 +28,18 @@ export type PilotChaosMode =
   | 'clock-skew'
   | 'restart-during-load';
 
+export type PilotScenarioPlan = {
+  scenario: PilotScenario;
+  label: string;
+  tenant: string;
+  region: string;
+  modules: PilotModuleId[];
+  routeTransitions: string[];
+  workflows: string[];
+  invariants: string[];
+  chaosModes: PilotChaosMode[];
+};
+
 export type ValidationProfile = {
   durationMs: number;
   concurrency: number;
@@ -73,11 +85,13 @@ export type PilotRun = {
   id: string;
   requestId: string;
   scenario: PilotScenario;
+  scenarioLabel: string;
   tenant: string;
   actor: string;
   status: 'accepted' | 'deduped';
   chaos: PilotChaosMode;
   moduleResults: PilotModuleResult[];
+  productionChecks: string[];
   summary: {
     workflowEvents: number;
     chatMessages: number;
@@ -90,6 +104,7 @@ export type PilotRun = {
 
 export type PortfolioState = {
   apps: PortfolioApp[];
+  pilotScenarios: PilotScenarioPlan[];
   events: WorkflowEvent[];
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
@@ -200,6 +215,7 @@ export function createInitialPortfolioState(): PortfolioState {
         ),
       },
     ],
+    pilotScenarios: createPilotScenarioPlans(),
     events: [],
     pilotRuns: [],
     failureMode: 'healthy',
@@ -218,6 +234,121 @@ export function createInitialPortfolioState(): PortfolioState {
       'chaos-lab': ['failure-lab'],
     },
   };
+}
+
+function createPilotScenarioPlans(): PilotScenarioPlan[] {
+  return [
+    {
+      scenario: 'grab-marketplace',
+      label: 'Grab-style Marketplace Surge',
+      tenant: 'superapp-global',
+      region: 'APAC+EMEA',
+      modules: [
+        'rides',
+        'dispatch',
+        'orders',
+        'erp',
+        'chat',
+        'mf-remotes',
+        'security',
+        'billing',
+      ],
+      routeTransitions: [
+        '/mobility',
+        '/mobility/dispatch',
+        '/mf-platform/chat',
+        '/security/audit',
+      ],
+      workflows: [
+        'price quote idempotency under burst traffic',
+        'driver dispatch retry after cancellation',
+        'marketplace order handoff into ERP ledger',
+        'support chat escalation with billing adjustment',
+        'remote module fallback during marketplace shell load',
+      ],
+      invariants: [
+        'quote request id remains idempotent across retries',
+        'dispatch and order events stay tenant-scoped',
+        'billing approval is recorded before settlement',
+        'support chat remains available during remote degradation',
+      ],
+      chaosModes: [
+        'none',
+        'remote-down',
+        'api-timeout',
+        'chunk-404',
+        'clock-skew',
+        'restart-during-load',
+      ],
+    },
+    {
+      scenario: 'mega-erp-command-center',
+      label: 'Enterprise MegaERP Command Center',
+      tenant: 'superapp-global',
+      region: 'GLOBAL',
+      modules: ['orders', 'erp', 'chat', 'mf-remotes', 'security', 'billing'],
+      routeTransitions: [
+        '/mega-erp',
+        '/mega-erp/procurement',
+        '/mega-erp/payroll',
+        '/security/roles',
+      ],
+      workflows: [
+        'bulk approval with partial failure visibility',
+        'large ledger filter and pagination churn',
+        'procurement exception routed to finance chat',
+        'payroll and AP billing guardrail check',
+        'micro-frontend finance widget degradation',
+      ],
+      invariants: [
+        'bulk approval count matches emitted workflow events',
+        'ERP timeout marks only ERP module as degraded',
+        'security probe remains mandatory for privileged action',
+        'billing clock skew cannot bypass approval accounting',
+      ],
+      chaosModes: [
+        'none',
+        'remote-down',
+        'api-timeout',
+        'chunk-404',
+        'clock-skew',
+        'restart-during-load',
+      ],
+    },
+    {
+      scenario: 'mobility-erp-chat',
+      label: 'Mobility Incident To ERP Chat Escalation',
+      tenant: 'superapp-global',
+      region: 'EMEA',
+      modules: ['rides', 'dispatch', 'erp', 'chat', 'security', 'billing'],
+      routeTransitions: [
+        '/mobility/support',
+        '/mobility/dispatch',
+        '/mega-erp/procurement',
+        '/security/audit',
+      ],
+      workflows: [
+        'ride incident creates support thread',
+        'driver dispatch state is reconciled with ERP case',
+        'operator chat keeps context across route churn',
+        'refund billing path requires security check',
+      ],
+      invariants: [
+        'support thread and ERP case share request lineage',
+        'dispatch retry does not duplicate billing approval',
+        'tenant security audit is emitted for refund mutation',
+        'chat remains operational while ERP is degraded',
+      ],
+      chaosModes: [
+        'none',
+        'remote-down',
+        'api-timeout',
+        'chunk-404',
+        'clock-skew',
+        'restart-during-load',
+      ],
+    },
+  ];
 }
 
 function profileSet(smokeWorkflows: string[], stressWorkflows: string[]) {

@@ -105,6 +105,17 @@
   background: #f8fbfc;
 }
 
+.scenario-playbook {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  border: 1px solid #d3dde1;
+  border-radius: 6px;
+  padding: 10px;
+  background: #f8fbfc;
+  font-size: 13px;
+}
+
 .pilot-result {
   min-height: 240px;
 }

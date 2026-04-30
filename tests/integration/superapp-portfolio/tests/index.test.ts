@@ -90,6 +90,23 @@ async function expectEffectPortfolioContracts(port: number) {
     'tenant-security',
     'failure-lab',
   ]);
+  expect(
+    bootstrap.pilotScenarios.map((item: { scenario: string }) => item.scenario),
+  ).toEqual([
+    'grab-marketplace',
+    'mega-erp-command-center',
+    'mobility-erp-chat',
+  ]);
+  expect(bootstrap.pilotScenarios[0]).toMatchObject({
+    label: 'Grab-style Marketplace Surge',
+    tenant: 'superapp-global',
+    workflows: expect.arrayContaining([
+      'price quote idempotency under burst traffic',
+    ]),
+    invariants: expect.arrayContaining([
+      'quote request id remains idempotent across retries',
+    ]),
+  });
   for (const app of bootstrap.apps) {
     expect(app.profiles.smoke.workflows.length).toBeGreaterThanOrEqual(3);
     expect(app.profiles.stress.concurrency).toBeGreaterThanOrEqual(8);
@@ -161,7 +178,16 @@ async function expectEffectPortfolioContracts(port: number) {
       tenant: 'superapp-global',
       actor: 'ops.pilot',
       requestId: 'pilot-contract-1',
-      modules: ['rides', 'dispatch', 'orders', 'erp', 'chat'],
+      modules: [
+        'rides',
+        'dispatch',
+        'orders',
+        'erp',
+        'chat',
+        'mf-remotes',
+        'security',
+        'billing',
+      ],
       chaos: 'none',
     },
   );
@@ -170,18 +196,20 @@ async function expectEffectPortfolioContracts(port: number) {
     run: {
       requestId: 'pilot-contract-1',
       scenario: 'grab-marketplace',
+      scenarioLabel: 'Grab-style Marketplace Surge',
       tenant: 'superapp-global',
       status: 'accepted',
       chaos: 'none',
       summary: {
-        workflowEvents: 5,
+        workflowEvents: 8,
         chatMessages: 1,
-        approvals: 1,
+        approvals: 2,
+        securityChecks: 1,
         degradedModules: 0,
       },
     },
     summary: {
-      eventCount: 5,
+      eventCount: 8,
       failureMode: 'healthy',
     },
   });
@@ -267,6 +295,12 @@ describe('superapp portfolio fixture', () => {
     await page.waitForSelector('[data-testid="pilot-command-center"]');
     await expect(
       page.$eval(
+        '[data-testid="pilot-scenario-plan"]',
+        element => element.textContent,
+      ),
+    ).resolves.toContain('Grab-style Marketplace Surge');
+    await expect(
+      page.$eval(
         '[data-testid="summary-apps"]',
         element => element.textContent,
       ),
@@ -278,7 +312,9 @@ describe('superapp portfolio fixture', () => {
       page.waitForFunction(() =>
         document
           .querySelector('[data-testid="pilot-status"]')
-          ?.textContent?.includes('grab-marketplace:accepted:api-timeout'),
+          ?.textContent?.includes(
+            'Grab-style Marketplace Surge:accepted:api-timeout',
+          ),
       ),
     ).resolves.toBeTruthy();
     await expect(
@@ -293,6 +329,12 @@ describe('superapp portfolio fixture', () => {
         element => element.textContent,
       ),
     ).resolves.toContain('degraded:1');
+    await expect(
+      page.$eval(
+        '[data-testid="pilot-production-checks"]',
+        element => element.textContent,
+      ),
+    ).resolves.toContain('checks:13');
     await page.click('[data-testid="reset-pilot"]');
     await expect(
       page.waitForFunction(() =>

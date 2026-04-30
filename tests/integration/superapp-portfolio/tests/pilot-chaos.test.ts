@@ -30,6 +30,33 @@ const fullModuleSet = [
   'billing',
 ];
 
+const productionScenarios = [
+  {
+    scenario: 'grab-marketplace',
+    label: 'Grab-style Marketplace Surge',
+    modules: fullModuleSet,
+    workflowEvents: 8,
+    approvals: 2,
+    checks: 13,
+  },
+  {
+    scenario: 'mega-erp-command-center',
+    label: 'Enterprise MegaERP Command Center',
+    modules: ['orders', 'erp', 'chat', 'mf-remotes', 'security', 'billing'],
+    workflowEvents: 6,
+    approvals: 2,
+    checks: 13,
+  },
+  {
+    scenario: 'mobility-erp-chat',
+    label: 'Mobility Incident To ERP Chat Escalation',
+    modules: ['rides', 'dispatch', 'erp', 'chat', 'security', 'billing'],
+    workflowEvents: 6,
+    approvals: 1,
+    checks: 12,
+  },
+];
+
 async function postJson(port: number, pathname: string, body?: unknown) {
   return fetch(`${host}:${port}${pathname}`, {
     method: 'POST',
@@ -57,13 +84,16 @@ async function runPilot(
   requestId: string,
   overrides: Record<string, unknown> = {},
 ) {
-  return postJson(port, '/bff-api/effect/pilot/grab-marketplace/run', {
+  const scenario = String(overrides.scenario ?? 'grab-marketplace');
+  const { scenario: _scenario, ...payloadOverrides } = overrides;
+
+  return postJson(port, `/bff-api/effect/pilot/${scenario}/run`, {
     tenant: 'superapp-global',
     actor: 'overnight.pilot',
     requestId,
     modules: fullModuleSet,
     chaos: 'none',
-    ...overrides,
+    ...payloadOverrides,
   });
 }
 
@@ -143,6 +173,50 @@ async function expectRejectedWithoutStateDrift(input: {
         ),
       });
 
+      for (const scenario of productionScenarios) {
+        await metrics.timed(`reset:scenario:${scenario.scenario}`, () =>
+          resetPortfolio(port),
+        );
+        const response = await metrics.timed(
+          `pilot:scenario:${scenario.scenario}`,
+          () =>
+            runPilot(port, `scenario-${scenario.scenario}`, {
+              scenario: scenario.scenario,
+              modules: scenario.modules,
+            }),
+        );
+        expect(response.status).toBe(200);
+        const payload = await response.json();
+        expect(payload.run).toMatchObject({
+          scenario: scenario.scenario,
+          scenarioLabel: scenario.label,
+          tenant: 'superapp-global',
+          status: 'accepted',
+          chaos: 'none',
+          summary: {
+            workflowEvents: scenario.workflowEvents,
+            chatMessages: 1,
+            approvals: scenario.approvals,
+            securityChecks: 1,
+            degradedModules: 0,
+          },
+        });
+        expect(payload.run.moduleResults).toHaveLength(scenario.modules.length);
+        expect(payload.run.productionChecks).toHaveLength(scenario.checks);
+        checks.push({
+          id: `pilot:scenario:${scenario.scenario}`,
+          modules: scenario.modules,
+          productionChecks: payload.run.productionChecks.length,
+        });
+      }
+
+      await metrics.timed('reset:after:production-scenarios', () =>
+        resetPortfolio(port),
+      );
+      const duplicateSeed = await metrics.timed('pilot:duplicate-seed', () =>
+        runPilot(port, 'pilot-main-1'),
+      );
+      expect(duplicateSeed.status).toBe(200);
       const duplicateResponses = await metrics.timed(
         'pilot:idempotency-storm',
         () =>

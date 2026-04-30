@@ -33,6 +33,7 @@ const tenantRoles: Record<string, string[]> = {
 function cloneState() {
   return {
     apps: state.apps,
+    pilotScenarios: state.pilotScenarios,
     events: state.events,
     pilotRuns: state.pilotRuns,
     summary: summarizePortfolio(state),
@@ -172,9 +173,35 @@ function createPilotRun(input: {
     throw new Error(`Unknown tenant: ${input.payload.tenant}`);
   }
 
+  const scenarioPlan = state.pilotScenarios.find(
+    item => item.scenario === input.scenario,
+  );
+  if (!scenarioPlan) {
+    throw new Error(`Unknown pilot scenario: ${input.scenario}`);
+  }
+
   const modules = [...new Set(input.payload.modules)];
   if (modules.length === 0) {
     throw new Error('Pilot run requires at least one module');
+  }
+
+  const missingModules = scenarioPlan.modules.filter(
+    module => !modules.includes(module),
+  );
+  if (missingModules.length > 0) {
+    throw new Error(
+      `Pilot scenario ${input.scenario} requires modules: ${missingModules.join(
+        ', ',
+      )}`,
+    );
+  }
+
+  if (!scenarioPlan.chaosModes.includes(input.payload.chaos ?? 'none')) {
+    throw new Error(
+      `Pilot scenario ${input.scenario} does not support chaos mode ${
+        input.payload.chaos ?? 'none'
+      }`,
+    );
   }
 
   for (const module of modules) {
@@ -247,11 +274,17 @@ function createPilotRun(input: {
     id: `pilot-${state.pilotRuns.length + 1}`,
     requestId: input.payload.requestId,
     scenario: input.scenario,
+    scenarioLabel: scenarioPlan.label,
     tenant: input.payload.tenant,
     actor: input.payload.actor,
     status: 'accepted',
     chaos,
     moduleResults,
+    productionChecks: [
+      ...scenarioPlan.workflows.map(workflow => `workflow:${workflow}`),
+      ...scenarioPlan.invariants.map(invariant => `invariant:${invariant}`),
+      ...scenarioPlan.routeTransitions.map(route => `route:${route}`),
+    ],
     summary: {
       workflowEvents: moduleResults.length,
       chatMessages,
