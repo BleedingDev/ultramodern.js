@@ -2,6 +2,9 @@ import { appTools, defineConfig } from '@modern-js/app-tools';
 import { bffPlugin } from '@modern-js/plugin-bff';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
+const hostPort = Number(process.env.MF_HOST_PORT ?? 3011);
+const hostOrigin = process.env.MF_HOST_ORIGIN ?? `http://localhost:${hostPort}`;
+
 export default defineConfig({
   tools: {
     devServer: {
@@ -9,12 +12,12 @@ export default defineConfig({
         'Access-Control-Allow-Headers':
           'Accept, Authorization, Content-Type, X-Requested-With',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Origin': 'http://localhost:3011',
+        'Access-Control-Allow-Origin': hostOrigin,
       },
     },
   },
   server: {
-    port: 3011,
+    port: hostPort,
   },
   output: {
     polyfill: 'off',

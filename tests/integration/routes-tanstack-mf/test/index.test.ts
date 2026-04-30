@@ -34,9 +34,33 @@ const remoteDir = path.resolve(__dirname, '../mf-remote');
 const remoteTwoDir = path.resolve(__dirname, '../mf-remote-2');
 const hostDir = path.resolve(__dirname, '../mf-host');
 
-const REMOTE_PORT = 3010;
-const REMOTE_TWO_PORT = 3012;
-const HOST_PORT = 3011;
+type FederatedPorts = {
+  remote: number;
+  remoteTwo: number;
+  host: number;
+};
+
+const DEV_PORTS = {
+  remote: 3010,
+  remoteTwo: 3012,
+  host: 3011,
+} satisfies FederatedPorts;
+
+const SERVE_PORTS = {
+  remote: 3020,
+  remoteTwo: 3022,
+  host: 3021,
+} satisfies FederatedPorts;
+
+function createFederatedEnv(ports: FederatedPorts) {
+  return {
+    MF_REMOTE_PORT: String(ports.remote),
+    MF_REMOTE_TWO_PORT: String(ports.remoteTwo),
+    MF_HOST_PORT: String(ports.host),
+    MF_HOST_ORIGIN: `http://localhost:${ports.host}`,
+    MF_REMOTE_ORIGIN: `http://localhost:${ports.remote}`,
+  };
+}
 
 async function fetchHtml(url: string) {
   const res = await fetch(url, {
@@ -333,10 +357,42 @@ async function assertModuleFederationAssets(remotePort: number) {
   expect(remoteEntryCode.startsWith('<!DOCTYPE html>')).toBe(false);
 }
 
-async function buildFederatedFixtureApp(appDir: string) {
+async function buildFederatedFixtureApp(
+  appDir: string,
+  env: Record<string, string>,
+) {
   await modernBuild(appDir, [], {
     marker: /ready\s+built in/i,
+    env,
   });
+}
+
+async function killAppBestEffort(app: unknown) {
+  if (!app) {
+    return;
+  }
+  try {
+    await killApp(app);
+  } catch (error) {
+    if (
+      process.platform === 'win32' &&
+      error instanceof Error &&
+      error.message.includes('Access is denied')
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function stopFederatedApps(apps: unknown[]) {
+  const results = await Promise.allSettled(apps.map(killAppBestEffort));
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+  if (rejected) {
+    throw rejected.reason;
+  }
 }
 
 async function assertRemoteLoadFailureFallback(input: {
@@ -610,20 +666,24 @@ describe('routes-tanstack-mf', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
+    const env = createFederatedEnv(DEV_PORTS);
+
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
 
-    remoteApp = await launchApp(remoteDir, REMOTE_PORT);
-    await waitForAppReady(`http://localhost:${REMOTE_PORT}/mf-manifest.json`);
-
-    remoteTwoApp = await launchApp(remoteTwoDir, REMOTE_TWO_PORT);
+    remoteApp = await launchApp(remoteDir, DEV_PORTS.remote, { env });
     await waitForAppReady(
-      `http://localhost:${REMOTE_TWO_PORT}/mf-manifest.json`,
+      `http://localhost:${DEV_PORTS.remote}/mf-manifest.json`,
     );
 
-    hostApp = await launchApp(hostDir, HOST_PORT);
-    await waitForAppReady(`http://localhost:${HOST_PORT}/`);
+    remoteTwoApp = await launchApp(remoteTwoDir, DEV_PORTS.remoteTwo, { env });
+    await waitForAppReady(
+      `http://localhost:${DEV_PORTS.remoteTwo}/mf-manifest.json`,
+    );
+
+    hostApp = await launchApp(hostDir, DEV_PORTS.host, { env });
+    await waitForAppReady(`http://localhost:${DEV_PORTS.host}/`);
 
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
@@ -638,20 +698,12 @@ describe('routes-tanstack-mf', () => {
     if (browser) {
       await browser.close();
     }
-    if (hostApp) {
-      await killApp(hostApp);
-    }
-    if (remoteTwoApp) {
-      await killApp(remoteTwoApp);
-    }
-    if (remoteApp) {
-      await killApp(remoteApp);
-    }
+    await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
   });
 
   test('keeps client-render boundary explicit for federated route content', async () => {
     const { status, html } = await fetchHtml(
-      `http://localhost:${HOST_PORT}/mf`,
+      `http://localhost:${DEV_PORTS.host}/mf`,
     );
     expect(status).toBe(200);
     expect(html).toContain('<!--<?- html ?>-->');
@@ -663,7 +715,7 @@ describe('routes-tanstack-mf', () => {
 
   test('host app exposes effect bff endpoints in mf setup', async () => {
     const effectResponse = await fetchJson(
-      `http://localhost:${HOST_PORT}/host-api/effect/hello`,
+      `http://localhost:${DEV_PORTS.host}/host-api/effect/hello`,
     );
     expect(effectResponse.status).toBe(200);
     expect(effectResponse.json).toEqual({
@@ -672,7 +724,7 @@ describe('routes-tanstack-mf', () => {
     });
 
     const openapiResponse = await fetchJson(
-      `http://localhost:${HOST_PORT}/host-api/openapi.json`,
+      `http://localhost:${DEV_PORTS.host}/host-api/openapi.json`,
     );
     expect(openapiResponse.status).toBe(200);
     expect(openapiResponse.json.paths['/effect/hello']).toBeDefined();
@@ -680,7 +732,7 @@ describe('routes-tanstack-mf', () => {
 
   test('remote app exposes effect bff endpoints in mf setup', async () => {
     const effectResponse = await fetchJson(
-      `http://localhost:${REMOTE_PORT}/remote-api/effect/hello`,
+      `http://localhost:${DEV_PORTS.remote}/remote-api/effect/hello`,
     );
     expect(effectResponse.status).toBe(200);
     expect(effectResponse.json).toEqual({
@@ -689,7 +741,7 @@ describe('routes-tanstack-mf', () => {
     });
 
     const openapiResponse = await fetchJson(
-      `http://localhost:${REMOTE_PORT}/remote-api/openapi.json`,
+      `http://localhost:${DEV_PORTS.remote}/remote-api/openapi.json`,
     );
     expect(openapiResponse.status).toBe(200);
     expect(openapiResponse.json.paths['/effect/hello']).toBeDefined();
@@ -697,7 +749,7 @@ describe('routes-tanstack-mf', () => {
 
   test('remote2 app exposes effect bff endpoints in mf setup', async () => {
     const effectResponse = await fetchJson(
-      `http://localhost:${REMOTE_TWO_PORT}/remote2-api/effect/hello`,
+      `http://localhost:${DEV_PORTS.remoteTwo}/remote2-api/effect/hello`,
     );
     expect(effectResponse.status).toBe(200);
     expect(effectResponse.json).toEqual({
@@ -707,13 +759,13 @@ describe('routes-tanstack-mf', () => {
   });
 
   test('supports remote component fetcher with host loader/action', async () => {
-    await assertRemoteComponentInteraction(page, HOST_PORT, errors);
+    await assertRemoteComponentInteraction(page, DEV_PORTS.host, errors);
   });
 
   test('supports deterministic remote failure injection fallbacks', async () => {
     await assertRemoteLoadFailureFallback({
       page,
-      hostPort: HOST_PORT,
+      hostPort: DEV_PORTS.host,
       mode: 'timeout',
       target: 'remote/Widget',
       fallbackSelector: '#remote-error',
@@ -721,7 +773,7 @@ describe('routes-tanstack-mf', () => {
     });
     await assertRemoteLoadFailureFallback({
       page,
-      hostPort: HOST_PORT,
+      hostPort: DEV_PORTS.host,
       mode: 'contract',
       target: 'remote/Widget',
       fallbackSelector: '#remote-error',
@@ -730,22 +782,27 @@ describe('routes-tanstack-mf', () => {
   });
 
   test('emits tree-shaking metadata for shared modules', async () => {
-    await assertSharedTreeShakingStats(HOST_PORT);
-    await assertSharedTreeShakingStats(REMOTE_PORT);
-    await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
+    await assertSharedTreeShakingStats(DEV_PORTS.host);
+    await assertSharedTreeShakingStats(DEV_PORTS.remote);
+    await assertSharedTreeShakingStats(DEV_PORTS.remoteTwo);
   });
 
   test('captures browser -> host -> remote distributed otel trace', async () => {
     await assertDistributedTraceFromBrowser(
       page,
-      HOST_PORT,
-      REMOTE_PORT,
+      DEV_PORTS.host,
+      DEV_PORTS.remote,
       errors,
     );
   });
 
   test('propagates accept-language through host -> remote effect trace run', async () => {
-    await assertEffectLocalePropagation(page, HOST_PORT, REMOTE_PORT, errors);
+    await assertEffectLocalePropagation(
+      page,
+      DEV_PORTS.host,
+      DEV_PORTS.remote,
+      errors,
+    );
   });
 });
 
@@ -758,24 +815,30 @@ describe('routes-tanstack-mf serve mode', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
+    const env = createFederatedEnv(SERVE_PORTS);
+
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
 
-    await buildFederatedFixtureApp(remoteDir);
-    await buildFederatedFixtureApp(remoteTwoDir);
-    await buildFederatedFixtureApp(hostDir);
+    await buildFederatedFixtureApp(remoteDir, env);
+    await buildFederatedFixtureApp(remoteTwoDir, env);
+    await buildFederatedFixtureApp(hostDir, env);
 
-    remoteApp = await modernServe(remoteDir, REMOTE_PORT);
-    await waitForAppReady(`http://localhost:${REMOTE_PORT}/mf-manifest.json`);
-
-    remoteTwoApp = await modernServe(remoteTwoDir, REMOTE_TWO_PORT);
+    remoteApp = await modernServe(remoteDir, SERVE_PORTS.remote, { env });
     await waitForAppReady(
-      `http://localhost:${REMOTE_TWO_PORT}/mf-manifest.json`,
+      `http://localhost:${SERVE_PORTS.remote}/mf-manifest.json`,
     );
 
-    hostApp = await modernServe(hostDir, HOST_PORT);
-    await waitForAppReady(`http://localhost:${HOST_PORT}/`);
+    remoteTwoApp = await modernServe(remoteTwoDir, SERVE_PORTS.remoteTwo, {
+      env,
+    });
+    await waitForAppReady(
+      `http://localhost:${SERVE_PORTS.remoteTwo}/mf-manifest.json`,
+    );
+
+    hostApp = await modernServe(hostDir, SERVE_PORTS.host, { env });
+    await waitForAppReady(`http://localhost:${SERVE_PORTS.host}/`);
 
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
@@ -790,30 +853,22 @@ describe('routes-tanstack-mf serve mode', () => {
     if (browser) {
       await browser.close();
     }
-    if (hostApp) {
-      await killApp(hostApp);
-    }
-    if (remoteTwoApp) {
-      await killApp(remoteTwoApp);
-    }
-    if (remoteApp) {
-      await killApp(remoteApp);
-    }
+    await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
   });
 
   test('serves module federation assets as static files', async () => {
-    await assertModuleFederationAssets(REMOTE_PORT);
-    await assertModuleFederationAssets(REMOTE_TWO_PORT);
+    await assertModuleFederationAssets(SERVE_PORTS.remote);
+    await assertModuleFederationAssets(SERVE_PORTS.remoteTwo);
   });
 
   test('supports remote component fetcher with host loader/action in serve mode', async () => {
-    await assertRemoteComponentInteraction(page, HOST_PORT, errors);
+    await assertRemoteComponentInteraction(page, SERVE_PORTS.host, errors);
   });
 
   test('supports deterministic remote network fallback in serve mode', async () => {
     await assertRemoteLoadFailureFallback({
       page,
-      hostPort: HOST_PORT,
+      hostPort: SERVE_PORTS.host,
       mode: 'network',
       target: 'remote2/Panel',
       fallbackSelector: '#remote2-error',
@@ -822,21 +877,26 @@ describe('routes-tanstack-mf serve mode', () => {
   });
 
   test('serves tree-shaking metadata for shared modules in serve mode', async () => {
-    await assertSharedTreeShakingStats(HOST_PORT);
-    await assertSharedTreeShakingStats(REMOTE_PORT);
-    await assertSharedTreeShakingStats(REMOTE_TWO_PORT);
+    await assertSharedTreeShakingStats(SERVE_PORTS.host);
+    await assertSharedTreeShakingStats(SERVE_PORTS.remote);
+    await assertSharedTreeShakingStats(SERVE_PORTS.remoteTwo);
   });
 
   test('captures browser -> host -> remote distributed otel trace in serve mode', async () => {
     await assertDistributedTraceFromBrowser(
       page,
-      HOST_PORT,
-      REMOTE_PORT,
+      SERVE_PORTS.host,
+      SERVE_PORTS.remote,
       errors,
     );
   });
 
   test('propagates accept-language through host -> remote effect trace run in serve mode', async () => {
-    await assertEffectLocalePropagation(page, HOST_PORT, REMOTE_PORT, errors);
+    await assertEffectLocalePropagation(
+      page,
+      SERVE_PORTS.host,
+      SERVE_PORTS.remote,
+      errors,
+    );
   });
 });

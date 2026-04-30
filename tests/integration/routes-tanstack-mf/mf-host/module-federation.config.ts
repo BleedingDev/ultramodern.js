@@ -6,6 +6,8 @@ const require = createRequire(import.meta.url);
 const runtimeVersion = (
   require('@modern-js/runtime/package.json') as { version: string }
 ).version;
+const remotePort = Number(process.env.MF_REMOTE_PORT ?? 3010);
+const remoteTwoPort = Number(process.env.MF_REMOTE_TWO_PORT ?? 3012);
 
 export default createModuleFederationConfig({
   name: 'tanstackHost',
@@ -14,8 +16,8 @@ export default createModuleFederationConfig({
     disableDynamicRemoteTypeHints: true,
   },
   remotes: {
-    remote: 'tanstackRemote@http://localhost:3010/mf-manifest.json',
-    remote2: 'tanstackRemote2@http://localhost:3012/mf-manifest.json',
+    remote: `tanstackRemote@http://localhost:${remotePort}/mf-manifest.json`,
+    remote2: `tanstackRemote2@http://localhost:${remoteTwoPort}/mf-manifest.json`,
   },
   shared: {
     react: {
