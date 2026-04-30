@@ -74,6 +74,13 @@ jobs:
 
           node scripts/superapp-certification/run-superapp-certification.js "${ARGS[@]}"
 
+      - name: Generate Readiness Report
+        if: always()
+        run: |
+          node scripts/superapp-certification/generate-readiness-report.js \
+            --input-dir .modern/superapp-certification \
+            --out-dir .modern/superapp-certification
+
       - name: Upload Certification Artifacts
         if: always()
         uses: actions/upload-artifact@v4

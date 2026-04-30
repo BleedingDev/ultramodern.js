@@ -25,7 +25,7 @@ todos:
     status: completed
   - id: usv-08
     content: Generate a readiness dashboard and report artifacts from contract, integration, stress, soak, browser, MF, security, performance, and drift results.
-    status: pending
+    status: completed
 isProject: true
 ---
 
