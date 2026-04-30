@@ -32,7 +32,7 @@ function captureBrowserErrors(page: Page) {
     }
   });
   page.on('pageerror', error => {
-    errors.push(error.message);
+    errors.push(error instanceof Error ? error.message : String(error));
   });
   return errors;
 }

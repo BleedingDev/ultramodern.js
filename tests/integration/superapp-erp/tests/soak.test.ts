@@ -10,6 +10,7 @@ import {
   sleep,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import { createSuperAppRunMetrics, parsePositiveInt } from './superappMetrics';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -32,15 +33,7 @@ const describeSoak = soakEnabled ? describe : describe.skip;
 setSuiteTimeout(soakDurationMs + 1000 * 60 * 4);
 
 type AppProcess = Awaited<ReturnType<typeof modernServe>>;
-
-function parsePositiveInt(value: string | undefined) {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
+type SuperAppRunMetrics = ReturnType<typeof createSuperAppRunMetrics>;
 
 function captureBrowserErrors(page: Page) {
   const errors: string[] = [];
@@ -50,7 +43,7 @@ function captureBrowserErrors(page: Page) {
     }
   });
   page.on('pageerror', error => {
-    errors.push(error.message);
+    errors.push(error instanceof Error ? error.message : String(error));
   });
   return errors;
 }
@@ -147,43 +140,80 @@ describeSoak('SuperApp ERP long-running production soak', () => {
   let page: Page;
   let port: number;
   let browserErrors: string[];
+  let runMetrics: SuperAppRunMetrics | undefined;
 
   beforeAll(async () => {
-    port = await getPort();
-    const buildResult = await modernBuild(appDir);
-    expect(buildResult.code).toBe(0);
-    app = await modernServe(appDir, port, {
-      cwd: appDir,
-      stderr: false,
-      stdout: false,
+    runMetrics = createSuperAppRunMetrics({
+      appDir,
+      suite: 'superapp-erp-soak',
+      parameters: {
+        durationMs: soakDurationMs,
+        batchSize: soakBatchSize,
+        batchIntervalMs: soakBatchIntervalMs,
+        uiEveryBatches: soakUiEveryBatches,
+      },
+      budgets: {
+        browserErrors: 0,
+        finalPendingApprovals: 0,
+      },
     });
+    port = await getPort();
+    const buildResult = await runMetrics.timed('build', () =>
+      modernBuild(appDir),
+    );
+    runMetrics.recordMemory('after-build');
+    expect(buildResult.value.code).toBe(0);
+    const serveResult = await runMetrics.timed('serve', () =>
+      modernServe(appDir, port, {
+        cwd: appDir,
+        stderr: false,
+        stdout: false,
+      }),
+    );
+    app = serveResult.value;
+    runMetrics.recordMemory('after-serve');
     browser = await puppeteer.launch(browserLaunchOptions);
     page = await browser.newPage();
     browserErrors = captureBrowserErrors(page);
   });
 
   afterAll(async () => {
-    await page?.close();
-    await browser?.close();
-    await killApp(app);
+    try {
+      runMetrics?.recordBrowserErrors(browserErrors ?? []);
+      runMetrics?.writeSummary();
+    } finally {
+      await page?.close();
+      await browser?.close();
+      await killApp(app);
+    }
   });
 
   test('keeps Effect state and TanStack navigation stable under sustained workflow load', async () => {
-    await resetSuperApp(port);
+    await runMetrics!.timed('reset', () => resetSuperApp(port));
+    runMetrics?.recordMemory('after-reset');
     await expect(
-      decideApproval(port, 'ap-1001', 'approved', 'finance.lead'),
+      runMetrics!
+        .timed('approval:ap-1001', () =>
+          decideApproval(port, 'ap-1001', 'approved', 'finance.lead'),
+        )
+        .then(result => result.value),
     ).resolves.toMatchObject({
       id: 'ap-1001',
       status: 'approved',
       pendingApprovals: 1,
     });
     await expect(
-      decideApproval(port, 'ap-1002', 'rejected', 'ops.manager'),
+      runMetrics!
+        .timed('approval:ap-1002', () =>
+          decideApproval(port, 'ap-1002', 'rejected', 'ops.manager'),
+        )
+        .then(result => result.value),
     ).resolves.toMatchObject({
       id: 'ap-1002',
       status: 'rejected',
       pendingApprovals: 0,
     });
+    runMetrics?.recordMemory('after-decisions');
 
     const startedAt = Date.now();
     const deadline = startedAt + soakDurationMs;
@@ -196,7 +226,11 @@ describeSoak('SuperApp ERP long-running production soak', () => {
       const payloads = await Promise.all(
         Array.from({ length: soakBatchSize }, (_, index) => {
           const priority = index % 5 === 0 ? 'urgent' : 'normal';
-          return sendChatMessage(port, batches, index, priority);
+          return runMetrics!
+            .timed('chat:send', () =>
+              sendChatMessage(port, batches, index, priority),
+            )
+            .then(result => result.value);
         }),
       );
       expectedMessages += soakBatchSize;
@@ -204,7 +238,11 @@ describeSoak('SuperApp ERP long-running production soak', () => {
         payload => payload.message.priority === 'urgent',
       ).length;
 
-      const bootstrap = await getJson(port, '/bff-api/effect/bootstrap');
+      const bootstrap = (
+        await runMetrics!.timed('bootstrap', () =>
+          getJson(port, '/bff-api/effect/bootstrap'),
+        )
+      ).value;
       expect(bootstrap.summary).toMatchObject({
         pendingApprovals: 0,
         urgentMessages: expectedUrgentMessages,
@@ -219,14 +257,46 @@ describeSoak('SuperApp ERP long-running production soak', () => {
       ).toEqual(['ap-1001:approved', 'ap-1002:rejected']);
 
       if (batches % soakUiEveryBatches === 0) {
-        await assertShellAndRoutes(page, port);
+        runMetrics?.recordMemory(`after-batch-${batches}`);
+        await runMetrics!.timed(
+          'routes:assert-shell-and-routes',
+          () => assertShellAndRoutes(page, port),
+          { route: true },
+        );
+        runMetrics?.recordMemory(`after-route-check-${batches}`);
       }
 
       await sleep(soakBatchIntervalMs);
     }
 
-    await assertShellAndRoutes(page, port);
+    await runMetrics!.timed(
+      'routes:assert-shell-and-routes',
+      () => assertShellAndRoutes(page, port),
+      { route: true },
+    );
+    runMetrics?.recordMemory('after-final-route-check');
     expect(batches).toBeGreaterThan(0);
+    const finalBootstrap = (
+      await runMetrics!.timed('bootstrap:final', () =>
+        getJson(port, '/bff-api/effect/bootstrap'),
+      )
+    ).value;
+    runMetrics?.recordInvariant('finalBatchCount', batches);
+    runMetrics?.recordInvariant('expectedMessageCount', expectedMessages);
+    runMetrics?.recordInvariant(
+      'finalMessageCount',
+      finalBootstrap.chat.length,
+    );
+    runMetrics?.recordInvariant('expectedUrgentCount', expectedUrgentMessages);
+    runMetrics?.recordInvariant(
+      'finalUrgentCount',
+      finalBootstrap.summary.urgentMessages,
+    );
+    runMetrics?.recordInvariant(
+      'finalPendingApprovals',
+      finalBootstrap.summary.pendingApprovals,
+    );
+    runMetrics?.recordInvariant('browserErrorCount', browserErrors.length);
     expect(browserErrors).toEqual([]);
   });
 });

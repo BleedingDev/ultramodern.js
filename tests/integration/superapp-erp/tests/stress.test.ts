@@ -10,6 +10,11 @@ import {
   sleep,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import {
+  createSuperAppRunMetrics,
+  parsePositiveInt,
+  percentile,
+} from './superappMetrics';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -38,6 +43,7 @@ const describeStress = stressEnabled ? describe : describe.skip;
 setSuiteTimeout(1000 * 60 * 15);
 
 type AppProcess = Awaited<ReturnType<typeof modernServe>>;
+type SuperAppRunMetrics = ReturnType<typeof createSuperAppRunMetrics>;
 
 type BootstrapPayload = {
   approvals: Array<{ id: string; status: string }>;
@@ -49,21 +55,6 @@ type BootstrapPayload = {
   };
 };
 
-function parsePositiveInt(value: string | undefined) {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-function percentile(values: number[], percentileValue: number) {
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.ceil((percentileValue / 100) * sorted.length) - 1;
-  return sorted[Math.max(0, Math.min(index, sorted.length - 1))] ?? 0;
-}
-
 function captureBrowserErrors(page: Page) {
   const errors: string[] = [];
   page.on('console', message => {
@@ -72,18 +63,9 @@ function captureBrowserErrors(page: Page) {
     }
   });
   page.on('pageerror', error => {
-    errors.push(error.message);
+    errors.push(error instanceof Error ? error.message : String(error));
   });
   return errors;
-}
-
-async function timed<T>(operation: () => Promise<T>) {
-  const startedAt = performance.now();
-  const value = await operation();
-  return {
-    value,
-    durationMs: performance.now() - startedAt,
-  };
 }
 
 async function request(
@@ -246,45 +228,83 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
   let page: Page;
   let port: number;
   let browserErrors: string[];
+  let metrics: SuperAppRunMetrics | undefined;
 
   beforeAll(async () => {
+    metrics = createSuperAppRunMetrics({
+      appDir,
+      suite: 'superapp-erp-stress',
+      parameters: {
+        stressRounds,
+        stressBatchSize,
+        stressResetCycles,
+        stressRouteCycles,
+        stressPauseMs,
+      },
+      budgets: {
+        p95Ms: stressP95BudgetMs,
+        maxMs: stressMaxBudgetMs,
+      },
+    });
     port = await getPort();
+    metrics.recordMemory('before-build');
     const buildResult = await modernBuild(appDir);
     expect(buildResult.code).toBe(0);
+    metrics.recordMemory('after-build');
     app = await modernServe(appDir, port, {
       cwd: appDir,
       stderr: false,
       stdout: false,
     });
+    metrics.recordMemory('after-serve');
     browser = await puppeteer.launch(browserLaunchOptions);
     page = await browser.newPage();
     browserErrors = captureBrowserErrors(page);
+    metrics.recordMemory('after-browser');
   });
 
   afterAll(async () => {
-    await page?.close();
-    await browser?.close();
-    await killApp(app);
+    try {
+      metrics?.recordBrowserErrors(browserErrors ?? []);
+      metrics?.recordInvariant('browserErrorCount', browserErrors?.length ?? 0);
+      metrics?.recordMemory('before-cleanup');
+      metrics?.writeSummary();
+    } finally {
+      await page?.close();
+      await browser?.close();
+      await killApp(app);
+    }
   });
 
   test('rejects invalid Effect payloads without state drift', async () => {
     await expectInvalidRequestsDoNotMutateState(port);
+    metrics?.recordInvariant('invalidPayloadDriftRejected', true);
   });
 
   test('preserves state and latency budgets under concurrent Effect bursts', async () => {
     const durations: number[] = [];
+    metrics?.recordMemory('before-concurrent-bursts');
 
     for (let cycle = 0; cycle < stressResetCycles; cycle += 1) {
+      metrics?.recordMemory(`cycle-${cycle + 1}-start`);
       await resetSuperApp(port);
       await expect(
-        decideApproval(port, 'ap-1001', 'approved', 'finance.lead'),
+        metrics!.timed('approval.decision', () =>
+          decideApproval(port, 'ap-1001', 'approved', 'finance.lead'),
+        ),
       ).resolves.toMatchObject({
-        pendingApprovals: 1,
+        value: expect.objectContaining({
+          pendingApprovals: 1,
+        }),
       });
       await expect(
-        decideApproval(port, 'ap-1002', 'rejected', 'ops.manager'),
+        metrics!.timed('approval.decision', () =>
+          decideApproval(port, 'ap-1002', 'rejected', 'ops.manager'),
+        ),
       ).resolves.toMatchObject({
-        pendingApprovals: 0,
+        value: expect.objectContaining({
+          pendingApprovals: 0,
+        }),
       });
 
       let expectedMessages = 2;
@@ -294,7 +314,7 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
         const batch = await Promise.all(
           Array.from({ length: stressBatchSize }, async (_, index) => {
             const priority = (round + index) % 4 === 0 ? 'urgent' : 'normal';
-            const result = await timed(() =>
+            const result = await metrics!.timed('chat.send', () =>
               sendChatMessage(port, round + 1, index, priority),
             );
             durations.push(result.durationMs);
@@ -307,7 +327,9 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
           payload => payload.message.priority === 'urgent',
         ).length;
 
-        const bootstrapResult = await timed(() => getBootstrap(port));
+        const bootstrapResult = await metrics!.timed('bootstrap', () =>
+          getBootstrap(port),
+        );
         durations.push(bootstrapResult.durationMs);
         expect(bootstrapResult.value.summary).toMatchObject({
           pendingApprovals: 0,
@@ -321,6 +343,10 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
       }
 
       const finalBootstrap = await getBootstrap(port);
+      metrics?.recordInvariant(
+        `cycle-${cycle + 1}-finalMessages`,
+        finalBootstrap.chat.length,
+      );
       expect(finalBootstrap.chat).toHaveLength(
         2 + stressRounds * stressBatchSize,
       );
@@ -328,10 +354,15 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
       expect(finalBootstrap.approvals.map(approval => approval.status)).toEqual(
         ['approved', 'rejected'],
       );
+      metrics?.recordMemory(`cycle-${cycle + 1}-end`);
     }
 
     const p95DurationMs = percentile(durations, 95);
     const maxDurationMs = Math.max(...durations);
+    metrics?.recordInvariant('sampleCount', durations.length);
+    metrics?.recordInvariant('p95DurationMs', Math.round(p95DurationMs));
+    metrics?.recordInvariant('maxDurationMs', Math.round(maxDurationMs));
+    metrics?.recordMemory('after-concurrent-bursts');
     console.info(
       `[superapp-stress] samples=${durations.length};p95=${Math.round(
         p95DurationMs,
@@ -343,6 +374,7 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
 
   test('keeps TanStack route churn stable after stressed Effect state', async () => {
     await resetSuperApp(port);
+    metrics?.recordMemory('before-route-churn');
 
     await Promise.all(
       Array.from({ length: stressBatchSize }, (_, index) => {
@@ -352,22 +384,45 @@ describeStress('SuperApp ERP brutal stress and edge-case validation', () => {
     );
 
     for (let cycle = 0; cycle < stressRouteCycles; cycle += 1) {
-      await expectRoute(page, port, '/');
-      await page.click('[data-testid="nav-approvals"]');
-      await page.waitForSelector('[data-testid="approvals-page"]');
+      await metrics!.timed(
+        'route.dashboard',
+        () => expectRoute(page, port, '/'),
+        {
+          route: true,
+        },
+      );
+      await metrics!.timed(
+        'route.approvals',
+        async () => {
+          await page.click('[data-testid="nav-approvals"]');
+          await page.waitForSelector('[data-testid="approvals-page"]');
+        },
+        { route: true },
+      );
       await expect(
         page.$eval('[data-testid="route-kind"]', el => el.textContent),
       ).resolves.toBe('finance-approval-workflow');
 
-      await page.click('[data-testid="nav-chat"]');
-      await page.waitForSelector('[data-testid="chat-page"]');
+      await metrics!.timed(
+        'route.chat',
+        async () => {
+          await page.click('[data-testid="nav-chat"]');
+          await page.waitForSelector('[data-testid="chat-page"]');
+        },
+        { route: true },
+      );
       await expect(
         page.$eval('[data-testid="route-kind"]', el => el.textContent),
       ).resolves.toBe('ops-chat-command-channel');
 
+      if ((cycle + 1) % 4 === 0) {
+        metrics?.recordMemory(`route-cycle-${cycle + 1}`);
+      }
       await sleep(stressPauseMs);
     }
 
+    metrics?.recordInvariant('routeCycles', stressRouteCycles);
+    metrics?.recordMemory('after-route-churn');
     expect(browserErrors).toEqual([]);
   });
 });

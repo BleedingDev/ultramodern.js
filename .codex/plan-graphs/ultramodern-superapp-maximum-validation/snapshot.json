@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-30T17:51:45.405540+00:00",
+  "generated_at": "2026-04-30T18:12:37.582231+00:00",
   "graph_id": "ultramodern-superapp-maximum-validation",
   "plan_set_hash": "926c7dfcfe",
   "selection_hash": "6bd0d71638",
@@ -21,7 +21,7 @@
         {
           "id": "usv-01",
           "content": "Instrument the current SuperApp ERP fixture with reusable metrics and machine-readable stress/soak artifacts.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -82,19 +82,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "usv-01",
-          "content": "Instrument the current SuperApp ERP fixture with reusable metrics and machine-readable stress/soak artifacts.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "usv-02",
           "content": "Add an external Effect API load runner for production-served SuperApp ERP scenarios.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "usv-03",
           "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
@@ -106,9 +100,15 @@
           "content": "Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "usv-05",
+          "content": "Build deployment and Module Federation reliability certification for asset prefixes, stale or down remotes, SSR MF, and deterministic fallbacks.",
+          "status": "pending",
+          "ordinal": 5
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 8
     }
   ],

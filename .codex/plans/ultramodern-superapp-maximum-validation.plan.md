@@ -4,7 +4,7 @@ overview: Execution graph distilled from the SuperApp maximum validation researc
 todos:
   - id: usv-01
     content: Instrument the current SuperApp ERP fixture with reusable metrics and machine-readable stress/soak artifacts.
-    status: pending
+    status: completed
   - id: usv-02
     content: Add an external Effect API load runner for production-served SuperApp ERP scenarios.
     status: pending
