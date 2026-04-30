@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: usv-03
     content: Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.
-    status: pending
+    status: completed
   - id: usv-04
     content: Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.
     status: pending

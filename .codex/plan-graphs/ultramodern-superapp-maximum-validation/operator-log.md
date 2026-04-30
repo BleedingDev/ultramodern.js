@@ -44,6 +44,15 @@ Plan: `.codex/plans/ultramodern-superapp-maximum-validation.plan.md`
 ## 2026-04-30 Next Frontier
 
 - Lane: `usv-03` fake SuperApp portfolio
+  - Owner: primary agent
+  - Status: completed
+  - Write scope: `tests/integration/superapp-*`, root/package test scripts if needed, plan status files, operator log.
+  - Result: added `tests/integration/superapp-portfolio`, a production-buildable Effect + TanStack fixture covering mobility marketplace, enterprise mega ERP, MF platform, tenant/security, and failure-lab archetypes. The fixture exposes profile metadata for smoke/stress/nightly runs, workflow idempotency, deterministic failure injection, invalid request no-drift checks, browser route coverage, and JSON artifacts for opt-in stress/nightly profiles.
+  - Verification: `pnpm tsc --noEmit`, `pnpm build`, targeted Vitest browser/API smoke, opt-in stress smoke with `/tmp/modernjs-superapp-portfolio-stress-smoke/summary.json`, opt-in nightly smoke with `/tmp/modernjs-superapp-portfolio-nightly-smoke/summary.json`, Biome, package-json lint, changeset check, and dependency consistency passed.
+
+## 2026-04-30 Frontier After Wave 3
+
+- Lane: `usv-04` Playwright browser matrix
   - Owner: unassigned
-  - Status: ready after Wave 2 graph refresh.
-  - Next action: expand fixtures with mobility, mega ERP, MF platform, and failure-lab apps using the shared metrics/load artifact contracts from `usv-01` and `usv-02`.
+  - Status: ready after Wave 3 graph refresh.
+  - Next action: add desktop/mobile/browser matrix, slow network, screenshots/traces/video on failure, console/pageerror capture, hydration assertions, and workflow coverage across `superapp-erp` plus `superapp-portfolio`.

@@ -1,0 +1,14 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "jsx": "react-jsx",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@api/*": ["./api/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  },
+  "include": ["api", "src", "shared", "modern.config.ts"]
+}

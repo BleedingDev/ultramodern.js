@@ -1,0 +1,78 @@
+.portfolio-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+  color: #172026;
+  background: #f5f7f8;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.portfolio-nav {
+  padding: 24px;
+  background: #172026;
+  color: #f7fbfc;
+}
+
+.brand {
+  margin-bottom: 18px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.portfolio-nav nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.portfolio-nav a {
+  color: #dbe7ea;
+  text-decoration: none;
+}
+
+.portfolio-workspace {
+  padding: 28px;
+}
+
+.portfolio-workspace header {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.panel,
+.app-card {
+  border: 1px solid #d3dde1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.app-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.app-card.high {
+  border-left: 4px solid #bf3b2f;
+}
+
+.app-card.medium {
+  border-left: 4px solid #b7791f;
+}
+
+button {
+  width: fit-content;
+  margin-top: 16px;
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-30T18:26:35.284025+00:00",
+  "generated_at": "2026-04-30T18:48:07.594742+00:00",
   "graph_id": "ultramodern-superapp-maximum-validation",
   "plan_set_hash": "926c7dfcfe",
   "selection_hash": "6bd0d71638",
@@ -33,7 +33,7 @@
         {
           "id": "usv-03",
           "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -82,27 +82,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "usv-03",
-          "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "usv-04",
           "content": "Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.",
           "status": "pending",
           "ordinal": 4
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "usv-05",
           "content": "Build deployment and Module Federation reliability certification for asset prefixes, stale or down remotes, SSR MF, and deterministic fallbacks.",
           "status": "pending",
           "ordinal": 5
+        },
+        {
+          "id": "usv-06",
+          "content": "Add security and tenant-isolation validation for auth, roles, CSRF, requestId isolation, origins, and telemetry redaction.",
+          "status": "pending",
+          "ordinal": 6
         }
       ],
-      "completed": 2,
+      "completed": 3,
       "total": 8
     }
   ],
