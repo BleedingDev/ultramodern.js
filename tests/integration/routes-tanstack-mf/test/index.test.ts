@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -378,10 +379,30 @@ async function buildFederatedFixtureApp(
   appDir: string,
   env: Record<string, string>,
 ) {
-  await modernBuild(appDir, [], {
-    marker: /ready\s+built in/i,
-    env,
-  });
+  const result = await modernBuild(appDir, [], { env });
+  if (result.code !== 0) {
+    throw new Error(
+      `Failed to build ${path.basename(appDir)}.\n${result.stdout || ''}\n${
+        result.stderr || ''
+      }`,
+    );
+  }
+  await waitForEffectEntry(appDir);
+}
+
+async function waitForEffectEntry(appDir: string) {
+  const effectEntry = path.join(appDir, 'dist/api/effect/index.js');
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      await fs.access(effectEntry);
+      return;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error(
+    `Built ${path.basename(appDir)} without Effect entry: ${effectEntry}`,
+  );
 }
 
 async function killAppBestEffort(app: unknown) {
