@@ -5,6 +5,7 @@ import type {
   ServerPluginAPI,
 } from '@modern-js/server-core';
 import {
+  API_DIR,
   compatibleRequire,
   findExists,
   fs,
@@ -239,7 +240,7 @@ export class EffectAdapter {
     const configuredEntry = bffConfig?.effect?.entry;
     const defaultEntry = path.resolve(
       appDirectory || process.cwd(),
-      apiDirectory || '',
+      apiDirectory || API_DIR,
       'effect',
       'index',
     );

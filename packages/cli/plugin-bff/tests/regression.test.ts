@@ -65,6 +65,42 @@ describe('plugin-bff regressions', () => {
     expect(response?.status).toBe(200);
   });
 
+  test('effect adapter resolves default api entry when server context omits apiDirectory', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-entry-'),
+    );
+
+    try {
+      const entryFile = path.join(appDir, 'api', 'effect', 'index.js');
+      await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
+      await fs.promises.writeFile(
+        entryFile,
+        'module.exports = { handler: () => new Response("ok") };',
+      );
+
+      const api = {
+        getServerContext() {
+          return {
+            appDirectory: appDir,
+            apiDirectory: undefined,
+          };
+        },
+        getServerConfig() {
+          return {};
+        },
+      } as unknown;
+
+      const adapter = new EffectAdapter(api as ServerPluginAPI);
+      const adapterState = adapter as unknown as {
+        resolveEntryFile: () => string | undefined;
+      };
+
+      expect(adapterState.resolveEntryFile()).toBe(entryFile);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('client generator skips lambda scan when existLambda is false', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-regression-'),
