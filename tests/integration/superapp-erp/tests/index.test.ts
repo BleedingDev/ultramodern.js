@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import dns from 'node:dns';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,6 @@ setSuiteTimeout(1000 * 60 * 8);
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const browserLaunchOptions = launchOptions as Parameters<
   typeof puppeteer.launch
 >[0];
@@ -230,14 +229,10 @@ async function expectSuperAppUi(page: Page, port: number) {
 }
 
 function expectTypecheckPasses() {
-  execFileSync(
-    pnpmCommand,
-    ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'],
-    {
-      cwd: appDir,
-      stdio: 'pipe',
-    },
-  );
+  execSync('pnpm exec tsc --noEmit -p tsconfig.json', {
+    cwd: appDir,
+    stdio: 'pipe',
+  });
 }
 
 describe('Effect + TanStack SuperApp ERP readiness fixture', () => {

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -16,7 +16,6 @@ dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const browserLaunchOptions = launchOptions as Parameters<
   typeof puppeteer.launch
 >[0];
@@ -24,14 +23,10 @@ const browserLaunchOptions = launchOptions as Parameters<
 type AppProcess = Awaited<ReturnType<typeof launchApp>>;
 
 function expectTypecheckPasses() {
-  execFileSync(
-    pnpmCommand,
-    ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'],
-    {
-      cwd: appDir,
-      stdio: 'pipe',
-    },
-  );
+  execSync('pnpm exec tsc --noEmit -p tsconfig.json', {
+    cwd: appDir,
+    stdio: 'pipe',
+  });
 }
 
 async function expectEffectRoute(port: number) {

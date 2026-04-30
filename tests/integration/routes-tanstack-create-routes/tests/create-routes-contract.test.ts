@@ -3,9 +3,18 @@
  */
 import fs from 'fs';
 import path from 'path';
+import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import { modernBuild } from '../../../utils/modernTestUtils';
 
 const projectRoot = path.resolve(__dirname, '../../..');
 const repoRoot = path.resolve(__dirname, '../../../..');
+const appDir = path.join(
+  projectRoot,
+  'integration/routes-tanstack-create-routes',
+);
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
@@ -14,6 +23,18 @@ const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
 
 describe('tanstack create-routes contracts', () => {
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
+
+  beforeAll(async () => {
+    jest.setTimeout(1000 * 60 * 5);
+    releaseFixtureLock = await acquireFixtureLock(appDir);
+    await modernBuild(appDir);
+  });
+
+  afterAll(async () => {
+    await releaseFixtureLock?.();
+  });
+
   test('publishes the tanstack router subpath export', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(

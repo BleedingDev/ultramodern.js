@@ -1,6 +1,10 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
   getPort,
   killApp,
   launchOptions,
@@ -15,10 +19,12 @@ describe('routes-tanstack-create-routes', () => {
   let app: unknown;
   let browser: Browser;
   let page: Page;
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
   const errors: string[] = [];
 
   beforeAll(async () => {
     jest.setTimeout(1000 * 60 * 5);
+    releaseFixtureLock = await acquireFixtureLock(appDir);
     await modernBuild(appDir);
     appPort = await getPort();
     app = await modernServe(appDir, appPort);
@@ -32,11 +38,15 @@ describe('routes-tanstack-create-routes', () => {
   });
 
   afterAll(async () => {
-    if (browser) {
-      await browser.close();
-    }
-    if (app) {
-      await killApp(app);
+    try {
+      if (browser) {
+        await browser.close();
+      }
+      if (app) {
+        await killApp(app);
+      }
+    } finally {
+      await releaseFixtureLock?.();
     }
   });
 
