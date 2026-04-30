@@ -223,6 +223,7 @@ async function expectSuperAppUi(page: Page, port: number) {
       .querySelector('[data-testid="chat-receipt"]')
       ?.textContent?.includes('msg-3:3'),
   );
+  await page.waitForSelector('[data-testid="chat-msg-3"]');
   await expect(
     page.$eval('[data-testid="chat-msg-3"]', el => el.textContent),
   ).resolves.toContain('ops.commander:urgent:Reroute high priority loads');
