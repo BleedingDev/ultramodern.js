@@ -179,6 +179,18 @@ function certificationCommands(profile, outDir) {
         profile: 'release',
       },
     ),
+    command(
+      'superapp-pilot-chaos',
+      `${vitest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PILOT_CHAOS: '1',
+          SUPERAPP_PILOT_CHAOS_ARTIFACT_DIR: artifactDir(outDir, 'pilot-chaos'),
+        },
+        profile: 'release',
+      },
+    ),
   ];
 
   const nightly = [

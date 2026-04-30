@@ -51,6 +51,60 @@ const WorkflowEventSchema = Schema.Struct({
   status: Schema.Literals(['accepted', 'deduped']),
 });
 
+const PilotScenarioSchema = Schema.Literals([
+  'grab-marketplace',
+  'mega-erp-command-center',
+  'mobility-erp-chat',
+]);
+
+const PilotModuleSchema = Schema.Literals([
+  'rides',
+  'dispatch',
+  'orders',
+  'erp',
+  'chat',
+  'mf-remotes',
+  'security',
+  'billing',
+]);
+
+const PilotChaosSchema = Schema.Literals([
+  'none',
+  'remote-down',
+  'api-timeout',
+  'chunk-404',
+  'clock-skew',
+  'restart-during-load',
+]);
+
+const PilotModuleResultSchema = Schema.Struct({
+  module: PilotModuleSchema,
+  appId: AppIdSchema,
+  ok: Schema.Boolean,
+  degraded: Schema.Boolean,
+  invariant: Schema.String,
+  durationBudgetMs: Schema.Number,
+});
+
+const PilotRunSchema = Schema.Struct({
+  id: Schema.String,
+  requestId: Schema.String,
+  scenario: PilotScenarioSchema,
+  tenant: Schema.String,
+  actor: Schema.String,
+  status: Schema.Literals(['accepted', 'deduped']),
+  chaos: PilotChaosSchema,
+  moduleResults: Schema.Array(PilotModuleResultSchema),
+  summary: Schema.Struct({
+    workflowEvents: Schema.Number,
+    chatMessages: Schema.Number,
+    approvals: Schema.Number,
+    remoteFallbacks: Schema.Number,
+    securityChecks: Schema.Number,
+    degradedModules: Schema.Number,
+  }),
+});
+
 const SummarySchema = Schema.Struct({
   appCount: Schema.Number,
   highRiskApps: Schema.Number,
@@ -103,6 +157,24 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
         }),
         success: Schema.Struct({
           event: WorkflowEventSchema,
+          summary: SummarySchema,
+        }),
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('runPilot', '/effect/pilot/:scenario/run', {
+        params: {
+          scenario: PilotScenarioSchema,
+        },
+        payload: Schema.Struct({
+          tenant: Schema.String,
+          actor: Schema.String,
+          requestId: Schema.String,
+          modules: Schema.Array(PilotModuleSchema),
+          chaos: Schema.optional(PilotChaosSchema),
+        }),
+        success: Schema.Struct({
+          run: PilotRunSchema,
           summary: SummarySchema,
         }),
       }),

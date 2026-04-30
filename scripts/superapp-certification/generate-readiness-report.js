@@ -125,6 +125,7 @@ function suiteDimensions(summary) {
     [/security/, ['security']],
     [/mf|module-federation/, ['module-federation']],
     [/browser/, ['browser']],
+    [/pilot|chaos/, ['integration', 'stress', 'performance']],
     [/stress|load/, ['stress', 'performance']],
     [/soak|nightly/, ['soak', 'performance']],
     [/portfolio|erp/, ['integration']],

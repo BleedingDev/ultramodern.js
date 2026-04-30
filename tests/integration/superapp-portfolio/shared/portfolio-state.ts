@@ -5,6 +5,29 @@ export type PortfolioAppId =
   | 'tenant-security'
   | 'failure-lab';
 
+export type PilotScenario =
+  | 'grab-marketplace'
+  | 'mega-erp-command-center'
+  | 'mobility-erp-chat';
+
+export type PilotModuleId =
+  | 'rides'
+  | 'dispatch'
+  | 'orders'
+  | 'erp'
+  | 'chat'
+  | 'mf-remotes'
+  | 'security'
+  | 'billing';
+
+export type PilotChaosMode =
+  | 'none'
+  | 'remote-down'
+  | 'api-timeout'
+  | 'chunk-404'
+  | 'clock-skew'
+  | 'restart-during-load';
+
 export type ValidationProfile = {
   durationMs: number;
   concurrency: number;
@@ -37,9 +60,38 @@ export type WorkflowEvent = {
   status: 'accepted' | 'deduped';
 };
 
+export type PilotModuleResult = {
+  module: PilotModuleId;
+  appId: PortfolioAppId;
+  ok: boolean;
+  degraded: boolean;
+  invariant: string;
+  durationBudgetMs: number;
+};
+
+export type PilotRun = {
+  id: string;
+  requestId: string;
+  scenario: PilotScenario;
+  tenant: string;
+  actor: string;
+  status: 'accepted' | 'deduped';
+  chaos: PilotChaosMode;
+  moduleResults: PilotModuleResult[];
+  summary: {
+    workflowEvents: number;
+    chatMessages: number;
+    approvals: number;
+    remoteFallbacks: number;
+    securityChecks: number;
+    degradedModules: number;
+  };
+};
+
 export type PortfolioState = {
   apps: PortfolioApp[];
   events: WorkflowEvent[];
+  pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
   tenantAccess: Record<string, PortfolioAppId[]>;
 };
@@ -149,8 +201,16 @@ export function createInitialPortfolioState(): PortfolioState {
       },
     ],
     events: [],
+    pilotRuns: [],
     failureMode: 'healthy',
     tenantAccess: {
+      'superapp-global': [
+        'mobility-marketplace',
+        'enterprise-mega-erp',
+        'mf-platform',
+        'tenant-security',
+        'failure-lab',
+      ],
       'city-ops-eu': ['mobility-marketplace'],
       'acme-global': ['enterprise-mega-erp'],
       'platform-shell': ['mf-platform'],
