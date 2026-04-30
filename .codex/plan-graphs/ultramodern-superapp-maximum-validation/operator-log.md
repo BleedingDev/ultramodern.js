@@ -62,6 +62,16 @@ Plan: `.codex/plans/ultramodern-superapp-maximum-validation.plan.md`
 ## 2026-04-30 Frontier After Wave 4
 
 - Lane: `usv-05` deployment and Module Federation reliability certification
+  - Owner: primary agent
+  - Status: completed
+  - Write scope: MF/deploy certification tests or scripts, relevant integration fixture tests, plan status files, operator log.
+  - Result: added `tests/integration/routes-tanstack-mf/test/deploy-certification.test.ts`, an opt-in production-build certification for `mf-remote`, `mf-remote-2`, and `mf-host`. It validates remote manifest public paths, exposed sync assets, remoteEntry JavaScript responses, SSR MF client-only boundaries, deterministic down-remote fallback, and deterministic bad-contract fallback.
+  - Verification: `SUPERAPP_MF_CERTIFICATION=1 SUPERAPP_MF_CERTIFICATION_ARTIFACT_DIR=/tmp/modernjs-superapp-mf-certification-smoke pnpm vitest run -c vitest.framework.config.mjs integration/routes-tanstack-mf/test/deploy-certification.test.ts` passed with `/tmp/modernjs-superapp-mf-certification-smoke/summary.json` reporting 5 checks and 0 failures. Biome, changeset, package-json lint, and dependency consistency also passed. No `pnpm-lock.yaml` or package dependency change was introduced.
+
+## 2026-04-30 Frontier After Wave 5
+
+- Lane: `usv-06` security and tenant-isolation validation
   - Owner: unassigned
-  - Status: ready after Wave 4 graph refresh.
-  - Next action: certify asset prefixes, stale/down remotes, SSR MF, deterministic fallbacks, and deploy-like serving behavior using the artifact contracts from prior waves.
+  - Status: pending
+  - Write scope: SuperApp security/tenant fixtures and tests, artifact summary helpers, plan status files, operator log.
+  - Next action: add role, CSRF, requestId isolation, origin, and telemetry-redaction validation using the existing Effect + TanStack SuperApp fixtures.

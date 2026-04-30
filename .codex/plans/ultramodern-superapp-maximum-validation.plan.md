@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: usv-05
     content: Build deployment and Module Federation reliability certification for asset prefixes, stale or down remotes, SSR MF, and deterministic fallbacks.
-    status: pending
+    status: completed
   - id: usv-06
     content: Add security and tenant-isolation validation for auth, roles, CSRF, requestId isolation, origins, and telemetry redaction.
     status: pending
