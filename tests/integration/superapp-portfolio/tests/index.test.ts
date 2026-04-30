@@ -72,6 +72,7 @@ async function expectEffectPortfolioContracts(port: number) {
   const openApi = await openApiResponse.json();
   expect(openApi.paths['/effect/bootstrap']).toBeDefined();
   expect(openApi.paths['/effect/apps/{appId}/workflow']).toBeDefined();
+  expect(openApi.paths['/effect/pilot/{scenario}/run']).toBeDefined();
   expect(openApi.paths['/effect/failure/{mode}']).toBeDefined();
 
   const bootstrap = await getBootstrap(port);
@@ -149,6 +150,39 @@ async function expectEffectPortfolioContracts(port: number) {
     summary: {
       failureMode: 'remote-down',
       eventCount: 2,
+    },
+  });
+
+  await resetPortfolio(port);
+  const pilot = await postJson(
+    port,
+    '/bff-api/effect/pilot/grab-marketplace/run',
+    {
+      tenant: 'superapp-global',
+      actor: 'ops.pilot',
+      requestId: 'pilot-contract-1',
+      modules: ['rides', 'dispatch', 'orders', 'erp', 'chat'],
+      chaos: 'none',
+    },
+  );
+  expect(pilot.status).toBe(200);
+  await expect(pilot.json()).resolves.toMatchObject({
+    run: {
+      requestId: 'pilot-contract-1',
+      scenario: 'grab-marketplace',
+      tenant: 'superapp-global',
+      status: 'accepted',
+      chaos: 'none',
+      summary: {
+        workflowEvents: 5,
+        chatMessages: 1,
+        approvals: 1,
+        degradedModules: 0,
+      },
+    },
+    summary: {
+      eventCount: 5,
+      failureMode: 'healthy',
     },
   });
 }
@@ -230,12 +264,43 @@ describe('superapp portfolio fixture', () => {
       waitUntil: ['domcontentloaded', 'networkidle0'],
     });
     await page.waitForSelector('[data-testid="portfolio-ready"]');
+    await page.waitForSelector('[data-testid="pilot-command-center"]');
     await expect(
       page.$eval(
         '[data-testid="summary-apps"]',
         element => element.textContent,
       ),
     ).resolves.toBe('apps:5');
+
+    await page.select('[data-testid="pilot-chaos"]', 'api-timeout');
+    await page.click('[data-testid="run-pilot"]');
+    await expect(
+      page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="pilot-status"]')
+          ?.textContent?.includes('grab-marketplace:accepted:api-timeout'),
+      ),
+    ).resolves.toBeTruthy();
+    await expect(
+      page.$eval(
+        '[data-testid="pilot-module-erp"]',
+        element => element.textContent,
+      ),
+    ).resolves.toContain('failed:degraded');
+    await expect(
+      page.$eval(
+        '[data-testid="pilot-summary"]',
+        element => element.textContent,
+      ),
+    ).resolves.toContain('degraded:1');
+    await page.click('[data-testid="reset-pilot"]');
+    await expect(
+      page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="pilot-status"]')
+          ?.textContent?.includes('idle'),
+      ),
+    ).resolves.toBeTruthy();
 
     await page.click('[data-testid="nav-mobility"]');
     await page.waitForSelector('[data-testid="portfolio-app-page"]');

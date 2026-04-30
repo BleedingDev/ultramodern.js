@@ -141,6 +141,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
         success: Schema.Struct({
           apps: Schema.Array(PortfolioAppSchema),
           events: Schema.Array(WorkflowEventSchema),
+          pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,
         }),
       }),

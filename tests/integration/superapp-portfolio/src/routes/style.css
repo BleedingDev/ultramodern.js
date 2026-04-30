@@ -58,6 +58,76 @@
   gap: 14px;
 }
 
+.pilot-command-center {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1.2fr);
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.pilot-controls,
+.pilot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.pilot-controls label,
+.module-grid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.pilot-controls select {
+  min-width: 220px;
+  border: 1px solid #b9c8ce;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fff;
+}
+
+.module-grid,
+.module-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.module-grid label {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  border: 1px solid #d3dde1;
+  border-radius: 6px;
+  padding: 8px;
+  background: #f8fbfc;
+}
+
+.pilot-result {
+  min-height: 240px;
+}
+
+.module-results div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #d3dde1;
+  border-radius: 6px;
+  padding: 10px;
+  background: #f8fbfc;
+  font-size: 13px;
+}
+
+.module-results .module-failed {
+  border-color: #bf3b2f;
+  background: #fff7f6;
+}
+
+.module-results .module-ok {
+  border-color: #6d9f71;
+}
+
 .app-card {
   display: grid;
   gap: 6px;
@@ -75,4 +145,20 @@
 button {
   width: fit-content;
   margin-top: 16px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 820px) {
+  .portfolio-shell,
+  .pilot-command-center {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-nav {
+    padding: 18px;
+  }
 }

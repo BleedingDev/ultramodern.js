@@ -34,6 +34,7 @@ function cloneState() {
   return {
     apps: state.apps,
     events: state.events,
+    pilotRuns: state.pilotRuns,
     summary: summarizePortfolio(state),
   };
 }
