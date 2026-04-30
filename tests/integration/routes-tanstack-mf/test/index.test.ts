@@ -3,6 +3,10 @@ import { randomBytes } from 'node:crypto';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
+import {
   killApp,
   launchApp,
   launchOptions,
@@ -33,6 +37,7 @@ async function waitForAppReady(url: string, maxRetries = 60) {
 const remoteDir = path.resolve(__dirname, '../mf-remote');
 const remoteTwoDir = path.resolve(__dirname, '../mf-remote-2');
 const hostDir = path.resolve(__dirname, '../mf-host');
+const fixtureRoot = path.resolve(__dirname, '..');
 
 type FederatedPorts = {
   remote: number;
@@ -663,9 +668,11 @@ describe('routes-tanstack-mf', () => {
   let hostApp: unknown;
   let browser: Browser;
   let page: Page;
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
   const errors: string[] = [];
 
   beforeAll(async () => {
+    releaseFixtureLock = await acquireFixtureLock(fixtureRoot);
     const env = createFederatedEnv(DEV_PORTS);
 
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
@@ -695,10 +702,14 @@ describe('routes-tanstack-mf', () => {
   });
 
   afterAll(async () => {
-    if (browser) {
-      await browser.close();
+    try {
+      if (browser) {
+        await browser.close();
+      }
+      await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
+    } finally {
+      await releaseFixtureLock?.();
     }
-    await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
   });
 
   test('keeps client-render boundary explicit for federated route content', async () => {
@@ -812,9 +823,11 @@ describe('routes-tanstack-mf serve mode', () => {
   let hostApp: unknown;
   let browser: Browser;
   let page: Page;
+  let releaseFixtureLock: ReleaseFixtureLock | undefined;
   const errors: string[] = [];
 
   beforeAll(async () => {
+    releaseFixtureLock = await acquireFixtureLock(fixtureRoot);
     const env = createFederatedEnv(SERVE_PORTS);
 
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
@@ -850,10 +863,14 @@ describe('routes-tanstack-mf serve mode', () => {
   });
 
   afterAll(async () => {
-    if (browser) {
-      await browser.close();
+    try {
+      if (browser) {
+        await browser.close();
+      }
+      await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
+    } finally {
+      await releaseFixtureLock?.();
     }
-    await stopFederatedApps([hostApp, remoteTwoApp, remoteApp]);
   });
 
   test('serves module federation assets as static files', async () => {

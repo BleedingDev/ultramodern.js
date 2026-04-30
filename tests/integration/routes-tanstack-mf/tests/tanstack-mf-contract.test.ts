@@ -4,6 +4,10 @@ import fs from 'fs';
  */
 import { createRequire } from 'module';
 import path from 'path';
+import {
+  acquireFixtureLock,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
 
 const projectRoot = path.resolve(__dirname, '../../..');
 const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
@@ -22,6 +26,8 @@ const defaultFederatedEnv = {
   MF_HOST_ORIGIN: 'http://localhost:3011',
   MF_REMOTE_ORIGIN: 'http://localhost:3010',
 };
+
+let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
@@ -46,7 +52,12 @@ async function ensureTanstackMfDistFixtures() {
 }
 
 beforeAll(async () => {
+  releaseFixtureLock = await acquireFixtureLock(tanstackMfRoot);
   await ensureTanstackMfDistFixtures();
+});
+
+afterAll(async () => {
+  await releaseFixtureLock?.();
 });
 
 describe('tanstack + module federation contracts', () => {
