@@ -1,0 +1,118 @@
+{
+  "generated_at": "2026-04-30T17:51:45.405540+00:00",
+  "graph_id": "ultramodern-superapp-maximum-validation",
+  "plan_set_hash": "926c7dfcfe",
+  "selection_hash": "6bd0d71638",
+  "plan_count": 1,
+  "edge_count": 0,
+  "plans_root": ".codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-maximum-validation.plan.md"
+  ],
+  "edges": [],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-maximum-validation.plan.md",
+      "slug": "ultramodern-superapp-maximum-validation",
+      "name": "UltraModern SuperApp Maximum Validation",
+      "overview": "Execution graph distilled from the SuperApp maximum validation research report for proving Effect-first BFF, TanStack Router, Module Federation, SSR, browser, load, soak, security, and upstream-drift readiness for large SuperApp development.",
+      "todos": [
+        {
+          "id": "usv-01",
+          "content": "Instrument the current SuperApp ERP fixture with reusable metrics and machine-readable stress/soak artifacts.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "usv-02",
+          "content": "Add an external Effect API load runner for production-served SuperApp ERP scenarios.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "usv-03",
+          "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "usv-04",
+          "content": "Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "usv-05",
+          "content": "Build deployment and Module Federation reliability certification for asset prefixes, stale or down remotes, SSR MF, and deterministic fallbacks.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "usv-06",
+          "content": "Add security and tenant-isolation validation for auth, roles, CSRF, requestId isolation, origins, and telemetry redaction.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "usv-07",
+          "content": "Add nightly and release certification workflows including upstream Modern.js drift checks and long-running soak profiles.",
+          "status": "pending",
+          "ordinal": 7
+        },
+        {
+          "id": "usv-08",
+          "content": "Generate a readiness dashboard and report artifacts from contract, integration, stress, soak, browser, MF, security, performance, and drift results.",
+          "status": "pending",
+          "ordinal": 8
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-superapp-maximum-validation",
+      "plan_name": "UltraModern SuperApp Maximum Validation",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-maximum-validation.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "usv-01",
+          "content": "Instrument the current SuperApp ERP fixture with reusable metrics and machine-readable stress/soak artifacts.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "usv-02",
+          "content": "Add an external Effect API load runner for production-served SuperApp ERP scenarios.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "usv-03",
+          "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "usv-04",
+          "content": "Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 0,
+      "total": 8
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
