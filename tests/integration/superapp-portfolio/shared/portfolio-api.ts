@@ -65,6 +65,21 @@ const SummarySchema = Schema.Struct({
   nightlyWorkflowCount: Schema.Number,
 });
 
+const SecurityCheckSchema = Schema.Struct({
+  id: Schema.String,
+  ok: Schema.Boolean,
+});
+
+const SecurityTelemetrySchema = Schema.Struct({
+  tenant: Schema.String,
+  appId: AppIdSchema,
+  requestId: Schema.String,
+  role: Schema.String,
+  origin: Schema.String,
+  authorization: Schema.String,
+  csrfToken: Schema.String,
+});
+
 export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
   HttpApiGroup.make('portfolio')
     .add(
@@ -89,6 +104,29 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
         success: Schema.Struct({
           event: WorkflowEventSchema,
           summary: SummarySchema,
+        }),
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('securityProbe', '/effect/security/probe', {
+        headers: {
+          authorization: Schema.optional(Schema.String),
+          origin: Schema.optional(Schema.String),
+          'x-csrf-token': Schema.optional(Schema.String),
+          'x-tenant-id': Schema.optional(Schema.String),
+          'x-user-role': Schema.optional(Schema.String),
+        },
+        payload: Schema.Struct({
+          targetTenant: Schema.String,
+          targetAppId: AppIdSchema,
+          action: Schema.String,
+          requestId: Schema.String,
+          mutation: Schema.optional(Schema.Boolean),
+        }),
+        success: Schema.Struct({
+          allowed: Schema.Boolean,
+          checks: Schema.Array(SecurityCheckSchema),
+          telemetry: SecurityTelemetrySchema,
         }),
       }),
     )

@@ -72,6 +72,24 @@ Plan: `.codex/plans/ultramodern-superapp-maximum-validation.plan.md`
 
 - Lane: `usv-06` security and tenant-isolation validation
   - Owner: unassigned
-  - Status: pending
+  - Status: superseded by primary active lane below
   - Write scope: SuperApp security/tenant fixtures and tests, artifact summary helpers, plan status files, operator log.
   - Next action: add role, CSRF, requestId isolation, origin, and telemetry-redaction validation using the existing Effect + TanStack SuperApp fixtures.
+
+## 2026-04-30 Frontier After Wave 5
+
+- Lane: `usv-06` security and tenant-isolation validation
+  - Owner: primary agent
+  - Status: completed
+  - Beads: `modernjs-5rh`
+  - Write scope: SuperApp security/tenant tests and fixture-local helpers, plan status files, operator log.
+  - Result: added an Effect `securityProbe` to the SuperApp portfolio fixture, scoped workflow idempotency by `appId + requestId`, and added `tests/integration/superapp-portfolio/tests/security.test.ts` as an opt-in artifacted certification for auth bearer presence, tenant access, role boundaries, CSRF token checks, trusted origins, requestId isolation, and telemetry redaction.
+  - Verification: `pnpm tsc --noEmit` in `tests/integration/superapp-portfolio`, `SUPERAPP_PORTFOLIO_SECURITY=1 SUPERAPP_PORTFOLIO_SECURITY_ARTIFACT_DIR=/tmp/modernjs-superapp-portfolio-security-smoke pnpm vitest run -c vitest.framework.config.mjs integration/superapp-portfolio/tests/security.test.ts`, portfolio smoke, short portfolio stress regression with `/tmp/modernjs-superapp-portfolio-stress-security-regression/summary.json`, Biome, changeset, package-json lint, and dependency consistency passed. No `pnpm-lock.yaml` or package dependency change was introduced.
+
+## 2026-04-30 Frontier After Wave 6
+
+- Lane: `usv-07` nightly and release certification workflows
+  - Owner: unassigned
+  - Status: pending
+  - Write scope: CI/workflow scripts, release/nightly certification commands, upstream drift worktree automation, plan status files, operator log.
+  - Next action: add a release/nightly certification entry point that orchestrates existing heavy opt-in suites and upstream Modern.js drift checks without pushing to upstream.

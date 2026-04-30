@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: usv-06
     content: Add security and tenant-isolation validation for auth, roles, CSRF, requestId isolation, origins, and telemetry redaction.
-    status: pending
+    status: completed
   - id: usv-07
     content: Add nightly and release certification workflows including upstream Modern.js drift checks and long-running soak profiles.
     status: pending
