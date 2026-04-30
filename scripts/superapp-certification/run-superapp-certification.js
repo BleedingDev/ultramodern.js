@@ -191,6 +191,23 @@ function certificationCommands(profile, outDir) {
         profile: 'release',
       },
     ),
+    command(
+      'superapp-portfolio-load',
+      `${vitest} integration/superapp-portfolio/tests/load.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PORTFOLIO_LOAD: '1',
+          SUPERAPP_PORTFOLIO_LOAD_DURATION_MS: '12000',
+          SUPERAPP_PORTFOLIO_LOAD_CONCURRENCY: '24',
+          SUPERAPP_PORTFOLIO_LOAD_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'portfolio-load',
+          ),
+        },
+        profile: 'release',
+      },
+    ),
   ];
 
   const nightly = [
@@ -234,6 +251,25 @@ function certificationCommands(profile, outDir) {
           SUPERAPP_PORTFOLIO_NIGHTLY_ARTIFACT_DIR: artifactDir(
             outDir,
             'portfolio-nightly',
+          ),
+        },
+        profile: 'nightly',
+      },
+    ),
+    command(
+      'superapp-portfolio-load-boundary',
+      `${vitest} integration/superapp-portfolio/tests/load.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PORTFOLIO_LOAD: '1',
+          SUPERAPP_PORTFOLIO_LOAD_DURATION_MS: '30000',
+          SUPERAPP_PORTFOLIO_LOAD_CONCURRENCY: '384',
+          SUPERAPP_PORTFOLIO_LOAD_P95_MS: '5000',
+          SUPERAPP_PORTFOLIO_LOAD_MAX_MS: '15000',
+          SUPERAPP_PORTFOLIO_LOAD_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'portfolio-load-boundary',
           ),
         },
         profile: 'nightly',

@@ -13,8 +13,9 @@ Usage:
   node scripts/superapp-load/run-superapp-load.js [options]
 
 Options:
-  --base-url <url>              SuperApp ERP origin. Default: ${DEFAULT_BASE_URL}
-  --scenario <name>             bootstrap|approval|chat|invalid|reset|mixed. Default: mixed
+  --base-url <url>              SuperApp origin. Default: ${DEFAULT_BASE_URL}
+  --target <name>               erp|portfolio. Default: erp
+  --scenario <name>             Target scenario. Default: mixed
   --profile <name>              Alias for --scenario.
   --duration-ms <number>        Run duration. Default: 30000
   --concurrency <number>        Concurrent workers. Default: 8
@@ -31,6 +32,7 @@ Options:
 const parseArgs = argv => {
   const parsed = {
     baseUrl: process.env.SUPERAPP_LOAD_BASE_URL || DEFAULT_BASE_URL,
+    target: process.env.SUPERAPP_LOAD_TARGET || 'erp',
     scenario: process.env.SUPERAPP_LOAD_SCENARIO || 'mixed',
     durationMs:
       parsePositiveInt(process.env.SUPERAPP_LOAD_DURATION_MS) ?? 30000,
@@ -56,6 +58,9 @@ const parseArgs = argv => {
     switch (arg) {
       case '--base-url':
         parsed.baseUrl = requireValue(argv, ++index, arg);
+        break;
+      case '--target':
+        parsed.target = requireValue(argv, ++index, arg);
         break;
       case '--scenario':
       case '--profile':
@@ -97,11 +102,20 @@ const parseArgs = argv => {
     }
   }
 
-  if (!SCENARIOS.has(parsed.scenario)) {
+  if (!TARGET_SCENARIOS.has(parsed.target)) {
     throw new Error(
-      `Invalid --scenario "${parsed.scenario}". Use one of: ${[
-        ...SCENARIOS.keys(),
+      `Invalid --target "${parsed.target}". Use one of: ${[
+        ...TARGET_SCENARIOS.keys(),
       ].join(', ')}`,
+    );
+  }
+
+  const scenarios = TARGET_SCENARIOS.get(parsed.target);
+  if (!scenarios.has(parsed.scenario)) {
+    throw new Error(
+      `Invalid --scenario "${parsed.scenario}" for target "${
+        parsed.target
+      }". Use one of: ${[...scenarios.keys()].join(', ')}`,
     );
   }
 
@@ -190,10 +204,25 @@ const percentile = (values, percentileValue) => {
 
 const summarizeDurations = samples => {
   const values = samples.map(sample => sample.durationMs);
+  let minMs = 0;
+  let maxMs = 0;
+  if (values.length > 0) {
+    minMs = values[0];
+    maxMs = values[0];
+    for (const value of values) {
+      if (value < minMs) {
+        minMs = value;
+      }
+      if (value > maxMs) {
+        maxMs = value;
+      }
+    }
+  }
+
   return {
     count: values.length,
-    minMs: values.length === 0 ? 0 : Math.min(...values),
-    maxMs: values.length === 0 ? 0 : Math.max(...values),
+    minMs,
+    maxMs,
     p50Ms: percentile(values, 50),
     p95Ms: percentile(values, 95),
     p99Ms: percentile(values, 99),
@@ -247,11 +276,16 @@ async function requestJson(baseUrl, pathname, options = {}) {
       error: expected ? undefined : `Unexpected status ${response.status}`,
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const cause =
+      error instanceof Error && error.cause
+        ? `; cause=${String(error.cause)}`
+        : '';
     return {
       durationMs: performance.now() - startedAt,
       status: 0,
       ok: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: `${message}${cause}`,
     };
   } finally {
     clearTimeout(timeout);
@@ -414,6 +448,221 @@ const SCENARIOS = new Map([
   ],
 ]);
 
+const portfolioAppIds = [
+  'mobility-marketplace',
+  'enterprise-mega-erp',
+  'mf-platform',
+  'tenant-security',
+  'failure-lab',
+];
+
+const portfolioPilotScenarios = [
+  {
+    scenario: 'grab-marketplace',
+    modules: [
+      'rides',
+      'dispatch',
+      'orders',
+      'erp',
+      'chat',
+      'mf-remotes',
+      'security',
+      'billing',
+    ],
+    chaosModes: [
+      'none',
+      'remote-down',
+      'api-timeout',
+      'chunk-404',
+      'clock-skew',
+      'restart-during-load',
+    ],
+  },
+  {
+    scenario: 'mega-erp-command-center',
+    modules: ['orders', 'erp', 'chat', 'mf-remotes', 'security', 'billing'],
+    chaosModes: [
+      'none',
+      'remote-down',
+      'api-timeout',
+      'chunk-404',
+      'clock-skew',
+      'restart-during-load',
+    ],
+  },
+  {
+    scenario: 'mobility-erp-chat',
+    modules: ['rides', 'dispatch', 'erp', 'chat', 'security', 'billing'],
+    chaosModes: [
+      'none',
+      'remote-down',
+      'api-timeout',
+      'chunk-404',
+      'clock-skew',
+      'restart-during-load',
+    ],
+  },
+];
+
+async function portfolioBootstrapOperation(baseUrl, context, options) {
+  return requestJson(baseUrl, '/bff-api/effect/bootstrap', {
+    expectedStatus: 200,
+    timeoutMs: options.requestTimeoutMs,
+  });
+}
+
+async function portfolioWorkflowOperation(baseUrl, context, options) {
+  context.portfolioWorkflowCounter =
+    (context.portfolioWorkflowCounter || 0) + 1;
+  const appId =
+    portfolioAppIds[context.portfolioWorkflowCounter % portfolioAppIds.length];
+  return postJson(
+    baseUrl,
+    `/bff-api/effect/apps/${appId}/workflow`,
+    {
+      action: `load-workflow-${context.portfolioWorkflowCounter}`,
+      actor: 'load.runner',
+      requestId: `load-${context.workerId}-${context.portfolioWorkflowCounter}`,
+    },
+    {
+      expectedStatus: 200,
+      timeoutMs: options.requestTimeoutMs,
+    },
+  );
+}
+
+async function portfolioPilotOperation(baseUrl, context, options) {
+  context.portfolioPilotCounter = (context.portfolioPilotCounter || 0) + 1;
+  const scenario =
+    portfolioPilotScenarios[
+      context.portfolioPilotCounter % portfolioPilotScenarios.length
+    ];
+  return postJson(
+    baseUrl,
+    `/bff-api/effect/pilot/${scenario.scenario}/run`,
+    {
+      tenant: 'superapp-global',
+      actor: 'load.runner',
+      requestId: `load-pilot-${context.workerId}-${context.portfolioPilotCounter}`,
+      modules: scenario.modules,
+      chaos: 'none',
+    },
+    {
+      expectedStatus: 200,
+      timeoutMs: options.requestTimeoutMs,
+    },
+  );
+}
+
+async function portfolioChaosOperation(baseUrl, context, options) {
+  context.portfolioChaosCounter = (context.portfolioChaosCounter || 0) + 1;
+  const scenario =
+    portfolioPilotScenarios[
+      context.portfolioChaosCounter % portfolioPilotScenarios.length
+    ];
+  const chaos =
+    scenario.chaosModes[
+      context.portfolioChaosCounter % scenario.chaosModes.length
+    ];
+  return postJson(
+    baseUrl,
+    `/bff-api/effect/pilot/${scenario.scenario}/run`,
+    {
+      tenant: 'superapp-global',
+      actor: 'load.runner.chaos',
+      requestId: `load-chaos-${context.workerId}-${context.portfolioChaosCounter}`,
+      modules: scenario.modules,
+      chaos,
+    },
+    {
+      expectedStatus: 200,
+      timeoutMs: options.requestTimeoutMs,
+    },
+  );
+}
+
+async function portfolioInvalidOperation(baseUrl, context, options) {
+  context.portfolioInvalidCounter = (context.portfolioInvalidCounter || 0) + 1;
+  const before =
+    options.scenario === 'invalid'
+      ? await captureStableState(baseUrl, options)
+      : undefined;
+  if (before && !before.ok) {
+    return {
+      ...before,
+      operation: 'portfolioInvalid:preflight',
+    };
+  }
+
+  const variant = portfolioInvalidRequestVariant(
+    context.portfolioInvalidCounter,
+  );
+  const result = await variant.run(baseUrl, options);
+  const operation = `portfolioInvalid:${variant.name}`;
+  if (!result.ok || !before) {
+    return {
+      ...result,
+      operation,
+    };
+  }
+
+  const after = await captureStableState(baseUrl, options);
+  if (!after.ok) {
+    return {
+      durationMs: result.durationMs + after.durationMs,
+      status: after.status,
+      ok: false,
+      operation,
+      error: `State verification failed after invalid request: ${after.error}`,
+    };
+  }
+
+  const drift = diffStableState(before.state, after.state);
+  return {
+    ...result,
+    operation,
+    ok: drift.length === 0,
+    error:
+      drift.length === 0
+        ? undefined
+        : `Invalid request changed stable state: ${drift.join(', ')}`,
+  };
+}
+
+async function portfolioResetOperation(baseUrl, context, options) {
+  return postJson(baseUrl, '/bff-api/effect/reset', undefined, {
+    expectedStatus: 200,
+    timeoutMs: options.requestTimeoutMs,
+  });
+}
+
+const PORTFOLIO_SCENARIOS = new Map([
+  ['bootstrap', [portfolioBootstrapOperation]],
+  ['workflow', [portfolioWorkflowOperation]],
+  ['pilot', [portfolioPilotOperation]],
+  ['chaos', [portfolioChaosOperation]],
+  ['invalid', [portfolioInvalidOperation]],
+  ['reset', [portfolioResetOperation]],
+  [
+    'mixed',
+    [
+      portfolioBootstrapOperation,
+      portfolioBootstrapOperation,
+      portfolioWorkflowOperation,
+      portfolioPilotOperation,
+      portfolioPilotOperation,
+      portfolioChaosOperation,
+      portfolioInvalidOperation,
+      portfolioResetOperation,
+    ],
+  ],
+]);
+
+const TARGET_SCENARIOS = new Map([
+  ['erp', SCENARIOS],
+  ['portfolio', PORTFOLIO_SCENARIOS],
+]);
+
 function invalidRequestVariant(counter) {
   const variants = [
     {
@@ -477,6 +726,82 @@ function invalidRequestVariant(counter) {
   return variants[(counter - 1) % variants.length];
 }
 
+function portfolioInvalidRequestVariant(counter) {
+  const variants = [
+    {
+      name: 'unknown-tenant',
+      run: (baseUrl, options) =>
+        postJson(
+          baseUrl,
+          '/bff-api/effect/pilot/grab-marketplace/run',
+          {
+            tenant: 'missing-tenant',
+            actor: 'load.runner.invalid',
+            requestId: `invalid-tenant-${counter}`,
+            modules: ['rides'],
+            chaos: 'none',
+          },
+          {
+            expectedStatus: status => status >= 400,
+            timeoutMs: options.requestTimeoutMs,
+          },
+        ),
+    },
+    {
+      name: 'tenant-boundary',
+      run: (baseUrl, options) =>
+        postJson(
+          baseUrl,
+          '/bff-api/effect/pilot/mobility-erp-chat/run',
+          {
+            tenant: 'city-ops-eu',
+            actor: 'load.runner.invalid',
+            requestId: `invalid-boundary-${counter}`,
+            modules: ['rides', 'erp'],
+            chaos: 'none',
+          },
+          {
+            expectedStatus: status => status >= 400,
+            timeoutMs: options.requestTimeoutMs,
+          },
+        ),
+    },
+    {
+      name: 'missing-required-module',
+      run: (baseUrl, options) =>
+        postJson(
+          baseUrl,
+          '/bff-api/effect/pilot/mega-erp-command-center/run',
+          {
+            tenant: 'superapp-global',
+            actor: 'load.runner.invalid',
+            requestId: `invalid-modules-${counter}`,
+            modules: ['erp'],
+            chaos: 'none',
+          },
+          {
+            expectedStatus: status => status >= 400,
+            timeoutMs: options.requestTimeoutMs,
+          },
+        ),
+    },
+    {
+      name: 'malformed-json',
+      run: (baseUrl, options) =>
+        postRawJson(
+          baseUrl,
+          '/bff-api/effect/pilot/grab-marketplace/run',
+          '{',
+          {
+            expectedStatus: status => status >= 400,
+            timeoutMs: options.requestTimeoutMs,
+          },
+        ),
+    },
+  ];
+  return variants[(counter - 1) % variants.length];
+}
+
 async function captureStableState(baseUrl, options) {
   const result = await bootstrapOperation(baseUrl, makeContext(), options);
   if (!result.ok) {
@@ -496,6 +821,15 @@ async function captureStableState(baseUrl, options) {
 }
 
 function normalizeStableState(body) {
+  if (body?.apps || body?.pilotRuns) {
+    return {
+      summary: body?.summary,
+      apps: body?.apps,
+      events: body?.events,
+      pilotRuns: body?.pilotRuns,
+    };
+  }
+
   return {
     summary: body?.summary,
     approvals: body?.approvals,
@@ -505,7 +839,11 @@ function normalizeStableState(body) {
 
 function diffStableState(before, after) {
   const drift = [];
-  for (const key of ['summary', 'approvals', 'chat']) {
+  const keys = new Set([
+    ...Object.keys(before || {}),
+    ...Object.keys(after || {}),
+  ]);
+  for (const key of keys) {
     if (JSON.stringify(before?.[key]) !== JSON.stringify(after?.[key])) {
       drift.push(key);
     }
@@ -515,7 +853,8 @@ function diffStableState(before, after) {
 
 async function worker(id, options, samples, deadline) {
   const context = makeContext(id);
-  const operations = SCENARIOS.get(options.scenario);
+  context.workerId = id;
+  const operations = TARGET_SCENARIOS.get(options.target).get(options.scenario);
   let operationIndex = id;
 
   while (Date.now() < deadline) {
@@ -596,8 +935,9 @@ function writeSummary(
   const unexpectedErrors = samples.filter(sample => !sample.ok);
   const summary = {
     schemaVersion: 1,
-    suite: 'superapp-erp-load',
+    suite: `superapp-${options.target}-load`,
     runId: options.runId,
+    target: options.target,
     scenario: options.scenario,
     baseUrl: options.baseUrl,
     startedAt: new Date(startedAt).toISOString(),
