@@ -1,0 +1,83 @@
+name: SuperApp Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Certification profile to run'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - smoke
+          - release
+          - nightly
+      run_upstream_drift:
+        description: 'Merge origin/main in a disposable worktree and report drift'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      run_drift_gates:
+        description: 'Run root gates inside the disposable upstream-drift worktree'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  schedule:
+    - cron: '17 2 * * 1-5'
+
+jobs:
+  superapp-certification:
+    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Pnpm
+        run: corepack enable
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --ignore-scripts --frozen-lockfile
+
+      - name: Run SuperApp Certification
+        env:
+          PROFILE_INPUT: ${{ github.event.inputs.profile || 'nightly' }}
+          RUN_UPSTREAM_DRIFT: ${{ github.event.inputs.run_upstream_drift || 'true' }}
+          RUN_DRIFT_GATES: ${{ github.event.inputs.run_drift_gates || 'false' }}
+        run: |
+          ARGS=(
+            --profile "$PROFILE_INPUT"
+            --out-dir ".modern/superapp-certification/${PROFILE_INPUT}-${GITHUB_RUN_ID}"
+          )
+
+          if [ "$RUN_UPSTREAM_DRIFT" = "false" ]; then
+            ARGS+=(--skip-upstream-drift)
+          fi
+
+          if [ "$RUN_DRIFT_GATES" = "true" ]; then
+            ARGS+=(--drift-gates)
+          fi
+
+          node scripts/superapp-certification/run-superapp-certification.js "${ARGS[@]}"
+
+      - name: Upload Certification Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: superapp-certification-${{ github.run_id }}
+          path: .modern/superapp-certification/
+          if-no-files-found: warn

@@ -89,7 +89,17 @@ Plan: `.codex/plans/ultramodern-superapp-maximum-validation.plan.md`
 ## 2026-04-30 Frontier After Wave 6
 
 - Lane: `usv-07` nightly and release certification workflows
+  - Owner: primary agent
+  - Status: completed
+  - Beads: `modernjs-31i`
+  - Write scope: CI/workflow scripts, release/nightly certification commands, upstream drift worktree automation, plan status files, operator log.
+  - Result: added `scripts/superapp-certification/run-superapp-certification.js`, root package scripts for smoke/release/nightly/upstream-drift certification, and `.github/workflows/superapp-certification.yml` for manual and scheduled certification runs. The orchestrator writes `summary.json`, composes existing SuperApp smoke/security/MF/browser/stress/soak/nightly suites by profile, and checks upstream drift by merging `origin/main` inside a disposable git worktree without pushing to upstream.
+  - Verification: `node --check scripts/superapp-certification/run-superapp-certification.js`, direct smoke dry-run summary, package-script smoke dry-run summary, drift-only dry-run with planned root drift gates, Biome, changeset, package-json lint, and dependency consistency passed. No `pnpm-lock.yaml` change was introduced.
+
+## 2026-04-30 Frontier After Wave 7
+
+- Lane: `usv-08` readiness dashboard and report artifacts
   - Owner: unassigned
   - Status: pending
-  - Write scope: CI/workflow scripts, release/nightly certification commands, upstream drift worktree automation, plan status files, operator log.
-  - Next action: add a release/nightly certification entry point that orchestrates existing heavy opt-in suites and upstream Modern.js drift checks without pushing to upstream.
+  - Write scope: dashboard/report generation scripts, artifact aggregation, plan status files, operator log.
+  - Next action: aggregate contract, integration, stress, soak, browser, MF, security, performance, and drift result summaries into a readiness report.

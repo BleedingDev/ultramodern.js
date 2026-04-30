@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: usv-07
     content: Add nightly and release certification workflows including upstream Modern.js drift checks and long-running soak profiles.
-    status: pending
+    status: completed
   - id: usv-08
     content: Generate a readiness dashboard and report artifacts from contract, integration, stress, soak, browser, MF, security, performance, and drift results.
     status: pending

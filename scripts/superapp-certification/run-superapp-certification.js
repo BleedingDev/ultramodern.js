@@ -1,0 +1,456 @@
+#!/usr/bin/env node
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+const repoRoot = path.resolve(__dirname, '../..');
+const defaultRunId = new Date().toISOString().replace(/[:.]/g, '-');
+
+function parseArgs(argv) {
+  const options = {
+    profile: process.env.SUPERAPP_CERTIFICATION_PROFILE || 'smoke',
+    outDir:
+      process.env.SUPERAPP_CERTIFICATION_OUT_DIR ||
+      path.join('.modern', 'superapp-certification', defaultRunId),
+    dryRun: false,
+    continueOnError: false,
+    skipUpstreamDrift: false,
+    driftOnly: false,
+    driftBase: process.env.SUPERAPP_CERTIFICATION_DRIFT_BASE || 'origin/main',
+    driftRemote: process.env.SUPERAPP_CERTIFICATION_DRIFT_REMOTE || 'origin',
+    driftBranch: process.env.SUPERAPP_CERTIFICATION_DRIFT_BRANCH || 'main',
+    driftGates: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--') {
+      continue;
+    } else if (arg === '--profile') {
+      options.profile = argv[index + 1];
+      index += 1;
+    } else if (arg.startsWith('--profile=')) {
+      options.profile = arg.slice('--profile='.length);
+    } else if (arg === '--out-dir') {
+      options.outDir = argv[index + 1];
+      index += 1;
+    } else if (arg.startsWith('--out-dir=')) {
+      options.outDir = arg.slice('--out-dir='.length);
+    } else if (arg === '--dry-run') {
+      options.dryRun = true;
+    } else if (arg === '--continue-on-error') {
+      options.continueOnError = true;
+    } else if (arg === '--skip-upstream-drift') {
+      options.skipUpstreamDrift = true;
+    } else if (arg === '--drift-only') {
+      options.driftOnly = true;
+    } else if (arg === '--drift-base') {
+      options.driftBase = argv[index + 1];
+      index += 1;
+    } else if (arg === '--drift-remote') {
+      options.driftRemote = argv[index + 1];
+      index += 1;
+    } else if (arg === '--drift-branch') {
+      options.driftBranch = argv[index + 1];
+      index += 1;
+    } else if (arg === '--drift-gates') {
+      options.driftGates = true;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (!['smoke', 'release', 'nightly'].includes(options.profile)) {
+    throw new Error(
+      `Invalid --profile "${options.profile}". Use smoke, release, or nightly.`,
+    );
+  }
+
+  options.outDir = path.resolve(repoRoot, options.outDir);
+  return options;
+}
+
+function command(id, commandLine, options = {}) {
+  return {
+    id,
+    command: commandLine,
+    cwd: options.cwd || repoRoot,
+    env: options.env || {},
+    profile: options.profile || 'smoke',
+  };
+}
+
+function artifactDir(outDir, name) {
+  return path.join(outDir, 'artifacts', name);
+}
+
+function certificationCommands(profile, outDir) {
+  const vitest = 'pnpm vitest run -c vitest.framework.config.mjs';
+  const smoke = [
+    command('lint', 'pnpm run lint'),
+    command('changeset', 'pnpm run check-changeset'),
+    command('package-json', 'pnpm run lint:package-json'),
+    command('dependencies', 'pnpm check-dependencies'),
+    command(
+      'superapp-erp-smoke',
+      `${vitest} integration/superapp-erp/tests/index.test.ts`,
+      { cwd: path.join(repoRoot, 'tests') },
+    ),
+    command(
+      'superapp-portfolio-smoke',
+      `${vitest} integration/superapp-portfolio/tests/index.test.ts`,
+      { cwd: path.join(repoRoot, 'tests') },
+    ),
+    command(
+      'superapp-portfolio-security',
+      `${vitest} integration/superapp-portfolio/tests/security.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PORTFOLIO_SECURITY: '1',
+          SUPERAPP_PORTFOLIO_SECURITY_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'portfolio-security',
+          ),
+        },
+      },
+    ),
+    command(
+      'superapp-mf-certification',
+      `${vitest} integration/routes-tanstack-mf/test/deploy-certification.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_MF_CERTIFICATION: '1',
+          SUPERAPP_MF_CERTIFICATION_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'mf-certification',
+          ),
+        },
+      },
+    ),
+  ];
+
+  const release = [
+    ...smoke,
+    command(
+      'superapp-browser-matrix-smoke',
+      `${vitest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_BROWSER_MATRIX_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'browser-matrix-smoke',
+          ),
+        },
+        profile: 'release',
+      },
+    ),
+    command(
+      'superapp-erp-stress',
+      `${vitest} integration/superapp-erp/tests/stress.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_ERP_STRESS: '1',
+          SUPERAPP_ERP_STRESS_ROUNDS: '4',
+          SUPERAPP_ERP_STRESS_BATCH: '8',
+          SUPERAPP_ERP_STRESS_ROUTE_CYCLES: '4',
+          SUPERAPP_ERP_ARTIFACT_DIR: artifactDir(outDir, 'erp-stress'),
+        },
+        profile: 'release',
+      },
+    ),
+    command(
+      'superapp-portfolio-stress',
+      `${vitest} integration/superapp-portfolio/tests/stress.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PORTFOLIO_STRESS: '1',
+          SUPERAPP_PORTFOLIO_STRESS_CYCLES: '6',
+          SUPERAPP_PORTFOLIO_STRESS_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'portfolio-stress',
+          ),
+        },
+        profile: 'release',
+      },
+    ),
+  ];
+
+  const nightly = [
+    ...release,
+    command(
+      'superapp-browser-matrix-full',
+      `${vitest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_BROWSER_MATRIX: '1',
+          SUPERAPP_BROWSER_MATRIX_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'browser-matrix-full',
+          ),
+        },
+        profile: 'nightly',
+      },
+    ),
+    command(
+      'superapp-erp-soak',
+      `${vitest} integration/superapp-erp/tests/soak.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_ERP_SOAK: '1',
+          SUPERAPP_ERP_SOAK_MS: '300000',
+          SUPERAPP_ERP_ARTIFACT_DIR: artifactDir(outDir, 'erp-soak'),
+        },
+        profile: 'nightly',
+      },
+    ),
+    command(
+      'superapp-portfolio-nightly',
+      `${vitest} integration/superapp-portfolio/tests/nightly.test.ts`,
+      {
+        cwd: path.join(repoRoot, 'tests'),
+        env: {
+          SUPERAPP_PORTFOLIO_NIGHTLY: '1',
+          SUPERAPP_PORTFOLIO_NIGHTLY_CYCLES: '30',
+          SUPERAPP_PORTFOLIO_NIGHTLY_ARTIFACT_DIR: artifactDir(
+            outDir,
+            'portfolio-nightly',
+          ),
+        },
+        profile: 'nightly',
+      },
+    ),
+  ];
+
+  if (profile === 'smoke') {
+    return smoke;
+  }
+  if (profile === 'release') {
+    return release;
+  }
+  return nightly;
+}
+
+function runShell(commandLine, options) {
+  const startedAt = Date.now();
+  const result = spawnSync(commandLine, {
+    cwd: options.cwd,
+    env: {
+      ...process.env,
+      ...options.env,
+    },
+    shell: true,
+    stdio: 'inherit',
+  });
+
+  return {
+    exitCode: result.status ?? 1,
+    signal: result.signal,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+function runCommands(commands, options) {
+  const results = [];
+  for (const item of commands) {
+    if (options.dryRun) {
+      results.push({
+        ...item,
+        status: 'planned',
+        exitCode: 0,
+        durationMs: 0,
+      });
+      continue;
+    }
+
+    console.log(`\n[superapp-certification] ${item.id}`);
+    const result = runShell(item.command, {
+      cwd: item.cwd,
+      env: item.env,
+    });
+    results.push({
+      ...item,
+      status: result.exitCode === 0 ? 'passed' : 'failed',
+      exitCode: result.exitCode,
+      signal: result.signal,
+      durationMs: result.durationMs,
+    });
+
+    if (result.exitCode !== 0 && !options.continueOnError) {
+      break;
+    }
+  }
+
+  return results;
+}
+
+function runGit(args, options = {}) {
+  return spawnSync('git', args, {
+    cwd: options.cwd || repoRoot,
+    encoding: 'utf8',
+    stdio: options.stdio || 'pipe',
+  });
+}
+
+function cleanupWorktree(worktreeDir) {
+  if (fs.existsSync(worktreeDir)) {
+    runGit(['merge', '--abort'], { cwd: worktreeDir });
+  }
+  runGit(['worktree', 'remove', '--force', worktreeDir]);
+}
+
+function runUpstreamDrift(options, commands) {
+  const startedAt = Date.now();
+  const worktreeDir = path.join(options.outDir, 'upstream-drift-worktree');
+  const result = {
+    status: 'skipped',
+    base: options.driftBase,
+    remote: options.driftRemote,
+    branch: options.driftBranch,
+    worktreeDir,
+    conflicts: [],
+    commandResults: [],
+    durationMs: 0,
+  };
+
+  if (options.skipUpstreamDrift) {
+    result.reason = 'skip-upstream-drift';
+    return result;
+  }
+
+  if (options.dryRun) {
+    result.status = 'planned';
+    result.reason = 'dry-run';
+    result.commandResults = options.driftGates
+      ? commands.slice(0, 4).map(item => ({
+          ...item,
+          status: 'planned',
+          exitCode: 0,
+          durationMs: 0,
+        }))
+      : [];
+    return result;
+  }
+
+  fs.mkdirSync(options.outDir, { recursive: true });
+  cleanupWorktree(worktreeDir);
+
+  const fetch = runGit(['fetch', options.driftRemote, options.driftBranch], {
+    stdio: 'inherit',
+  });
+  if (fetch.status !== 0) {
+    return {
+      ...result,
+      status: 'failed',
+      reason: 'fetch-failed',
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  const add = runGit(['worktree', 'add', '--detach', worktreeDir, 'HEAD'], {
+    stdio: 'inherit',
+  });
+  if (add.status !== 0) {
+    return {
+      ...result,
+      status: 'failed',
+      reason: 'worktree-add-failed',
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  try {
+    const merge = runGit(
+      ['merge', '--no-commit', '--no-ff', options.driftBase],
+      {
+        cwd: worktreeDir,
+        stdio: 'inherit',
+      },
+    );
+    if (merge.status !== 0) {
+      const conflicts = runGit(['diff', '--name-only', '--diff-filter=U'], {
+        cwd: worktreeDir,
+      });
+      return {
+        ...result,
+        status: 'conflict',
+        conflicts: conflicts.stdout.trim().split('\n').filter(Boolean),
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    result.status = 'merged';
+    if (options.driftGates) {
+      const driftGateCommands = commands.slice(0, 4).map(item => ({
+        ...item,
+        cwd: worktreeDir,
+      }));
+      result.commandResults = runCommands(driftGateCommands, {
+        ...options,
+        dryRun: false,
+      });
+      if (result.commandResults.some(item => item.exitCode !== 0)) {
+        result.status = 'gate-failed';
+      }
+    }
+    return {
+      ...result,
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    cleanupWorktree(worktreeDir);
+  }
+}
+
+function writeSummary(options, commands, commandResults, upstreamDrift) {
+  fs.mkdirSync(options.outDir, { recursive: true });
+  const summary = {
+    schemaVersion: 1,
+    suite: 'superapp-certification',
+    generatedAt: new Date().toISOString(),
+    profile: options.profile,
+    dryRun: options.dryRun,
+    driftOnly: options.driftOnly,
+    commandCount: commands.length,
+    failedCommandCount: commandResults.filter(item => item.exitCode !== 0)
+      .length,
+    commands: commandResults,
+    upstreamDrift,
+  };
+  const summaryPath = path.join(options.outDir, 'summary.json');
+  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+  console.log(`\n[superapp-certification] summary: ${summaryPath}`);
+  return summary;
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const commands = certificationCommands(options.profile, options.outDir);
+  const commandResults = options.driftOnly
+    ? []
+    : runCommands(commands, options);
+  const upstreamDrift = runUpstreamDrift(options, commands);
+  const summary = writeSummary(
+    options,
+    commands,
+    commandResults,
+    upstreamDrift,
+  );
+  const hasCommandFailure = summary.failedCommandCount > 0;
+  const hasDriftFailure = ['failed', 'conflict', 'gate-failed'].includes(
+    upstreamDrift.status,
+  );
+
+  if (hasCommandFailure || hasDriftFailure) {
+    process.exitCode = 1;
+  }
+}
+
+main();
