@@ -53,6 +53,15 @@ Plan: `.codex/plans/ultramodern-superapp-maximum-validation.plan.md`
 ## 2026-04-30 Frontier After Wave 3
 
 - Lane: `usv-04` Playwright browser matrix
+  - Owner: primary agent
+  - Status: completed
+  - Write scope: Playwright browser matrix tests/config/helpers for SuperApp fixtures, plan status files, operator log.
+  - Result: added `tests/integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`, a Playwright-driven browser matrix for production-served `superapp-erp` and `superapp-portfolio`. Default smoke covers Chromium desktop; opt-in `SUPERAPP_BROWSER_MATRIX=1` covers Chromium desktop/mobile-slow, Firefox desktop, and WebKit mobile-slow with console/pageerror capture, hydration-error filtering, trace zip, screenshot-on-failure, and video artifacts.
+  - Verification: smoke matrix passed 2/2 with `/tmp/modernjs-superapp-browser-matrix-smoke`; full opt-in matrix passed 8/8 with `/tmp/modernjs-superapp-browser-matrix-full-fixed2`, all summaries reporting zero browser errors and existing trace/video artifacts. No package dependency or lockfile change was introduced; the test reuses the existing Playwright install from the rstest browser fixture.
+
+## 2026-04-30 Frontier After Wave 4
+
+- Lane: `usv-05` deployment and Module Federation reliability certification
   - Owner: unassigned
-  - Status: ready after Wave 3 graph refresh.
-  - Next action: add desktop/mobile/browser matrix, slow network, screenshots/traces/video on failure, console/pageerror capture, hydration assertions, and workflow coverage across `superapp-erp` plus `superapp-portfolio`.
+  - Status: ready after Wave 4 graph refresh.
+  - Next action: certify asset prefixes, stale/down remotes, SSR MF, deterministic fallbacks, and deploy-like serving behavior using the artifact contracts from prior waves.

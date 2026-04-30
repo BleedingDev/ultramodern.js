@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: usv-04
     content: Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.
-    status: pending
+    status: completed
   - id: usv-05
     content: Build deployment and Module Federation reliability certification for asset prefixes, stale or down remotes, SSR MF, and deterministic fallbacks.
     status: pending
