@@ -15,6 +15,13 @@ const ensureWorkspacePackages = [
   '@modern-js/runtime',
   '@modern-js/plugin-bff',
 ];
+const defaultFederatedEnv = {
+  MF_REMOTE_PORT: '3010',
+  MF_REMOTE_TWO_PORT: '3012',
+  MF_HOST_PORT: '3011',
+  MF_HOST_ORIGIN: 'http://localhost:3011',
+  MF_REMOTE_ORIGIN: 'http://localhost:3010',
+};
 
 const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
@@ -23,23 +30,10 @@ const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
 
 async function ensureTanstackMfDistFixtures() {
-  const requiredFixtures = [
-    'integration/routes-tanstack-mf/mf-host/dist/mf-manifest.json',
-    'integration/routes-tanstack-mf/mf-remote/dist/mf-manifest.json',
-    'integration/routes-tanstack-mf/mf-remote-2/dist/mf-manifest.json',
-  ];
-
-  if (
-    requiredFixtures.every(relativePath =>
-      fs.existsSync(path.join(projectRoot, relativePath)),
-    )
-  ) {
-    return;
-  }
-
   for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
     const result = await modernBuild(path.join(tanstackMfRoot, appName), [], {
       ensureWorkspacePackages,
+      env: defaultFederatedEnv,
     });
 
     if (result.code !== 0) {
