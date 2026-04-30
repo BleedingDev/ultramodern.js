@@ -128,6 +128,129 @@ async function expectEffectContracts(port: number) {
   });
 }
 
+async function expectServerSideWorkflowLoad(port: number) {
+  await resetSuperApp(port);
+
+  const invalidChatResponse = await fetch(
+    `${host}:${port}/bff-api/effect/chat/send`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: 'incident-war-room',
+        author: 'ops.commander',
+        text: 'Invalid priority should be rejected',
+        priority: 'critical',
+      }),
+    },
+  );
+  expect(invalidChatResponse.status).toBeGreaterThanOrEqual(400);
+
+  const unknownApprovalResponse = await fetch(
+    `${host}:${port}/bff-api/effect/approval/ap-missing/decision`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        decision: 'approved',
+        actor: 'finance.lead',
+      }),
+    },
+  );
+  expect(unknownApprovalResponse.status).toBeGreaterThanOrEqual(400);
+
+  const decisions = await Promise.all(
+    [
+      ['ap-1001', 'approved', 'finance.lead'],
+      ['ap-1002', 'rejected', 'ops.manager'],
+    ].map(([id, decision, actor]) =>
+      fetch(`${host}:${port}/bff-api/effect/approval/${id}/decision`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          decision,
+          actor,
+        }),
+      }),
+    ),
+  );
+  expect(decisions.map(response => response.status)).toEqual([200, 200]);
+  const decisionPayloads = await Promise.all(
+    decisions.map(response => response.json()),
+  );
+  expect(decisionPayloads).toEqual([
+    {
+      id: 'ap-1001',
+      status: 'approved',
+      actor: 'finance.lead',
+      pendingApprovals: 1,
+    },
+    {
+      id: 'ap-1002',
+      status: 'rejected',
+      actor: 'ops.manager',
+      pendingApprovals: 0,
+    },
+  ]);
+
+  const messages = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      fetch(`${host}:${port}/bff-api/effect/chat/send`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          channel: index % 2 === 0 ? 'incident-war-room' : 'finance-control',
+          author: `load.agent.${index + 1}`,
+          text: `workflow event ${index + 1}`,
+          priority: index === 0 ? 'urgent' : 'normal',
+        }),
+      }),
+    ),
+  );
+  expect(messages.map(response => response.status)).toEqual([
+    200, 200, 200, 200, 200,
+  ]);
+  const messagePayloads = await Promise.all(
+    messages.map(response => response.json()),
+  );
+  expect(messagePayloads.map(payload => payload.message.id).sort()).toEqual([
+    'msg-3',
+    'msg-4',
+    'msg-5',
+    'msg-6',
+    'msg-7',
+  ]);
+  expect(messagePayloads.at(-1)?.totalMessages).toBe(7);
+
+  const bootstrapResponse = await fetch(
+    `${host}:${port}/bff-api/effect/bootstrap`,
+  );
+  expect(bootstrapResponse.status).toBe(200);
+  const bootstrap = await bootstrapResponse.json();
+  expect(bootstrap.summary).toMatchObject({
+    pendingApprovals: 0,
+    urgentMessages: 2,
+    totalOpenWork: 43,
+  });
+  expect(
+    bootstrap.approvals.map(
+      (approval: { id: string; status: string }) =>
+        `${approval.id}:${approval.status}`,
+    ),
+  ).toEqual(['ap-1001:approved', 'ap-1002:rejected']);
+  expect(bootstrap.chat).toHaveLength(7);
+
+  await resetSuperApp(port);
+}
+
 async function expectProductionShell(port: number) {
   const response = await fetch(`${host}:${port}/`);
   expect(response.status).toBe(200);
@@ -263,6 +386,7 @@ describe('Effect + TanStack SuperApp ERP readiness fixture', () => {
 
     test('serves Effect API contracts and TanStack-driven workflows', async () => {
       await expectEffectContracts(port);
+      await expectServerSideWorkflowLoad(port);
       await expectSuperAppUi(page, port);
       expect(browserErrors).toEqual([]);
     });
@@ -297,6 +421,7 @@ describe('Effect + TanStack SuperApp ERP readiness fixture', () => {
       await expectProductionShell(port);
       expectProductionRouteManifest();
       await expectEffectContracts(port);
+      await expectServerSideWorkflowLoad(port);
       await expectSuperAppUi(page, port);
       expect(browserErrors).toEqual([]);
     });
