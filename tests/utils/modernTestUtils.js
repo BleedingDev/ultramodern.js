@@ -669,10 +669,12 @@ async function killApp(instance) {
         if (
           process.platform === 'win32' &&
           typeof err.message === 'string' &&
-          (err.message.includes(`no running instance of the task`) ||
-            err.message.includes(`not found`))
+          (err.message.includes(`Access is denied`) ||
+            err.message.includes(`no running instance of the task`) ||
+            err.message.includes(`not found`) ||
+            err.message.includes(`operation attempted is not supported`))
         ) {
-          // Windows throws an error if the process is already dead
+          // Windows can report transient taskkill errors after the app exits.
           //
           // Command failed: taskkill /pid 6924 /T /F
           // ERROR: The process with PID 6924 (child process of PID 6736) could not be terminated.
