@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-30T18:12:37.582231+00:00",
+  "generated_at": "2026-04-30T18:26:35.284025+00:00",
   "graph_id": "ultramodern-superapp-maximum-validation",
   "plan_set_hash": "926c7dfcfe",
   "selection_hash": "6bd0d71638",
   "plan_count": 1,
   "edge_count": 0,
-  "plans_root": ".codex/plans",
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
   "selected_globs": [],
   "selected_plan_paths": [
     "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-maximum-validation.plan.md"
@@ -27,7 +27,7 @@
         {
           "id": "usv-02",
           "content": "Add an external Effect API load runner for production-served SuperApp ERP scenarios.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -82,19 +82,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "usv-02",
-          "content": "Add an external Effect API load runner for production-served SuperApp ERP scenarios.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "usv-03",
           "content": "Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "usv-04",
           "content": "Add a Playwright browser matrix covering desktop, mobile, slow network, screenshots, traces, and browser error capture.",
@@ -108,7 +102,7 @@
           "ordinal": 5
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 8
     }
   ],

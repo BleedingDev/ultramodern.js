@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: usv-02
     content: Add an external Effect API load runner for production-served SuperApp ERP scenarios.
-    status: pending
+    status: completed
   - id: usv-03
     content: Expand the fake SuperApp portfolio with mobility, mega ERP, MF platform, and failure-lab fixtures.
     status: pending
