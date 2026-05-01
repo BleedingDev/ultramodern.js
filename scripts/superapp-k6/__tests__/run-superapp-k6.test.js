@@ -52,6 +52,45 @@ test('parseArgs maps built-in scenario selection to the default k6 script', () =
   assert.deepEqual(parsed.passThroughArgs, ['--tag', 'lane=ust-load-02']);
 });
 
+test('parseArgs captures autocannon probe controls', () => {
+  const parsed = parseArgs(
+    [
+      '--autocannon-probes',
+      'get-bootstrap,post-workflow',
+      '--autocannon-bin',
+      './tools/autocannon',
+      '--autocannon-bin-arg',
+      'dlx',
+      '--autocannon-workers',
+      '3',
+      '--autocannon-connections',
+      '24',
+      '--autocannon-duration-seconds',
+      '9',
+      '--autocannon-timeout-seconds',
+      '4',
+      '--autocannon-pipelining',
+      '2',
+      '--require-autocannon',
+    ],
+    {},
+  );
+
+  assert.equal(parsed.loadGenerator, 'autocannon');
+  assert.deepEqual(parsed.autocannonProbeIds, [
+    'get-bootstrap',
+    'post-workflow',
+  ]);
+  assert.equal(parsed.autocannonBin, './tools/autocannon');
+  assert.deepEqual(parsed.autocannonBinArgs, ['dlx']);
+  assert.equal(parsed.autocannonWorkers, 3);
+  assert.equal(parsed.autocannonConnections, 24);
+  assert.equal(parsed.autocannonDurationSeconds, 9);
+  assert.equal(parsed.autocannonTimeoutSeconds, 4);
+  assert.equal(parsed.autocannonPipelining, 2);
+  assert.equal(parsed.requireAutocannon, true);
+});
+
 test('parseArgs captures app-server orchestration controls', () => {
   const parsed = parseArgs(
     [
@@ -152,6 +191,127 @@ test('missing-k6 scenario command writes a skipped diagnostic artifact', () => {
     assert.equal(summary.parameters.scenario, 'smoke');
     assert.deepEqual(summary.parameters.scenarioIds, ['smoke']);
     assert.match(summary.parameters.scriptPath, /superapp-scenarios\.js$/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('missing-autocannon probe command writes a skipped diagnostic artifact', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'superapp-ac-'));
+  const missingAutocannon = path.join(tempDir, 'missing-autocannon');
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        RUNNER_PATH,
+        '--autocannon-probes',
+        'get-bootstrap',
+        '--autocannon-bin',
+        missingAutocannon,
+        '--output-dir',
+        tempDir,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AUTOCANNON_BIN: '',
+          SUPERAPP_AUTOCANNON_BIN: '',
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const stdout = JSON.parse(result.stdout);
+    assert.equal(stdout.status, 'skipped');
+    assert.equal(stdout.loadGenerator, 'autocannon');
+    assert.deepEqual(stdout.autocannonProbeIds, ['get-bootstrap']);
+    assert.equal(stdout.diagnostic.code, 'AUTOCANNON_NOT_AVAILABLE');
+
+    const summary = JSON.parse(
+      fs.readFileSync(path.join(tempDir, 'summary.json'), 'utf8'),
+    );
+    assert.equal(summary.detail.runner.status, 'skipped');
+    assert.equal(
+      summary.detail.runner.diagnostic.code,
+      'AUTOCANNON_NOT_AVAILABLE',
+    );
+    assert.deepEqual(summary.parameters.autocannonProbeIds, ['get-bootstrap']);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('autocannon probe command records multi-worker classification metadata', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'superapp-ac-'));
+  const fakeAutocannon = writeFakeAutocannon(tempDir);
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        RUNNER_PATH,
+        '--autocannon-probes',
+        'get-bootstrap,post-workflow',
+        '--autocannon-bin',
+        fakeAutocannon,
+        '--base-url',
+        'http://superapp.example.test/',
+        '--autocannon-workers',
+        '3',
+        '--output-dir',
+        tempDir,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AUTOCANNON_BIN: '',
+          SUPERAPP_AUTOCANNON_BIN: '',
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const stdout = JSON.parse(result.stdout);
+    assert.equal(stdout.status, 'passed');
+    assert.equal(stdout.loadGenerator, 'autocannon');
+    assert.deepEqual(stdout.autocannonProbeIds, [
+      'get-bootstrap',
+      'post-workflow',
+    ]);
+    assert.equal(stdout.autocannon.command, fakeAutocannon);
+
+    const summary = JSON.parse(
+      fs.readFileSync(path.join(tempDir, 'summary.json'), 'utf8'),
+    );
+    assert.equal(summary.detail.runner.status, 'passed');
+    assert.equal(summary.detail.runner.autocannon.command, fakeAutocannon);
+    assert.equal(summary.detail.runner.loadGenerator.probes.length, 2);
+
+    const artifact = JSON.parse(
+      fs.readFileSync(path.join(tempDir, 'autocannon-probes.json'), 'utf8'),
+    );
+    const bootstrap = artifact.probes.find(
+      probe => probe.id === 'get-bootstrap',
+    );
+    const workflow = artifact.probes.find(
+      probe => probe.id === 'post-workflow',
+    );
+
+    assert.equal(bootstrap.autocannon.workers, 3);
+    assert.equal(bootstrap.endpoint.method, 'GET');
+    assert.equal(bootstrap.classification.category, 'none');
+    assert.equal(workflow.endpoint.method, 'POST');
+    assert.equal(workflow.classification.category, 'mixed');
+    assert.equal(workflow.classification.serverFailureCount, 1);
+    assert.equal(workflow.classification.clientSocketFailureCount, 3);
+    assert.equal(artifact.aggregateClassification.category, 'mixed');
+    assert.ok(
+      workflow.process.args.includes('--workers'),
+      'autocannon worker flag should be present',
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -385,6 +545,53 @@ process.exit(2);
   );
   fs.chmodSync(fakeK6, 0o755);
   return fakeK6;
+}
+
+function writeFakeAutocannon(tempDir) {
+  const fakeAutocannon = path.join(tempDir, 'fake-autocannon');
+  fs.writeFileSync(
+    fakeAutocannon,
+    `#!/usr/bin/env node
+const args = process.argv.slice(2);
+
+if (args.includes('--version')) {
+  console.log('autocannon v0.0.0-test');
+  process.exit(0);
+}
+
+const method = args[args.indexOf('--method') + 1];
+const url = args[args.length - 1];
+const isWorkflow = url.includes('/workflow');
+const report = {
+  duration: 1,
+  errors: isWorkflow ? 2 : 0,
+  non2xx: isWorkflow ? 1 : 0,
+  timeouts: isWorkflow ? 1 : 0,
+  requests: {
+    average: isWorkflow ? 99 : 120,
+    total: isWorkflow ? 98 : 120,
+  },
+  latency: {
+    average: isWorkflow ? 23 : 7,
+    p95: isWorkflow ? 51 : 12,
+    p99: isWorkflow ? 75 : 18,
+  },
+  throughput: {
+    average: isWorkflow ? 2048 : 4096,
+    total: isWorkflow ? 2048 : 4096,
+  },
+  statusCodeStats: isWorkflow
+    ? { '200': { count: 97 }, '503': { count: 1 } }
+    : { '200': { count: 120 } },
+  method,
+  url,
+};
+console.log(JSON.stringify(report));
+process.exit(0);
+`,
+  );
+  fs.chmodSync(fakeAutocannon, 0o755);
+  return fakeAutocannon;
 }
 
 test('resolveK6Binary reports missing explicit binary without throwing', () => {

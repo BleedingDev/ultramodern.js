@@ -79,3 +79,34 @@ CPU affinity is metadata-only in this Node runner because portable process CPU
 binding is not available on macOS and Node. Use an external launcher such as
 `taskset` on Linux for hard binding; keep the intended placement in
 `--server-cpu-affinity` and `--load-cpu-affinity` so artifacts record it.
+
+## Autocannon Endpoint Probes
+
+`--autocannon-probes` switches the runner from k6 to endpoint-specific
+autocannon probes. The probe catalog is derived from the k6 scenario operations
+so GET and POST coverage keeps the same paths, headers, request bodies, workload
+profile ids, and artifact links.
+
+```bash
+node scripts/superapp-k6/run-superapp-k6.js --list-autocannon-probes
+node scripts/superapp-k6/run-superapp-k6.js \
+  --autocannon-probes get-bootstrap,post-workflow \
+  --base-url http://localhost:8080
+```
+
+Each probe runs autocannon with multiple workers by default and writes
+`autocannon-probes.json` next to the normal `summary.json`. The artifact records
+worker count, connections, duration, endpoint metadata, stdout/stderr paths, and
+a classification that separates server HTTP failures from client/socket
+failures such as timeouts and socket errors. These probes are evidence-only for
+this lane; they do not promote release or nightly thresholds.
+
+If autocannon is not installed, the runner behaves like the k6 path and writes a
+skipped diagnostic artifact unless `--require-autocannon` is set. To run through
+`pnpm dlx` without adding a package dependency:
+
+```bash
+SUPERAPP_AUTOCANNON_BIN=pnpm \
+SUPERAPP_AUTOCANNON_BIN_ARGS="dlx autocannon" \
+node scripts/superapp-k6/run-superapp-k6.js --autocannon-probes all
+```

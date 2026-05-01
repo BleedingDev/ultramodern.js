@@ -11,6 +11,12 @@ const {
   writeArtifactSummary,
 } = require('../superapp-certification/artifact-schema');
 const {
+  buildAutocannonCliArgs,
+  getAutocannonProbeCatalog,
+  getAutocannonProbeDefinition,
+  normalizeAutocannonProbeSelection,
+} = require('./autocannon-probes');
+const {
   DEFAULT_SCENARIO_SCRIPT,
   getScenarioCatalog,
   normalizeScenarioSelection,
@@ -31,6 +37,10 @@ const LOCAL_K6_BIN =
   process.platform === 'win32'
     ? path.join('node_modules', '.bin', 'k6.cmd')
     : path.join('node_modules', '.bin', 'k6');
+const LOCAL_AUTOCANNON_BIN =
+  process.platform === 'win32'
+    ? path.join('node_modules', '.bin', 'autocannon.cmd')
+    : path.join('node_modules', '.bin', 'autocannon');
 
 const usage = () => `
 Usage:
@@ -40,6 +50,23 @@ Options:
   --script <path>          k6 script to run. Omit with --check to only verify k6.
   --scenario <id|all>      Built-in SuperApp scenario selection. Default script: ${DEFAULT_SCENARIO_SCRIPT}
   --list-scenarios         Print built-in scenario metadata and exit without probing k6.
+  --autocannon-probes <id|all>
+                          Run built-in multi-worker autocannon endpoint probes instead of k6.
+  --list-autocannon-probes Print built-in autocannon probe metadata and exit.
+  --autocannon-bin <path|command>
+                          Explicit autocannon binary. Env: SUPERAPP_AUTOCANNON_BIN or AUTOCANNON_BIN.
+  --autocannon-bin-arg <arg>
+                          Prefix arg for --autocannon-bin; repeatable. Env: SUPERAPP_AUTOCANNON_BIN_ARGS.
+  --require-autocannon     Exit 1 when autocannon is unavailable. Default is a skipped summary.
+  --autocannon-workers <n> Override probe worker count.
+  --autocannon-connections <n>
+                          Override probe connection count.
+  --autocannon-duration-seconds <n>
+                          Override probe duration.
+  --autocannon-timeout-seconds <n>
+                          Override per-request timeout.
+  --autocannon-pipelining <n>
+                          Override probe pipelining.
   --check                  Resolve k6 and write a runner summary without running a script.
   --k6-bin <path|command>  Explicit k6 binary. Env: SUPERAPP_K6_BIN or K6_BIN.
   --require-k6             Exit 1 when k6 is unavailable. Default is a skipped summary.
@@ -72,8 +99,10 @@ Options:
 Examples:
   node scripts/superapp-k6/run-superapp-k6.js --check
   node scripts/superapp-k6/run-superapp-k6.js --scenario smoke
+  node scripts/superapp-k6/run-superapp-k6.js --autocannon-probes get-bootstrap,post-workflow --base-url http://localhost:8080
   node scripts/superapp-k6/run-superapp-k6.js --app-dir tests/integration/superapp-portfolio --scenario smoke --warmup-ms 5000 --cooldown-ms 2000
   SUPERAPP_K6_BIN=/usr/local/bin/k6 node scripts/superapp-k6/run-superapp-k6.js --scenario mixed-read-write -- --tag lane=ust-load-02
+  SUPERAPP_AUTOCANNON_BIN=pnpm SUPERAPP_AUTOCANNON_BIN_ARGS="dlx autocannon" node scripts/superapp-k6/run-superapp-k6.js --autocannon-probes all
 `;
 
 function parseArgs(argv, env = process.env) {
@@ -92,6 +121,25 @@ function parseArgs(argv, env = process.env) {
     scenario: env.SUPERAPP_K6_SCENARIO,
     k6Bin: env.SUPERAPP_K6_BIN || env.K6_BIN,
     requireK6: parseBooleanEnv(env.SUPERAPP_K6_REQUIRE),
+    autocannonProbes: env.SUPERAPP_AUTOCANNON_PROBES,
+    autocannonBin: env.SUPERAPP_AUTOCANNON_BIN || env.AUTOCANNON_BIN,
+    autocannonBinArgs: parseArgsListEnv(env.SUPERAPP_AUTOCANNON_BIN_ARGS),
+    requireAutocannon: parseBooleanEnv(env.SUPERAPP_AUTOCANNON_REQUIRE),
+    autocannonWorkers: parseOptionalPositiveInt(
+      env.SUPERAPP_AUTOCANNON_WORKERS,
+    ),
+    autocannonConnections: parseOptionalPositiveInt(
+      env.SUPERAPP_AUTOCANNON_CONNECTIONS,
+    ),
+    autocannonDurationSeconds: parseOptionalPositiveInt(
+      env.SUPERAPP_AUTOCANNON_DURATION_SECONDS,
+    ),
+    autocannonTimeoutSeconds: parseOptionalPositiveInt(
+      env.SUPERAPP_AUTOCANNON_TIMEOUT_SECONDS,
+    ),
+    autocannonPipelining: parseOptionalPositiveInt(
+      env.SUPERAPP_AUTOCANNON_PIPELINING,
+    ),
     appDir: env.SUPERAPP_K6_APP_DIR,
     appHost: env.SUPERAPP_K6_APP_HOST || DEFAULT_SERVER_HOST,
     appPort: parseOptionalPositiveInt(env.SUPERAPP_K6_APP_PORT),
@@ -134,6 +182,45 @@ function parseArgs(argv, env = process.env) {
         break;
       case '--list-scenarios':
         parsed.listScenarios = true;
+        break;
+      case '--autocannon-probes':
+        parsed.autocannonProbes = requireValue(argv, ++index, arg);
+        break;
+      case '--list-autocannon-probes':
+        parsed.listAutocannonProbes = true;
+        break;
+      case '--autocannon-bin':
+        parsed.autocannonBin = requireValue(argv, ++index, arg);
+        break;
+      case '--autocannon-bin-arg':
+        parsed.autocannonBinArgs ||= [];
+        parsed.autocannonBinArgs.push(requireRawValue(argv, ++index, arg));
+        break;
+      case '--require-autocannon':
+        parsed.requireAutocannon = true;
+        break;
+      case '--autocannon-workers':
+        parsed.autocannonWorkers = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--autocannon-connections':
+        parsed.autocannonConnections = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--autocannon-duration-seconds':
+        parsed.autocannonDurationSeconds = requirePositiveInt(
+          argv,
+          ++index,
+          arg,
+        );
+        break;
+      case '--autocannon-timeout-seconds':
+        parsed.autocannonTimeoutSeconds = requirePositiveInt(
+          argv,
+          ++index,
+          arg,
+        );
+        break;
+      case '--autocannon-pipelining':
+        parsed.autocannonPipelining = requirePositiveInt(argv, ++index, arg);
         break;
       case '--check':
         parsed.checkOnly = true;
@@ -229,6 +316,7 @@ function parseArgs(argv, env = process.env) {
   parsed.buildArgs = parsed.buildArgs || ['run', 'build'];
   parsed.serverCommand = parsed.serverCommand || 'pnpm';
   parsed.serverArgs = parsed.serverArgs || ['run', 'serve'];
+  parsed.autocannonBinArgs = parsed.autocannonBinArgs || [];
   parsed.runId = sanitizeSegment(parsed.runId);
   if (parsed.scenario) {
     parsed.scenarioIds = normalizeScenarioSelection(parsed.scenario);
@@ -236,6 +324,15 @@ function parseArgs(argv, env = process.env) {
   } else {
     parsed.scenarioIds = [];
   }
+  if (parsed.autocannonProbes) {
+    parsed.autocannonProbeIds = normalizeAutocannonProbeSelection(
+      parsed.autocannonProbes,
+    );
+  } else {
+    parsed.autocannonProbeIds = [];
+  }
+  parsed.loadGenerator =
+    parsed.autocannonProbeIds.length > 0 ? 'autocannon' : 'k6';
   parsed.scriptPath = parsed.scriptPath
     ? resolveRepoPath(parsed.scriptPath)
     : undefined;
@@ -441,6 +538,95 @@ function resolveK6Binary(options, spawnSyncImpl = spawnSync) {
   };
 }
 
+function buildAutocannonCandidates(options) {
+  const explicitBin =
+    options.autocannonBin && resolveExecutableValue(options.autocannonBin);
+  if (explicitBin) {
+    return [
+      {
+        command: explicitBin,
+        args: options.autocannonBinArgs || [],
+        source: 'explicit',
+      },
+    ];
+  }
+
+  return [
+    {
+      command: resolveRepoPath(LOCAL_AUTOCANNON_BIN),
+      args: [],
+      source: 'local node_modules',
+    },
+    {
+      command: 'autocannon',
+      args: [],
+      source: 'PATH',
+    },
+  ];
+}
+
+function probeAutocannonCandidate(candidate, spawnSyncImpl = spawnSync) {
+  const result = spawnSyncImpl(
+    candidate.command,
+    [...candidate.args, '--version'],
+    {
+      encoding: 'utf8',
+    },
+  );
+  const stdout = result.stdout || '';
+  const stderr = result.stderr || '';
+  const output = `${stdout}${stderr}`.trim();
+
+  if (!result.error && result.status === 0) {
+    return {
+      ok: true,
+      command: candidate.command,
+      args: candidate.args,
+      source: candidate.source,
+      version: firstLine(output) || 'version output unavailable',
+      stdout,
+      stderr,
+    };
+  }
+
+  return {
+    ok: false,
+    command: candidate.command,
+    args: candidate.args,
+    source: candidate.source,
+    error:
+      result.error?.message ||
+      firstLine(output) ||
+      `autocannon --version exited with status ${result.status}`,
+    status: result.status,
+    signal: result.signal,
+  };
+}
+
+function resolveAutocannonBinary(options, spawnSyncImpl = spawnSync) {
+  const attempts = [];
+
+  for (const candidate of buildAutocannonCandidates(options)) {
+    const probe = probeAutocannonCandidate(candidate, spawnSyncImpl);
+    attempts.push(probe);
+    if (probe.ok) {
+      return {
+        found: true,
+        command: probe.command,
+        args: probe.args || [],
+        source: probe.source,
+        version: probe.version,
+        attempts,
+      };
+    }
+  }
+
+  return {
+    found: false,
+    attempts,
+  };
+}
+
 function firstLine(value) {
   return String(value || '')
     .split(/\r?\n/)
@@ -451,6 +637,7 @@ function firstLine(value) {
 function createMissingK6Diagnostic(resolution) {
   const attempted = resolution.attempts.map(attempt => ({
     command: attempt.command,
+    args: attempt.args,
     source: attempt.source,
     error: attempt.error,
   }));
@@ -467,6 +654,32 @@ function createMissingK6Diagnostic(resolution) {
       'Install k6 and ensure it is available on PATH, for example: brew install k6.',
       'Set SUPERAPP_K6_BIN=/absolute/path/to/k6 or pass --k6-bin /absolute/path/to/k6.',
       'Use --require-k6 only in jobs where missing k6 should fail the build.',
+    ],
+    attempted,
+  };
+}
+
+function createMissingAutocannonDiagnostic(resolution) {
+  const attempted = resolution.attempts.map(attempt => ({
+    command: attempt.command,
+    args: attempt.args,
+    source: attempt.source,
+    error: attempt.error,
+  }));
+  const explicitAttempt = attempted.find(
+    attempt => attempt.source === 'explicit',
+  );
+
+  return {
+    code: 'AUTOCANNON_NOT_AVAILABLE',
+    message: explicitAttempt
+      ? `Configured autocannon binary is not executable: ${explicitAttempt.command}`
+      : 'No usable autocannon binary found in local node_modules or PATH.',
+    actions: [
+      'Install autocannon or ensure it is available on PATH.',
+      'Set SUPERAPP_AUTOCANNON_BIN=/absolute/path/to/autocannon or pass --autocannon-bin /absolute/path/to/autocannon.',
+      'To run through pnpm dlx, set SUPERAPP_AUTOCANNON_BIN=pnpm and SUPERAPP_AUTOCANNON_BIN_ARGS="dlx autocannon".',
+      'Use --require-autocannon only in jobs where missing autocannon should fail the build.',
     ],
     attempted,
   };
@@ -494,6 +707,22 @@ function createK6Env(options) {
     SUPERAPP_K6_SUMMARY: options.k6SummaryFile,
     SUPERAPP_K6_SCENARIO: options.scenario || '',
     SUPERAPP_K6_SCENARIOS: options.scenarioIds.join(','),
+    SUPERAPP_K6_TARGET: options.target,
+    SUPERAPP_K6_PROFILE: options.profile,
+    SUPERAPP_K6_LOAD_CPU_AFFINITY: options.loadCpuAffinity || '',
+    SUPERAPP_K6_SERVER_CPU_AFFINITY: options.serverCpuAffinity || '',
+  };
+}
+
+function createAutocannonEnv(options) {
+  return {
+    ...process.env,
+    BASE_URL: options.baseUrl,
+    SUPERAPP_AUTOCANNON_BASE_URL: options.baseUrl,
+    SUPERAPP_AUTOCANNON_PROBES: options.autocannonProbeIds.join(','),
+    SUPERAPP_K6_BASE_URL: options.baseUrl,
+    SUPERAPP_K6_RUN_ID: options.runId,
+    SUPERAPP_K6_OUTPUT_DIR: options.outputDir,
     SUPERAPP_K6_TARGET: options.target,
     SUPERAPP_K6_PROFILE: options.profile,
     SUPERAPP_K6_LOAD_CPU_AFFINITY: options.loadCpuAffinity || '',
@@ -588,6 +817,351 @@ function runK6Script(options, resolution, spawnSyncImpl = spawnSync) {
   };
 }
 
+function runAutocannonProbes(options, resolution, spawnSyncImpl = spawnSync) {
+  fs.mkdirSync(options.outputDir, { recursive: true });
+  const startedAt = new Date().toISOString();
+  const probeResults = [];
+  const artifacts = [];
+
+  for (const probeId of options.autocannonProbeIds) {
+    const probe = getAutocannonProbeDefinition(probeId);
+    const run = buildAutocannonCliArgs(probe, {
+      baseUrl: options.baseUrl,
+      runId: options.runId,
+      workers: options.autocannonWorkers,
+      connections: options.autocannonConnections,
+      durationSeconds: options.autocannonDurationSeconds,
+      timeoutSeconds: options.autocannonTimeoutSeconds,
+      pipelining: options.autocannonPipelining,
+    });
+    const artifactPrefix = `autocannon-${sanitizeSegment(probe.id)}`;
+    const stdoutPath = path.join(
+      options.outputDir,
+      `${artifactPrefix}-stdout.json`,
+    );
+    const stderrPath = path.join(
+      options.outputDir,
+      `${artifactPrefix}-stderr.log`,
+    );
+    const args = [...(resolution.args || []), ...run.args];
+    const result = spawnSyncImpl(resolution.command, args, {
+      cwd: REPO_ROOT,
+      env: createAutocannonEnv(options),
+      encoding: 'utf8',
+      maxBuffer: 50 * 1024 * 1024,
+      stdio: 'pipe',
+    });
+    fs.writeFileSync(stdoutPath, result.stdout || '');
+    fs.writeFileSync(stderrPath, result.stderr || '');
+
+    const parsedReport = parseAutocannonJson(result.stdout || '');
+    const classification = classifyAutocannonProbeResult({
+      expectedStatus: probe.endpoint.expectedStatus,
+      parseError: parsedReport.error,
+      report: parsedReport.report,
+      result,
+    });
+    const probeStatus =
+      result.error || result.status !== 0 || !parsedReport.ok
+        ? 'failed'
+        : 'passed';
+
+    probeResults.push({
+      id: probe.id,
+      label: probe.label,
+      role: probe.role,
+      status: probeStatus,
+      endpoint: probe.endpoint,
+      autocannon: run.autocannon,
+      request: {
+        bodyBytes: run.request.bodyBytes,
+        headers: Object.keys(run.request.headers).sort(),
+        method: run.request.method,
+        path: run.request.path,
+      },
+      process: {
+        command: resolution.command,
+        args,
+        exitCode: result.status,
+        signal: result.signal,
+        error: result.error?.message,
+        stdoutPath,
+        stderrPath,
+      },
+      classification,
+      reportSummary: parsedReport.report
+        ? summarizeAutocannonReport(parsedReport.report)
+        : undefined,
+    });
+    artifacts.push(
+      {
+        path: stdoutPath,
+        label: `${probe.id} autocannon stdout JSON`,
+      },
+      {
+        path: stderrPath,
+        label: `${probe.id} autocannon stderr log`,
+      },
+    );
+  }
+
+  const finishedAt = new Date().toISOString();
+  const probeArtifactPath = path.join(
+    options.outputDir,
+    'autocannon-probes.json',
+  );
+  const probeArtifact = {
+    schemaVersion: 1,
+    suite: 'superapp-k6-load',
+    runner: 'autocannon',
+    catalog: getAutocannonProbeCatalog(),
+    baseUrl: options.baseUrl,
+    runId: options.runId,
+    startedAt,
+    finishedAt,
+    probes: probeResults,
+    aggregateClassification: aggregateAutocannonClassifications(probeResults),
+  };
+  fs.writeFileSync(
+    probeArtifactPath,
+    `${JSON.stringify(probeArtifact, null, 2)}\n`,
+  );
+  artifacts.push({
+    path: probeArtifactPath,
+    label: 'autocannon probe classification artifact',
+  });
+
+  const failedProbes = probeResults.filter(probe => probe.status === 'failed');
+  const aggregateClassification = probeArtifact.aggregateClassification;
+  const observations = [
+    `Autocannon ran ${probeResults.length} multi-worker endpoint probes against ${options.baseUrl}.`,
+    `Autocannon classification: ${aggregateClassification.category}.`,
+  ];
+  if (aggregateClassification.serverFailureCount > 0) {
+    observations.push(
+      `${aggregateClassification.serverFailureCount} server-side HTTP failures were observed across autocannon probes.`,
+    );
+  }
+  if (aggregateClassification.clientSocketFailureCount > 0) {
+    observations.push(
+      `${aggregateClassification.clientSocketFailureCount} client/socket failures were observed across autocannon probes.`,
+    );
+  }
+
+  return {
+    status: failedProbes.length > 0 ? 'failed' : 'passed',
+    diagnostic:
+      failedProbes.length > 0
+        ? {
+            code: 'AUTOCANNON_RUN_FAILED',
+            message: `${failedProbes.length} autocannon probe(s) failed before producing usable classification metadata.`,
+            actions: [
+              'Inspect autocannon stdout/stderr artifacts for the failed probes.',
+              'Rerun with --list-autocannon-probes to verify probe ids and --check to isolate runner setup.',
+            ],
+          }
+        : undefined,
+    exitCode: failedProbes.length > 0 ? 1 : 0,
+    artifacts,
+    observations,
+    loadGenerator: {
+      kind: 'autocannon',
+      command: resolution.command,
+      argsPrefix: resolution.args || [],
+      probes: probeResults.map(probe => ({
+        id: probe.id,
+        status: probe.status,
+        endpoint: probe.endpoint,
+        autocannon: probe.autocannon,
+        classification: probe.classification,
+        reportSummary: probe.reportSummary,
+      })),
+    },
+  };
+}
+
+function parseAutocannonJson(stdout) {
+  const text = String(stdout || '').trim();
+  if (!text) {
+    return {
+      ok: false,
+      error: 'autocannon produced no JSON output',
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      report: JSON.parse(text),
+    };
+  } catch (error) {
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return {
+          ok: true,
+          report: JSON.parse(text.slice(firstBrace, lastBrace + 1)),
+        };
+      } catch {
+        // Fall through to the original parse error.
+      }
+    }
+
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function classifyAutocannonProbeResult(input) {
+  if (input.result.error || input.result.status !== 0 || input.parseError) {
+    return {
+      category: 'harness',
+      harnessFailure: true,
+      message:
+        input.result.error?.message ||
+        input.parseError ||
+        `autocannon exited with status ${input.result.status}`,
+    };
+  }
+
+  const report = input.report || {};
+  const statusCounts = normalizeStatusCodeCounts(report.statusCodeStats);
+  const expectedStatuses = normalizeExpectedStatuses(input.expectedStatus);
+  const unexpectedStatusCounts = {};
+  let expectedStatusCount = 0;
+  let serverFailureCount = 0;
+
+  for (const [status, count] of Object.entries(statusCounts)) {
+    if (expectedStatuses.has(Number(status))) {
+      expectedStatusCount += count;
+    } else {
+      unexpectedStatusCounts[status] = count;
+      serverFailureCount += count;
+    }
+  }
+
+  const non2xxCount = numberValue(report.non2xx);
+  serverFailureCount = Math.max(serverFailureCount, non2xxCount);
+
+  const timeoutCount = numberValue(report.timeouts);
+  const socketErrorCount = numberValue(report.errors);
+  const clientSocketFailureCount = timeoutCount + socketErrorCount;
+  const hasServerFailures = serverFailureCount > 0;
+  const hasClientSocketFailures = clientSocketFailureCount > 0;
+
+  return {
+    category:
+      hasServerFailures && hasClientSocketFailures
+        ? 'mixed'
+        : hasServerFailures
+          ? 'server'
+          : hasClientSocketFailures
+            ? 'client-socket'
+            : 'none',
+    serverFailureCount,
+    clientSocketFailureCount,
+    timeoutCount,
+    socketErrorCount,
+    non2xxCount,
+    expectedStatusCount,
+    unexpectedStatusCounts,
+  };
+}
+
+function aggregateAutocannonClassifications(probeResults) {
+  const aggregate = {
+    category: 'none',
+    serverFailureCount: 0,
+    clientSocketFailureCount: 0,
+    harnessFailureCount: 0,
+  };
+
+  for (const probe of probeResults) {
+    const classification = probe.classification || {};
+    aggregate.serverFailureCount += numberValue(
+      classification.serverFailureCount,
+    );
+    aggregate.clientSocketFailureCount += numberValue(
+      classification.clientSocketFailureCount,
+    );
+    if (classification.category === 'harness') {
+      aggregate.harnessFailureCount += 1;
+    }
+  }
+
+  if (
+    aggregate.serverFailureCount > 0 &&
+    aggregate.clientSocketFailureCount > 0
+  ) {
+    aggregate.category = 'mixed';
+  } else if (aggregate.serverFailureCount > 0) {
+    aggregate.category = 'server';
+  } else if (aggregate.clientSocketFailureCount > 0) {
+    aggregate.category = 'client-socket';
+  } else if (aggregate.harnessFailureCount > 0) {
+    aggregate.category = 'harness';
+  }
+
+  return aggregate;
+}
+
+function summarizeAutocannonReport(report) {
+  return {
+    duration: report.duration,
+    errors: numberValue(report.errors),
+    non2xx: numberValue(report.non2xx),
+    requests: summarizeMetric(report.requests),
+    latency: summarizeMetric(report.latency),
+    throughput: summarizeMetric(report.throughput),
+    timeouts: numberValue(report.timeouts),
+    statusCodeStats: normalizeStatusCodeCounts(report.statusCodeStats),
+  };
+}
+
+function summarizeMetric(metric) {
+  if (!metric || typeof metric !== 'object') {
+    return undefined;
+  }
+  return {
+    average: metric.average,
+    mean: metric.mean,
+    p95: metric.p95,
+    p99: metric.p99,
+    total: metric.total,
+  };
+}
+
+function normalizeStatusCodeCounts(statusCodeStats) {
+  if (!statusCodeStats || typeof statusCodeStats !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(statusCodeStats).map(([status, value]) => [
+      status,
+      typeof value === 'number' ? value : numberValue(value?.count),
+    ]),
+  );
+}
+
+function normalizeExpectedStatuses(expectedStatus) {
+  if (Array.isArray(expectedStatus)) {
+    return new Set(expectedStatus.map(Number));
+  }
+  if (typeof expectedStatus === 'number') {
+    return new Set([expectedStatus]);
+  }
+  return new Set([200]);
+}
+
+function numberValue(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function createRunnerSummary(
   options,
   runnerResult,
@@ -613,7 +1187,10 @@ function createRunnerSummary(
     dimensions: ['performance'],
     parameters: {
       baseUrl: options.baseUrl,
-      checkOnly: options.checkOnly || !options.scriptPath,
+      checkOnly:
+        options.loadGenerator === 'k6'
+          ? options.checkOnly || !options.scriptPath
+          : options.checkOnly || options.autocannonProbeIds.length === 0,
       requireK6: options.requireK6,
       scenario: options.scenario,
       scenarioIds: options.scenarioIds,
@@ -636,6 +1213,17 @@ function createRunnerSummary(
       buildArgs: options.skipBuild ? undefined : options.buildArgs,
       serverCpuAffinity: options.serverCpuAffinity,
       loadCpuAffinity: options.loadCpuAffinity,
+      loadGenerator: options.loadGenerator,
+      autocannonProbes: options.autocannonProbes,
+      autocannonProbeIds: options.autocannonProbeIds,
+      autocannonBin: options.autocannonBin,
+      autocannonBinArgs: options.autocannonBinArgs,
+      requireAutocannon: options.requireAutocannon,
+      autocannonWorkers: options.autocannonWorkers,
+      autocannonConnections: options.autocannonConnections,
+      autocannonDurationSeconds: options.autocannonDurationSeconds,
+      autocannonTimeoutSeconds: options.autocannonTimeoutSeconds,
+      autocannonPipelining: options.autocannonPipelining,
       outputDir: options.outputDir,
     },
     budgetFailures: isFailed && diagnostic ? [diagnostic.message] : [],
@@ -647,13 +1235,23 @@ function createRunnerSummary(
         status: runnerResult.status,
         exitCode: runnerResult.exitCode,
         diagnostic,
-        k6: resolution.found
-          ? {
-              command: resolution.command,
-              source: resolution.source,
-              version: resolution.version,
-            }
-          : undefined,
+        k6:
+          options.loadGenerator === 'k6' && resolution.found
+            ? {
+                command: resolution.command,
+                source: resolution.source,
+                version: resolution.version,
+              }
+            : undefined,
+        autocannon:
+          options.loadGenerator === 'autocannon' && resolution.found
+            ? {
+                command: resolution.command,
+                argsPrefix: resolution.args || [],
+                source: resolution.source,
+                version: resolution.version,
+              }
+            : undefined,
         attempts: resolution.attempts,
         loadGenerator: runnerResult.loadGenerator,
       },
@@ -691,9 +1289,12 @@ function printResult(options, summary) {
         status: runner.status,
         artifactStatus: summary.status,
         summaryPath: options.outputFile,
+        loadGenerator: options.loadGenerator,
         scenario: options.scenario,
         scenarioIds: options.scenarioIds,
+        autocannonProbeIds: options.autocannonProbeIds,
         k6: runner.k6,
+        autocannon: runner.autocannon,
         orchestration: summary.detail.orchestration,
         diagnostic: runner.diagnostic,
       },
@@ -704,6 +1305,10 @@ function printResult(options, summary) {
 }
 
 function createPreflightRunnerResult(options, resolution) {
+  if (options.loadGenerator === 'autocannon') {
+    return createAutocannonPreflightRunnerResult(options, resolution);
+  }
+
   if (!resolution.found) {
     return {
       status: options.requireK6 ? 'failed' : 'skipped',
@@ -733,14 +1338,60 @@ function createPreflightRunnerResult(options, resolution) {
   return undefined;
 }
 
+function createAutocannonPreflightRunnerResult(options, resolution) {
+  if (!resolution.found) {
+    return {
+      status: options.requireAutocannon ? 'failed' : 'skipped',
+      exitCode: options.requireAutocannon ? 1 : 0,
+      diagnostic: createMissingAutocannonDiagnostic(resolution),
+    };
+  }
+
+  if (options.checkOnly) {
+    return {
+      status: 'passed',
+      exitCode: 0,
+      observations: [
+        'autocannon binary resolved; --check skipped probe execution.',
+      ],
+    };
+  }
+
+  if (options.autocannonProbeIds.length === 0) {
+    return {
+      status: 'passed',
+      exitCode: 0,
+      observations: [
+        'autocannon binary resolved; no probes were selected, so no load ran.',
+      ],
+    };
+  }
+
+  return undefined;
+}
+
+function resolveLoadGeneratorBinary(options, spawnSyncImpl = spawnSync) {
+  if (options.loadGenerator === 'autocannon') {
+    return resolveAutocannonBinary(options, spawnSyncImpl);
+  }
+  return resolveK6Binary(options, spawnSyncImpl);
+}
+
+function runLoadGenerator(options, resolution, spawnSyncImpl = spawnSync) {
+  if (options.loadGenerator === 'autocannon') {
+    return runAutocannonProbes(options, resolution, spawnSyncImpl);
+  }
+  return runK6Script(options, resolution, spawnSyncImpl);
+}
+
 function execute(options, spawnSyncImpl = spawnSync) {
   const startedAt = new Date().toISOString();
-  const resolution = resolveK6Binary(options, spawnSyncImpl);
+  const resolution = resolveLoadGeneratorBinary(options, spawnSyncImpl);
   let runnerResult = createPreflightRunnerResult(options, resolution);
 
   if (!runnerResult) {
     fs.mkdirSync(options.outputDir, { recursive: true });
-    runnerResult = runK6Script(options, resolution, spawnSyncImpl);
+    runnerResult = runLoadGenerator(options, resolution, spawnSyncImpl);
   }
 
   const summary = createRunnerSummary(
@@ -758,7 +1409,7 @@ function execute(options, spawnSyncImpl = spawnSync) {
 
 async function executeOrchestrated(options, spawnSyncImpl = spawnSync) {
   const startedAt = new Date().toISOString();
-  const resolution = resolveK6Binary(options, spawnSyncImpl);
+  const resolution = resolveLoadGeneratorBinary(options, spawnSyncImpl);
   const artifacts = [];
   const orchestration = createOrchestrationMetadata(options);
   let runnerResult = createPreflightRunnerResult(options, resolution);
@@ -795,7 +1446,7 @@ async function executeOrchestrated(options, spawnSyncImpl = spawnSync) {
         orchestration.warmup = await timedSleep('warmup', options.warmupMs);
       }
 
-      runnerResult = runK6Script(options, resolution, spawnSyncImpl);
+      runnerResult = runLoadGenerator(options, resolution, spawnSyncImpl);
 
       if (options.cooldownMs > 0) {
         orchestration.cooldown = await timedSleep(
@@ -867,7 +1518,10 @@ async function executeOrchestrated(options, spawnSyncImpl = spawnSync) {
 function createOrchestrationMetadata(options) {
   return {
     enabled: true,
-    mode: 'app-server-and-k6',
+    mode:
+      options.loadGenerator === 'autocannon'
+        ? 'app-server-and-autocannon'
+        : 'app-server-and-k6',
     platform: process.platform,
     appDir: options.appDir,
     warmupMs: options.warmupMs,
@@ -884,6 +1538,9 @@ function createOrchestrationMetadata(options) {
 function orchestrationSkipReason(runnerResult) {
   if (runnerResult.diagnostic?.code === 'K6_NOT_AVAILABLE') {
     return 'k6 is unavailable, so the CI-safe fallback skipped load generation before starting the app server.';
+  }
+  if (runnerResult.diagnostic?.code === 'AUTOCANNON_NOT_AVAILABLE') {
+    return 'autocannon is unavailable, so the CI-safe fallback skipped load generation before starting the app server.';
   }
   if (runnerResult.diagnostic?.code === 'K6_SCRIPT_NOT_FOUND') {
     return 'the selected k6 script is missing.';
@@ -1242,7 +1899,7 @@ function diagnosticFromError(error) {
     message: error instanceof Error ? error.message : String(error),
     actions: [
       'Inspect process orchestration metadata and captured server/load logs.',
-      'Rerun with --check to isolate k6 binary resolution from server startup.',
+      'Rerun with --check to isolate load-generator binary resolution from server startup.',
     ],
   };
 }
@@ -1255,6 +1912,10 @@ function main() {
   }
   if (options.listScenarios) {
     console.log(JSON.stringify(createScenarioList(), null, 2));
+    return;
+  }
+  if (options.listAutocannonProbes) {
+    console.log(JSON.stringify(createAutocannonProbeList(), null, 2));
     return;
   }
 
@@ -1298,6 +1959,24 @@ function createScenarioList() {
   };
 }
 
+function createAutocannonProbeList() {
+  const catalog = getAutocannonProbeCatalog();
+  return {
+    catalogId: catalog.catalogId,
+    workerModel: catalog.workerModel,
+    probes: catalog.probes.map(probe => ({
+      id: probe.id,
+      label: probe.label,
+      role: probe.role,
+      scenarioId: probe.scenarioId,
+      operationId: probe.operationId,
+      endpoint: probe.endpoint,
+      autocannon: probe.autocannon,
+      classificationHint: probe.classificationHint,
+    })),
+  };
+}
+
 if (require.main === module) {
   try {
     main();
@@ -1308,12 +1987,16 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildAutocannonCandidates,
   buildK6Candidates,
+  classifyAutocannonProbeResult,
+  createAutocannonProbeList,
   createScenarioList,
   createMissingK6Diagnostic,
   execute,
   executeOrchestrated,
   parseArgs,
+  resolveAutocannonBinary,
   reservePort,
   resolveExecutableValue,
   resolveK6Binary,

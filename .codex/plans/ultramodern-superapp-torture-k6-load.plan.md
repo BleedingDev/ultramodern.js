@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-load-04
     content: "Add multi-worker autocannon probes for key GET and POST endpoints to distinguish server limits from client/socket limits."
-    status: pending
+    status: completed
   - id: ust-load-05
     content: "Promote stable release thresholds and more aggressive nightly thresholds into certification without increasing default PR cost."
     status: pending
