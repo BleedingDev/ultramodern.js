@@ -62,13 +62,12 @@ Wave 3:
 | effect-tanstack-contracts | `019de2fd-1318-7011-a01d-990783729b10` (`Laplace`) | worker | completed for `ust-contract-03` | Effect interruption/finalizer/schema defect/context propagation tests landed in commit `7080fe3e71`; next todo `ust-contract-04` is ready. |
 | browser-runtime | `019de2fd-13f4-7c20-96b8-4652b824e4d9` (`Boole`) | worker | completed for `ust-browser-05` | Browser smoke subset under moderate load landed in commit `a463e73f75`; browser-runtime root is complete. |
 | effect-tanstack-contracts | `019de30d-6398-7c03-ab3b-8ee4f4be203b` (`Franklin`) | worker | completed for `ust-contract-04` | TanStack Router/Query navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery contract tests landed in commit `f60fec5c5a`; next todo `ust-contract-05` is ready. |
-| effect-tanstack-contracts | `019de316-416c-7bc2-9e9d-68b7e66c16a3` (`Galileo`) | worker | in_progress | Owns `ust-contract-05`: deterministic contract coverage artifact and focused tests plus contract plan status only. |
+| effect-tanstack-contracts | `019de316-416c-7bc2-9e9d-68b7e66c16a3` (`Galileo`) | worker | completed for `ust-contract-05` | Deterministic contract coverage artifact landed in commit `c032e0da46`; effect-tanstack-contracts root is complete and soak-stability is unblocked. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 12:29 CEST
+Refreshed: 2026-05-01 12:36 CEST
 
-- Active: `ultramodern-superapp-torture-effect-tanstack-contracts` / `ust-contract-05` is running under Galileo (`019de316-416c-7bc2-9e9d-68b7e66c16a3`).
-- Blocked: `ultramodern-superapp-torture-soak-stability` is blocked by `ultramodern-superapp-torture-effect-tanstack-contracts`.
+- Ready: `ultramodern-superapp-torture-soak-stability` with active todo `ust-soak-01` and upcoming `ust-soak-02`, `ust-soak-03`.
 - Blocked: `ultramodern-superapp-torture-destroy-readiness` is blocked by `ultramodern-superapp-torture-soak-stability`.
-- Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, and `browser-runtime`.
+- Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, and `browser-runtime`.

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T10:27:39.669172+00:00",
+  "generated_at": "2026-05-01T10:36:34.504763+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -228,7 +228,7 @@
         {
           "id": "ust-contract-05",
           "content": "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -403,22 +403,35 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-superapp-torture-effect-tanstack-contracts",
-      "plan_name": "UltraModern SuperApp Torture Effect TanStack Contracts",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
+      "plan_slug": "ultramodern-superapp-torture-soak-stability",
+      "plan_name": "UltraModern SuperApp Torture Soak Stability",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-soak-stability.plan.md",
       "plan_status": "pending",
       "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-contract-05",
-          "content": "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget.",
+          "id": "ust-soak-01",
+          "content": "Create soak profiles for 15-minute local, 60-minute extended, and 2-to-6-hour overnight runs with configurable concurrency and scenario mix.",
           "status": "pending",
-          "ordinal": 5
+          "ordinal": 1
         }
       ],
-      "upcoming": [],
-      "completed": 4,
+      "upcoming": [
+        {
+          "id": "ust-soak-02",
+          "content": "Track memory, heap, event-loop delay, request throughput, latency windows, open handles, reset success, and classified error rates over time.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ust-soak-03",
+          "content": "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
       "total": 5
     },
     {
@@ -454,38 +467,6 @@
       "total": 5
     },
     {
-      "plan_slug": "ultramodern-superapp-torture-soak-stability",
-      "plan_name": "UltraModern SuperApp Torture Soak Stability",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-soak-stability.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-torture-effect-tanstack-contracts"],
-      "active": [
-        {
-          "id": "ust-soak-01",
-          "content": "Create soak profiles for 15-minute local, 60-minute extended, and 2-to-6-hour overnight runs with configurable concurrency and scenario mix.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ust-soak-02",
-          "content": "Track memory, heap, event-loop delay, request throughput, latency windows, open handles, reset success, and classified error rates over time.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ust-soak-03",
-          "content": "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-superapp-torture-browser-runtime",
       "plan_name": "UltraModern SuperApp Torture Browser Runtime",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
@@ -501,6 +482,18 @@
       "plan_slug": "ultramodern-superapp-torture-chaos-failure",
       "plan_name": "UltraModern SuperApp Torture Chaos Failure",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-effect-tanstack-contracts",
+      "plan_name": "UltraModern SuperApp Torture Effect TanStack Contracts",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],
