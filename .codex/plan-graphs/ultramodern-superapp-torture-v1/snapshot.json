@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T08:50:44.705863+00:00",
+  "generated_at": "2026-05-01T09:02:10.123445+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -392,7 +392,7 @@
         {
           "id": "ust-data-05",
           "content": "Record dataset size, scenario coverage, and reset integrity in a machine-readable artifact.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -403,31 +403,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-superapp-torture-workload-data",
-      "plan_name": "UltraModern SuperApp Torture Workload Data",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-workload-data.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-data-05",
-          "content": "Record dataset size, scenario coverage, and reset integrity in a machine-readable artifact.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "upcoming": [],
-      "completed": 4,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-superapp-torture-browser-runtime",
       "plan_name": "UltraModern SuperApp Torture Browser Runtime",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "ust-browser-01",
@@ -458,8 +439,8 @@
       "plan_name": "UltraModern SuperApp Torture Chaos Failure",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "ust-chaos-01",
@@ -478,6 +459,70 @@
         {
           "id": "ust-chaos-03",
           "content": "Assert error-envelope shape, requestId propagation, cleanup/finalizer behavior, and tenant-safe failure responses for every failure mode.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-effect-tanstack-contracts",
+      "plan_name": "UltraModern SuperApp Torture Effect TanStack Contracts",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "ust-contract-01",
+          "content": "Map the Effect BFF contracts, TanStack Router paths, TanStack Query cache keys, mutations, and invalidation boundaries used by the SuperApp portfolio.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ust-contract-02",
+          "content": "Add contract tests for successful reads, writes, optimistic mutation, rollback, duplicate request idempotency, abort/cancellation, timeout, and retry classification.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ust-contract-03",
+          "content": "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-k6-load",
+      "plan_name": "UltraModern SuperApp Torture K6 Load",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-k6-load.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "ust-load-01",
+          "content": "Resolve the local k6 execution path or add a documented fallback runner that does not depend on an unconfigured proto plugin.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ust-load-02",
+          "content": "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ust-load-03",
+          "content": "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture.",
           "status": "pending",
           "ordinal": 3
         }
@@ -510,70 +555,6 @@
         {
           "id": "ust-destroy-03",
           "content": "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
-      "plan_slug": "ultramodern-superapp-torture-effect-tanstack-contracts",
-      "plan_name": "UltraModern SuperApp Torture Effect TanStack Contracts",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
-      "active": [
-        {
-          "id": "ust-contract-01",
-          "content": "Map the Effect BFF contracts, TanStack Router paths, TanStack Query cache keys, mutations, and invalidation boundaries used by the SuperApp portfolio.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ust-contract-02",
-          "content": "Add contract tests for successful reads, writes, optimistic mutation, rollback, duplicate request idempotency, abort/cancellation, timeout, and retry classification.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ust-contract-03",
-          "content": "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
-      "plan_slug": "ultramodern-superapp-torture-k6-load",
-      "plan_name": "UltraModern SuperApp Torture K6 Load",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-k6-load.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
-      "active": [
-        {
-          "id": "ust-load-01",
-          "content": "Resolve the local k6 execution path or add a documented fallback runner that does not depend on an unconfigured proto plugin.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ust-load-02",
-          "content": "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ust-load-03",
-          "content": "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture.",
           "status": "pending",
           "ordinal": 3
         }
@@ -622,6 +603,18 @@
       "plan_slug": "ultramodern-superapp-torture-harness-telemetry",
       "plan_name": "UltraModern SuperApp Torture Harness Telemetry",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-harness-telemetry.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-workload-data",
+      "plan_name": "UltraModern SuperApp Torture Workload Data",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-workload-data.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],
