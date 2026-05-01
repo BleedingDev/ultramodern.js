@@ -63,12 +63,12 @@ Wave 3:
 | browser-runtime | `019de2fd-13f4-7c20-96b8-4652b824e4d9` (`Boole`) | worker | completed for `ust-browser-05` | Browser smoke subset under moderate load landed in commit `a463e73f75`; browser-runtime root is complete. |
 | effect-tanstack-contracts | `019de30d-6398-7c03-ab3b-8ee4f4be203b` (`Franklin`) | worker | completed for `ust-contract-04` | TanStack Router/Query navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery contract tests landed in commit `f60fec5c5a`; next todo `ust-contract-05` is ready. |
 | effect-tanstack-contracts | `019de316-416c-7bc2-9e9d-68b7e66c16a3` (`Galileo`) | worker | completed for `ust-contract-05` | Deterministic contract coverage artifact landed in commit `c032e0da46`; effect-tanstack-contracts root is complete and soak-stability is unblocked. |
-| soak-stability | `019de31e-c71a-7710-b6e9-f1c2dba2204f` (`Bacon`) | worker | in_progress | Owns `ust-soak-01`: 15-minute local, 60-minute extended, and 2-to-6-hour overnight soak profiles plus soak plan status only. |
+| soak-stability | `019de31e-c71a-7710-b6e9-f1c2dba2204f` (`Bacon`) | worker | completed for `ust-soak-01` | Deterministic 15-minute, 60-minute, and 2-to-6-hour soak profile catalog landed in commit `c5f9307129`; next todo `ust-soak-02` is ready. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 12:39 CEST
+Refreshed: 2026-05-01 12:45 CEST
 
-- Active: `ultramodern-superapp-torture-soak-stability` / `ust-soak-01` is running under Bacon (`019de31e-c71a-7710-b6e9-f1c2dba2204f`); `ust-soak-02`, `ust-soak-03`, `ust-soak-04`, and `ust-soak-05` remain pending.
+- Ready: `ultramodern-superapp-torture-soak-stability` with active todo `ust-soak-02` and upcoming `ust-soak-03`, `ust-soak-04`.
 - Blocked: `ultramodern-superapp-torture-destroy-readiness` is blocked by `ultramodern-superapp-torture-soak-stability`.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, and `browser-runtime`.

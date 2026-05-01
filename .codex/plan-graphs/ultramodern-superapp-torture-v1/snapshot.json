@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T10:36:34.504763+00:00",
+  "generated_at": "2026-05-01T10:45:50.131436+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -327,7 +327,7 @@
         {
           "id": "ust-soak-01",
           "content": "Create soak profiles for 15-minute local, 60-minute extended, and 2-to-6-hour overnight runs with configurable concurrency and scenario mix.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -411,27 +411,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-soak-01",
-          "content": "Create soak profiles for 15-minute local, 60-minute extended, and 2-to-6-hour overnight runs with configurable concurrency and scenario mix.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-soak-02",
           "content": "Track memory, heap, event-loop delay, request throughput, latency windows, open handles, reset success, and classified error rates over time.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-soak-03",
           "content": "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-soak-04",
+          "content": "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
