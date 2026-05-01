@@ -55,6 +55,10 @@ async function resetPortfolio(port: number) {
   const payload = await response.json();
   expect(payload).toMatchObject({
     ok: true,
+    workloadResetSeedMetadata: {
+      resetVersion: 'superapp-workload-reset-seed-v1',
+      resetSeed: 'superapp-portfolio-reset-seed-v1',
+    },
     summary: {
       appCount: 5,
       highRiskApps: 3,
@@ -175,6 +179,73 @@ async function expectEffectPortfolioContracts(port: number) {
       tenantBoundaryProfileId: 'tenant-boundary-probes',
     },
   });
+  expect(bootstrap.workloadResetSeedMetadata).toMatchObject({
+    resetVersion: 'superapp-workload-reset-seed-v1',
+    resetSeed: 'superapp-portfolio-reset-seed-v1',
+    catalogSeed: 'superapp-portfolio-workload-data-v1',
+    generatedSeed: 'superapp-portfolio-generated-workload-v1',
+    scenarioProfileSeed: 'superapp-portfolio-scenario-profiles-v1',
+    clockStartIso: '2026-01-15T08:00:00.000Z',
+    clockStepMs: 17000,
+    eventIdPrefix: 'evt',
+    pilotRunIdPrefix: 'pilot',
+    helperIds: {
+      stableRecords: {
+        orderId: 'ord-coe-01025',
+        messageId: 'msg-psh-04097',
+        auditEventId: 'aud-sec-02049',
+      },
+    },
+    defaultSeeds: {
+      stress: {
+        target: 'stress',
+        scenarioId: 'marketplace-surge-to-ledger',
+        profileId: 'read-heavy-command-center',
+        tenantId: 'city-ops-eu',
+      },
+      chaos: {
+        target: 'chaos',
+        scenarioId: 'fleet-incident-refund',
+        profileId: 'write-heavy-order-ledger',
+        tenantId: 'city-ops-eu',
+      },
+      browser: {
+        target: 'browser',
+        scenarioId: 'marketplace-surge-to-ledger',
+        profileId: 'mixed-cross-app-journey',
+        tenantId: 'city-ops-eu',
+      },
+      contract: {
+        target: 'contract',
+        scenarioId: 'tenant-boundary-audit',
+        profileId: 'tenant-boundary-probes',
+        tenantId: 'security-root',
+      },
+    },
+  });
+  expect(
+    bootstrap.workloadResetSeedMetadata.sampleWindows.map(
+      (window: { id: string }) => window.id,
+    ),
+  ).toEqual(Object.values(bootstrap.workloadData.helperIds.sampleWindows));
+  expect(
+    bootstrap.workloadResetSeedMetadata.defaultSeeds.browser.sampleRecordIds,
+  ).toEqual([
+    'rid-coe-01501',
+    'rid-coe-01502',
+    'ord-coe-01025',
+    'ord-coe-01026',
+    'inv-acm-00513',
+    'inv-acm-00514',
+    'led-acm-02049',
+    'led-acm-02050',
+    'thd-psh-00065',
+    'thd-psh-00066',
+    'msg-psh-04097',
+    'msg-psh-04098',
+    'aud-sec-02049',
+    'aud-sec-02050',
+  ]);
   expect(bootstrap.workloadCatalog.helperMetadata.domainIds).toEqual([
     'erp-finance',
     'dispatch-mobility',

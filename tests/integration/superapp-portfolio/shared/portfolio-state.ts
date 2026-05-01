@@ -7,6 +7,10 @@ import {
   type SuperAppGeneratedWorkloadContract,
 } from './workload-generated-data.js';
 import {
+  createSuperAppWorkloadResetSeedMetadata,
+  type SuperAppWorkloadResetSeedMetadata,
+} from './workload-reset-seed.js';
+import {
   createSuperAppWorkloadScenarioProfileMetadata,
   type SuperAppWorkloadScenarioProfileMetadata,
 } from './workload-scenario-profiles.js';
@@ -65,6 +69,16 @@ export {
   GENERATED_WORKLOAD_ENTITIES,
   SUPERAPP_GENERATED_WORKLOAD_TENANT_PROFILES,
 } from './workload-generated-data.js';
+export type {
+  SuperAppWorkloadResetSeedMetadata,
+  WorkloadResetSeedInput,
+  WorkloadResetSeedTarget,
+  WorkloadSeedDescriptor,
+} from './workload-reset-seed.js';
+export {
+  createSuperAppWorkloadResetSeedMetadata,
+  createSuperAppWorkloadSeed,
+} from './workload-reset-seed.js';
 export type {
   SuperAppWorkloadScenarioProfileContract,
   SuperAppWorkloadScenarioProfileMetadata,
@@ -204,6 +218,7 @@ export type PortfolioState = {
   workloadCatalog: SuperAppWorkloadCatalog;
   workloadData: SuperAppGeneratedWorkloadContract;
   workloadScenarioProfileMetadata: SuperAppWorkloadScenarioProfileMetadata;
+  workloadResetSeedMetadata: SuperAppWorkloadResetSeedMetadata;
   events: WorkflowEvent[];
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
@@ -211,6 +226,16 @@ export type PortfolioState = {
 };
 
 export function createInitialPortfolioState(): PortfolioState {
+  const workloadCatalog = createSuperAppWorkloadCatalog();
+  const workloadData = createSuperAppGeneratedWorkloadContract(workloadCatalog);
+  const workloadScenarioProfileMetadata =
+    createSuperAppWorkloadScenarioProfileMetadata();
+  const workloadResetSeedMetadata = createSuperAppWorkloadResetSeedMetadata({
+    workloadCatalog,
+    workloadData,
+    workloadScenarioProfileMetadata,
+  });
+
   return {
     apps: [
       {
@@ -315,10 +340,10 @@ export function createInitialPortfolioState(): PortfolioState {
       },
     ],
     pilotScenarios: createPilotScenarioPlans(),
-    workloadCatalog: createSuperAppWorkloadCatalog(),
-    workloadData: createSuperAppGeneratedWorkloadContract(),
-    workloadScenarioProfileMetadata:
-      createSuperAppWorkloadScenarioProfileMetadata(),
+    workloadCatalog,
+    workloadData,
+    workloadScenarioProfileMetadata,
+    workloadResetSeedMetadata,
     events: [],
     pilotRuns: [],
     failureMode: 'healthy',

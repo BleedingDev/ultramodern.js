@@ -38,3 +38,6 @@ Wave 3:
 | --- | --- | --- | --- | --- |
 | harness-telemetry | primary | local | completed | `ust-harness-01..05` complete; release/nightly harness contract artifact is wired without changing smoke profile cost. |
 | workload-data | `019de282-19b0-7643-951f-97bcaa57110e` (`Banach`) | worker | completed for `ust-data-01` | Domain catalog landed in `tests/integration/superapp-portfolio`; next todo `ust-data-02` remains pending. |
+| workload-data | `019de297-0279-7e20-a4c2-da1edc76a5a8` (`Ampere`) | worker | completed for `ust-data-02` | Deterministic generated workload data landed in commit `02fc730bb2`; next todo `ust-data-03` is ready. |
+| workload-data | `019de2a3-bb3f-7be2-9b23-2492b1f2dba1` (`Sartre`) | worker | completed for `ust-data-03` | Scenario/profile definitions landed in commit `e12c9cd8b7`; next todo `ust-data-04` is ready. |
+| workload-data | `019de2b1-9f1a-72b0-ab88-d800fc56fe12` (`Leibniz`) | worker | completed for `ust-data-04` | Deterministic reset/seed metadata landed locally; verified with `tsc`, Biome, and focused portfolio Vitest. Next todo `ust-data-05` is ready. |

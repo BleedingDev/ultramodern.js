@@ -37,6 +37,7 @@ function cloneState() {
     workloadCatalog: state.workloadCatalog,
     workloadData: state.workloadData,
     workloadScenarioProfileMetadata: state.workloadScenarioProfileMetadata,
+    workloadResetSeedMetadata: state.workloadResetSeedMetadata,
     events: state.events,
     pilotRuns: state.pilotRuns,
     summary: summarizePortfolio(state),
@@ -441,6 +442,7 @@ const portfolioLayer = HttpApiBuilder.group(
         eventCounter = state.events.length;
         return {
           ok: true,
+          workloadResetSeedMetadata: state.workloadResetSeedMetadata,
           summary: summarizePortfolio(state),
         };
       }),

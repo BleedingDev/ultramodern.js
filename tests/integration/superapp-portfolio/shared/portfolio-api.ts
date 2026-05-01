@@ -147,6 +147,13 @@ const WorkloadScenarioProfileIdSchema = Schema.Literals([
   'tenant-boundary-probes',
 ]);
 
+const WorkloadResetSeedTargetSchema = Schema.Literals([
+  'stress',
+  'chaos',
+  'browser',
+  'contract',
+]);
+
 const WorkloadDataClassSchema = Schema.Literals([
   'public',
   'internal',
@@ -500,6 +507,71 @@ const WorkloadScenarioProfileMetadataSchema = Schema.Struct({
   }),
 });
 
+const WorkloadSeedDescriptorSchema = Schema.Struct({
+  seedVersion: Schema.Literal('superapp-workload-reset-seed-v1'),
+  seed: Schema.String,
+  target: WorkloadResetSeedTargetSchema,
+  scenarioId: WorkloadScenarioSchema,
+  profileId: WorkloadScenarioProfileIdSchema,
+  tenantId: WorkloadTenantSchema,
+  catalogSeed: Schema.Literal('superapp-portfolio-workload-data-v1'),
+  generatedSeed: Schema.Literal('superapp-portfolio-generated-workload-v1'),
+  scenarioProfileSeed: Schema.Literal(
+    'superapp-portfolio-scenario-profiles-v1',
+  ),
+  clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
+  requestIdPrefix: Schema.String,
+  idempotencyKeyPrefix: Schema.String,
+  fingerprint: Schema.String,
+  sampleWindowIds: Schema.Array(Schema.String),
+  sampleRecordIds: Schema.Array(Schema.String),
+  selectedSampleWindows: Schema.Array(GeneratedWorkloadSampleWindowSchema),
+  metadata: Schema.Struct({
+    totalRecords: Schema.Number,
+    profileCount: Schema.Number,
+    sampleWindowCount: Schema.Number,
+    selectedSampleWindowCount: Schema.Number,
+    selectedSampleRecordCount: Schema.Number,
+  }),
+});
+
+const WorkloadResetSeedMetadataSchema = Schema.Struct({
+  resetVersion: Schema.Literal('superapp-workload-reset-seed-v1'),
+  resetSeed: Schema.Literal('superapp-portfolio-reset-seed-v1'),
+  catalogVersion: Schema.Literal('superapp-workload-data-v1'),
+  catalogSeed: Schema.Literal('superapp-portfolio-workload-data-v1'),
+  generatedVersion: Schema.Literal('superapp-generated-workload-v1'),
+  generatedSeed: Schema.Literal('superapp-portfolio-generated-workload-v1'),
+  scenarioProfileVersion: Schema.Literal(
+    'superapp-workload-scenario-profiles-v1',
+  ),
+  scenarioProfileSeed: Schema.Literal(
+    'superapp-portfolio-scenario-profiles-v1',
+  ),
+  clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
+  clockStepMs: Schema.Number,
+  eventIdPrefix: Schema.Literal('evt'),
+  pilotRunIdPrefix: Schema.Literal('pilot'),
+  initialEventCounter: Schema.Number,
+  initialPilotRunCounter: Schema.Number,
+  helperIds: Schema.Struct({
+    workloadRootTenantId: WorkloadTenantSchema,
+    readHeavyTenantId: WorkloadTenantSchema,
+    financeTenantId: WorkloadTenantSchema,
+    securityTenantId: WorkloadTenantSchema,
+    sampleWindows: GeneratedWorkloadSampleWindowIdsSchema,
+    stableRecords: GeneratedWorkloadStableRecordIdsSchema,
+    tenantBoundaryProbe: GeneratedWorkloadTenantBoundaryProbeSchema,
+  }),
+  sampleWindows: Schema.Array(GeneratedWorkloadSampleWindowSchema),
+  defaultSeeds: Schema.Struct({
+    stress: WorkloadSeedDescriptorSchema,
+    chaos: WorkloadSeedDescriptorSchema,
+    browser: WorkloadSeedDescriptorSchema,
+    contract: WorkloadSeedDescriptorSchema,
+  }),
+});
+
 const PilotScenarioPlanSchema = Schema.Struct({
   scenario: PilotScenarioSchema,
   label: Schema.String,
@@ -582,6 +654,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
           workloadData: GeneratedWorkloadContractSchema,
           workloadScenarioProfileMetadata:
             WorkloadScenarioProfileMetadataSchema,
+          workloadResetSeedMetadata: WorkloadResetSeedMetadataSchema,
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,
@@ -668,6 +741,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
       HttpApiEndpoint.post('reset', '/effect/reset', {
         success: Schema.Struct({
           ok: Schema.Boolean,
+          workloadResetSeedMetadata: WorkloadResetSeedMetadataSchema,
           summary: SummarySchema,
         }),
       }),

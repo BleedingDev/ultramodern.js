@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-data-04
     content: "Add reset and seed paths that restore deterministic state between stress, chaos, browser, and contract runs."
-    status: pending
+    status: completed
   - id: ust-data-05
     content: "Record dataset size, scenario coverage, and reset integrity in a machine-readable artifact."
     status: pending

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T08:06:29.891488+00:00",
+  "generated_at": "2026-05-01T08:50:44.705863+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -374,19 +374,19 @@
         {
           "id": "ust-data-02",
           "content": "Generate deterministic large datasets with thousands of orders, invoices, rides, messages, audit entries, users, roles, and tenant-scoped resources.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "ust-data-03",
           "content": "Add workload scenario definitions for read-heavy, write-heavy, mixed, search/filter/sort, chat pagination, and tenant-boundary probes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "ust-data-04",
           "content": "Add reset and seed paths that restore deterministic state between stress, chaos, browser, and contract runs.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
@@ -411,27 +411,14 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-data-02",
-          "content": "Generate deterministic large datasets with thousands of orders, invoices, rides, messages, audit entries, users, roles, and tenant-scoped resources.",
+          "id": "ust-data-05",
+          "content": "Record dataset size, scenario coverage, and reset integrity in a machine-readable artifact.",
           "status": "pending",
-          "ordinal": 2
+          "ordinal": 5
         }
       ],
-      "upcoming": [
-        {
-          "id": "ust-data-03",
-          "content": "Add workload scenario definitions for read-heavy, write-heavy, mixed, search/filter/sort, chat pagination, and tenant-boundary probes.",
-          "status": "pending",
-          "ordinal": 3
-        },
-        {
-          "id": "ust-data-04",
-          "content": "Add reset and seed paths that restore deterministic state between stress, chaos, browser, and contract runs.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "completed": 1,
+      "upcoming": [],
+      "completed": 4,
       "total": 5
     },
     {
