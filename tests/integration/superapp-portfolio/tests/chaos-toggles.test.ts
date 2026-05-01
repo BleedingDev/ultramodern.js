@@ -39,6 +39,14 @@ const workflowAppByTenant: Record<string, string> = {
   'security-root': 'tenant-security',
   'chaos-lab': 'failure-lab',
 };
+const moderateLoadTenants = [
+  'superapp-global',
+  'city-ops-eu',
+  'acme-global',
+  'platform-shell',
+  'security-root',
+  'chaos-lab',
+] as const;
 
 type ChaosTargetRequest = {
   endpoint: SuperAppChaosToggleEndpoint;
@@ -48,6 +56,12 @@ type ChaosTargetRequest = {
   body?: Record<string, unknown>;
   rawBody?: string;
   headers?: Record<string, string>;
+};
+
+type JsonResponseResult = {
+  name: string;
+  response: Response;
+  payload: unknown;
 };
 
 async function postJson(
@@ -116,6 +130,49 @@ async function runWorkflow(
       'x-tenant-id': tenantId,
     },
   );
+}
+
+async function runPilot(port: number, requestId: string) {
+  return postJson(port, '/bff-api/effect/pilot/grab-marketplace/run', {
+    tenant: 'superapp-global',
+    actor: 'chaos.load.test',
+    requestId,
+    modules: fullModuleSet,
+    chaos: 'none',
+  });
+}
+
+async function runSecurityProbe(port: number, requestId: string) {
+  return postJson(
+    port,
+    '/bff-api/effect/security/probe',
+    {
+      targetTenant: 'security-root',
+      targetAppId: 'tenant-security',
+      action: 'policy.audit',
+      requestId,
+      mutation: true,
+    },
+    {
+      authorization: 'Bearer chaos-load-token',
+      origin: `${host}:${port}`,
+      'x-csrf-token': 'superapp-valid-csrf',
+      'x-tenant-id': 'security-root',
+      'x-user-role': 'security-admin',
+    },
+  );
+}
+
+async function collectJsonResponse(
+  name: string,
+  responsePromise: Promise<Response>,
+): Promise<JsonResponseResult> {
+  const response = await responsePromise;
+  return {
+    name,
+    response,
+    payload: await response.json(),
+  };
 }
 
 async function armChaosToggle(
@@ -250,6 +307,21 @@ function invokeChaosTarget(port: number, target: ChaosTargetRequest) {
   return postJson(port, target.pathname, target.body, target.headers);
 }
 
+function invokeHealthyEquivalentTarget(
+  port: number,
+  target: ChaosTargetRequest,
+) {
+  if (target.endpoint === 'portfolio.pilot') {
+    return runPilot(port, target.requestId);
+  }
+
+  if (target.endpoint === 'portfolio.security') {
+    return runSecurityProbe(port, target.requestId);
+  }
+
+  return runWorkflow(port, target.requestId, target.tenantId);
+}
+
 function assertNoForbiddenEnvelopeData(
   payload: unknown,
   failure: WorkloadChaosFailureCase,
@@ -333,6 +405,56 @@ function assertChaosErrorEnvelope(
     },
   });
   assertNoForbiddenEnvelopeData(payload, failure);
+}
+
+function assertHealthyPayloadWasNotPoisoned(payload: unknown) {
+  expect(readPath(payload, 'error')).toBeUndefined();
+  expect(readPath(payload, 'chaos')).toBeUndefined();
+
+  const failureMode = readPath(payload, 'summary.failureMode');
+  if (failureMode !== undefined) {
+    expect(failureMode).toBe('healthy');
+  }
+}
+
+async function runModerateHealthyLoad(
+  port: number,
+  failureIndex: number,
+  targetResult: Promise<JsonResponseResult>,
+) {
+  const healthyRequests = moderateLoadTenants.map((tenantId, tenantIndex) =>
+    collectJsonResponse(
+      `workflow:${tenantId}`,
+      runWorkflow(
+        port,
+        `load-healthy-workflow-${failureIndex}-${tenantIndex}`,
+        tenantId,
+      ),
+    ),
+  );
+
+  healthyRequests.push(
+    collectJsonResponse(
+      'pilot:superapp-global',
+      runPilot(port, `load-healthy-pilot-${failureIndex}`),
+    ),
+    collectJsonResponse(
+      'security:security-root',
+      runSecurityProbe(port, `load-healthy-security-${failureIndex}`),
+    ),
+  );
+
+  const [chaosResult, ...healthyResults] = await Promise.all([
+    targetResult,
+    ...healthyRequests,
+  ]);
+
+  for (const result of healthyResults) {
+    expect(result.response.status, result.name).toBe(200);
+    assertHealthyPayloadWasNotPoisoned(result.payload);
+  }
+
+  return chaosResult;
 }
 
 describe('superapp portfolio chaos toggles', () => {
@@ -630,6 +752,116 @@ describe('superapp portfolio chaos toggles', () => {
           eventCount: 1,
           failureMode: failure.resetExpectation.restoresFailureMode,
         },
+      });
+    }
+  });
+
+  test('keeps moderate concurrent chaos load from poisoning healthy requests after reset', async () => {
+    const taxonomy = createSuperAppWorkloadChaosFailureTaxonomy();
+
+    for (const [index, failure] of taxonomy.failures.entries()) {
+      await resetPortfolio(port);
+      const target = createChaosTargetRequest(port, failure);
+      const scope = failure.resetExpectation.required
+        ? 'until-reset'
+        : 'request';
+
+      if (failure.kind === 'duplicate-request') {
+        const seedResponse = await invokeHealthyEquivalentTarget(port, target);
+        expect(seedResponse.status).toBe(200);
+        const seedPayload = await seedResponse.json();
+        expect(seedPayload).toMatchObject({
+          event: {
+            requestId: target.requestId,
+            status: 'accepted',
+          },
+        });
+        assertHealthyPayloadWasNotPoisoned(seedPayload);
+      }
+
+      const armedResponse = await armChaosToggle(port, failure.id, {
+        requestId: `arm-load-${index}`,
+        targetRequestId: target.requestId,
+        targetEndpoint: target.endpoint,
+        scope,
+      });
+      expect(armedResponse.status).toBe(200);
+      await expect(armedResponse.json()).resolves.toMatchObject({
+        failureMode: 'healthy',
+        chaosToggle: {
+          id: failure.id,
+          kind: failure.kind,
+          scope,
+          targetRequestId: target.requestId,
+          targetEndpoint: target.endpoint,
+          expectedHttpStatus: failure.expectedStatus.httpStatus,
+          errorCode: failure.expectedErrorEnvelope.code,
+          resetRequired: failure.resetExpectation.required,
+        },
+        summary: {
+          failureMode: 'healthy',
+        },
+      });
+
+      const chaosResult = await runModerateHealthyLoad(
+        port,
+        index,
+        collectJsonResponse(
+          `chaos:${failure.id}`,
+          invokeChaosTarget(port, target),
+        ),
+      );
+      expect(chaosResult.response.status, chaosResult.name).toBe(
+        failure.expectedStatus.httpStatus,
+      );
+
+      if (failure.expectedErrorEnvelope.present) {
+        assertChaosErrorEnvelope(chaosResult.payload, failure, target);
+      } else {
+        expect(chaosResult.payload).toMatchObject({
+          event: {
+            requestId: target.requestId,
+            status: 'deduped',
+          },
+        });
+        assertHealthyPayloadWasNotPoisoned(chaosResult.payload);
+      }
+
+      const afterLoad = await getBootstrap(port);
+      expect(afterLoad.summary).toMatchObject({
+        failureMode: 'healthy',
+      });
+
+      await resetPortfolio(port);
+      const postResetResults = await Promise.all([
+        collectJsonResponse(
+          `post-reset-target:${failure.id}`,
+          invokeHealthyEquivalentTarget(port, target),
+        ),
+        collectJsonResponse(
+          `post-reset-workflow:${failure.id}`,
+          runWorkflow(port, `post-reset-workflow-${index}`, target.tenantId),
+        ),
+        collectJsonResponse(
+          `post-reset-pilot:${failure.id}`,
+          runPilot(port, `post-reset-pilot-${index}`),
+        ),
+        collectJsonResponse(
+          `post-reset-security:${failure.id}`,
+          runSecurityProbe(port, `post-reset-security-${index}`),
+        ),
+      ]);
+
+      for (const result of postResetResults) {
+        expect(result.response.status, result.name).toBe(
+          failure.resetExpectation.expectedPostResetStatus,
+        );
+        assertHealthyPayloadWasNotPoisoned(result.payload);
+      }
+
+      const afterRecovery = await getBootstrap(port);
+      expect(afterRecovery.summary).toMatchObject({
+        failureMode: failure.resetExpectation.restoresFailureMode,
       });
     }
   });

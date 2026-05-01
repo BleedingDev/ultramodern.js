@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-chaos-04
     content: "Run chaos modes under moderate load and verify no failure mode poisons later healthy requests after reset."
-    status: pending
+    status: completed
   - id: ust-chaos-05
     content: "Emit a chaos matrix artifact with scenario, injected fault, expected status, actual status, cleanup result, and telemetry redaction result."
     status: pending
