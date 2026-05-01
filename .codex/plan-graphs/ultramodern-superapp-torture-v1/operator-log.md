@@ -49,7 +49,7 @@ Wave 3:
 | k6-load | `019de2d2-b20b-7083-9d86-74256aaf768e` (`Hilbert`) | worker | completed for `ust-load-02` | SuperApp k6 scenario catalog landed in commit `1c71ed59c2`; next todo `ust-load-03` is ready. |
 | chaos-failure | `019de2d2-b2b1-7212-b347-ac1124c5d820` (`Euler`) | worker | completed for `ust-chaos-02` | Deterministic chaos toggles landed in commit `976bcdf8f5`; next todo `ust-chaos-03` is ready. |
 | browser-runtime | `019de2d2-b338-71e3-9f81-7fe563b94152` (`Bernoulli`) | worker | completed for `ust-browser-02` | Production browser smoke/artifacts landed in commit `0a3060fde7`; next todo `ust-browser-03` is ready. |
-| k6-load | `019de2df-eb6e-7480-b4c5-4011ab0a1f5a` (`Hubble`) | worker | in_progress | Owns `ust-load-03`: separate app-server/load-generator orchestration under `scripts/superapp-k6` plus k6-load plan status only. |
-| chaos-failure | `019de2df-ec41-7fc1-b9f4-ec3a877f598d` (`Avicenna`) | worker | in_progress | Owns `ust-chaos-03`: chaos error-envelope/requestId/cleanup/tenant-safe assertions plus minimal BFF/API fixes and chaos plan status only. |
-| browser-runtime | `019de2df-ecde-75d3-b735-95a8d1befa29` (`Erdos`) | worker | in_progress | Owns `ust-browser-03`: slow-network/offline/mobile/desktop/repeated-route scenarios plus browser plan status only. |
-| effect-tanstack-contracts | primary | local | held | `ust-contract-02` is intentionally held until `ust-chaos-03` stabilizes error envelopes needed for timeout/retry classification. |
+| k6-load | `019de2df-eb6e-7480-b4c5-4011ab0a1f5a` (`Hubble`) | worker | completed for `ust-load-03` | Separate server/load-generator orchestration landed in commit `b1616e1c48`; next todo `ust-load-04` is ready. |
+| chaos-failure | `019de2df-ec41-7fc1-b9f4-ec3a877f598d` (`Avicenna`) | worker | completed for `ust-chaos-03` | Error-envelope/requestId/cleanup assertions landed in commit `1c1938cce9`; next todo `ust-chaos-04` is ready. |
+| browser-runtime | `019de2df-ecde-75d3-b735-95a8d1befa29` (`Erdos`) | worker | completed for `ust-browser-03` | Slow-network/offline/mobile/desktop/repeated-route scenarios landed in commit `8d0991a8e9`; next todo `ust-browser-04` is ready. |
+| effect-tanstack-contracts | primary | local | ready | `ust-contract-02` is unheld after `ust-chaos-03`; launch with contract-test-only ownership and no BFF schema churn unless required. |
