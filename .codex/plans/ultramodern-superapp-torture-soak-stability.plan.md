@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-soak-03
     content: "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile."
-    status: pending
+    status: completed
   - id: ust-soak-04
     content: "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles."
     status: pending
