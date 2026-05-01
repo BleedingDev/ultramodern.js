@@ -36,6 +36,7 @@ function cloneState() {
     pilotScenarios: state.pilotScenarios,
     workloadCatalog: state.workloadCatalog,
     workloadData: state.workloadData,
+    workloadScenarioProfileMetadata: state.workloadScenarioProfileMetadata,
     events: state.events,
     pilotRuns: state.pilotRuns,
     summary: summarizePortfolio(state),

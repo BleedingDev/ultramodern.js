@@ -129,6 +129,24 @@ const WorkloadScenarioSchema = Schema.Literals([
   'tenant-boundary-audit',
 ]);
 
+const WorkloadScenarioProfileCategorySchema = Schema.Literals([
+  'read-heavy',
+  'write-heavy',
+  'mixed',
+  'search-filter-sort',
+  'chat-pagination',
+  'tenant-boundary',
+]);
+
+const WorkloadScenarioProfileIdSchema = Schema.Literals([
+  'read-heavy-command-center',
+  'write-heavy-order-ledger',
+  'mixed-cross-app-journey',
+  'search-filter-sort-ledger',
+  'chat-pagination-history',
+  'tenant-boundary-probes',
+]);
+
 const WorkloadDataClassSchema = Schema.Literals([
   'public',
   'internal',
@@ -457,6 +475,31 @@ const GeneratedWorkloadContractSchema = Schema.Struct({
   samples: GeneratedWorkloadSamplesSchema,
 });
 
+const WorkloadScenarioProfileMetadataSchema = Schema.Struct({
+  profileVersion: Schema.Literal('superapp-workload-scenario-profiles-v1'),
+  seed: Schema.Literal('superapp-portfolio-scenario-profiles-v1'),
+  categories: Schema.Array(WorkloadScenarioProfileCategorySchema),
+  profileIds: Schema.Array(WorkloadScenarioProfileIdSchema),
+  helperMetadata: Schema.Struct({
+    profileCount: Schema.Number,
+    categoryCounts: Schema.Array(
+      Schema.Struct({
+        category: WorkloadScenarioProfileCategorySchema,
+        count: Schema.Number,
+      }),
+    ),
+    sampleWindowIds: Schema.Array(Schema.String),
+    tenantBoundaryProfileId: WorkloadScenarioProfileIdSchema,
+    defaultProfileIds: Schema.Struct({
+      k6: Schema.Array(WorkloadScenarioProfileIdSchema),
+      load: Schema.Array(WorkloadScenarioProfileIdSchema),
+      chaos: Schema.Array(WorkloadScenarioProfileIdSchema),
+      browser: Schema.Array(WorkloadScenarioProfileIdSchema),
+      contract: Schema.Array(WorkloadScenarioProfileIdSchema),
+    }),
+  }),
+});
+
 const PilotScenarioPlanSchema = Schema.Struct({
   scenario: PilotScenarioSchema,
   label: Schema.String,
@@ -537,6 +580,8 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
           pilotScenarios: Schema.Array(PilotScenarioPlanSchema),
           workloadCatalog: WorkloadCatalogSchema,
           workloadData: GeneratedWorkloadContractSchema,
+          workloadScenarioProfileMetadata:
+            WorkloadScenarioProfileMetadataSchema,
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,

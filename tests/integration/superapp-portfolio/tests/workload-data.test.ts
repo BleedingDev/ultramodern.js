@@ -5,6 +5,16 @@ import {
   GENERATED_WORKLOAD_ENTITIES,
   type GeneratedWorkloadEntityCounts,
 } from '../shared/workload-generated-data.js';
+import {
+  createSuperAppWorkloadScenarioProfileContract,
+  getWorkloadScenarioProfile,
+  getWorkloadScenarioProfilesByCategory,
+  getWorkloadTenantBoundaryProbes,
+  SUPERAPP_WORKLOAD_SCENARIO_PROFILE_CATEGORIES,
+  SUPERAPP_WORKLOAD_SCENARIO_PROFILE_IDS,
+  selectWorkloadScenarioSampleRecords,
+  selectWorkloadScenarioSampleWindows,
+} from '../shared/workload-scenario-profiles.js';
 
 const expectedTotals: GeneratedWorkloadEntityCounts = {
   orders: 6300,
@@ -134,5 +144,158 @@ describe('superapp generated workload data', () => {
     }
 
     expect(leaks).toEqual([]);
+  });
+});
+
+describe('superapp workload scenario profiles', () => {
+  test('publishes deterministic required categories and profile ids', () => {
+    const first = createSuperAppWorkloadScenarioProfileContract();
+    const second = createSuperAppWorkloadScenarioProfileContract();
+
+    expect(first).toEqual(second);
+    expect(first.categories).toEqual([
+      'read-heavy',
+      'write-heavy',
+      'mixed',
+      'search-filter-sort',
+      'chat-pagination',
+      'tenant-boundary',
+    ]);
+    expect(first.categories).toEqual(
+      SUPERAPP_WORKLOAD_SCENARIO_PROFILE_CATEGORIES,
+    );
+    expect(first.profileIds).toEqual(SUPERAPP_WORKLOAD_SCENARIO_PROFILE_IDS);
+    expect(first.profileIds).toEqual([
+      'read-heavy-command-center',
+      'write-heavy-order-ledger',
+      'mixed-cross-app-journey',
+      'search-filter-sort-ledger',
+      'chat-pagination-history',
+      'tenant-boundary-probes',
+    ]);
+    expect(first.helperMetadata.categoryCounts).toEqual(
+      first.categories.map(category => ({
+        category,
+        count: 1,
+      })),
+    );
+
+    for (const profile of first.profiles) {
+      const mixTotal = Object.values(profile.operationMix).reduce(
+        (sum, weight) => sum + weight,
+        0,
+      );
+      const stepTotal = profile.steps.reduce(
+        (sum, step) => sum + step.weight,
+        0,
+      );
+      expect(mixTotal).toBe(100);
+      expect(stepTotal).toBe(100);
+      expect(profile.mutationCapable).toBe(
+        profile.steps.some(step => step.mutatesData),
+      );
+    }
+  });
+
+  test('references existing tenants, domains, personas, and sample windows', () => {
+    const catalog = createSuperAppWorkloadCatalog();
+    const generated = createSuperAppGeneratedWorkloadContract(catalog);
+    const scenarioProfiles = createSuperAppWorkloadScenarioProfileContract();
+    const tenantIds = new Set(catalog.tenants.map(tenant => tenant.id));
+    const domainIds = new Set(catalog.domains.map(domain => domain.id));
+    const personaIds = new Set(catalog.users.map(user => user.id));
+    const catalogScenarioIds = new Set(
+      catalog.scenarios.map(scenario => scenario.id),
+    );
+    const sampleWindowsById = new Map(
+      generated.metadata.sampleWindows.map(window => [window.id, window]),
+    );
+
+    for (const profile of scenarioProfiles.profiles) {
+      expect(getWorkloadScenarioProfile(profile.id)).toMatchObject({
+        id: profile.id,
+        category: profile.category,
+      });
+      expect(getWorkloadScenarioProfilesByCategory(profile.category)).toEqual([
+        expect.objectContaining({ id: profile.id }),
+      ]);
+      for (const tenantId of profile.tenantIds) {
+        expect(tenantIds.has(tenantId)).toBe(true);
+      }
+      for (const domainId of profile.domainIds) {
+        expect(domainIds.has(domainId)).toBe(true);
+      }
+      for (const scenarioId of profile.catalogScenarioIds) {
+        expect(catalogScenarioIds.has(scenarioId)).toBe(true);
+      }
+
+      const selectorIds = new Set(
+        profile.sampleSelectors.map(selector => selector.id),
+      );
+      for (const step of profile.steps) {
+        const domain = catalog.domains.find(item => item.id === step.domainId);
+        expect(domain).toBeDefined();
+        expect(tenantIds.has(step.tenantId)).toBe(true);
+        expect(domain?.tenantIds).toContain(step.tenantId);
+        expect(personaIds.has(step.personaId)).toBe(true);
+        expect(step.route.startsWith('/')).toBe(true);
+        for (const sampleSelectorId of step.sampleSelectorIds) {
+          expect(selectorIds.has(sampleSelectorId)).toBe(true);
+        }
+      }
+
+      const selectedWindows = selectWorkloadScenarioSampleWindows(
+        profile,
+        generated,
+      );
+      expect(selectedWindows.map(window => window.id)).toEqual(
+        profile.sampleWindowIds,
+      );
+      for (const sampleSelector of profile.sampleSelectors) {
+        const sampleWindow = sampleWindowsById.get(
+          sampleSelector.sampleWindowId,
+        );
+        const domain = catalog.domains.find(
+          item => item.id === sampleSelector.domainId,
+        );
+        expect(sampleWindow).toMatchObject({
+          id: sampleSelector.sampleWindowId,
+          entity: sampleSelector.entity,
+          tenantId: sampleSelector.tenantId,
+        });
+        expect(domain?.tenantIds).toContain(sampleSelector.tenantId);
+      }
+
+      for (const selected of selectWorkloadScenarioSampleRecords(
+        profile,
+        generated,
+      )) {
+        expect(selected.records.map(record => record.id)).toEqual(
+          selected.selector.expectedRecordIds,
+        );
+      }
+    }
+  });
+
+  test('tenant-boundary probes include allowed and denied read-only cases', () => {
+    const generated = createSuperAppGeneratedWorkloadContract();
+    const before = JSON.stringify(generated);
+    const profile = getWorkloadScenarioProfile('tenant-boundary-probes');
+    const probes = getWorkloadTenantBoundaryProbes();
+
+    expect(profile).toMatchObject({
+      category: 'tenant-boundary',
+      mutationCapable: false,
+    });
+    expect(probes.map(probe => probe.expectedAllowed)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect(probes.every(probe => probe.mutation === false)).toBe(true);
+    expect(probes.every(probe => probe.expectedNoMutation)).toBe(true);
+    expect(profile?.steps.every(step => !step.mutatesData)).toBe(true);
+    selectWorkloadScenarioSampleRecords('tenant-boundary-probes', generated);
+    expect(JSON.stringify(generated)).toBe(before);
   });
 });

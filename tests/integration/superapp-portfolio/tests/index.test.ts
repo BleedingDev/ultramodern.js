@@ -159,6 +159,22 @@ async function expectEffectPortfolioContracts(port: number) {
       0,
     ),
   ).toBe(52);
+  expect(bootstrap.workloadScenarioProfileMetadata).toMatchObject({
+    profileVersion: 'superapp-workload-scenario-profiles-v1',
+    seed: 'superapp-portfolio-scenario-profiles-v1',
+    categories: [
+      'read-heavy',
+      'write-heavy',
+      'mixed',
+      'search-filter-sort',
+      'chat-pagination',
+      'tenant-boundary',
+    ],
+    helperMetadata: {
+      profileCount: 6,
+      tenantBoundaryProfileId: 'tenant-boundary-probes',
+    },
+  });
   expect(bootstrap.workloadCatalog.helperMetadata.domainIds).toEqual([
     'erp-finance',
     'dispatch-mobility',

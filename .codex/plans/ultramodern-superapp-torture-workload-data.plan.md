@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-data-03
     content: "Add workload scenario definitions for read-heavy, write-heavy, mixed, search/filter/sort, chat pagination, and tenant-boundary probes."
-    status: pending
+    status: completed
   - id: ust-data-04
     content: "Add reset and seed paths that restore deterministic state between stress, chaos, browser, and contract runs."
     status: pending

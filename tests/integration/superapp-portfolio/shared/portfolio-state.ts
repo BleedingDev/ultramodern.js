@@ -6,6 +6,10 @@ import {
   createSuperAppGeneratedWorkloadContract,
   type SuperAppGeneratedWorkloadContract,
 } from './workload-generated-data.js';
+import {
+  createSuperAppWorkloadScenarioProfileMetadata,
+  type SuperAppWorkloadScenarioProfileMetadata,
+} from './workload-scenario-profiles.js';
 
 export type {
   SuperAppWorkloadCatalog,
@@ -61,6 +65,34 @@ export {
   GENERATED_WORKLOAD_ENTITIES,
   SUPERAPP_GENERATED_WORKLOAD_TENANT_PROFILES,
 } from './workload-generated-data.js';
+export type {
+  SuperAppWorkloadScenarioProfileContract,
+  SuperAppWorkloadScenarioProfileMetadata,
+  WorkloadScenarioConsumerTarget,
+  WorkloadScenarioExpectedBudgets,
+  WorkloadScenarioOperationKind,
+  WorkloadScenarioOperationMix,
+  WorkloadScenarioProfile,
+  WorkloadScenarioProfileCategory,
+  WorkloadScenarioProfileHelperMetadata,
+  WorkloadScenarioProfileId,
+  WorkloadScenarioSampleSelector,
+  WorkloadScenarioSelectedRecords,
+  WorkloadScenarioStep,
+  WorkloadTenantBoundaryProbe,
+} from './workload-scenario-profiles.js';
+export {
+  createSuperAppWorkloadScenarioProfileContract,
+  createSuperAppWorkloadScenarioProfileMetadata,
+  getWorkloadScenarioProfile,
+  getWorkloadScenarioProfilesByCategory,
+  getWorkloadTenantBoundaryProbes,
+  SUPERAPP_WORKLOAD_SCENARIO_PROFILE_CATEGORIES,
+  SUPERAPP_WORKLOAD_SCENARIO_PROFILE_IDS,
+  SUPERAPP_WORKLOAD_SCENARIO_PROFILES,
+  selectWorkloadScenarioSampleRecords,
+  selectWorkloadScenarioSampleWindows,
+} from './workload-scenario-profiles.js';
 
 export type PortfolioAppId =
   | 'mobility-marketplace'
@@ -171,6 +203,7 @@ export type PortfolioState = {
   pilotScenarios: PilotScenarioPlan[];
   workloadCatalog: SuperAppWorkloadCatalog;
   workloadData: SuperAppGeneratedWorkloadContract;
+  workloadScenarioProfileMetadata: SuperAppWorkloadScenarioProfileMetadata;
   events: WorkflowEvent[];
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
@@ -284,6 +317,8 @@ export function createInitialPortfolioState(): PortfolioState {
     pilotScenarios: createPilotScenarioPlans(),
     workloadCatalog: createSuperAppWorkloadCatalog(),
     workloadData: createSuperAppGeneratedWorkloadContract(),
+    workloadScenarioProfileMetadata:
+      createSuperAppWorkloadScenarioProfileMetadata(),
     events: [],
     pilotRuns: [],
     failureMode: 'healthy',
