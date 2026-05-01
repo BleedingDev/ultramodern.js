@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-browser-05
     content: "Run a browser smoke subset while moderate HTTP load is active and fail on hydration warnings, console errors, broken resources, or user-visible crash states."
-    status: pending
+    status: completed
 isProject: true
 ---
 

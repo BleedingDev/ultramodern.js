@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
@@ -29,6 +30,23 @@ type RuntimePageOptions = {
     height: number;
     width: number;
   };
+};
+type ModerateHttpLoadOperation = 'bootstrap' | 'security-probe' | 'workflow';
+type ModerateHttpLoadSample = {
+  endedAt: number;
+  error?: string;
+  ok: boolean;
+  operation: ModerateHttpLoadOperation;
+  startedAt: number;
+  status?: number;
+};
+type ModerateHttpLoadSummary = {
+  completedDuringSmoke: number;
+  errors: string[];
+  operationCounts: Record<ModerateHttpLoadOperation, number>;
+  requestCount: number;
+  statusCounts: Record<string, number>;
+  unexpectedErrorCount: number;
 };
 
 const requireFromRstestBrowserFixture = createRequire(
@@ -159,6 +177,249 @@ function createDeferred() {
   };
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function incrementCounter(counter: Record<string, number>, key: string) {
+  counter[key] = (counter[key] ?? 0) + 1;
+}
+
+function summarizeModerateHttpLoad(
+  samples: ModerateHttpLoadSample[],
+  input: {
+    smokeEndedAt?: number;
+    smokeStartedAt?: number;
+  } = {},
+): ModerateHttpLoadSummary {
+  const operationCounts: Record<ModerateHttpLoadOperation, number> = {
+    bootstrap: 0,
+    'security-probe': 0,
+    workflow: 0,
+  };
+  const statusCounts: Record<string, number> = {};
+  const errors: string[] = [];
+  let completedDuringSmoke = 0;
+
+  for (const sample of samples) {
+    operationCounts[sample.operation] += 1;
+    if (sample.status !== undefined) {
+      incrementCounter(statusCounts, String(sample.status));
+    }
+    if (
+      input.smokeStartedAt !== undefined &&
+      input.smokeEndedAt !== undefined &&
+      sample.startedAt <= input.smokeEndedAt &&
+      sample.endedAt >= input.smokeStartedAt
+    ) {
+      completedDuringSmoke += 1;
+    }
+    if (!sample.ok) {
+      errors.push(
+        `${sample.operation}:${sample.status ?? 'network'}:${
+          sample.error ?? 'unknown error'
+        }`,
+      );
+    }
+  }
+
+  return {
+    completedDuringSmoke,
+    errors,
+    operationCounts,
+    requestCount: samples.length,
+    statusCounts,
+    unexpectedErrorCount: errors.length,
+  };
+}
+
+async function expectLoadResponseOk(
+  port: number,
+  operation: ModerateHttpLoadOperation,
+  pathname: string,
+  init: RequestInit = {},
+) {
+  const response = await fetch(`${host}:${port}${pathname}`, {
+    ...init,
+    signal: AbortSignal.timeout(5000),
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `${operation} ${response.status} ${pathname} ${text.slice(0, 200)}`,
+    );
+  }
+
+  return response.status;
+}
+
+async function runModerateHttpLoadOperation(
+  port: number,
+  operation: ModerateHttpLoadOperation,
+  workerIndex: number,
+) {
+  if (operation === 'bootstrap') {
+    return expectLoadResponseOk(port, operation, '/bff-api/effect/bootstrap');
+  }
+
+  if (operation === 'security-probe') {
+    return expectLoadResponseOk(
+      port,
+      operation,
+      '/bff-api/effect/security/probe',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer browser-runtime-load-secret',
+          'content-type': 'application/json',
+          origin: `${host}:${port}`,
+          'x-csrf-token': 'superapp-valid-csrf',
+          'x-tenant-id': 'security-root',
+          'x-user-role': 'security-admin',
+        },
+        body: JSON.stringify({
+          targetTenant: 'security-root',
+          targetAppId: 'tenant-security',
+          action: 'load-smoke-security-probe',
+          requestId: `ust-browser-05-security-${workerIndex}`,
+          mutation: false,
+        }),
+      },
+    );
+  }
+
+  return expectLoadResponseOk(
+    port,
+    operation,
+    '/bff-api/effect/apps/mobility-marketplace/workflow',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'load-smoke-workflow',
+        actor: `browser.load.${workerIndex}`,
+        requestId: `ust-browser-05-workflow-${workerIndex}`,
+      }),
+    },
+  );
+}
+
+function startModerateHttpLoad(port: number) {
+  const concurrency = 6;
+  const maxRunUntil = Date.now() + 1000 * 60;
+  const operations: ModerateHttpLoadOperation[] = [
+    'bootstrap',
+    'workflow',
+    'security-probe',
+  ];
+  const ready = createDeferred();
+  const samples: ModerateHttpLoadSample[] = [];
+  let readyResolved = false;
+  let stopRequested = false;
+
+  const recordSample = (sample: ModerateHttpLoadSample) => {
+    samples.push(sample);
+    if (!readyResolved && samples.length >= concurrency) {
+      readyResolved = true;
+      ready.resolve();
+    }
+  };
+
+  const workers = Array.from(
+    { length: concurrency },
+    async (_, workerIndex) => {
+      let iteration = 0;
+
+      while (!stopRequested && Date.now() < maxRunUntil) {
+        const operation =
+          operations[(workerIndex + iteration) % operations.length];
+        const startedAt = Date.now();
+
+        try {
+          const status = await runModerateHttpLoadOperation(
+            port,
+            operation,
+            workerIndex,
+          );
+          recordSample({
+            endedAt: Date.now(),
+            ok: true,
+            operation,
+            startedAt,
+            status,
+          });
+        } catch (error) {
+          recordSample({
+            endedAt: Date.now(),
+            error: error instanceof Error ? error.message : String(error),
+            ok: false,
+            operation,
+            startedAt,
+          });
+        }
+
+        iteration += 1;
+        await sleep(35 + workerIndex * 5);
+      }
+    },
+  );
+
+  return {
+    ready: ready.promise,
+    stop: async (
+      input: { smokeEndedAt?: number; smokeStartedAt?: number } = {},
+    ) => {
+      stopRequested = true;
+      await Promise.all(workers);
+      return summarizeModerateHttpLoad(samples, input);
+    },
+  };
+}
+
+async function expectNoVisibleCrashState(page: Page) {
+  const crashState = await page.evaluate(() => {
+    const isVisible = (element: Element) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+
+      return (
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    };
+    const bodyText = document.body.innerText;
+    const crashTextMatch = bodyText.match(
+      /Application error|Unhandled Runtime Error|Hydration failed|Minified React error|Cannot read properties|Something went wrong|500 Internal Server Error|404 Not Found/i,
+    );
+    const visibleErrorTexts = Array.from(
+      document.querySelectorAll(
+        '[role="alert"], [data-testid*="error"], .error',
+      ),
+    )
+      .filter(isVisible)
+      .map(element => element.textContent?.trim() ?? '')
+      .filter(Boolean);
+    const shell = document.querySelector('[data-testid="portfolio-shell"]');
+
+    return {
+      bodyTextLength: bodyText.trim().length,
+      crashText: crashTextMatch?.[0],
+      shellVisible: Boolean(shell && isVisible(shell)),
+      visibleErrorTexts,
+    };
+  });
+
+  expect(crashState.bodyTextLength).toBeGreaterThan(100);
+  expect(crashState.crashText).toBeUndefined();
+  expect(crashState.shellVisible).toBe(true);
+  expect(crashState.visibleErrorTexts).toEqual([]);
+}
+
 async function expectPortfolioHome(page: Page) {
   await page.getByTestId('portfolio-page').waitFor();
   await page.getByTestId('pilot-command-center').waitFor();
@@ -274,6 +535,25 @@ async function finishRuntimePage(
   }
 }
 
+async function writeModerateHttpLoadSummary(
+  artifactDir: string,
+  summary: ModerateHttpLoadSummary,
+) {
+  await writeFile(
+    path.join(artifactDir, 'moderate-http-load-summary.json'),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        suite: 'superapp-portfolio-browser-runtime',
+        testId: 'production-shell-smoke-under-moderate-load',
+        ...summary,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
 describe('superapp portfolio browser runtime coverage', () => {
   let port: number;
   let app: Awaited<ReturnType<typeof modernServe>> | undefined;
@@ -344,6 +624,86 @@ describe('superapp portfolio browser runtime coverage', () => {
       failed = true;
       throw error;
     } finally {
+      await finishRuntimePage(runtimePage, failed);
+    }
+  });
+
+  test('smokes production-served shell while moderate HTTP load is active', async () => {
+    await resetPortfolio(port);
+    const moderateLoad = startModerateHttpLoad(port);
+    await moderateLoad.ready;
+    const runtimePage = await createRuntimePage(
+      browser!,
+      'production-shell-smoke-under-moderate-load',
+    );
+    const { diagnostics, errors, page } = runtimePage;
+    let failed = false;
+    let loadSummary: ModerateHttpLoadSummary | undefined;
+    let smokeEndedAt: number | undefined;
+    let smokeStartedAt: number | undefined;
+
+    try {
+      smokeStartedAt = Date.now();
+      await page.goto(`${host}:${port}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      await page.getByTestId('portfolio-ready').waitFor();
+      await page.waitForLoadState('networkidle');
+      await expectPortfolioHome(page);
+      await expectNoVisibleCrashState(page);
+
+      await page.getByTestId('nav-mobility').click();
+      await page.getByTestId('portfolio-app-page').waitFor();
+      await page
+        .getByRole('heading', { name: 'Mobility Marketplace' })
+        .waitFor();
+      await expectByTestIdText(page, 'app-route-kind', 'mobility');
+      await expectNoVisibleCrashState(page);
+
+      await page.getByTestId('run-workflow').click();
+      await page.waitForFunction(() => {
+        return document
+          .querySelector('[data-testid="workflow-event"]')
+          ?.textContent?.includes(':accepted');
+      });
+      await expectNoVisibleCrashState(page);
+
+      await page.getByTestId('nav-portfolio').click();
+      await expectPortfolioHome(page);
+      await expectNoVisibleCrashState(page);
+      smokeEndedAt = Date.now();
+
+      loadSummary = await moderateLoad.stop({
+        smokeEndedAt,
+        smokeStartedAt,
+      });
+      await writeModerateHttpLoadSummary(runtimePage.artifactDir, loadSummary);
+
+      expect(loadSummary.requestCount).toBeGreaterThanOrEqual(12);
+      expect(loadSummary.completedDuringSmoke).toBeGreaterThan(0);
+      expect(loadSummary.unexpectedErrorCount).toBe(0);
+      expect(loadSummary.operationCounts.bootstrap).toBeGreaterThan(0);
+      expect(loadSummary.operationCounts.workflow).toBeGreaterThan(0);
+      expect(loadSummary.operationCounts['security-probe']).toBeGreaterThan(0);
+      expect(loadSummary.statusCounts['200']).toBe(loadSummary.requestCount);
+      expect(diagnostics.brokenResources).toEqual([]);
+      expect(diagnostics.hydrationWarnings).toEqual([]);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      if (!loadSummary) {
+        smokeEndedAt ??= Date.now();
+        loadSummary = await moderateLoad.stop({
+          smokeEndedAt,
+          smokeStartedAt,
+        });
+        await writeModerateHttpLoadSummary(
+          runtimePage.artifactDir,
+          loadSummary,
+        );
+      }
       await finishRuntimePage(runtimePage, failed);
     }
   });

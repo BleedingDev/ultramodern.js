@@ -19,16 +19,33 @@ type PlaywrightRequest = {
   resourceType: () => string;
   url: () => string;
 };
+type PlaywrightResponse = {
+  request: () => PlaywrightRequest;
+  status: () => number;
+  url: () => string;
+};
 
 export type BrowserRuntimeDiagnostics = {
+  brokenResources: string[];
   errors: string[];
   events: Array<Record<string, unknown>>;
+  hydrationWarnings: string[];
   requestFailures: string[];
 };
 
 const artifactRoot =
   process.env.SUPERAPP_PORTFOLIO_BROWSER_RUNTIME_ARTIFACT_DIR ??
   '/tmp/modernjs-superapp-portfolio-browser-runtime';
+const brokenResourceTypes = new Set([
+  'document',
+  'font',
+  'image',
+  'media',
+  'script',
+  'stylesheet',
+]);
+const hydrationWarningPattern =
+  /hydration|hydrate|server rendered|did not match|text content does not match/i;
 
 function sanitizeArtifactId(testId: string) {
   return testId
@@ -55,22 +72,31 @@ export function captureBrowserRuntimeDiagnostics(
   page: Page,
 ): BrowserRuntimeDiagnostics {
   const diagnostics: BrowserRuntimeDiagnostics = {
+    brokenResources: [],
     errors: [],
     events: [],
+    hydrationWarnings: [],
     requestFailures: [],
   };
 
   page.on('console', (message: PlaywrightConsoleMessage) => {
+    const text = message.text();
     const entry = {
       location: message.location?.(),
-      message: message.text(),
+      message: text,
       severity: message.type(),
       type: 'console',
     };
     diagnostics.events.push(entry);
 
+    if (hydrationWarningPattern.test(text)) {
+      const hydrationWarning = `hydration:${text}`;
+      diagnostics.hydrationWarnings.push(hydrationWarning);
+      diagnostics.errors.push(hydrationWarning);
+    }
+
     if (message.type() === 'error') {
-      diagnostics.errors.push(`console:${message.text()}`);
+      diagnostics.errors.push(`console:${text}`);
     }
   });
 
@@ -98,6 +124,26 @@ export function captureBrowserRuntimeDiagnostics(
     });
     diagnostics.errors.push(message);
     diagnostics.requestFailures.push(message);
+  });
+
+  page.on('response', (response: PlaywrightResponse) => {
+    const request = response.request();
+    const status = response.status();
+    const resourceType = request.resourceType();
+
+    if (status < 400 || !brokenResourceTypes.has(resourceType)) {
+      return;
+    }
+
+    const message = `broken-resource:${status}:${resourceType}:${request.method()} ${response.url()}`;
+    diagnostics.brokenResources.push(message);
+    diagnostics.events.push({
+      method: request.method(),
+      resourceType,
+      status,
+      type: 'broken-resource',
+      url: response.url(),
+    });
   });
 
   return diagnostics;
