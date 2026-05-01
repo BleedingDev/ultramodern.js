@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T09:14:29.242880+00:00",
+  "generated_at": "2026-05-01T09:29:07.178396+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -87,7 +87,7 @@
         {
           "id": "ust-browser-02",
           "content": "Run browser smoke and focused flows against production build with console, pageerror, requestfailed, trace, screenshot, and video artifacts.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -128,7 +128,7 @@
         {
           "id": "ust-chaos-02",
           "content": "Add deterministic failure toggles to the SuperApp portfolio fixture without leaking chaos behavior into normal scenarios.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -292,7 +292,7 @@
         {
           "id": "ust-load-02",
           "content": "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -411,27 +411,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-browser-02",
-          "content": "Run browser smoke and focused flows against production build with console, pageerror, requestfailed, trace, screenshot, and video artifacts.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-browser-03",
           "content": "Add slow-network, offline-to-online, mobile viewport, desktop viewport, and repeated route-transition scenarios.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-browser-04",
           "content": "Validate runtime/build matrix coverage for dev, production build, production serve, SSR/CSR paths, cold start, repeated builds, asset prefixes, and MF fallback behavior.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "ust-browser-05",
+          "content": "Run a browser smoke subset while moderate HTTP load is active and fail on hydration warnings, console errors, broken resources, or user-visible crash states.",
+          "status": "pending",
+          "ordinal": 5
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 5
     },
     {
@@ -443,27 +443,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-chaos-02",
-          "content": "Add deterministic failure toggles to the SuperApp portfolio fixture without leaking chaos behavior into normal scenarios.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-chaos-03",
           "content": "Assert error-envelope shape, requestId propagation, cleanup/finalizer behavior, and tenant-safe failure responses for every failure mode.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-chaos-04",
           "content": "Run chaos modes under moderate load and verify no failure mode poisons later healthy requests after reset.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "ust-chaos-05",
+          "content": "Emit a chaos matrix artifact with scenario, injected fault, expected status, actual status, cleanup result, and telemetry redaction result.",
+          "status": "pending",
+          "ordinal": 5
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 5
     },
     {
@@ -507,27 +507,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-load-02",
-          "content": "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-load-03",
           "content": "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-load-04",
           "content": "Add multi-worker autocannon probes for key GET and POST endpoints to distinguish server limits from client/socket limits.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "ust-load-05",
+          "content": "Promote stable release thresholds and more aggressive nightly thresholds into certification without increasing default PR cost.",
+          "status": "pending",
+          "ordinal": 5
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 5
     },
     {
