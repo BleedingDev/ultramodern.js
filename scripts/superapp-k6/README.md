@@ -26,6 +26,23 @@ node scripts/superapp-k6/run-superapp-k6.js \
   -- --vus 4 --duration 30s
 ```
 
+This lane also ships a deterministic scenario catalog and a k6 entry script:
+
+```bash
+node scripts/superapp-k6/run-superapp-k6.js --list-scenarios
+node scripts/superapp-k6/run-superapp-k6.js --scenario smoke
+node scripts/superapp-k6/run-superapp-k6.js --scenario mixed-read-write
+node scripts/superapp-k6/run-superapp-k6.js --scenario all
+```
+
+The built-in catalog covers `smoke`, `ramp-up`, `spike`, `breakpoint`,
+`mixed-read-write`, `tenant-boundary`, `chat`, `reset`, and
+`chaos-triggering`. Each scenario declares k6 executor metadata plus weighted
+operations with method, path, workload profile, artifact link, and reset/seed
+references where applicable. Missing k6 still produces the same skipped
+diagnostic artifact by default.
+
 The runner passes `BASE_URL`, `SUPERAPP_K6_BASE_URL`, `SUPERAPP_K6_RUN_ID`,
-`SUPERAPP_K6_OUTPUT_DIR`, `SUPERAPP_K6_SUMMARY`, `SUPERAPP_K6_TARGET`, and
-`SUPERAPP_K6_PROFILE` into the k6 process.
+`SUPERAPP_K6_OUTPUT_DIR`, `SUPERAPP_K6_SUMMARY`, `SUPERAPP_K6_SCENARIO`,
+`SUPERAPP_K6_SCENARIOS`, `SUPERAPP_K6_TARGET`, and `SUPERAPP_K6_PROFILE` into
+the k6 process.

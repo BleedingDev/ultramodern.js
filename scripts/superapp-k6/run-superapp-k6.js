@@ -9,6 +9,11 @@ const {
   createArtifactEnvelope,
   writeArtifactSummary,
 } = require('../superapp-certification/artifact-schema');
+const {
+  DEFAULT_SCENARIO_SCRIPT,
+  getScenarioCatalog,
+  normalizeScenarioSelection,
+} = require('./scenario-catalog');
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const DEFAULT_BASE_URL = 'http://localhost:8080';
@@ -26,6 +31,8 @@ Usage:
 
 Options:
   --script <path>          k6 script to run. Omit with --check to only verify k6.
+  --scenario <id|all>      Built-in SuperApp scenario selection. Default script: ${DEFAULT_SCENARIO_SCRIPT}
+  --list-scenarios         Print built-in scenario metadata and exit without probing k6.
   --check                  Resolve k6 and write a runner summary without running a script.
   --k6-bin <path|command>  Explicit k6 binary. Env: SUPERAPP_K6_BIN or K6_BIN.
   --require-k6             Exit 1 when k6 is unavailable. Default is a skipped summary.
@@ -39,7 +46,8 @@ Options:
 
 Examples:
   node scripts/superapp-k6/run-superapp-k6.js --check
-  SUPERAPP_K6_BIN=/usr/local/bin/k6 node scripts/superapp-k6/run-superapp-k6.js --script scripts/superapp-k6/smoke.js -- --vus 4 --duration 30s
+  node scripts/superapp-k6/run-superapp-k6.js --scenario smoke
+  SUPERAPP_K6_BIN=/usr/local/bin/k6 node scripts/superapp-k6/run-superapp-k6.js --scenario mixed-read-write -- --tag lane=ust-load-02
 `;
 
 function parseArgs(argv, env = process.env) {
@@ -56,6 +64,7 @@ function parseArgs(argv, env = process.env) {
     outputDir: env.SUPERAPP_K6_OUTPUT_DIR,
     outputPath: env.SUPERAPP_K6_OUT,
     scriptPath: env.SUPERAPP_K6_SCRIPT,
+    scenario: env.SUPERAPP_K6_SCENARIO,
     k6Bin: env.SUPERAPP_K6_BIN || env.K6_BIN,
     requireK6: parseBooleanEnv(env.SUPERAPP_K6_REQUIRE),
     checkOnly: false,
@@ -72,6 +81,12 @@ function parseArgs(argv, env = process.env) {
     switch (arg) {
       case '--script':
         parsed.scriptPath = requireValue(argv, ++index, arg);
+        break;
+      case '--scenario':
+        parsed.scenario = requireValue(argv, ++index, arg);
+        break;
+      case '--list-scenarios':
+        parsed.listScenarios = true;
         break;
       case '--check':
         parsed.checkOnly = true;
@@ -111,6 +126,12 @@ function parseArgs(argv, env = process.env) {
 
   parsed.baseUrl = parsed.baseUrl.replace(/\/+$/, '');
   parsed.runId = sanitizeSegment(parsed.runId);
+  if (parsed.scenario) {
+    parsed.scenarioIds = normalizeScenarioSelection(parsed.scenario);
+    parsed.scriptPath ||= DEFAULT_SCENARIO_SCRIPT;
+  } else {
+    parsed.scenarioIds = [];
+  }
   parsed.scriptPath = parsed.scriptPath
     ? resolveRepoPath(parsed.scriptPath)
     : undefined;
@@ -307,6 +328,8 @@ function createK6Env(options) {
     SUPERAPP_K6_RUN_ID: options.runId,
     SUPERAPP_K6_OUTPUT_DIR: options.outputDir,
     SUPERAPP_K6_SUMMARY: options.k6SummaryFile,
+    SUPERAPP_K6_SCENARIO: options.scenario || '',
+    SUPERAPP_K6_SCENARIOS: options.scenarioIds.join(','),
     SUPERAPP_K6_TARGET: options.target,
     SUPERAPP_K6_PROFILE: options.profile,
   };
@@ -384,6 +407,8 @@ function createRunnerSummary(options, runnerResult, resolution, startedAt) {
       baseUrl: options.baseUrl,
       checkOnly: options.checkOnly || !options.scriptPath,
       requireK6: options.requireK6,
+      scenario: options.scenario,
+      scenarioIds: options.scenarioIds,
       scriptPath: options.scriptPath,
       passThroughArgs: options.passThroughArgs,
       k6Bin: options.k6Bin,
@@ -424,6 +449,8 @@ function printResult(options, summary) {
         status: runner.status,
         artifactStatus: summary.status,
         summaryPath: options.outputFile,
+        scenario: options.scenario,
+        scenarioIds: options.scenarioIds,
         k6: runner.k6,
         diagnostic: runner.diagnostic,
       },
@@ -482,10 +509,36 @@ function main() {
     console.log(usage());
     return;
   }
+  if (options.listScenarios) {
+    console.log(JSON.stringify(createScenarioList(), null, 2));
+    return;
+  }
 
   const result = execute(options);
   printResult(options, result.summary);
   process.exitCode = result.exitCode;
+}
+
+function createScenarioList() {
+  const catalog = getScenarioCatalog();
+  return {
+    catalogId: catalog.catalogId,
+    defaultScenarioScript: catalog.defaultScenarioScript,
+    scenarios: catalog.scenarios.map(scenario => ({
+      id: scenario.id,
+      label: scenario.label,
+      description: scenario.description,
+      k6: scenario.k6,
+      operationMix: scenario.operationMix,
+      operations: scenario.operations.map(operation => ({
+        id: operation.id,
+        kind: operation.kind,
+        method: operation.method,
+        path: operation.path,
+        weight: operation.weight,
+      })),
+    })),
+  };
 }
 
 if (require.main === module) {
@@ -499,6 +552,7 @@ if (require.main === module) {
 
 module.exports = {
   buildK6Candidates,
+  createScenarioList,
   createMissingK6Diagnostic,
   execute,
   parseArgs,

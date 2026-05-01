@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-load-02
     content: "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads."
-    status: pending
+    status: completed
   - id: ust-load-03
     content: "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture."
     status: pending
