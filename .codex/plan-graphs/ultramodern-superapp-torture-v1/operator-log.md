@@ -53,3 +53,7 @@ Wave 3:
 | chaos-failure | `019de2df-ec41-7fc1-b9f4-ec3a877f598d` (`Avicenna`) | worker | completed for `ust-chaos-03` | Error-envelope/requestId/cleanup assertions landed in commit `1c1938cce9`; next todo `ust-chaos-04` is ready. |
 | browser-runtime | `019de2df-ecde-75d3-b735-95a8d1befa29` (`Erdos`) | worker | completed for `ust-browser-03` | Slow-network/offline/mobile/desktop/repeated-route scenarios landed in commit `8d0991a8e9`; next todo `ust-browser-04` is ready. |
 | effect-tanstack-contracts | primary | local | ready | `ust-contract-02` is unheld after `ust-chaos-03`; launch with contract-test-only ownership and no BFF schema churn unless required. |
+| k6-load | `019de2ed-fab0-7c62-a0bc-06e264a2593c` (`Darwin`) | worker | in_progress | Owns `ust-load-04`: multi-worker autocannon probe definitions/runner support under `scripts/superapp-k6` plus k6-load plan status only. |
+| chaos-failure | `019de2ed-fb51-7861-82cf-54202e83c380` (`Tesla`) | worker | in_progress | Owns `ust-chaos-04`: moderate-load chaos no-poison verification under SuperApp portfolio chaos tests plus chaos plan status only. |
+| effect-tanstack-contracts | `019de2ed-fbe7-7173-8ed7-050b8fb385dc` (`Rawls`) | worker | in_progress | Owns `ust-contract-02`: reads/writes/optimistic rollback/idempotency/abort/timeout/retry contract tests plus contract plan status only. |
+| browser-runtime | `019de2ed-fc84-7e51-9aad-86f7f51c2f5a` (`Carson`) | worker | in_progress | Owns `ust-browser-04`: runtime/build matrix checks under SuperApp portfolio browser tests plus browser plan status only. |
