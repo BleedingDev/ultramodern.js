@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-contract-03
     content: "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers."
-    status: pending
+    status: completed
   - id: ust-contract-04
     content: "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery."
     status: pending
