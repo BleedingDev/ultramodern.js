@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-destroy-05
     content: "Document the final go/no-go criteria for starting a large ERP or Uber/Grab-style SuperApp on the fork."
-    status: pending
+    status: completed
 isProject: true
 ---
 
