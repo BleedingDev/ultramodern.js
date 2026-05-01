@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T12:04:02.730692+00:00",
+  "generated_at": "2026-05-01T12:10:24.524810+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -187,7 +187,7 @@
         {
           "id": "ust-destroy-05",
           "content": "Document the final go/no-go criteria for starting a large ERP or Uber/Grab-style SuperApp on the fork.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -403,25 +403,6 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-superapp-torture-destroy-readiness",
-      "plan_name": "UltraModern SuperApp Torture Destroy Readiness",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-destroy-readiness.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-destroy-05",
-          "content": "Document the final go/no-go criteria for starting a large ERP or Uber/Grab-style SuperApp on the fork.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "upcoming": [],
-      "completed": 4,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-superapp-torture-browser-runtime",
       "plan_name": "UltraModern SuperApp Torture Browser Runtime",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
@@ -437,6 +418,18 @@
       "plan_slug": "ultramodern-superapp-torture-chaos-failure",
       "plan_name": "UltraModern SuperApp Torture Chaos Failure",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-destroy-readiness",
+      "plan_name": "UltraModern SuperApp Torture Destroy Readiness",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-destroy-readiness.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],
