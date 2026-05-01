@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T10:17:07.320274+00:00",
+  "generated_at": "2026-05-01T10:27:39.669172+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -222,7 +222,7 @@
         {
           "id": "ust-contract-04",
           "content": "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
@@ -411,21 +411,14 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-contract-04",
-          "content": "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-contract-05",
           "content": "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget.",
           "status": "pending",
           "ordinal": 5
         }
       ],
-      "completed": 3,
+      "upcoming": [],
+      "completed": 4,
       "total": 5
     },
     {
