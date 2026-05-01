@@ -1,3 +1,44 @@
+import {
+  createSuperAppWorkloadCatalog,
+  type SuperAppWorkloadCatalog,
+} from './workload-domain-catalog.js';
+
+export type {
+  SuperAppWorkloadCatalog,
+  WorkloadAdminOperation,
+  WorkloadAppId,
+  WorkloadBudget,
+  WorkloadCatalogHelperMetadata,
+  WorkloadConsistencyModel,
+  WorkloadDataClass,
+  WorkloadDomain,
+  WorkloadDomainId,
+  WorkloadEntityScale,
+  WorkloadHttpMethod,
+  WorkloadMutationProfile,
+  WorkloadPilotModuleId,
+  WorkloadRisk,
+  WorkloadRole,
+  WorkloadRoleId,
+  WorkloadScenario,
+  WorkloadScenarioId,
+  WorkloadScenarioOperation,
+  WorkloadTenant,
+  WorkloadTenantId,
+  WorkloadUser,
+  WorkloadUserId,
+} from './workload-domain-catalog.js';
+export {
+  createSuperAppWorkloadCatalog,
+  getWorkloadDomain,
+  getWorkloadDomainsForTenant,
+  getWorkloadScenario,
+  SUPERAPP_WORKLOAD_CATALOG,
+  SUPERAPP_WORKLOAD_DOMAIN_IDS,
+  SUPERAPP_WORKLOAD_SCENARIO_IDS,
+  SUPERAPP_WORKLOAD_TENANT_IDS,
+} from './workload-domain-catalog.js';
+
 export type PortfolioAppId =
   | 'mobility-marketplace'
   | 'enterprise-mega-erp'
@@ -105,6 +146,7 @@ export type PilotRun = {
 export type PortfolioState = {
   apps: PortfolioApp[];
   pilotScenarios: PilotScenarioPlan[];
+  workloadCatalog: SuperAppWorkloadCatalog;
   events: WorkflowEvent[];
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
@@ -216,6 +258,7 @@ export function createInitialPortfolioState(): PortfolioState {
       },
     ],
     pilotScenarios: createPilotScenarioPlans(),
+    workloadCatalog: createSuperAppWorkloadCatalog(),
     events: [],
     pilotRuns: [],
     failureMode: 'healthy',

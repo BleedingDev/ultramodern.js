@@ -77,6 +77,227 @@ const PilotChaosSchema = Schema.Literals([
   'restart-during-load',
 ]);
 
+const WorkloadTenantSchema = Schema.Literals([
+  'superapp-global',
+  'city-ops-eu',
+  'acme-global',
+  'platform-shell',
+  'security-root',
+  'chaos-lab',
+]);
+
+const WorkloadRoleSchema = Schema.Literals([
+  'superapp-operator',
+  'mobility-operator',
+  'fleet-dispatcher',
+  'marketplace-manager',
+  'erp-operator',
+  'finance-approver',
+  'support-lead',
+  'platform-operator',
+  'security-admin',
+  'failure-operator',
+]);
+
+const WorkloadUserSchema = Schema.Literals([
+  'ops.commander',
+  'marketplace.manager',
+  'dispatch.lead',
+  'fleet.dispatcher',
+  'finance.approver',
+  'support.lead',
+  'platform.operator',
+  'security.admin',
+  'chaos.operator',
+]);
+
+const WorkloadDomainSchema = Schema.Literals([
+  'erp-finance',
+  'dispatch-mobility',
+  'marketplace-orders',
+  'fleet-mobility',
+  'chat-threads',
+  'audit-events',
+  'users-roles',
+  'admin-operations',
+]);
+
+const WorkloadScenarioSchema = Schema.Literals([
+  'marketplace-surge-to-ledger',
+  'fleet-incident-refund',
+  'erp-close-admin-rotation',
+  'tenant-boundary-audit',
+]);
+
+const WorkloadDataClassSchema = Schema.Literals([
+  'public',
+  'internal',
+  'confidential',
+  'restricted',
+]);
+
+const WorkloadConsistencySchema = Schema.Literals([
+  'strong',
+  'read-your-writes',
+  'eventual',
+  'append-only',
+]);
+
+const WorkloadRiskSchema = Schema.Literals(['low', 'medium', 'high']);
+
+const WorkloadHttpMethodSchema = Schema.Literals([
+  'GET',
+  'POST',
+  'PATCH',
+  'DELETE',
+]);
+
+const WorkloadTenantPlanSchema = Schema.Struct({
+  id: WorkloadTenantSchema,
+  label: Schema.String,
+  region: Schema.String,
+  dataResidency: Schema.String,
+  appIds: Schema.Array(AppIdSchema),
+  baselineUsers: Schema.Number,
+  featureFlags: Schema.Array(Schema.String),
+  primaryRoles: Schema.Array(WorkloadRoleSchema),
+});
+
+const WorkloadRolePlanSchema = Schema.Struct({
+  id: WorkloadRoleSchema,
+  label: Schema.String,
+  tenantIds: Schema.Array(WorkloadTenantSchema),
+  permissions: Schema.Array(Schema.String),
+  mutationScopes: Schema.Array(WorkloadDomainSchema),
+  privileged: Schema.Boolean,
+});
+
+const WorkloadUserPlanSchema = Schema.Struct({
+  id: WorkloadUserSchema,
+  displayName: Schema.String,
+  tenantId: WorkloadTenantSchema,
+  roleId: WorkloadRoleSchema,
+  homeRegion: Schema.String,
+  appIds: Schema.Array(AppIdSchema),
+  requestActor: Schema.String,
+  workloadWeight: Schema.Number,
+});
+
+const WorkloadEntityScaleSchema = Schema.Struct({
+  entity: Schema.String,
+  perTenant: Schema.Number,
+  highWatermark: Schema.Number,
+  hotPartitionKey: Schema.String,
+  cadence: Schema.String,
+});
+
+const WorkloadBudgetSchema = Schema.Struct({
+  p95Ms: Schema.Number,
+  maxMs: Schema.Number,
+  concurrency: Schema.Number,
+  recordsTouched: Schema.Number,
+});
+
+const WorkloadMutationProfileSchema = Schema.Struct({
+  readsPerWrite: Schema.Number,
+  idempotentWrites: Schema.Boolean,
+  crossTenantWrites: Schema.Boolean,
+  retryableActions: Schema.Array(Schema.String),
+});
+
+const WorkloadDomainPlanSchema = Schema.Struct({
+  id: WorkloadDomainSchema,
+  label: Schema.String,
+  ownerAppId: AppIdSchema,
+  tenantIds: Schema.Array(WorkloadTenantSchema),
+  modules: Schema.Array(PilotModuleSchema),
+  routes: Schema.Array(Schema.String),
+  seedEntities: Schema.Array(Schema.String),
+  workflows: Schema.Array(Schema.String),
+  invariants: Schema.Array(Schema.String),
+  eventKinds: Schema.Array(Schema.String),
+  dataClasses: Schema.Array(WorkloadDataClassSchema),
+  consistency: WorkloadConsistencySchema,
+  scale: Schema.Array(WorkloadEntityScaleSchema),
+  mutationProfile: WorkloadMutationProfileSchema,
+  budgets: Schema.Struct({
+    browser: WorkloadBudgetSchema,
+    contract: WorkloadBudgetSchema,
+    load: WorkloadBudgetSchema,
+    chaos: WorkloadBudgetSchema,
+  }),
+});
+
+const WorkloadScenarioOperationSchema = Schema.Struct({
+  id: Schema.String,
+  domainId: WorkloadDomainSchema,
+  personaId: WorkloadUserSchema,
+  action: Schema.String,
+  route: Schema.String,
+  method: WorkloadHttpMethodSchema,
+  requestId: Schema.String,
+  idempotencyKey: Schema.String,
+  expectedEventKind: Schema.String,
+  weight: Schema.Number,
+  producesAuditEvent: Schema.Boolean,
+});
+
+const WorkloadScenarioPlanSchema = Schema.Struct({
+  id: WorkloadScenarioSchema,
+  label: Schema.String,
+  tenantId: WorkloadTenantSchema,
+  region: Schema.String,
+  domains: Schema.Array(WorkloadDomainSchema),
+  modules: Schema.Array(PilotModuleSchema),
+  routes: Schema.Array(Schema.String),
+  personas: Schema.Array(WorkloadUserSchema),
+  operations: Schema.Array(WorkloadScenarioOperationSchema),
+  invariants: Schema.Array(Schema.String),
+  chaosTargets: Schema.Array(WorkloadDomainSchema),
+});
+
+const WorkloadAdminOperationSchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  tenantId: WorkloadTenantSchema,
+  personaId: WorkloadUserSchema,
+  targetDomainIds: Schema.Array(WorkloadDomainSchema),
+  route: Schema.String,
+  mutation: Schema.Boolean,
+  auditEventKind: Schema.String,
+  risk: WorkloadRiskSchema,
+  expectedControls: Schema.Array(Schema.String),
+  rollbackExpected: Schema.Boolean,
+  invariants: Schema.Array(Schema.String),
+});
+
+const WorkloadCatalogSchema = Schema.Struct({
+  catalogVersion: Schema.Literal('superapp-workload-data-v1'),
+  seed: Schema.Literal('superapp-portfolio-workload-data-v1'),
+  clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
+  requestIdPrefix: Schema.Literal('swl-v1'),
+  tenants: Schema.Array(WorkloadTenantPlanSchema),
+  roles: Schema.Array(WorkloadRolePlanSchema),
+  users: Schema.Array(WorkloadUserPlanSchema),
+  domains: Schema.Array(WorkloadDomainPlanSchema),
+  scenarios: Schema.Array(WorkloadScenarioPlanSchema),
+  adminOperations: Schema.Array(WorkloadAdminOperationSchema),
+  helperMetadata: Schema.Struct({
+    domainIds: Schema.Array(WorkloadDomainSchema),
+    tenantIds: Schema.Array(WorkloadTenantSchema),
+    scenarioIds: Schema.Array(WorkloadScenarioSchema),
+    actorIds: Schema.Array(WorkloadUserSchema),
+    routeTestIds: Schema.Array(Schema.String),
+    recommendedProfiles: Schema.Struct({
+      smokeScenarioIds: Schema.Array(WorkloadScenarioSchema),
+      loadScenarioIds: Schema.Array(WorkloadScenarioSchema),
+      chaosScenarioIds: Schema.Array(WorkloadScenarioSchema),
+      browserScenarioIds: Schema.Array(WorkloadScenarioSchema),
+      contractScenarioIds: Schema.Array(WorkloadScenarioSchema),
+    }),
+  }),
+});
+
 const PilotScenarioPlanSchema = Schema.Struct({
   scenario: PilotScenarioSchema,
   label: Schema.String,
@@ -155,6 +376,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
         success: Schema.Struct({
           apps: Schema.Array(PortfolioAppSchema),
           pilotScenarios: Schema.Array(PilotScenarioPlanSchema),
+          workloadCatalog: WorkloadCatalogSchema,
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,

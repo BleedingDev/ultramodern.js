@@ -4,7 +4,7 @@ overview: Expand the SuperApp pilot fixtures into larger, more realistic ERP, mo
 todos:
   - id: ust-data-01
     content: "Define realistic multi-tenant fixture domains for ERP finance, dispatch, marketplace orders, fleet mobility, chat threads, audit events, and admin operations."
-    status: pending
+    status: completed
   - id: ust-data-02
     content: "Generate deterministic large datasets with thousands of orders, invoices, rides, messages, audit entries, users, roles, and tenant-scoped resources."
     status: pending

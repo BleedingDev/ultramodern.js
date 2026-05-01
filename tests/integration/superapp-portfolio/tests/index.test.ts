@@ -107,6 +107,98 @@ async function expectEffectPortfolioContracts(port: number) {
       'quote request id remains idempotent across retries',
     ]),
   });
+  expect(bootstrap.workloadCatalog).toMatchObject({
+    catalogVersion: 'superapp-workload-data-v1',
+    seed: 'superapp-portfolio-workload-data-v1',
+    clockStartIso: '2026-01-15T08:00:00.000Z',
+    requestIdPrefix: 'swl-v1',
+  });
+  expect(bootstrap.workloadCatalog.helperMetadata.domainIds).toEqual([
+    'erp-finance',
+    'dispatch-mobility',
+    'marketplace-orders',
+    'fleet-mobility',
+    'chat-threads',
+    'audit-events',
+    'users-roles',
+    'admin-operations',
+  ]);
+  expect(
+    bootstrap.workloadCatalog.tenants.map(
+      (tenant: { id: string }) => tenant.id,
+    ),
+  ).toEqual([
+    'superapp-global',
+    'city-ops-eu',
+    'acme-global',
+    'platform-shell',
+    'security-root',
+    'chaos-lab',
+  ]);
+  const financeDomain = bootstrap.workloadCatalog.domains.find(
+    (domain: { id: string }) => domain.id === 'erp-finance',
+  );
+  expect(financeDomain).toMatchObject({
+    ownerAppId: 'enterprise-mega-erp',
+    modules: expect.arrayContaining(['erp', 'billing']),
+    workflows: expect.arrayContaining([
+      'marketplace settlement reconciliation',
+    ]),
+    invariants: expect.arrayContaining([
+      'approval count matches emitted finance audit events',
+    ]),
+    consistency: 'strong',
+  });
+  expect(
+    bootstrap.workloadCatalog.domains.every(
+      (domain: { workflows: string[]; invariants: string[] }) =>
+        domain.workflows.length >= 3 && domain.invariants.length >= 3,
+    ),
+  ).toBe(true);
+  expect(
+    bootstrap.workloadCatalog.scenarios.map(
+      (scenario: { id: string }) => scenario.id,
+    ),
+  ).toEqual([
+    'marketplace-surge-to-ledger',
+    'fleet-incident-refund',
+    'erp-close-admin-rotation',
+    'tenant-boundary-audit',
+  ]);
+  const surgeScenario = bootstrap.workloadCatalog.scenarios.find(
+    (scenario: { id: string }) => scenario.id === 'marketplace-surge-to-ledger',
+  );
+  expect(surgeScenario).toMatchObject({
+    tenantId: 'superapp-global',
+    domains: expect.arrayContaining([
+      'dispatch-mobility',
+      'marketplace-orders',
+      'erp-finance',
+      'chat-threads',
+      'audit-events',
+    ]),
+  });
+  expect(surgeScenario).toBeDefined();
+  expect(
+    (
+      surgeScenario as { operations: Array<{ requestId: string }> }
+    ).operations.map((operation: { requestId: string }) => operation.requestId),
+  ).toEqual([
+    'swl-v1-surge-quote-001',
+    'swl-v1-surge-order-001',
+    'swl-v1-surge-ledger-001',
+    'swl-v1-surge-chat-001',
+  ]);
+  expect(
+    bootstrap.workloadCatalog.adminOperations.map(
+      (operation: { id: string }) => operation.id,
+    ),
+  ).toEqual([
+    'admin-role-grant-support-lead',
+    'admin-rotate-remote-manifest',
+    'admin-token-quarantine',
+    'admin-failure-drill-reset',
+  ]);
   for (const app of bootstrap.apps) {
     expect(app.profiles.smoke.workflows.length).toBeGreaterThanOrEqual(3);
     expect(app.profiles.stress.concurrency).toBeGreaterThanOrEqual(8);

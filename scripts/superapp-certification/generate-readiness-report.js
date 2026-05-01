@@ -107,6 +107,7 @@ function readSummaries(options) {
 function commandDimensions(id) {
   const mappings = [
     [/^(lint|changeset|package-json|dependencies)$/, ['contract']],
+    [/torture-harness-contract/, ['contract', 'performance']],
     [/superapp-(erp|portfolio)-smoke/, ['integration']],
     [/stress/, ['stress', 'performance']],
     [/soak|nightly/, ['soak', 'performance']],

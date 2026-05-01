@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T07:43:36.427295+00:00",
+  "generated_at": "2026-05-01T08:06:29.891488+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -245,31 +245,31 @@
         {
           "id": "ust-harness-01",
           "content": "Inventory the current SuperApp portfolio load, certification, readiness, and report artifacts and document the canonical inputs each later lane must reuse.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "ust-harness-02",
           "content": "Add a reusable production server controller that can launch, probe, health-check, and stop SuperApp fixtures without coupling load generation to the same process.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "ust-harness-03",
           "content": "Add a process metrics sampler for rss, heap, event-loop delay, open handles, request totals, error classes, and per-scenario latency windows.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "ust-harness-04",
           "content": "Standardize JSON artifact schemas for load, soak, browser, chaos, contract, runtime-matrix, and destroy-run outputs.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "ust-harness-05",
           "content": "Wire every new harness path into certification artifact directories without changing default PR-time cost.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -368,7 +368,7 @@
         {
           "id": "ust-data-01",
           "content": "Define realistic multi-tenant fixture domains for ERP finance, dispatch, marketplace orders, fleet mobility, chat threads, audit events, and admin operations.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -403,38 +403,6 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-superapp-torture-harness-telemetry",
-      "plan_name": "UltraModern SuperApp Torture Harness Telemetry",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-harness-telemetry.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-harness-01",
-          "content": "Inventory the current SuperApp portfolio load, certification, readiness, and report artifacts and document the canonical inputs each later lane must reuse.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ust-harness-02",
-          "content": "Add a reusable production server controller that can launch, probe, health-check, and stop SuperApp fixtures without coupling load generation to the same process.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ust-harness-03",
-          "content": "Add a process metrics sampler for rss, heap, event-loop delay, open handles, request totals, error classes, and per-scenario latency windows.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-superapp-torture-workload-data",
       "plan_name": "UltraModern SuperApp Torture Workload Data",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-workload-data.plan.md",
@@ -443,27 +411,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-data-01",
-          "content": "Define realistic multi-tenant fixture domains for ERP finance, dispatch, marketplace orders, fleet mobility, chat threads, audit events, and admin operations.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-data-02",
           "content": "Generate deterministic large datasets with thousands of orders, invoices, rides, messages, audit entries, users, roles, and tenant-scoped resources.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-data-03",
           "content": "Add workload scenario definitions for read-heavy, write-heavy, mixed, search/filter/sort, chat pagination, and tenant-boundary probes.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-data-04",
+          "content": "Add reset and seed paths that restore deterministic state between stress, chaos, browser, and contract runs.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
@@ -472,10 +440,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-torture-harness-telemetry",
-        "ultramodern-superapp-torture-workload-data"
-      ],
+      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
       "active": [
         {
           "id": "ust-browser-01",
@@ -507,10 +472,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-torture-harness-telemetry",
-        "ultramodern-superapp-torture-workload-data"
-      ],
+      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
       "active": [
         {
           "id": "ust-chaos-01",
@@ -574,10 +536,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-torture-harness-telemetry",
-        "ultramodern-superapp-torture-workload-data"
-      ],
+      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
       "active": [
         {
           "id": "ust-contract-01",
@@ -609,10 +568,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-k6-load.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-torture-harness-telemetry",
-        "ultramodern-superapp-torture-workload-data"
-      ],
+      "blocked_by": ["ultramodern-superapp-torture-workload-data"],
       "active": [
         {
           "id": "ust-load-01",
@@ -673,6 +629,18 @@
         }
       ],
       "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-harness-telemetry",
+      "plan_name": "UltraModern SuperApp Torture Harness Telemetry",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-harness-telemetry.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
       "total": 5
     }
   ],

@@ -208,6 +208,16 @@ function certificationCommands(profile, outDir) {
         profile: 'release',
       },
     ),
+    command(
+      'superapp-torture-harness-contract',
+      `node scripts/superapp-certification/validate-harness-contract.js --out-dir "${artifactDir(
+        outDir,
+        'torture-harness',
+      )}"`,
+      {
+        profile: 'release',
+      },
+    ),
   ];
 
   const nightly = [

@@ -4,19 +4,19 @@ overview: Build the shared measurement, process-control, and artifact substrate 
 todos:
   - id: ust-harness-01
     content: "Inventory the current SuperApp portfolio load, certification, readiness, and report artifacts and document the canonical inputs each later lane must reuse."
-    status: pending
+    status: completed
   - id: ust-harness-02
     content: "Add a reusable production server controller that can launch, probe, health-check, and stop SuperApp fixtures without coupling load generation to the same process."
-    status: pending
+    status: completed
   - id: ust-harness-03
     content: "Add a process metrics sampler for rss, heap, event-loop delay, open handles, request totals, error classes, and per-scenario latency windows."
-    status: pending
+    status: completed
   - id: ust-harness-04
     content: "Standardize JSON artifact schemas for load, soak, browser, chaos, contract, runtime-matrix, and destroy-run outputs."
-    status: pending
+    status: completed
   - id: ust-harness-05
     content: "Wire every new harness path into certification artifact directories without changing default PR-time cost."
-    status: pending
+    status: completed
 isProject: true
 ---
 
