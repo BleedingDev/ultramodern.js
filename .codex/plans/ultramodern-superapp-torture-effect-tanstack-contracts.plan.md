@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-contract-05
     content: "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget."
-    status: pending
+    status: completed
 isProject: true
 ---
 
