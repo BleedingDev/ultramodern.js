@@ -4,7 +4,7 @@ overview: Add a comprehensive failure-injection matrix for downstream timeouts, 
 todos:
   - id: ust-chaos-01
     content: "Define a failure taxonomy covering downstream timeout, partial module error, stale remote manifest, down remote, malformed JSON, auth expiry, tenant violation, retry storm, slow stream, and duplicate request."
-    status: pending
+    status: completed
   - id: ust-chaos-02
     content: "Add deterministic failure toggles to the SuperApp portfolio fixture without leaking chaos behavior into normal scenarios."
     status: pending
