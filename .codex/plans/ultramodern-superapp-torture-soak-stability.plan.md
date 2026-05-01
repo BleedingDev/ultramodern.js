@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-soak-02
     content: "Track memory, heap, event-loop delay, request throughput, latency windows, open handles, reset success, and classified error rates over time."
-    status: pending
+    status: completed
   - id: ust-soak-03
     content: "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile."
     status: pending
