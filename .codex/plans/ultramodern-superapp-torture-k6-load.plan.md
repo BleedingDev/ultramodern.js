@@ -4,7 +4,7 @@ overview: Add independent load-generation capability with k6 and extended autoca
 todos:
   - id: ust-load-01
     content: "Resolve the local k6 execution path or add a documented fallback runner that does not depend on an unconfigured proto plugin."
-    status: pending
+    status: completed
   - id: ust-load-02
     content: "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads."
     status: pending
