@@ -64,11 +64,12 @@ Wave 3:
 | effect-tanstack-contracts | `019de30d-6398-7c03-ab3b-8ee4f4be203b` (`Franklin`) | worker | completed for `ust-contract-04` | TanStack Router/Query navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery contract tests landed in commit `f60fec5c5a`; next todo `ust-contract-05` is ready. |
 | effect-tanstack-contracts | `019de316-416c-7bc2-9e9d-68b7e66c16a3` (`Galileo`) | worker | completed for `ust-contract-05` | Deterministic contract coverage artifact landed in commit `c032e0da46`; effect-tanstack-contracts root is complete and soak-stability is unblocked. |
 | soak-stability | `019de31e-c71a-7710-b6e9-f1c2dba2204f` (`Bacon`) | worker | completed for `ust-soak-01` | Deterministic 15-minute, 60-minute, and 2-to-6-hour soak profile catalog landed in commit `c5f9307129`; next todo `ust-soak-02` is ready. |
+| soak-stability | `019de326-ae2d-7e22-9ce1-2ecefd38c36c` (`Socrates`) | worker | in_progress | Owns `ust-soak-02`: soak memory/heap/event-loop/request/latency/handle/reset/error-rate tracking helpers and tests plus soak plan status only. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 12:45 CEST
+Refreshed: 2026-05-01 12:47 CEST
 
-- Ready: `ultramodern-superapp-torture-soak-stability` with active todo `ust-soak-02` and upcoming `ust-soak-03`, `ust-soak-04`.
+- Active: `ultramodern-superapp-torture-soak-stability` / `ust-soak-02` is running under Socrates (`019de326-ae2d-7e22-9ce1-2ecefd38c36c`); `ust-soak-03`, `ust-soak-04`, and `ust-soak-05` remain pending.
 - Blocked: `ultramodern-superapp-torture-destroy-readiness` is blocked by `ultramodern-superapp-torture-soak-stability`.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, and `browser-runtime`.
