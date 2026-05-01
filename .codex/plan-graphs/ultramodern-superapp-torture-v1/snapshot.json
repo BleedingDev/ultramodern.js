@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T11:05:16.284615+00:00",
+  "generated_at": "2026-05-01T11:18:19.312259+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -345,7 +345,7 @@
         {
           "id": "ust-soak-04",
           "content": "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
@@ -411,21 +411,14 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-soak-04",
-          "content": "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-soak-05",
           "content": "Emit soak artifacts and a markdown appendix with observed stability envelope, thresholds, and recommended fixes for any failure.",
           "status": "pending",
           "ordinal": 5
         }
       ],
-      "completed": 3,
+      "upcoming": [],
+      "completed": 4,
       "total": 5
     },
     {
