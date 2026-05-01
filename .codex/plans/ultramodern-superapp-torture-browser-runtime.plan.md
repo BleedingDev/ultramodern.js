@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-browser-03
     content: "Add slow-network, offline-to-online, mobile viewport, desktop viewport, and repeated route-transition scenarios."
-    status: pending
+    status: completed
   - id: ust-browser-04
     content: "Validate runtime/build matrix coverage for dev, production build, production serve, SSR/CSR paths, cold start, repeated builds, asset prefixes, and MF fallback behavior."
     status: pending

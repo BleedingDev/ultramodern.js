@@ -22,6 +22,15 @@ type BrowserContext = any;
 type BrowserType = any;
 type Page = any;
 
+type RuntimePageOptions = {
+  hasTouch?: boolean;
+  isMobile?: boolean;
+  viewport?: {
+    height: number;
+    width: number;
+  };
+};
+
 const requireFromRstestBrowserFixture = createRequire(
   path.resolve(__dirname, '../../rstest/basic-app-rstest-browser/package.json'),
 );
@@ -30,6 +39,39 @@ const { chromium }: { chromium: BrowserType } =
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
+const bootstrapApiPattern = '**/bff-api/effect/bootstrap';
+const defaultViewport = {
+  width: 1440,
+  height: 960,
+};
+const routeTransitionSteps = [
+  {
+    expectedPath: '/apps/mobility-marketplace',
+    heading: 'Mobility Marketplace',
+    navTestId: 'nav-mobility',
+    routeKind: 'mobility',
+  },
+  {
+    expectedPath: '/apps/enterprise-mega-erp',
+    heading: 'Enterprise MegaERP',
+    navTestId: 'nav-mega-erp',
+    routeKind: 'erp',
+  },
+  {
+    expectedPath: '/apps/mf-platform',
+    heading: 'Micro-Frontend Platform',
+    navTestId: 'nav-mf-platform',
+    routeKind: 'module-federation',
+  },
+  {
+    expectedPath: '/apps/failure-lab',
+    heading: 'Failure Lab',
+    navTestId: 'nav-failure-lab',
+    routeKind: 'failure-lab',
+  },
+] as const;
+
+type RouteTransitionStep = (typeof routeTransitionSteps)[number];
 
 async function resetPortfolio(port: number) {
   const response = await fetch(`${host}:${port}/bff-api/effect/reset`, {
@@ -105,13 +147,96 @@ async function expectPilotStatus(page: Page, expected: string) {
   }, expected);
 }
 
-async function createRuntimePage(browser: Browser, testId: string) {
+function createDeferred() {
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {
+    promise,
+    resolve,
+  };
+}
+
+async function expectPortfolioHome(page: Page) {
+  await page.getByTestId('portfolio-page').waitFor();
+  await page.getByTestId('pilot-command-center').waitFor();
+  await expectByTestIdText(page, 'route-kind', 'portfolio-command-center');
+  await expectByTestIdTextContaining(
+    page,
+    'shell-mode',
+    'tanstack-effect-superapp-portfolio',
+  );
+  await expectByTestIdText(page, 'summary-apps', 'apps:5');
+  expect(new URL(page.url()).pathname).toBe('/');
+}
+
+async function expectAppRoute(page: Page, step: RouteTransitionStep) {
+  await page.getByTestId(step.navTestId).click();
+  await page.getByTestId('portfolio-app-page').waitFor();
+  await page.getByRole('heading', { name: step.heading }).waitFor();
+  await expectByTestIdText(page, 'app-route-kind', step.routeKind);
+  expect(new URL(page.url()).pathname).toBe(step.expectedPath);
+}
+
+async function expectViewportLayout(
+  page: Page,
+  expectedMode: 'desktop' | 'mobile',
+) {
+  const metrics = await page.evaluate(() => {
+    const shell = document
+      .querySelector('[data-testid="portfolio-shell"]')
+      ?.getBoundingClientRect();
+    const nav = document
+      .querySelector('.portfolio-nav')
+      ?.getBoundingClientRect();
+    const workspace = document
+      .querySelector('.portfolio-workspace')
+      ?.getBoundingClientRect();
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      navBottom: nav?.bottom ?? 0,
+      navRight: nav?.right ?? 0,
+      shellWidth: shell?.width ?? 0,
+      viewportWidth: window.innerWidth,
+      workspaceLeft: workspace?.left ?? 0,
+      workspaceTop: workspace?.top ?? 0,
+    };
+  });
+
+  expect(metrics.shellWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+  expect(metrics.documentWidth).toBeGreaterThanOrEqual(metrics.shellWidth);
+
+  if (expectedMode === 'mobile') {
+    expect(metrics.workspaceTop).toBeGreaterThanOrEqual(metrics.navBottom - 1);
+  } else {
+    expect(metrics.workspaceLeft).toBeGreaterThanOrEqual(metrics.navRight - 1);
+  }
+}
+
+async function runRepeatedRouteTransitions(page: Page) {
+  for (const _iteration of Array.from({ length: 2 })) {
+    for (const step of routeTransitionSteps) {
+      await expectAppRoute(page, step);
+    }
+
+    await page.getByTestId('nav-portfolio').click();
+    await expectPortfolioHome(page);
+  }
+}
+
+async function createRuntimePage(
+  browser: Browser,
+  testId: string,
+  options: RuntimePageOptions = {},
+) {
   const artifactPaths = createBrowserRuntimeArtifactPaths(testId);
   const context = await browser.newContext({
-    viewport: {
-      width: 1440,
-      height: 960,
-    },
+    hasTouch: options.hasTouch,
+    isMobile: options.isMobile,
+    viewport: options.viewport ?? defaultViewport,
     recordVideo: {
       dir: artifactPaths.videoDir,
     },
@@ -549,6 +674,152 @@ describe('superapp portfolio browser runtime coverage', () => {
       throw error;
     } finally {
       await finishRuntimePage(runtimePage, failed);
+    }
+  });
+
+  test('handles slow bootstrap fetches and offline-to-online recovery', async () => {
+    await resetPortfolio(port);
+    const runtimePage = await createRuntimePage(
+      browser!,
+      'slow-network-offline-online-recovery',
+    );
+    const { context, errors, page } = runtimePage;
+    const releaseBootstrap = createDeferred();
+    let bootstrapRequestCount = 0;
+    let resolveFirstBootstrapRequest: () => void = () => {};
+    const firstBootstrapRequest = new Promise<void>(resolve => {
+      resolveFirstBootstrapRequest = resolve;
+    });
+    let failed = false;
+
+    await context.route(bootstrapApiPattern, async (route: any) => {
+      bootstrapRequestCount += 1;
+
+      if (bootstrapRequestCount === 1) {
+        resolveFirstBootstrapRequest();
+        await releaseBootstrap.promise;
+      }
+
+      await route.continue();
+    });
+
+    try {
+      await page.goto(`${host}:${port}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      await firstBootstrapRequest;
+      await page.getByTestId('portfolio-loading').waitFor();
+      await expectByTestIdText(page, 'route-kind', 'portfolio-command-center');
+      expect(await page.getByTestId('portfolio-loading').isVisible()).toBe(
+        true,
+      );
+
+      releaseBootstrap.resolve();
+      await page.getByTestId('portfolio-ready').waitFor();
+      await page.waitForLoadState('networkidle');
+      await expectPortfolioHome(page);
+      expect(bootstrapRequestCount).toBeGreaterThanOrEqual(1);
+
+      await context.setOffline(true);
+      const expectedOfflineErrorStart = errors.length;
+      const offlineFetchResult = await page.evaluate(async () => {
+        try {
+          await fetch('/bff-api/effect/bootstrap');
+          return 'resolved';
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      });
+      expect(offlineFetchResult).not.toBe('resolved');
+
+      await context.setOffline(false);
+      await expectAppRoute(page, routeTransitionSteps[2]);
+      await page.getByTestId('run-workflow').click();
+      await expectWorkflowEvent(page, 'evt-1:accepted');
+
+      const expectedOfflineErrors = errors.splice(expectedOfflineErrorStart);
+      expect(expectedOfflineErrors.length).toBeGreaterThanOrEqual(1);
+      expect(
+        expectedOfflineErrors.some(error =>
+          /ERR_INTERNET_DISCONNECTED|ERR_FAILED|Failed to fetch/i.test(error),
+        ),
+      ).toBe(true);
+      expect(
+        expectedOfflineErrors.some(
+          error =>
+            error.startsWith('requestfailed:GET ') &&
+            error.includes('/bff-api/effect/bootstrap'),
+        ),
+      ).toBe(true);
+      expect(
+        expectedOfflineErrors.every(
+          error =>
+            error.startsWith('requestfailed:GET ') ||
+            error.startsWith('console:Failed to load resource:'),
+        ),
+      ).toBe(true);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      await context.setOffline(false);
+      await context.unroute(bootstrapApiPattern);
+      await finishRuntimePage(runtimePage, failed);
+    }
+  });
+
+  test('keeps mobile and desktop viewports stable across repeated route transitions', async () => {
+    await resetPortfolio(port);
+    const viewportScenarios = [
+      {
+        artifactId: 'mobile-repeated-route-transitions',
+        mode: 'mobile' as const,
+        options: {
+          hasTouch: true,
+          isMobile: true,
+          viewport: {
+            width: 390,
+            height: 844,
+          },
+        },
+      },
+      {
+        artifactId: 'desktop-repeated-route-transitions',
+        mode: 'desktop' as const,
+        options: {
+          viewport: {
+            width: 1600,
+            height: 1000,
+          },
+        },
+      },
+    ];
+
+    for (const scenario of viewportScenarios) {
+      const runtimePage = await createRuntimePage(
+        browser!,
+        scenario.artifactId,
+        scenario.options,
+      );
+      const { errors, page } = runtimePage;
+      let failed = false;
+
+      try {
+        await page.goto(`${host}:${port}`, {
+          waitUntil: 'networkidle',
+        });
+        await expectPortfolioHome(page);
+        await expectViewportLayout(page, scenario.mode);
+        await runRepeatedRouteTransitions(page);
+        await expectViewportLayout(page, scenario.mode);
+        expect(errors).toEqual([]);
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        await finishRuntimePage(runtimePage, failed);
+      }
     }
   });
 });
