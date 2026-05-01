@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T11:26:10.657378+00:00",
+  "generated_at": "2026-05-01T11:33:55.379659+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -163,7 +163,7 @@
         {
           "id": "ust-destroy-01",
           "content": "Define the destroy-run command that builds, serves, warms up, runs load, runs chaos, runs browser smoke during load, runs contracts, runs runtime matrix checks, and tears down cleanly.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -411,27 +411,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-destroy-01",
-          "content": "Define the destroy-run command that builds, serves, warms up, runs load, runs chaos, runs browser smoke during load, runs contracts, runs runtime matrix checks, and tears down cleanly.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-destroy-02",
           "content": "Add release, nightly, and manual-torture profiles with explicit thresholds for p95, p99, max latency, error rate, event-loop delay, memory drift, browser errors, and contract failures.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-destroy-03",
           "content": "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-destroy-04",
+          "content": "Run at least one full destroy-run locally, record the observed limits, fix actionable failures in scope, and file beads issues for any remaining work.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
