@@ -69,11 +69,12 @@ Wave 3:
 | soak-stability | `019de339-7dae-75e1-97c6-cc932d6c9b35` (`Aquinas`) | worker | completed for `ust-soak-04` | Drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, unreleased handles, and unknown data landed in commit `23bc66c56d`; local soak tests passed 26/26. Next todo `ust-soak-05` is ready. |
 | soak-stability | `019de344-612f-7643-a2f5-2bf7a20961fe` (`Hume`) | worker | completed for `ust-soak-05` | Deterministic soak stability JSON/markdown report helper with envelope, thresholds, detector classifications, and remediation landed in commit `c333397427`; local soak tests passed 32/32. Soak-stability root is complete. |
 | destroy-readiness | `019de34b-6808-7141-93a2-81571e18918e` (`Hooke`) | worker | completed for `ust-destroy-01` | Deterministic destroy-run command planner/dry-run entrypoint with phase order, existing command paths, artifact roots, and teardown-after-failure scheduling landed in commit `d5169878d1`; local destroy tests passed 5/5. Next todo `ust-destroy-02` is ready. |
+| destroy-readiness | `019de352-8f27-7341-870b-c1926bd650dd` (`Mendel`) | worker | in_progress | Owns `ust-destroy-02`: release/nightly/manual-torture destroy profiles, explicit thresholds, dry-run plan wiring, tests, and destroy plan status only. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 13:34 CEST
+Refreshed: 2026-05-01 13:36 CEST
 
-- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-02` is ready to launch for release, nightly, and manual-torture profiles with explicit thresholds.
+- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-02` is running under Mendel (`019de352-8f27-7341-870b-c1926bd650dd`).
 - Blocked: none in the selected graph; destroy-readiness is the terminal remaining root.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, `browser-runtime`, and `soak-stability`.
