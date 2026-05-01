@@ -67,11 +67,12 @@ Wave 3:
 | soak-stability | `019de326-ae2d-7e22-9ce1-2ecefd38c36c` (`Socrates`) | worker | completed for `ust-soak-02` | Soak memory/heap/event-loop/request/latency/handle/reset/error-rate tracking helpers landed in commit `5453dec243`; next todo `ust-soak-03` is ready. |
 | soak-stability | `019de32e-f0b6-7a72-9a2a-8019ff16cfbc` (`Hegel`) | worker | completed for `ust-soak-03` | Short-testable soak workload runner/planner for mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads landed in commit `0a48ce7cb3`; next todo `ust-soak-04` is ready. |
 | soak-stability | `019de339-7dae-75e1-97c6-cc932d6c9b35` (`Aquinas`) | worker | completed for `ust-soak-04` | Drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, unreleased handles, and unknown data landed in commit `23bc66c56d`; local soak tests passed 26/26. Next todo `ust-soak-05` is ready. |
+| soak-stability | `019de344-612f-7643-a2f5-2bf7a20961fe` (`Hume`) | worker | in_progress | Owns `ust-soak-05`: deterministic soak artifact/report helper, markdown appendix, stability envelope, thresholds, remediation recommendations, tests, and soak plan status only. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 13:18 CEST
+Refreshed: 2026-05-01 13:20 CEST
 
-- Active: `ultramodern-superapp-torture-soak-stability` / `ust-soak-05` is ready to launch for soak artifacts, markdown appendix, observed stability envelope, thresholds, and recommended fixes.
+- Active: `ultramodern-superapp-torture-soak-stability` / `ust-soak-05` is running under Hume (`019de344-612f-7643-a2f5-2bf7a20961fe`).
 - Blocked: `ultramodern-superapp-torture-destroy-readiness` is blocked by `ultramodern-superapp-torture-soak-stability`.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, and `browser-runtime`.
