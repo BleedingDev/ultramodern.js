@@ -4,7 +4,7 @@ overview: Prove the target Effect plus TanStack architecture under cancellation,
 todos:
   - id: ust-contract-01
     content: "Map the Effect BFF contracts, TanStack Router paths, TanStack Query cache keys, mutations, and invalidation boundaries used by the SuperApp portfolio."
-    status: pending
+    status: completed
   - id: ust-contract-02
     content: "Add contract tests for successful reads, writes, optimistic mutation, rollback, duplicate request idempotency, abort/cancellation, timeout, and retry classification."
     status: pending
