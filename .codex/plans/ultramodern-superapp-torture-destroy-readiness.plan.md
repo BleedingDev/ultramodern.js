@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-destroy-03
     content: "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications."
-    status: pending
+    status: completed
   - id: ust-destroy-04
     content: "Run at least one full destroy-run locally, record the observed limits, fix actionable failures in scope, and file beads issues for any remaining work."
     status: pending
