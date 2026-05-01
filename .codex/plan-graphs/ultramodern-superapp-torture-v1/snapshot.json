@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T10:54:35.570857+00:00",
+  "generated_at": "2026-05-01T11:05:16.284615+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -339,7 +339,7 @@
         {
           "id": "ust-soak-03",
           "content": "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -411,19 +411,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-soak-03",
-          "content": "Run mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads for the duration profile.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-soak-04",
           "content": "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles.",
           "status": "pending",
           "ordinal": 4
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-soak-05",
           "content": "Emit soak artifacts and a markdown appendix with observed stability envelope, thresholds, and recommended fixes for any failure.",
@@ -431,7 +425,7 @@
           "ordinal": 5
         }
       ],
-      "completed": 2,
+      "completed": 3,
       "total": 5
     },
     {
