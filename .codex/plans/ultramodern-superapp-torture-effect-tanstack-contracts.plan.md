@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-contract-02
     content: "Add contract tests for successful reads, writes, optimistic mutation, rollback, duplicate request idempotency, abort/cancellation, timeout, and retry classification."
-    status: pending
+    status: completed
   - id: ust-contract-03
     content: "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers."
     status: pending
