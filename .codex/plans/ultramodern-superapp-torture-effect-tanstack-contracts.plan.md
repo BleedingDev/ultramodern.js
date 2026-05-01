@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-contract-04
     content: "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery."
-    status: pending
+    status: completed
   - id: ust-contract-05
     content: "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget."
     status: pending

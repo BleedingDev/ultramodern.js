@@ -11,6 +11,8 @@ import {
   createSuperAppQueryKey,
   getSuperAppEffectEndpoint,
   getSuperAppInvalidationBoundary,
+  SUPERAPP_PORTFOLIO_DOMAIN_ROUTE_CONTRACTS,
+  SUPERAPP_TANSTACK_ROUTE_CONTRACTS,
 } from '../shared/effect-tanstack-contract-map.js';
 import {
   getWorkloadChaosFailureCase,
@@ -42,7 +44,11 @@ type PortfolioSummary = {
 
 type PortfolioApp = {
   id: string;
+  tenant: string;
+  kind: string;
+  capabilities: string[];
   openWork: number;
+  routes: string[];
   [key: string]: unknown;
 };
 
@@ -81,6 +87,13 @@ const failureEndpoint = getSuperAppEffectEndpoint('effect.injectFailure');
 const workflowBoundary = getSuperAppInvalidationBoundary(
   'workflow-event-accepted',
 );
+const appRouteContract = SUPERAPP_TANSTACK_ROUTE_CONTRACTS.find(
+  route => route.id === '/apps/$appId',
+);
+
+if (!appRouteContract) {
+  throw new Error('Missing SuperApp app route contract');
+}
 
 function cloneJson<T>(value: T): T {
   if (value === undefined) {
@@ -112,10 +125,42 @@ function workflowCacheKeys(appId: string) {
   ];
 }
 
+function queryKeysForInvalidation(
+  queryKeyIds: readonly string[],
+  values: Partial<Record<string, string>> = {},
+) {
+  return queryKeyIds.map(queryKeyId => {
+    if (queryKeyId === 'portfolio.app.detail') {
+      if (!values.appId) {
+        throw new Error('Missing appId for app detail invalidation');
+      }
+
+      return createSuperAppQueryKey('portfolio.app.detail', {
+        appId: values.appId,
+      });
+    }
+
+    return createSuperAppQueryKey(
+      queryKeyId as Parameters<typeof createSuperAppQueryKey>[0],
+    );
+  });
+}
+
 class ContractCacheHarness {
   readonly invalidatedQueryKeyIds: string[] = [];
+  readonly prefetchedQueryKeyIds: string[] = [];
+  readonly refetchedQueryKeyIds: string[] = [];
 
   private readonly values = new Map<string, unknown>();
+  private readonly metadata = new Map<
+    string,
+    {
+      fetchedAtMs: number;
+      stale: boolean;
+    }
+  >();
+
+  private nowMs = 1_000;
 
   seedBootstrap(payload: BootstrapPayload) {
     this.set(createSuperAppQueryKey('portfolio.bootstrap'), payload);
@@ -140,7 +185,44 @@ class ContractCacheHarness {
   }
 
   set(key: readonly string[], value: unknown) {
-    this.values.set(cacheId(key), cloneJson(value));
+    const id = cacheId(key);
+    this.values.set(id, cloneJson(value));
+    this.metadata.set(id, {
+      fetchedAtMs: this.nowMs,
+      stale: false,
+    });
+  }
+
+  delete(key: readonly string[]) {
+    const id = cacheId(key);
+    this.values.delete(id);
+    this.metadata.delete(id);
+  }
+
+  isStale(key: readonly string[], staleTimeMs = 0) {
+    const metadata = this.metadata.get(cacheId(key));
+    if (!metadata) {
+      return true;
+    }
+
+    return metadata.stale || this.nowMs - metadata.fetchedAtMs > staleTimeMs;
+  }
+
+  advanceTime(ms: number) {
+    this.nowMs += ms;
+  }
+
+  markStale(keys: readonly (readonly string[])[]) {
+    for (const key of keys) {
+      const id = cacheId(key);
+      const metadata = this.metadata.get(id);
+      if (metadata) {
+        this.metadata.set(id, {
+          ...metadata,
+          stale: true,
+        });
+      }
+    }
   }
 
   snapshot(keys: readonly (readonly string[])[]) {
@@ -155,7 +237,58 @@ class ContractCacheHarness {
   restore(snapshot: ReadonlyMap<string, unknown>) {
     for (const [key, value] of snapshot) {
       this.values.set(key, cloneJson(value));
+      this.metadata.set(key, {
+        fetchedAtMs: this.nowMs,
+        stale: false,
+      });
     }
+  }
+
+  retainTenantAppDetails(tenantId: string, apps: readonly PortfolioApp[]) {
+    const allowedAppIds = new Set(
+      apps
+        .filter(
+          app => tenantId === 'superapp-global' || app.tenant === tenantId,
+        )
+        .map(app => app.id),
+    );
+
+    for (const app of apps) {
+      const key = createSuperAppQueryKey('portfolio.app.detail', {
+        appId: app.id,
+      });
+      if (!allowedAppIds.has(app.id)) {
+        this.delete(key);
+      }
+    }
+
+    return allowedAppIds;
+  }
+
+  async prefetchQuery<T>(
+    queryKeyId: string,
+    key: readonly string[],
+    load: () => Promise<T>,
+  ) {
+    if (!this.values.has(cacheId(key)) || this.isStale(key, 30_000)) {
+      this.set(key, await load());
+      this.prefetchedQueryKeyIds.push(queryKeyId);
+    }
+
+    return this.get<T>(key);
+  }
+
+  async refetchBootstrap(load: () => Promise<BootstrapPayload>) {
+    const payload = await load();
+    this.seedBootstrap(payload);
+    this.refetchedQueryKeyIds.push(
+      'portfolio.bootstrap',
+      'portfolio.summary',
+      'portfolio.apps',
+      'portfolio.app.detail',
+      'portfolio.events',
+    );
+    return payload;
   }
 
   applyOptimisticWorkflow(input: {
@@ -196,6 +329,14 @@ class ContractCacheHarness {
     return () => this.restore(rollbackSnapshot);
   }
 
+  invalidateQueryKeys(
+    queryKeyIds: readonly string[],
+    values: Partial<Record<string, string>> = {},
+  ) {
+    this.invalidatedQueryKeyIds.push(...queryKeyIds);
+    this.markStale(queryKeysForInvalidation(queryKeyIds, values));
+  }
+
   commitWorkflow(payload: WorkflowPayload) {
     const bootstrap = this.get<BootstrapPayload>(
       createSuperAppQueryKey('portfolio.bootstrap'),
@@ -214,9 +355,73 @@ class ContractCacheHarness {
     };
 
     this.seedBootstrap(committedBootstrap);
-    this.invalidatedQueryKeyIds.push(
-      ...workflowBoundary.invalidatesQueryKeyIds,
+    this.invalidateQueryKeys(workflowBoundary.invalidatesQueryKeyIds, {
+      appId: payload.event.appId,
+    });
+  }
+}
+
+class ContractRouterHarness {
+  readonly invalidatedRouteIds: string[] = [];
+  readonly prefetchedRouteIds: string[] = [];
+
+  private currentRoute:
+    | {
+        appId: string;
+        routeId: '/apps/$appId';
+      }
+    | undefined;
+
+  constructor(private readonly cache: ContractCacheHarness) {}
+
+  async prefetchAppRoute(appId: string, load: () => Promise<BootstrapPayload>) {
+    expect(appRouteContract.queryKeyIds).toEqual([
+      'portfolio.bootstrap',
+      'portfolio.app.detail',
+    ]);
+
+    const bootstrap = await this.cache.prefetchQuery(
+      'portfolio.bootstrap',
+      createSuperAppQueryKey('portfolio.bootstrap'),
+      load,
     );
+    const app = bootstrap.apps.find(item => item.id === appId);
+    expect(app).toBeDefined();
+
+    await this.cache.prefetchQuery(
+      'portfolio.app.detail',
+      createSuperAppQueryKey('portfolio.app.detail', { appId }),
+      async () => app!,
+    );
+    this.prefetchedRouteIds.push('/apps/$appId');
+
+    return {
+      appId,
+      routeKind: app!.kind,
+      expectedCapabilities: app!.capabilities.length,
+    };
+  }
+
+  navigateToApp(appId: string) {
+    this.currentRoute = {
+      appId,
+      routeId: '/apps/$appId',
+    };
+
+    return this.cache.get<PortfolioApp>(
+      createSuperAppQueryKey('portfolio.app.detail', { appId }),
+    );
+  }
+
+  invalidateForQueryKeys(queryKeyIds: readonly string[]) {
+    if (
+      this.currentRoute &&
+      appRouteContract.queryKeyIds.some(queryKeyId =>
+        queryKeyIds.includes(queryKeyId),
+      )
+    ) {
+      this.invalidatedRouteIds.push(this.currentRoute.routeId);
+    }
   }
 }
 
@@ -629,6 +834,267 @@ describe('superapp Effect and TanStack contract behavior', () => {
     const after = await getBootstrap(port);
     expect(after.summary).toEqual(before.summary);
     expect(after.events).toEqual(before.events);
+  });
+
+  test('prefetches app navigation and invalidates stale route/query data after workflow mutations', async () => {
+    const appId = 'mobility-marketplace';
+    const appDetailKey = createSuperAppQueryKey('portfolio.app.detail', {
+      appId,
+    });
+    const summaryKey = createSuperAppQueryKey('portfolio.summary');
+    const cache = new ContractCacheHarness();
+    const router = new ContractRouterHarness(cache);
+    const baseline = await getBootstrap(port);
+
+    const loaderData = await router.prefetchAppRoute(appId, async () =>
+      cloneJson(baseline),
+    );
+    const baselineApp = baseline.apps.find(app => app.id === appId);
+    expect(loaderData).toEqual({
+      appId,
+      routeKind: baselineApp?.kind,
+      expectedCapabilities: baselineApp?.capabilities.length,
+    });
+    expect(router.prefetchedRouteIds).toEqual(['/apps/$appId']);
+    expect(cache.prefetchedQueryKeyIds).toEqual([
+      'portfolio.bootstrap',
+      'portfolio.app.detail',
+    ]);
+
+    const activeApp = router.navigateToApp(appId);
+    expect(activeApp.openWork).toBe(baselineApp?.openWork);
+    expect(cache.isStale(appDetailKey, 30_000)).toBe(false);
+
+    cache.advanceTime(31_000);
+    expect(cache.isStale(appDetailKey, 30_000)).toBe(true);
+    expect(router.navigateToApp(appId).openWork).toBe(baselineApp?.openWork);
+
+    const response = await postJson(port, workflowPath(appId), {
+      action: 'quote',
+      actor: 'contract.navigation',
+      requestId: 'contract-navigation-invalidation',
+    });
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as WorkflowPayload;
+    expect(payload.event).toMatchObject({
+      appId,
+      requestId: 'contract-navigation-invalidation',
+      status: 'accepted',
+    });
+
+    cache.invalidateQueryKeys(workflowBoundary.invalidatesQueryKeyIds, {
+      appId,
+    });
+    router.invalidateForQueryKeys(workflowBoundary.invalidatesQueryKeyIds);
+    expect(cache.invalidatedQueryKeyIds).toEqual(
+      workflowBoundary.invalidatesQueryKeyIds,
+    );
+    expect(router.invalidatedRouteIds).toEqual(['/apps/$appId']);
+    expect(cache.isStale(summaryKey, 30_000)).toBe(true);
+    expect(cache.isStale(appDetailKey, 30_000)).toBe(true);
+
+    const staleApp = router.navigateToApp(appId);
+    expect(staleApp.openWork).toBe(baselineApp?.openWork);
+
+    const refreshed = await cache.refetchBootstrap(() => getBootstrap(port));
+    const refreshedApp = router.navigateToApp(appId);
+    expect(cache.refetchedQueryKeyIds).toEqual([
+      'portfolio.bootstrap',
+      'portfolio.summary',
+      'portfolio.apps',
+      'portfolio.app.detail',
+      'portfolio.events',
+    ]);
+    expect(refreshedApp.openWork).toBe((baselineApp?.openWork ?? 0) - 1);
+    expect(refreshed.summary.eventCount).toBe(baseline.summary.eventCount + 1);
+    expect(
+      refreshed.events.some(
+        event => event.requestId === 'contract-navigation-invalidation',
+      ),
+    ).toBe(true);
+    expect(cache.isStale(appDetailKey, 30_000)).toBe(false);
+  });
+
+  test('rolls back failed mutations and replays queued offline writes after online recovery', async () => {
+    const requestId = 'contract-query-rollback-target';
+    const failure = await armWorkflowChaos(
+      port,
+      'chaos.downstream-timeout.v1',
+      requestId,
+    );
+    const baseline = await getBootstrap(port);
+    const cache = new ContractCacheHarness();
+    cache.seedBootstrap(baseline);
+    const baselineCache = cache.get<BootstrapPayload>(
+      createSuperAppQueryKey('portfolio.bootstrap'),
+    );
+
+    const rollback = cache.applyOptimisticWorkflow({
+      action: failure.operationHint,
+      actor: 'contract.query',
+      appId: 'mobility-marketplace',
+      requestId,
+    });
+    const failed = await postJson(port, workflowPath('mobility-marketplace'), {
+      action: failure.operationHint,
+      actor: 'contract.query',
+      requestId,
+    });
+    expect(failed.status).toBe(failure.expectedStatus.httpStatus);
+    await expect(failed.json()).resolves.toMatchObject({
+      error: {
+        code: failure.expectedErrorEnvelope.code,
+        retryable: true,
+        requestId,
+      },
+    });
+
+    rollback();
+    expect(cache.invalidatedQueryKeyIds).toEqual([]);
+    expect(
+      cache.get<BootstrapPayload>(
+        createSuperAppQueryKey('portfolio.bootstrap'),
+      ),
+    ).toEqual(baselineCache);
+    await expect(getBootstrap(port)).resolves.toMatchObject({
+      summary: baseline.summary,
+      events: baseline.events,
+    });
+
+    const offlineRequest = {
+      action: 'dispatch',
+      actor: 'contract.query',
+      appId: 'mobility-marketplace',
+      requestId: 'contract-offline-replay',
+    };
+    const offlineQueue: (typeof offlineRequest)[] = [];
+    let online = false;
+    const mutateWhenOnline = async (request: typeof offlineRequest) => {
+      if (!online) {
+        offlineQueue.push(request);
+        return {
+          queued: true,
+        };
+      }
+
+      const response = await postJson(
+        port,
+        workflowPath(request.appId),
+        request,
+      );
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as WorkflowPayload;
+      cache.commitWorkflow(payload);
+      return {
+        queued: false,
+        payload,
+      };
+    };
+
+    await expect(mutateWhenOnline(offlineRequest)).resolves.toEqual({
+      queued: true,
+    });
+    expect(offlineQueue).toHaveLength(1);
+    const whileOffline = await getBootstrap(port);
+    expect(
+      whileOffline.events.some(
+        event => event.requestId === offlineRequest.requestId,
+      ),
+    ).toBe(false);
+
+    online = true;
+    const replayed = await Promise.all(
+      offlineQueue.splice(0).map(request => mutateWhenOnline(request)),
+    );
+    expect(replayed).toEqual([
+      expect.objectContaining({
+        queued: false,
+        payload: expect.objectContaining({
+          event: expect.objectContaining({
+            requestId: offlineRequest.requestId,
+            status: 'accepted',
+          }),
+        }),
+      }),
+    ]);
+    expect(cache.invalidatedQueryKeyIds).toEqual(
+      workflowBoundary.invalidatesQueryKeyIds,
+    );
+
+    const recovered = await cache.refetchBootstrap(() => getBootstrap(port));
+    expect(
+      recovered.events.some(
+        event => event.requestId === offlineRequest.requestId,
+      ),
+    ).toBe(true);
+    expect(recovered.summary.eventCount).toBe(baseline.summary.eventCount + 1);
+  });
+
+  test('keeps app detail caches isolated across tenant switches', async () => {
+    const bootstrap = await getBootstrap(port);
+    const cache = new ContractCacheHarness();
+    cache.seedBootstrap(bootstrap);
+
+    const cityRoutes = SUPERAPP_PORTFOLIO_DOMAIN_ROUTE_CONTRACTS.filter(
+      route => route.tenantId === 'city-ops-eu',
+    );
+    expect(new Set(cityRoutes.map(route => route.ownerAppId))).toEqual(
+      new Set(['mobility-marketplace']),
+    );
+    expect(cityRoutes.map(route => route.path)).toEqual([
+      '/mobility',
+      '/mobility/dispatch',
+      '/mobility/support',
+    ]);
+
+    const cityApps = cache.retainTenantAppDetails(
+      'city-ops-eu',
+      bootstrap.apps,
+    );
+    expect([...cityApps]).toEqual(['mobility-marketplace']);
+    expect(
+      cache.get<PortfolioApp>(
+        createSuperAppQueryKey('portfolio.app.detail', {
+          appId: 'mobility-marketplace',
+        }),
+      ),
+    ).toMatchObject({
+      id: 'mobility-marketplace',
+      tenant: 'city-ops-eu',
+    });
+    expect(
+      cache.get<PortfolioApp>(
+        createSuperAppQueryKey('portfolio.app.detail', {
+          appId: 'enterprise-mega-erp',
+        }),
+      ),
+    ).toBeUndefined();
+
+    const acmeApps = cache.retainTenantAppDetails(
+      'acme-global',
+      bootstrap.apps,
+    );
+    expect([...acmeApps]).toEqual(['enterprise-mega-erp']);
+    const router = new ContractRouterHarness(cache);
+    const acmeLoader = await router.prefetchAppRoute(
+      'enterprise-mega-erp',
+      async () => cloneJson(bootstrap),
+    );
+    expect(acmeLoader).toMatchObject({
+      appId: 'enterprise-mega-erp',
+      routeKind: 'erp',
+    });
+    expect(
+      cache.get<PortfolioApp>(
+        createSuperAppQueryKey('portfolio.app.detail', {
+          appId: 'mobility-marketplace',
+        }),
+      ),
+    ).toBeUndefined();
+    expect(router.navigateToApp('enterprise-mega-erp')).toMatchObject({
+      id: 'enterprise-mega-erp',
+      tenant: 'acme-global',
+    });
   });
 
   test('keeps pilot reads and writes on the contract boundary for later navigation cache coverage', async () => {
