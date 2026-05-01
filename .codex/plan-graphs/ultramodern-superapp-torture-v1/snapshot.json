@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T09:02:10.123445+00:00",
+  "generated_at": "2026-05-01T09:14:29.242880+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -81,7 +81,7 @@
         {
           "id": "ust-browser-01",
           "content": "Add Playwright coverage for ERP dashboard navigation, tenant switching, chat workflow, module lazy loading, forms, tables, and error states.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -122,7 +122,7 @@
         {
           "id": "ust-chaos-01",
           "content": "Define a failure taxonomy covering downstream timeout, partial module error, stale remote manifest, down remote, malformed JSON, auth expiry, tenant violation, retry storm, slow stream, and duplicate request.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -204,7 +204,7 @@
         {
           "id": "ust-contract-01",
           "content": "Map the Effect BFF contracts, TanStack Router paths, TanStack Query cache keys, mutations, and invalidation boundaries used by the SuperApp portfolio.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -286,7 +286,7 @@
         {
           "id": "ust-load-01",
           "content": "Resolve the local k6 execution path or add a documented fallback runner that does not depend on an unconfigured proto plugin.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -411,27 +411,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-browser-01",
-          "content": "Add Playwright coverage for ERP dashboard navigation, tenant switching, chat workflow, module lazy loading, forms, tables, and error states.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-browser-02",
           "content": "Run browser smoke and focused flows against production build with console, pageerror, requestfailed, trace, screenshot, and video artifacts.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-browser-03",
           "content": "Add slow-network, offline-to-online, mobile viewport, desktop viewport, and repeated route-transition scenarios.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-browser-04",
+          "content": "Validate runtime/build matrix coverage for dev, production build, production serve, SSR/CSR paths, cold start, repeated builds, asset prefixes, and MF fallback behavior.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
@@ -443,27 +443,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-chaos-01",
-          "content": "Define a failure taxonomy covering downstream timeout, partial module error, stale remote manifest, down remote, malformed JSON, auth expiry, tenant violation, retry storm, slow stream, and duplicate request.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-chaos-02",
           "content": "Add deterministic failure toggles to the SuperApp portfolio fixture without leaking chaos behavior into normal scenarios.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-chaos-03",
           "content": "Assert error-envelope shape, requestId propagation, cleanup/finalizer behavior, and tenant-safe failure responses for every failure mode.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-chaos-04",
+          "content": "Run chaos modes under moderate load and verify no failure mode poisons later healthy requests after reset.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
@@ -475,27 +475,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-contract-01",
-          "content": "Map the Effect BFF contracts, TanStack Router paths, TanStack Query cache keys, mutations, and invalidation boundaries used by the SuperApp portfolio.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-contract-02",
           "content": "Add contract tests for successful reads, writes, optimistic mutation, rollback, duplicate request idempotency, abort/cancellation, timeout, and retry classification.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-contract-03",
           "content": "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-contract-04",
+          "content": "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
@@ -507,27 +507,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-load-01",
-          "content": "Resolve the local k6 execution path or add a documented fallback runner that does not depend on an unconfigured proto plugin.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-load-02",
           "content": "Create k6 scenarios for smoke, ramp-up, spike, breakpoint, mixed read/write, tenant-boundary, chat, reset, and chaos-triggering workloads.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-load-03",
           "content": "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "ust-load-04",
+          "content": "Add multi-worker autocannon probes for key GET and POST endpoints to distinguish server limits from client/socket limits.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
