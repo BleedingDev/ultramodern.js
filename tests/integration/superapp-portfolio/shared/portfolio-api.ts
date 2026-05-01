@@ -298,6 +298,165 @@ const WorkloadCatalogSchema = Schema.Struct({
   }),
 });
 
+const GeneratedWorkloadEntitySchema = Schema.Literals([
+  'orders',
+  'invoices',
+  'ledgerEntries',
+  'rides',
+  'dispatchAssignments',
+  'fleetVehicles',
+  'chatThreads',
+  'messages',
+  'auditEvents',
+  'users',
+  'roles',
+  'memberships',
+  'tenantResources',
+]);
+
+const GeneratedWorkloadEntityCountsSchema = Schema.Struct({
+  orders: Schema.Number,
+  invoices: Schema.Number,
+  ledgerEntries: Schema.Number,
+  rides: Schema.Number,
+  dispatchAssignments: Schema.Number,
+  fleetVehicles: Schema.Number,
+  chatThreads: Schema.Number,
+  messages: Schema.Number,
+  auditEvents: Schema.Number,
+  users: Schema.Number,
+  roles: Schema.Number,
+  memberships: Schema.Number,
+  tenantResources: Schema.Number,
+});
+
+const GeneratedWorkloadRecordSchema = Schema.Struct({
+  entity: GeneratedWorkloadEntitySchema,
+  id: Schema.String,
+  tenantId: WorkloadTenantSchema,
+  domainId: WorkloadDomainSchema,
+  ownerAppId: AppIdSchema,
+  createdAtIso: Schema.String,
+  partitionKey: Schema.String,
+  status: Schema.String,
+  actorUserId: Schema.String,
+  requestId: Schema.String,
+  relatedIds: Schema.Array(Schema.String),
+  amountCents: Schema.Number,
+  ordinal: Schema.Number,
+  checksum: Schema.String,
+});
+
+const GeneratedWorkloadHighWatermarkSchema = Schema.Struct({
+  entity: GeneratedWorkloadEntitySchema,
+  count: Schema.Number,
+  firstId: Schema.String,
+  lastId: Schema.String,
+  lastCreatedAtIso: Schema.String,
+});
+
+const GeneratedTenantWorkloadSummarySchema = Schema.Struct({
+  tenantId: WorkloadTenantSchema,
+  region: Schema.String,
+  appIds: Schema.Array(AppIdSchema),
+  totalRecords: Schema.Number,
+  totals: GeneratedWorkloadEntityCountsSchema,
+  sampleIds: Schema.Array(Schema.String),
+});
+
+const GeneratedWorkloadSampleWindowSchema = Schema.Struct({
+  id: Schema.String,
+  entity: GeneratedWorkloadEntitySchema,
+  tenantId: WorkloadTenantSchema,
+  start: Schema.Number,
+  limit: Schema.Number,
+  count: Schema.Number,
+  firstId: Schema.String,
+  lastId: Schema.String,
+});
+
+const GeneratedWorkloadSamplesSchema = Schema.Struct({
+  orders: Schema.Array(GeneratedWorkloadRecordSchema),
+  invoices: Schema.Array(GeneratedWorkloadRecordSchema),
+  ledgerEntries: Schema.Array(GeneratedWorkloadRecordSchema),
+  rides: Schema.Array(GeneratedWorkloadRecordSchema),
+  dispatchAssignments: Schema.Array(GeneratedWorkloadRecordSchema),
+  fleetVehicles: Schema.Array(GeneratedWorkloadRecordSchema),
+  chatThreads: Schema.Array(GeneratedWorkloadRecordSchema),
+  messages: Schema.Array(GeneratedWorkloadRecordSchema),
+  auditEvents: Schema.Array(GeneratedWorkloadRecordSchema),
+  users: Schema.Array(GeneratedWorkloadRecordSchema),
+  roles: Schema.Array(GeneratedWorkloadRecordSchema),
+  memberships: Schema.Array(GeneratedWorkloadRecordSchema),
+  tenantResources: Schema.Array(GeneratedWorkloadRecordSchema),
+});
+
+const GeneratedWorkloadSampleWindowIdsSchema = Schema.Struct({
+  orders: Schema.String,
+  invoices: Schema.String,
+  ledgerEntries: Schema.String,
+  rides: Schema.String,
+  dispatchAssignments: Schema.String,
+  fleetVehicles: Schema.String,
+  chatThreads: Schema.String,
+  messages: Schema.String,
+  auditEvents: Schema.String,
+  users: Schema.String,
+  roles: Schema.String,
+  memberships: Schema.String,
+  tenantResources: Schema.String,
+});
+
+const GeneratedWorkloadStableRecordIdsSchema = Schema.Struct({
+  orderId: Schema.String,
+  invoiceId: Schema.String,
+  ledgerEntryId: Schema.String,
+  rideId: Schema.String,
+  dispatchAssignmentId: Schema.String,
+  fleetVehicleId: Schema.String,
+  chatThreadId: Schema.String,
+  messageId: Schema.String,
+  auditEventId: Schema.String,
+  userId: Schema.String,
+  roleId: Schema.String,
+  membershipId: Schema.String,
+  tenantResourceId: Schema.String,
+});
+
+const GeneratedWorkloadTenantBoundaryProbeSchema = Schema.Struct({
+  allowedTenantId: WorkloadTenantSchema,
+  deniedTenantId: WorkloadTenantSchema,
+  appId: AppIdSchema,
+  userId: Schema.String,
+  roleId: Schema.String,
+  resourceId: Schema.String,
+  auditEventId: Schema.String,
+});
+
+const GeneratedWorkloadContractSchema = Schema.Struct({
+  datasetVersion: Schema.Literal('superapp-generated-workload-v1'),
+  seed: Schema.Literal('superapp-portfolio-generated-workload-v1'),
+  clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
+  clockStepMs: Schema.Number,
+  metadata: Schema.Struct({
+    totalRecords: Schema.Number,
+    totals: GeneratedWorkloadEntityCountsSchema,
+    highWatermarks: Schema.Array(GeneratedWorkloadHighWatermarkSchema),
+    tenantSummaries: Schema.Array(GeneratedTenantWorkloadSummarySchema),
+    sampleWindows: Schema.Array(GeneratedWorkloadSampleWindowSchema),
+  }),
+  helperIds: Schema.Struct({
+    workloadRootTenantId: WorkloadTenantSchema,
+    readHeavyTenantId: WorkloadTenantSchema,
+    financeTenantId: WorkloadTenantSchema,
+    securityTenantId: WorkloadTenantSchema,
+    sampleWindows: GeneratedWorkloadSampleWindowIdsSchema,
+    stableRecords: GeneratedWorkloadStableRecordIdsSchema,
+    tenantBoundaryProbe: GeneratedWorkloadTenantBoundaryProbeSchema,
+  }),
+  samples: GeneratedWorkloadSamplesSchema,
+});
+
 const PilotScenarioPlanSchema = Schema.Struct({
   scenario: PilotScenarioSchema,
   label: Schema.String,
@@ -377,6 +536,7 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
           apps: Schema.Array(PortfolioAppSchema),
           pilotScenarios: Schema.Array(PilotScenarioPlanSchema),
           workloadCatalog: WorkloadCatalogSchema,
+          workloadData: GeneratedWorkloadContractSchema,
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,

@@ -2,6 +2,10 @@ import {
   createSuperAppWorkloadCatalog,
   type SuperAppWorkloadCatalog,
 } from './workload-domain-catalog.js';
+import {
+  createSuperAppGeneratedWorkloadContract,
+  type SuperAppGeneratedWorkloadContract,
+} from './workload-generated-data.js';
 
 export type {
   SuperAppWorkloadCatalog,
@@ -38,6 +42,25 @@ export {
   SUPERAPP_WORKLOAD_SCENARIO_IDS,
   SUPERAPP_WORKLOAD_TENANT_IDS,
 } from './workload-domain-catalog.js';
+export type {
+  GeneratedTenantWorkloadSummary,
+  GeneratedWorkloadEntity,
+  GeneratedWorkloadEntityCounts,
+  GeneratedWorkloadHelperIds,
+  GeneratedWorkloadHighWatermark,
+  GeneratedWorkloadRecord,
+  GeneratedWorkloadSamples,
+  GeneratedWorkloadSampleWindow,
+  SuperAppGeneratedWorkloadContract,
+  SuperAppGeneratedWorkloadDataset,
+  SuperAppGeneratedWorkloadMetadata,
+} from './workload-generated-data.js';
+export {
+  createSuperAppGeneratedWorkloadContract,
+  createSuperAppGeneratedWorkloadDataset,
+  GENERATED_WORKLOAD_ENTITIES,
+  SUPERAPP_GENERATED_WORKLOAD_TENANT_PROFILES,
+} from './workload-generated-data.js';
 
 export type PortfolioAppId =
   | 'mobility-marketplace'
@@ -147,6 +170,7 @@ export type PortfolioState = {
   apps: PortfolioApp[];
   pilotScenarios: PilotScenarioPlan[];
   workloadCatalog: SuperAppWorkloadCatalog;
+  workloadData: SuperAppGeneratedWorkloadContract;
   events: WorkflowEvent[];
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
@@ -259,6 +283,7 @@ export function createInitialPortfolioState(): PortfolioState {
     ],
     pilotScenarios: createPilotScenarioPlans(),
     workloadCatalog: createSuperAppWorkloadCatalog(),
+    workloadData: createSuperAppGeneratedWorkloadContract(),
     events: [],
     pilotRuns: [],
     failureMode: 'healthy',

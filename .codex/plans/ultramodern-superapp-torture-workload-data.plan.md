@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-data-02
     content: "Generate deterministic large datasets with thousands of orders, invoices, rides, messages, audit entries, users, roles, and tenant-scoped resources."
-    status: pending
+    status: completed
   - id: ust-data-03
     content: "Add workload scenario definitions for read-heavy, write-heavy, mixed, search/filter/sort, chat pagination, and tenant-boundary probes."
     status: pending

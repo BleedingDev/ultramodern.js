@@ -113,6 +113,52 @@ async function expectEffectPortfolioContracts(port: number) {
     clockStartIso: '2026-01-15T08:00:00.000Z',
     requestIdPrefix: 'swl-v1',
   });
+  expect(bootstrap.workloadData).toMatchObject({
+    datasetVersion: 'superapp-generated-workload-v1',
+    seed: 'superapp-portfolio-generated-workload-v1',
+    clockStartIso: '2026-01-15T08:00:00.000Z',
+    metadata: {
+      totalRecords: 106960,
+      totals: {
+        orders: 6300,
+        invoices: 4650,
+        ledgerEntries: 11200,
+        rides: 6300,
+        dispatchAssignments: 6300,
+        fleetVehicles: 1970,
+        chatThreads: 3100,
+        messages: 31000,
+        auditEvents: 23000,
+        users: 3060,
+        roles: 1260,
+        memberships: 6220,
+        tenantResources: 2600,
+      },
+    },
+    helperIds: {
+      stableRecords: {
+        orderId: 'ord-coe-01025',
+        messageId: 'msg-psh-04097',
+        auditEventId: 'aud-sec-02049',
+      },
+    },
+  });
+  expect(
+    bootstrap.workloadData.samples.orders.map(
+      (record: { id: string }) => record.id,
+    ),
+  ).toEqual([
+    'ord-coe-01025',
+    'ord-coe-01026',
+    'ord-coe-01027',
+    'ord-coe-01028',
+  ]);
+  expect(
+    Object.values(bootstrap.workloadData.samples).reduce(
+      (sum: number, records) => sum + (records as unknown[]).length,
+      0,
+    ),
+  ).toBe(52);
   expect(bootstrap.workloadCatalog.helperMetadata.domainIds).toEqual([
     'erp-finance',
     'dispatch-mobility',
