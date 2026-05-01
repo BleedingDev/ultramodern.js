@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-chaos-05
     content: "Emit a chaos matrix artifact with scenario, injected fault, expected status, actual status, cleanup result, and telemetry redaction result."
-    status: pending
+    status: completed
 isProject: true
 ---
 
