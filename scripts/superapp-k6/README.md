@@ -46,3 +46,36 @@ The runner passes `BASE_URL`, `SUPERAPP_K6_BASE_URL`, `SUPERAPP_K6_RUN_ID`,
 `SUPERAPP_K6_OUTPUT_DIR`, `SUPERAPP_K6_SUMMARY`, `SUPERAPP_K6_SCENARIO`,
 `SUPERAPP_K6_SCENARIOS`, `SUPERAPP_K6_TARGET`, and `SUPERAPP_K6_PROFILE` into
 the k6 process.
+
+## App Server Orchestration
+
+`--app-dir` starts the SuperApp server as a separate process before k6 runs,
+health-checks it, waits for optional warmup, runs k6 as a separate process,
+waits for optional cooldown, then stops the server. If k6 is unavailable, the
+CI-safe fallback writes the skipped diagnostic artifact and does not start the
+server.
+
+```bash
+node scripts/superapp-k6/run-superapp-k6.js \
+  --app-dir tests/integration/superapp-portfolio \
+  --scenario smoke \
+  --app-host 127.0.0.1 \
+  --app-port 8088 \
+  --health-path / \
+  --warmup-ms 5000 \
+  --cooldown-ms 2000 \
+  --server-cpu-affinity "server cores 0-3" \
+  --load-cpu-affinity "k6 cores 4-7"
+```
+
+The server defaults to `pnpm run build` followed by `pnpm run serve` in the app
+directory. Use `--skip-build`, `--build-command`/`--build-arg`, and
+`--server-command`/`--server-arg` when a caller needs a prebuilt app or custom
+launcher. The output directory captures `summary.json`, `orchestration.json`,
+server stdout/stderr logs, k6 stdout/stderr logs, and the k6 summary export
+when k6 runs.
+
+CPU affinity is metadata-only in this Node runner because portable process CPU
+binding is not available on macOS and Node. Use an external launcher such as
+`taskset` on Linux for hard binding; keep the intended placement in
+`--server-cpu-affinity` and `--load-cpu-affinity` so artifacts record it.

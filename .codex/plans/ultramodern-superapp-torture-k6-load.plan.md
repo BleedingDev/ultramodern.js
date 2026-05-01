@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: ust-load-03
     content: "Run the app server and load generator as separate processes with configurable ports, CPU affinity notes, warmup, cooldown, and artifact capture."
-    status: pending
+    status: completed
   - id: ust-load-04
     content: "Add multi-worker autocannon probes for key GET and POST endpoints to distinguish server limits from client/socket limits."
     status: pending

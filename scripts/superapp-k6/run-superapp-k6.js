@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 
@@ -20,6 +21,12 @@ const DEFAULT_BASE_URL = 'http://localhost:8080';
 const DEFAULT_OUTPUT_ROOT = '.modern/superapp-k6';
 const DEFAULT_TARGET = 'superapp';
 const DEFAULT_PROFILE = 'k6-runner-check';
+const DEFAULT_SERVER_HOST = '127.0.0.1';
+const DEFAULT_HEALTH_PATH = '/';
+const DEFAULT_STARTUP_TIMEOUT_MS = 60_000;
+const DEFAULT_HEALTH_TIMEOUT_MS = 2_000;
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
+const PROCESS_LOG_TAIL_LIMIT = 64_000;
 const LOCAL_K6_BIN =
   process.platform === 'win32'
     ? path.join('node_modules', '.bin', 'k6.cmd')
@@ -37,6 +44,24 @@ Options:
   --k6-bin <path|command>  Explicit k6 binary. Env: SUPERAPP_K6_BIN or K6_BIN.
   --require-k6             Exit 1 when k6 is unavailable. Default is a skipped summary.
   --base-url <url>         SuperApp origin passed to k6 env. Default: ${DEFAULT_BASE_URL}
+  --app-dir <path>         Launch a SuperApp server before k6 and stop it after cooldown.
+  --app-host <host>        Server bind host for --app-dir. Default: ${DEFAULT_SERVER_HOST}
+  --app-port <port>        Server port for --app-dir. Default: reserve a free port.
+  --health-path <path>     Server readiness path. Default: ${DEFAULT_HEALTH_PATH}
+  --startup-timeout-ms <n> Server readiness timeout. Default: ${DEFAULT_STARTUP_TIMEOUT_MS}
+  --health-timeout-ms <n>  Per-readiness-request timeout. Default: ${DEFAULT_HEALTH_TIMEOUT_MS}
+  --warmup-ms <n>          Delay after readiness before k6 starts. Default: 0
+  --cooldown-ms <n>        Delay after k6 exits before server shutdown. Default: 0
+  --shutdown-timeout-ms <n> Server shutdown grace period. Default: ${DEFAULT_SHUTDOWN_TIMEOUT_MS}
+  --skip-build             Skip the default app build step before serving.
+  --build-command <cmd>    Build command for --app-dir. Default: pnpm
+  --build-arg <arg>        Build arg; repeatable. Default: run, build
+  --server-command <cmd>   Server command for --app-dir. Default: pnpm
+  --server-arg <arg>       Server arg; repeatable. Default: run, serve
+  --server-cpu-affinity <note>
+                          Metadata-only CPU affinity note for the server process.
+  --load-cpu-affinity <note>
+                          Metadata-only CPU affinity note for the k6 process.
   --target <name>          Artifact target. Default: ${DEFAULT_TARGET}
   --profile <name>         Artifact profile. Default: ${DEFAULT_PROFILE}
   --run-id <id>            Artifact run id. Default: timestamped
@@ -47,15 +72,15 @@ Options:
 Examples:
   node scripts/superapp-k6/run-superapp-k6.js --check
   node scripts/superapp-k6/run-superapp-k6.js --scenario smoke
+  node scripts/superapp-k6/run-superapp-k6.js --app-dir tests/integration/superapp-portfolio --scenario smoke --warmup-ms 5000 --cooldown-ms 2000
   SUPERAPP_K6_BIN=/usr/local/bin/k6 node scripts/superapp-k6/run-superapp-k6.js --scenario mixed-read-write -- --tag lane=ust-load-02
 `;
 
 function parseArgs(argv, env = process.env) {
+  const envBaseUrl = env.SUPERAPP_K6_BASE_URL || env.SUPERAPP_LOAD_BASE_URL;
   const parsed = {
-    baseUrl:
-      env.SUPERAPP_K6_BASE_URL ||
-      env.SUPERAPP_LOAD_BASE_URL ||
-      DEFAULT_BASE_URL,
+    baseUrl: envBaseUrl || DEFAULT_BASE_URL,
+    baseUrlExplicit: Boolean(envBaseUrl),
     target: env.SUPERAPP_K6_TARGET || DEFAULT_TARGET,
     profile: env.SUPERAPP_K6_PROFILE || DEFAULT_PROFILE,
     runId:
@@ -67,6 +92,28 @@ function parseArgs(argv, env = process.env) {
     scenario: env.SUPERAPP_K6_SCENARIO,
     k6Bin: env.SUPERAPP_K6_BIN || env.K6_BIN,
     requireK6: parseBooleanEnv(env.SUPERAPP_K6_REQUIRE),
+    appDir: env.SUPERAPP_K6_APP_DIR,
+    appHost: env.SUPERAPP_K6_APP_HOST || DEFAULT_SERVER_HOST,
+    appPort: parseOptionalPositiveInt(env.SUPERAPP_K6_APP_PORT),
+    healthPath: env.SUPERAPP_K6_HEALTH_PATH || DEFAULT_HEALTH_PATH,
+    startupTimeoutMs:
+      parseOptionalPositiveInt(env.SUPERAPP_K6_STARTUP_TIMEOUT_MS) ??
+      DEFAULT_STARTUP_TIMEOUT_MS,
+    healthTimeoutMs:
+      parseOptionalPositiveInt(env.SUPERAPP_K6_HEALTH_TIMEOUT_MS) ??
+      DEFAULT_HEALTH_TIMEOUT_MS,
+    warmupMs: parseOptionalNonNegativeInt(env.SUPERAPP_K6_WARMUP_MS) ?? 0,
+    cooldownMs: parseOptionalNonNegativeInt(env.SUPERAPP_K6_COOLDOWN_MS) ?? 0,
+    shutdownTimeoutMs:
+      parseOptionalPositiveInt(env.SUPERAPP_K6_SHUTDOWN_TIMEOUT_MS) ??
+      DEFAULT_SHUTDOWN_TIMEOUT_MS,
+    skipBuild: parseBooleanEnv(env.SUPERAPP_K6_SKIP_BUILD),
+    buildCommand: env.SUPERAPP_K6_BUILD_COMMAND,
+    buildArgs: parseArgsListEnv(env.SUPERAPP_K6_BUILD_ARGS),
+    serverCommand: env.SUPERAPP_K6_SERVER_COMMAND,
+    serverArgs: parseArgsListEnv(env.SUPERAPP_K6_SERVER_ARGS),
+    serverCpuAffinity: env.SUPERAPP_K6_SERVER_CPU_AFFINITY,
+    loadCpuAffinity: env.SUPERAPP_K6_LOAD_CPU_AFFINITY,
     checkOnly: false,
     passThroughArgs: [],
   };
@@ -99,6 +146,57 @@ function parseArgs(argv, env = process.env) {
         break;
       case '--base-url':
         parsed.baseUrl = requireValue(argv, ++index, arg);
+        parsed.baseUrlExplicit = true;
+        break;
+      case '--app-dir':
+        parsed.appDir = requireValue(argv, ++index, arg);
+        break;
+      case '--app-host':
+        parsed.appHost = requireValue(argv, ++index, arg);
+        break;
+      case '--app-port':
+        parsed.appPort = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--health-path':
+        parsed.healthPath = requireValue(argv, ++index, arg);
+        break;
+      case '--startup-timeout-ms':
+        parsed.startupTimeoutMs = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--health-timeout-ms':
+        parsed.healthTimeoutMs = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--warmup-ms':
+        parsed.warmupMs = requireNonNegativeInt(argv, ++index, arg);
+        break;
+      case '--cooldown-ms':
+        parsed.cooldownMs = requireNonNegativeInt(argv, ++index, arg);
+        break;
+      case '--shutdown-timeout-ms':
+        parsed.shutdownTimeoutMs = requirePositiveInt(argv, ++index, arg);
+        break;
+      case '--skip-build':
+        parsed.skipBuild = true;
+        break;
+      case '--build-command':
+        parsed.buildCommand = requireValue(argv, ++index, arg);
+        break;
+      case '--build-arg':
+        parsed.buildArgs ||= [];
+        parsed.buildArgs.push(requireRawValue(argv, ++index, arg));
+        break;
+      case '--server-command':
+        parsed.serverCommand = requireValue(argv, ++index, arg);
+        break;
+      case '--server-arg':
+        parsed.serverArgs ||= [];
+        parsed.serverArgs.push(requireRawValue(argv, ++index, arg));
+        break;
+      case '--server-cpu-affinity':
+        parsed.serverCpuAffinity = requireValue(argv, ++index, arg);
+        break;
+      case '--load-cpu-affinity':
+        parsed.loadCpuAffinity = requireValue(argv, ++index, arg);
         break;
       case '--target':
         parsed.target = requireValue(argv, ++index, arg);
@@ -125,6 +223,12 @@ function parseArgs(argv, env = process.env) {
   }
 
   parsed.baseUrl = parsed.baseUrl.replace(/\/+$/, '');
+  parsed.appDir = parsed.appDir ? resolveRepoPath(parsed.appDir) : undefined;
+  parsed.healthPath = normalizeHealthPath(parsed.healthPath);
+  parsed.buildCommand = parsed.buildCommand || 'pnpm';
+  parsed.buildArgs = parsed.buildArgs || ['run', 'build'];
+  parsed.serverCommand = parsed.serverCommand || 'pnpm';
+  parsed.serverArgs = parsed.serverArgs || ['run', 'serve'];
   parsed.runId = sanitizeSegment(parsed.runId);
   if (parsed.scenario) {
     parsed.scenarioIds = normalizeScenarioSelection(parsed.scenario);
@@ -162,12 +266,72 @@ function parseBooleanEnv(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 }
 
+function parseArgsListEnv(value) {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map(item => String(item));
+    }
+  } catch {
+    // Fall through to whitespace splitting for simple env overrides.
+  }
+  return String(value).split(/\s+/).filter(Boolean);
+}
+
 function requireValue(argv, index, name) {
   const value = argv[index];
   if (!value || value.startsWith('--')) {
     throw new Error(`Missing value for ${name}`);
   }
   return value;
+}
+
+function requireRawValue(argv, index, name) {
+  const value = argv[index];
+  if (value === undefined) {
+    throw new Error(`Missing value for ${name}`);
+  }
+  return value;
+}
+
+function requirePositiveInt(argv, index, name) {
+  const parsed = parseOptionalPositiveInt(requireValue(argv, index, name));
+  if (parsed === undefined) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function requireNonNegativeInt(argv, index, name) {
+  const parsed = parseOptionalNonNegativeInt(requireValue(argv, index, name));
+  if (parsed === undefined) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+function parseOptionalPositiveInt(value) {
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseOptionalNonNegativeInt(value) {
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function normalizeHealthPath(value) {
+  const healthPath = String(value || DEFAULT_HEALTH_PATH);
+  return healthPath.startsWith('/') ? healthPath : `/${healthPath}`;
 }
 
 function resolveRepoPath(value) {
@@ -332,6 +496,8 @@ function createK6Env(options) {
     SUPERAPP_K6_SCENARIOS: options.scenarioIds.join(','),
     SUPERAPP_K6_TARGET: options.target,
     SUPERAPP_K6_PROFILE: options.profile,
+    SUPERAPP_K6_LOAD_CPU_AFFINITY: options.loadCpuAffinity || '',
+    SUPERAPP_K6_SERVER_CPU_AFFINITY: options.serverCpuAffinity || '',
   };
 }
 
@@ -343,11 +509,18 @@ function runK6Script(options, resolution, spawnSyncImpl = spawnSync) {
     ...options.passThroughArgs,
     options.scriptPath,
   ];
+  fs.mkdirSync(options.outputDir, { recursive: true });
+  const stdoutPath = path.join(options.outputDir, 'k6-stdout.log');
+  const stderrPath = path.join(options.outputDir, 'k6-stderr.log');
   const result = spawnSyncImpl(resolution.command, args, {
     cwd: REPO_ROOT,
     env: createK6Env(options),
-    stdio: 'inherit',
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: 'pipe',
   });
+  fs.writeFileSync(stdoutPath, result.stdout || '');
+  fs.writeFileSync(stderrPath, result.stderr || '');
 
   if (result.error) {
     return {
@@ -361,10 +534,36 @@ function runK6Script(options, resolution, spawnSyncImpl = spawnSync) {
         ],
       },
       exitCode: 1,
+      artifacts: [
+        {
+          path: stdoutPath,
+          label: 'k6 stdout log',
+        },
+        {
+          path: stderrPath,
+          label: 'k6 stderr log',
+        },
+      ],
     };
   }
 
   const exitCode = result.status ?? 1;
+  const artifacts = [
+    {
+      path: stdoutPath,
+      label: 'k6 stdout log',
+    },
+    {
+      path: stderrPath,
+      label: 'k6 stderr log',
+    },
+  ];
+  if (fs.existsSync(options.k6SummaryFile)) {
+    artifacts.push({
+      path: options.k6SummaryFile,
+      label: 'k6 summary export',
+    });
+  }
   return {
     status: exitCode === 0 ? 'passed' : 'failed',
     diagnostic:
@@ -379,22 +578,31 @@ function runK6Script(options, resolution, spawnSyncImpl = spawnSync) {
             ],
           },
     exitCode,
-    artifacts: fs.existsSync(options.k6SummaryFile)
-      ? [
-          {
-            path: options.k6SummaryFile,
-            label: 'k6 summary export',
-          },
-        ]
-      : [],
+    artifacts,
+    loadGenerator: {
+      command: resolution.command,
+      args,
+      stdoutPath,
+      stderrPath,
+    },
   };
 }
 
-function createRunnerSummary(options, runnerResult, resolution, startedAt) {
+function createRunnerSummary(
+  options,
+  runnerResult,
+  resolution,
+  startedAt,
+  orchestration,
+) {
   const finishedAt = new Date().toISOString();
   const isSkipped = runnerResult.status === 'skipped';
   const isFailed = runnerResult.status === 'failed';
   const diagnostic = runnerResult.diagnostic;
+  const observations = [
+    ...cpuAffinityObservations(options),
+    ...(runnerResult.observations || []),
+  ];
   const summary = createArtifactEnvelope({
     suite: 'superapp-k6-load',
     target: options.target,
@@ -412,11 +620,27 @@ function createRunnerSummary(options, runnerResult, resolution, startedAt) {
       scriptPath: options.scriptPath,
       passThroughArgs: options.passThroughArgs,
       k6Bin: options.k6Bin,
+      appDir: options.appDir,
+      appHost: options.appHost,
+      appPort: options.appPort,
+      healthPath: options.healthPath,
+      startupTimeoutMs: options.startupTimeoutMs,
+      healthTimeoutMs: options.healthTimeoutMs,
+      warmupMs: options.warmupMs,
+      cooldownMs: options.cooldownMs,
+      shutdownTimeoutMs: options.shutdownTimeoutMs,
+      skipBuild: options.skipBuild,
+      serverCommand: options.serverCommand,
+      serverArgs: options.serverArgs,
+      buildCommand: options.skipBuild ? undefined : options.buildCommand,
+      buildArgs: options.skipBuild ? undefined : options.buildArgs,
+      serverCpuAffinity: options.serverCpuAffinity,
+      loadCpuAffinity: options.loadCpuAffinity,
       outputDir: options.outputDir,
     },
     budgetFailures: isFailed && diagnostic ? [diagnostic.message] : [],
     unknowns: isSkipped && diagnostic ? [diagnostic.message] : [],
-    observations: runnerResult.observations || [],
+    observations,
     artifacts: runnerResult.artifacts || [],
     detail: {
       runner: {
@@ -431,7 +655,9 @@ function createRunnerSummary(options, runnerResult, resolution, startedAt) {
             }
           : undefined,
         attempts: resolution.attempts,
+        loadGenerator: runnerResult.loadGenerator,
       },
+      orchestration,
     },
   });
 
@@ -439,6 +665,22 @@ function createRunnerSummary(options, runnerResult, resolution, startedAt) {
     runId: options.runId,
     ...summary,
   };
+}
+
+function cpuAffinityObservations(options) {
+  if (!options.serverCpuAffinity && !options.loadCpuAffinity) {
+    return [];
+  }
+  const observations = [
+    `CPU affinity is recorded as metadata only by this Node runner on ${process.platform}. Use an external launcher such as taskset on Linux when hard binding is required.`,
+  ];
+  if (options.serverCpuAffinity) {
+    observations.push(`Server CPU affinity note: ${options.serverCpuAffinity}`);
+  }
+  if (options.loadCpuAffinity) {
+    observations.push(`Load CPU affinity note: ${options.loadCpuAffinity}`);
+  }
+  return observations;
 }
 
 function printResult(options, summary) {
@@ -452,6 +694,7 @@ function printResult(options, summary) {
         scenario: options.scenario,
         scenarioIds: options.scenarioIds,
         k6: runner.k6,
+        orchestration: summary.detail.orchestration,
         diagnostic: runner.diagnostic,
       },
       null,
@@ -460,32 +703,42 @@ function printResult(options, summary) {
   );
 }
 
-function execute(options, spawnSyncImpl = spawnSync) {
-  const startedAt = new Date().toISOString();
-  const resolution = resolveK6Binary(options, spawnSyncImpl);
-  let runnerResult;
-
+function createPreflightRunnerResult(options, resolution) {
   if (!resolution.found) {
-    runnerResult = {
+    return {
       status: options.requireK6 ? 'failed' : 'skipped',
       exitCode: options.requireK6 ? 1 : 0,
       diagnostic: createMissingK6Diagnostic(resolution),
     };
-  } else if (options.checkOnly || !options.scriptPath) {
-    runnerResult = {
+  }
+
+  if (options.checkOnly || !options.scriptPath) {
+    return {
       status: 'passed',
       exitCode: 0,
       observations: options.scriptPath
         ? ['k6 binary resolved; --check skipped script execution.']
         : ['k6 binary resolved; no script was supplied, so no load ran.'],
     };
-  } else if (!fs.existsSync(options.scriptPath)) {
-    runnerResult = {
+  }
+
+  if (!fs.existsSync(options.scriptPath)) {
+    return {
       status: 'failed',
       exitCode: 1,
       diagnostic: createScriptMissingDiagnostic(options.scriptPath),
     };
-  } else {
+  }
+
+  return undefined;
+}
+
+function execute(options, spawnSyncImpl = spawnSync) {
+  const startedAt = new Date().toISOString();
+  const resolution = resolveK6Binary(options, spawnSyncImpl);
+  let runnerResult = createPreflightRunnerResult(options, resolution);
+
+  if (!runnerResult) {
     fs.mkdirSync(options.outputDir, { recursive: true });
     runnerResult = runK6Script(options, resolution, spawnSyncImpl);
   }
@@ -503,6 +756,497 @@ function execute(options, spawnSyncImpl = spawnSync) {
   };
 }
 
+async function executeOrchestrated(options, spawnSyncImpl = spawnSync) {
+  const startedAt = new Date().toISOString();
+  const resolution = resolveK6Binary(options, spawnSyncImpl);
+  const artifacts = [];
+  const orchestration = createOrchestrationMetadata(options);
+  let runnerResult = createPreflightRunnerResult(options, resolution);
+  let launched;
+
+  fs.mkdirSync(options.outputDir, { recursive: true });
+
+  if (runnerResult) {
+    orchestration.skippedReason = orchestrationSkipReason(runnerResult);
+    if (orchestration.skippedReason) {
+      runnerResult = {
+        ...runnerResult,
+        observations: [
+          ...(runnerResult.observations || []),
+          `SuperApp server was not launched: ${orchestration.skippedReason}`,
+        ],
+      };
+    }
+  } else {
+    try {
+      launched = await launchAppServer(options);
+      artifacts.push(...launched.artifacts);
+      orchestration.server = launched.metadata;
+      if (!options.baseUrlExplicit) {
+        options.baseUrl = launched.baseUrl;
+      } else if (options.baseUrl !== launched.baseUrl) {
+        orchestration.baseUrlOverride = {
+          serverBaseUrl: launched.baseUrl,
+          loadBaseUrl: options.baseUrl,
+        };
+      }
+
+      if (options.warmupMs > 0) {
+        orchestration.warmup = await timedSleep('warmup', options.warmupMs);
+      }
+
+      runnerResult = runK6Script(options, resolution, spawnSyncImpl);
+
+      if (options.cooldownMs > 0) {
+        orchestration.cooldown = await timedSleep(
+          'cooldown',
+          options.cooldownMs,
+        );
+      }
+    } catch (error) {
+      const diagnostic = diagnosticFromError(error);
+      runnerResult = {
+        status: 'failed',
+        exitCode: 1,
+        diagnostic,
+      };
+      if (
+        error &&
+        typeof error === 'object' &&
+        Array.isArray(error.artifacts)
+      ) {
+        artifacts.push(...error.artifacts);
+      }
+      if (
+        error &&
+        typeof error === 'object' &&
+        error.orchestration &&
+        typeof error.orchestration === 'object'
+      ) {
+        Object.assign(orchestration, error.orchestration);
+      }
+    } finally {
+      if (launched) {
+        const stop = await stopAppServer(launched, {
+          shutdownTimeoutMs: options.shutdownTimeoutMs,
+        });
+        orchestration.server = {
+          ...orchestration.server,
+          stoppedAt: new Date().toISOString(),
+          stop,
+          outputTail: launched.logs.output(),
+        };
+      }
+    }
+  }
+
+  const orchestrationArtifact = writeOrchestrationArtifact(
+    options,
+    orchestration,
+  );
+  runnerResult.artifacts = [
+    ...(runnerResult.artifacts || []),
+    ...artifacts,
+    orchestrationArtifact,
+  ];
+
+  const summary = createRunnerSummary(
+    options,
+    runnerResult,
+    resolution,
+    startedAt,
+    orchestration,
+  );
+  writeArtifactSummary(options.outputFile, summary);
+  return {
+    summary,
+    exitCode: runnerResult.exitCode,
+  };
+}
+
+function createOrchestrationMetadata(options) {
+  return {
+    enabled: true,
+    mode: 'app-server-and-k6',
+    platform: process.platform,
+    appDir: options.appDir,
+    warmupMs: options.warmupMs,
+    cooldownMs: options.cooldownMs,
+    cpuAffinity: {
+      enforcement: 'metadata-only',
+      server: options.serverCpuAffinity,
+      load: options.loadCpuAffinity,
+      note: 'Node does not expose portable CPU affinity binding; use an external launcher for hard binding and keep the requested placement here as artifact metadata.',
+    },
+  };
+}
+
+function orchestrationSkipReason(runnerResult) {
+  if (runnerResult.diagnostic?.code === 'K6_NOT_AVAILABLE') {
+    return 'k6 is unavailable, so the CI-safe fallback skipped load generation before starting the app server.';
+  }
+  if (runnerResult.diagnostic?.code === 'K6_SCRIPT_NOT_FOUND') {
+    return 'the selected k6 script is missing.';
+  }
+  if (runnerResult.status === 'passed') {
+    return 'the runner was invoked in check-only mode or without a script.';
+  }
+  return undefined;
+}
+
+function writeOrchestrationArtifact(options, orchestration) {
+  const artifactPath = path.join(options.outputDir, 'orchestration.json');
+  fs.writeFileSync(artifactPath, `${JSON.stringify(orchestration, null, 2)}\n`);
+  return {
+    path: artifactPath,
+    label: 'process orchestration metadata',
+  };
+}
+
+async function launchAppServer(options) {
+  const port = options.appPort || (await reservePort(options.appHost));
+  const baseUrl = createAppBaseUrl(options.appHost, port);
+  const healthUrl = new URL(options.healthPath, baseUrl).toString();
+  const artifacts = [];
+  let build;
+
+  if (!options.skipBuild) {
+    build = runAppBuild(options);
+    artifacts.push(...build.artifacts);
+    if (build.exitCode !== 0) {
+      throw createDiagnosticError(
+        'APP_BUILD_FAILED',
+        `SuperApp build failed with exit code ${build.exitCode}`,
+        [
+          'Inspect app-build-stdout.log and app-build-stderr.log in the k6 artifact directory.',
+          'Rerun with --skip-build only when the app has already been built.',
+        ],
+        {
+          artifacts,
+          orchestration: {
+            build: build.metadata,
+          },
+        },
+      );
+    }
+  }
+
+  const logs = createProcessLogCapture(options.outputDir, 'app-server');
+  const child = spawn(options.serverCommand, options.serverArgs, {
+    cwd: options.appDir,
+    detached: process.platform !== 'win32',
+    env: {
+      ...process.env,
+      HOST: options.appHost,
+      NODE_ENV: 'production',
+      PORT: String(port),
+      SUPERAPP_K6_SERVER_CPU_AFFINITY: options.serverCpuAffinity || '',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.on('data', logs.appendStdout);
+  child.stderr.on('data', logs.appendStderr);
+  child.once('error', error => {
+    logs.appendStderr(
+      `${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  });
+
+  const serverMetadata = {
+    appDir: options.appDir,
+    baseUrl,
+    healthUrl,
+    host: options.appHost,
+    port,
+    process: {
+      pid: child.pid,
+      command: options.serverCommand,
+      args: options.serverArgs,
+    },
+    logs: {
+      stdoutPath: logs.stdoutPath,
+      stderrPath: logs.stderrPath,
+    },
+    build: build?.metadata,
+    startedAt: new Date().toISOString(),
+  };
+
+  const readiness = await waitForHttp(healthUrl, {
+    timeoutMs: options.startupTimeoutMs,
+    requestTimeoutMs: options.healthTimeoutMs,
+  });
+  serverMetadata.readiness = readiness;
+  artifacts.push(...logs.artifacts());
+
+  if (!readiness.ok) {
+    const stop = await stopChildProcess(child, options.shutdownTimeoutMs);
+    throw createDiagnosticError(
+      'APP_SERVER_NOT_READY',
+      `SuperApp server did not become ready at ${healthUrl}: ${
+        readiness.error || 'unknown readiness failure'
+      }`,
+      [
+        'Inspect app-server-stdout.log and app-server-stderr.log in the k6 artifact directory.',
+        'Increase --startup-timeout-ms if the production server needs more time to boot.',
+      ],
+      {
+        artifacts,
+        orchestration: {
+          server: {
+            ...serverMetadata,
+            stop,
+            outputTail: logs.output(),
+          },
+        },
+      },
+    );
+  }
+
+  return {
+    artifacts,
+    baseUrl,
+    logs,
+    metadata: serverMetadata,
+    server: {
+      child,
+    },
+  };
+}
+
+function runAppBuild(options) {
+  const stdoutPath = path.join(options.outputDir, 'app-build-stdout.log');
+  const stderrPath = path.join(options.outputDir, 'app-build-stderr.log');
+  const startedAt = new Date().toISOString();
+  const result = spawnSync(options.buildCommand, options.buildArgs, {
+    cwd: options.appDir,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+    },
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: 'pipe',
+  });
+  fs.writeFileSync(stdoutPath, result.stdout || '');
+  fs.writeFileSync(stderrPath, result.stderr || '');
+  const exitCode = result.status ?? 1;
+  const metadata = {
+    command: options.buildCommand,
+    args: options.buildArgs,
+    exitCode,
+    signal: result.signal,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    stdoutPath,
+    stderrPath,
+  };
+  return {
+    artifacts: [
+      {
+        path: stdoutPath,
+        label: 'app build stdout log',
+      },
+      {
+        path: stderrPath,
+        label: 'app build stderr log',
+      },
+    ],
+    exitCode,
+    metadata,
+  };
+}
+
+function createProcessLogCapture(outputDir, prefix) {
+  const stdoutPath = path.join(outputDir, `${prefix}-stdout.log`);
+  const stderrPath = path.join(outputDir, `${prefix}-stderr.log`);
+  fs.writeFileSync(stdoutPath, '');
+  fs.writeFileSync(stderrPath, '');
+  const tails = {
+    stdout: '',
+    stderr: '',
+  };
+  const append = (stream, filePath, chunk) => {
+    const text = String(chunk);
+    fs.appendFileSync(filePath, text);
+    tails[stream] = `${tails[stream]}${text}`.slice(-PROCESS_LOG_TAIL_LIMIT);
+  };
+
+  return {
+    stderrPath,
+    stdoutPath,
+    appendStderr: chunk => append('stderr', stderrPath, chunk),
+    appendStdout: chunk => append('stdout', stdoutPath, chunk),
+    artifacts() {
+      return [
+        {
+          path: stdoutPath,
+          label: `${prefix} stdout log`,
+        },
+        {
+          path: stderrPath,
+          label: `${prefix} stderr log`,
+        },
+      ];
+    },
+    output() {
+      return tails;
+    },
+  };
+}
+
+function reservePort(host = DEFAULT_SERVER_HOST) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, host, () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => {
+          reject(new Error('Failed to reserve an available TCP port'));
+        });
+        return;
+      }
+      server.close(error => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
+}
+
+function createAppBaseUrl(host, port) {
+  const urlHost =
+    host === '0.0.0.0' || host === '::'
+      ? DEFAULT_SERVER_HOST
+      : host.includes(':')
+        ? `[${host}]`
+        : host;
+  return `http://${urlHost}:${port}`;
+}
+
+async function waitForHttp(url, options = {}) {
+  const startedAt = Date.now();
+  const timeoutMs = options.timeoutMs || DEFAULT_STARTUP_TIMEOUT_MS;
+  const intervalMs = options.intervalMs || 250;
+  let lastError;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(
+          options.requestTimeoutMs || DEFAULT_HEALTH_TIMEOUT_MS,
+        ),
+      });
+      await response.arrayBuffer();
+      if (response.status >= 200 && response.status < 500) {
+        return {
+          ok: true,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+        };
+      }
+      lastError = new Error(`Unexpected readiness status ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(intervalMs);
+  }
+
+  return {
+    ok: false,
+    durationMs: Date.now() - startedAt,
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  };
+}
+
+async function stopAppServer(launched, options) {
+  return stopChildProcess(launched.server.child, options.shutdownTimeoutMs);
+}
+
+function stopChildProcess(child, timeoutMs = DEFAULT_SHUTDOWN_TIMEOUT_MS) {
+  if (!child || child.killed || child.exitCode !== null) {
+    return Promise.resolve({
+      stopped: true,
+      alreadyExited: true,
+    });
+  }
+
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      killChild(child, 'SIGKILL');
+      resolve({
+        stopped: true,
+        forced: true,
+      });
+    }, timeoutMs);
+    child.once('exit', (exitCode, signal) => {
+      clearTimeout(timer);
+      resolve({
+        stopped: true,
+        exitCode,
+        signal,
+      });
+    });
+    killChild(child, 'SIGTERM');
+  });
+}
+
+function killChild(child, signal) {
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Fall through to direct child kill.
+    }
+  }
+  child.kill(signal);
+}
+
+async function timedSleep(label, durationMs) {
+  const startedAt = new Date().toISOString();
+  await sleep(durationMs);
+  return {
+    label,
+    requestedMs: durationMs,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  };
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function createDiagnosticError(code, message, actions, extra = {}) {
+  const error = new Error(message);
+  error.diagnostic = {
+    code,
+    message,
+    actions,
+  };
+  Object.assign(error, extra);
+  return error;
+}
+
+function diagnosticFromError(error) {
+  if (error && typeof error === 'object' && error.diagnostic) {
+    return error.diagnostic;
+  }
+  return {
+    code: 'APP_ORCHESTRATION_FAILED',
+    message: error instanceof Error ? error.message : String(error),
+    actions: [
+      'Inspect process orchestration metadata and captured server/load logs.',
+      'Rerun with --check to isolate k6 binary resolution from server startup.',
+    ],
+  };
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -511,6 +1255,19 @@ function main() {
   }
   if (options.listScenarios) {
     console.log(JSON.stringify(createScenarioList(), null, 2));
+    return;
+  }
+
+  if (options.appDir) {
+    executeOrchestrated(options)
+      .then(result => {
+        printResult(options, result.summary);
+        process.exitCode = result.exitCode;
+      })
+      .catch(error => {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      });
     return;
   }
 
@@ -555,7 +1312,9 @@ module.exports = {
   createScenarioList,
   createMissingK6Diagnostic,
   execute,
+  executeOrchestrated,
   parseArgs,
+  reservePort,
   resolveExecutableValue,
   resolveK6Binary,
 };
