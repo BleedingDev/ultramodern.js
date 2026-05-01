@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T09:59:57.572289+00:00",
+  "generated_at": "2026-05-01T10:17:07.320274+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -105,7 +105,7 @@
         {
           "id": "ust-browser-05",
           "content": "Run a browser smoke subset while moderate HTTP load is active and fail on hydration warnings, console errors, broken resources, or user-visible crash states.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -146,7 +146,7 @@
         {
           "id": "ust-chaos-05",
           "content": "Emit a chaos matrix artifact with scenario, injected fault, expected status, actual status, cleanup result, and telemetry redaction result.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -216,7 +216,7 @@
         {
           "id": "ust-contract-03",
           "content": "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -310,7 +310,7 @@
         {
           "id": "ust-load-05",
           "content": "Promote stable release thresholds and more aggressive nightly thresholds into certification without increasing default PR cost.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -403,44 +403,6 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-superapp-torture-browser-runtime",
-      "plan_name": "UltraModern SuperApp Torture Browser Runtime",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-browser-05",
-          "content": "Run a browser smoke subset while moderate HTTP load is active and fail on hydration warnings, console errors, broken resources, or user-visible crash states.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "upcoming": [],
-      "completed": 4,
-      "total": 5
-    },
-    {
-      "plan_slug": "ultramodern-superapp-torture-chaos-failure",
-      "plan_name": "UltraModern SuperApp Torture Chaos Failure",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-chaos-05",
-          "content": "Emit a chaos matrix artifact with scenario, injected fault, expected status, actual status, cleanup result, and telemetry redaction result.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "upcoming": [],
-      "completed": 4,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-superapp-torture-effect-tanstack-contracts",
       "plan_name": "UltraModern SuperApp Torture Effect TanStack Contracts",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-effect-tanstack-contracts.plan.md",
@@ -449,19 +411,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-contract-03",
-          "content": "Verify Effect interruption, scoped finalizers, schema decode failures, structured defects, and request context propagation across BFF handlers.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-contract-04",
           "content": "Verify TanStack Router and Query behavior for navigation invalidation, stale data, prefetch, mutation rollback, tenant switch, and offline-to-online recovery.",
           "status": "pending",
           "ordinal": 4
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-contract-05",
           "content": "Emit a contract coverage artifact that names every contract, scenario, expected behavior, and regression budget.",
@@ -469,26 +425,7 @@
           "ordinal": 5
         }
       ],
-      "completed": 2,
-      "total": 5
-    },
-    {
-      "plan_slug": "ultramodern-superapp-torture-k6-load",
-      "plan_name": "UltraModern SuperApp Torture K6 Load",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-k6-load.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "ust-load-05",
-          "content": "Promote stable release thresholds and more aggressive nightly thresholds into certification without increasing default PR cost.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "upcoming": [],
-      "completed": 4,
+      "completed": 3,
       "total": 5
     },
     {
@@ -529,12 +466,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-soak-stability.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-torture-k6-load",
-        "ultramodern-superapp-torture-chaos-failure",
-        "ultramodern-superapp-torture-effect-tanstack-contracts",
-        "ultramodern-superapp-torture-browser-runtime"
-      ],
+      "blocked_by": ["ultramodern-superapp-torture-effect-tanstack-contracts"],
       "active": [
         {
           "id": "ust-soak-01",
@@ -561,9 +493,45 @@
       "total": 5
     },
     {
+      "plan_slug": "ultramodern-superapp-torture-browser-runtime",
+      "plan_name": "UltraModern SuperApp Torture Browser Runtime",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-browser-runtime.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-chaos-failure",
+      "plan_name": "UltraModern SuperApp Torture Chaos Failure",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-chaos-failure.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
       "plan_slug": "ultramodern-superapp-torture-harness-telemetry",
       "plan_name": "UltraModern SuperApp Torture Harness Telemetry",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-harness-telemetry.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-superapp-torture-k6-load",
+      "plan_name": "UltraModern SuperApp Torture K6 Load",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-torture-k6-load.plan.md",
       "plan_status": "completed",
       "state": "done",
       "blocked_by": [],
