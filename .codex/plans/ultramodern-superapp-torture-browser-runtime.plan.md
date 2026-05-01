@@ -4,7 +4,7 @@ overview: Validate real browser behavior, route transitions, hydration, responsi
 todos:
   - id: ust-browser-01
     content: "Add Playwright coverage for ERP dashboard navigation, tenant switching, chat workflow, module lazy loading, forms, tables, and error states."
-    status: pending
+    status: completed
   - id: ust-browser-02
     content: "Run browser smoke and focused flows against production build with console, pageerror, requestfailed, trace, screenshot, and video artifacts."
     status: pending
