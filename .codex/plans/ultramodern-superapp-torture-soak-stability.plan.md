@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-soak-05
     content: "Emit soak artifacts and a markdown appendix with observed stability envelope, thresholds, and recommended fixes for any failure."
-    status: pending
+    status: completed
 isProject: true
 ---
 
