@@ -7,20 +7,78 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import {
+  createSuperAppWorkloadChaosFailureTaxonomy,
+  type WorkloadChaosFailureCase,
+} from '../shared/workload-chaos-failure-taxonomy.js';
+import {
+  defaultEndpointForChaosFailure,
+  type SuperAppChaosToggleEndpoint,
+} from '../shared/workload-chaos-toggles.js';
 
 dns.setDefaultResultOrder('ipv4first');
 setSuiteTimeout(1000 * 60 * 8);
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
+const fullModuleSet = [
+  'rides',
+  'dispatch',
+  'orders',
+  'erp',
+  'chat',
+  'mf-remotes',
+  'security',
+  'billing',
+];
+const workflowAppByTenant: Record<string, string> = {
+  'superapp-global': 'mobility-marketplace',
+  'city-ops-eu': 'mobility-marketplace',
+  'acme-global': 'enterprise-mega-erp',
+  'platform-shell': 'mf-platform',
+  'security-root': 'tenant-security',
+  'chaos-lab': 'failure-lab',
+};
 
-async function postJson(port: number, pathname: string, body?: unknown) {
+type ChaosTargetRequest = {
+  endpoint: SuperAppChaosToggleEndpoint;
+  pathname: string;
+  requestId: string;
+  tenantId: string;
+  body?: Record<string, unknown>;
+  rawBody?: string;
+  headers?: Record<string, string>;
+};
+
+async function postJson(
+  port: number,
+  pathname: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   return fetch(`${host}:${port}${pathname}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+async function postRaw(
+  port: number,
+  pathname: string,
+  body: string,
+  headers: Record<string, string> = {},
+) {
+  return fetch(`${host}:${port}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...headers,
+    },
+    body,
   });
 }
 
@@ -36,12 +94,28 @@ async function resetPortfolio(port: number) {
   return response.json();
 }
 
-async function runWorkflow(port: number, requestId: string) {
-  return postJson(port, '/bff-api/effect/apps/mobility-marketplace/workflow', {
-    action: 'quote',
-    actor: 'chaos.toggle.test',
-    requestId,
-  });
+function workflowPathForTenant(tenantId: string) {
+  const appId = workflowAppByTenant[tenantId] ?? 'mobility-marketplace';
+  return `/bff-api/effect/apps/${appId}/workflow`;
+}
+
+async function runWorkflow(
+  port: number,
+  requestId: string,
+  tenantId = 'city-ops-eu',
+) {
+  return postJson(
+    port,
+    workflowPathForTenant(tenantId),
+    {
+      action: 'quote',
+      actor: 'chaos.toggle.test',
+      requestId,
+    },
+    {
+      'x-tenant-id': tenantId,
+    },
+  );
 }
 
 async function armChaosToggle(
@@ -54,6 +128,211 @@ async function armChaosToggle(
     reason: 'focused chaos toggle test',
     ...body,
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readPath(value: unknown, pathName: string) {
+  return pathName.split('.').reduce<unknown>((current, segment) => {
+    if (!isRecord(current)) {
+      return undefined;
+    }
+
+    return current[segment];
+  }, value);
+}
+
+function securityAppForTenant(tenantId: string) {
+  return workflowAppByTenant[tenantId] ?? 'tenant-security';
+}
+
+function createSecurityHeaders(
+  port: number,
+  failure: WorkloadChaosFailureCase,
+) {
+  return {
+    authorization:
+      failure.kind === 'auth-expiry'
+        ? 'Bearer expired.jwt'
+        : 'Bearer chaos-envelope-token',
+    origin: `${host}:${port}`,
+    'x-csrf-token': 'superapp-valid-csrf',
+    'x-tenant-id': failure.tenantSafety.sourceTenantId,
+    'x-user-role':
+      failure.kind === 'tenant-violation'
+        ? 'finance-approver'
+        : 'security-admin',
+  };
+}
+
+function createChaosTargetRequest(
+  port: number,
+  failure: WorkloadChaosFailureCase,
+): ChaosTargetRequest {
+  const endpoint = defaultEndpointForChaosFailure(failure);
+  const requestId = failure.deterministicInput.requestId;
+  const tenantId = failure.tenantSafety.sourceTenantId;
+
+  if (endpoint === 'portfolio.pilot') {
+    return {
+      endpoint,
+      requestId,
+      tenantId,
+      pathname: '/bff-api/effect/pilot/grab-marketplace/run',
+      headers: {
+        'x-tenant-id': tenantId,
+      },
+      body: {
+        tenant: tenantId,
+        actor: 'chaos.envelope.test',
+        requestId,
+        modules: fullModuleSet,
+        chaos: 'none',
+      },
+    };
+  }
+
+  if (endpoint === 'portfolio.security') {
+    const targetTenantId = failure.tenantSafety.targetTenantId;
+    return {
+      endpoint,
+      requestId,
+      tenantId,
+      pathname: '/bff-api/effect/security/probe',
+      headers: createSecurityHeaders(port, failure),
+      body: {
+        targetTenant: targetTenantId,
+        targetAppId: securityAppForTenant(targetTenantId),
+        action: failure.operationHint,
+        requestId,
+        mutation: true,
+      },
+    };
+  }
+
+  const pathname = workflowPathForTenant(tenantId);
+  if (failure.kind === 'malformed-json') {
+    return {
+      endpoint,
+      requestId,
+      tenantId,
+      pathname,
+      headers: {
+        'x-tenant-id': tenantId,
+      },
+      rawBody: `{"requestId":"${requestId}","tenant":"${tenantId}"`,
+    };
+  }
+
+  return {
+    endpoint,
+    requestId,
+    tenantId,
+    pathname,
+    headers: {
+      'x-tenant-id': tenantId,
+    },
+    body: {
+      action: failure.operationHint,
+      actor: 'chaos.envelope.test',
+      requestId,
+    },
+  };
+}
+
+function invokeChaosTarget(port: number, target: ChaosTargetRequest) {
+  if (target.rawBody !== undefined) {
+    return postRaw(port, target.pathname, target.rawBody, target.headers);
+  }
+
+  return postJson(port, target.pathname, target.body, target.headers);
+}
+
+function assertNoForbiddenEnvelopeData(
+  payload: unknown,
+  failure: WorkloadChaosFailureCase,
+) {
+  const serialized = JSON.stringify(payload);
+  for (const fieldPath of failure.expectedErrorEnvelope.forbiddenFields) {
+    expect(readPath(payload, fieldPath)).toBeUndefined();
+  }
+  for (const forbidden of failure.telemetryRedaction.forbiddenRawSubstrings) {
+    expect(serialized).not.toContain(forbidden);
+  }
+  if (
+    failure.tenantSafety.expectedTenantViolation &&
+    failure.tenantSafety.targetTenantId !== failure.tenantSafety.sourceTenantId
+  ) {
+    expect(readPath(payload, 'error.tenantId')).toBe(
+      failure.tenantSafety.sourceTenantId,
+    );
+    expect(readPath(payload, 'error.targetTenantRecords')).toBeUndefined();
+  }
+}
+
+function assertChaosErrorEnvelope(
+  payload: unknown,
+  failure: WorkloadChaosFailureCase,
+  target: ChaosTargetRequest,
+) {
+  for (const fieldPath of failure.expectedErrorEnvelope.requiredFields) {
+    expect(readPath(payload, fieldPath)).not.toBeUndefined();
+  }
+
+  const expectedErrorKeys = [
+    'applicationStatus',
+    'code',
+    'failureId',
+    'httpStatus',
+    'kind',
+    'message',
+    'messageKey',
+    'requestId',
+    'resetRequired',
+    'responseKind',
+    'retryable',
+    'tenantId',
+  ];
+  if (failure.expectedStatus.retryAfterMs !== undefined) {
+    expectedErrorKeys.push('retryAfterMs');
+  }
+
+  expect(
+    Object.keys(readPath(payload, 'error') as Record<string, unknown>),
+  ).toEqual(expect.arrayContaining(expectedErrorKeys));
+  expect(payload).toMatchObject({
+    error: {
+      code: failure.expectedErrorEnvelope.code,
+      message: failure.label,
+      messageKey: failure.expectedErrorEnvelope.messageKey,
+      requestId: target.requestId,
+      failureId: failure.id,
+      kind: failure.kind,
+      tenantId: failure.tenantSafety.sourceTenantId,
+      retryable: failure.expectedStatus.retryable,
+      resetRequired: failure.resetExpectation.required,
+      httpStatus: failure.expectedStatus.httpStatus,
+      applicationStatus: failure.expectedStatus.applicationStatus,
+      responseKind: failure.expectedStatus.responseKind,
+      ...(failure.expectedStatus.retryAfterMs === undefined
+        ? {}
+        : { retryAfterMs: failure.expectedStatus.retryAfterMs }),
+    },
+    chaos: {
+      id: failure.id,
+      kind: failure.kind,
+      status: 'consumed',
+      targetRequestId: target.requestId,
+      targetEndpoint: target.endpoint,
+      expectedHttpStatus: failure.expectedStatus.httpStatus,
+      errorCode: failure.expectedErrorEnvelope.code,
+      retryable: failure.expectedStatus.retryable,
+      resetRequired: failure.resetExpectation.required,
+    },
+  });
+  assertNoForbiddenEnvelopeData(payload, failure);
 }
 
 describe('superapp portfolio chaos toggles', () => {
@@ -224,5 +503,134 @@ describe('superapp portfolio chaos toggles', () => {
         failureMode: 'healthy',
       },
     });
+  });
+
+  test('asserts taxonomy error envelopes, request ids, cleanup, and tenant-safe recovery for every failure mode', async () => {
+    const taxonomy = createSuperAppWorkloadChaosFailureTaxonomy();
+
+    for (const [index, failure] of taxonomy.failures.entries()) {
+      await resetPortfolio(port);
+      const target = createChaosTargetRequest(port, failure);
+
+      if (failure.kind === 'duplicate-request') {
+        const seedResponse = await invokeChaosTarget(port, target);
+        expect(seedResponse.status).toBe(200);
+        await expect(seedResponse.json()).resolves.toMatchObject({
+          event: {
+            requestId: target.requestId,
+            status: 'accepted',
+          },
+          summary: {
+            eventCount: 1,
+            failureMode: 'healthy',
+          },
+        });
+      }
+
+      const armedResponse = await armChaosToggle(port, failure.id, {
+        requestId: `arm-envelope-${index}`,
+        targetRequestId: target.requestId,
+        targetEndpoint: target.endpoint,
+      });
+      expect(armedResponse.status).toBe(200);
+      await expect(armedResponse.json()).resolves.toMatchObject({
+        failureMode: 'healthy',
+        chaosToggle: {
+          id: failure.id,
+          kind: failure.kind,
+          status: 'armed',
+          scope: 'request',
+          targetRequestId: target.requestId,
+          targetEndpoint: target.endpoint,
+          expectedHttpStatus: failure.expectedStatus.httpStatus,
+          responseKind: failure.expectedStatus.responseKind,
+          applicationStatus: failure.expectedStatus.applicationStatus,
+          errorCode: failure.expectedErrorEnvelope.code,
+          retryable: failure.expectedStatus.retryable,
+          resetRequired: failure.resetExpectation.required,
+        },
+      });
+
+      const healthyWhileArmed = await runWorkflow(
+        port,
+        `healthy-while-armed-${index}`,
+        target.tenantId,
+      );
+      expect(healthyWhileArmed.status).toBe(200);
+      await expect(healthyWhileArmed.json()).resolves.toMatchObject({
+        event: {
+          requestId: `healthy-while-armed-${index}`,
+          status: 'accepted',
+        },
+        summary: {
+          failureMode: 'healthy',
+        },
+      });
+
+      const beforeFailure = await getBootstrap(port);
+      const failureResponse = await invokeChaosTarget(port, target);
+      expect(failureResponse.status).toBe(failure.expectedStatus.httpStatus);
+      const failurePayload = await failureResponse.json();
+
+      if (failure.expectedErrorEnvelope.present) {
+        assertChaosErrorEnvelope(failurePayload, failure, target);
+      } else {
+        expect(failurePayload).toMatchObject({
+          event: {
+            requestId: target.requestId,
+            status: 'deduped',
+          },
+          summary: {
+            eventCount: beforeFailure.summary.eventCount,
+            failureMode: 'healthy',
+          },
+        });
+        expect(readPath(failurePayload, 'error')).toBeUndefined();
+        expect(readPath(failurePayload, 'chaos')).toBeUndefined();
+      }
+
+      const afterFailure = await getBootstrap(port);
+      expect(afterFailure.summary).toMatchObject({
+        eventCount: beforeFailure.summary.eventCount,
+        failureMode: 'healthy',
+      });
+
+      const cleanupResponse = await runWorkflow(
+        port,
+        `cleanup-after-${index}`,
+        target.tenantId,
+      );
+      expect(cleanupResponse.status).toBe(200);
+      await expect(cleanupResponse.json()).resolves.toMatchObject({
+        event: {
+          requestId: `cleanup-after-${index}`,
+          status: 'accepted',
+        },
+        summary: {
+          eventCount: beforeFailure.summary.eventCount + 1,
+          failureMode: 'healthy',
+        },
+      });
+
+      await resetPortfolio(port);
+      const recoveredResponse = await runWorkflow(
+        port,
+        `recovered-after-reset-${index}`,
+        target.tenantId,
+      );
+      expect(recoveredResponse.status).toBe(
+        failure.resetExpectation.expectedPostResetStatus,
+      );
+      await expect(recoveredResponse.json()).resolves.toMatchObject({
+        event: {
+          requestId: `recovered-after-reset-${index}`,
+          status: 'accepted',
+        },
+        summary: {
+          eventCount: 1,
+          failureMode: failure.resetExpectation.restoresFailureMode,
+        },
+      });
+    }
   });
 });

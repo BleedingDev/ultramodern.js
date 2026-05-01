@@ -152,9 +152,9 @@ function tenantIdForChaosEnvelope(input: {
 
   if (input.endpoint === 'portfolio.security') {
     return (
-      getString(input.payload.targetTenant) ??
       tenantHeader ??
       getString(input.payload.tenant) ??
+      getString(input.payload.targetTenant) ??
       'absent'
     );
   }
@@ -169,9 +169,15 @@ function tenantIdForChaosEnvelope(input: {
 async function readJsonObject(request: Request) {
   try {
     const payload = await request.clone().json();
-    return isRecord(payload) ? payload : undefined;
+    return {
+      malformed: false,
+      payload: isRecord(payload) ? payload : undefined,
+    };
   } catch {
-    return undefined;
+    return {
+      malformed: true,
+      payload: undefined,
+    };
   }
 }
 
@@ -195,6 +201,55 @@ function consumeChaosToggle(input: {
   return undefined;
 }
 
+function consumeMalformedJsonChaosToggle(input: {
+  endpoint: SuperAppChaosToggleEndpoint;
+}) {
+  for (const [key, toggle] of chaosToggles) {
+    if (
+      toggle.targetEndpoint === input.endpoint &&
+      toggle.kind === 'malformed-json'
+    ) {
+      if (toggle.scope === 'request') {
+        chaosToggles.delete(key);
+      }
+
+      return toggle;
+    }
+  }
+
+  return undefined;
+}
+
+function createChaosToggleResponse(input: {
+  toggle: SuperAppChaosToggleDescriptor;
+  endpoint: {
+    endpoint: SuperAppChaosToggleEndpoint;
+    appId?: PortfolioAppId;
+  };
+  payload: Record<string, unknown>;
+  request: Request;
+  requestId: string;
+}) {
+  const envelope = createSuperAppChaosFailureEnvelope({
+    toggle: input.toggle,
+    requestId: input.requestId,
+    tenantId: tenantIdForChaosEnvelope({
+      endpoint: input.endpoint.endpoint,
+      appId: input.endpoint.appId,
+      payload: input.payload,
+      request: input.request,
+      toggle: input.toggle,
+    }),
+  });
+
+  return new Response(JSON.stringify(envelope), {
+    status: input.toggle.expectedHttpStatus,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
+}
+
 async function maybeHandleChaosToggle(request: Request) {
   if (request.method !== 'POST') {
     return undefined;
@@ -205,7 +260,25 @@ async function maybeHandleChaosToggle(request: Request) {
     return undefined;
   }
 
-  const payload = await readJsonObject(request);
+  const json = await readJsonObject(request);
+  if (json.malformed) {
+    const toggle = consumeMalformedJsonChaosToggle({
+      endpoint: endpoint.endpoint,
+    });
+    if (!toggle) {
+      return undefined;
+    }
+
+    return createChaosToggleResponse({
+      toggle,
+      endpoint,
+      payload: {},
+      request,
+      requestId: toggle.targetRequestId,
+    });
+  }
+
+  const payload = json.payload;
   const requestId = getString(payload?.requestId);
   if (!payload || !requestId) {
     return undefined;
@@ -219,23 +292,16 @@ async function maybeHandleChaosToggle(request: Request) {
     return undefined;
   }
 
-  const envelope = createSuperAppChaosFailureEnvelope({
-    toggle,
-    requestId,
-    tenantId: tenantIdForChaosEnvelope({
-      endpoint: endpoint.endpoint,
-      appId: endpoint.appId,
-      payload,
-      request,
-      toggle,
-    }),
-  });
+  if (toggle.kind === 'duplicate-request') {
+    return undefined;
+  }
 
-  return new Response(JSON.stringify(envelope), {
-    status: toggle.expectedHttpStatus,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-    },
+  return createChaosToggleResponse({
+    toggle,
+    endpoint,
+    payload,
+    request,
+    requestId,
   });
 }
 
