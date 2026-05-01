@@ -15,6 +15,92 @@ const DEFAULT_WARMUP_MS = 5_000;
 const DEFAULT_LOAD_DURATION_MS = 30_000;
 const DEFAULT_LOAD_CONCURRENCY = 16;
 const DEFAULT_SOAK_PROFILE = 'local-15m';
+const REQUIRED_THRESHOLD_KEYS = [
+  'p95LatencyMs',
+  'p99LatencyMs',
+  'maxLatencyMs',
+  'errorRate',
+  'eventLoopDelayMs',
+  'memoryDriftMb',
+  'browserErrors',
+  'contractFailures',
+];
+const DESTROY_PROFILES = Object.freeze({
+  smoke: freezeProfile({
+    id: 'smoke',
+    label: 'Smoke',
+    usage: 'pr',
+    cost: 'cheap',
+    defaultPrBlocker: true,
+    description: 'Cheap default plan shape and local orchestration check.',
+    thresholds: {
+      p95LatencyMs: 1_000,
+      p99LatencyMs: 2_000,
+      maxLatencyMs: 5_000,
+      errorRate: 0.02,
+      eventLoopDelayMs: 150,
+      memoryDriftMb: 128,
+      browserErrors: 0,
+      contractFailures: 0,
+    },
+  }),
+  release: freezeProfile({
+    id: 'release',
+    label: 'Release',
+    usage: 'release',
+    cost: 'moderate',
+    defaultPrBlocker: false,
+    description: 'Pre-release gate with strict budgets and bounded runtime.',
+    thresholds: {
+      p95LatencyMs: 450,
+      p99LatencyMs: 900,
+      maxLatencyMs: 2_000,
+      errorRate: 0.005,
+      eventLoopDelayMs: 75,
+      memoryDriftMb: 96,
+      browserErrors: 0,
+      contractFailures: 0,
+    },
+  }),
+  nightly: freezeProfile({
+    id: 'nightly',
+    label: 'Nightly',
+    usage: 'nightly',
+    cost: 'scheduled',
+    defaultPrBlocker: false,
+    description:
+      'Scheduled destroy run with tighter latency and drift budgets.',
+    thresholds: {
+      p95LatencyMs: 400,
+      p99LatencyMs: 800,
+      maxLatencyMs: 1_800,
+      errorRate: 0.003,
+      eventLoopDelayMs: 60,
+      memoryDriftMb: 80,
+      browserErrors: 0,
+      contractFailures: 0,
+    },
+  }),
+  'manual-torture': freezeProfile({
+    id: 'manual-torture',
+    label: 'Manual torture',
+    usage: 'manual',
+    cost: 'expensive',
+    defaultPrBlocker: false,
+    description:
+      'Operator-triggered expensive destroy run; never a default PR blocker.',
+    thresholds: {
+      p95LatencyMs: 350,
+      p99LatencyMs: 700,
+      maxLatencyMs: 1_500,
+      errorRate: 0.001,
+      eventLoopDelayMs: 50,
+      memoryDriftMb: 64,
+      browserErrors: 0,
+      contractFailures: 0,
+    },
+  }),
+});
 
 const usage = () => `
 Usage:
@@ -23,7 +109,7 @@ Usage:
 Options:
   --plan, --dry-run              Print the machine-readable destroy plan. Default.
   --execute                      Execute the planned command phases. Intended for later full-run validation.
-  --profile <smoke|release|nightly>
+  --profile <smoke|release|nightly|manual-torture>
                                  Destroy-run profile label. Default: ${DEFAULT_PROFILE}
   --run-id <id>                  Artifact run id. Default: deterministic timestamp.
   --output-dir <path>            Artifact directory. Default: ${DEFAULT_OUTPUT_ROOT}/<run-id>
@@ -126,9 +212,12 @@ function parseArgs(argv, env = process.env, now = new Date()) {
     }
   }
 
-  if (!['smoke', 'release', 'nightly'].includes(options.profile)) {
+  options.profileDefinition = resolveDestroyProfile(options.profile);
+  if (!options.profileDefinition) {
     throw new Error(
-      `Invalid --profile "${options.profile}". Use smoke, release, or nightly.`,
+      `Invalid --profile "${options.profile}". Use ${Object.keys(
+        DESTROY_PROFILES,
+      ).join(', ')}.`,
     );
   }
 
@@ -148,11 +237,27 @@ function createDestroyPlan(options) {
   const artifactRoot = path.join(options.outputDir, 'artifacts');
   const testsCwd = path.join(REPO_ROOT, 'tests');
   const vitest = 'pnpm vitest run -c vitest.framework.config.mjs';
+  const profileDefinition =
+    options.profileDefinition || resolveDestroyProfile(options.profile);
+  if (!profileDefinition) {
+    throw new Error(`Unknown destroy profile: ${options.profile}`);
+  }
   const env = {
     SUPERAPP_DESTROY_RUN_ID: options.runId,
     SUPERAPP_DESTROY_ARTIFACT_DIR: options.outputDir,
+    SUPERAPP_DESTROY_PROFILE: profileDefinition.id,
+    SUPERAPP_DESTROY_PROFILE_USAGE: profileDefinition.usage,
+    SUPERAPP_DESTROY_THRESHOLD_BUDGET_JSON: JSON.stringify(
+      profileDefinition.thresholds,
+    ),
   };
-  const command = phaseCommandFactory({ artifactRoot, env, options, testsCwd });
+  const command = phaseCommandFactory({
+    artifactRoot,
+    env,
+    options,
+    profileDefinition,
+    testsCwd,
+  });
   const phases = [
     {
       id: 'build',
@@ -407,6 +512,8 @@ function createDestroyPlan(options) {
     mode: options.mode,
     runId: options.runId,
     profile: options.profile,
+    profileDefinition,
+    thresholdBudget: profileDefinition.thresholds,
     appDir: options.appDir,
     baseUrl: options.baseUrl,
     healthPath: options.healthPath,
@@ -416,6 +523,12 @@ function createDestroyPlan(options) {
     executionModel: {
       defaultMode: 'plan',
       expensiveWorkRequires: '--execute',
+      selectedProfile: {
+        id: profileDefinition.id,
+        usage: profileDefinition.usage,
+        cost: profileDefinition.cost,
+        defaultPrBlocker: profileDefinition.defaultPrBlocker,
+      },
       teardownPolicy:
         'The teardown phase is always scheduled after the last attempted phase, including failed phases.',
       concurrencyGroups: [
@@ -440,7 +553,16 @@ function phaseCommandFactory(input) {
       ...input.env,
       ...(options.env || {}),
     },
-    metadata: options.metadata || undefined,
+    metadata: {
+      profile: {
+        id: input.profileDefinition.id,
+        usage: input.profileDefinition.usage,
+        cost: input.profileDefinition.cost,
+        defaultPrBlocker: input.profileDefinition.defaultPrBlocker,
+      },
+      thresholdBudget: input.profileDefinition.thresholds,
+      ...(options.metadata || {}),
+    },
     expectedInput: options.expectedInput,
   });
 }
@@ -565,6 +687,35 @@ function artifactDir(root, name) {
   return path.join(root, name);
 }
 
+function freezeProfile(profile) {
+  return Object.freeze({
+    ...profile,
+    thresholds: Object.freeze({ ...profile.thresholds }),
+  });
+}
+
+function resolveDestroyProfile(profileId) {
+  const profile = DESTROY_PROFILES[profileId];
+  if (!profile) {
+    return undefined;
+  }
+  assertCompleteThresholdBudget(profile);
+  return profile;
+}
+
+function assertCompleteThresholdBudget(profile) {
+  const missing = REQUIRED_THRESHOLD_KEYS.filter(
+    key => !Object.hasOwn(profile.thresholds, key),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Destroy profile "${profile.id}" is missing thresholds: ${missing.join(
+        ', ',
+      )}`,
+    );
+  }
+}
+
 function shellArg(value) {
   return JSON.stringify(String(value));
 }
@@ -640,7 +791,10 @@ if (require.main === module) {
 
 module.exports = {
   createDestroyPlan,
+  DESTROY_PROFILES,
   parseArgs,
+  REQUIRED_THRESHOLD_KEYS,
+  resolveDestroyProfile,
   runDestroyPlan,
   usage,
 };

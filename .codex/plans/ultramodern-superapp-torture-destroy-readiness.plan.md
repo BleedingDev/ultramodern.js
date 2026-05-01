@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-destroy-02
     content: "Add release, nightly, and manual-torture profiles with explicit thresholds for p95, p99, max latency, error rate, event-loop delay, memory drift, browser errors, and contract failures."
-    status: pending
+    status: completed
   - id: ust-destroy-03
     content: "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications."
     status: pending

@@ -5,7 +5,9 @@ const test = require('node:test');
 
 const {
   createDestroyPlan,
+  DESTROY_PROFILES,
   parseArgs,
+  REQUIRED_THRESHOLD_KEYS,
   runDestroyPlan,
 } = require('../run-superapp-destroy');
 
@@ -27,6 +29,54 @@ function planOptions(extraArgs = []) {
     fixedNow,
   );
 }
+
+test('release, nightly, and manual-torture profiles define every threshold budget', () => {
+  for (const profileId of ['release', 'nightly', 'manual-torture']) {
+    const profile = DESTROY_PROFILES[profileId];
+
+    assert.ok(profile, `${profileId} profile exists`);
+    assert.deepEqual(
+      Object.keys(profile.thresholds).sort(),
+      [...REQUIRED_THRESHOLD_KEYS].sort(),
+    );
+  }
+});
+
+test('manual-torture profile is explicitly manual and expensive', () => {
+  const profile = DESTROY_PROFILES['manual-torture'];
+
+  assert.equal(profile.usage, 'manual');
+  assert.equal(profile.cost, 'expensive');
+  assert.equal(profile.defaultPrBlocker, false);
+});
+
+test('invalid destroy profile fails during option parsing', () => {
+  assert.throws(
+    () => planOptions(['--profile', 'surprise-prod-load']),
+    /Invalid --profile "surprise-prod-load"/,
+  );
+});
+
+test('dry-run plan includes selected profile threshold budget', () => {
+  const plan = createDestroyPlan(planOptions(['--profile', 'release']));
+  const commands = plan.phases.flatMap(phase => phase.commands);
+
+  assert.equal(plan.profile, 'release');
+  assert.equal(plan.profileDefinition.usage, 'release');
+  assert.deepEqual(plan.thresholdBudget, DESTROY_PROFILES.release.thresholds);
+  assert.deepEqual(plan.executionModel.selectedProfile, {
+    id: 'release',
+    usage: 'release',
+    cost: 'moderate',
+    defaultPrBlocker: false,
+  });
+  for (const command of commands) {
+    assert.deepEqual(
+      command.metadata.thresholdBudget,
+      DESTROY_PROFILES.release.thresholds,
+    );
+  }
+});
 
 test('destroy plan lists the required phase order with teardown last', () => {
   const plan = createDestroyPlan(planOptions());
