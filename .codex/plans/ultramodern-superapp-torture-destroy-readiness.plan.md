@@ -4,7 +4,7 @@ overview: Combine load, k6, autocannon, chaos, browser, contracts, runtime matri
 todos:
   - id: ust-destroy-01
     content: "Define the destroy-run command that builds, serves, warms up, runs load, runs chaos, runs browser smoke during load, runs contracts, runs runtime matrix checks, and tears down cleanly."
-    status: pending
+    status: completed
   - id: ust-destroy-02
     content: "Add release, nightly, and manual-torture profiles with explicit thresholds for p95, p99, max latency, error rate, event-loop delay, memory drift, browser errors, and contract failures."
     status: pending
