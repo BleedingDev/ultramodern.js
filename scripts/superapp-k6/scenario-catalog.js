@@ -13,6 +13,9 @@
     'chaos-triggering',
   ];
 
+  const DEFAULT_LOAD_THRESHOLD_PROFILE = 'smoke';
+  const LOAD_THRESHOLD_PROFILE_IDS = ['smoke', 'release', 'nightly'];
+
   const ARTIFACT_LINKS = {
     workloadCatalog: {
       catalogVersion: 'superapp-workload-data-v1',
@@ -38,6 +41,91 @@
     workloadValidationArtifact: {
       artifactVersion: 'superapp-workload-validation-artifact-v1',
       artifactSeed: 'superapp-portfolio-validation-artifact-v1',
+    },
+  };
+
+  const K6_THRESHOLD_PROFILES = {
+    smoke: {
+      id: 'smoke',
+      label: 'Smoke Metadata Only',
+      description:
+        'Default PR-safe profile. It records threshold-profile metadata but does not add k6 thresholds or load commands to smoke certification.',
+      scenarioIds: ['smoke'],
+      defaultPrCost: {
+        selectedByDefault: true,
+        addsLoadToSmokeCertification: false,
+      },
+      certification: {
+        profiles: ['smoke'],
+        commandAddedToSmoke: false,
+        reason:
+          'Smoke certification keeps the existing fast checks; release and nightly must opt into load thresholds explicitly.',
+      },
+      thresholds: {},
+    },
+    release: {
+      id: 'release',
+      label: 'Stable Release Thresholds',
+      description:
+        'Stable release certification thresholds for sustained SuperApp read/write, tenant, chat, and reset workloads.',
+      scenarioIds: [
+        'smoke',
+        'ramp-up',
+        'mixed-read-write',
+        'tenant-boundary',
+        'chat',
+        'reset',
+      ],
+      defaultPrCost: {
+        selectedByDefault: false,
+        addsLoadToSmokeCertification: false,
+      },
+      certification: {
+        profiles: ['release', 'nightly'],
+        commandAddedToSmoke: false,
+        reason:
+          'Release thresholds run only when certification is invoked with the release profile or a higher profile.',
+      },
+      thresholds: {
+        checks: ['rate>=0.99'],
+        http_req_failed: ['rate<0.01'],
+        http_req_duration: ['p(95)<2000', 'p(99)<4000'],
+        superapp_operation_failed: ['rate<0.01'],
+        superapp_operation_duration: ['p(95)<2000', 'p(99)<4000'],
+        'superapp_operation_failed{superapp_operation_kind:tenant-probe}': [
+          'rate<0.001',
+        ],
+      },
+    },
+    nightly: {
+      id: 'nightly',
+      label: 'Aggressive Nightly Thresholds',
+      description:
+        'Broader and stricter nightly certification thresholds across every SuperApp torture k6 scenario, including breakpoint and chaos-triggering workloads.',
+      scenarioIds: REQUIRED_SCENARIO_IDS,
+      defaultPrCost: {
+        selectedByDefault: false,
+        addsLoadToSmokeCertification: false,
+      },
+      certification: {
+        profiles: ['nightly'],
+        commandAddedToSmoke: false,
+        reason:
+          'Nightly thresholds are intentionally excluded from default PR and smoke certification cost.',
+      },
+      thresholds: {
+        checks: ['rate>=0.995'],
+        http_req_failed: ['rate<0.005'],
+        http_req_duration: ['p(95)<1500', 'p(99)<3000'],
+        superapp_operation_failed: ['rate<0.005'],
+        superapp_operation_duration: ['p(95)<1500', 'p(99)<3000'],
+        'superapp_operation_failed{superapp_operation_kind:tenant-probe}': [
+          'rate<0.0005',
+        ],
+        'superapp_operation_duration{superapp_operation_kind:chaos}': [
+          'p(95)<2500',
+        ],
+      },
     },
   };
 
@@ -842,6 +930,7 @@
       defaultScenarioScript: DEFAULT_SCENARIO_SCRIPT,
       requiredScenarioIds: REQUIRED_SCENARIO_IDS,
       artifactLinks: ARTIFACT_LINKS,
+      thresholdProfiles: getLoadThresholdProfiles(),
       scenarios: SCENARIOS,
     });
   }
@@ -852,6 +941,36 @@
 
   function getArtifactLinks() {
     return clone(ARTIFACT_LINKS);
+  }
+
+  function getLoadThresholdProfiles() {
+    return clone({
+      schemaVersion: 1,
+      defaultProfileId: DEFAULT_LOAD_THRESHOLD_PROFILE,
+      profiles: LOAD_THRESHOLD_PROFILE_IDS.map(id => K6_THRESHOLD_PROFILES[id]),
+    });
+  }
+
+  function normalizeLoadThresholdProfile(profile) {
+    const normalized = String(profile || DEFAULT_LOAD_THRESHOLD_PROFILE)
+      .trim()
+      .toLowerCase();
+    if (!K6_THRESHOLD_PROFILES[normalized]) {
+      throw new Error(
+        `Unknown SuperApp load threshold profile "${profile}". Use one of: ${LOAD_THRESHOLD_PROFILE_IDS.join(
+          ', ',
+        )}`,
+      );
+    }
+    return normalized;
+  }
+
+  function getLoadThresholdProfileDefinition(profile) {
+    return clone(K6_THRESHOLD_PROFILES[normalizeLoadThresholdProfile(profile)]);
+  }
+
+  function getScenarioIdsForThresholdProfile(profile) {
+    return getLoadThresholdProfileDefinition(profile).scenarioIds;
   }
 
   function getScenarioDefinition(id) {
@@ -907,8 +1026,12 @@
     );
   }
 
-  function buildK6OptionsForScenarios(selection) {
-    return {
+  function buildK6OptionsForScenarios(
+    selection,
+    thresholdProfile = DEFAULT_LOAD_THRESHOLD_PROFILE,
+  ) {
+    const profile = getLoadThresholdProfileDefinition(thresholdProfile);
+    const options = {
       summaryTrendStats: [
         'avg',
         'min',
@@ -919,7 +1042,21 @@
         'max',
       ],
       scenarios: buildK6ScenariosForSelection(selection),
+      ext: {
+        superapp: {
+          thresholdProfile: {
+            id: profile.id,
+            label: profile.label,
+            defaultPrCost: profile.defaultPrCost,
+            certification: profile.certification,
+          },
+        },
+      },
     };
+    if (Object.keys(profile.thresholds).length > 0) {
+      options.thresholds = profile.thresholds;
+    }
+    return options;
   }
 
   function selectWeightedOperation(scenario, iteration) {
@@ -945,6 +1082,28 @@
     for (const requiredId of REQUIRED_SCENARIO_IDS) {
       if (!ids.has(requiredId)) {
         errors.push(`Missing required scenario: ${requiredId}`);
+      }
+    }
+
+    for (const profile of Object.values(K6_THRESHOLD_PROFILES)) {
+      for (const scenarioId of profile.scenarioIds) {
+        if (!ids.has(scenarioId)) {
+          errors.push(
+            `${profile.id} threshold profile references missing scenario: ${scenarioId}`,
+          );
+        }
+      }
+      if (profile.defaultPrCost.addsLoadToSmokeCertification !== false) {
+        errors.push(
+          `${profile.id} threshold profile must declare no smoke certification cost increase`,
+        );
+      }
+      for (const [metric, thresholds] of Object.entries(profile.thresholds)) {
+        if (!metric || !Array.isArray(thresholds) || thresholds.length === 0) {
+          errors.push(
+            `${profile.id} threshold profile has invalid thresholds for ${metric}`,
+          );
+        }
       }
     }
 
@@ -1019,14 +1178,20 @@
   }
 
   const api = {
+    DEFAULT_LOAD_THRESHOLD_PROFILE,
     DEFAULT_SCENARIO_SCRIPT,
+    LOAD_THRESHOLD_PROFILE_IDS,
     REQUIRED_SCENARIO_IDS,
     buildK6OptionsForScenarios,
     buildK6ScenariosForSelection,
     getArtifactLinks,
+    getLoadThresholdProfileDefinition,
+    getLoadThresholdProfiles,
     getScenarioCatalog,
     getScenarioDefinition,
     getScenarioIds,
+    getScenarioIdsForThresholdProfile,
+    normalizeLoadThresholdProfile,
     normalizeScenarioSelection,
     selectWeightedOperation,
     validateScenarioCatalog,

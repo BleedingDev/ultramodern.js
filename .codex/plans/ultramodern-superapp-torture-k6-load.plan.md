@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-load-05
     content: "Promote stable release thresholds and more aggressive nightly thresholds into certification without increasing default PR cost."
-    status: pending
+    status: completed
 isProject: true
 ---
 

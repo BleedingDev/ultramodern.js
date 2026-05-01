@@ -44,8 +44,32 @@ diagnostic artifact by default.
 
 The runner passes `BASE_URL`, `SUPERAPP_K6_BASE_URL`, `SUPERAPP_K6_RUN_ID`,
 `SUPERAPP_K6_OUTPUT_DIR`, `SUPERAPP_K6_SUMMARY`, `SUPERAPP_K6_SCENARIO`,
-`SUPERAPP_K6_SCENARIOS`, `SUPERAPP_K6_TARGET`, and `SUPERAPP_K6_PROFILE` into
-the k6 process.
+`SUPERAPP_K6_SCENARIOS`, `SUPERAPP_K6_TARGET`, `SUPERAPP_K6_PROFILE`, and
+`SUPERAPP_K6_THRESHOLD_PROFILE` into the k6 process.
+
+## Threshold Profiles
+
+The default threshold profile is `smoke`. It is metadata-only and does not add
+load thresholds or certification commands to the default PR/smoke profile.
+Release and nightly certification opt in explicitly:
+
+```bash
+node scripts/superapp-k6/run-superapp-k6.js \
+  --profile release \
+  --threshold-profile release \
+  --scenario smoke,ramp-up,mixed-read-write,tenant-boundary,chat,reset
+
+node scripts/superapp-k6/run-superapp-k6.js \
+  --profile nightly \
+  --threshold-profile nightly \
+  --scenario all
+```
+
+`release` applies stable thresholds across smoke, ramp-up, mixed read/write,
+tenant-boundary, chat, and reset workloads. `nightly` applies stricter
+thresholds across every built-in scenario, including spike, breakpoint, and
+chaos-triggering. Missing k6 still uses the CI-safe skipped diagnostic unless a
+caller sets `SUPERAPP_K6_REQUIRE=1` or passes `--require-k6`.
 
 ## App Server Orchestration
 
@@ -98,8 +122,10 @@ Each probe runs autocannon with multiple workers by default and writes
 `autocannon-probes.json` next to the normal `summary.json`. The artifact records
 worker count, connections, duration, endpoint metadata, stdout/stderr paths, and
 a classification that separates server HTTP failures from client/socket
-failures such as timeouts and socket errors. These probes are evidence-only for
-this lane; they do not promote release or nightly thresholds.
+failures such as timeouts and socket errors. `--threshold-profile release`
+enforces stable endpoint thresholds; `--threshold-profile nightly` raises
+nightly pressure and tightens latency ceilings. Neither profile is selected by
+default, so smoke/default PR cost is unchanged.
 
 If autocannon is not installed, the runner behaves like the k6 path and writes a
 skipped diagnostic artifact unless `--require-autocannon` is set. To run through

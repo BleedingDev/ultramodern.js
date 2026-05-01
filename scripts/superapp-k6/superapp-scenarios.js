@@ -9,9 +9,14 @@ const catalogApi = globalThis.SUPERAPP_K6_CATALOG_API;
 const selectedScenarioIds = catalogApi.normalizeScenarioSelection(
   __ENV.SUPERAPP_K6_SCENARIO || 'smoke',
 );
+const thresholdProfile = catalogApi.normalizeLoadThresholdProfile(
+  __ENV.SUPERAPP_K6_THRESHOLD_PROFILE || 'smoke',
+);
 
-export const options =
-  catalogApi.buildK6OptionsForScenarios(selectedScenarioIds);
+export const options = catalogApi.buildK6OptionsForScenarios(
+  selectedScenarioIds,
+  thresholdProfile,
+);
 
 const operationDuration = new Trend('superapp_operation_duration', true);
 const operationFailed = new Rate('superapp_operation_failed');
@@ -25,6 +30,7 @@ export function setup() {
     ),
     runId: __ENV.SUPERAPP_K6_RUN_ID || 'superapp-k6-local',
     scenarioIds: selectedScenarioIds,
+    thresholdProfile,
   };
 }
 

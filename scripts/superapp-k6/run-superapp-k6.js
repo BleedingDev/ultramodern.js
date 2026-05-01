@@ -12,13 +12,20 @@ const {
 } = require('../superapp-certification/artifact-schema');
 const {
   buildAutocannonCliArgs,
+  evaluateAutocannonThresholds,
   getAutocannonProbeCatalog,
   getAutocannonProbeDefinition,
+  getAutocannonThresholdProfileDefinition,
+  getAutocannonThresholdProfiles,
   normalizeAutocannonProbeSelection,
 } = require('./autocannon-probes');
 const {
+  DEFAULT_LOAD_THRESHOLD_PROFILE,
   DEFAULT_SCENARIO_SCRIPT,
+  getLoadThresholdProfileDefinition,
+  getLoadThresholdProfiles,
   getScenarioCatalog,
+  normalizeLoadThresholdProfile,
   normalizeScenarioSelection,
 } = require('./scenario-catalog');
 
@@ -91,6 +98,8 @@ Options:
                           Metadata-only CPU affinity note for the k6 process.
   --target <name>          Artifact target. Default: ${DEFAULT_TARGET}
   --profile <name>         Artifact profile. Default: ${DEFAULT_PROFILE}
+  --threshold-profile <smoke|release|nightly>
+                          Load threshold profile. Default: ${DEFAULT_LOAD_THRESHOLD_PROFILE}; release/nightly are certification-only.
   --run-id <id>            Artifact run id. Default: timestamped
   --output-dir <path>      Artifact directory. Default: ${DEFAULT_OUTPUT_ROOT}/<run-id>
   --out <path>             Artifact summary file or directory.
@@ -112,6 +121,8 @@ function parseArgs(argv, env = process.env) {
     baseUrlExplicit: Boolean(envBaseUrl),
     target: env.SUPERAPP_K6_TARGET || DEFAULT_TARGET,
     profile: env.SUPERAPP_K6_PROFILE || DEFAULT_PROFILE,
+    thresholdProfile:
+      env.SUPERAPP_K6_THRESHOLD_PROFILE || DEFAULT_LOAD_THRESHOLD_PROFILE,
     runId:
       env.SUPERAPP_K6_RUN_ID ||
       `superapp-k6-${new Date().toISOString()}-${process.pid}`,
@@ -291,6 +302,9 @@ function parseArgs(argv, env = process.env) {
       case '--profile':
         parsed.profile = requireValue(argv, ++index, arg);
         break;
+      case '--threshold-profile':
+        parsed.thresholdProfile = requireValue(argv, ++index, arg);
+        break;
       case '--run-id':
         parsed.runId = requireValue(argv, ++index, arg);
         break;
@@ -317,6 +331,9 @@ function parseArgs(argv, env = process.env) {
   parsed.serverCommand = parsed.serverCommand || 'pnpm';
   parsed.serverArgs = parsed.serverArgs || ['run', 'serve'];
   parsed.autocannonBinArgs = parsed.autocannonBinArgs || [];
+  parsed.thresholdProfile = normalizeLoadThresholdProfile(
+    parsed.thresholdProfile,
+  );
   parsed.runId = sanitizeSegment(parsed.runId);
   if (parsed.scenario) {
     parsed.scenarioIds = normalizeScenarioSelection(parsed.scenario);
@@ -709,6 +726,7 @@ function createK6Env(options) {
     SUPERAPP_K6_SCENARIOS: options.scenarioIds.join(','),
     SUPERAPP_K6_TARGET: options.target,
     SUPERAPP_K6_PROFILE: options.profile,
+    SUPERAPP_K6_THRESHOLD_PROFILE: options.thresholdProfile,
     SUPERAPP_K6_LOAD_CPU_AFFINITY: options.loadCpuAffinity || '',
     SUPERAPP_K6_SERVER_CPU_AFFINITY: options.serverCpuAffinity || '',
   };
@@ -725,6 +743,8 @@ function createAutocannonEnv(options) {
     SUPERAPP_K6_OUTPUT_DIR: options.outputDir,
     SUPERAPP_K6_TARGET: options.target,
     SUPERAPP_K6_PROFILE: options.profile,
+    SUPERAPP_K6_THRESHOLD_PROFILE: options.thresholdProfile,
+    SUPERAPP_AUTOCANNON_THRESHOLD_PROFILE: options.thresholdProfile,
     SUPERAPP_K6_LOAD_CPU_AFFINITY: options.loadCpuAffinity || '',
     SUPERAPP_K6_SERVER_CPU_AFFINITY: options.serverCpuAffinity || '',
   };
@@ -922,6 +942,12 @@ function runAutocannonProbes(options, resolution, spawnSyncImpl = spawnSync) {
     probes: probeResults,
     aggregateClassification: aggregateAutocannonClassifications(probeResults),
   };
+  const thresholdEvaluation = evaluateAutocannonThresholds(
+    probeResults,
+    options.thresholdProfile,
+  );
+  probeArtifact.thresholdProfile = thresholdEvaluation.profile;
+  probeArtifact.thresholdEvaluation = thresholdEvaluation;
   fs.writeFileSync(
     probeArtifactPath,
     `${JSON.stringify(probeArtifact, null, 2)}\n`,
@@ -932,10 +958,12 @@ function runAutocannonProbes(options, resolution, spawnSyncImpl = spawnSync) {
   });
 
   const failedProbes = probeResults.filter(probe => probe.status === 'failed');
+  const thresholdFailures = thresholdEvaluation.failures;
   const aggregateClassification = probeArtifact.aggregateClassification;
   const observations = [
     `Autocannon ran ${probeResults.length} multi-worker endpoint probes against ${options.baseUrl}.`,
     `Autocannon classification: ${aggregateClassification.category}.`,
+    `Autocannon threshold profile ${thresholdEvaluation.profile.id} is ${thresholdEvaluation.profile.defaultPrCost.selectedByDefault ? 'default metadata only' : 'certification-only'} and does not add smoke/default PR cost.`,
   ];
   if (aggregateClassification.serverFailureCount > 0) {
     observations.push(
@@ -949,7 +977,10 @@ function runAutocannonProbes(options, resolution, spawnSyncImpl = spawnSync) {
   }
 
   return {
-    status: failedProbes.length > 0 ? 'failed' : 'passed',
+    status:
+      failedProbes.length > 0 || thresholdFailures.length > 0
+        ? 'failed'
+        : 'passed',
     diagnostic:
       failedProbes.length > 0
         ? {
@@ -960,10 +991,26 @@ function runAutocannonProbes(options, resolution, spawnSyncImpl = spawnSync) {
               'Rerun with --list-autocannon-probes to verify probe ids and --check to isolate runner setup.',
             ],
           }
-        : undefined,
-    exitCode: failedProbes.length > 0 ? 1 : 0,
+        : thresholdFailures.length > 0
+          ? {
+              code: 'AUTOCANNON_THRESHOLD_FAILED',
+              message: `${thresholdFailures.length} autocannon threshold failure(s) for ${thresholdEvaluation.profile.id}: ${thresholdFailures.join(
+                '; ',
+              )}`,
+              actions: [
+                'Inspect autocannon-probes.json for per-probe latency, HTTP failure, and client/socket classification details.',
+                'Compare release and nightly threshold profiles before relaxing a limit.',
+              ],
+            }
+          : undefined,
+    exitCode: failedProbes.length > 0 || thresholdFailures.length > 0 ? 1 : 0,
     artifacts,
+    budgetFailures: thresholdFailures,
+    budgets: {
+      autocannonThresholds: thresholdEvaluation.thresholds,
+    },
     observations,
+    thresholds: thresholdEvaluation,
     loadGenerator: {
       kind: 'autocannon',
       command: resolution.command,
@@ -1173,6 +1220,12 @@ function createRunnerSummary(
   const isSkipped = runnerResult.status === 'skipped';
   const isFailed = runnerResult.status === 'failed';
   const diagnostic = runnerResult.diagnostic;
+  const budgetFailures =
+    isFailed && runnerResult.budgetFailures?.length > 0
+      ? runnerResult.budgetFailures
+      : isFailed && diagnostic
+        ? [diagnostic.message]
+        : [];
   const observations = [
     ...cpuAffinityObservations(options),
     ...(runnerResult.observations || []),
@@ -1214,6 +1267,7 @@ function createRunnerSummary(
       serverCpuAffinity: options.serverCpuAffinity,
       loadCpuAffinity: options.loadCpuAffinity,
       loadGenerator: options.loadGenerator,
+      thresholdProfile: options.thresholdProfile,
       autocannonProbes: options.autocannonProbes,
       autocannonProbeIds: options.autocannonProbeIds,
       autocannonBin: options.autocannonBin,
@@ -1226,7 +1280,8 @@ function createRunnerSummary(
       autocannonPipelining: options.autocannonPipelining,
       outputDir: options.outputDir,
     },
-    budgetFailures: isFailed && diagnostic ? [diagnostic.message] : [],
+    budgets: runnerResult.budgets || {},
+    budgetFailures,
     unknowns: isSkipped && diagnostic ? [diagnostic.message] : [],
     observations,
     artifacts: runnerResult.artifacts || [],
@@ -1254,7 +1309,10 @@ function createRunnerSummary(
             : undefined,
         attempts: resolution.attempts,
         loadGenerator: runnerResult.loadGenerator,
+        thresholdProfile: createThresholdProfileSummary(options),
       },
+      thresholds:
+        runnerResult.thresholds || createThresholdProfileSummary(options),
       orchestration,
     },
   });
@@ -1290,6 +1348,7 @@ function printResult(options, summary) {
         artifactStatus: summary.status,
         summaryPath: options.outputFile,
         loadGenerator: options.loadGenerator,
+        thresholdProfile: options.thresholdProfile,
         scenario: options.scenario,
         scenarioIds: options.scenarioIds,
         autocannonProbeIds: options.autocannonProbeIds,
@@ -1368,6 +1427,21 @@ function createAutocannonPreflightRunnerResult(options, resolution) {
   }
 
   return undefined;
+}
+
+function createThresholdProfileSummary(options) {
+  const profile =
+    options.loadGenerator === 'autocannon'
+      ? getAutocannonThresholdProfileDefinition(options.thresholdProfile)
+      : getLoadThresholdProfileDefinition(options.thresholdProfile);
+  return {
+    id: profile.id,
+    label: profile.label,
+    description: profile.description,
+    defaultPrCost: profile.defaultPrCost,
+    certification: profile.certification,
+    thresholds: profile.thresholds,
+  };
 }
 
 function resolveLoadGeneratorBinary(options, spawnSyncImpl = spawnSync) {
@@ -1942,6 +2016,7 @@ function createScenarioList() {
   return {
     catalogId: catalog.catalogId,
     defaultScenarioScript: catalog.defaultScenarioScript,
+    thresholdProfiles: getLoadThresholdProfiles(),
     scenarios: catalog.scenarios.map(scenario => ({
       id: scenario.id,
       label: scenario.label,
@@ -1964,6 +2039,7 @@ function createAutocannonProbeList() {
   return {
     catalogId: catalog.catalogId,
     workerModel: catalog.workerModel,
+    thresholdProfiles: getAutocannonThresholdProfiles(),
     probes: catalog.probes.map(probe => ({
       id: probe.id,
       label: probe.label,

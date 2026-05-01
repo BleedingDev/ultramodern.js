@@ -25,6 +25,8 @@ test('parseArgs keeps pass-through k6 arguments after --', () => {
       './tools/k6',
       '--base-url',
       'http://localhost:9000/',
+      '--threshold-profile',
+      'release',
       '--',
       '--vus',
       '4',
@@ -37,6 +39,7 @@ test('parseArgs keeps pass-through k6 arguments after --', () => {
   assert.equal(parsed.checkOnly, true);
   assert.equal(parsed.baseUrl, 'http://localhost:9000');
   assert.equal(parsed.k6Bin, './tools/k6');
+  assert.equal(parsed.thresholdProfile, 'release');
   assert.deepEqual(parsed.passThroughArgs, ['--vus', '4', '--duration', '30s']);
 });
 
@@ -190,6 +193,7 @@ test('missing-k6 scenario command writes a skipped diagnostic artifact', () => {
     assert.equal(summary.detail.runner.status, 'skipped');
     assert.equal(summary.parameters.scenario, 'smoke');
     assert.deepEqual(summary.parameters.scenarioIds, ['smoke']);
+    assert.equal(summary.parameters.thresholdProfile, 'smoke');
     assert.match(summary.parameters.scriptPath, /superapp-scenarios\.js$/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -393,6 +397,7 @@ test('orchestrated scenario launches server, runs fake k6, and captures artifact
     assert.match(k6Env.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal(summary.parameters.baseUrl, k6Env.baseUrl);
     assert.equal(k6Env.scenario, 'smoke');
+    assert.equal(k6Env.thresholdProfile, 'smoke');
     assert.ok(fs.existsSync(path.join(outputDir, 'app-server-stdout.log')));
     assert.ok(fs.existsSync(path.join(outputDir, 'app-server-stderr.log')));
     assert.ok(fs.existsSync(path.join(outputDir, 'k6-stdout.log')));
@@ -532,6 +537,7 @@ if (args[0] === 'run') {
       JSON.stringify({
         baseUrl: process.env.SUPERAPP_K6_BASE_URL,
         scenario: process.env.SUPERAPP_K6_SCENARIO,
+        thresholdProfile: process.env.SUPERAPP_K6_THRESHOLD_PROFILE,
       }),
     );
   }

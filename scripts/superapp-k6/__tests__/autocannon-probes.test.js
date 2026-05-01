@@ -4,9 +4,13 @@ const test = require('node:test');
 const {
   buildAutocannonCliArgs,
   buildAutocannonProbeRequest,
+  evaluateAutocannonThresholds,
   getAutocannonProbeCatalog,
   getAutocannonProbeDefinition,
   getAutocannonProbeIds,
+  getAutocannonProbeIdsForThresholdProfile,
+  getAutocannonThresholdProfileDefinition,
+  getAutocannonThresholdProfiles,
   normalizeAutocannonProbeSelection,
   validateAutocannonProbeCatalog,
 } = require('../autocannon-probes');
@@ -87,4 +91,60 @@ test('autocannon CLI args include worker controls, JSON output, headers, and bod
   );
   assert.equal(run.autocannon.workers, 5);
   assert.equal(run.autocannon.connections, 11);
+});
+
+test('autocannon release and nightly threshold profiles are certification-only', () => {
+  const profiles = getAutocannonThresholdProfiles();
+  const release = getAutocannonThresholdProfileDefinition('release');
+  const nightly = getAutocannonThresholdProfileDefinition('nightly');
+
+  assert.deepEqual(
+    profiles.profiles.map(profile => profile.id),
+    ['smoke', 'release', 'nightly'],
+  );
+  assert.ok(release.probeIds.includes('post-workflow'));
+  assert.deepEqual(getAutocannonProbeIdsForThresholdProfile('nightly'), [
+    ...getAutocannonProbeIds(),
+  ]);
+  assert.equal(release.thresholds.maxLatencyP95Ms, 2000);
+  assert.equal(nightly.thresholds.maxLatencyP95Ms, 1500);
+  assert.equal(release.defaultPrCost.addsLoadToSmokeCertification, false);
+  assert.equal(nightly.defaultPrCost.addsLoadToSmokeCertification, false);
+});
+
+test('autocannon threshold evaluation reports latency and failure breaches', () => {
+  const evaluation = evaluateAutocannonThresholds(
+    [
+      {
+        id: 'post-workflow',
+        classification: {
+          category: 'mixed',
+          serverFailureCount: 1,
+          clientSocketFailureCount: 1,
+        },
+        reportSummary: {
+          latency: {
+            p95: 2500,
+            p99: 4500,
+          },
+          requests: {
+            total: 4,
+          },
+        },
+      },
+    ],
+    'release',
+  );
+
+  assert.equal(evaluation.profile.id, 'release');
+  assert.ok(
+    evaluation.failures.some(failure =>
+      failure.includes('server HTTP failure count'),
+    ),
+  );
+  assert.ok(
+    evaluation.failures.some(failure =>
+      failure.includes('post-workflow latency p95 ms'),
+    ),
+  );
 });

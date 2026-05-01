@@ -4,8 +4,11 @@ const test = require('node:test');
 const {
   REQUIRED_SCENARIO_IDS,
   buildK6OptionsForScenarios,
+  getLoadThresholdProfileDefinition,
+  getLoadThresholdProfiles,
   getScenarioCatalog,
   getScenarioDefinition,
+  getScenarioIdsForThresholdProfile,
   getScenarioIds,
   normalizeScenarioSelection,
   selectWeightedOperation,
@@ -42,6 +45,53 @@ test('built-in k6 options expose only selected scenario execution config', () =>
   assert.deepEqual(Object.keys(options.scenarios), ['smoke', 'chat']);
   assert.equal(options.scenarios.smoke.exec, 'workload');
   assert.equal(options.scenarios.chat.tags.superapp_scenario, 'chat');
+  assert.equal(options.thresholds, undefined);
+  assert.equal(options.ext.superapp.thresholdProfile.id, 'smoke');
+  assert.equal(
+    options.ext.superapp.thresholdProfile.defaultPrCost
+      .addsLoadToSmokeCertification,
+    false,
+  );
+});
+
+test('release and nightly threshold profiles add k6 thresholds without changing smoke defaults', () => {
+  const profiles = getLoadThresholdProfiles();
+  const release = buildK6OptionsForScenarios(
+    getScenarioIdsForThresholdProfile('release'),
+    'release',
+  );
+  const nightly = buildK6OptionsForScenarios(
+    getScenarioIdsForThresholdProfile('nightly'),
+    'nightly',
+  );
+
+  assert.deepEqual(
+    profiles.profiles.map(profile => profile.id),
+    ['smoke', 'release', 'nightly'],
+  );
+  assert.deepEqual(getScenarioIdsForThresholdProfile('release'), [
+    'smoke',
+    'ramp-up',
+    'mixed-read-write',
+    'tenant-boundary',
+    'chat',
+    'reset',
+  ]);
+  assert.deepEqual(getScenarioIdsForThresholdProfile('nightly'), [
+    ...REQUIRED_SCENARIO_IDS,
+  ]);
+  assert.deepEqual(release.thresholds.http_req_failed, ['rate<0.01']);
+  assert.deepEqual(nightly.thresholds.http_req_failed, ['rate<0.005']);
+  assert.equal(
+    getLoadThresholdProfileDefinition('release').defaultPrCost
+      .addsLoadToSmokeCertification,
+    false,
+  );
+  assert.equal(
+    getLoadThresholdProfileDefinition('nightly').defaultPrCost
+      .addsLoadToSmokeCertification,
+    false,
+  );
 });
 
 test('all selection expands deterministically in catalog order', () => {

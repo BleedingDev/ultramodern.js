@@ -1,6 +1,8 @@
 const {
+  DEFAULT_LOAD_THRESHOLD_PROFILE,
   getArtifactLinks,
   getScenarioDefinition,
+  normalizeLoadThresholdProfile,
 } = require('./scenario-catalog');
 
 const DEFAULT_AUTOCANNON_CONNECTIONS = 64;
@@ -103,6 +105,100 @@ const PROBE_BLUEPRINT_BY_ID = new Map(
   PROBE_BLUEPRINTS.map(blueprint => [blueprint.id, blueprint]),
 );
 
+const AUTOCANNON_THRESHOLD_PROFILES = {
+  smoke: {
+    id: 'smoke',
+    label: 'Smoke Metadata Only',
+    description:
+      'Default PR-safe profile. It records threshold-profile metadata but does not add autocannon probes or thresholds to smoke certification.',
+    probeIds: [],
+    runtime: {},
+    defaultPrCost: {
+      selectedByDefault: true,
+      addsLoadToSmokeCertification: false,
+    },
+    certification: {
+      profiles: ['smoke'],
+      commandAddedToSmoke: false,
+      reason:
+        'Smoke certification keeps the existing fast checks; release and nightly must opt into autocannon threshold probes explicitly.',
+    },
+    thresholds: {},
+  },
+  release: {
+    id: 'release',
+    label: 'Stable Release Autocannon Thresholds',
+    description:
+      'Stable release endpoint thresholds for representative read, write, tenant, chat, and shell routes.',
+    probeIds: [
+      'get-bootstrap',
+      'get-root-route',
+      'get-ledger-search',
+      'get-chat-page',
+      'post-workflow',
+      'post-pilot-run',
+      'post-security-probe',
+    ],
+    runtime: {
+      workers: DEFAULT_AUTOCANNON_WORKERS,
+      connections: DEFAULT_AUTOCANNON_CONNECTIONS,
+      durationSeconds: DEFAULT_AUTOCANNON_DURATION_SECONDS,
+      pipelining: DEFAULT_AUTOCANNON_PIPELINING,
+      timeoutSeconds: DEFAULT_AUTOCANNON_TIMEOUT_SECONDS,
+    },
+    defaultPrCost: {
+      selectedByDefault: false,
+      addsLoadToSmokeCertification: false,
+    },
+    certification: {
+      profiles: ['release', 'nightly'],
+      commandAddedToSmoke: false,
+      reason:
+        'Release autocannon thresholds run only when certification is invoked with the release profile or a higher profile.',
+    },
+    thresholds: {
+      maxServerFailureCount: 0,
+      maxClientSocketFailureCount: 0,
+      maxHarnessFailureCount: 0,
+      maxLatencyP95Ms: 2000,
+      maxLatencyP99Ms: 4000,
+      minRequestsTotal: 1,
+    },
+  },
+  nightly: {
+    id: 'nightly',
+    label: 'Aggressive Nightly Autocannon Thresholds',
+    description:
+      'Broader nightly endpoint thresholds with higher generated pressure and stricter latency ceilings.',
+    probeIds: PROBE_BLUEPRINTS.map(blueprint => blueprint.id),
+    runtime: {
+      workers: 6,
+      connections: 128,
+      durationSeconds: 60,
+      pipelining: DEFAULT_AUTOCANNON_PIPELINING,
+      timeoutSeconds: 8,
+    },
+    defaultPrCost: {
+      selectedByDefault: false,
+      addsLoadToSmokeCertification: false,
+    },
+    certification: {
+      profiles: ['nightly'],
+      commandAddedToSmoke: false,
+      reason:
+        'Nightly autocannon thresholds are intentionally excluded from default PR and smoke certification cost.',
+    },
+    thresholds: {
+      maxServerFailureCount: 0,
+      maxClientSocketFailureCount: 0,
+      maxHarnessFailureCount: 0,
+      maxLatencyP95Ms: 1500,
+      maxLatencyP99Ms: 3000,
+      minRequestsTotal: 1,
+    },
+  },
+};
+
 function getAutocannonProbeCatalog() {
   const probes = PROBE_BLUEPRINTS.map(createProbeDefinition);
   return clone({
@@ -119,6 +215,7 @@ function getAutocannonProbeCatalog() {
       purpose:
         'Run endpoint probes with autocannon worker threads so artifacts can separate server HTTP failures from load-client/socket failures.',
     },
+    thresholdProfiles: getAutocannonThresholdProfiles(),
     probes,
   });
 }
@@ -158,6 +255,147 @@ function normalizeAutocannonProbeSelection(selection) {
   }
 
   return [...new Set(normalized)];
+}
+
+function getAutocannonThresholdProfiles() {
+  return clone({
+    schemaVersion: 1,
+    defaultProfileId: DEFAULT_LOAD_THRESHOLD_PROFILE,
+    profiles: Object.values(AUTOCANNON_THRESHOLD_PROFILES),
+  });
+}
+
+function getAutocannonThresholdProfileDefinition(profile) {
+  const id = normalizeLoadThresholdProfile(profile);
+  const profileDefinition = AUTOCANNON_THRESHOLD_PROFILES[id];
+  if (!profileDefinition) {
+    throw new Error(
+      `Unknown SuperApp autocannon threshold profile "${profile}"`,
+    );
+  }
+  return clone(profileDefinition);
+}
+
+function getAutocannonProbeIdsForThresholdProfile(profile) {
+  return getAutocannonThresholdProfileDefinition(profile).probeIds;
+}
+
+function evaluateAutocannonThresholds(probeResults, profile) {
+  const profileDefinition = getAutocannonThresholdProfileDefinition(profile);
+  const thresholds = profileDefinition.thresholds || {};
+  const aggregate = aggregateAutocannonClassifications(probeResults);
+  const failures = [];
+
+  addMaxFailure(
+    failures,
+    thresholds.maxServerFailureCount,
+    aggregate.serverFailureCount,
+    'server HTTP failure count',
+  );
+  addMaxFailure(
+    failures,
+    thresholds.maxClientSocketFailureCount,
+    aggregate.clientSocketFailureCount,
+    'client/socket failure count',
+  );
+  addMaxFailure(
+    failures,
+    thresholds.maxHarnessFailureCount,
+    aggregate.harnessFailureCount,
+    'harness failure count',
+  );
+
+  for (const probe of probeResults) {
+    const latency = probe.reportSummary?.latency || {};
+    const requests = probe.reportSummary?.requests || {};
+    addMaxFailure(
+      failures,
+      thresholds.maxLatencyP95Ms,
+      numberValue(latency.p95),
+      `${probe.id} latency p95 ms`,
+    );
+    addMaxFailure(
+      failures,
+      thresholds.maxLatencyP99Ms,
+      numberValue(latency.p99),
+      `${probe.id} latency p99 ms`,
+    );
+    addMinFailure(
+      failures,
+      thresholds.minRequestsTotal,
+      numberValue(requests.total),
+      `${probe.id} total request count`,
+    );
+  }
+
+  return {
+    profile: {
+      id: profileDefinition.id,
+      label: profileDefinition.label,
+      description: profileDefinition.description,
+      defaultPrCost: profileDefinition.defaultPrCost,
+      certification: profileDefinition.certification,
+    },
+    thresholds,
+    aggregate,
+    probeCount: probeResults.length,
+    failures,
+  };
+}
+
+function addMaxFailure(failures, limit, actual, label) {
+  if (limit === undefined) {
+    return;
+  }
+  if (actual > limit) {
+    failures.push(`${label} ${actual} exceeds ${limit}`);
+  }
+}
+
+function addMinFailure(failures, limit, actual, label) {
+  if (limit === undefined) {
+    return;
+  }
+  if (actual < limit) {
+    failures.push(`${label} ${actual} is below ${limit}`);
+  }
+}
+
+function aggregateAutocannonClassifications(probeResults) {
+  const aggregate = {
+    category: 'none',
+    serverFailureCount: 0,
+    clientSocketFailureCount: 0,
+    harnessFailureCount: 0,
+  };
+
+  for (const probe of probeResults) {
+    const classification = probe.classification || {};
+    aggregate.serverFailureCount += numberValue(
+      classification.serverFailureCount,
+    );
+    aggregate.clientSocketFailureCount += numberValue(
+      classification.clientSocketFailureCount,
+    );
+    if (classification.category === 'harness') {
+      aggregate.harnessFailureCount += 1;
+    }
+  }
+
+  if (
+    aggregate.serverFailureCount > 0 &&
+    aggregate.clientSocketFailureCount > 0
+  ) {
+    aggregate.category = 'mixed';
+  } else if (aggregate.serverFailureCount > 0) {
+    aggregate.category = 'server';
+  } else if (aggregate.clientSocketFailureCount > 0) {
+    aggregate.category = 'client-socket';
+  } else if (aggregate.harnessFailureCount > 0) {
+    aggregate.category = 'harness';
+  }
+
+  return aggregate;
 }
 
 function buildAutocannonProbeRequest(probe, input = {}) {
@@ -266,6 +504,21 @@ function validateAutocannonProbeCatalog(catalog = getAutocannonProbeCatalog()) {
     errors.push('Autocannon probe catalog must include GET and POST probes');
   }
 
+  for (const profile of Object.values(AUTOCANNON_THRESHOLD_PROFILES)) {
+    for (const probeId of profile.probeIds) {
+      if (!PROBE_BLUEPRINT_BY_ID.has(probeId)) {
+        errors.push(
+          `${profile.id} threshold profile references missing probe: ${probeId}`,
+        );
+      }
+    }
+    if (profile.defaultPrCost.addsLoadToSmokeCertification !== false) {
+      errors.push(
+        `${profile.id} threshold profile must declare no smoke certification cost increase`,
+      );
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid SuperApp autocannon probe catalog:\n${errors.join('\n')}`,
@@ -360,6 +613,11 @@ function trimBaseUrl(value) {
   return String(value || 'http://localhost:8080').replace(/\/+$/, '');
 }
 
+function numberValue(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -372,9 +630,13 @@ module.exports = {
   DEFAULT_AUTOCANNON_WORKERS,
   buildAutocannonCliArgs,
   buildAutocannonProbeRequest,
+  evaluateAutocannonThresholds,
   getAutocannonProbeCatalog,
   getAutocannonProbeDefinition,
   getAutocannonProbeIds,
+  getAutocannonProbeIdsForThresholdProfile,
+  getAutocannonThresholdProfileDefinition,
+  getAutocannonThresholdProfiles,
   normalizeAutocannonProbeSelection,
   validateAutocannonProbeCatalog,
 };
