@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: ust-data-05
     content: "Record dataset size, scenario coverage, and reset integrity in a machine-readable artifact."
-    status: pending
+    status: completed
 isProject: true
 ---
 
