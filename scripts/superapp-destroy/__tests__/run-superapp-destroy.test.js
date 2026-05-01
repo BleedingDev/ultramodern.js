@@ -108,7 +108,6 @@ test('destroy plan reuses existing superapp command paths and artifact roots', (
   const commandText = commands.map(command => command.command).join('\n');
 
   assert.match(commandText, /scripts\/superapp-load\/run-superapp-load\.js/);
-  assert.match(commandText, /scripts\/superapp-k6\/run-superapp-k6\.js/);
   assert.match(commandText, /scripts\/superapp-soak\/run-superapp-soak\.js/);
   assert.match(commandText, /scripts\/superapp-soak\/stability-report\.js/);
   assert.match(
@@ -130,6 +129,68 @@ test('destroy plan reuses existing superapp command paths and artifact roots', (
       ),
     ),
   );
+});
+
+test('destroy plan reuses the lifecycle server for pilot chaos and uses k6-free load fallbacks', () => {
+  const plan = createDestroyPlan(
+    planOptions(['--port', '9123', '--warmup-ms', '0']),
+  );
+  const commands = plan.phases.flatMap(phase => phase.commands);
+  const warmup = commands.find(command => command.id === 'warmup-superapp');
+  const pilotChaos = commands.find(
+    command => command.id === 'superapp-pilot-chaos',
+  );
+  const chaosLoad = commands.find(
+    command => command.id === 'superapp-chaos-triggering-load',
+  );
+
+  assert.ok(warmup);
+  assert.match(warmup.command, /scripts\/superapp-load\/run-superapp-load\.js/);
+  assert.match(warmup.command, /--target portfolio/);
+  assert.match(warmup.command, /--scenario bootstrap/);
+  assert.match(warmup.command, /--duration-ms 1/);
+  assert.doesNotMatch(warmup.command, /scripts\/superapp-k6\/run-superapp-k6/);
+
+  assert.ok(pilotChaos);
+  assert.equal(
+    pilotChaos.env.SUPERAPP_PILOT_CHAOS_BASE_URL,
+    'http://127.0.0.1:9123',
+  );
+
+  assert.ok(chaosLoad);
+  assert.match(
+    chaosLoad.command,
+    /scripts\/superapp-load\/run-superapp-load\.js/,
+  );
+  assert.match(chaosLoad.command, /--scenario chaos/);
+  assert.doesNotMatch(
+    chaosLoad.command,
+    /scripts\/superapp-k6\/run-superapp-k6/,
+  );
+  assert.match(chaosLoad.artifactDir, /chaos-triggering-load$/);
+});
+
+test('destroy plan runs bounded soak evidence instead of a summary-less dry run', () => {
+  const plan = createDestroyPlan(planOptions());
+  const soak = plan.phases
+    .flatMap(phase => phase.commands)
+    .find(command => command.id === 'superapp-soak-plan');
+  const stability = plan.phases
+    .flatMap(phase => phase.commands)
+    .find(command => command.id === 'superapp-soak-stability-report');
+
+  assert.ok(soak);
+  assert.match(soak.command, /scripts\/superapp-soak\/run-superapp-soak\.js/);
+  assert.doesNotMatch(soak.command, /--dry-run/);
+  assert.match(soak.command, /--duration-seconds 3/);
+  assert.match(soak.command, /--warmup-seconds 0/);
+  assert.match(soak.command, /--cooldown-seconds 0/);
+  assert.match(soak.command, /--max-operations 18/);
+  assert.match(soak.command, /--window-ms 1000/);
+
+  assert.ok(stability);
+  assert.match(stability.command, /--summary .+\/soak\/summary\.json/);
+  assert.match(stability.command, /--json .+\/soak-stability\.json/);
 });
 
 test('CLI dry-run emits a machine-readable plan and writes destroy-plan artifact', () => {

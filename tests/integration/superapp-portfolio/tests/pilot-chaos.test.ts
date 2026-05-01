@@ -13,8 +13,12 @@ dns.setDefaultResultOrder('ipv4first');
 setSuiteTimeout(1000 * 60 * 15);
 
 const appDir = path.resolve(__dirname, '../');
-const host = 'http://localhost';
 const enabled = process.env.SUPERAPP_PILOT_CHAOS === '1';
+const externalBaseUrl = (
+  process.env.SUPERAPP_PILOT_CHAOS_BASE_URL ??
+  process.env.SUPERAPP_DESTROY_BASE_URL ??
+  ''
+).replace(/\/+$/, '');
 const artifactDir =
   process.env.SUPERAPP_PILOT_CHAOS_ARTIFACT_DIR ??
   '/tmp/modernjs-superapp-pilot-chaos';
@@ -57,8 +61,8 @@ const productionScenarios = [
   },
 ];
 
-async function postJson(port: number, pathname: string, body?: unknown) {
-  return fetch(`${host}:${port}${pathname}`, {
+async function postJson(baseUrl: string, pathname: string, body?: unknown) {
+  return fetch(`${baseUrl}${pathname}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -67,27 +71,27 @@ async function postJson(port: number, pathname: string, body?: unknown) {
   });
 }
 
-async function getBootstrap(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/effect/bootstrap`);
+async function getBootstrap(baseUrl: string) {
+  const response = await fetch(`${baseUrl}/bff-api/effect/bootstrap`);
   expect(response.status).toBe(200);
   return response.json();
 }
 
-async function resetPortfolio(port: number) {
-  const response = await postJson(port, '/bff-api/effect/reset');
+async function resetPortfolio(baseUrl: string) {
+  const response = await postJson(baseUrl, '/bff-api/effect/reset');
   expect(response.status).toBe(200);
   return response.json();
 }
 
 async function runPilot(
-  port: number,
+  baseUrl: string,
   requestId: string,
   overrides: Record<string, unknown> = {},
 ) {
   const scenario = String(overrides.scenario ?? 'grab-marketplace');
   const { scenario: _scenario, ...payloadOverrides } = overrides;
 
-  return postJson(port, `/bff-api/effect/pilot/${scenario}/run`, {
+  return postJson(baseUrl, `/bff-api/effect/pilot/${scenario}/run`, {
     tenant: 'superapp-global',
     actor: 'overnight.pilot',
     requestId,
@@ -98,15 +102,15 @@ async function runPilot(
 }
 
 async function expectRejectedWithoutStateDrift(input: {
-  port: number;
+  baseUrl: string;
   id: string;
   pathname: string;
   body?: unknown;
 }) {
-  const before = await getBootstrap(input.port);
-  const response = await postJson(input.port, input.pathname, input.body);
+  const before = await getBootstrap(input.baseUrl);
+  const response = await postJson(input.baseUrl, input.pathname, input.body);
   expect(response.status).toBeGreaterThanOrEqual(400);
-  const after = await getBootstrap(input.port);
+  const after = await getBootstrap(input.baseUrl);
   expect(after).toEqual(before);
   return {
     id: input.id,
@@ -117,13 +121,19 @@ async function expectRejectedWithoutStateDrift(input: {
 (enabled ? describe : describe.skip)(
   'superapp complex pilot chaos certification',
   () => {
-    let port: number;
+    let baseUrl: string;
     let app: Awaited<ReturnType<typeof modernServe>> | undefined;
 
     beforeAll(async () => {
+      if (externalBaseUrl) {
+        baseUrl = externalBaseUrl;
+        return;
+      }
+
       const build = await modernBuild(appDir);
       expect(build.code).toBe(0);
-      port = await getPort();
+      const port = await getPort();
+      baseUrl = `http://localhost:${port}`;
       app = await modernServe(appDir, port, {
         cwd: appDir,
         stderr: false,
@@ -142,9 +152,9 @@ async function expectRejectedWithoutStateDrift(input: {
       });
       const checks: Array<Record<string, unknown>> = [];
 
-      await metrics.timed('reset:initial', () => resetPortfolio(port));
+      await metrics.timed('reset:initial', () => resetPortfolio(baseUrl));
       const acceptedResponse = await metrics.timed('pilot:accepted', () =>
-        runPilot(port, 'pilot-main-1'),
+        runPilot(baseUrl, 'pilot-main-1'),
       );
       expect(acceptedResponse.status).toBe(200);
       const accepted = await acceptedResponse.json();
@@ -175,12 +185,12 @@ async function expectRejectedWithoutStateDrift(input: {
 
       for (const scenario of productionScenarios) {
         await metrics.timed(`reset:scenario:${scenario.scenario}`, () =>
-          resetPortfolio(port),
+          resetPortfolio(baseUrl),
         );
         const response = await metrics.timed(
           `pilot:scenario:${scenario.scenario}`,
           () =>
-            runPilot(port, `scenario-${scenario.scenario}`, {
+            runPilot(baseUrl, `scenario-${scenario.scenario}`, {
               scenario: scenario.scenario,
               modules: scenario.modules,
             }),
@@ -211,17 +221,17 @@ async function expectRejectedWithoutStateDrift(input: {
       }
 
       await metrics.timed('reset:after:production-scenarios', () =>
-        resetPortfolio(port),
+        resetPortfolio(baseUrl),
       );
       const duplicateSeed = await metrics.timed('pilot:duplicate-seed', () =>
-        runPilot(port, 'pilot-main-1'),
+        runPilot(baseUrl, 'pilot-main-1'),
       );
       expect(duplicateSeed.status).toBe(200);
       const duplicateResponses = await metrics.timed(
         'pilot:idempotency-storm',
         () =>
           Promise.all(
-            Array.from({ length: 20 }, () => runPilot(port, 'pilot-main-1')),
+            Array.from({ length: 20 }, () => runPilot(baseUrl, 'pilot-main-1')),
           ),
       );
       expect(
@@ -233,7 +243,7 @@ async function expectRejectedWithoutStateDrift(input: {
       expect(
         duplicatePayloads.every(payload => payload.run.status === 'deduped'),
       ).toBe(true);
-      const afterDuplicates = await getBootstrap(port);
+      const afterDuplicates = await getBootstrap(baseUrl);
       expect(afterDuplicates.summary.eventCount).toBe(fullModuleSet.length);
       checks.push({
         id: 'pilot:idempotency-storm',
@@ -248,7 +258,7 @@ async function expectRejectedWithoutStateDrift(input: {
         'restart-during-load',
       ]) {
         const response = await metrics.timed(`pilot:chaos:${chaos}`, () =>
-          runPilot(port, `pilot-${chaos}`, { chaos }),
+          runPilot(baseUrl, `pilot-${chaos}`, { chaos }),
         );
         expect(response.status).toBe(200);
         const payload = await response.json();
@@ -271,8 +281,10 @@ async function expectRejectedWithoutStateDrift(input: {
             payload.run.moduleResults.every((item: { ok: boolean }) => item.ok),
           ).toBe(true);
         }
-        await metrics.timed(`reset:after:${chaos}`, () => resetPortfolio(port));
-        const recovered = await getBootstrap(port);
+        await metrics.timed(`reset:after:${chaos}`, () =>
+          resetPortfolio(baseUrl),
+        );
+        const recovered = await getBootstrap(baseUrl);
         expect(recovered.summary).toMatchObject({
           eventCount: 0,
           failureMode: 'healthy',
@@ -285,7 +297,7 @@ async function expectRejectedWithoutStateDrift(input: {
 
       checks.push(
         await expectRejectedWithoutStateDrift({
-          port,
+          baseUrl,
           id: 'pilot:reject:tenant-module-boundary',
           pathname: '/bff-api/effect/pilot/mobility-erp-chat/run',
           body: {
@@ -299,7 +311,7 @@ async function expectRejectedWithoutStateDrift(input: {
       );
       checks.push(
         await expectRejectedWithoutStateDrift({
-          port,
+          baseUrl,
           id: 'pilot:reject:unknown-tenant',
           pathname: '/bff-api/effect/pilot/mobility-erp-chat/run',
           body: {
@@ -312,9 +324,9 @@ async function expectRejectedWithoutStateDrift(input: {
         }),
       );
 
-      const beforeMalformed = await getBootstrap(port);
+      const beforeMalformed = await getBootstrap(baseUrl);
       const malformed = await fetch(
-        `${host}:${port}/bff-api/effect/pilot/grab-marketplace/run`,
+        `${baseUrl}/bff-api/effect/pilot/grab-marketplace/run`,
         {
           method: 'POST',
           headers: {
@@ -324,7 +336,7 @@ async function expectRejectedWithoutStateDrift(input: {
         },
       );
       expect(malformed.status).toBeGreaterThanOrEqual(400);
-      const afterMalformed = await getBootstrap(port);
+      const afterMalformed = await getBootstrap(baseUrl);
       expect(afterMalformed).toEqual(beforeMalformed);
       checks.push({
         id: 'pilot:reject:malformed-json',

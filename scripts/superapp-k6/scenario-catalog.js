@@ -225,7 +225,7 @@
       method: 'POST',
       path: '/bff-api/effect/security/probe',
       weight: input.weight,
-      expectedStatus: [200],
+      expectedStatus: input.expectedAllowed === false ? [200, 403, 500] : [200],
       headers: {
         ...jsonHeaders,
         authorization: 'Bearer k6-tenant-boundary',

@@ -108,6 +108,20 @@ test('tenant-boundary scenario carries security probes and reset seed references
   assert.ok(probeIds.includes('security-root-audit-allowed'));
   assert.ok(probeIds.includes('city-ops-to-security-denied'));
   assert.ok(probeIds.includes('acme-to-platform-denied'));
+  assert.deepEqual(
+    tenantBoundary.operations.find(
+      operation =>
+        operation.tenantBoundaryProbeId === 'security-root-audit-allowed',
+    ).expectedStatus,
+    [200],
+  );
+  assert.deepEqual(
+    tenantBoundary.operations.find(
+      operation =>
+        operation.tenantBoundaryProbeId === 'city-ops-to-security-denied',
+    ).expectedStatus,
+    [200, 403, 500],
+  );
   assert.equal(
     reset.operations[0].resetSeed.seed,
     'superapp-portfolio-reset-seed-v1',

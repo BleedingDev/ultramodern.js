@@ -26,46 +26,34 @@ const CURRENT_EVIDENCE = Object.freeze({
     'ust-destroy-02',
     'ust-destroy-03',
     'ust-destroy-04',
+    'ust-destroy-05',
   ],
   smokeRun: {
-    reachedPhases: ['build', 'serve', 'warmup', 'load', 'browser-smoke'],
-    failedPhase: 'chaos',
-    failure: 'EADDRINUSE in pilot-chaos.test.ts',
+    reachedPhases: [
+      'build',
+      'serve',
+      'warmup',
+      'load',
+      'browser-smoke',
+      'chaos',
+      'contracts',
+      'runtime-matrix',
+      'soak-stability-evidence',
+    ],
+    failedPhase: undefined,
+    failure: undefined,
     teardownPassed: true,
   },
   observedLoad: {
-    requests: 786,
-    p95LatencyMs: 2.23,
-    p99LatencyMs: 3.67,
-    maxLatencyMs: 6.25,
+    requests: 536,
+    p95LatencyMs: 3.02,
+    p99LatencyMs: 5.07,
+    maxLatencyMs: 8.34,
     errorRate: 0,
     budgetFailures: [],
   },
-  blockers: [
-    {
-      id: 'modernjs-b9f',
-      title: 'Stabilize SuperApp destroy chaos lane port allocation',
-      status: 'open',
-      owner: 'Petr Glaser',
-      blocks: ['release-certification', 'nightly-manual-torture'],
-      action:
-        'Make pilot-chaos.test.ts and its server helpers allocate collision-free ports before certifying release-grade destroy runs.',
-      requiredEvidence:
-        'A rerun reaches and passes the chaos lane without EADDRINUSE and preserves teardown evidence.',
-    },
-    {
-      id: 'modernjs-fdl',
-      title:
-        'Provide k6 prerequisite or fallback for SuperApp destroy smoke evidence',
-      status: 'open',
-      owner: 'Petr Glaser',
-      blocks: ['release-certification', 'nightly-manual-torture'],
-      action:
-        'Install/provision k6 locally or define an approved fallback policy so warmup and k6 evidence are known instead of unknown.',
-      requiredEvidence:
-        'Warmup and k6 artifacts no longer report K6_NOT_AVAILABLE for the smoke and release profiles.',
-    },
-  ],
+  blockers: [],
+  releaseReadinessClassification: 'pass',
 });
 const RERUN_COMMANDS = Object.freeze([
   'node scripts/superapp-destroy/run-superapp-destroy.js --execute --profile smoke --run-id superapp-destroy-smoke-rerun --output-dir .modern/superapp-destroy/superapp-destroy-smoke-rerun --load-duration-ms 1000 --load-concurrency 1',
@@ -111,7 +99,7 @@ function createGoNoGoCriteria(input = {}, options = {}) {
     },
     guardrails: [
       'Keep SuperApp work behind fork-owned branches and existing certification commands.',
-      'Treat chaos and k6 residual blockers as release blockers until their evidence is known and passing.',
+      'Keep destroy-run warmup, load, chaos, contracts, runtime-matrix, and soak evidence known before certifying release.',
       'Do not convert manual-torture into a default PR blocker.',
       'Regenerate .modern artifacts locally only; do not commit generated destroy artifacts.',
     ],
@@ -186,7 +174,7 @@ function renderGoNoGoMarkdown(report) {
     '',
     ...renderBlockers(report.blockers),
     '',
-    '## Rerun Commands After Blockers Close',
+    '## Certification Rerun Commands',
     '',
     ...report.rerunCommands.flatMap(command => ['```bash', command, '```', '']),
   ];
@@ -354,7 +342,9 @@ function normalizeEvidence(input) {
       status: blocker.status || 'open',
     })),
     releaseReadinessClassification:
-      input.releaseReadinessClassification || 'blocked',
+      input.releaseReadinessClassification ||
+      CURRENT_EVIDENCE.releaseReadinessClassification ||
+      'blocked',
     productionRolloutEvidence: input.productionRolloutEvidence || 'blocked',
     rerunCommands: [...(input.rerunCommands || RERUN_COMMANDS)],
   };

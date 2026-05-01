@@ -307,10 +307,13 @@ function createDestroyPlan(options) {
         command(
           'warmup-superapp',
           [
-            'node scripts/superapp-k6/run-superapp-k6.js',
-            '--check',
+            'node scripts/superapp-load/run-superapp-load.js',
             `--base-url ${shellArg(options.baseUrl)}`,
-            `--warmup-ms ${options.warmupMs}`,
+            '--target portfolio',
+            '--scenario bootstrap',
+            `--duration-ms ${Math.max(options.warmupMs, 1)}`,
+            '--concurrency 1',
+            `--run-id ${shellArg(`${options.runId}-warmup`)}`,
             `--output-dir ${shellArg(artifactDir(artifactRoot, 'warmup'))}`,
           ].join(' '),
           {
@@ -383,20 +386,24 @@ function createDestroyPlan(options) {
                 artifactRoot,
                 'pilot-chaos',
               ),
+              SUPERAPP_PILOT_CHAOS_BASE_URL: options.baseUrl,
             },
           },
         ),
         command(
-          'superapp-k6-chaos-triggering',
+          'superapp-chaos-triggering-load',
           [
-            'node scripts/superapp-k6/run-superapp-k6.js',
-            '--scenario chaos-triggering',
+            'node scripts/superapp-load/run-superapp-load.js',
             `--base-url ${shellArg(options.baseUrl)}`,
-            `--profile ${shellArg(options.profile)}`,
-            `--output-dir ${shellArg(artifactDir(artifactRoot, 'k6-chaos-triggering'))}`,
+            '--target portfolio',
+            '--scenario chaos',
+            `--duration-ms ${options.loadDurationMs}`,
+            `--concurrency ${options.loadConcurrency}`,
+            `--run-id ${shellArg(`${options.runId}-chaos-triggering`)}`,
+            `--output-dir ${shellArg(artifactDir(artifactRoot, 'chaos-triggering-load'))}`,
           ].join(' '),
           {
-            artifactDir: artifactDir(artifactRoot, 'k6-chaos-triggering'),
+            artifactDir: artifactDir(artifactRoot, 'chaos-triggering-load'),
           },
         ),
       ],
@@ -451,16 +458,22 @@ function createDestroyPlan(options) {
       ? [
           {
             id: 'soak-stability-evidence',
-            label: 'Check soak and stability evidence plan',
+            label: 'Run bounded soak and stability evidence',
             kind: 'command',
             commands: [
               command(
                 'superapp-soak-plan',
                 [
                   'node scripts/superapp-soak/run-superapp-soak.js',
-                  '--dry-run',
                   `--profile ${shellArg(options.soakProfile)}`,
                   `--base-url ${shellArg(options.baseUrl)}`,
+                  '--duration-seconds 3',
+                  '--warmup-seconds 0',
+                  '--cooldown-seconds 0',
+                  '--concurrency 1',
+                  '--max-operations 18',
+                  '--operation-interval-ms 0',
+                  '--window-ms 1000',
                   `--run-id ${shellArg(`${options.runId}-soak`)}`,
                   `--output-dir ${shellArg(artifactDir(artifactRoot, 'soak'))}`,
                 ].join(' '),
@@ -480,6 +493,12 @@ function createDestroyPlan(options) {
                   )}`,
                   `--output-dir ${shellArg(
                     artifactDir(artifactRoot, 'soak-stability'),
+                  )}`,
+                  `--json ${shellArg(
+                    path.join(
+                      artifactDir(artifactRoot, 'soak-stability'),
+                      'soak-stability.json',
+                    ),
                   )}`,
                 ].join(' '),
                 {
@@ -1055,7 +1074,9 @@ function createDestroyEvidenceCatalog(plan) {
       { phaseId: 'browser-smoke-during-load' },
     ),
     entry('chaos', 'pilot-chaos/summary.json', { phaseId: 'chaos' }),
-    entry('chaos', 'k6-chaos-triggering/summary.json', { phaseId: 'chaos' }),
+    entry('chaos', 'chaos-triggering-load/summary.json', {
+      phaseId: 'chaos',
+    }),
     entry('contracts', 'torture-harness/summary.json', {
       phaseId: 'contracts',
     }),

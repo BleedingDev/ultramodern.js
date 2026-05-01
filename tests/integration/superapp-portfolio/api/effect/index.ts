@@ -29,7 +29,11 @@ import {
 let state: PortfolioState = createInitialPortfolioState();
 let eventCounter = state.events.length;
 const chaosToggles = new Map<string, SuperAppChaosToggleDescriptor>();
-const trustedOrigins = new Set(['https://superapp.test', 'http://localhost']);
+const trustedOrigins = new Set([
+  'https://superapp.test',
+  'https://superapp.example.test',
+  'http://localhost',
+]);
 const tenantRoles: Record<string, string[]> = {
   'superapp-global': ['superapp-operator', 'security-admin'],
   'city-ops-eu': ['mobility-operator', 'security-admin'],

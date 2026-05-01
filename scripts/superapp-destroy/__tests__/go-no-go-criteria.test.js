@@ -15,7 +15,7 @@ const destroyPlanPath = path.join(
   '.codex/plans/ultramodern-superapp-torture-destroy-readiness.plan.md',
 );
 
-test('current evidence is go for development but not release certification', () => {
+test('current evidence is go for development and release certification', () => {
   const { report } = createGoNoGoCriteria(
     {},
     { generatedAt: '2026-05-01T00:00:00.000Z' },
@@ -23,20 +23,16 @@ test('current evidence is go for development but not release certification', () 
 
   assert.equal(report.schemaVersion, GO_NO_GO_SCHEMA_VERSION);
   assert.equal(report.decision, DECISIONS.GO_FOR_DEVELOPMENT);
-  assert.equal(report.releaseDecision, DECISIONS.NOT_GO_FOR_RELEASE);
+  assert.equal(report.releaseDecision, DECISIONS.GO_FOR_RELEASE);
   assert.equal(report.summary.canBeginSuperAppDevelopment, true);
-  assert.equal(report.summary.canCertifyRelease, false);
-  assert.deepEqual(
-    report.blockers.map(blocker => blocker.id),
-    ['modernjs-b9f', 'modernjs-fdl'],
-  );
+  assert.equal(report.summary.canCertifyRelease, true);
+  assert.equal(report.summary.canRunNightlyManualTortureAsGate, true);
+  assert.deepEqual(report.blockers, []);
   assert.ok(
     report.gates.developmentStart.every(gate => gate.status === 'pass'),
   );
   assert.ok(
-    report.gates.releaseCertification.some(
-      gate => gate.id === 'chaos-port-stable' && gate.status === 'blocked',
-    ),
+    report.gates.releaseCertification.every(gate => gate.status === 'pass'),
   );
 });
 
@@ -88,7 +84,27 @@ test('closed residual blockers and pass evidence promote release certification',
 });
 
 test('markdown includes residual blockers, owner action, evidence, and commands', () => {
-  const { markdown } = createGoNoGoCriteria();
+  const { markdown } = createGoNoGoCriteria({
+    blockers: [
+      {
+        id: 'modernjs-b9f',
+        title: 'Stabilize SuperApp destroy chaos lane port allocation',
+        status: 'open',
+        owner: 'Petr Glaser',
+        action: 'Fix port allocation.',
+        requiredEvidence: 'Chaos passes without EADDRINUSE.',
+      },
+      {
+        id: 'modernjs-fdl',
+        title:
+          'Provide k6 prerequisite or fallback for SuperApp destroy smoke evidence',
+        status: 'open',
+        owner: 'Petr Glaser',
+        action: 'Provide a fallback.',
+        requiredEvidence: 'No K6_NOT_AVAILABLE evidence remains.',
+      },
+    ],
+  });
 
   assert.match(markdown, /^# SuperApp Go\/No-Go Criteria/);
   assert.match(markdown, /Development start: go-for-development/);
@@ -101,6 +117,16 @@ test('markdown includes residual blockers, owner action, evidence, and commands'
   assert.match(markdown, /--profile release/);
   assert.match(markdown, /--profile nightly/);
   assert.match(markdown, /--profile manual-torture/);
+});
+
+test('current markdown reports no residual blockers or legacy failure signatures', () => {
+  const { markdown } = createGoNoGoCriteria();
+
+  assert.match(markdown, /Release certification: go-for-release/);
+  assert.match(markdown, /Smoke failure: none/);
+  assert.match(markdown, /Residual Blockers\n\n- none/);
+  assert.doesNotMatch(markdown, /EADDRINUSE/);
+  assert.doesNotMatch(markdown, /K6_NOT_AVAILABLE/);
 });
 
 test('destroy plan status scope only marks ust-destroy-05 in this lane', () => {

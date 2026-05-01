@@ -81,3 +81,10 @@ Refreshed: 2026-05-01 14:10 CEST
 - Active: none; all selected graph roots are done.
 - Blocked: none in the selected graph. Residual follow-up Beads outside the graph: `modernjs-b9f` and `modernjs-fdl`.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, `browser-runtime`, `soak-stability`, and `destroy-readiness`.
+
+## Post-Graph Blocker Closure
+
+Refreshed: 2026-05-01 14:45 CEST
+
+- Local helm owner fixed residual blockers `modernjs-b9f`, `modernjs-fdl`, and `modernjs-rfx`: pilot chaos now reuses the destroy-run lifecycle server, warmup/chaos evidence no longer depends on a local `k6` binary, and smoke destroy runs produce bounded real soak evidence plus canonical `soak-stability/soak-stability.json`.
+- Decisive run: `ust-blocker-fix-smoke-full-4` passed build, serve, warmup, load, browser smoke, chaos, contracts, runtime-matrix, soak-stability, and teardown. `destroy-readiness.json` classified the run as `pass` with no missing evidence, failures, or warnings.

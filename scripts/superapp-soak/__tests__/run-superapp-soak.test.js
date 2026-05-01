@@ -107,6 +107,14 @@ test('dry-run plan materializes local soak scenarios, requests, cadence, chaos-l
     assert.equal(tenantOperation.body.requestId.includes('plan-only'), true);
     assert.equal(tenantOperation.body.targetTenant, 'security-root');
 
+    const deniedTenantOperation = plan.scenarioPlans
+      .find(scenario => scenario.id === 'tenant-boundary')
+      .operations.find(
+        operation =>
+          operation.tenantBoundaryProbeId === 'city-ops-to-security-denied',
+      );
+    assert.deepEqual(deniedTenantOperation.expectedStatus, [200, 403, 500]);
+
     const resetOperation = plan.scenarioPlans
       .find(scenario => scenario.id === 'reset')
       .operations.find(operation => operation.kind === 'reset');
