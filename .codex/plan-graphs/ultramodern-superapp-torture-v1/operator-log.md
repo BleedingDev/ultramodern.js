@@ -70,12 +70,12 @@ Wave 3:
 | soak-stability | `019de344-612f-7643-a2f5-2bf7a20961fe` (`Hume`) | worker | completed for `ust-soak-05` | Deterministic soak stability JSON/markdown report helper with envelope, thresholds, detector classifications, and remediation landed in commit `c333397427`; local soak tests passed 32/32. Soak-stability root is complete. |
 | destroy-readiness | `019de34b-6808-7141-93a2-81571e18918e` (`Hooke`) | worker | completed for `ust-destroy-01` | Deterministic destroy-run command planner/dry-run entrypoint with phase order, existing command paths, artifact roots, and teardown-after-failure scheduling landed in commit `d5169878d1`; local destroy tests passed 5/5. Next todo `ust-destroy-02` is ready. |
 | destroy-readiness | `019de352-8f27-7341-870b-c1926bd650dd` (`Mendel`) | worker | completed for `ust-destroy-02` | Release, nightly, and manual-torture destroy profiles with explicit threshold budgets and dry-run plan metadata landed in commit `e0209689f6`; local destroy tests passed 9/9. Next todo `ust-destroy-03` is ready. |
-| destroy-readiness | `019de357-a972-7491-ba3d-98be930571b8` (`Gibbs`) | worker | in_progress | Owns `ust-destroy-03`: deterministic readiness JSON/markdown aggregation, missing evidence as unknown, fail/warning propagation, tests, and destroy plan status only. |
+| destroy-readiness | `019de357-a972-7491-ba3d-98be930571b8` (`Gibbs`) | worker | completed for `ust-destroy-03` | Deterministic readiness JSON/markdown aggregation landed in commit `afd3f37751`; helm follow-up fixed unreadable artifact evidence to classify as `unknown` in commit `0784f4a4c0`; local destroy tests passed 16/16. Next todo `ust-destroy-04` is ready. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 13:41 CEST
+Refreshed: 2026-05-01 13:48 CEST
 
-- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-03` is running under Gibbs (`019de357-a972-7491-ba3d-98be930571b8`).
+- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-04` is ready to launch for the first local full destroy-run, observed limit capture, actionable fixes, and Beads follow-ups.
 - Blocked: none in the selected graph; destroy-readiness is the terminal remaining root.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, `browser-runtime`, and `soak-stability`.

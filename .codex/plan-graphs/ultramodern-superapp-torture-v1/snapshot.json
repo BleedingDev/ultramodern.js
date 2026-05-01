@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T11:39:39.719825+00:00",
+  "generated_at": "2026-05-01T11:48:21.966204+00:00",
   "graph_id": "ultramodern-superapp-torture-v1",
   "plan_set_hash": "57e949b3fd",
   "selection_hash": "83efa5ca56",
@@ -175,7 +175,7 @@
         {
           "id": "ust-destroy-03",
           "content": "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -411,19 +411,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "ust-destroy-03",
-          "content": "Aggregate all lane artifacts into a single readiness JSON and markdown report with pass, warning, fail, and unknown classifications.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "ust-destroy-04",
           "content": "Run at least one full destroy-run locally, record the observed limits, fix actionable failures in scope, and file beads issues for any remaining work.",
           "status": "pending",
           "ordinal": 4
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "ust-destroy-05",
           "content": "Document the final go/no-go criteria for starting a large ERP or Uber/Grab-style SuperApp on the fork.",
@@ -431,7 +425,7 @@
           "ordinal": 5
         }
       ],
-      "completed": 2,
+      "completed": 3,
       "total": 5
     },
     {
