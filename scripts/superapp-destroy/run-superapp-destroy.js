@@ -2,7 +2,12 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
+
+const {
+  stopProductionServer,
+  waitForHttp,
+} = require('../superapp-certification/production-server-controller');
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const DEFAULT_APP_DIR = 'tests/integration/superapp-portfolio';
@@ -570,9 +575,13 @@ function phaseCommandFactory(input) {
 async function runDestroyPlan(plan, options = {}) {
   const executeCommand = options.executeCommand || defaultExecuteCommand;
   const results = [];
+  const context = {
+    servers: new Map(),
+  };
   let failed = false;
 
-  for (const phase of plan.phases) {
+  for (let index = 0; index < plan.phases.length; index += 1) {
+    const phase = plan.phases[index];
     if (failed && !phase.alwaysRun) {
       results.push({
         phaseId: phase.id,
@@ -582,34 +591,25 @@ async function runDestroyPlan(plan, options = {}) {
       continue;
     }
 
-    const phaseResult = {
-      phaseId: phase.id,
-      status: 'passed',
-      commands: [],
-    };
+    const concurrentPhases = collectConcurrentPhases(plan.phases, index);
+    const phaseResults = await Promise.all(
+      concurrentPhases.map(groupPhase =>
+        executePhase(groupPhase, plan, executeCommand, context),
+      ),
+    );
 
-    for (const item of phase.commands) {
-      const result = await executeCommand(item, phase, plan);
-      phaseResult.commands.push({
-        id: item.id,
-        status: result.status,
-        exitCode: result.exitCode,
-        signal: result.signal,
-        error: result.error,
-      });
-
-      if (result.status === 'failed' || result.exitCode !== 0) {
-        phaseResult.status = 'failed';
+    for (const phaseResult of phaseResults) {
+      if (phaseResult.status === 'passed' && phaseResult.alwaysRun && failed) {
+        phaseResult.status = 'teardown-after-failure';
+      }
+      delete phaseResult.alwaysRun;
+      results.push(phaseResult);
+      if (phaseResult.status === 'failed') {
         failed = true;
-        break;
       }
     }
 
-    if (phaseResult.status === 'passed' && phase.alwaysRun && failed) {
-      phaseResult.status = 'teardown-after-failure';
-    }
-
-    results.push(phaseResult);
+    index += concurrentPhases.length - 1;
   }
 
   return {
@@ -621,33 +621,252 @@ async function runDestroyPlan(plan, options = {}) {
   };
 }
 
-function defaultExecuteCommand(item, phase) {
-  if (phase.kind === 'lifecycle') {
-    return {
-      status: phase.alwaysRun ? 'passed' : 'failed',
-      exitCode: phase.alwaysRun ? 0 : 1,
-      error: phase.alwaysRun
-        ? undefined
-        : 'Lifecycle execution is reserved for ust-destroy-04 full-run validation.',
-    };
+function collectConcurrentPhases(phases, startIndex) {
+  const phase = phases[startIndex];
+  if (!phase.concurrencyGroup) {
+    return [phase];
   }
 
+  const group = [phase];
+  for (let index = startIndex + 1; index < phases.length; index += 1) {
+    const candidate = phases[index];
+    if (candidate.concurrencyGroup !== phase.concurrencyGroup) {
+      break;
+    }
+    group.push(candidate);
+  }
+  return group;
+}
+
+async function executePhase(phase, plan, executeCommand, context) {
   const startedAt = Date.now();
-  const result = spawnSync(item.command, {
+  const phaseResult = {
+    phaseId: phase.id,
+    status: 'passed',
+    commands: [],
+    alwaysRun: phase.alwaysRun,
+  };
+
+  for (const item of phase.commands) {
+    const result = await executeCommand(item, phase, plan, context);
+    phaseResult.commands.push(
+      pruneUndefined({
+        id: item.id,
+        status: result.status,
+        exitCode: result.exitCode,
+        signal: result.signal,
+        error: result.error,
+        durationMs: result.durationMs,
+        artifacts: result.artifacts,
+      }),
+    );
+
+    if (result.status === 'failed' || result.exitCode !== 0) {
+      phaseResult.status = 'failed';
+      break;
+    }
+  }
+
+  phaseResult.durationMs = Date.now() - startedAt;
+  return phaseResult;
+}
+
+async function defaultExecuteCommand(item, phase, plan, context = {}) {
+  if (phase.kind === 'lifecycle') {
+    if (phase.lifecycle === 'start-server') {
+      return startLifecycleServer(item, plan, context);
+    }
+    if (phase.lifecycle === 'stop-server') {
+      return stopLifecycleServer(item, context);
+    }
+  }
+
+  return executeShellCommand(item);
+}
+
+async function startLifecycleServer(item, plan, context) {
+  const startedAt = Date.now();
+  const artifactPaths = prepareCommandArtifacts(item);
+  const child = spawn(item.command, {
     cwd: item.cwd,
     env: {
       ...process.env,
       ...item.env,
     },
     shell: true,
-    stdio: 'inherit',
+    detached: process.platform !== 'win32',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const capture = captureChildOutput(child, artifactPaths);
+  const healthUrl =
+    item.metadata?.healthUrl ||
+    new URL(plan.healthPath || '/', plan.baseUrl).toString();
+  const readiness = await waitForHttp(healthUrl, {
+    timeoutMs: 60_000,
+    requestTimeoutMs: 2_000,
+  });
+  const metadata = pruneUndefined({
+    command: item.command,
+    cwd: item.cwd,
+    healthUrl,
+    pid: child.pid,
+    readiness,
+  });
+
+  if (!readiness.ok) {
+    const stop = await stopProductionServer({ child });
+    capture.close();
+    writeJsonArtifact(path.join(item.artifactDir, 'server-lifecycle.json'), {
+      ...metadata,
+      stop,
+      status: 'failed',
+    });
+    return {
+      status: 'failed',
+      exitCode: 1,
+      durationMs: Date.now() - startedAt,
+      error: `SuperApp server did not become ready at ${healthUrl}: ${
+        readiness.error || 'unknown readiness failure'
+      }`,
+      artifacts: artifactPaths,
+    };
+  }
+
+  context.servers ||= new Map();
+  context.servers.set(item.id, {
+    artifactDir: item.artifactDir,
+    artifactPaths,
+    child,
+    metadata,
+    phaseId: phaseIdFromServerItem(item),
+    capture,
+  });
+  writeJsonArtifact(path.join(item.artifactDir, 'server-lifecycle.json'), {
+    ...metadata,
+    status: 'passed',
+  });
+
+  return {
+    status: 'passed',
+    exitCode: 0,
+    durationMs: Date.now() - startedAt,
+    artifacts: [
+      ...artifactPaths,
+      path.join(item.artifactDir, 'server-lifecycle.json'),
+    ],
+  };
+}
+
+async function stopLifecycleServer(item, context) {
+  const startedAt = Date.now();
+  const server =
+    context.servers?.get('serve-superapp-portfolio') ||
+    [...(context.servers?.values() || [])][0];
+  fs.mkdirSync(item.artifactDir, { recursive: true });
+
+  if (!server) {
+    const lifecyclePath = path.join(item.artifactDir, 'server-teardown.json');
+    writeJsonArtifact(lifecyclePath, {
+      status: 'passed',
+      alreadyExited: true,
+      reason: 'no tracked server process',
+    });
+    return {
+      status: 'passed',
+      exitCode: 0,
+      durationMs: Date.now() - startedAt,
+      artifacts: [lifecyclePath],
+    };
+  }
+
+  const stop = await stopProductionServer({ child: server.child });
+  server.capture?.close();
+  const finalOutput = {
+    ...server.metadata,
+    stop,
+    status: stop.stopped ? 'passed' : 'failed',
+  };
+  const lifecyclePath = path.join(item.artifactDir, 'server-teardown.json');
+  writeJsonArtifact(lifecyclePath, finalOutput);
+  context.servers?.delete('serve-superapp-portfolio');
+
+  return {
+    status: stop.stopped ? 'passed' : 'failed',
+    exitCode: stop.stopped ? 0 : 1,
+    signal: stop.signal,
+    durationMs: Date.now() - startedAt,
+    artifacts: [lifecyclePath, ...(server.artifactPaths || [])],
+  };
+}
+
+function executeShellCommand(item) {
+  return new Promise(resolve => {
+    const startedAt = Date.now();
+    const artifactPaths = prepareCommandArtifacts(item);
+    const child = spawn(item.command, {
+      cwd: item.cwd,
+      env: {
+        ...process.env,
+        ...item.env,
+      },
+      shell: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const capture = captureChildOutput(child, artifactPaths);
+
+    child.once('error', error => {
+      capture.close();
+      resolve({
+        status: 'failed',
+        exitCode: 1,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+        artifacts: artifactPaths,
+      });
+    });
+    child.once('exit', (exitCode, signal) => {
+      capture.close();
+      resolve({
+        status: exitCode === 0 ? 'passed' : 'failed',
+        exitCode: exitCode ?? 1,
+        signal,
+        durationMs: Date.now() - startedAt,
+        artifacts: artifactPaths,
+      });
+    });
+  });
+}
+
+function prepareCommandArtifacts(item) {
+  fs.mkdirSync(item.artifactDir, { recursive: true });
+  return [
+    path.join(item.artifactDir, `${item.id}.stdout.log`),
+    path.join(item.artifactDir, `${item.id}.stderr.log`),
+  ];
+}
+
+function captureChildOutput(child, artifactPaths) {
+  const [stdoutPath, stderrPath] = artifactPaths;
+  const stdout = fs.createWriteStream(stdoutPath);
+  const stderr = fs.createWriteStream(stderrPath);
+  child.stdout?.on('data', chunk => {
+    stdout.write(chunk);
+    process.stdout.write(chunk);
+  });
+  child.stderr?.on('data', chunk => {
+    stderr.write(chunk);
+    process.stderr.write(chunk);
   });
   return {
-    status: result.status === 0 ? 'passed' : 'failed',
-    exitCode: result.status ?? 1,
-    signal: result.signal,
-    durationMs: Date.now() - startedAt,
+    close() {
+      stdout.end();
+      stderr.end();
+    },
   };
+}
+
+function phaseIdFromServerItem(item) {
+  return item.metadata?.serverPhase || 'serve';
 }
 
 function writePlan(plan) {
@@ -675,12 +894,304 @@ async function main() {
   const execution = await runDestroyPlan(plan);
   const executionPath = path.join(plan.outputDir, 'destroy-execution.json');
   fs.writeFileSync(executionPath, `${JSON.stringify(execution, null, 2)}\n`);
+  const observed = writeObservedDestroySummary(plan, execution, {
+    executionPath,
+    planPath,
+  });
+  const readiness = writeDestroyReadinessArtifacts(plan, execution, {
+    executionPath,
+    laneEvidenceEntries: observed.laneEvidenceEntries,
+    planPath,
+  });
   console.log(
-    JSON.stringify({ ...execution, executionPath, planPath }, null, 2),
+    JSON.stringify(
+      {
+        ...execution,
+        executionPath,
+        observedLimitsPath: observed.observedLimitsPath,
+        planPath,
+        readiness,
+      },
+      null,
+      2,
+    ),
   );
   if (execution.status !== 'passed') {
     process.exitCode = 1;
   }
+}
+
+function writeObservedDestroySummary(plan, execution, provenance) {
+  const evidenceEntries = createDestroyEvidenceCatalog(plan);
+  const laneEvidenceRoot = path.join(plan.outputDir, 'lane-evidence');
+  const laneEvidenceEntries = [];
+  const laneGroups = groupBy(evidenceEntries, entry => entry.lane);
+  const lanes = {};
+
+  for (const lane of Object.keys(laneGroups).sort()) {
+    const entries = laneGroups[lane];
+    const artifacts = entries.map(entry => readEvidenceArtifact(entry));
+    const unknowns = artifacts
+      .filter(artifact => !artifact.value)
+      .map(artifact => `${artifact.path}: ${artifact.error}`)
+      .concat(
+        artifacts.flatMap(artifact =>
+          artifact.value ? summarizeArtifactUnknowns(artifact.value) : [],
+        ),
+      );
+    const failures = artifacts.flatMap(artifact =>
+      artifact.value ? summarizeArtifactFailures(artifact.value) : [],
+    );
+    const warnings = artifacts.flatMap(artifact =>
+      artifact.value ? normalizeList(artifact.value.warnings).map(String) : [],
+    );
+    const observations = artifacts
+      .filter(artifact => artifact.value)
+      .map(artifact => summarizeArtifactSignals(artifact.value, artifact));
+    const status =
+      failures.length > 0
+        ? 'failed'
+        : unknowns.length > 0
+          ? 'unknown'
+          : 'passed';
+    const laneEvidence = pruneUndefined({
+      schemaVersion: 'superapp-destroy-lane-evidence-v1',
+      suite: `superapp-destroy-${lane}`,
+      lane,
+      status,
+      classification:
+        status === 'passed' ? 'pass' : status === 'failed' ? 'fail' : 'unknown',
+      budgetFailures: failures,
+      unknowns,
+      warnings,
+      observations,
+      artifacts: artifacts.map(artifact => ({
+        path: artifact.path,
+        present: Boolean(artifact.value),
+        provenance: artifact.provenance,
+        schemaVersion: artifact.value?.schemaVersion,
+        suite: artifact.value?.suite,
+      })),
+    });
+    const lanePath = path.join(laneEvidenceRoot, `${lane}.json`);
+    writeJsonArtifact(lanePath, laneEvidence);
+    laneEvidenceEntries.push({
+      lane,
+      path: lanePath,
+      provenance: {
+        source: 'destroy-runner',
+      },
+    });
+    lanes[lane] = laneEvidence;
+  }
+
+  const observedLimits = pruneUndefined({
+    schemaVersion: 'superapp-destroy-observed-limits-v1',
+    runId: plan.runId,
+    status: execution.status,
+    profile: plan.profile,
+    thresholds: plan.thresholdBudget,
+    generatedAt: new Date(0).toISOString(),
+    provenance,
+    phases: execution.results,
+    lanes,
+  });
+  const observedLimitsPath = path.join(
+    plan.outputDir,
+    'destroy-observed-limits.json',
+  );
+  writeJsonArtifact(observedLimitsPath, observedLimits);
+  return {
+    laneEvidenceEntries,
+    observedLimits,
+    observedLimitsPath,
+  };
+}
+
+function writeDestroyReadinessArtifacts(plan, execution, options) {
+  const { writeDestroyReadinessReport } = require('./readiness-report');
+  const result = writeDestroyReadinessReport(
+    {
+      artifacts: options.laneEvidenceEntries,
+      execution,
+      plan,
+    },
+    {
+      executionPath: options.executionPath,
+      generatedAt: new Date(0).toISOString(),
+      outputDir: plan.outputDir,
+      planPath: options.planPath,
+    },
+  );
+
+  return {
+    classification: result.report.classification,
+    markdownPath: result.markdownPath,
+    reportPath: result.reportPath,
+  };
+}
+
+function createDestroyEvidenceCatalog(plan) {
+  const artifactRoot = plan.artifactRoot;
+  const entry = (lane, relativePath, provenance = {}) => ({
+    lane,
+    path: path.join(artifactRoot, relativePath),
+    provenance,
+  });
+
+  return [
+    entry('load', 'warmup/summary.json', { phaseId: 'warmup' }),
+    entry('load', 'portfolio-load/summary.json', { phaseId: 'load' }),
+    entry(
+      'browser-runtime',
+      'browser-runtime-smoke/production-shell-smoke/summary.json',
+      {
+        phaseId: 'browser-smoke-during-load',
+      },
+    ),
+    entry(
+      'browser-runtime',
+      'browser-runtime-smoke/production-shell-smoke-under-moderate-load/summary.json',
+      { phaseId: 'browser-smoke-during-load' },
+    ),
+    entry('chaos', 'pilot-chaos/summary.json', { phaseId: 'chaos' }),
+    entry('chaos', 'k6-chaos-triggering/summary.json', { phaseId: 'chaos' }),
+    entry('contracts', 'torture-harness/summary.json', {
+      phaseId: 'contracts',
+    }),
+    entry(
+      'runtime-matrix',
+      'browser-runtime-matrix/dev-cold-start-summary/summary.json',
+      { phaseId: 'runtime-matrix' },
+    ),
+    entry(
+      'runtime-matrix',
+      'browser-runtime-matrix/production-ssr-csr-summary/summary.json',
+      { phaseId: 'runtime-matrix' },
+    ),
+    entry(
+      'runtime-matrix',
+      'browser-runtime-matrix/asset-prefix-production-summary/summary.json',
+      { phaseId: 'runtime-matrix' },
+    ),
+    entry(
+      'runtime-matrix',
+      'browser-runtime-matrix/simulated-mf-fallback-summary/summary.json',
+      { phaseId: 'runtime-matrix' },
+    ),
+    ...(plan.phaseOrder.includes('soak-stability-evidence')
+      ? [
+          entry('soak-stability', 'soak-stability/soak-stability.json', {
+            phaseId: 'soak-stability-evidence',
+          }),
+        ]
+      : []),
+  ];
+}
+
+function readEvidenceArtifact(entry) {
+  try {
+    return {
+      ...entry,
+      value: JSON.parse(fs.readFileSync(entry.path, 'utf8')),
+    };
+  } catch (error) {
+    return {
+      ...entry,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function summarizeArtifactFailures(artifact) {
+  const failures = [
+    ...normalizeList(artifact.budgetFailures),
+    ...normalizeList(artifact.thresholdFailures),
+  ];
+  const failedCount =
+    Number(artifact.failedCount || 0) +
+    Number(artifact.failedCommandCount || 0);
+  if (failedCount > 0) {
+    failures.push(`${failedCount} failed check(s)`);
+  }
+  if (Number(artifact.unexpectedErrorCount || 0) > 0) {
+    failures.push(`${artifact.unexpectedErrorCount} unexpected error(s)`);
+  }
+  return failures.map(String);
+}
+
+function summarizeArtifactUnknowns(artifact) {
+  const unknowns = normalizeList(artifact.unknowns).map(String);
+  const normalizedStatus = String(
+    artifact.classification || artifact.status || '',
+  ).toLowerCase();
+  if (
+    ['unknown', 'missing', 'planned', 'skipped', 'incomplete'].includes(
+      normalizedStatus,
+    )
+  ) {
+    unknowns.push(
+      `artifact status is ${String(
+        artifact.status || artifact.classification,
+      )}`,
+    );
+  }
+  return unknowns;
+}
+
+function summarizeArtifactSignals(artifact, entry) {
+  return pruneUndefined({
+    path: entry.path,
+    suite: artifact.suite,
+    status: artifact.status,
+    classification: artifact.classification,
+    requestCount: artifact.requestCount,
+    errorRate: artifact.unexpectedErrorRate,
+    latency: artifact.durations
+      ? {
+          p95Ms: artifact.durations.p95Ms,
+          p99Ms: artifact.durations.p99Ms,
+          maxMs: artifact.durations.maxMs,
+        }
+      : undefined,
+    eventLoopDelay: artifact.eventLoopDelay,
+    memory: artifact.observedStabilityEnvelope?.memory,
+  });
+}
+
+function normalizeList(value) {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+}
+
+function groupBy(values, key) {
+  return values.reduce((groups, value) => {
+    const groupKey = key(value);
+    groups[groupKey] ||= [];
+    groups[groupKey].push(value);
+    return groups;
+  }, {});
+}
+
+function writeJsonArtifact(outputPath, value) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function pruneUndefined(value) {
+  if (Array.isArray(value)) {
+    return value.map(pruneUndefined);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .map(([key, entryValue]) => [key, pruneUndefined(entryValue)]),
+  );
 }
 
 function artifactDir(root, name) {
@@ -797,4 +1308,5 @@ module.exports = {
   resolveDestroyProfile,
   runDestroyPlan,
   usage,
+  writeObservedDestroySummary,
 };
