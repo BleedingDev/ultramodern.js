@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-browser-04
     content: "Validate runtime/build matrix coverage for dev, production build, production serve, SSR/CSR paths, cold start, repeated builds, asset prefixes, and MF fallback behavior."
-    status: pending
+    status: completed
   - id: ust-browser-05
     content: "Run a browser smoke subset while moderate HTTP load is active and fail on hydration warnings, console errors, broken resources, or user-visible crash states."
     status: pending
