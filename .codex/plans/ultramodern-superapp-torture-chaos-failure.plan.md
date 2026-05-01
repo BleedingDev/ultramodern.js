@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-chaos-02
     content: "Add deterministic failure toggles to the SuperApp portfolio fixture without leaking chaos behavior into normal scenarios."
-    status: pending
+    status: completed
   - id: ust-chaos-03
     content: "Assert error-envelope shape, requestId propagation, cleanup/finalizer behavior, and tenant-safe failure responses for every failure mode."
     status: pending

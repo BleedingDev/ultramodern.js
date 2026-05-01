@@ -17,9 +17,18 @@ import {
   summarizePortfolio,
   type WorkflowEvent,
 } from '../../shared/portfolio-state.js';
+import {
+  createSuperAppChaosFailureEnvelope,
+  createSuperAppChaosToggleDescriptor,
+  isSuperAppLegacyFailureMode,
+  isWorkloadChaosFailureId,
+  type SuperAppChaosToggleDescriptor,
+  type SuperAppChaosToggleEndpoint,
+} from '../../shared/workload-chaos-toggles.js';
 
 let state: PortfolioState = createInitialPortfolioState();
 let eventCounter = state.events.length;
+const chaosToggles = new Map<string, SuperAppChaosToggleDescriptor>();
 const trustedOrigins = new Set(['https://superapp.test', 'http://localhost']);
 const tenantRoles: Record<string, string[]> = {
   'superapp-global': ['superapp-operator', 'security-admin'],
@@ -81,6 +90,153 @@ function normalizeOrigin(origin: string | undefined) {
 
 function redact(value: string | undefined) {
   return value ? '[redacted]' : 'absent';
+}
+
+function chaosToggleKey(toggle: SuperAppChaosToggleDescriptor) {
+  return `${toggle.id}:${toggle.scope}:${toggle.targetEndpoint}:${toggle.targetRequestId}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getString(value: unknown) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function matchEffectEndpoint(pathname: string):
+  | {
+      endpoint: SuperAppChaosToggleEndpoint;
+      appId?: PortfolioAppId;
+    }
+  | undefined {
+  const workflowMatch = pathname.match(/\/effect\/apps\/([^/]+)\/workflow$/);
+  if (workflowMatch) {
+    return {
+      endpoint: 'portfolio.workflow',
+      appId: workflowMatch[1] as PortfolioAppId,
+    };
+  }
+
+  if (/\/effect\/pilot\/[^/]+\/run$/.test(pathname)) {
+    return {
+      endpoint: 'portfolio.pilot',
+    };
+  }
+
+  if (pathname.endsWith('/effect/security/probe')) {
+    return {
+      endpoint: 'portfolio.security',
+    };
+  }
+
+  return undefined;
+}
+
+function tenantIdForChaosEnvelope(input: {
+  endpoint: SuperAppChaosToggleEndpoint;
+  appId?: PortfolioAppId;
+  payload: Record<string, unknown>;
+  request: Request;
+  toggle: SuperAppChaosToggleDescriptor;
+}) {
+  const tenantHeader = input.request.headers.get('x-tenant-id') ?? undefined;
+  if (input.endpoint === 'portfolio.pilot') {
+    return (
+      getString(input.payload.tenant) ??
+      tenantHeader ??
+      input.toggle.id.split('.')[1] ??
+      'absent'
+    );
+  }
+
+  if (input.endpoint === 'portfolio.security') {
+    return (
+      getString(input.payload.targetTenant) ??
+      tenantHeader ??
+      getString(input.payload.tenant) ??
+      'absent'
+    );
+  }
+
+  return (
+    tenantHeader ??
+    state.apps.find(app => app.id === input.appId)?.tenant ??
+    'absent'
+  );
+}
+
+async function readJsonObject(request: Request) {
+  try {
+    const payload = await request.clone().json();
+    return isRecord(payload) ? payload : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function consumeChaosToggle(input: {
+  endpoint: SuperAppChaosToggleEndpoint;
+  requestId: string;
+}) {
+  for (const [key, toggle] of chaosToggles) {
+    if (
+      toggle.targetEndpoint === input.endpoint &&
+      toggle.targetRequestId === input.requestId
+    ) {
+      if (toggle.scope === 'request') {
+        chaosToggles.delete(key);
+      }
+
+      return toggle;
+    }
+  }
+
+  return undefined;
+}
+
+async function maybeHandleChaosToggle(request: Request) {
+  if (request.method !== 'POST') {
+    return undefined;
+  }
+
+  const endpoint = matchEffectEndpoint(new URL(request.url).pathname);
+  if (!endpoint) {
+    return undefined;
+  }
+
+  const payload = await readJsonObject(request);
+  const requestId = getString(payload?.requestId);
+  if (!payload || !requestId) {
+    return undefined;
+  }
+
+  const toggle = consumeChaosToggle({
+    endpoint: endpoint.endpoint,
+    requestId,
+  });
+  if (!toggle) {
+    return undefined;
+  }
+
+  const envelope = createSuperAppChaosFailureEnvelope({
+    toggle,
+    requestId,
+    tenantId: tenantIdForChaosEnvelope({
+      endpoint: endpoint.endpoint,
+      appId: endpoint.appId,
+      payload,
+      request,
+      toggle,
+    }),
+  });
+
+  return new Response(JSON.stringify(envelope), {
+    status: toggle.expectedHttpStatus,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+  });
 }
 
 function createSecurityDecision(input: {
@@ -411,16 +567,42 @@ const portfolioLayer = HttpApiBuilder.group(
       'injectFailure',
       ({ params, payload }: any) =>
         Effect.sync(() => {
-          state.failureMode = params.mode;
+          const mode = String(params.mode);
           eventCounter += 1;
+          const eventId = `evt-${eventCounter}`;
           state.events.push({
-            id: `evt-${eventCounter}`,
+            id: eventId,
             appId: 'failure-lab',
-            action: params.mode,
+            action: mode,
             actor: payload.actor,
-            requestId: `failure-${eventCounter}`,
+            requestId: payload.requestId ?? `failure-${eventCounter}`,
             status: 'accepted',
           });
+
+          if (isWorkloadChaosFailureId(mode)) {
+            const chaosToggle = createSuperAppChaosToggleDescriptor({
+              id: mode,
+              scope: payload.scope,
+              targetRequestId: payload.targetRequestId,
+              targetEndpoint: payload.targetEndpoint,
+              armedBy: payload.actor,
+              reason: payload.reason,
+              armedAtEventId: eventId,
+            });
+            chaosToggles.set(chaosToggleKey(chaosToggle), chaosToggle);
+
+            return {
+              failureMode: state.failureMode,
+              chaosToggle,
+              summary: summarizePortfolio(state),
+            };
+          }
+
+          if (!isSuperAppLegacyFailureMode(mode)) {
+            throw new Error(`Unknown failure mode: ${mode}`);
+          }
+
+          state.failureMode = mode;
 
           return {
             failureMode: state.failureMode,
@@ -440,6 +622,7 @@ const portfolioLayer = HttpApiBuilder.group(
       Effect.sync(() => {
         state = createInitialPortfolioState();
         eventCounter = state.events.length;
+        chaosToggles.clear();
         return {
           ok: true,
           workloadResetSeedMetadata: state.workloadResetSeedMetadata,
@@ -454,7 +637,25 @@ const layer = HttpApiBuilder.layer(portfolioApi).pipe(
   Layer.provide(portfolioLayer),
 );
 
-export default defineEffectBff({
+const runtime = defineEffectBff({
   api: portfolioApi,
   layer,
 });
+
+export default {
+  ...runtime,
+  createHandler: (options?: Parameters<typeof runtime.createHandler>[0]) => {
+    const base = runtime.createHandler(options);
+    return {
+      handler: async (request: Request) => {
+        const chaosResponse = await maybeHandleChaosToggle(request);
+        if (chaosResponse) {
+          return chaosResponse;
+        }
+
+        return base.handler(request);
+      },
+      dispose: base.dispose,
+    };
+  },
+};

@@ -4,6 +4,12 @@ import {
   HttpApiGroup,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
+import { SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS } from './workload-chaos-failure-taxonomy.js';
+import {
+  SUPERAPP_CHAOS_TOGGLE_ENDPOINTS,
+  SUPERAPP_CHAOS_TOGGLE_SCOPES,
+  SUPERAPP_LEGACY_FAILURE_MODES,
+} from './workload-chaos-toggles.js';
 
 const AppIdSchema = Schema.Literals([
   'mobility-marketplace',
@@ -75,6 +81,24 @@ const PilotChaosSchema = Schema.Literals([
   'chunk-404',
   'clock-skew',
   'restart-during-load',
+]);
+
+const FailureModeSchema = Schema.Literals([
+  'healthy',
+  ...SUPERAPP_LEGACY_FAILURE_MODES,
+]);
+
+const FailureInjectionModeSchema = Schema.Literals([
+  ...SUPERAPP_LEGACY_FAILURE_MODES,
+  ...SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS,
+]);
+
+const ChaosToggleScopeSchema = Schema.Literals([
+  ...SUPERAPP_CHAOS_TOGGLE_SCOPES,
+]);
+
+const ChaosToggleEndpointSchema = Schema.Literals([
+  ...SUPERAPP_CHAOS_TOGGLE_ENDPOINTS,
 ]);
 
 const WorkloadTenantSchema = Schema.Literals([
@@ -619,13 +643,33 @@ const SummarySchema = Schema.Struct({
   highRiskApps: Schema.Number,
   totalOpenWork: Schema.Number,
   eventCount: Schema.Number,
-  failureMode: Schema.Literals([
-    'healthy',
-    'remote-down',
-    'api-timeout',
-    'chunk-404',
-  ]),
+  failureMode: FailureModeSchema,
   nightlyWorkflowCount: Schema.Number,
+});
+
+const ChaosToggleDescriptorSchema = Schema.Struct({
+  id: Schema.Literals([...SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS]),
+  kind: Schema.String,
+  status: Schema.Literals(['armed', 'consumed']),
+  scope: ChaosToggleScopeSchema,
+  targetRequestId: Schema.String,
+  targetEndpoint: ChaosToggleEndpointSchema,
+  expectedHttpStatus: Schema.Number,
+  responseKind: Schema.String,
+  applicationStatus: Schema.String,
+  errorCode: Schema.String,
+  messageKey: Schema.String,
+  retryable: Schema.Boolean,
+  resetRequired: Schema.Boolean,
+  retryAfterMs: Schema.optional(Schema.Number),
+  armedBy: Schema.String,
+  reason: Schema.String,
+  armedAtEventId: Schema.String,
+  idempotencyKey: Schema.String,
+  payloadSeed: Schema.String,
+  attemptCount: Schema.Number,
+  clockOffsetMs: Schema.Number,
+  legacyFailureMode: Schema.optional(Schema.String),
 });
 
 const SecurityCheckSchema = Schema.Struct({
@@ -721,18 +765,19 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
     .add(
       HttpApiEndpoint.post('injectFailure', '/effect/failure/:mode', {
         params: {
-          mode: Schema.Literals(['remote-down', 'api-timeout', 'chunk-404']),
+          mode: FailureInjectionModeSchema,
         },
         payload: Schema.Struct({
           actor: Schema.String,
           reason: Schema.String,
+          requestId: Schema.optional(Schema.String),
+          targetRequestId: Schema.optional(Schema.String),
+          targetEndpoint: Schema.optional(ChaosToggleEndpointSchema),
+          scope: Schema.optional(ChaosToggleScopeSchema),
         }),
         success: Schema.Struct({
-          failureMode: Schema.Literals([
-            'remote-down',
-            'api-timeout',
-            'chunk-404',
-          ]),
+          failureMode: FailureModeSchema,
+          chaosToggle: Schema.optional(ChaosToggleDescriptorSchema),
           summary: SummarySchema,
         }),
       }),
