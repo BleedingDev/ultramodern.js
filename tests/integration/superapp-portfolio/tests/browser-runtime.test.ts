@@ -8,6 +8,12 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import {
+  captureBrowserRuntimeDiagnostics,
+  createBrowserRuntimeArtifactPaths,
+  finishBrowserRuntimeArtifacts,
+  startBrowserRuntimeTrace,
+} from './browserRuntimeArtifacts';
 
 setSuiteTimeout(1000 * 60 * 10);
 
@@ -24,21 +30,6 @@ const { chromium }: { chromium: BrowserType } =
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
-
-function captureBrowserErrors(page: Page) {
-  const errors: string[] = [];
-  page.on('console', (message: { text: () => string; type: () => string }) => {
-    if (message.type() === 'error') {
-      errors.push(`console:${message.text()}`);
-    }
-  });
-  page.on('pageerror', (error: unknown) => {
-    errors.push(
-      `pageerror:${error instanceof Error ? error.message : String(error)}`,
-    );
-  });
-  return errors;
-}
 
 async function resetPortfolio(port: number) {
   const response = await fetch(`${host}:${port}/bff-api/effect/reset`, {
@@ -114,21 +105,48 @@ async function expectPilotStatus(page: Page, expected: string) {
   }, expected);
 }
 
-async function createRuntimePage(browser: Browser) {
+async function createRuntimePage(browser: Browser, testId: string) {
+  const artifactPaths = createBrowserRuntimeArtifactPaths(testId);
   const context = await browser.newContext({
     viewport: {
       width: 1440,
       height: 960,
     },
+    recordVideo: {
+      dir: artifactPaths.videoDir,
+    },
   });
+  await startBrowserRuntimeTrace(context);
   const page = await context.newPage();
-  const errors = captureBrowserErrors(page);
+  const diagnostics = captureBrowserRuntimeDiagnostics(page);
 
   return {
+    ...artifactPaths,
     context,
+    diagnostics,
+    errors: diagnostics.errors,
     page,
-    errors,
+    testId,
   };
+}
+
+async function finishRuntimePage(
+  runtimePage: Awaited<ReturnType<typeof createRuntimePage>>,
+  failed: boolean,
+) {
+  try {
+    await finishBrowserRuntimeArtifacts({
+      artifactDir: runtimePage.artifactDir,
+      context: runtimePage.context,
+      diagnostics: runtimePage.diagnostics,
+      failed,
+      page: runtimePage.page,
+      testId: runtimePage.testId,
+      videoDir: runtimePage.videoDir,
+    });
+  } finally {
+    await runtimePage.context.close();
+  }
 }
 
 describe('superapp portfolio browser runtime coverage', () => {
@@ -161,9 +179,58 @@ describe('superapp portfolio browser runtime coverage', () => {
     await killApp(app);
   });
 
+  test('smokes production-served shell with browser artifacts enabled', async () => {
+    await resetPortfolio(port);
+    const runtimePage = await createRuntimePage(
+      browser!,
+      'production-shell-smoke',
+    );
+    const { errors, page } = runtimePage;
+    let failed = false;
+
+    try {
+      await page.goto(`${host}:${port}`, {
+        waitUntil: 'networkidle',
+      });
+      await page.getByTestId('portfolio-ready').waitFor();
+      await page.getByTestId('pilot-command-center').waitFor();
+
+      const shellSmoke = await page.evaluate(() => {
+        return {
+          appCards: document.querySelectorAll('[data-testid^="portfolio-app-"]')
+            .length,
+          currentPath: location.pathname,
+          navItems: document.querySelectorAll('[data-testid^="nav-"]').length,
+          readyText:
+            document.querySelector('[data-testid="portfolio-ready"]')
+              ?.textContent ?? '',
+          title: document.title,
+        };
+      });
+      expect(shellSmoke).toMatchObject({
+        appCards: 5,
+        currentPath: '/',
+      });
+      expect(shellSmoke.readyText).toContain('Enterprise MegaERP');
+      expect(shellSmoke.navItems).toBeGreaterThanOrEqual(5);
+      expect(shellSmoke.title).toBe('SuperApp Portfolio');
+      expect(errors).toEqual([]);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      await finishRuntimePage(runtimePage, failed);
+    }
+  });
+
   test('navigates ERP dashboards, app tables, forms, and lazy module surfaces', async () => {
     await resetPortfolio(port);
-    const { context, page, errors } = await createRuntimePage(browser!);
+    const runtimePage = await createRuntimePage(
+      browser!,
+      'production-erp-mf-flow',
+    );
+    const { errors, page } = runtimePage;
+    let failed = false;
 
     try {
       await page.goto(`${host}:${port}`, {
@@ -268,14 +335,22 @@ describe('superapp portfolio browser runtime coverage', () => {
         'checks:13',
       );
       expect(errors).toEqual([]);
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      await context.close();
+      await finishRuntimePage(runtimePage, failed);
     }
   });
 
   test('runs chat workflow, switches tenants, and surfaces browser error states', async () => {
     await resetPortfolio(port);
-    const { context, page, errors } = await createRuntimePage(browser!);
+    const runtimePage = await createRuntimePage(
+      browser!,
+      'production-chat-security-flow',
+    );
+    const { errors, page } = runtimePage;
+    let failed = false;
 
     try {
       await page.goto(`${host}:${port}`, {
@@ -396,6 +471,7 @@ describe('superapp portfolio browser runtime coverage', () => {
             body: '{',
           },
         );
+        await malformed.text();
         const afterRejected = await getSummary();
 
         return {
@@ -468,8 +544,11 @@ describe('superapp portfolio browser runtime coverage', () => {
       );
       await expectByTestIdTextContaining(page, 'pilot-summary', 'degraded:1');
       expect(errors).toEqual([]);
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      await context.close();
+      await finishRuntimePage(runtimePage, failed);
     }
   });
 });

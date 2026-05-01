@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: ust-browser-02
     content: "Run browser smoke and focused flows against production build with console, pageerror, requestfailed, trace, screenshot, and video artifacts."
-    status: pending
+    status: completed
   - id: ust-browser-03
     content: "Add slow-network, offline-to-online, mobile viewport, desktop viewport, and repeated route-transition scenarios."
     status: pending
