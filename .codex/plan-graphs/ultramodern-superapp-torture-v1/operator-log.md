@@ -71,12 +71,12 @@ Wave 3:
 | destroy-readiness | `019de34b-6808-7141-93a2-81571e18918e` (`Hooke`) | worker | completed for `ust-destroy-01` | Deterministic destroy-run command planner/dry-run entrypoint with phase order, existing command paths, artifact roots, and teardown-after-failure scheduling landed in commit `d5169878d1`; local destroy tests passed 5/5. Next todo `ust-destroy-02` is ready. |
 | destroy-readiness | `019de352-8f27-7341-870b-c1926bd650dd` (`Mendel`) | worker | completed for `ust-destroy-02` | Release, nightly, and manual-torture destroy profiles with explicit threshold budgets and dry-run plan metadata landed in commit `e0209689f6`; local destroy tests passed 9/9. Next todo `ust-destroy-03` is ready. |
 | destroy-readiness | `019de357-a972-7491-ba3d-98be930571b8` (`Gibbs`) | worker | completed for `ust-destroy-03` | Deterministic readiness JSON/markdown aggregation landed in commit `afd3f37751`; helm follow-up fixed unreadable artifact evidence to classify as `unknown` in commit `0784f4a4c0`; local destroy tests passed 16/16. Next todo `ust-destroy-04` is ready. |
-| destroy-readiness | `019de35f-e69b-79a0-9803-282906a71465` (`Archimedes`) | worker | in_progress | Owns `ust-destroy-04`: run a bounded local full destroy-run, fix in-scope executor/artifact failures, record observed results, file Beads follow-ups, tests, and destroy plan status only. |
+| destroy-readiness | `019de35f-e69b-79a0-9803-282906a71465` (`Archimedes`) | worker | completed for `ust-destroy-04` | Bounded smoke destroy-run executor landed in commit `550018dbf8`; run reached build, serve, warmup, load, and browser smoke, then failed in chaos on port allocation; teardown passed; follow-up Beads issues `modernjs-b9f` and `modernjs-fdl` track residual blockers. Next todo `ust-destroy-05` is ready. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 13:50 CEST
+Refreshed: 2026-05-01 14:04 CEST
 
-- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-04` is running under Archimedes (`019de35f-e69b-79a0-9803-282906a71465`).
+- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-05` is ready to launch for final SuperApp go/no-go criteria.
 - Blocked: none in the selected graph; destroy-readiness is the terminal remaining root.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, `browser-runtime`, and `soak-stability`.
