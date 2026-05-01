@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: ust-soak-04
     content: "Add drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, and unreleased handles."
-    status: pending
+    status: completed
   - id: ust-soak-05
     content: "Emit soak artifacts and a markdown appendix with observed stability envelope, thresholds, and recommended fixes for any failure."
     status: pending

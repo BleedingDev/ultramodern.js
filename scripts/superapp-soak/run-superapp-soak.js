@@ -17,6 +17,7 @@ const {
   createSoakMetricsArtifact,
   createSoakWindowSummary,
 } = require('./metrics-windows');
+const { analyzeSoakDrift } = require('./drift-detectors');
 const {
   DEFAULT_PROFILE_ID,
   ENV_NAMES,
@@ -376,6 +377,7 @@ async function runSoak(options = {}) {
     0,
     DEFAULT_MAX_ERROR_SAMPLES,
   );
+  const drift = analyzeSoakDrift(summary, { profile });
   const status = deriveRunStatus(errorSamples);
   const artifact = createSoakMetricsArtifact({
     ...metricsEvents,
@@ -395,6 +397,7 @@ async function runSoak(options = {}) {
         expectedOperationClasses: plan.expectedOperationClasses,
         missingWorkloadClasses: plan.missingWorkloadClasses,
       },
+      drift,
     },
     durationMs,
     finishedAt,
