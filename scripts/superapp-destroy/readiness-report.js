@@ -396,7 +396,7 @@ function classifyArtifact(entry) {
   const artifact = entry.artifact;
   if (!artifact) {
     return {
-      classification: 'fail',
+      classification: 'unknown',
       reasons: [`could not read artifact ${entry.path}: ${entry.readError}`],
       warnings: [],
     };

@@ -125,6 +125,36 @@ test('missing lane evidence becomes unknown instead of passing silently', () => 
   );
 });
 
+test('unreadable artifact evidence is unknown instead of fail', () => {
+  const plan = createPlan();
+  const { report } = createDestroyReadinessReport({
+    artifacts: [
+      ...allLaneArtifacts().filter(artifact => artifact.lane !== 'load'),
+      {
+        lane: 'load',
+        path: '/tmp/missing-load-artifact.json',
+      },
+    ],
+    execution: passingExecution(plan),
+    plan,
+  });
+
+  assert.equal(report.classification, 'unknown');
+  assert.equal(
+    report.lanes.find(lane => lane.id === 'load').classification,
+    'unknown',
+  );
+  assert.ok(
+    report.lanes
+      .find(lane => lane.id === 'load')
+      .reasons.some(reason =>
+        reason.includes(
+          'could not read artifact /tmp/missing-load-artifact.json',
+        ),
+      ),
+  );
+});
+
 test('failed phase and threshold breach classify readiness as fail', () => {
   const plan = createPlan();
   const execution = passingExecution(plan);
