@@ -4,7 +4,7 @@ overview: Run long-duration stability, memory, event-loop, reset-cycle, and mixe
 todos:
   - id: ust-soak-01
     content: "Create soak profiles for 15-minute local, 60-minute extended, and 2-to-6-hour overnight runs with configurable concurrency and scenario mix."
-    status: pending
+    status: completed
   - id: ust-soak-02
     content: "Track memory, heap, event-loop delay, request throughput, latency windows, open handles, reset success, and classified error rates over time."
     status: pending
