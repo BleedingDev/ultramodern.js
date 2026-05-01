@@ -68,11 +68,12 @@ Wave 3:
 | soak-stability | `019de32e-f0b6-7a72-9a2a-8019ff16cfbc` (`Hegel`) | worker | completed for `ust-soak-03` | Short-testable soak workload runner/planner for mixed normal, write-heavy, chat, reset, chaos-lite, and tenant-boundary workloads landed in commit `0a48ce7cb3`; next todo `ust-soak-04` is ready. |
 | soak-stability | `019de339-7dae-75e1-97c6-cc932d6c9b35` (`Aquinas`) | worker | completed for `ust-soak-04` | Drift detectors for memory growth, p95/p99 latency degradation, error-rate increases, stalled resets, unreleased handles, and unknown data landed in commit `23bc66c56d`; local soak tests passed 26/26. Next todo `ust-soak-05` is ready. |
 | soak-stability | `019de344-612f-7643-a2f5-2bf7a20961fe` (`Hume`) | worker | completed for `ust-soak-05` | Deterministic soak stability JSON/markdown report helper with envelope, thresholds, detector classifications, and remediation landed in commit `c333397427`; local soak tests passed 32/32. Soak-stability root is complete. |
+| destroy-readiness | `019de34b-6808-7141-93a2-81571e18918e` (`Hooke`) | worker | in_progress | Owns `ust-destroy-01`: deterministic destroy-run command planner/dry-run entrypoint, phase order, teardown scheduling, tests, and destroy plan status only. |
 
 ## Current Frontier
 
-Refreshed: 2026-05-01 13:26 CEST
+Refreshed: 2026-05-01 13:28 CEST
 
-- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-01` is ready to launch for the destroy-run command definition.
+- Active: `ultramodern-superapp-torture-destroy-readiness` / `ust-destroy-01` is running under Hooke (`019de34b-6808-7141-93a2-81571e18918e`).
 - Blocked: none in the selected graph; destroy-readiness is the terminal remaining root.
 - Done roots: `harness-telemetry`, `workload-data`, `k6-load`, `chaos-failure`, `effect-tanstack-contracts`, `browser-runtime`, and `soak-stability`.
