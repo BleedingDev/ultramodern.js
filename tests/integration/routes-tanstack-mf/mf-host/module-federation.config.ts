@@ -6,6 +6,11 @@ const require = createRequire(import.meta.url);
 const runtimeVersion = (
   require('@modern-js/runtime/package.json') as { version: string }
 ).version;
+const reactVersion = (require('react/package.json') as { version: string })
+  .version;
+const reactDomVersion = (
+  require('react-dom/package.json') as { version: string }
+).version;
 const remotePort = Number(process.env.MF_REMOTE_PORT ?? 3010);
 const remoteTwoPort = Number(process.env.MF_REMOTE_TWO_PORT ?? 3012);
 
@@ -22,24 +27,18 @@ export default createModuleFederationConfig({
   shared: {
     react: {
       singleton: true,
-      requiredVersion: dependencies.react,
-      treeShaking: {
-        mode: 'runtime-infer',
-      },
+      requiredVersion: reactVersion,
+      treeShaking: false,
     },
     'react-dom': {
       singleton: true,
-      requiredVersion: dependencies['react-dom'],
-      treeShaking: {
-        mode: 'runtime-infer',
-      },
+      requiredVersion: reactDomVersion,
+      treeShaking: false,
     },
     '@tanstack/react-router': {
       singleton: true,
       requiredVersion: dependencies['@tanstack/react-router'],
-      treeShaking: {
-        mode: 'runtime-infer',
-      },
+      treeShaking: false,
     },
     '@modern-js/runtime': {
       singleton: true,

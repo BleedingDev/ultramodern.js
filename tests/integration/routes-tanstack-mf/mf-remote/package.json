@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
+    "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@module-federation/modern-js-v3": "2.4.0",
     "@module-federation/runtime": "2.4.0",

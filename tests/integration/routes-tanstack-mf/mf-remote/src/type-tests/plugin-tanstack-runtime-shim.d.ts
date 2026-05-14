@@ -1,4 +1,4 @@
-declare module '@modern-js/runtime/tanstack-router' {
+declare module '@modern-js/plugin-tanstack/runtime' {
   import type * as React from 'react';
 
   export type Fetcher = {

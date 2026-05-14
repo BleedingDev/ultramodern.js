@@ -4,10 +4,10 @@ overview: Make TanStack SSR and Module Federation remote rendering executable th
 todos:
   - id: tpssr-01
     content: Clean the current routes-tanstack-mf dirty patch into a minimal plugin-compatible shell SSR seam, removing broad helper churn and unverified browser expectation changes.
-    status: pending
+    status: completed
   - id: tpssr-02
     content: Implement plugin-owned TanStack SSR behavior through core hooks: memory history, router load, matched route snapshot, dehydration, hydration scripts, and cleanup.
-    status: pending
+    status: completed
   - id: tpssr-03
     content: Add the Module Federation SSR bridge contract so server render can resolve remote modules or emit typed deterministic fallback metadata before hydration.
     status: pending
@@ -29,6 +29,10 @@ This plan depends on the core hook plan and the plugin package plan. It should n
 The current local `tests/integration/routes-tanstack-mf/**` patch is useful evidence but not ready to land. It showed that shell SSR can be expressed, while remote component SSR remains blocked on a runtime/plugin seam named in the report as `tanstack-mf-server-remote-render`. Clean that work into a minimal executable contract after the plugin architecture is in place.
 
 For Micro Verticals, the target is not merely client fallback. A shell should be able to SSR its route subtree, let TanStack dehydrate deterministically, and either render remote components on the server or produce typed fallback metadata that hydrates predictably.
+
+`tpssr-01` is complete. The MF fixture now uses `@modern-js/plugin-tanstack` explicitly, keeps shell SSR enabled, records the remaining remote-render seam with `data-runtime-seam="tanstack-mf-server-remote-render"`, and deduplicates the plugin-data-loader runtime build helper used by the MF test paths.
+
+`tpssr-02` is complete from the plugin package work and the MF contract verification. `@modern-js/plugin-tanstack/runtime` owns memory history SSR setup, `router.load()`, TanStack server SSR dehydration, hydration scripts, matched route snapshots, and cleanup via the generic router runtime state handoff.
 
 ## Constraints
 

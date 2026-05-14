@@ -1,5 +1,5 @@
 import hostEffectBff from '@api/effect/index';
-import { useMatch } from '@tanstack/react-router';
+import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import * as React from 'react';
 import { lazyRemoteComponent, RemoteErrorBoundary } from './remoteLoader';
 import './page.css';
@@ -42,8 +42,16 @@ export default function MfPage() {
       <div id="host-effect-message">host-effect:{effectMessage}</div>
       {typeof window === 'undefined' ? (
         <>
+          <div
+            id="remote-ssr-contract-gap"
+            data-runtime-seam="tanstack-mf-server-remote-render"
+            data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"
+          >
+            remote-ssr:blocked
+          </div>
           <div id="remote-ssr-placeholder">remote-widget:pending</div>
           <div id="remote-mutator-ssr-placeholder">remote-mutator:pending</div>
+          <div id="remote2-ssr-placeholder">remote2-panel:pending</div>
         </>
       ) : (
         <>

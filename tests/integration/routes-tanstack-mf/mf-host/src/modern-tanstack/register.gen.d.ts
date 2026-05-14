@@ -2,7 +2,7 @@
 
 import type { router as router0 } from './index/router.gen';
 
-declare module '@modern-js/runtime/tanstack-router' {
+declare module '@modern-js/plugin-tanstack/runtime' {
   interface Register {
     router: typeof router0;
   }

@@ -16,6 +16,7 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import { ensurePluginDataLoaderRuntimeBuilt } from './pluginDataLoaderRuntime';
 
 setSuiteTimeout(1000 * 60 * 8);
 
@@ -110,26 +111,21 @@ async function assertSharedTreeShakingStats(port: number) {
     statsResponse.json as {
       shared?: Array<{
         name?: string;
-        treeShaking?: {
-          mode?: string;
-        };
+        treeShaking?: false | { mode?: string };
       }>;
     }
   ).shared;
   expect(Array.isArray(shared)).toBe(true);
   expect((shared || []).length).toBeGreaterThan(0);
-  const runtimeInferPackages = new Set([
+  const ssrSingletonPackages = new Set([
     'react',
     'react-dom',
     '@tanstack/react-router',
+    '@modern-js/runtime',
   ]);
   for (const item of shared || []) {
-    if (item.name === '@modern-js/runtime') {
+    if (ssrSingletonPackages.has(item.name || '')) {
       expect(item.treeShaking ?? false).toBe(false);
-      continue;
-    }
-    if (runtimeInferPackages.has(item.name || '')) {
-      expect(item.treeShaking?.mode).toBe('runtime-infer');
     }
   }
 }
@@ -379,11 +375,30 @@ async function buildFederatedFixtureApp(
   appDir: string,
   env: Record<string, string>,
 ) {
-  const result = await modernBuild(appDir, [], { env });
-  if (result.code !== 0) {
+  ensurePluginDataLoaderRuntimeBuilt();
+  let result:
+    | {
+        code: number | null;
+        stdout?: string;
+        stderr?: string;
+      }
+    | undefined;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await fs.rm(path.join(appDir, 'dist'), {
+      recursive: true,
+      force: true,
+    });
+    result = await modernBuild(appDir, [], { env });
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    if (result.code === 0 || !output.includes('ENOTEMPTY')) {
+      break;
+    }
+  }
+
+  if (!result || result.code !== 0) {
     throw new Error(
-      `Failed to build ${path.basename(appDir)}.\n${result.stdout || ''}\n${
-        result.stderr || ''
+      `Failed to build ${path.basename(appDir)}.\n${result?.stdout || ''}\n${
+        result?.stderr || ''
       }`,
     );
   }
@@ -709,6 +724,7 @@ describe('routes-tanstack-mf', () => {
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
+    ensurePluginDataLoaderRuntimeBuilt();
 
     remoteApp = await launchApp(remoteDir, ports.remote, { env });
     await waitForAppReady(`http://localhost:${ports.remote}/mf-manifest.json`);
@@ -741,16 +757,25 @@ describe('routes-tanstack-mf', () => {
     }
   });
 
-  test('keeps client-render boundary explicit for federated route content', async () => {
+  test('renders shell SSR and records the remote content SSR seam', async () => {
     const { status, html } = await fetchHtml(
       `http://localhost:${ports.host}/mf`,
     );
     expect(status).toBe(200);
-    expect(html).toContain('<!--<?- html ?>-->');
-    expect(html).not.toContain('host-mf-loader');
-    expect(html).not.toContain('host-mf-count:');
+    expect(html).not.toContain('<!--<?- html ?>-->');
+    expect(html).toContain('id="host-loader"');
+    expect(html).toContain('host-mf-loader');
+    expect(html).toContain('host-mf-count:');
+    expect(html).toContain('id="remote-ssr-contract-gap"');
+    expect(html).toContain(
+      'data-runtime-seam="tanstack-mf-server-remote-render"',
+    );
+    expect(html).toContain('remote-widget:pending');
+    expect(html).toContain('remote-mutator:pending');
+    expect(html).toContain('remote2-panel:pending');
     expect(html).not.toContain('remote-widget:ok');
     expect(html).not.toContain('id="remote-mutator"');
+    expect(html).not.toContain('remote2-panel:ok');
   });
 
   test('host app exposes effect bff endpoints in mf setup', async () => {

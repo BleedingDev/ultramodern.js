@@ -3870,6 +3870,9 @@ importers:
 
   tests/integration/routes-tanstack-mf/mf-host:
     dependencies:
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-tanstack
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-runtime
@@ -3896,10 +3899,15 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
 
+  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
     dependencies:
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-tanstack
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-runtime
@@ -3928,6 +3936,9 @@ importers:
 
   tests/integration/routes-tanstack-mf/mf-remote-2:
     dependencies:
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-tanstack
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-runtime
@@ -3954,7 +3965,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
 
+  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
+
+  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 

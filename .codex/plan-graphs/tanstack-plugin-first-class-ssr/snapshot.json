@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T22:29:03.052601+00:00",
+  "generated_at": "2026-05-14T22:39:11.124883+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -72,13 +72,13 @@
         {
           "id": "tpssr-01",
           "content": "Clean the current routes-tanstack-mf dirty patch into a minimal plugin-compatible shell SSR seam, removing broad helper churn and unverified browser expectation changes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "tpssr-02",
           "content": "Implement plugin-owned TanStack SSR behavior through core hooks: memory history, router load, matched route snapshot, dehydration, hydration scripts, and cleanup.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -191,27 +191,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "tpssr-01",
-          "content": "Clean the current routes-tanstack-mf dirty patch into a minimal plugin-compatible shell SSR seam, removing broad helper churn and unverified browser expectation changes.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "tpssr-02",
-          "content": "Implement plugin-owned TanStack SSR behavior through core hooks: memory history, router load, matched route snapshot, dehydration, hydration scripts, and cleanup.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
           "id": "tpssr-03",
           "content": "Add the Module Federation SSR bridge contract so server render can resolve remote modules or emit typed deterministic fallback metadata before hydration.",
           "status": "pending",
           "ordinal": 3
         }
       ],
-      "completed": 0,
+      "upcoming": [
+        {
+          "id": "tpssr-04",
+          "content": "Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "tpssr-05",
+          "content": "Verify dev, build, serve, and deploy-certification paths for the plugin-enabled TanStack MF fixture without hardcoded localhost topology assumptions leaking into Micro Vertical plans.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "completed": 2,
       "total": 5
     },
     {

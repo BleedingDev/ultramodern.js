@@ -1,13 +1,14 @@
-import fs from 'fs';
 /**
  * @jest-environment node
  */
+import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
 } from '../../../utils/fixtureLock';
+import { ensurePluginDataLoaderRuntimeBuilt } from '../test/pluginDataLoaderRuntime';
 
 const projectRoot = path.resolve(__dirname, '../../..');
 const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
@@ -25,6 +26,7 @@ const ensureWorkspacePackages = [
   '@modern-js/bff-core',
   '@modern-js/runtime',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-tanstack',
 ];
 const defaultFederatedEnv = {
   MF_REMOTE_PORT: '3010',
@@ -43,6 +45,8 @@ const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
 
 async function ensureTanstackMfDistFixtures() {
+  ensurePluginDataLoaderRuntimeBuilt();
+
   for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
     const appDir = path.join(tanstackMfRoot, appName);
     const build = () =>
@@ -50,21 +54,30 @@ async function ensureTanstackMfDistFixtures() {
         ensureWorkspacePackages,
         env: defaultFederatedEnv,
       });
-    let result = await build();
-    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    let result:
+      | {
+          code: number | null;
+          stdout?: string;
+          stderr?: string;
+        }
+      | undefined;
 
-    if (result.code !== 0 && output.includes('ENOTEMPTY')) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       fs.rmSync(path.join(appDir, 'dist'), {
         recursive: true,
         force: true,
       });
       result = await build();
+      const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+      if (result.code === 0 || !output.includes('ENOTEMPTY')) {
+        break;
+      }
     }
 
-    if (result.code !== 0) {
+    if (!result || result.code !== 0) {
       throw new Error(
         `Failed to build routes-tanstack-mf fixture ${appName}.\n` +
-          `${result.stdout || ''}\n${result.stderr || ''}`,
+          `${result?.stdout || ''}\n${result?.stderr || ''}`,
       );
     }
   }
@@ -84,6 +97,15 @@ describe('tanstack + module federation contracts', () => {
     const hostPage = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/routes/mf/page.tsx',
     );
+    const hostConfig = readFixture(
+      'integration/routes-tanstack-mf/mf-host/modern.config.ts',
+    );
+    const remoteConfig = readFixture(
+      'integration/routes-tanstack-mf/mf-remote/modern.config.ts',
+    );
+    const remoteTwoConfig = readFixture(
+      'integration/routes-tanstack-mf/mf-remote-2/modern.config.ts',
+    );
     const hostPageData = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/routes/mf/page.data.ts',
     );
@@ -94,13 +116,13 @@ describe('tanstack + module federation contracts', () => {
       'integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts',
     );
     const tanstackServerRuntime = readFixture(
-      '../packages/runtime/plugin-runtime/src/router/runtime/tanstack/plugin.node.tsx',
+      '../packages/runtime/plugin-tanstack/src/runtime/plugin.node.tsx',
     );
     const tanstackClientRuntime = readFixture(
-      '../packages/runtime/plugin-runtime/src/router/runtime/tanstack/plugin.tsx',
+      '../packages/runtime/plugin-tanstack/src/runtime/plugin.tsx',
     );
     const tanstackDataMutationRuntime = readFixture(
-      '../packages/runtime/plugin-runtime/src/router/runtime/tanstack/dataMutation.tsx',
+      '../packages/runtime/plugin-tanstack/src/runtime/dataMutation.tsx',
     );
     const ssrDataRuntime = readFixture(
       '../packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts',
@@ -109,14 +131,29 @@ describe('tanstack + module federation contracts', () => {
     const matrix = [
       {
         id: 'federated-content-ssr',
-        status: 'gap',
+        status: 'gap-runtime-seam',
         assert: () => {
           expect(hostPage).toContain("typeof window === 'undefined'");
+          expect(hostPage).toContain('id="remote-ssr-contract-gap"');
+          expect(hostPage).toContain(
+            'data-runtime-seam="tanstack-mf-server-remote-render"',
+          );
+          expect(hostPage).toContain(
+            'data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"',
+          );
           expect(hostPage).toContain('id="remote-ssr-placeholder"');
           expect(hostPage).toContain('remote-widget:pending');
           expect(hostPage).toContain('id="remote-mutator-ssr-placeholder"');
+          expect(hostPage).toContain('remote-mutator:pending');
+          expect(hostPage).toContain('id="remote2-ssr-placeholder"');
+          expect(hostPage).toContain('remote2-panel:pending');
           expect(remoteLoader).toContain('import { loadRemote }');
           expect(remoteLoader).toContain('if (typeof window ===');
+          expect(remoteLoader).toContain('React.lazy');
+          for (const config of [hostConfig, remoteConfig, remoteTwoConfig]) {
+            expect(config).toContain("mode: 'string'");
+            expect(config).toContain('moduleFederationAppSSR: true');
+          }
         },
       },
       {
@@ -132,7 +169,7 @@ describe('tanstack + module federation contracts', () => {
           expect(tanstackServerRuntime).toContain(
             'serverSsr?.takeBufferedScripts?.()',
           );
-          expect(tanstackServerRuntime).toContain('tanstackSsrScript');
+          expect(tanstackServerRuntime).toContain('hydrationScripts');
           expect(ssrDataRuntime).toContain('hydrationScript');
           expect(ssrDataRuntime).toContain('ssrDataScripts +=');
           expect(tanstackClientRuntime).toContain('(window as any).$_TSR');
@@ -232,7 +269,7 @@ describe('tanstack + module federation contracts', () => {
     ];
 
     expect(matrix.map(row => [row.id, row.status])).toEqual([
-      ['federated-content-ssr', 'gap'],
+      ['federated-content-ssr', 'gap-runtime-seam'],
       ['tanstack-hydration-dehydrate', 'covered-runtime-surface'],
       ['loader-handoff', 'covered'],
       ['action-handoff', 'covered-generated-bridge'],

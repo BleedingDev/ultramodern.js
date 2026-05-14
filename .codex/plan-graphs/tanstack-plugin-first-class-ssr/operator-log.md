@@ -53,9 +53,11 @@
   - Next action: `tanstack-plugin-ssr-mf-contract` is unblocked after route-owner seam commit.
 - `tanstack-plugin-ssr-mf-contract`
   - Current status: ready
+  - Active todo: `tpssr-03` (pending)
   - Blocked by: none
   - Beads issue: `modernjs-vq0`
-  - Next action: clean `routes-tanstack-mf` patch only after plugin architecture is stable.
+  - Completed todos: `tpssr-01`, `tpssr-02`
+  - Next action: add the Module Federation SSR bridge contract for deterministic server fallback metadata or remote module resolution.
 - `tanstack-upstream-review-branch`
   - Current status: blocked
   - Blocked by: `tanstack-plugin-ssr-mf-contract`

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -13,6 +13,7 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+import { ensurePluginDataLoaderRuntimeBuilt } from './pluginDataLoaderRuntime';
 
 setSuiteTimeout(1000 * 60 * 10);
 
@@ -77,11 +78,30 @@ async function waitForReady(url: string) {
 }
 
 async function buildApp(appDir: string, env: Record<string, string>) {
-  const result = await modernBuild(appDir, [], { env });
-  if (result.code !== 0) {
+  ensurePluginDataLoaderRuntimeBuilt();
+  let result:
+    | {
+        code: number | null;
+        stdout?: string;
+        stderr?: string;
+      }
+    | undefined;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    rmSync(path.join(appDir, 'dist'), {
+      recursive: true,
+      force: true,
+    });
+    result = await modernBuild(appDir, [], { env });
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    if (result.code === 0 || !output.includes('ENOTEMPTY')) {
+      break;
+    }
+  }
+
+  if (!result || result.code !== 0) {
     throw new Error(
-      `Build failed for ${path.basename(appDir)}\n${result.stdout || ''}\n${
-        result.stderr || ''
+      `Build failed for ${path.basename(appDir)}\n${result?.stdout || ''}\n${
+        result?.stderr || ''
       }`,
     );
   }
@@ -153,11 +173,21 @@ async function certifySsrBoundary(hostPort: number) {
   });
   expect(response.status).toBe(200);
   const html = await response.text();
-  expect(html).toContain('<!--<?- html ?>-->');
+  expect(html).not.toContain('<!--<?- html ?>-->');
+  expect(html).toContain('host-mf-loader');
+  expect(html).toContain('host-mf-count:');
+  expect(html).toContain('id="remote-ssr-contract-gap"');
+  expect(html).toContain(
+    'data-runtime-seam="tanstack-mf-server-remote-render"',
+  );
+  expect(html).toContain('remote-widget:pending');
+  expect(html).toContain('remote-mutator:pending');
+  expect(html).toContain('remote2-panel:pending');
   expect(html).not.toContain('remote-widget:ok');
   expect(html).not.toContain('id="remote-mutator"');
+  expect(html).not.toContain('remote2-panel:ok');
   return {
-    id: 'ssr-mf-client-boundary',
+    id: 'ssr-shell-remote-gap-boundary',
     ok: true,
   };
 }
