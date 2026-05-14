@@ -41,9 +41,12 @@
   - Blocked implementation by: `tanstack-plugin-core-hooks`
 - `tanstack-router-plugin-package`
   - Current status: ready
+  - Active todo: `tplug-02`
   - Blocked by: none
   - Beads issue: `modernjs-wrf`
-  - Next action: scaffold plugin only after core hook audit is accepted.
+  - Completed todo: `tplug-01`
+  - Package scaffold worker: `019e2871-e3d3-7580-86fa-4350bbc0fdaa` (Tesla, closed)
+  - Next action: move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.
 - `tanstack-plugin-ssr-mf-contract`
   - Current status: blocked
   - Blocked by: `tanstack-router-plugin-package`

@@ -4,7 +4,7 @@ overview: Extract TanStack Router CLI and runtime integration into @modern-js/pl
 todos:
   - id: tplug-01
     content: Scaffold @modern-js/plugin-tanstack from the PR #8317 prototype and current branch behavior, including package metadata, build config, exports, and tests.
-    status: pending
+    status: completed
   - id: tplug-02
     content: Move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.
     status: pending
@@ -29,6 +29,8 @@ This plan implements the shape ByteDance requested in PR #8317: `import { tansta
 The old PR branch already has a prototype package at `packages/runtime/plugin-tanstack`. Use it as source material, but reconcile it with the current branch, especially the already-landed `modernRouteAction` static-data bridge and Effect/Micro Vertical constraints.
 
 The plugin should own TanStack dependencies, generated code imports, runtime exports, runtime hooks, and fixture activation. Core should only expose the generic hooks from the upstream plan.
+
+`tplug-01` is complete. The scaffold lives at `packages/runtime/plugin-tanstack` with package metadata, Rslib/Rstest/tsconfig, CLI/runtime barrels, copied current-branch TanStack helper sources, and focused helper tests. The CLI plugin export is intentionally a placeholder until `tplug-02` wires generation through the new core CLI seams.
 
 ## Constraints
 
