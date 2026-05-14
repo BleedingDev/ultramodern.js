@@ -128,7 +128,7 @@ describe('bff server plugin', () => {
       expect(apiHandlerInfos).toBeUndefined();
     });
 
-    it('should treat unresolved runtime framework as hono', async () => {
+    it('should treat unresolved runtime framework as effect', async () => {
       let apiHandlerInfos: Array<{ routePath: string }> | null = null;
       const mockApiPlugin: ServerPlugin = {
         name: 'mock-api',
@@ -149,11 +149,7 @@ describe('bff server plugin', () => {
       });
 
       await hooks.prepareApiServer.call({ pwd, prefix: '/' });
-      expect(apiHandlerInfos?.map(item => item.routePath)).toEqual([
-        '/hello',
-        '/upload',
-        '/user/:id',
-      ]);
+      expect(apiHandlerInfos).toBeUndefined();
     });
   });
 });

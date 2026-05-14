@@ -44,6 +44,14 @@
       "default": "./dist/cjs/server.js"
     },
     "./server": {
+      "types": "./dist/types/runtime/effect/index.d.ts",
+      "node": {
+        "import": "./dist/esm-node/runtime/effect/index.mjs",
+        "require": "./dist/cjs/runtime/effect/index.js"
+      },
+      "default": "./dist/cjs/runtime/effect/index.js"
+    },
+    "./hono-server": {
       "types": "./dist/types/runtime/hono/index.d.ts",
       "node": {
         "import": "./dist/esm-node/runtime/hono/index.mjs",
@@ -92,6 +100,9 @@
         "./dist/types/server.d.ts"
       ],
       "server": [
+        "./dist/types/runtime/effect/index.d.ts"
+      ],
+      "hono-server": [
         "./dist/types/runtime/hono/index.d.ts"
       ],
       "effect-server": [

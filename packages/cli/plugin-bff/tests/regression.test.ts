@@ -9,6 +9,30 @@ import clientGenerator, {
 import runtimeGenerator from '../src/utils/runtimeGenerator';
 
 describe('plugin-bff regressions', () => {
+  test('package server export is Effect-first and Hono remains explicit compatibility', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'),
+    );
+
+    expect(packageJson.exports['./server']).toEqual(
+      packageJson.exports['./effect-server'],
+    );
+    expect(packageJson.exports['./hono-server']).toEqual({
+      types: './dist/types/runtime/hono/index.d.ts',
+      node: {
+        import: './dist/esm-node/runtime/hono/index.mjs',
+        require: './dist/cjs/runtime/hono/index.js',
+      },
+      default: './dist/cjs/runtime/hono/index.js',
+    });
+    expect(packageJson.typesVersions['*'].server).toEqual(
+      packageJson.typesVersions['*']['effect-server'],
+    );
+    expect(packageJson.typesVersions['*']['hono-server']).toEqual([
+      './dist/types/runtime/hono/index.d.ts',
+    ]);
+  });
+
   test('effect adapter strips API prefix in enableHandleWeb mode', async () => {
     const middlewares: Array<{
       handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
