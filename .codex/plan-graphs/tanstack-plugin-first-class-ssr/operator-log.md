@@ -41,12 +41,13 @@
   - Blocked implementation by: `tanstack-plugin-core-hooks`
 - `tanstack-router-plugin-package`
   - Current status: ready
-  - Active todo: `tplug-02`
+  - Active todo: `tplug-03`
   - Blocked by: none
   - Beads issue: `modernjs-wrf`
-  - Completed todo: `tplug-01`
+  - Completed todos: `tplug-01`, `tplug-02`
   - Package scaffold worker: `019e2871-e3d3-7580-86fa-4350bbc0fdaa` (Tesla, closed)
-  - Next action: move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.
+  - Plugin CLI worker: `019e287a-e70e-7593-b565-d9ff2a7463a1` (Cicero, closed)
+  - Next action: move TanStack runtime exports, RouterProvider wiring, prefetch links, Form/useFetcher, route-tree conversion, and runtime plugin hooks into `@modern-js/plugin-tanstack/runtime`.
 - `tanstack-plugin-ssr-mf-contract`
   - Current status: blocked
   - Blocked by: `tanstack-router-plugin-package`

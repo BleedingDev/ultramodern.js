@@ -151,14 +151,20 @@ export async function isTanstackRouterFrameworkEnabled(
 export async function generateTanstackRouterTypesSourceForEntry(opts: {
   appContext: AppToolsContext;
   entryName: string;
+  generatedDirName?: string;
   routes: (NestedRouteForCli | PageRoute)[];
 }): Promise<{
   routerGenTs: string;
 }> {
-  const { appContext, entryName, routes } = opts;
+  const {
+    appContext,
+    entryName,
+    generatedDirName = 'modern-tanstack',
+    routes,
+  } = opts;
   const outDir = path.join(
     appContext.srcDirectory,
-    'modern-tanstack',
+    generatedDirName,
     entryName,
   );
 

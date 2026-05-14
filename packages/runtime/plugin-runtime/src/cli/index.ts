@@ -12,6 +12,13 @@ import { ENTRY_BOOTSTRAP_FILE_NAME, ENTRY_POINT_FILE_NAME } from './constants';
 import { isRuntimeEntry } from './entry';
 import { ssrPlugin } from './ssr';
 
+export {
+  getEntrypointRoutesDir,
+  handleFileChange,
+  handleGeneratorEntryCode,
+  handleModifyEntrypoints,
+  isRouteEntry,
+} from '../router/cli';
 export { isRuntimeEntry } from './entry';
 export { documentPlugin, routerPlugin, ssrPlugin };
 export const runtimePlugin = (params?: {

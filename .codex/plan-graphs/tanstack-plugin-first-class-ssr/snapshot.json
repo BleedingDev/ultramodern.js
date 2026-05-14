@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T21:51:47.410790+00:00",
+  "generated_at": "2026-05-14T22:03:03.721996+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -119,7 +119,7 @@
         {
           "id": "tplug-02",
           "content": "Move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -191,27 +191,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "tplug-02",
-          "content": "Move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "tplug-03",
           "content": "Move TanStack runtime exports, RouterProvider wiring, prefetch links, Form/useFetcher, route-tree conversion, and plugin hooks into @modern-js/plugin-tanstack/runtime.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "tplug-04",
           "content": "Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "tplug-05",
+          "content": "Add plugin package build, type, unit, and fixture contract verification while preserving React Router as the built-in Modern.js router path.",
+          "status": "pending",
+          "ordinal": 5
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 5
     },
     {
