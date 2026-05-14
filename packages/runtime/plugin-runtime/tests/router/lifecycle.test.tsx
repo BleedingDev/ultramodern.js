@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { getInitialContext } from '../../src/core/context';
 import {
   modifyRoutes,
@@ -102,6 +104,20 @@ describe('router lifecycle seams', () => {
     ]) {
       expect(hook).toBeDefined();
       expect(typeof (hook as any).call).toBe('function');
+    }
+  });
+
+  it('should keep generic router state sources free of TanStack type imports', async () => {
+    const genericStateSources = [
+      '../../src/core/context/runtime.ts',
+      '../../src/router/runtime/lifecycle.ts',
+      '../../src/router/runtime/types.ts',
+    ];
+
+    for (const sourceFile of genericStateSources) {
+      const source = await readFile(path.join(__dirname, sourceFile), 'utf-8');
+
+      expect(source).not.toContain('@tanstack/react-router');
     }
   });
 });

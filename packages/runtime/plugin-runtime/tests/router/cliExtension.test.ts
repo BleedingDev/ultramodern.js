@@ -74,7 +74,7 @@ describe('router cli extension points', () => {
     expect(isRouteEntry(entryDir, 'views')).toBe(viewsDir);
   });
 
-  test('generates routes for plugin-owned entries and returns routes by entry', async () => {
+  test('generates routes for a non-TanStack plugin-owned entry and returns routes by entry', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-router-cli-'));
     const appDirectory = tempDir;
     const srcDirectory = path.join(tempDir, 'src');
@@ -119,7 +119,7 @@ describe('router cli extension points', () => {
       createApi(appContext),
       [entrypoint],
       {
-        entrypointsKey: 'fake-router',
+        entrypointsKey: '@modern-js/plugin-fake-router',
         generateCodeOptions: { enableTanstackTypes: false },
       },
     );
@@ -138,6 +138,9 @@ describe('router cli extension points', () => {
       'utf-8',
     );
     expect(runtimeContext).toContain("import { routes } from './routes'");
+    expect(
+      await fs.pathExists(path.join(srcDirectory, 'modern-tanstack')),
+    ).toBe(false);
   });
 
   test('regenerates only the scoped route entries for file changes', async () => {
