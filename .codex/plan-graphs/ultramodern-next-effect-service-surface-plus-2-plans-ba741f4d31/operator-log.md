@@ -40,6 +40,7 @@
   - Scout finding: current fixture is intentionally CSR and labels `federated-content-ssr` as a gap. Separate action bridge worker owns generated `modernRouteAction` static-data support under `packages/runtime/plugin-runtime/src/router/cli/code/**`.
   - Completed: `untms-01` added the executable gap matrix and report. `federated-content-ssr` remains the primary gap; action handoff is now covered by generated `modernRouteAction` static data.
   - Attempted: `untms-02` fixture worker proved shell SSR can be expressed, but remote component SSR still needs a runtime seam: server-side TanStack/MF remote module loading and render-before-hydration. The current fixture patch needs cleanup before landing.
+  - PR #8317 constraint: TanStack must be plugin-owned (`@modern-js/plugin-tanstack`) and core changes should be generic router/SSR hooks. Track plugin extraction in `modernjs-wrf` and fixture cleanup in `modernjs-vq0`.
 - `ultramodern-next-mv-preset-topology`
   - Current status: blocked
   - Blocked by: Effect service surface and TanStack MF SSR contract

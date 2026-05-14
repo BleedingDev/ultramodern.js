@@ -29,6 +29,8 @@ Current investigation already found one high-risk gap to validate first: the Tan
 
 `untms-01` is complete after adding an executable gap matrix in `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` and a focused report in `.codex/reports/routes-tanstack-mf-ssr-gap-matrix-20260514.md`. The matrix keeps `federated-content-ssr` marked as a gap, records TanStack hydration/dehydrate as covered runtime surface, proves loader and generated action static-data handoff, and preserves remote fallback plus manifest singleton/version-skew evidence.
 
+PR #8317 upstream discussion changes the implementation constraint: TanStack should work as `@modern-js/plugin-tanstack`, with core limited to router/SSR extension hooks. `untms-02` must therefore clean the fixture around a plugin-compatible SSR seam instead of adding more TanStack-specific behavior directly to `@modern-js/runtime`.
+
 ## Constraints
 
 Keep scope to TanStack Router, Module Federation, SSR, hydration, loader/action semantics, fallback, and telemetry.
@@ -36,6 +38,8 @@ Keep scope to TanStack Router, Module Federation, SSR, hydration, loader/action 
 Do not add migration, codemod, AI, MCP, agent-operation, product taxonomy, or alternate-preset work.
 
 Do not redesign Module Federation. Use the existing Modern.js/MF runtime surfaces and make the Micro Vertical contract executable.
+
+Do not hard-code additional TanStack dependencies into `@modern-js/runtime` except as generic hooks that a plugin can consume.
 
 ## Operator Guidance
 
