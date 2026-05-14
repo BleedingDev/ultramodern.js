@@ -1,0 +1,245 @@
+{
+  "generated_at": "2026-05-14T21:02:46.044690+00:00",
+  "graph_id": "tanstack-plugin-first-class-ssr",
+  "plan_set_hash": "55bbb93655",
+  "selection_hash": "7b73b78c08",
+  "plan_count": 3,
+  "edge_count": 2,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-core-hooks.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-router-plugin-package.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "tanstack-plugin-core-hooks",
+      "target": "tanstack-router-plugin-package"
+    },
+    {
+      "source": "tanstack-router-plugin-package",
+      "target": "tanstack-plugin-ssr-mf-contract"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-core-hooks.plan.md",
+      "slug": "tanstack-plugin-core-hooks",
+      "name": "TanStack Plugin Core Hooks",
+      "overview": "Add the generic Modern.js router and SSR extension hooks needed for a TanStack Router plugin without introducing TanStack dependencies into @modern-js/runtime core.",
+      "todos": [
+        {
+          "id": "tpcore-01",
+          "content": "Audit current TanStack-specific code under @modern-js/runtime and classify each surface as generic hook, plugin-owned implementation, compatibility shim, or removable fixture code.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "tpcore-02",
+          "content": "Generalize router CLI extension points for plugin-owned route directories, entry detection, generateEntryCode ownership, route-spec merging, and file-change regeneration.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tpcore-03",
+          "content": "Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "tpcore-04",
+          "content": "Prove the new hooks with core-only tests and a small non-TanStack test plugin so @modern-js/runtime has no direct TanStack package requirement.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
+      "slug": "tanstack-plugin-ssr-mf-contract",
+      "name": "TanStack Plugin SSR MF Contract",
+      "overview": "Make TanStack SSR and Module Federation remote rendering executable through @modern-js/plugin-tanstack and generic SSR hooks, with deterministic fallback when remotes cannot render on the server.",
+      "todos": [
+        {
+          "id": "tpssr-01",
+          "content": "Clean the current routes-tanstack-mf dirty patch into a minimal plugin-compatible shell SSR seam, removing broad helper churn and unverified browser expectation changes.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "tpssr-02",
+          "content": "Implement plugin-owned TanStack SSR behavior through core hooks: memory history, router load, matched route snapshot, dehydration, hydration scripts, and cleanup.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tpssr-03",
+          "content": "Add the Module Federation SSR bridge contract so server render can resolve remote modules or emit typed deterministic fallback metadata before hydration.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "tpssr-04",
+          "content": "Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "tpssr-05",
+          "content": "Verify dev, build, serve, and deploy-certification paths for the plugin-enabled TanStack MF fixture without hardcoded localhost topology assumptions leaking into Micro Vertical plans.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-router-plugin-package.plan.md",
+      "slug": "tanstack-router-plugin-package",
+      "name": "TanStack Router Plugin Package",
+      "overview": "Extract TanStack Router CLI and runtime integration into @modern-js/plugin-tanstack using the generic core hooks instead of embedding TanStack inside @modern-js/runtime.",
+      "todos": [
+        {
+          "id": "tplug-01",
+          "content": "Scaffold @modern-js/plugin-tanstack from the PR #8317 prototype and current branch behavior, including package metadata, build config, exports, and tests.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "tplug-02",
+          "content": "Move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tplug-03",
+          "content": "Move TanStack runtime exports, RouterProvider wiring, prefetch links, Form/useFetcher, route-tree conversion, and plugin hooks into @modern-js/plugin-tanstack/runtime.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "tplug-04",
+          "content": "Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "tplug-05",
+          "content": "Add plugin package build, type, unit, and fixture contract verification while preserving React Router as the built-in Modern.js router path.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "tanstack-plugin-core-hooks",
+      "plan_name": "TanStack Plugin Core Hooks",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-core-hooks.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "tpcore-01",
+          "content": "Audit current TanStack-specific code under @modern-js/runtime and classify each surface as generic hook, plugin-owned implementation, compatibility shim, or removable fixture code.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "tpcore-02",
+          "content": "Generalize router CLI extension points for plugin-owned route directories, entry detection, generateEntryCode ownership, route-spec merging, and file-change regeneration.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tpcore-03",
+          "content": "Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 4
+    },
+    {
+      "plan_slug": "tanstack-plugin-ssr-mf-contract",
+      "plan_name": "TanStack Plugin SSR MF Contract",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["tanstack-router-plugin-package"],
+      "active": [
+        {
+          "id": "tpssr-01",
+          "content": "Clean the current routes-tanstack-mf dirty patch into a minimal plugin-compatible shell SSR seam, removing broad helper churn and unverified browser expectation changes.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "tpssr-02",
+          "content": "Implement plugin-owned TanStack SSR behavior through core hooks: memory history, router load, matched route snapshot, dehydration, hydration scripts, and cleanup.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tpssr-03",
+          "content": "Add the Module Federation SSR bridge contract so server render can resolve remote modules or emit typed deterministic fallback metadata before hydration.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "tanstack-router-plugin-package",
+      "plan_name": "TanStack Router Plugin Package",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-router-plugin-package.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["tanstack-plugin-core-hooks"],
+      "active": [
+        {
+          "id": "tplug-01",
+          "content": "Scaffold @modern-js/plugin-tanstack from the PR #8317 prototype and current branch behavior, including package metadata, build config, exports, and tests.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "tplug-02",
+          "content": "Move TanStack route generation, register file generation, route type generation, loader/action static-data handoff, and file-change regeneration into the plugin CLI.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "tplug-03",
+          "content": "Move TanStack runtime exports, RouterProvider wiring, prefetch links, Form/useFetcher, route-tree conversion, and plugin hooks into @modern-js/plugin-tanstack/runtime.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
