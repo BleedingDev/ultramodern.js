@@ -1,6 +1,7 @@
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import path from 'node:path';
 {{#if enableBff}}import { bffPlugin } from '@modern-js/plugin-bff';
+{{/if}}{{#if isTanstackRouter}}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 {{/if}}
 
 const appId = process.env.MODERN_BASELINE_APP_ID || path.basename(process.cwd());
@@ -17,7 +18,14 @@ const telemetryFailLoudStartup =
 export default defineConfig(
   presetUltramodern(
     {
-      plugins: [appTools(){{#if enableBff}}, bffPlugin(){{/if}}],
+      plugins: [
+        appTools(),
+{{#if isTanstackRouter}}
+        tanstackRouterPlugin(),
+{{/if}}{{#if enableBff}}
+        bffPlugin(),
+{{/if}}
+      ],
 {{#if enableBff}}
       bff: {
         runtimeFramework: '{{bffRuntime}}',

@@ -92,6 +92,9 @@ describe('create-bff-runtime', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
+    expect(
+      packageJson.dependencies['@modern-js/plugin-tanstack'],
+    ).toBeDefined();
     expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.158.1');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
 
@@ -99,6 +102,10 @@ describe('create-bff-runtime', () => {
       path.join(appDir, 'modern.config.ts'),
       'utf-8',
     );
+    expect(modernConfig).toContain(
+      "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
+    );
+    expect(modernConfig).toContain('tanstackRouterPlugin()');
     expect(modernConfig).toContain('bffPlugin()');
     expect(modernConfig).toContain("runtimeFramework: 'effect'");
     expect(modernConfig).toContain('openapi: true');

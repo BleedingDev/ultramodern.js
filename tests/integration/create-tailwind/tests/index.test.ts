@@ -60,6 +60,10 @@ describe('create-tailwind', () => {
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
     expect(packageJson.name).toBe('with-tailwind');
+    expect(
+      packageJson.dependencies['@modern-js/plugin-tanstack'],
+    ).toBeDefined();
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.158.1');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.1.18');
@@ -87,9 +91,15 @@ describe('create-tailwind', () => {
     expect(pageTsx).toContain('text-emerald-700');
     expect(pageTsx).toContain('font-semibold');
 
-    expectNoHandlebarsArtifacts(
-      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
+    const modernConfig = fs.readFileSync(
+      path.join(appDir, 'modern.config.ts'),
+      'utf-8',
     );
+    expect(modernConfig).toContain(
+      "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
+    );
+    expect(modernConfig).toContain('tanstackRouterPlugin()');
+    expectNoHandlebarsArtifacts(modernConfig);
   });
 
   test('keeps default css scaffold when --tailwind is not set', () => {
