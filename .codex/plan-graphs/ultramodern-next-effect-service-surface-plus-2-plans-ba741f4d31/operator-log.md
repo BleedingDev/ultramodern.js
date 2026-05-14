@@ -17,17 +17,21 @@
 
 - `ultramodern-next-effect-service-surface`
   - Current status: ready
-  - Active todo: `unes-03`
+  - Active todo: `unes-04`
   - Beads issue: `modernjs-2ub`
+  - Completed propagation agent: `019e2830-188a-7d20-9728-08223f6af406`
+  - Completed Hono surface audit agent: `019e2830-1947-7321-b414-85a7ac9bb9fb`
   - Completed agent: `019e281f-ea4e-7850-b76e-1fab19a80bf2`
   - Owner: Effect/BFF service surface
-  - Next action: prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.
+  - Next action: add minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.
   - Completed: `unes-01` upgraded Effect dependencies to `4.0.0-beta.66`, changed `effect/ServiceMap` to `effect/Context`, and passed plugin build/tests in a detached worktree.
   - Completed: `unes-02` landed in `96e4bd06df`; `@modern-js/plugin-bff/server` is Effect-first and `@modern-js/plugin-bff/hono-server` is explicit compatibility.
+  - Completed: `unes-03` added propagation proof for auth, tenant, locale, trace, and correlation headers across Effect request/context surfaces and audited Hono compatibility imports.
 - `ultramodern-next-tanstack-mf-ssr`
   - Current status: ready
   - Active todo: `untms-02`
   - Beads issue: `modernjs-6o2`
+  - Completed SSR fixture attempt agent: `019e2830-18e9-75e1-8d1b-cce031aa00e2`
   - Completed contract agent: `019e2820-1775-7791-9f92-d242b6fb3460`
   - Completed scout agent: `019e2820-3baa-7013-a86d-6384631bf68c`
   - Completed action bridge agent: `019e2824-9e9b-7313-94d0-3a3b61f8df5e`
@@ -35,6 +39,7 @@
   - Next action: convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.
   - Scout finding: current fixture is intentionally CSR and labels `federated-content-ssr` as a gap. Separate action bridge worker owns generated `modernRouteAction` static-data support under `packages/runtime/plugin-runtime/src/router/cli/code/**`.
   - Completed: `untms-01` added the executable gap matrix and report. `federated-content-ssr` remains the primary gap; action handoff is now covered by generated `modernRouteAction` static data.
+  - Attempted: `untms-02` fixture worker proved shell SSR can be expressed, but remote component SSR still needs a runtime seam: server-side TanStack/MF remote module loading and render-before-hydration. The current fixture patch needs cleanup before landing.
 - `ultramodern-next-mv-preset-topology`
   - Current status: blocked
   - Blocked by: Effect service surface and TanStack MF SSR contract

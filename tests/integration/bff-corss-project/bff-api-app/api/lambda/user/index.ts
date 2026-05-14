@@ -1,4 +1,4 @@
-import { Api, Post, Query } from '@modern-js/plugin-bff/server';
+import { Api, Post, Query } from '@modern-js/plugin-bff/hono-server';
 import { z } from 'zod';
 
 const UserSchema = z.object({

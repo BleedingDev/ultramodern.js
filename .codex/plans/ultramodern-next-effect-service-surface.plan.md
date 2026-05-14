@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: unes-03
     content: Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.
-    status: pending
+    status: completed
   - id: unes-04
     content: Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.
     status: pending
@@ -26,6 +26,8 @@ Effect v4 beta is an accepted dependency choice for this fork. The goal is not t
 `unes-01` is complete after upgrading `effect` and `@effect/opentelemetry` to `4.0.0-beta.66`, replacing the removed `effect/ServiceMap` type import with `effect/Context`, and verifying `@modern-js/plugin-bff` build plus tests in a clean detached worktree.
 
 `unes-02` is complete in commit `96e4bd06df`: `@modern-js/plugin-bff/server` now resolves to the Effect runtime surface by default, `@modern-js/plugin-bff/hono-server` preserves explicit Hono compatibility, unresolved runtime selection defaults to Effect, and plugin BFF build/tests passed.
+
+`unes-03` is complete after adding Effect adapter regression coverage for authorization, tenant, locale, traceparent, and correlation headers across direct `Request`, explicit `EffectContext`, AsyncLocalStorage `useEffectContext()`, and dev/build/serve-equivalent middleware paths. The same slice audited Hono compatibility imports so Hono-specific docs and fixtures now use `@modern-js/plugin-bff/hono-server`.
 
 This plan should start with the dependency update because API churn can invalidate follow-up work. After the dependency is green enough, implementation should focus on the narrow public surface needed by Micro Verticals: generated clients, request-context propagation, service operation contracts, and release evidence.
 

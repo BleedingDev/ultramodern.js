@@ -3,6 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import { EffectAdapter } from '../src/runtime/effect/adapter';
+import {
+  type EffectContext,
+  useEffectContext,
+} from '../src/runtime/effect/context';
 import clientGenerator, {
   type APILoaderOptions,
 } from '../src/utils/clientGenerator';
@@ -87,6 +91,158 @@ describe('plugin-bff regressions', () => {
     expect(seenPath).toBe('/effect/hello');
     expect(response).toBeInstanceOf(Response);
     expect(response?.status).toBe(200);
+  });
+
+  test.each([
+    {
+      surface: 'dev mounted web middleware',
+      prefix: '/api',
+      enableHandleWeb: true,
+      url: 'http://shell.local/api/effect/whoami',
+      contextPath: '/api/effect/whoami',
+      servicePath: '/effect/whoami',
+    },
+    {
+      surface: 'build mounted API middleware',
+      prefix: '/api',
+      enableHandleWeb: false,
+      url: 'http://shell.local/api/effect/whoami',
+      contextPath: '/api/effect/whoami',
+      servicePath: '/effect/whoami',
+    },
+    {
+      surface: 'serve root middleware',
+      prefix: '/',
+      enableHandleWeb: false,
+      url: 'http://remote.local/effect/whoami',
+      contextPath: '/effect/whoami',
+      servicePath: '/effect/whoami',
+    },
+  ])('propagates auth, tenant, locale, and trace metadata into Effect services for $surface', async ({
+    prefix,
+    enableHandleWeb,
+    url,
+    contextPath,
+    servicePath,
+  }) => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+    } as unknown;
+
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: (request: Request, context: EffectContext) => Promise<Response>;
+    };
+
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async (
+        request: Request,
+        context: EffectContext,
+      ) => {
+        const storedContext = useEffectContext();
+        return Response.json({
+          request: {
+            auth: request.headers.get('authorization'),
+            tenant: request.headers.get('x-tenant-id'),
+            locale: request.headers.get('accept-language'),
+            trace: request.headers.get('traceparent'),
+            correlation: request.headers.get('x-correlation-id'),
+            path: new URL(request.url).pathname,
+          },
+          explicitContext: {
+            auth: context.request.headers.get('authorization'),
+            tenant: context.request.headers.get('x-tenant-id'),
+            locale: context.request.headers.get('accept-language'),
+            trace: context.request.headers.get('traceparent'),
+            correlation: context.request.headers.get('x-correlation-id'),
+            path: new URL(context.request.url).pathname,
+          },
+          storedContext: {
+            auth: storedContext.request.headers.get('authorization'),
+            tenant: storedContext.request.headers.get('x-tenant-id'),
+            locale: storedContext.request.headers.get('accept-language'),
+            trace: storedContext.request.headers.get('traceparent'),
+            correlation: storedContext.request.headers.get('x-correlation-id'),
+            path: new URL(storedContext.request.url).pathname,
+          },
+          middleware: {
+            path: context.path,
+            method: context.method,
+          },
+        });
+      };
+    };
+
+    await adapter.registerMiddleware({
+      prefix,
+      enableHandleWeb,
+    });
+
+    const middleware = middlewares[0];
+    expect(middleware).toBeDefined();
+
+    const response = (await middleware.handler(
+      {
+        req: {
+          raw: new Request(url, {
+            headers: {
+              authorization: 'Bearer shell-user-token',
+              'x-tenant-id': 'tenant-acme',
+              'accept-language': 'cs-CZ, en;q=0.8',
+              traceparent:
+                '00-11111111111111111111111111111111-2222222222222222-01',
+              'x-correlation-id': 'corr-shell-remote-001',
+            },
+          }),
+          path: contextPath,
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.status).toBe(200);
+    await expect(response?.json()).resolves.toEqual({
+      request: {
+        auth: 'Bearer shell-user-token',
+        tenant: 'tenant-acme',
+        locale: 'cs-CZ, en;q=0.8',
+        trace: '00-11111111111111111111111111111111-2222222222222222-01',
+        correlation: 'corr-shell-remote-001',
+        path: servicePath,
+      },
+      explicitContext: {
+        auth: 'Bearer shell-user-token',
+        tenant: 'tenant-acme',
+        locale: 'cs-CZ, en;q=0.8',
+        trace: '00-11111111111111111111111111111111-2222222222222222-01',
+        correlation: 'corr-shell-remote-001',
+        path: servicePath,
+      },
+      storedContext: {
+        auth: 'Bearer shell-user-token',
+        tenant: 'tenant-acme',
+        locale: 'cs-CZ, en;q=0.8',
+        trace: '00-11111111111111111111111111111111-2222222222222222-01',
+        correlation: 'corr-shell-remote-001',
+        path: servicePath,
+      },
+      middleware: {
+        path: contextPath,
+        method: 'GET',
+      },
+    });
   });
 
   test('effect adapter resolves default api entry when server context omits apiDirectory', async () => {

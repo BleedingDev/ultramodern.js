@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T20:28:18.694368+00:00",
+  "generated_at": "2026-05-14T20:47:12.339603+00:00",
   "graph_id": "ultramodern-next-effect-service-surface-plus-2-plans-ba741f4d31",
   "plan_set_hash": "ef7f18b204",
   "selection_hash": "ba741f4d31",
@@ -44,7 +44,7 @@
         {
           "id": "unes-03",
           "content": "Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -139,21 +139,14 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "unes-03",
-          "content": "Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "unes-04",
           "content": "Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.",
           "status": "pending",
           "ordinal": 4
         }
       ],
-      "completed": 2,
+      "upcoming": [],
+      "completed": 3,
       "total": 4
     },
     {

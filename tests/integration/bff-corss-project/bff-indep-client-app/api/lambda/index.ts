@@ -5,7 +5,7 @@ import {
   Params,
   Post,
   Query,
-} from '@modern-js/plugin-bff/server';
+} from '@modern-js/plugin-bff/hono-server';
 import { useHonoContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
