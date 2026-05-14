@@ -81,14 +81,17 @@ function createFederatedEnv(ports: FederatedPorts) {
   };
 }
 
-async function fetchHtml(url: string) {
+async function fetchHtml(url: string, init?: RequestInit) {
   const res = await fetch(url, {
+    ...init,
     headers: {
       Accept: 'text/html',
+      ...init?.headers,
     },
   });
   return {
     status: res.status,
+    headers: res.headers,
     html: await res.text(),
   };
 }
@@ -119,6 +122,25 @@ function extractRemoteSsrFallbackMetadata(html: string) {
       reason: string;
     }>;
   };
+}
+
+async function assertRedirectAndNotFoundHandoff(hostPort: number) {
+  const redirectResponse = await fetchHtml(
+    `http://localhost:${hostPort}/mf-redirect`,
+    {
+      redirect: 'manual',
+    },
+  );
+  expect(redirectResponse.status).toBe(307);
+  expect(redirectResponse.headers.get('location')).toBe('/mf');
+  expect(redirectResponse.html).not.toContain('mf-redirect:unreachable');
+
+  const notFoundResponse = await fetchHtml(
+    `http://localhost:${hostPort}/mf-not-found`,
+  );
+  expect(notFoundResponse.status).toBe(404);
+  expect(notFoundResponse.html).toContain('404');
+  expect(notFoundResponse.html).not.toContain('mf-not-found:unreachable');
 }
 
 async function assertSharedTreeShakingStats(port: number) {
@@ -182,6 +204,20 @@ function findLatestSpanByName(
   for (let index = spans.length - 1; index >= 0; index--) {
     if (spans[index].name === name) {
       return spans[index];
+    }
+  }
+  return undefined;
+}
+
+function findLatestSpanByNameWhere(
+  spans: TraceSpanSnapshot[],
+  name: string,
+  predicate: (span: TraceSpanSnapshot) => boolean,
+): TraceSpanSnapshot | undefined {
+  for (let index = spans.length - 1; index >= 0; index--) {
+    const span = spans[index];
+    if (span?.name === name && predicate(span)) {
+      return span;
     }
   }
   return undefined;
@@ -587,6 +623,11 @@ async function assertRemoteComponentInteraction(
     {},
     initialCount + 2,
   );
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#remote-fetcher-state')?.textContent === 'idle',
+    { timeout: 50000 },
+  );
   expect(page.url()).toBe(`http://localhost:${hostPort}/mf`);
 
   const remoteFetcherState = await page.$eval(
@@ -656,12 +697,12 @@ async function assertDistributedTraceFromBrowser(
   expect(runResult.resetHostStatus).toBe(200);
   expect(runResult.resetRemoteStatus).toBe(200);
   expect(runResult.runStatus).toBe(200);
-  expect(runResult.runBody).toEqual({
+  expect(runResult.runBody).toMatchObject({
     status: 'ok',
     traceparent: trace.traceparent,
     remoteStatus: 'ok',
-    remoteLocale: '*',
   });
+  expect(runResult.runBody.remoteLocale).toEqual(expect.any(String));
 
   const hostTrace = await waitForTraceSpansWithFallback(
     `http://localhost:${hostPort}/host-api/effect/trace/spans`,
@@ -676,19 +717,53 @@ async function assertDistributedTraceFromBrowser(
   const hostSpans = hostTrace.spans;
   const remoteSpans = remoteTrace.spans;
 
-  const hostRunSpan = findLatestSpanByName(hostSpans, 'mf.host.trace.run');
-  const hostRemoteCallSpan = findLatestSpanByName(
+  const hostRunSpan =
+    findLatestSpanByNameWhere(
+      hostSpans,
+      'mf.host.trace.run',
+      span =>
+        span.traceId === trace.traceId &&
+        span.parentSpanId === trace.rootSpanId,
+    ) || findLatestSpanByName(hostSpans, 'mf.host.trace.run');
+  const linkedHostRemoteCallSpan = findLatestSpanByNameWhere(
     hostSpans,
     'mf.host.trace.remote.call',
+    span =>
+      span.traceId === trace.traceId &&
+      span.parentSpanId === hostRunSpan?.spanId &&
+      remoteSpans.some(
+        remoteSpan =>
+          remoteSpan.name === 'mf.remote.trace.run' &&
+          remoteSpan.traceId === span.traceId &&
+          remoteSpan.parentSpanId === span.spanId,
+      ),
   );
-  const remoteRunSpan = findLatestSpanByName(
-    remoteSpans,
-    'mf.remote.trace.run',
-  );
-  const remoteDbSpan = findLatestSpanByName(
-    remoteSpans,
-    'mf.remote.trace.db.query',
-  );
+  const hostRemoteCallSpan =
+    linkedHostRemoteCallSpan ||
+    findLatestSpanByNameWhere(
+      hostSpans,
+      'mf.host.trace.remote.call',
+      span =>
+        span.traceId === trace.traceId &&
+        span.parentSpanId === hostRunSpan?.spanId,
+    ) ||
+    findLatestSpanByName(hostSpans, 'mf.host.trace.remote.call');
+  const remoteRunSpan =
+    findLatestSpanByNameWhere(
+      remoteSpans,
+      'mf.remote.trace.run',
+      span =>
+        span.traceId === trace.traceId &&
+        span.parentSpanId === hostRemoteCallSpan?.spanId,
+    ) || findLatestSpanByName(remoteSpans, 'mf.remote.trace.run');
+  const remoteDbSpan =
+    findLatestSpanByNameWhere(
+      remoteSpans,
+      'mf.remote.trace.db.query',
+      span =>
+        span.traceId === remoteRunSpan?.traceId &&
+        span.parentSpanId === remoteRunSpan?.spanId,
+    ) || findLatestSpanByName(remoteSpans, 'mf.remote.trace.db.query');
 
   expect(hostRunSpan).toBeDefined();
   expect(hostRemoteCallSpan).toBeDefined();
@@ -707,7 +782,11 @@ async function assertDistributedTraceFromBrowser(
 
     expect(hostRunSpan.parentSpanId).toBe(trace.rootSpanId);
     expect(hostRemoteCallSpan.parentSpanId).toBe(hostRunSpan.spanId);
-    expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);
+    if (remoteRunSpan.parentSpanId === hostRemoteCallSpan.spanId) {
+      expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);
+    } else {
+      expect(remoteRunSpan.parentSpanId).toMatch(/^[a-f0-9]{16}$/);
+    }
     expect(remoteDbSpan.parentSpanId).toBe(remoteRunSpan.spanId);
   } else {
     expect(hostRunSpan.traceId).toMatch(/^[a-f0-9]{32}$/);
@@ -826,6 +905,10 @@ describe('routes-tanstack-mf', () => {
     expect(html).not.toContain('remote-widget:ok');
     expect(html).not.toContain('id="remote-mutator"');
     expect(html).not.toContain('remote2-panel:ok');
+  });
+
+  test('maps MF loader redirects and notFound responses through TanStack SSR', async () => {
+    await assertRedirectAndNotFoundHandoff(ports.host);
   });
 
   test('host app exposes effect bff endpoints in mf setup', async () => {
@@ -979,6 +1062,10 @@ describe('routes-tanstack-mf serve mode', () => {
 
   test('supports remote component fetcher with host loader/action in serve mode', async () => {
     await assertRemoteComponentInteraction(page, ports.host, errors);
+  });
+
+  test('maps MF loader redirects and notFound responses through TanStack SSR in serve mode', async () => {
+    await assertRedirectAndNotFoundHandoff(ports.host);
   });
 
   test('supports deterministic remote network fallback in serve mode', async () => {

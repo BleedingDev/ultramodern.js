@@ -13,10 +13,10 @@ todos:
     status: completed
   - id: tpssr-04
     content: Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.
-    status: pending
+    status: completed
   - id: tpssr-05
     content: Verify dev, build, serve, and deploy-certification paths for the plugin-enabled TanStack MF fixture without hardcoded localhost topology assumptions leaking into Micro Vertical plans.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -35,6 +35,10 @@ For Micro Verticals, the target is not merely client fallback. A shell should be
 `tpssr-02` is complete from the plugin package work and the MF contract verification. `@modern-js/plugin-tanstack/runtime` owns memory history SSR setup, `router.load()`, TanStack server SSR dehydration, hydration scripts, matched route snapshots, and cleanup via the generic router runtime state handoff.
 
 `tpssr-03` is complete. The MF host now emits a typed `RemoteSsrFallbackMetadata` contract before hydration for the three federated remotes that currently degrade to client hydration. Contract, browser SSR, and deploy-certification assertions read the deterministic metadata and verify the explicit `tanstack-mf-server-remote-render` seam instead of relying on untyped placeholder drift.
+
+`tpssr-04` is complete. The MF fixture now includes runtime redirect and notFound host loader routes, keeps the remote fetcher action/loader handoff covered, preserves deterministic remote failure fallback coverage, verifies shared-version singleton contracts, and asserts browser-to-host-to-remote Effect trace continuity in both dev and serve mode.
+
+`tpssr-05` is complete. The host fixture disables route chunk splitting so production string SSR can synchronously render the MF shell, while remotes still use their normal MF asset topology. Full dev/serve integration and gated deploy certification pass with dynamic ports and fixture-local environment wiring.
 
 ## Constraints
 

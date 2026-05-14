@@ -16,10 +16,12 @@ export default function MfPage() {
   const match = useMatch({ from: '/mf' });
   const msg = match.loaderData!.msg;
   const count = match.loaderData!.count;
+  const [clientReady, setClientReady] = React.useState(false);
   const [effectMessage, setEffectMessage] = React.useState('pending');
 
   React.useEffect(() => {
     let canceled = false;
+    setClientReady(true);
 
     hostEffectBff.client.greetings
       .hello({})
@@ -44,7 +46,7 @@ export default function MfPage() {
       <div id="host-loader">{msg}</div>
       <div id="host-mf-count">host-mf-count:{count}</div>
       <div id="host-effect-message">host-effect:{effectMessage}</div>
-      {typeof window === 'undefined' ? (
+      {!clientReady ? (
         <>
           <div
             id="remote-ssr-contract-gap"

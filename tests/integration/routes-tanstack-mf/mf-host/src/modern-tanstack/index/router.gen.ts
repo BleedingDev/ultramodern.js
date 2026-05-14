@@ -136,6 +136,8 @@ function modernLoaderToTanstack<TLoader extends (args: any) => any>(
 
 import loader_0 from "../../routes/layout.loader";
 import { loader as loader_1, action as action_1 } from "../../routes/mf/page.data";
+import { loader as loader_2 } from "../../routes/mf-not-found/page.data";
+import { loader as loader_3 } from "../../routes/mf-redirect/page.data";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
@@ -164,7 +166,27 @@ const route_mf_page = createRoute({
   }),
 });
 
-export const routeTree = rootRoute.addChildren([route_page, route_mf_page]);
+const route_mfNotFound_page = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "mf-not-found",
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
+  staticData: createRouteStaticData({
+    modernRouteId: "mf-not-found/page",
+    modernRouteLoader: loader_2,
+  }),
+});
+
+const route_mfRedirect_page = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "mf-redirect",
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
+  staticData: createRouteStaticData({
+    modernRouteId: "mf-redirect/page",
+    modernRouteLoader: loader_3,
+  }),
+});
+
+export const routeTree = rootRoute.addChildren([route_page, route_mf_page, route_mfNotFound_page, route_mfRedirect_page]);
 
 export const router = createRouter({
   routeTree,

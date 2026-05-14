@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T23:13:48.416023+00:00",
+  "generated_at": "2026-05-14T23:28:47.545083+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -90,13 +90,13 @@
         {
           "id": "tpssr-04",
           "content": "Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "tpssr-05",
           "content": "Verify dev, build, serve, and deploy-certification paths for the plugin-enabled TanStack MF fixture without hardcoded localhost topology assumptions leaking into Micro Vertical plans.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -183,38 +183,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "tanstack-plugin-ssr-mf-contract",
-      "plan_name": "TanStack Plugin SSR MF Contract",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "tpssr-04",
-          "content": "Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "tpssr-05",
-          "content": "Verify dev, build, serve, and deploy-certification paths for the plugin-enabled TanStack MF fixture without hardcoded localhost topology assumptions leaking into Micro Vertical plans.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "completed": 3,
-      "total": 5
-    },
-    {
       "plan_slug": "tanstack-upstream-review-branch",
       "plan_name": "TanStack Upstream Review Branch",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-upstream-review-branch.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["tanstack-plugin-ssr-mf-contract"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "tpreview-01",
@@ -251,6 +225,18 @@
       "upcoming": [],
       "completed": 4,
       "total": 4
+    },
+    {
+      "plan_slug": "tanstack-plugin-ssr-mf-contract",
+      "plan_name": "TanStack Plugin SSR MF Contract",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
     },
     {
       "plan_slug": "tanstack-router-plugin-package",

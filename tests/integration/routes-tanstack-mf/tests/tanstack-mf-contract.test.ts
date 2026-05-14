@@ -136,7 +136,9 @@ describe('tanstack + module federation contracts', () => {
         id: 'federated-content-ssr',
         status: 'gap-runtime-seam',
         assert: () => {
-          expect(hostPage).toContain("typeof window === 'undefined'");
+          expect(hostPage).toContain('const [clientReady, setClientReady]');
+          expect(hostPage).toContain('setClientReady(true)');
+          expect(hostPage).toContain('{!clientReady ? (');
           expect(hostPage).toContain('id="remote-ssr-contract-gap"');
           expect(hostPage).toContain(
             'data-runtime-seam="tanstack-mf-server-remote-render"',
@@ -183,6 +185,7 @@ describe('tanstack + module federation contracts', () => {
             expect(config).toContain("mode: 'string'");
             expect(config).toContain('moduleFederationAppSSR: true');
           }
+          expect(hostConfig).toContain('splitRouteChunks: false');
         },
       },
       {
@@ -233,6 +236,30 @@ describe('tanstack + module federation contracts', () => {
             'import { loader as loader_1, action as action_1 }',
           );
           expect(generatedRouter).toContain('modernRouteAction: action_1');
+        },
+      },
+      {
+        id: 'redirect-not-found-handoff',
+        status: 'covered-generated-and-runtime',
+        assert: () => {
+          expect(generatedRouter).toContain(
+            'import { loader as loader_2 } from "../../routes/mf-not-found/page.data";',
+          );
+          expect(generatedRouter).toContain(
+            'import { loader as loader_3 } from "../../routes/mf-redirect/page.data";',
+          );
+          expect(generatedRouter).toContain('route_mfNotFound_page');
+          expect(generatedRouter).toContain('path: "mf-not-found"');
+          expect(generatedRouter).toContain(
+            'modernRouteId: "mf-not-found/page"',
+          );
+          expect(generatedRouter).toContain('route_mfRedirect_page');
+          expect(generatedRouter).toContain('path: "mf-redirect"');
+          expect(generatedRouter).toContain(
+            'modernRouteId: "mf-redirect/page"',
+          );
+          expect(generatedRouter).toContain('throwTanstackRedirect(location)');
+          expect(generatedRouter).toContain('throw notFound();');
         },
       },
       {
@@ -302,6 +329,7 @@ describe('tanstack + module federation contracts', () => {
       ['tanstack-hydration-dehydrate', 'covered-runtime-surface'],
       ['loader-handoff', 'covered'],
       ['action-handoff', 'covered-generated-bridge'],
+      ['redirect-not-found-handoff', 'covered-generated-and-runtime'],
       ['remote-fallback', 'covered'],
       ['version-skew', 'covered-manifest-contract'],
     ]);
@@ -383,6 +411,10 @@ describe('tanstack + module federation contracts', () => {
     expect(code).toContain('throw notFound();');
     expect(code).toContain('route_mf_page');
     expect(code).toContain('path: "mf"');
+    expect(code).toContain('route_mfNotFound_page');
+    expect(code).toContain('path: "mf-not-found"');
+    expect(code).toContain('route_mfRedirect_page');
+    expect(code).toContain('path: "mf-redirect"');
     expect(code).toContain('createMemoryHistory');
     expect(code).toContain('const request = baseRequest');
     expect(code).toContain('const baseRequest: Request | undefined =');

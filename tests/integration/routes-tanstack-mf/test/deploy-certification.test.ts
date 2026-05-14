@@ -195,6 +195,38 @@ async function certifySsrBoundary(hostPort: number) {
   };
 }
 
+async function certifyRedirectAndNotFound(hostPort: number) {
+  const redirectResponse = await fetch(
+    `http://localhost:${hostPort}/mf-redirect`,
+    {
+      headers: {
+        accept: 'text/html',
+      },
+      redirect: 'manual',
+    },
+  );
+  expect(redirectResponse.status).toBe(307);
+  expect(redirectResponse.headers.get('location')).toBe('/mf');
+
+  const notFoundResponse = await fetch(
+    `http://localhost:${hostPort}/mf-not-found`,
+    {
+      headers: {
+        accept: 'text/html',
+      },
+    },
+  );
+  const html = await notFoundResponse.text();
+  expect(notFoundResponse.status).toBe(404);
+  expect(html).toContain('404');
+  expect(html).not.toContain('mf-not-found:unreachable');
+
+  return {
+    id: 'tanstack-loader-redirect-not-found',
+    ok: true,
+  };
+}
+
 async function certifyFallback(input: {
   page: Page;
   hostPort: number;
@@ -304,6 +336,7 @@ function writeSummary(checks: Check[]) {
       checks.push(await certifyRemoteAssets(ports.remote, 'remote'));
       checks.push(await certifyRemoteAssets(ports.remoteTwo, 'remote2'));
       checks.push(await certifySsrBoundary(ports.host));
+      checks.push(await certifyRedirectAndNotFound(ports.host));
       checks.push(
         await certifyFallback({
           page,

@@ -28,6 +28,7 @@ export default defineConfig({
     polyfill: 'off',
     disableTsChecker: true,
     minify: false,
+    splitRouteChunks: false,
   },
   performance: {
     buildCache: false,

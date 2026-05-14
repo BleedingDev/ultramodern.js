@@ -23,6 +23,10 @@
     "src/routes/mf/remoteSsrFallback.ts",
     "src/routes/mf/page.tsx",
     "src/routes/mf/page.data.ts",
+    "src/routes/mf-not-found/page.tsx",
+    "src/routes/mf-not-found/page.data.ts",
+    "src/routes/mf-redirect/page.tsx",
+    "src/routes/mf-redirect/page.data.ts",
     "src/type-tests/module-federation.tsx"
   ]
 }
