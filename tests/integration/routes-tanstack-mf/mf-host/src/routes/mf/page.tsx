@@ -2,6 +2,10 @@ import hostEffectBff from '@api/effect/index';
 import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import * as React from 'react';
 import { lazyRemoteComponent, RemoteErrorBoundary } from './remoteLoader';
+import {
+  REMOTE_SSR_FALLBACK_METADATA,
+  serializeRemoteSsrFallbackMetadata,
+} from './remoteSsrFallback';
 import './page.css';
 
 const RemoteWidget = lazyRemoteComponent('remote/Widget');
@@ -46,12 +50,37 @@ export default function MfPage() {
             id="remote-ssr-contract-gap"
             data-runtime-seam="tanstack-mf-server-remote-render"
             data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"
+            data-fallback-metadata-id="remote-ssr-fallback-metadata"
           >
             remote-ssr:blocked
           </div>
-          <div id="remote-ssr-placeholder">remote-widget:pending</div>
-          <div id="remote-mutator-ssr-placeholder">remote-mutator:pending</div>
-          <div id="remote2-ssr-placeholder">remote2-panel:pending</div>
+          <script
+            id="remote-ssr-fallback-metadata"
+            type="application/json"
+            // The server shell emits this before hydration so clients and tests
+            // can verify the exact remotes that intentionally fall back to CSR.
+            dangerouslySetInnerHTML={{
+              __html: serializeRemoteSsrFallbackMetadata(
+                REMOTE_SSR_FALLBACK_METADATA,
+              ),
+            }}
+          />
+          {REMOTE_SSR_FALLBACK_METADATA.remotes.map(remote => (
+            <div
+              key={remote.id}
+              id={remote.placeholderId}
+              data-remote-id={remote.id}
+              data-runtime-seam={remote.runtimeSeam}
+              data-fallback-strategy={remote.strategy}
+              data-fallback-reason={remote.reason}
+            >
+              {remote.id === 'remote/Widget'
+                ? 'remote-widget:pending'
+                : remote.id === 'remote/Mutator'
+                  ? 'remote-mutator:pending'
+                  : 'remote2-panel:pending'}
+            </div>
+          ))}
         </>
       ) : (
         <>

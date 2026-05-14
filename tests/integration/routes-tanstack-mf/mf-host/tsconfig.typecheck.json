@@ -20,6 +20,7 @@
     "src/type-tests/api-shim.d.ts",
     "src/type-tests/plugin-tanstack-runtime-shim.d.ts",
     "src/routes/mf/remoteLoader.tsx",
+    "src/routes/mf/remoteSsrFallback.ts",
     "src/routes/mf/page.tsx",
     "src/routes/mf/page.data.ts",
     "src/type-tests/module-federation.tsx"

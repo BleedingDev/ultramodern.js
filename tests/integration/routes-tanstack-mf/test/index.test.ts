@@ -102,6 +102,25 @@ async function fetchJson(url: string) {
   };
 }
 
+function extractRemoteSsrFallbackMetadata(html: string) {
+  const match = html.match(
+    /<script id="remote-ssr-fallback-metadata" type="application\/json">([^<]+)<\/script>/,
+  );
+  expect(match?.[1]).toBeTruthy();
+  return JSON.parse(match![1]) as {
+    version: number;
+    routeId: string;
+    remotes: Array<{
+      id: string;
+      exportName: string;
+      placeholderId: string;
+      strategy: string;
+      runtimeSeam: string;
+      reason: string;
+    }>;
+  };
+}
+
 async function assertSharedTreeShakingStats(port: number) {
   const statsResponse = await fetchJson(
     `http://localhost:${port}/mf-stats.json`,
@@ -770,6 +789,37 @@ describe('routes-tanstack-mf', () => {
     expect(html).toContain(
       'data-runtime-seam="tanstack-mf-server-remote-render"',
     );
+    expect(html).toContain('id="remote-ssr-fallback-metadata"');
+    expect(extractRemoteSsrFallbackMetadata(html)).toEqual({
+      version: 1,
+      routeId: 'mf/page',
+      remotes: [
+        {
+          id: 'remote/Widget',
+          exportName: 'default',
+          placeholderId: 'remote-ssr-placeholder',
+          strategy: 'client-hydration',
+          runtimeSeam: 'tanstack-mf-server-remote-render',
+          reason: 'mf-server-remote-resolution-unavailable',
+        },
+        {
+          id: 'remote/Mutator',
+          exportName: 'default',
+          placeholderId: 'remote-mutator-ssr-placeholder',
+          strategy: 'client-hydration',
+          runtimeSeam: 'tanstack-mf-server-remote-render',
+          reason: 'mf-server-remote-resolution-unavailable',
+        },
+        {
+          id: 'remote2/Panel',
+          exportName: 'default',
+          placeholderId: 'remote2-ssr-placeholder',
+          strategy: 'client-hydration',
+          runtimeSeam: 'tanstack-mf-server-remote-render',
+          reason: 'mf-server-remote-resolution-unavailable',
+        },
+      ],
+    });
     expect(html).toContain('remote-widget:pending');
     expect(html).toContain('remote-mutator:pending');
     expect(html).toContain('remote2-panel:pending');

@@ -180,6 +180,9 @@ async function certifySsrBoundary(hostPort: number) {
   expect(html).toContain(
     'data-runtime-seam="tanstack-mf-server-remote-render"',
   );
+  expect(html).toContain('id="remote-ssr-fallback-metadata"');
+  expect(html).toContain('"strategy":"client-hydration"');
+  expect(html).toContain('"reason":"mf-server-remote-resolution-unavailable"');
   expect(html).toContain('remote-widget:pending');
   expect(html).toContain('remote-mutator:pending');
   expect(html).toContain('remote2-panel:pending');

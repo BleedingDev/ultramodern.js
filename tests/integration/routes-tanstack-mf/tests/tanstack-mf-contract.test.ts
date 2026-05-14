@@ -112,6 +112,9 @@ describe('tanstack + module federation contracts', () => {
     const remoteLoader = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/routes/mf/remoteLoader.tsx',
     );
+    const remoteSsrFallback = readFixture(
+      'integration/routes-tanstack-mf/mf-host/src/routes/mf/remoteSsrFallback.ts',
+    );
     const generatedRouter = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts',
     );
@@ -141,11 +144,37 @@ describe('tanstack + module federation contracts', () => {
           expect(hostPage).toContain(
             'data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"',
           );
-          expect(hostPage).toContain('id="remote-ssr-placeholder"');
+          expect(hostPage).toContain(
+            'data-fallback-metadata-id="remote-ssr-fallback-metadata"',
+          );
+          expect(hostPage).toContain('id="remote-ssr-fallback-metadata"');
+          expect(hostPage).toContain(
+            'REMOTE_SSR_FALLBACK_METADATA.remotes.map',
+          );
+          expect(remoteSsrFallback).toContain(
+            'export type RemoteSsrFallbackDescriptor',
+          );
+          expect(remoteSsrFallback).toContain(
+            "runtimeSeam: 'tanstack-mf-server-remote-render'",
+          );
+          expect(remoteSsrFallback).toContain("strategy: 'client-hydration'");
+          expect(remoteSsrFallback).toContain(
+            "reason: 'mf-server-remote-resolution-unavailable'",
+          );
+          expect(remoteSsrFallback).toContain("id: 'remote/Widget'");
+          expect(remoteSsrFallback).toContain(
+            "placeholderId: 'remote-ssr-placeholder'",
+          );
           expect(hostPage).toContain('remote-widget:pending');
-          expect(hostPage).toContain('id="remote-mutator-ssr-placeholder"');
+          expect(remoteSsrFallback).toContain("id: 'remote/Mutator'");
+          expect(remoteSsrFallback).toContain(
+            "placeholderId: 'remote-mutator-ssr-placeholder'",
+          );
           expect(hostPage).toContain('remote-mutator:pending');
-          expect(hostPage).toContain('id="remote2-ssr-placeholder"');
+          expect(remoteSsrFallback).toContain("id: 'remote2/Panel'");
+          expect(remoteSsrFallback).toContain(
+            "placeholderId: 'remote2-ssr-placeholder'",
+          );
           expect(hostPage).toContain('remote2-panel:pending');
           expect(remoteLoader).toContain('import { loadRemote }');
           expect(remoteLoader).toContain('if (typeof window ===');

@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: tpssr-03
     content: Add the Module Federation SSR bridge contract so server render can resolve remote modules or emit typed deterministic fallback metadata before hydration.
-    status: pending
+    status: completed
   - id: tpssr-04
     content: Prove loader/action handoff, redirects, notFound, remote unavailable, version-skew, SSR-to-CSR degradation, and telemetry in routes-tanstack-mf.
     status: pending
@@ -33,6 +33,8 @@ For Micro Verticals, the target is not merely client fallback. A shell should be
 `tpssr-01` is complete. The MF fixture now uses `@modern-js/plugin-tanstack` explicitly, keeps shell SSR enabled, records the remaining remote-render seam with `data-runtime-seam="tanstack-mf-server-remote-render"`, and deduplicates the plugin-data-loader runtime build helper used by the MF test paths.
 
 `tpssr-02` is complete from the plugin package work and the MF contract verification. `@modern-js/plugin-tanstack/runtime` owns memory history SSR setup, `router.load()`, TanStack server SSR dehydration, hydration scripts, matched route snapshots, and cleanup via the generic router runtime state handoff.
+
+`tpssr-03` is complete. The MF host now emits a typed `RemoteSsrFallbackMetadata` contract before hydration for the three federated remotes that currently degrade to client hydration. Contract, browser SSR, and deploy-certification assertions read the deterministic metadata and verify the explicit `tanstack-mf-server-remote-render` seam instead of relying on untyped placeholder drift.
 
 ## Constraints
 
