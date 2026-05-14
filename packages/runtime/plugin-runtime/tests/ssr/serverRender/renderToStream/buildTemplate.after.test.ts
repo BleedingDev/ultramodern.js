@@ -1,4 +1,6 @@
 import { RenderLevel } from '../../../../src/core/constants';
+import { SSR_DATA_PLACEHOLDER } from '../../../../src/core/server/constants';
+import { buildShellAfterTemplate } from '../../../../src/core/server/stream/afterTemplate';
 import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
 
 describe('SSRDataCollector (stream parity)', () => {
@@ -81,5 +83,40 @@ describe('SSRDataCollector (stream parity)', () => {
     collector.effect();
 
     expect(chunkSet.ssrScripts).toContain('window.__HYDRATE__ = "router";');
+  });
+
+  it('should inject generic router hydration scripts into stream templates', async () => {
+    const html = await buildShellAfterTemplate(SSR_DATA_PLACEHOLDER, {
+      entryName: 'main',
+      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/'),
+      runtimeContext: {
+        initialData: {},
+        __i18nData__: {},
+        routeManifest: {},
+        ssrContext: {
+          request: {
+            params: {},
+            query: {},
+            pathname: '/',
+            host: 'localhost',
+            url: 'http://localhost/',
+            headers: {},
+          },
+          reporter: { sessionId: 'session-1' },
+        },
+        routerServerSnapshot: {
+          hydrationScripts: [
+            '<script>window.__STREAM_ROUTER_A__ = true;</script>',
+            '<script>window.__STREAM_ROUTER_B__ = true;</script>',
+          ],
+        },
+      } as any,
+      ssrConfig: {} as any,
+      config: {} as any,
+    });
+
+    expect(html).toContain('window.__STREAM_ROUTER_A__ = true;');
+    expect(html).toContain('window.__STREAM_ROUTER_B__ = true;');
   });
 });

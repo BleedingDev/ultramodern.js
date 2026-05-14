@@ -4,7 +4,6 @@ import type {
 } from '@modern-js/runtime-utils/router';
 import type { BaseSSRServerContext } from '@modern-js/types';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
-import type { AnyRouter } from '@tanstack/react-router';
 import { createContext, useContext } from 'react';
 import type {
   InternalRouterRuntimeState,
@@ -39,15 +38,15 @@ export interface TInternalRuntimeContext extends TRuntimeContext {
   routerServerSnapshot?: InternalRouterServerSnapshot;
   routerContext?: StaticHandlerContext;
   /**
-   * TanStack Router instance (when `router.framework === 'tanstack'`).
+   * @deprecated Use `routerInstance` or `routerRuntime.instance` instead.
    */
-  tanstackRouter?: AnyRouter;
+  tanstackRouter?: unknown;
   /**
-   * SSR bootstrap script for TanStack Router hydration.
+   * @deprecated Use `routerServerSnapshot.hydrationScript(s)` instead.
    */
   tanstackSsrScript?: string;
   /**
-   * Matched Modern route ids (for CSS injection, etc).
+   * @deprecated Use `routerServerSnapshot.matchedRouteIds` instead.
    */
   tanstackMatchedModernRouteIds?: string[];
   unstable_getBlockNavState?: () => boolean;

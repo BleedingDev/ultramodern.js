@@ -11,6 +11,7 @@ import {
   parseQuery,
 } from '@modern-js/runtime-utils/universal/request';
 import React, { Fragment } from 'react';
+import { cleanupRouterRuntimeState } from '../../router/runtime/lifecycle';
 import { handleRSCRedirect } from '../../router/runtime/rsc-router';
 import {
   getGlobalInternalRuntimeContext,
@@ -284,96 +285,102 @@ export const createRequestHandler: CreateRequestHandler = async (
           basename: ssrContext.baseUrl || '/',
         };
 
-        const beforeRenderResult = await runBeforeRender(context);
+        try {
+          const beforeRenderResult = await runBeforeRender(context);
 
-        // Support data loader to return `new Response` and set status code
-        const routerServerSnapshot = context.routerServerSnapshot;
-        const routerStatusCode =
-          routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
-        if (routerStatusCode && routerStatusCode !== 200) {
-          context.ssrContext?.response.status(routerStatusCode);
-        }
-
-        // log error by monitors when data loader throw error
-        const errors = Object.values(
-          (routerServerSnapshot?.errors ||
-            context.routerContext?.errors ||
-            {}) as Record<string, Error>,
-        );
-        if (errors.length > 0) {
-          options.onError(errors[0], SSRErrors.LOADER_ERROR);
-        }
-
-        // Handle redirect from loader (beforeRenderResult)
-        if (
-          typeof Response !== 'undefined' &&
-          beforeRenderResult instanceof Response &&
-          isRedirectStatus(beforeRenderResult.status)
-        ) {
-          // Already in RSC format (from plugin.node.tsx), return directly
-          if (beforeRenderResult.headers.has('X-Modernjs-Redirect')) {
-            return beforeRenderResult;
+          // Support data loader to return `new Response` and set status code
+          const routerServerSnapshot = context.routerServerSnapshot;
+          const routerStatusCode =
+            routerServerSnapshot?.statusCode ??
+            context.routerContext?.statusCode;
+          if (routerStatusCode && routerStatusCode !== 200) {
+            context.ssrContext?.response.status(routerStatusCode);
           }
-          // Convert to appropriate format
-          const redirectUrl = beforeRenderResult.headers.get('Location') || '/';
-          return processRedirect(
-            new Headers({ Location: redirectUrl }),
-            beforeRenderResult.status,
-            redirectCtx,
-          );
-        }
 
-        if (!createRequestOptions?.enableRsc) {
-          const { htmlTemplate } = options.resource;
-          options.resource.htmlTemplate = htmlTemplate.replace(
-            '</head>',
-            `${CHUNK_CSS_PLACEHOLDER}</head>`,
+          // log error by monitors when data loader throw error
+          const errors = Object.values(
+            (routerServerSnapshot?.errors ||
+              context.routerContext?.errors ||
+              {}) as Record<string, Error>,
           );
-        }
+          if (errors.length > 0) {
+            options.onError(errors[0], SSRErrors.LOADER_ERROR);
+          }
 
-        let response: Response;
+          // Handle redirect from loader (beforeRenderResult)
+          if (
+            typeof Response !== 'undefined' &&
+            beforeRenderResult instanceof Response &&
+            isRedirectStatus(beforeRenderResult.status)
+          ) {
+            // Already in RSC format (from plugin.node.tsx), return directly
+            if (beforeRenderResult.headers.has('X-Modernjs-Redirect')) {
+              return beforeRenderResult;
+            }
+            // Convert to appropriate format
+            const redirectUrl =
+              beforeRenderResult.headers.get('Location') || '/';
+            return processRedirect(
+              new Headers({ Location: redirectUrl }),
+              beforeRenderResult.status,
+              redirectCtx,
+            );
+          }
 
-        if (createRequestOptions?.enableRsc) {
-          response = await handleRSCRequest(
-            request,
-            Root,
-            context,
-            options,
-            handleRequest,
-          );
-        } else {
-          response = await handleRequest(request, Root, {
-            ...options,
-            runtimeContext: context,
+          if (!createRequestOptions?.enableRsc) {
+            const { htmlTemplate } = options.resource;
+            options.resource.htmlTemplate = htmlTemplate.replace(
+              '</head>',
+              `${CHUNK_CSS_PLACEHOLDER}</head>`,
+            );
+          }
+
+          let response: Response;
+
+          if (createRequestOptions?.enableRsc) {
+            response = await handleRSCRequest(
+              request,
+              Root,
+              context,
+              options,
+              handleRequest,
+            );
+          } else {
+            response = await handleRequest(request, Root, {
+              ...options,
+              runtimeContext: context,
+            });
+          }
+
+          // Handle redirect from component render (via responseProxy)
+          if (
+            responseProxy.status !== -1 &&
+            isRedirectStatus(responseProxy.status) &&
+            responseProxy.headers.Location
+          ) {
+            return processRedirect(
+              new Headers(responseProxy.headers),
+              responseProxy.status,
+              redirectCtx,
+            );
+          }
+
+          // Apply non-redirect responseProxy headers/status to response
+          Object.entries(responseProxy.headers).forEach(([key, value]) => {
+            response.headers.set(key, value);
           });
+
+          if (responseProxy.status !== -1) {
+            return new Response(response.body, {
+              status: responseProxy.status,
+              headers: response.headers,
+            });
+          }
+
+          return response;
+        } finally {
+          await cleanupRouterRuntimeState(context);
         }
-
-        // Handle redirect from component render (via responseProxy)
-        if (
-          responseProxy.status !== -1 &&
-          isRedirectStatus(responseProxy.status) &&
-          responseProxy.headers.Location
-        ) {
-          return processRedirect(
-            new Headers(responseProxy.headers),
-            responseProxy.status,
-            redirectCtx,
-          );
-        }
-
-        // Apply non-redirect responseProxy headers/status to response
-        Object.entries(responseProxy.headers).forEach(([key, value]) => {
-          response.headers.set(key, value);
-        });
-
-        if (responseProxy.status !== -1) {
-          return new Response(response.body, {
-            status: responseProxy.status,
-            headers: response.headers,
-          });
-        }
-
-        return response;
       },
     );
   };

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T21:28:03.291804+00:00",
+  "generated_at": "2026-05-14T21:38:30.748224+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -49,7 +49,7 @@
         {
           "id": "tpcore-03",
           "content": "Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
@@ -191,21 +191,14 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "tpcore-03",
-          "content": "Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
           "id": "tpcore-04",
           "content": "Prove the new hooks with core-only tests and a small non-TanStack test plugin so @modern-js/runtime has no direct TanStack package requirement.",
           "status": "pending",
           "ordinal": 4
         }
       ],
-      "completed": 2,
+      "upcoming": [],
+      "completed": 3,
       "total": 4
     },
     {

@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: tpcore-03
     content: Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.
-    status: pending
+    status: completed
   - id: tpcore-04
     content: Prove the new hooks with core-only tests and a small non-TanStack test plugin so @modern-js/runtime has no direct TanStack package requirement.
     status: pending
@@ -30,6 +30,8 @@ The old PR branch `bleedingdev/feat/tanstack-router-tailwind-first-class` contai
 `tpcore-01` is complete. The audits are captured in `.codex/reports/tpcore-01-runtime-core-audit.md`, `.codex/reports/tpcore-01-pr8317-plugin-prototype-audit.md`, and `.codex/reports/tpcore-01-mf-fixture-dirty-patch-audit.md`. The agreed next slice is `tpcore-02`: generic router CLI extension points only. Do not move TanStack runtime or MF fixture code in that slice.
 
 `tpcore-02` is complete. Runtime core now exposes generic CLI seams for plugin-owned route directories, scoped route generation, keyed file-change regeneration, generated routes by entry, built-in route filtering, and route-spec JSON merge behavior. The focused proof is `packages/runtime/plugin-runtime/tests/router/cliExtension.test.ts`.
+
+`tpcore-03` is complete. Runtime core now normalizes router server snapshots, multiple hydration scripts, matched route snapshots, opaque router instances, and cleanup through router-agnostic helpers. Core SSR consumers use generic helpers instead of TanStack-specific fallback fields, while deprecated TanStack context fields remain as untyped compatibility shims.
 
 ## Constraints
 

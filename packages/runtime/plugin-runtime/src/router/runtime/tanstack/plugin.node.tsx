@@ -26,7 +26,8 @@ import {
 import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import type { RouterExtendsHooks } from '../hooks';
 import {
-  applyRouterRuntimeState,
+  applyRouterServerPrepareResult,
+  createRouterServerSnapshot,
   type RouterLifecycleContext,
 } from '../lifecycle';
 import type { InternalRouterServerSnapshot, RouterConfig } from '../types';
@@ -66,6 +67,11 @@ function routerManagedTagToHtml(tag: any): string {
   const open = attrsStr.length ? `<script ${attrsStr}>` : '<script>';
   const children = typeof tag.children === 'string' ? tag.children : '';
   return `${open}${children}</script>`;
+}
+
+function routerManagedTagsToHtml(tags: any): string[] {
+  const normalizedTags = Array.isArray(tags) ? tags : [tags];
+  return normalizedTags.map(routerManagedTagToHtml).filter(Boolean);
 }
 
 function createGetSsrHref(request: Request): string {
@@ -241,34 +247,37 @@ export const tanstackRouterPlugin = (
 
         await (tanstackRouter as any).serverSsr?.dehydrate?.();
 
-        const ssrScriptTag = (
+        const ssrScriptTags = (
           tanstackRouter as any
         ).serverSsr?.takeBufferedScripts?.();
+        const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);
         const matchedRouteIds = getModernRouteIdsFromMatches(
           tanstackRouter as any,
         );
-        const routerServerSnapshot: InternalRouterServerSnapshot = {
-          framework: 'tanstack',
-          basename: _basename,
-          statusCode: tanstackRouter.state.statusCode,
-          errors: collectRouterErrors(tanstackRouter as any),
-          matchedRouteIds,
-          hydrationScript: routerManagedTagToHtml(ssrScriptTag),
-        };
-        const runtimeContext = applyRouterRuntimeState(
-          context as TInternalRuntimeContext,
-          {
+        const routerServerSnapshot: InternalRouterServerSnapshot =
+          createRouterServerSnapshot({
             framework: 'tanstack',
             basename: _basename,
-            instance: tanstackRouter as any,
-            hydrationScript: routerServerSnapshot.hydrationScript,
+            statusCode: tanstackRouter.state.statusCode,
+            errors: collectRouterErrors(tanstackRouter as any),
             matchedRouteIds,
-            serverSnapshot: routerServerSnapshot,
+            hydrationScripts,
+          });
+        const runtimeContext = applyRouterServerPrepareResult(
+          context as TInternalRuntimeContext,
+          {
+            snapshot: routerServerSnapshot,
+            cleanup: () => (tanstackRouter as any).serverSsr?.cleanup?.(),
+            state: {
+              framework: 'tanstack',
+              basename: _basename,
+              instance: tanstackRouter as any,
+              hydrationScripts,
+              matchedRouteIds,
+              serverSnapshot: routerServerSnapshot,
+            },
           },
         );
-        runtimeContext.tanstackSsrScript = routerServerSnapshot.hydrationScript;
-        runtimeContext.tanstackMatchedModernRouteIds = matchedRouteIds;
-        runtimeContext.tanstackRouter = tanstackRouter as any;
         hooks.onAfterCreateRouter.call({
           ...routerLifecycleContext,
           router: tanstackRouter as any,
@@ -283,7 +292,8 @@ export const tanstackRouterPlugin = (
             const context = useContext(
               InternalRuntimeContext,
             ) as any as TInternalRuntimeContext;
-            const router = (context as any).tanstackRouter;
+            const router =
+              context.routerInstance ?? context.routerRuntime?.instance;
             if (!router) {
               return App ? <App {...props} /> : null;
             }

@@ -11,6 +11,7 @@ const createScripts = (options?: {
       errors?: Record<string, unknown>;
     };
     hydrationScript?: string;
+    hydrationScripts?: string[];
   };
 }) => {
   const chunkSet = {
@@ -90,5 +91,19 @@ describe('SSR data script generation', () => {
     expect(scripts).toContain('window.__ROUTER_SSR__ = true;');
     expect(scripts).toContain('loaderData');
     expect(scripts).toContain('"ok":true');
+  });
+
+  it('should serialize generic router hydration scripts when present', () => {
+    const scripts = createScripts({
+      routerServerSnapshot: {
+        hydrationScripts: [
+          '<script>window.__ROUTER_A__ = true;</script>',
+          '<script>window.__ROUTER_B__ = true;</script>',
+        ],
+      },
+    });
+
+    expect(scripts).toContain('window.__ROUTER_A__ = true;');
+    expect(scripts).toContain('window.__ROUTER_B__ = true;');
   });
 });

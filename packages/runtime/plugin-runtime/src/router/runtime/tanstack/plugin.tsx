@@ -223,7 +223,6 @@ export const tanstackRouterPlugin = (
             basename: _basename,
             instance: router,
           });
-          runtimeState.tanstackRouter = router as any;
           const lifecycleContext: RouterLifecycleContext = {
             framework: 'tanstack',
             phase: 'client-create',

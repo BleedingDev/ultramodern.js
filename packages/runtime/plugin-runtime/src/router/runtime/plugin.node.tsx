@@ -34,6 +34,7 @@ import {
 } from './hooks';
 import {
   applyRouterRuntimeState,
+  createRouterServerSnapshot,
   type RouterLifecycleContext,
 } from './lifecycle';
 import {
@@ -57,15 +58,11 @@ function createRemixRequest(request: Request) {
   });
 }
 
-function createRouterServerSnapshot(
+function createReactRouterServerSnapshot(
   routerContext: StaticHandlerContext,
   basename?: string,
 ): InternalRouterServerSnapshot {
-  const matchedRouteIds = routerContext.matches
-    .map(match => match.route.id)
-    .filter((routeId): routeId is string => typeof routeId === 'string');
-
-  return {
+  return createRouterServerSnapshot({
     framework: 'react-router',
     basename,
     statusCode: routerContext.statusCode,
@@ -74,8 +71,15 @@ function createRouterServerSnapshot(
       loaderData: routerContext.loaderData,
       errors: routerContext.errors as Record<string, unknown> | undefined,
     },
-    matchedRouteIds,
-  };
+    matches: routerContext.matches
+      .map(match => {
+        const routeId = match.route.id;
+        return typeof routeId === 'string' ? { routeId } : undefined;
+      })
+      .filter(
+        (match): match is { routeId: string } => typeof match !== 'undefined',
+      ),
+  });
 }
 
 export const routerPlugin = (
@@ -217,7 +221,7 @@ export const routerPlugin = (
           throw errors[0];
         }
         context.routerContext = routerContext;
-        const routerServerSnapshot = createRouterServerSnapshot(
+        const routerServerSnapshot = createReactRouterServerSnapshot(
           routerContext,
           _basename,
         );

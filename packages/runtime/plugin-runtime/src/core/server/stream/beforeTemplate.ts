@@ -1,6 +1,7 @@
 // Todo: This import will introduce router code, like remix, even if router config is false
 import { matchRoutes } from '@modern-js/runtime-utils/router';
 import ReactHelmet, { type HelmetData } from 'react-helmet';
+import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../../context';
 import { CHUNK_CSS_PLACEHOLDER } from '../constants';
 import { createReplaceHelemt } from '../helmet';
@@ -72,13 +73,7 @@ export async function buildShellBeforeTemplate(
     return safeReplace(template, CHUNK_CSS_PLACEHOLDER, css);
 
     async function getCssChunks() {
-      const {
-        routeManifest,
-        routerServerSnapshot,
-        routerContext,
-        routes,
-        tanstackMatchedModernRouteIds,
-      } = runtimeContext;
+      const { routeManifest, routerContext, routes } = runtimeContext;
       if (!routeManifest) {
         return '';
       }
@@ -91,8 +86,7 @@ export async function buildShellBeforeTemplate(
 
       let matchedRouteManifests: RouteManifest[] | undefined;
 
-      const matchedRouteIds =
-        routerServerSnapshot?.matchedRouteIds || tanstackMatchedModernRouteIds;
+      const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext);
 
       if (matchedRouteIds?.length) {
         matchedRouteManifests = matchedRouteIds

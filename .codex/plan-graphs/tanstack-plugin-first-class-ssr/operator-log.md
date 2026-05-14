@@ -19,15 +19,16 @@
 
 - `tanstack-plugin-core-hooks`
   - Current status: ready
-  - Active todo: `tpcore-03`
+  - Active todo: `tpcore-04`
   - Beads issue: `modernjs-wrf`
-  - Completed todos: `tpcore-01`, `tpcore-02`
+  - Completed todos: `tpcore-01`, `tpcore-02`, `tpcore-03`
   - Runtime core audit agent: `019e2853-a476-7313-a7da-049afaa8e412` (closed)
   - PR #8317 prototype audit agent: `019e2853-a4e1-7092-a17a-551466f0c0e8` (closed)
   - MF fixture dirty patch audit agent: `019e2853-a551-7973-8acc-2e5f0aaecd14` (closed)
   - CLI implementation worker: `019e285b-187f-7920-a037-e238181e5438` (Hooke, closed)
-  - Owner: generic SSR runtime hooks
-  - Next action: add router-agnostic SSR runtime hooks for plugin-owned router creation/load, route match snapshots, hydration scripts, status/errors/redirects, and cleanup.
+  - SSR implementation worker: `019e2865-05c3-7c90-938b-2c0a80eeb142` (Bernoulli, closed)
+  - Owner: core-only verification with a small non-TanStack proof plugin/test
+  - Next action: prove the new CLI and SSR hooks together without requiring TanStack packages in runtime core.
 - `tanstack-plugin-core-hooks` / `tpcore-03` prep
   - Current status: read-only prep complete
   - SSR hook prep explorer: `019e285b-37bb-7f12-b57c-4dfa6a2b6f5e` (Chandrasekhar, closed)

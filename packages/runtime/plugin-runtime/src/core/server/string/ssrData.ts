@@ -2,6 +2,7 @@ import { serializeJson } from '@modern-js/runtime-utils/node';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import type { HeadersData } from '@modern-js/runtime-utils/universal/request';
 import type { IncomingHttpHeaders } from 'http';
+import { getRouterHydrationScripts } from '../../../router/runtime/lifecycle';
 import { ROUTER_DATA_JSON_ID, SSR_DATA_JSON_ID } from '../../constants';
 import type { TInternalRuntimeContext } from '../../context';
 import type { SSRContainer, SSRServerContext } from '../../types';
@@ -103,9 +104,9 @@ export class SSRDataCollector implements Collector {
     routerData?: Record<string, any>,
   ) {
     const { nonce, useJsonScript = false } = this.#options;
-    const hydrationScript =
-      this.#options.runtimeContext.routerServerSnapshot?.hydrationScript ??
-      this.#options.runtimeContext.tanstackSsrScript;
+    const hydrationScripts = getRouterHydrationScripts(
+      this.#options.runtimeContext,
+    );
     const serializeSSRData = serializeJson(ssrData);
     const attrsStr = attributesToString({ nonce });
 
@@ -120,8 +121,8 @@ export class SSRDataCollector implements Collector {
         : `\n<script${attrsStr}>window._ROUTER_DATA = ${serializedRouterData}</script>`;
     }
 
-    if (hydrationScript) {
-      ssrDataScripts += `\n${hydrationScript}`;
+    if (hydrationScripts.length) {
+      ssrDataScripts += `\n${hydrationScripts.join('\n')}`;
     }
 
     return ssrDataScripts;

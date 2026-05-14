@@ -22,7 +22,7 @@ describe('wrapRuntimeContextProvider', () => {
     };
 
     const context = getInitialContext(false);
-    context.routerFramework = 'tanstack';
+    context.routerFramework = 'custom-router';
     context.routerInstance = { kind: 'internal-router' };
     context.routerServerSnapshot = {
       matchedRouteIds: ['route-a'],
@@ -38,11 +38,11 @@ describe('wrapRuntimeContextProvider', () => {
     expect(internalValue?.routerServerSnapshot).toEqual({
       matchedRouteIds: ['route-a'],
     });
-    expect(internalValue?.routerFramework).toBe('tanstack');
+    expect(internalValue?.routerFramework).toBe('custom-router');
     expect(internalValue?.routerInstance).toEqual({
       kind: 'internal-router',
     });
-    expect(runtimeValue?.routerFramework).toBe('tanstack');
+    expect(runtimeValue?.routerFramework).toBe('custom-router');
     expect(runtimeValue?.routerInstance).toBeUndefined();
     expect(runtimeValue?.routerServerSnapshot).toBeUndefined();
   });
