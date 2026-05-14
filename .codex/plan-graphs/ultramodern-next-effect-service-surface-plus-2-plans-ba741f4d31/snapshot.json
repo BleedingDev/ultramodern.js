@@ -1,0 +1,236 @@
+{
+  "generated_at": "2026-05-14T20:00:25.899865+00:00",
+  "graph_id": "ultramodern-next-effect-service-surface-plus-2-plans-ba741f4d31",
+  "plan_set_hash": "ef7f18b204",
+  "selection_hash": "ba741f4d31",
+  "plan_count": 3,
+  "edge_count": 2,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-effect-service-surface.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-mv-preset-topology.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-tanstack-mf-ssr.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "ultramodern-next-effect-service-surface",
+      "target": "ultramodern-next-mv-preset-topology"
+    },
+    {
+      "source": "ultramodern-next-tanstack-mf-ssr",
+      "target": "ultramodern-next-mv-preset-topology"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-effect-service-surface.plan.md",
+      "slug": "ultramodern-next-effect-service-surface",
+      "name": "Ultramodern Next Effect Service Surface",
+      "overview": "Make Effect v4 beta the first-class service and BFF contract surface for presetUltramodern Micro Verticals while keeping Hono only as an explicit compatibility lane.",
+      "todos": [
+        {
+          "id": "unes-01",
+          "content": "Upgrade Effect v4 beta dependencies, refresh the lockfile, and record any source-level API breakages before broadening runtime changes.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "unes-02",
+          "content": "Align the public BFF/service surface so new presetUltramodern services use Effect-first exports, generator defaults, and docs without removing explicit Hono compatibility.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "unes-03",
+          "content": "Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "unes-04",
+          "content": "Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-mv-preset-topology.plan.md",
+      "slug": "ultramodern-next-mv-preset-topology",
+      "name": "Ultramodern Next MV Preset Topology",
+      "overview": "Productize the narrowed Micro Verticals path under the single presetUltramodern entrypoint with a minimal topology covering shell, vertical remotes, a design-system remote, and Effect services.",
+      "todos": [
+        {
+          "id": "unmtp-01",
+          "content": "Normalize docs and plan language so presetUltramodern is the only Micro Verticals preset and no second preset or migration program is implied.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "unmtp-02",
+          "content": "Define the minimal topology fixture for one shell, two vertical remotes, one horizontal design-system MF remote, and one Effect service.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "unmtp-03",
+          "content": "Wire the design-system path as just another Module Federation remote with the same trust, version, fallback, and SSR compatibility expectations as feature remotes.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "unmtp-04",
+          "content": "Produce one reference workspace smoke path and graph handoff bundle that can feed plan-graph and subagent-graph without pulling in deferred work.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-tanstack-mf-ssr.plan.md",
+      "slug": "ultramodern-next-tanstack-mf-ssr",
+      "name": "Ultramodern Next TanStack MF SSR Contract",
+      "overview": "Make TanStack Router plus Module Federation SSR the executable shell-to-remote contract for Micro Verticals, including hydration, redirects, not-found, loader/action handoff, fallback, and version-skew behavior.",
+      "todos": [
+        {
+          "id": "untms-01",
+          "content": "Inventory the current TanStack MF SSR coverage against hydration, dehydrate, redirect, notFound, loader/action, asset ownership, and fallback requirements.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "untms-02",
+          "content": "Convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "untms-03",
+          "content": "Add version-skew, remote-unavailable, compatibility-mismatch, and SSR-to-CSR degradation tests with observable fallback telemetry.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "untms-04",
+          "content": "Tighten runtime flags and docs so app-level MF SSR is explicit, deterministic, and not hidden behind preset-only policy.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-next-effect-service-surface",
+      "plan_name": "Ultramodern Next Effect Service Surface",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-effect-service-surface.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "unes-02",
+          "content": "Align the public BFF/service surface so new presetUltramodern services use Effect-first exports, generator defaults, and docs without removing explicit Hono compatibility.",
+          "status": "pending",
+          "ordinal": 2
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "unes-03",
+          "content": "Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "unes-04",
+          "content": "Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 1,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-next-tanstack-mf-ssr",
+      "plan_name": "Ultramodern Next TanStack MF SSR Contract",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-tanstack-mf-ssr.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "untms-01",
+          "content": "Inventory the current TanStack MF SSR coverage against hydration, dehydrate, redirect, notFound, loader/action, asset ownership, and fallback requirements.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "untms-02",
+          "content": "Convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "untms-03",
+          "content": "Add version-skew, remote-unavailable, compatibility-mismatch, and SSR-to-CSR degradation tests with observable fallback telemetry.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-next-mv-preset-topology",
+      "plan_name": "Ultramodern Next MV Preset Topology",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-next-mv-preset-topology.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "ultramodern-next-effect-service-surface",
+        "ultramodern-next-tanstack-mf-ssr"
+      ],
+      "active": [
+        {
+          "id": "unmtp-01",
+          "content": "Normalize docs and plan language so presetUltramodern is the only Micro Verticals preset and no second preset or migration program is implied.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "unmtp-02",
+          "content": "Define the minimal topology fixture for one shell, two vertical remotes, one horizontal design-system MF remote, and one Effect service.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "unmtp-03",
+          "content": "Wire the design-system path as just another Module Federation remote with the same trust, version, fallback, and SSR compatibility expectations as feature remotes.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 4
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "matched-plan-set"
+}

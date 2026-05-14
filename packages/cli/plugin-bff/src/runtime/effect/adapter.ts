@@ -12,7 +12,7 @@ import {
   isProd,
   logger,
 } from '@modern-js/utils';
-import type * as ServiceMap from 'effect/ServiceMap';
+import type * as EffectServiceContext from 'effect/Context';
 import { HttpApi } from 'effect/unstable/httpapi';
 import path from 'path';
 import { type EffectContext, runWithEffectContext } from './context';
@@ -47,7 +47,7 @@ type ContextWithJson = Context & {
 
 type RequestHandler = (
   request: Request,
-  context?: ServiceMap.ServiceMap<never> | EffectContext,
+  context?: EffectServiceContext.Context<never> | EffectContext,
 ) => Promise<Response> | Response;
 
 type EffectApiModule = {
