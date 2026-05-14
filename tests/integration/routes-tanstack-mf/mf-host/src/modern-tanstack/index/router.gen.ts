@@ -53,6 +53,7 @@ function mapParamsForModernLoader(params: Record<string, string>, hasSplat: bool
 
 function createRouteStaticData(opts: {
   modernRouteId?: string;
+  modernRouteAction?: unknown;
   modernRouteLoader?: unknown;
 }) {
   const staticData: Record<string, unknown> = {};
@@ -63,6 +64,10 @@ function createRouteStaticData(opts: {
 
   if (opts.modernRouteLoader) {
     staticData.modernRouteLoader = opts.modernRouteLoader;
+  }
+
+  if (opts.modernRouteAction) {
+    staticData.modernRouteAction = opts.modernRouteAction;
   }
 
   return Object.keys(staticData).length > 0 ? staticData : undefined;
@@ -130,7 +135,7 @@ function modernLoaderToTanstack<TLoader extends (args: any) => any>(
 }
 
 import loader_0 from "../../routes/layout.loader";
-import { loader as loader_1 } from "../../routes/mf/page.data";
+import { loader as loader_1, action as action_1 } from "../../routes/mf/page.data";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
@@ -155,6 +160,7 @@ const route_mf_page = createRoute({
   staticData: createRouteStaticData({
     modernRouteId: "mf/page",
     modernRouteLoader: loader_1,
+    modernRouteAction: action_1,
   }),
 });
 

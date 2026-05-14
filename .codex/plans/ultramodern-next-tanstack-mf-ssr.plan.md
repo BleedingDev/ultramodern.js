@@ -4,7 +4,7 @@ overview: Make TanStack Router plus Module Federation SSR the executable shell-t
 todos:
   - id: untms-01
     content: Inventory the current TanStack MF SSR coverage against hydration, dehydrate, redirect, notFound, loader/action, asset ownership, and fallback requirements.
-    status: pending
+    status: completed
   - id: untms-02
     content: Convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.
     status: pending
@@ -26,6 +26,8 @@ This is the central frontend runtime lane for Micro Verticals. A vertical is onl
 The first todo is intentionally investigative and should produce a small gap matrix before implementation. The implementation todos should stay focused on TanStack plus Module Federation SSR. React Router remains a compatibility lane and should not drive this plan.
 
 Current investigation already found one high-risk gap to validate first: the TanStack SSR runtime exists, but the `routes-tanstack-mf` fixture currently treats federated route content as client-rendered during SSR. Promotion work must prove whether this is intentional fallback behavior or missing remote SSR coverage.
+
+`untms-01` is complete after adding an executable gap matrix in `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` and a focused report in `.codex/reports/routes-tanstack-mf-ssr-gap-matrix-20260514.md`. The matrix keeps `federated-content-ssr` marked as a gap, records TanStack hydration/dehydrate as covered runtime surface, proves loader and generated action static-data handoff, and preserves remote fallback plus manifest singleton/version-skew evidence.
 
 ## Constraints
 

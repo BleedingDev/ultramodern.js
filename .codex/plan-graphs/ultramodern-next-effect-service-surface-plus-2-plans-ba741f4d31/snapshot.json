@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T20:00:25.899865+00:00",
+  "generated_at": "2026-05-14T20:28:18.694368+00:00",
   "graph_id": "ultramodern-next-effect-service-surface-plus-2-plans-ba741f4d31",
   "plan_set_hash": "ef7f18b204",
   "selection_hash": "ba741f4d31",
@@ -38,7 +38,7 @@
         {
           "id": "unes-02",
           "content": "Align the public BFF/service surface so new presetUltramodern services use Effect-first exports, generator defaults, and docs without removing explicit Hono compatibility.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -102,7 +102,7 @@
         {
           "id": "untms-01",
           "content": "Inventory the current TanStack MF SSR coverage against hydration, dehydrate, redirect, notFound, loader/action, asset ownership, and fallback requirements.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -139,19 +139,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "unes-02",
-          "content": "Align the public BFF/service surface so new presetUltramodern services use Effect-first exports, generator defaults, and docs without removing explicit Hono compatibility.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "unes-03",
           "content": "Prove request, auth, tenant, locale, and trace propagation from shell or remote clients into Effect services across dev, build, and serve paths.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "unes-04",
           "content": "Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.",
@@ -159,7 +153,7 @@
           "ordinal": 4
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 4
     },
     {
@@ -171,27 +165,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "untms-01",
-          "content": "Inventory the current TanStack MF SSR coverage against hydration, dehydrate, redirect, notFound, loader/action, asset ownership, and fallback requirements.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "untms-02",
           "content": "Convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "untms-03",
           "content": "Add version-skew, remote-unavailable, compatibility-mismatch, and SSR-to-CSR degradation tests with observable fallback telemetry.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "untms-04",
+          "content": "Tighten runtime flags and docs so app-level MF SSR is explicit, deterministic, and not hidden behind preset-only policy.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 4
     },
     {
@@ -232,5 +226,5 @@
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "matched-plan-set"
+  "graph_source": "explicit"
 }

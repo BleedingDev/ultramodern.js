@@ -80,6 +80,7 @@ function isIndexRoute(route: NestedRouteForCli | PageRoute) {
 function createRouteStaticDataSnippet(opts: {
   modernRouteId?: string;
   loaderName?: string | null;
+  actionName?: string | null;
 }) {
   const staticDataLines: string[] = [];
 
@@ -89,6 +90,10 @@ function createRouteStaticDataSnippet(opts: {
 
   if (opts.loaderName) {
     staticDataLines.push(`modernRouteLoader: ${opts.loaderName},`);
+  }
+
+  if (opts.actionName) {
+    staticDataLines.push(`modernRouteAction: ${opts.actionName},`);
   }
 
   if (!staticDataLines.length) {
@@ -153,14 +158,20 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   let loaderIndex = 0;
   let routeIndex = 0;
 
-  const getImportNameForLoader = async (
+  const getImportNamesForLoader = async (
     aliasedNoExtPath: string,
     inline: boolean,
+    hasAction: boolean,
   ) => {
-    const key = `${inline ? 'inline' : 'default'}:${aliasedNoExtPath}`;
+    const key = `${
+      inline ? 'inline' : 'default'
+    }:${hasAction ? 'action' : 'loader'}:${aliasedNoExtPath}`;
     const existing = loaderImportMap.get(key);
     if (existing) {
-      return existing;
+      return {
+        loaderName: existing,
+        actionName: hasAction ? existing.replace(/^loader_/, 'action_') : null,
+      };
     }
 
     const prefix = `${appContext.internalSrcAlias}/`;
@@ -185,16 +196,23 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     );
 
     const importName = `loader_${loaderIndex++}`;
+    const actionName = hasAction
+      ? importName.replace(/^loader_/, 'action_')
+      : null;
     if (inline) {
+      const specifiers = [`loader as ${importName}`];
+      if (actionName) {
+        specifiers.push(`action as ${actionName}`);
+      }
       imports.push(
-        `import { loader as ${importName} } from ${quote(relImport)};`,
+        `import { ${specifiers.join(', ')} } from ${quote(relImport)};`,
       );
     } else {
       imports.push(`import ${importName} from ${quote(relImport)};`);
     }
 
     loaderImportMap.set(key, importName);
-    return importName;
+    return { loaderName: importName, actionName };
   };
 
   const createRouteVarName = (route: NestedRouteForCli | PageRoute) => {
@@ -212,9 +230,16 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     const varName = createRouteVarName(route);
 
     const loaderInfo = pickModernLoaderModule(route);
-    const loaderName = loaderInfo
-      ? await getImportNameForLoader(loaderInfo.loaderPath, loaderInfo.inline)
+    const routeAction = (route as any).action;
+    const loaderImports = loaderInfo
+      ? await getImportNamesForLoader(
+          loaderInfo.loaderPath,
+          loaderInfo.inline,
+          Boolean(loaderInfo.inline && routeAction === loaderInfo.loaderPath),
+        )
       : null;
+    const loaderName = loaderImports?.loaderName || null;
+    const actionName = loaderImports?.actionName || null;
 
     const rawPath = (route as any).path as string | undefined;
     const hasSplat = typeof rawPath === 'string' && rawPath.includes('*');
@@ -238,6 +263,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     const staticDataSnippet = createRouteStaticDataSnippet({
       modernRouteId: (route as any).id as string | undefined,
       loaderName,
+      actionName,
     });
     if (staticDataSnippet) {
       routeOpts.push(staticDataSnippet);
@@ -261,12 +287,18 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   };
 
   const rootLoaderInfo = rootModern ? pickModernLoaderModule(rootModern) : null;
-  const rootLoaderName = rootLoaderInfo?.loaderPath
-    ? await getImportNameForLoader(
+  const rootAction = (rootModern as any)?.action;
+  const rootLoaderImports = rootLoaderInfo?.loaderPath
+    ? await getImportNamesForLoader(
         rootLoaderInfo.loaderPath,
         rootLoaderInfo.inline,
+        Boolean(
+          rootLoaderInfo.inline && rootAction === rootLoaderInfo.loaderPath,
+        ),
       )
     : null;
+  const rootLoaderName = rootLoaderImports?.loaderName || null;
+  const rootActionName = rootLoaderImports?.actionName || null;
 
   const topLevelVars = await Promise.all(
     topLevel.map(route => buildRoute({ parentVar: 'rootRoute', route })),
@@ -334,6 +366,7 @@ function mapParamsForModernLoader(params: Record<string, string>, hasSplat: bool
 
 function createRouteStaticData(opts: {
   modernRouteId?: string;
+  modernRouteAction?: unknown;
   modernRouteLoader?: unknown;
 }) {
   const staticData: Record<string, unknown> = {};
@@ -344,6 +377,10 @@ function createRouteStaticData(opts: {
 
   if (opts.modernRouteLoader) {
     staticData.modernRouteLoader = opts.modernRouteLoader;
+  }
+
+  if (opts.modernRouteAction) {
+    staticData.modernRouteAction = opts.modernRouteAction;
   }
 
   return Object.keys(staticData).length > 0 ? staticData : undefined;
@@ -418,6 +455,7 @@ export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
     createRouteStaticDataSnippet({
       modernRouteId: (rootModern as any)?.id as string | undefined,
       loaderName: rootLoaderName,
+      actionName: rootActionName,
     }) || ''
   }
 });
