@@ -15,7 +15,7 @@
     "@vercel/ncc": "0.38.4",
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.14",
     "typescript": "6.0.3"
   },
   "devDependencies": {
@@ -69,8 +69,8 @@
     "postcss-nesting": "14.0.0",
     "postcss-page-break": "3.0.4",
     "postcss-value-parser": "4.2.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "react-is": "^19.2.5",
     "rollup": "^4.60.2",
     "rollup-plugin-dts": "6.4.1",

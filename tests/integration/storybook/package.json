@@ -22,8 +22,8 @@
     "@modern-js/server-runtime": "workspace:*",
     "antd": "^6.3.7",
     "hono": "^4.12.15",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "ts-node": "^10.9.2",
     "zod": "^4.4.1"
   },
