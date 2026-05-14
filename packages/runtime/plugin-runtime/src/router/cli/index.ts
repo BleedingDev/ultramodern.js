@@ -12,14 +12,25 @@ import {
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
 import { NESTED_ROUTES_DIR } from './constants';
-import { getEntrypointRoutesDir, isRouteEntry } from './entry';
+import {
+  BUILT_IN_ROUTES_OWNER,
+  getEntrypointRoutesDir,
+  getEntrypointRoutesOwner,
+  isRouteEntry,
+  ROUTES_OWNER_META_KEY,
+} from './entry';
 import {
   handleFileChange,
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
 } from './handler';
 
-export { getEntrypointRoutesDir, isRouteEntry } from './entry';
+export {
+  BUILT_IN_ROUTES_OWNER,
+  getEntrypointRoutesDir,
+  getEntrypointRoutesOwner,
+  isRouteEntry,
+} from './entry';
 export {
   handleFileChange,
   handleGeneratorEntryCode,
@@ -58,9 +69,15 @@ type RouteEntrypointLike = {
   entry?: string;
   pageRoutesEntry?: string;
   nestedRoutesEntry?: string;
+  [ROUTES_OWNER_META_KEY]?: string;
 };
 
 function isBuiltInRouteEntrypoint(entrypoint: RouteEntrypointLike) {
+  const entrypointRoutesOwner = getEntrypointRoutesOwner(entrypoint);
+  if (entrypointRoutesOwner) {
+    return entrypointRoutesOwner === BUILT_IN_ROUTES_OWNER;
+  }
+
   if (entrypoint.pageRoutesEntry) {
     return true;
   }
@@ -74,6 +91,11 @@ function isBuiltInRouteEntrypoint(entrypoint: RouteEntrypointLike) {
 }
 
 function isPluginOwnedRouteEntrypoint(entrypoint: RouteEntrypointLike) {
+  const entrypointRoutesOwner = getEntrypointRoutesOwner(entrypoint);
+  if (entrypointRoutesOwner) {
+    return entrypointRoutesOwner !== BUILT_IN_ROUTES_OWNER;
+  }
+
   const entrypointRoutesDir = getEntrypointRoutesDir(entrypoint);
   return Boolean(
     entrypointRoutesDir && entrypointRoutesDir !== NESTED_ROUTES_DIR,

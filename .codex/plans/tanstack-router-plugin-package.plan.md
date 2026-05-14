@@ -13,10 +13,10 @@ todos:
     status: completed
   - id: tplug-04
     content: Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.
-    status: pending
+    status: completed
   - id: tplug-05
     content: Add plugin package build, type, unit, and fixture contract verification while preserving React Router as the built-in Modern.js router path.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -35,6 +35,10 @@ The plugin should own TanStack dependencies, generated code imports, runtime exp
 `tplug-02` is complete. The plugin CLI now claims a plugin-owned route directory, calls generic runtime CLI generation with TanStack output disabled in core, writes plugin-owned `router.gen.ts` and register metadata, handles scoped dev regeneration, and merges nested route specs. Runtime RouterProvider injection remains intentionally deferred to `tplug-03`.
 
 `tplug-03` is complete. The plugin runtime now owns the TanStack client and server RouterProvider wiring, lifecycle hooks, route object conversion helpers, generic router runtime state handoff, and default runtime plugin export. The CLI injects `@<metaName>/plugin-tanstack/runtime` only for TanStack-owned entrypoints, with server base metadata derived from matching server routes.
+
+`tplug-04` is complete. Create templates and non-MF TanStack fixtures now enable the CLI plugin via `tanstackRouterPlugin()` and import runtime helpers from `@modern-js/plugin-tanstack/runtime`. The core route CLI now supports explicit route-owner metadata so the TanStack plugin can own default `routes` directories without the built-in router double-installing.
+
+`tplug-05` is complete. Verification now covers route-owner CLI behavior, plugin package type/unit/build gates, create-template assertions, and the non-MF TanStack create-routes fixture while preserving built-in React Router ownership for entries not claimed by an external router plugin.
 
 ## Constraints
 

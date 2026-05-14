@@ -6,6 +6,7 @@ import { fs, NESTED_ROUTE_SPEC_FILE } from '@modern-js/utils';
 import { routerPlugin } from '../../src/router/cli';
 import {
   getEntrypointRoutesDir,
+  getEntrypointRoutesOwner,
   isRouteEntry,
 } from '../../src/router/cli/entry';
 import {
@@ -72,6 +73,64 @@ describe('router cli extension points', () => {
     expect(entrypoint.nestedRoutesEntry).toBe(viewsDir);
     expect(getEntrypointRoutesDir(entrypoint)).toBe('views');
     expect(isRouteEntry(entryDir, 'views')).toBe(viewsDir);
+  });
+
+  test('tracks plugin-owned route owner metadata for default routes directory', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-router-cli-'));
+    const appDirectory = tempDir;
+    const srcDirectory = path.join(tempDir, 'src');
+    const distDirectory = path.join(tempDir, 'dist');
+    const entryDir = path.join(srcDirectory, 'main');
+    const routesDir = path.join(entryDir, 'routes');
+    await mkdir(routesDir, { recursive: true });
+
+    const [entrypoint] = await handleModifyEntrypoints(
+      [
+        {
+          entryName: 'main',
+          isMainEntry: true,
+          entry: entryDir,
+          absoluteEntryDir: entryDir,
+          isAutoMount: true,
+        } as Entrypoint,
+      ],
+      'routes',
+      { routesOwner: '@modern-js/plugin-fake-router' },
+    );
+
+    const taps: Record<string, any> = {};
+    const api = {
+      getAppContext: () => ({
+        appDirectory,
+        srcDirectory,
+        distDirectory,
+        metaName: 'modern-js',
+        runtimeConfigFile: 'modern.runtime',
+        serverRoutes: [{ entryName: 'main', urlPath: '/' }],
+      }),
+      getNormalizedConfig: () => ({ router: { custom: true } }),
+      addCommand: () => {},
+      _internalRuntimePlugins: (tap: any) => {
+        taps.internalRuntimePlugins = tap;
+      },
+      checkEntryPoint: () => {},
+      config: () => {},
+      modifyEntrypoints: () => {},
+      generateEntryCode: () => {},
+      onFileChanged: () => {},
+      modifyFileSystemRoutes: () => {},
+      onBeforeGenerateRoutes: () => {},
+    };
+    routerPlugin().setup!(api as any);
+
+    expect(entrypoint.nestedRoutesEntry).toBe(routesDir);
+    expect(getEntrypointRoutesDir(entrypoint)).toBe('routes');
+    expect(getEntrypointRoutesOwner(entrypoint)).toBe(
+      '@modern-js/plugin-fake-router',
+    );
+    expect(
+      taps.internalRuntimePlugins!({ entrypoint, plugins: [] }).plugins,
+    ).toEqual([]);
   });
 
   test('generates routes for a non-TanStack plugin-owned entry and returns routes by entry', async () => {

@@ -27,7 +27,7 @@ export {
   isTanstackRouterFrameworkEnabled,
 } from './tanstackTypes';
 
-const DEFAULT_ROUTES_DIR = 'views';
+const DEFAULT_ROUTES_DIR = 'routes';
 const DEFAULT_GENERATED_DIR_NAME = 'modern-tanstack';
 const ENTRYPOINTS_KEY = '@modern-js/plugin-tanstack';
 
@@ -65,6 +65,9 @@ type RuntimeRouterCliHelpers = {
   handleModifyEntrypoints: (
     entrypoints: Entrypoint[],
     routesDir?: string,
+    options?: {
+      routesOwner?: string;
+    },
   ) => Promise<Entrypoint[]>;
   isRouteEntry: (dir: string, routesDir?: string) => string | false;
 };
@@ -276,7 +279,9 @@ export function tanstackRouterPlugin(
       api.modifyEntrypoints(async ({ entrypoints }) => {
         const { handleModifyEntrypoints } = getRuntimeRouterCli();
         return {
-          entrypoints: await handleModifyEntrypoints(entrypoints, routesDir),
+          entrypoints: await handleModifyEntrypoints(entrypoints, routesDir, {
+            routesOwner: ENTRYPOINTS_KEY,
+          }),
         };
       });
 

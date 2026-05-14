@@ -34,14 +34,19 @@ type HandleFileChangeOptions = {
   entrypointsKey?: string;
 };
 
+type HandleModifyEntrypointsOptions = {
+  routesOwner?: string;
+};
+
 const DEFAULT_ENTRYPOINTS_KEY = '__default_router_entries__';
 const originEntrypointsByKey = new Map<string, Entrypoint[]>();
 
 export async function handleModifyEntrypoints(
   entrypoints: Entrypoint[],
   routesDir?: string,
+  options: HandleModifyEntrypointsOptions = {},
 ) {
-  return modifyEntrypoints(entrypoints, routesDir);
+  return modifyEntrypoints(entrypoints, routesDir, options.routesOwner);
 }
 
 export async function handleGeneratorEntryCode(

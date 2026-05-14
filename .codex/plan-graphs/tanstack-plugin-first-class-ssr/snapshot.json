@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T22:17:16.785049+00:00",
+  "generated_at": "2026-05-14T22:29:03.052601+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -131,13 +131,13 @@
         {
           "id": "tplug-04",
           "content": "Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "tplug-05",
           "content": "Add plugin package build, type, unit, and fixture contract verification while preserving React Router as the built-in Modern.js router path.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -183,38 +183,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "tanstack-router-plugin-package",
-      "plan_name": "TanStack Router Plugin Package",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-router-plugin-package.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "tplug-04",
-          "content": "Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "tplug-05",
-          "content": "Add plugin package build, type, unit, and fixture contract verification while preserving React Router as the built-in Modern.js router path.",
-          "status": "pending",
-          "ordinal": 5
-        }
-      ],
-      "completed": 3,
-      "total": 5
-    },
-    {
       "plan_slug": "tanstack-plugin-ssr-mf-contract",
       "plan_name": "TanStack Plugin SSR MF Contract",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-plugin-ssr-mf-contract.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["tanstack-router-plugin-package"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "tpssr-01",
@@ -283,6 +257,18 @@
       "upcoming": [],
       "completed": 4,
       "total": 4
+    },
+    {
+      "plan_slug": "tanstack-router-plugin-package",
+      "plan_name": "TanStack Router Plugin Package",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/tanstack-router-plugin-package.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
     }
   ],
   "errors": [],
