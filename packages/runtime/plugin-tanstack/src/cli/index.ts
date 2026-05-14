@@ -10,6 +10,7 @@ import type {
   Entrypoint,
   NestedRouteForCli,
   PageRoute,
+  ServerRoute,
 } from '@modern-js/types';
 import {
   filterRoutesForServer,
@@ -231,8 +232,27 @@ export function tanstackRouterPlugin(
         return getEntrypointRoutesDir(entrypoint) === routesDir;
       };
 
-      // tplug-03 will add the runtime RouterProvider plugin. Until that export
-      // exists, this CLI slice only generates route artifacts and type metadata.
+      api._internalRuntimePlugins(({ entrypoint, plugins }) => {
+        if (!isTanstackEntrypoint(entrypoint as Entrypoint)) {
+          return { entrypoint, plugins };
+        }
+
+        const { metaName, serverRoutes } = api.getAppContext();
+        const serverBase = serverRoutes
+          .filter(
+            (route: ServerRoute) => route.entryName === entrypoint.entryName,
+          )
+          .map(route => route.urlPath)
+          .sort((a, b) => (a.length - b.length > 0 ? -1 : 1));
+
+        plugins.push({
+          name: 'tanstackRouter',
+          path: `@${metaName}/plugin-tanstack/runtime`,
+          config: { serverBase },
+        });
+
+        return { entrypoint, plugins };
+      });
 
       api.checkEntryPoint(({ path: entryPath, entry }) => {
         const { isRouteEntry } = getRuntimeRouterCli();

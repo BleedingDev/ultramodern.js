@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: tplug-03
     content: Move TanStack runtime exports, RouterProvider wiring, prefetch links, Form/useFetcher, route-tree conversion, and plugin hooks into @modern-js/plugin-tanstack/runtime.
-    status: pending
+    status: completed
   - id: tplug-04
     content: Wire create templates and TanStack fixtures to enable tanstackRouterPlugin(...) explicitly without relying on @modern-js/runtime/tanstack-router as the primary path.
     status: pending
@@ -33,6 +33,8 @@ The plugin should own TanStack dependencies, generated code imports, runtime exp
 `tplug-01` is complete. The scaffold lives at `packages/runtime/plugin-tanstack` with package metadata, Rslib/Rstest/tsconfig, CLI/runtime barrels, copied current-branch TanStack helper sources, and focused helper tests. The CLI plugin export is intentionally a placeholder until `tplug-02` wires generation through the new core CLI seams.
 
 `tplug-02` is complete. The plugin CLI now claims a plugin-owned route directory, calls generic runtime CLI generation with TanStack output disabled in core, writes plugin-owned `router.gen.ts` and register metadata, handles scoped dev regeneration, and merges nested route specs. Runtime RouterProvider injection remains intentionally deferred to `tplug-03`.
+
+`tplug-03` is complete. The plugin runtime now owns the TanStack client and server RouterProvider wiring, lifecycle hooks, route object conversion helpers, generic router runtime state handoff, and default runtime plugin export. The CLI injects `@<metaName>/plugin-tanstack/runtime` only for TanStack-owned entrypoints, with server base metadata derived from matching server routes.
 
 ## Constraints
 

@@ -120,7 +120,7 @@ describe('tanstack router cli plugin', () => {
     );
   });
 
-  test('claims custom routes, defers runtime plugin injection, and merges route specs', async () => {
+  test('claims custom routes, injects runtime plugin, and merges route specs', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
     const distDirectory = path.join(tempDir, 'dist');
@@ -133,7 +133,12 @@ describe('tanstack router cli plugin', () => {
       getAppContext: () => ({
         srcDirectory,
         distDirectory,
+        metaName: 'modern-js',
+        serverRoutes: [{ entryName: 'main', urlPath: '/dashboard' }],
       }),
+      _internalRuntimePlugins: (tap: any) => {
+        taps.internalRuntimePlugins = tap;
+      },
       checkEntryPoint: (tap: any) => {
         taps.checkEntryPoint = tap;
       },
@@ -159,7 +164,6 @@ describe('tanstack router cli plugin', () => {
 
     tanstackRouterPlugin({ routesDir: 'views' }).setup!(api as any);
 
-    expect(taps.internalRuntimePlugins).toBeUndefined();
     expect(taps.checkEntryPoint({ path: entryDir, entry: false })).toEqual({
       path: entryDir,
       entry: viewsDir,
@@ -178,6 +182,16 @@ describe('tanstack router cli plugin', () => {
     });
     const [entrypoint] = entrypoints;
     expect(entrypoint.nestedRoutesEntry).toBe(viewsDir);
+
+    expect(
+      taps.internalRuntimePlugins({ entrypoint, plugins: [] }).plugins,
+    ).toEqual([
+      {
+        name: 'tanstackRouter',
+        path: '@modern-js/plugin-tanstack/runtime',
+        config: { serverBase: ['/dashboard'] },
+      },
+    ]);
 
     const specPath = path.join(distDirectory, NESTED_ROUTE_SPEC_FILE);
     await fs.outputJSON(specPath, {
@@ -257,6 +271,7 @@ describe('tanstack router cli plugin', () => {
         internalSrcAlias: '@/_',
         entrypoints: [entrypoint],
       }),
+      _internalRuntimePlugins: () => {},
       checkEntryPoint: (tap: any) => {
         taps.checkEntryPoint = tap;
       },
@@ -329,6 +344,7 @@ describe('tanstack router cli plugin', () => {
         internalSrcAlias: '@/_',
         entrypoints: [entrypoint],
       }),
+      _internalRuntimePlugins: () => {},
       checkEntryPoint: () => {},
       config: () => {},
       modifyEntrypoints: () => {},

@@ -12,6 +12,10 @@ export {
   RouteActionResponseError,
   useFetcher,
 } from './dataMutation';
+export {
+  tanstackRouterPlugin,
+  tanstackRouterPlugin as default,
+} from './plugin';
 export type {
   LinkProps,
   NavLinkProps,
