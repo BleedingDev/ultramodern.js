@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T21:17:00.179370+00:00",
+  "generated_at": "2026-05-14T21:28:03.291804+00:00",
   "graph_id": "tanstack-plugin-first-class-ssr",
   "plan_set_hash": "246a1091e3",
   "selection_hash": "b764229b15",
@@ -43,7 +43,7 @@
         {
           "id": "tpcore-02",
           "content": "Generalize router CLI extension points for plugin-owned route directories, entry detection, generateEntryCode ownership, route-spec merging, and file-change regeneration.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -191,19 +191,13 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "tpcore-02",
-          "content": "Generalize router CLI extension points for plugin-owned route directories, entry detection, generateEntryCode ownership, route-spec merging, and file-change regeneration.",
-          "status": "pending",
-          "ordinal": 2
-        }
-      ],
-      "upcoming": [
-        {
           "id": "tpcore-03",
           "content": "Add generic SSR runtime hooks for plugin-owned router creation, server data dehydration, hydration script collection, route match snapshots, and fallback metadata.",
           "status": "pending",
           "ordinal": 3
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "tpcore-04",
           "content": "Prove the new hooks with core-only tests and a small non-TanStack test plugin so @modern-js/runtime has no direct TanStack package requirement.",
@@ -211,7 +205,7 @@
           "ordinal": 4
         }
       ],
-      "completed": 1,
+      "completed": 2,
       "total": 4
     },
     {

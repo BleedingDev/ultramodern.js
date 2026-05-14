@@ -117,6 +117,10 @@ export const generateCode = async (
   const enableTanstackTypes =
     options?.enableTanstackTypes ??
     (await isTanstackRouterFrameworkEnabled(appContext));
+  const generatedRoutesByEntry: Record<
+    string,
+    (NestedRouteForCli | PageRoute)[]
+  > = {};
 
   await Promise.all(entrypoints.map(generateEntryCode));
 
@@ -252,6 +256,10 @@ declare module '@modern-js/runtime/tanstack-router' {
           entrypoint,
           routes: markedRoutes,
         });
+        generatedRoutesByEntry[entryName] = routes as (
+          | NestedRouteForCli
+          | PageRoute
+        )[];
 
         if (ssrMode === 'stream') {
           const hasPageRoute = routes.some(
@@ -378,6 +386,8 @@ declare module '@modern-js/runtime/tanstack-router' {
       }
     }
   }
+
+  return generatedRoutesByEntry;
 };
 
 export function generatorRegisterCode(

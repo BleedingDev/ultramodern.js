@@ -19,14 +19,24 @@
 
 - `tanstack-plugin-core-hooks`
   - Current status: ready
-  - Active todo: `tpcore-02`
+  - Active todo: `tpcore-03`
   - Beads issue: `modernjs-wrf`
-  - Completed todo: `tpcore-01`
+  - Completed todos: `tpcore-01`, `tpcore-02`
   - Runtime core audit agent: `019e2853-a476-7313-a7da-049afaa8e412` (closed)
   - PR #8317 prototype audit agent: `019e2853-a4e1-7092-a17a-551466f0c0e8` (closed)
   - MF fixture dirty patch audit agent: `019e2853-a551-7973-8acc-2e5f0aaecd14` (closed)
-  - Owner: generic router CLI extension points
-  - Next action: implement scoped route directory metadata, scoped entry generation, generated-routes return values, file-change regeneration, and nested route-spec merge without adding TanStack dependencies to runtime core.
+  - CLI implementation worker: `019e285b-187f-7920-a037-e238181e5438` (Hooke, closed)
+  - Owner: generic SSR runtime hooks
+  - Next action: add router-agnostic SSR runtime hooks for plugin-owned router creation/load, route match snapshots, hydration scripts, status/errors/redirects, and cleanup.
+- `tanstack-plugin-core-hooks` / `tpcore-03` prep
+  - Current status: read-only prep complete
+  - SSR hook prep explorer: `019e285b-37bb-7f12-b57c-4dfa6a2b6f5e` (Chandrasekhar, closed)
+  - Output: `.codex/reports/tpcore-03-ssr-hook-prep.md`
+- `tanstack-router-plugin-package` / `tplug-01` prep
+  - Current status: read-only prep complete
+  - Package extraction prep explorer: `019e285b-66e4-7682-ac8e-8dfd904565ca` (Mencius, closed)
+  - Output: `.codex/reports/tplug-01-package-extraction-prep.md`
+  - Blocked implementation by: `tanstack-plugin-core-hooks`
 - `tanstack-router-plugin-package`
   - Current status: blocked
   - Blocked by: `tanstack-plugin-core-hooks`
