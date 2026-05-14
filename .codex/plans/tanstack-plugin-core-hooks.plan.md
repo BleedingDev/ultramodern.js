@@ -4,7 +4,7 @@ overview: Add the generic Modern.js router and SSR extension hooks needed for a 
 todos:
   - id: tpcore-01
     content: Audit current TanStack-specific code under @modern-js/runtime and classify each surface as generic hook, plugin-owned implementation, compatibility shim, or removable fixture code.
-    status: pending
+    status: completed
   - id: tpcore-02
     content: Generalize router CLI extension points for plugin-owned route directories, entry detection, generateEntryCode ownership, route-spec merging, and file-change regeneration.
     status: pending
@@ -26,6 +26,8 @@ PR #8317 establishes the architecture constraint: Modern.js maintainers are open
 This plan is the upstream-friendly core slice. It should make router generation and SSR runtime extension possible for external router plugins, while keeping React Router as the built-in/default router path.
 
 The old PR branch `bleedingdev/feat/tanstack-router-tailwind-first-class` contains useful precedent for route-directory metadata, filtered built-in router entrypoints, route-spec JSON merge behavior, keyed file-change regeneration, and returning generated routes by entry. Port those ideas deliberately; do not cherry-pick broad unrelated branch churn.
+
+`tpcore-01` is complete. The audits are captured in `.codex/reports/tpcore-01-runtime-core-audit.md`, `.codex/reports/tpcore-01-pr8317-plugin-prototype-audit.md`, and `.codex/reports/tpcore-01-mf-fixture-dirty-patch-audit.md`. The agreed next slice is `tpcore-02`: generic router CLI extension points only. Do not move TanStack runtime or MF fixture code in that slice.
 
 ## Constraints
 
