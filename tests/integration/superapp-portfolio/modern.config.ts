@@ -1,4 +1,5 @@
 import { bffPlugin } from '@modern-js/plugin-bff';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 const browserMatrixAssetPrefix = process.env.SUPERAPP_PORTFOLIO_ASSET_PREFIX;
@@ -32,7 +33,7 @@ export default applyBaseConfig({
       : {}),
     filenameHash: false,
   },
-  plugins: [bffPlugin()],
+  plugins: [bffPlugin(), tanstackRouterPlugin()],
   server: {
     ssr: {
       ...(browserMatrixForceCsr ? { forceCSR: true } : {}),

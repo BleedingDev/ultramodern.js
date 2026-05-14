@@ -1,5 +1,5 @@
 import effectBff from '@api/effect/index';
-import { useMatch } from '@modern-js/runtime/tanstack-router';
+import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import type { SuperAppModule } from '../../shared/superapp-state.js';
 

@@ -1,4 +1,4 @@
-import { Form, useFetcher, useMatch } from '@modern-js/runtime/tanstack-router';
+import { Form, useFetcher, useMatch } from '@modern-js/plugin-tanstack/runtime';
 
 export default function MutationPage() {
   const match = useMatch({ from: '/mutation' });

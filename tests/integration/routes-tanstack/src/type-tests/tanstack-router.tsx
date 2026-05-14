@@ -5,7 +5,7 @@ import {
   useFetcher,
   useMatch,
   useNavigate,
-} from '@modern-js/runtime/tanstack-router';
+} from '@modern-js/plugin-tanstack/runtime';
 import * as React from 'react';
 
 export function TanstackRouterTypeTests() {

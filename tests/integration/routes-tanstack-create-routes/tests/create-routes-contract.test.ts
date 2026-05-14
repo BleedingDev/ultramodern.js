@@ -63,7 +63,7 @@ describe('tanstack create-routes contracts', () => {
       "import type { router as router0 } from './index/router.gen';",
     );
     expect(code).toContain(
-      "declare module '@modern-js/runtime/tanstack-router'",
+      "declare module '@modern-js/plugin-tanstack/runtime'",
     );
     expect(code).toContain('interface Register');
     expect(code).toContain('router: typeof router0;');

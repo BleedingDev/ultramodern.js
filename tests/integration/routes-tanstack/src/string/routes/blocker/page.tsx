@@ -1,4 +1,4 @@
-import { Link, useBlocker } from '@modern-js/runtime/tanstack-router';
+import { Link, useBlocker } from '@modern-js/plugin-tanstack/runtime';
 import { useState } from 'react';
 
 export default function BlockerPage() {

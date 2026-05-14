@@ -1,4 +1,4 @@
-import { useMatch } from '@modern-js/runtime/tanstack-router';
+import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 
 export default function OptionalPage() {
   const match = useMatch({ from: '/optional/{-$id}' });

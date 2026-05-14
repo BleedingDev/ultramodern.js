@@ -1,4 +1,5 @@
 import { bffPlugin } from '@modern-js/plugin-bff';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 export default applyBaseConfig({
@@ -18,7 +19,7 @@ export default applyBaseConfig({
   output: {
     filenameHash: false,
   },
-  plugins: [bffPlugin()],
+  plugins: [bffPlugin(), tanstackRouterPlugin()],
   server: {
     ssr: {
       mode: 'string',

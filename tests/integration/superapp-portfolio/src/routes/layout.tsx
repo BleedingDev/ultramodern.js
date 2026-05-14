@@ -1,4 +1,4 @@
-import { Link, Outlet, useMatch } from '@modern-js/runtime/tanstack-router';
+import { Link, Outlet, useMatch } from '@modern-js/plugin-tanstack/runtime';
 import './style.css';
 
 export default function Layout() {
