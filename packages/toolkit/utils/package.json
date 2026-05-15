@@ -30,6 +30,7 @@
       "default": "./dist/cjs/index.js"
     },
     "./universal": {
+      "types": "./dist/types/universal/index.d.ts",
       "node": {
         "module": "./dist/esm/universal/index.mjs",
         "import": "./dist/esm-node/universal/index.mjs",
@@ -38,6 +39,7 @@
       "default": "./dist/esm/universal/index.mjs"
     },
     "./universal/constants": {
+      "types": "./dist/types/universal/constants.d.ts",
       "node": {
         "module": "./dist/esm/universal/constants.mjs",
         "import": "./dist/esm-node/universal/constants.mjs",
