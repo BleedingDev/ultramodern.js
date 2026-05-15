@@ -1,1 +1,10 @@
-["overview", "ssr", "streaming-ssr", "ssr-cache", "ssg", "rsc", "before-render"]
+[
+  "overview",
+  "ssr",
+  "streaming-ssr",
+  "ssr-cache",
+  "ssg",
+  "rsc",
+  "tanstack-rsc",
+  "before-render"
+]

@@ -4,13 +4,37 @@ title: TanStack Router RSC
 
 # TanStack Router RSC
 
-Modern.js supports TanStack-native React Server Components by treating RSC output as router data. The TanStack Router cache, loaders, SSR dehydration, and invalidation flow own the data lifecycle; Modern.js only supplies Flight rendering/decoding and the serialization adapter.
+Modern.js supports React Server Components (RSC) in TanStack Router projects by treating RSC output as router data. Loaders return serialized Flight streams, TanStack Router owns the data lifecycle, and Modern.js supplies the Flight renderer, decoder, and serialization adapter.
 
-This is intentionally different from the React Router RSC integration. Do not use `RSCStaticRouter` for TanStack Router.
+This integration is designed for TanStack Router's data model. It does not use the React Router RSC renderer or `RSCStaticRouter`.
+
+## When to Use It
+
+Use TanStack Router RSC when you want to:
+
+- Render data-heavy UI on the server while keeping TanStack Router as the routing and cache owner.
+- Return server-rendered UI from route loaders and consume it with `Route.useLoaderData()`.
+- Keep interactive UI in Client Components while expensive data access, formatting, and markup generation stay on the server.
+- Refresh server-rendered UI with TanStack Router invalidation after mutations.
+
+For route components that can be ordinary Server Components, use the general [React Server Components (RSC)](/guides/basic-features/render/rsc) guide first. Use this page when server UI needs to flow through TanStack Router loader data.
+
+## Prerequisites
+
+Before using TanStack Router RSC, make sure the project has:
+
+1. React and React DOM 19 or later.
+2. RSC enabled with [`server.rsc`](/configure/app/server/rsc).
+3. TanStack Router selected as the Modern.js routing runtime.
+4. The base RSC setup from [React Server Components (RSC)](/guides/basic-features/render/rsc), including the required RSC runtime dependency.
+
+:::tip
+If your project was created with `--router tanstack`, use `@modern-js/plugin-tanstack/runtime` in route code. If you use the built-in runtime export directly, use `@modern-js/runtime/tanstack-router`.
+:::
 
 ## Enable RSC
 
-Use TanStack Router and enable Modern.js RSC:
+Set `server.rsc` to `true` and enable the TanStack Router runtime:
 
 ```ts title="modern.config.ts"
 import { defineConfig } from '@modern-js/app-tools';
@@ -25,11 +49,20 @@ export default defineConfig({
 });
 ```
 
-If you use the standalone plugin, import helpers from `@modern-js/plugin-tanstack/runtime/rsc/*`. If you use the built-in runtime export, import the same helpers from `@modern-js/runtime/tanstack-router/rsc/*`.
+## Import Paths
+
+Modern.js exposes the same helper APIs from the standalone TanStack plugin and from the built-in runtime export.
+
+| Scenario | Runtime APIs | Server-only RSC helpers | Client RSC helpers |
+|---------|--------------|--------------------------|--------------------|
+| Standalone TanStack plugin | `@modern-js/plugin-tanstack/runtime` | `@modern-js/plugin-tanstack/runtime/rsc/server` | `@modern-js/plugin-tanstack/runtime/rsc/client` |
+| Built-in runtime export | `@modern-js/runtime/tanstack-router` | `@modern-js/runtime/tanstack-router/rsc/server` | `@modern-js/runtime/tanstack-router/rsc/client` |
+
+Use the standalone paths in projects created with the TanStack plugin. The examples below use those paths.
 
 ## Render Server UI From a Loader
 
-Use `renderServerComponent` when the server output does not need client-provided slots.
+Use `renderServerComponent` when the server output does not need client-provided slots. The loader runs on the server, renders the Server Component to a Flight stream, and returns a value that can be rendered by the client route component.
 
 ```tsx title="src/routes/products/page.data.tsx"
 import { renderServerComponent } from '@modern-js/plugin-tanstack/runtime/rsc/server';
@@ -55,16 +88,22 @@ export const Route = createFileRoute('/products')({
 
 function ProductsPage() {
   const { ProductGrid } = Route.useLoaderData();
+
   return <main>{ProductGrid}</main>;
 }
 ```
 
+:::warning
+Do not return raw JSX from a TanStack Router loader when a client route will consume it. Wrap server-rendered UI with `renderServerComponent` or `createCompositeComponent` so the value can be serialized through TanStack Router's SSR data pipeline.
+:::
+
 ## Render Server UI With Client Slots
 
-Use `createCompositeComponent` when server-rendered markup must accept client content, render props, or interactive components.
+Use `createCompositeComponent` when server-rendered markup must accept client content, render props, or interactive components. The server component receives slot placeholders, and the client route provides slot implementations through `<CompositeComponent>`.
 
 ```tsx title="src/routes/products/page.data.tsx"
 import { createCompositeComponent } from '@modern-js/plugin-tanstack/runtime/rsc/server';
+import type React from 'react';
 
 export async function loader() {
   return {
@@ -111,9 +150,15 @@ function ProductsPage() {
 }
 ```
 
-## Invalidation
+Use `strict` when missing slot implementations should fail fast during development:
 
-Because RSC is TanStack Router data, refresh it with TanStack Router invalidation:
+```tsx
+<CompositeComponent src={ProductCard} strict />
+```
+
+## Refreshing RSC Data
+
+Because RSC values are TanStack Router data, refresh them with TanStack Router invalidation:
 
 ```tsx
 import { useRouter } from '@modern-js/plugin-tanstack/runtime';
@@ -134,12 +179,37 @@ function SaveButton() {
 }
 ```
 
-If you store RSC values in TanStack Query, disable structural sharing for that query. RSC values are proxies around Flight streams; deep structural comparison is not meaningful for them.
+If you store RSC values in TanStack Query, disable structural sharing for that query. RSC values are proxies around Flight streams, so deep structural comparison is not meaningful for them.
 
-## Coding Agent Rules
+## Notes
 
-- Do not modify Modern.js core routing for TanStack RSC. Register serialization adapters through the TanStack router plugin.
-- Do not return raw JSX from TanStack loaders when a client route will consume it. Wrap server UI with `renderServerComponent` or `createCompositeComponent`.
-- Do not import `@modern-js/plugin-tanstack/runtime/rsc/server` from client components. Use `CompositeComponent` from `@modern-js/plugin-tanstack/runtime/rsc/client` or the aggregate runtime export.
-- Use `renderServerComponent` for slotless UI. Use `createCompositeComponent` only when the server output needs client slots.
-- Use `router.invalidate()` after mutations that should refresh RSC loader data.
+- Server helpers from `*/rsc/server` must only be imported by server code such as loaders or server-only modules.
+- Client routes can render `renderServerComponent` output directly as React nodes.
+- Use `<CompositeComponent>` only for values returned by `createCompositeComponent`.
+- Slot functions should return React nodes and receive serializable arguments. Keep non-serializable objects, request objects, and database handles inside server code.
+- TanStack Router invalidation is the refresh boundary. Avoid building a separate RSC cache outside the router unless the application has a dedicated cache strategy.
+
+## Best Practices
+
+### Prefer Router Data Ownership
+
+Keep RSC values in loader data and let TanStack Router manage cache, hydration, invalidation, and navigation. This keeps the implementation aligned with TanStack Router and avoids a parallel RSC routing layer.
+
+### Use the Smallest Helper That Fits
+
+Use `renderServerComponent` for slotless UI. Use `createCompositeComponent` only when server-rendered markup needs client slots or render props.
+
+### Keep Server and Client Boundaries Clear
+
+Do not import server helpers into client components. Import `CompositeComponent` from the runtime export or from `*/rsc/client`, and import `renderServerComponent` / `createCompositeComponent` only from `*/rsc/server`.
+
+### Automating Changes
+
+When using coding agents or codemods, keep TanStack RSC changes inside the TanStack Router plugin and its RSC helper exports. Do not modify Modern.js core routing or replace the TanStack Router SSR pipeline for this feature.
+
+## Related Links
+
+- [React Server Components (RSC)](/guides/basic-features/render/rsc)
+- [Routing](/guides/basic-features/routes/routes)
+- [Data Cache](/guides/basic-features/data/data-cache)
+- [TanStack Router Documentation](https://tanstack.com/router)
