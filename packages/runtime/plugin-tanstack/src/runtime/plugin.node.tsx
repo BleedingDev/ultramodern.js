@@ -1,6 +1,7 @@
 /// <reference path="./ssr-shim.d.ts" />
 
 import {
+  getGlobalEnableRsc,
   getGlobalLayoutApp,
   getGlobalRoutes,
   InternalRuntimeContext,
@@ -184,6 +185,9 @@ export const tanstackRouterPlugin = (
           pluginConfig.router || {},
           userConfig,
         ) as RouterConfig;
+        const serializationAdapters = getGlobalEnableRsc()
+          ? (await import('./rsc/server')).getTanstackRscSerializationAdapters()
+          : undefined;
 
         const { basename = '', routesConfig, createRoutes } = mergedConfig;
 
@@ -268,6 +272,7 @@ export const tanstackRouterPlugin = (
           origin: new URL(request.raw.url).origin,
           ssr: { nonce },
           context: routerContext as never,
+          ...(serializationAdapters ? { serializationAdapters } : {}),
         });
         const serverRouter =
           tanstackRouter as unknown as TanstackRouterWithServerSsr;

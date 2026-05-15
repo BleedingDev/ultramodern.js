@@ -19,6 +19,7 @@ import * as React from 'react';
 import { useContext, useMemo } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
+  getGlobalEnableRsc,
   getGlobalLayoutApp,
   getGlobalRoutes,
   InternalRuntimeContext,
@@ -39,6 +40,7 @@ import type { RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import { createRouteTreeFromRouteObjects } from './routeTree';
+import { getTanstackRscSerializationAdapters } from './rsc/client';
 
 const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
   '@modern-js/plugin-runtime:tanstack-blocking-subscribe',
@@ -288,6 +290,9 @@ export const tanstackRouterPlugin = (
               : createHashHistory();
 
             const rewrite = createModernBasepathRewrite(_basename);
+            const serializationAdapters = getGlobalEnableRsc()
+              ? getTanstackRscSerializationAdapters()
+              : undefined;
 
             cachedRouter = createRouter({
               routeTree,
@@ -295,6 +300,7 @@ export const tanstackRouterPlugin = (
               rewrite,
               history,
               context: {},
+              ...(serializationAdapters ? { serializationAdapters } : {}),
             });
             cachedRouterBasepath = _basename;
             wrapRouterSubscribeWithBlockState(

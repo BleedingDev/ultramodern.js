@@ -1,6 +1,7 @@
 /// <reference path="./ssr-shim.d.ts" />
 
 import {
+  getGlobalEnableRsc,
   getGlobalLayoutApp,
   getGlobalRoutes,
   InternalRuntimeContext,
@@ -39,6 +40,7 @@ import {
   type RouterLifecycleContext,
 } from './lifecycle';
 import { createRouteTreeFromRouteObjects } from './routeTree';
+import { getTanstackRscSerializationAdapters } from './rsc/client';
 import type { RouterConfig } from './types';
 import { createRouteObjectsFromConfig, urlJoin } from './utils';
 
@@ -293,6 +295,9 @@ export const tanstackRouterPlugin = (
               : createHashHistory();
 
             const rewrite = createModernBasepathRewrite(_basename);
+            const serializationAdapters = getGlobalEnableRsc()
+              ? getTanstackRscSerializationAdapters()
+              : undefined;
 
             cachedRouter = createRouter({
               routeTree,
@@ -300,6 +305,7 @@ export const tanstackRouterPlugin = (
               rewrite,
               history,
               context: {},
+              ...(serializationAdapters ? { serializationAdapters } : {}),
             });
             cachedRouterBasepath = _basename;
             wrapRouterSubscribeWithBlockState(

@@ -46,6 +46,18 @@
         "module": "./dist/esm/runtime/index.mjs"
       },
       "default": "./dist/esm/runtime/index.mjs"
+    },
+    "./runtime/rsc": {
+      "types": "./dist/types/runtime/rsc/index.d.ts",
+      "default": "./dist/esm/runtime/rsc/index.mjs"
+    },
+    "./runtime/rsc/client": {
+      "types": "./dist/types/runtime/rsc/client.d.ts",
+      "default": "./dist/esm/runtime/rsc/client.mjs"
+    },
+    "./runtime/rsc/server": {
+      "types": "./dist/types/runtime/rsc/server.d.ts",
+      "default": "./dist/esm/runtime/rsc/server.mjs"
     }
   },
   "typesVersions": {
@@ -58,6 +70,15 @@
       ],
       "runtime": [
         "./dist/types/runtime/index.d.ts"
+      ],
+      "runtime/rsc": [
+        "./dist/types/runtime/rsc/index.d.ts"
+      ],
+      "runtime/rsc/client": [
+        "./dist/types/runtime/rsc/client.d.ts"
+      ],
+      "runtime/rsc/server": [
+        "./dist/types/runtime/rsc/server.d.ts"
       ]
     }
   },
@@ -73,7 +94,8 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.21",
-    "@tanstack/react-router": "1.169.2"
+    "@tanstack/react-router": "1.169.2",
+    "@tanstack/router-core": "1.169.2"
   },
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.2.0",

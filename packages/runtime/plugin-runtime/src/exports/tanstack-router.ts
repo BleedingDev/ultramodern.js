@@ -17,3 +17,9 @@ export type {
   PrefetchBehavior,
 } from '../router/runtime/tanstack/prefetchLink';
 export { Link, NavLink } from '../router/runtime/tanstack/prefetchLink';
+export type {
+  AnyCompositeComponent,
+  AnyRenderableServerComponent,
+  CompositeComponentProps,
+} from '../router/runtime/tanstack/rsc/client';
+export { CompositeComponent } from '../router/runtime/tanstack/rsc/client';

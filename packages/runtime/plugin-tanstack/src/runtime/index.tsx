@@ -22,3 +22,9 @@ export type {
   PrefetchBehavior,
 } from './prefetchLink';
 export { Link, NavLink } from './prefetchLink';
+export type {
+  AnyCompositeComponent,
+  AnyRenderableServerComponent,
+  CompositeComponentProps,
+} from './rsc/client';
+export { CompositeComponent } from './rsc/client';

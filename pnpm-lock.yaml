@@ -720,6 +720,9 @@ importers:
       '@tanstack/react-router':
         specifier: 1.169.2
         version: 1.169.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/router-core':
+        specifier: 1.169.2
+        version: 1.169.2
       '@types/loadable__component':
         specifier: ^5.13.10
         version: 5.13.10
@@ -820,6 +823,9 @@ importers:
       '@tanstack/react-router':
         specifier: 1.169.2
         version: 1.169.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/router-core':
+        specifier: 1.169.2
+        version: 1.169.2
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*

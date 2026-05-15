@@ -93,6 +93,18 @@
       "types": "./dist/types/exports/tanstack-router.d.ts",
       "default": "./dist/esm/exports/tanstack-router.mjs"
     },
+    "./tanstack-router/rsc": {
+      "types": "./dist/types/exports/tanstack-router-rsc.d.ts",
+      "default": "./dist/esm/exports/tanstack-router-rsc.mjs"
+    },
+    "./tanstack-router/rsc/client": {
+      "types": "./dist/types/exports/tanstack-router-rsc-client.d.ts",
+      "default": "./dist/esm/exports/tanstack-router-rsc-client.mjs"
+    },
+    "./tanstack-router/rsc/server": {
+      "types": "./dist/types/exports/tanstack-router-rsc-server.d.ts",
+      "default": "./dist/esm/exports/tanstack-router-rsc-server.mjs"
+    },
     "./router/server": {
       "types": "./dist/types/router/runtime/server.d.ts",
       "default": "./dist/esm/router/runtime/server.mjs"
@@ -181,6 +193,15 @@
       "tanstack-router": [
         "./dist/types/exports/tanstack-router.d.ts"
       ],
+      "tanstack-router/rsc": [
+        "./dist/types/exports/tanstack-router-rsc.d.ts"
+      ],
+      "tanstack-router/rsc/client": [
+        "./dist/types/exports/tanstack-router-rsc-client.d.ts"
+      ],
+      "tanstack-router/rsc/server": [
+        "./dist/types/exports/tanstack-router-rsc-server.d.ts"
+      ],
       "router/server": [
         "./dist/types/router/runtime/server.d.ts"
       ],
@@ -227,6 +248,7 @@
     "@swc/helpers": "^0.5.21",
     "@swc/plugin-loadable-components": "^11.9.0",
     "@tanstack/react-router": "1.169.2",
+    "@tanstack/router-core": "1.169.2",
     "@types/loadable__component": "^5.13.10",
     "@types/react-helmet": "^6.1.11",
     "cookie": "1.1.1",
