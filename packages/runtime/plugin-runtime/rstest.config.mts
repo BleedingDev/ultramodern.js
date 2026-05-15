@@ -24,6 +24,7 @@ export default {
       testEnvironment: 'node',
       exclude: [
         'tests/router/prefetch.test.tsx',
+        'tests/router/tanstackPrefetchLink.test.tsx',
         'tests/router/dataMutation.test.tsx',
       ],
       extends: commonConfig,
@@ -51,6 +52,7 @@ export default {
       testEnvironment: 'happy-dom',
       include: [
         'tests/router/prefetch.test.tsx',
+        'tests/router/tanstackPrefetchLink.test.tsx',
         'tests/router/dataMutation.test.tsx',
       ],
       extends: commonConfig,
