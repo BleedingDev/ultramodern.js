@@ -4,7 +4,6 @@
     "declaration": false,
     "jsx": "preserve",
     "baseUrl": "./",
-    "rootDir": "../..",
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"],
@@ -12,5 +11,5 @@
     },
     "types": ["@rstest/core/globals"]
   },
-  "include": ["src", "shared", "config", "modern.config.ts"]
+  "include": ["shared", "server", "api"]
 }

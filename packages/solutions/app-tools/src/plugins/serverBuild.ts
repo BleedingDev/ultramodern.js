@@ -1,10 +1,13 @@
 import { compile } from '@modern-js/server-utils';
-import { getMeta, SERVER_DIR, SHARED_DIR } from '@modern-js/utils';
+import {
+  getMeta,
+  resolveServerTsconfig,
+  SERVER_DIR,
+  SHARED_DIR,
+} from '@modern-js/utils';
 import fs from 'fs';
 import path from 'path';
 import type { AppTools, CliPlugin } from '../types';
-
-const TS_CONFIG_FILENAME = 'tsconfig.json';
 
 function checkHasCache(appDir: string) {
   const tsFilepath = path.resolve(appDir, SERVER_DIR, 'cache.ts');
@@ -39,7 +42,10 @@ export default (): CliPlugin<AppTools> => ({
       const distDir = path.resolve(distDirectory);
       const serverDir = path.resolve(appDirectory, SERVER_DIR);
       const sharedDir = path.resolve(appDirectory, SHARED_DIR);
-      const tsconfigPath = path.resolve(appDirectory, TS_CONFIG_FILENAME);
+      const tsconfigPath = resolveServerTsconfig(
+        appDirectory,
+        modernConfig?.server?.tsconfigPath,
+      );
 
       const sourceDirs = [];
       if (fs.existsSync(serverDir)) {

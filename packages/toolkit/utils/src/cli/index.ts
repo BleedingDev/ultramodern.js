@@ -18,5 +18,6 @@ export * from './prettyInstructions';
 export * from './require';
 export * from './route';
 export * from './runtimeExports';
+export * from './tsconfig';
 export * from './version';
 export * from './watch';
