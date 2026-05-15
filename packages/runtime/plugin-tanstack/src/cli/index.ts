@@ -87,7 +87,7 @@ function getRuntimeRouterCli(): RuntimeRouterCliHelpers {
   }
 
   throw new Error(
-    '@modern-js/plugin-tanstack requires @modern-js/runtime/cli router helper exports from tpcore-02.',
+    '@modern-js/plugin-tanstack requires @modern-js/runtime/cli router helper exports.',
   );
 }
 
