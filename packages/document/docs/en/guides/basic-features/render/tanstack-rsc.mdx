@@ -29,7 +29,7 @@ Before using TanStack Router RSC, make sure the project has:
 4. The base RSC setup from [React Server Components (RSC)](/guides/basic-features/render/rsc), including the required RSC runtime dependency.
 
 :::tip
-If your project was created with `--router tanstack`, use `@modern-js/plugin-tanstack/runtime` in route code. If you use the built-in runtime export directly, use `@modern-js/runtime/tanstack-router`.
+If your project was created with `--router tanstack`, use `@modern-js/plugin-tanstack/runtime` in route code. This keeps route code aligned with the TanStack plugin that generated it.
 :::
 
 ## Enable RSC
@@ -51,14 +51,13 @@ export default defineConfig({
 
 ## Import Paths
 
-Modern.js exposes the same helper APIs from the standalone TanStack plugin and from the built-in runtime export.
+Use the TanStack plugin runtime exports in application code:
 
-| Scenario | Runtime APIs | Server-only RSC helpers | Client RSC helpers |
-|---------|--------------|--------------------------|--------------------|
-| Standalone TanStack plugin | `@modern-js/plugin-tanstack/runtime` | `@modern-js/plugin-tanstack/runtime/rsc/server` | `@modern-js/plugin-tanstack/runtime/rsc/client` |
-| Built-in runtime export | `@modern-js/runtime/tanstack-router` | `@modern-js/runtime/tanstack-router/rsc/server` | `@modern-js/runtime/tanstack-router/rsc/client` |
+- Runtime APIs: `@modern-js/plugin-tanstack/runtime`
+- Server-only RSC helpers: `@modern-js/plugin-tanstack/runtime/rsc/server`
+- Client RSC helpers: `@modern-js/plugin-tanstack/runtime/rsc/client`
 
-Use the standalone paths in projects created with the TanStack plugin. The examples below use those paths.
+The examples below use these paths.
 
 ## Render Server UI From a Loader
 

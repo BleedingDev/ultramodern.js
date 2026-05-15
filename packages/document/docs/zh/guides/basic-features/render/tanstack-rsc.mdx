@@ -29,7 +29,7 @@ Modern.js 支持在 TanStack Router 项目中使用 React Server Components（RS
 4. 已完成 [React Server Components（RSC）](/guides/basic-features/render/rsc) 中的基础配置，包括必要的 RSC 运行时依赖。
 
 :::tip
-如果项目通过 `--router tanstack` 创建，请在路由代码中使用 `@modern-js/plugin-tanstack/runtime`。如果直接使用内置运行时导出，请使用 `@modern-js/runtime/tanstack-router`。
+如果项目通过 `--router tanstack` 创建，请在路由代码中使用 `@modern-js/plugin-tanstack/runtime`，这样可以让路由代码与生成它的 TanStack 插件保持一致。
 :::
 
 ## 开启 RSC
@@ -51,14 +51,13 @@ export default defineConfig({
 
 ## 导入路径
 
-Modern.js 在独立 TanStack 插件和内置运行时导出中提供相同的辅助 API。
+在应用代码中使用 TanStack 插件的运行时导出：
 
-| 使用场景 | 运行时 API | 仅服务端 RSC 辅助函数 | 客户端 RSC 辅助函数 |
-|---------|------------|------------------------|----------------------|
-| 独立 TanStack 插件 | `@modern-js/plugin-tanstack/runtime` | `@modern-js/plugin-tanstack/runtime/rsc/server` | `@modern-js/plugin-tanstack/runtime/rsc/client` |
-| 内置运行时导出 | `@modern-js/runtime/tanstack-router` | `@modern-js/runtime/tanstack-router/rsc/server` | `@modern-js/runtime/tanstack-router/rsc/client` |
+- 运行时 API：`@modern-js/plugin-tanstack/runtime`
+- 仅服务端 RSC 辅助函数：`@modern-js/plugin-tanstack/runtime/rsc/server`
+- 客户端 RSC 辅助函数：`@modern-js/plugin-tanstack/runtime/rsc/client`
 
-通过 TanStack 插件创建的项目建议使用独立插件路径。下面的示例也使用该路径。
+下面的示例都使用这些路径。
 
 ## 从 Loader 渲染服务端 UI
 

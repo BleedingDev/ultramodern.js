@@ -93,18 +93,6 @@
       "types": "./dist/types/exports/tanstack-router.d.ts",
       "default": "./dist/esm/exports/tanstack-router.mjs"
     },
-    "./tanstack-router/rsc": {
-      "types": "./dist/types/exports/tanstack-router-rsc.d.ts",
-      "default": "./dist/esm/exports/tanstack-router-rsc.mjs"
-    },
-    "./tanstack-router/rsc/client": {
-      "types": "./dist/types/exports/tanstack-router-rsc-client.d.ts",
-      "default": "./dist/esm/exports/tanstack-router-rsc-client.mjs"
-    },
-    "./tanstack-router/rsc/server": {
-      "types": "./dist/types/exports/tanstack-router-rsc-server.d.ts",
-      "default": "./dist/esm/exports/tanstack-router-rsc-server.mjs"
-    },
     "./router/server": {
       "types": "./dist/types/router/runtime/server.d.ts",
       "default": "./dist/esm/router/runtime/server.mjs"
@@ -192,15 +180,6 @@
       ],
       "tanstack-router": [
         "./dist/types/exports/tanstack-router.d.ts"
-      ],
-      "tanstack-router/rsc": [
-        "./dist/types/exports/tanstack-router-rsc.d.ts"
-      ],
-      "tanstack-router/rsc/client": [
-        "./dist/types/exports/tanstack-router-rsc-client.d.ts"
-      ],
-      "tanstack-router/rsc/server": [
-        "./dist/types/exports/tanstack-router-rsc-server.d.ts"
       ],
       "router/server": [
         "./dist/types/router/runtime/server.d.ts"
