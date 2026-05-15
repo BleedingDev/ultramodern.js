@@ -122,6 +122,7 @@ export function getRouteObjects(
         hasAction: !!route.action,
         ...(route.isClientComponent ? { isClientComponent: true } : {}),
         ...(route.inValidSSRRoute ? { inValidSSRRoute: true } : {}),
+        lazyImport: route.lazyImport,
         Component: route.component ? route.component : undefined,
         errorElement: route.error ? <route.error /> : undefined,
         children: route.children

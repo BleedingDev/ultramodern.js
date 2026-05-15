@@ -62,15 +62,35 @@ type RouterMatchWithError = {
   error?: unknown;
   route?: {
     id?: unknown;
+    options?: RouterRouteOptions;
   };
   routeId?: unknown;
 };
 
+type RouterRouteOptions = {
+  component?: unknown;
+  errorComponent?: unknown;
+  notFoundComponent?: unknown;
+  pendingComponent?: unknown;
+};
+
+type RouterRouteWithOptions = {
+  options?: RouterRouteOptions;
+};
+
+type PreloadableRouteComponent = {
+  load?: (props?: Record<string, unknown>) => Promise<unknown> | unknown;
+  preload?: (props?: Record<string, unknown>) => Promise<unknown> | unknown;
+};
+
 type TanstackRouterWithServerSsr = AnyRouter & {
   resolveRedirect?: (redirect: Response) => Response;
+  routesById?: Record<string, RouterRouteWithOptions>;
   serverSsr?: {
     cleanup?: () => void;
     dehydrate?: () => Promise<void> | void;
+    isSerializationFinished?: () => boolean;
+    onSerializationFinished?: (listener: () => void) => void;
     takeBufferedScripts?: () => unknown;
   };
   state: AnyRouter['state'] & {
@@ -78,6 +98,82 @@ type TanstackRouterWithServerSsr = AnyRouter & {
     redirect?: Response;
   };
 };
+
+function isPreloadableRouteComponent(
+  component: unknown,
+): component is PreloadableRouteComponent {
+  if (!component || typeof component !== 'function') {
+    return false;
+  }
+
+  const preloadable = component as PreloadableRouteComponent;
+  return (
+    typeof preloadable.load === 'function' ||
+    typeof preloadable.preload === 'function'
+  );
+}
+
+async function preloadRouteComponent(component: unknown) {
+  if (!isPreloadableRouteComponent(component)) {
+    return;
+  }
+
+  if (typeof component.load === 'function') {
+    await component.load({});
+    return;
+  }
+
+  await component.preload?.({});
+}
+
+async function preloadMatchedRouteComponents(
+  tanstackRouter: TanstackRouterWithServerSsr,
+) {
+  const matches = Array.isArray(tanstackRouter.state.matches)
+    ? (tanstackRouter.state.matches as RouterMatchWithError[])
+    : [];
+  const routesById = tanstackRouter.routesById || {};
+
+  await Promise.all(
+    matches.map(async match => {
+      const routeId =
+        typeof match.routeId === 'string'
+          ? match.routeId
+          : typeof match.route?.id === 'string'
+            ? match.route.id
+            : undefined;
+      const route = routeId ? routesById[routeId] : match.route;
+      const options = route?.options;
+      if (!options) {
+        return;
+      }
+
+      await Promise.all([
+        preloadRouteComponent(options.component),
+        preloadRouteComponent(options.pendingComponent),
+        preloadRouteComponent(options.errorComponent),
+        preloadRouteComponent(options.notFoundComponent),
+      ]);
+    }),
+  );
+}
+
+async function waitForRouterSerialization(
+  tanstackRouter: TanstackRouterWithServerSsr,
+) {
+  const serverSsr = tanstackRouter.serverSsr;
+  if (
+    !serverSsr ||
+    typeof serverSsr.onSerializationFinished !== 'function' ||
+    serverSsr.isSerializationFinished?.()
+  ) {
+    return;
+  }
+
+  await new Promise<void>(resolve => {
+    serverSsr.onSerializationFinished?.(resolve);
+  });
+}
 
 function htmlEscapeAttr(value: string) {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -285,7 +381,7 @@ export const tanstackRouterPlugin = (
         const end = time();
 
         try {
-          await tanstackRouter.load();
+          await tanstackRouter.load({ sync: true });
         } finally {
           const cost = end();
           context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
@@ -312,9 +408,12 @@ export const tanstackRouterPlugin = (
           throw Object.values(routerErrors)[0];
         }
 
+        await preloadMatchedRouteComponents(serverRouter);
+
         context.ssrContext?.response.status(tanstackRouter.state.statusCode);
 
         await serverRouter.serverSsr?.dehydrate?.();
+        await waitForRouterSerialization(serverRouter);
 
         const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
         const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);

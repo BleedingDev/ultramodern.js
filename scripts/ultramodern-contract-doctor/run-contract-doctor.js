@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const EXPECTED_TANSTACK_ROUTER = '1.169.2';
+const EXPECTED_TANSTACK_ROUTER = '1.170.0';
 const DEPRECATED_TANSTACK_MARKERS = [
   '@modern-js/runtime/tanstack-router',
   'tanstackRouter',

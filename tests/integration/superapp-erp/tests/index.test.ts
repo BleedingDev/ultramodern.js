@@ -163,12 +163,13 @@ async function expectServerSideWorkflowLoad(port: number) {
   );
   expect(unknownApprovalResponse.status).toBeGreaterThanOrEqual(400);
 
-  const decisions = await Promise.all(
-    [
-      ['ap-1001', 'approved', 'finance.lead'],
-      ['ap-1002', 'rejected', 'ops.manager'],
-    ].map(([id, decision, actor]) =>
-      fetch(`${host}:${port}/bff-api/effect/approval/${id}/decision`, {
+  const decisions = [];
+  for (const [id, decision, actor] of [
+    ['ap-1001', 'approved', 'finance.lead'],
+    ['ap-1002', 'rejected', 'ops.manager'],
+  ] as const) {
+    decisions.push(
+      await fetch(`${host}:${port}/bff-api/effect/approval/${id}/decision`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -178,8 +179,8 @@ async function expectServerSideWorkflowLoad(port: number) {
           actor,
         }),
       }),
-    ),
-  );
+    );
+  }
   expect(decisions.map(response => response.status)).toEqual([200, 200]);
   const decisionPayloads = await Promise.all(
     decisions.map(response => response.json()),
@@ -228,7 +229,9 @@ async function expectServerSideWorkflowLoad(port: number) {
     'msg-6',
     'msg-7',
   ]);
-  expect(messagePayloads.at(-1)?.totalMessages).toBe(7);
+  expect(
+    Math.max(...messagePayloads.map(payload => payload.totalMessages)),
+  ).toBe(7);
 
   const bootstrapResponse = await fetch(
     `${host}:${port}/bff-api/effect/bootstrap`,

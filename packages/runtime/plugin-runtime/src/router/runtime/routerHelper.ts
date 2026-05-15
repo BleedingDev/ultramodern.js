@@ -6,7 +6,10 @@ export const createShouldRevalidate = (
   routeId: string,
 ): ShouldRevalidateFunction => {
   return arg => {
-    const routeModule = window?.[ROUTE_MODULES as keyof Window]?.[routeId];
+    const routeModule =
+      typeof window !== 'undefined'
+        ? window?.[ROUTE_MODULES as keyof Window]?.[routeId]
+        : undefined;
     if (routeModule && typeof routeModule.shouldRevalidate === 'function') {
       return routeModule.shouldRevalidate(arg);
     }

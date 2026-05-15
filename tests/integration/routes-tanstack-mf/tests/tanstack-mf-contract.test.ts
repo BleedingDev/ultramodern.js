@@ -241,7 +241,7 @@ describe('tanstack + module federation contracts', () => {
             'attachRouterServerSsrUtils({',
           );
           expect(tanstackServerRuntime).toContain(
-            'await (tanstackRouter as any).serverSsr?.dehydrate?.();',
+            'await serverRouter.serverSsr?.dehydrate?.();',
           );
           expect(tanstackServerRuntime).toContain(
             'serverSsr?.takeBufferedScripts?.()',
@@ -249,7 +249,9 @@ describe('tanstack + module federation contracts', () => {
           expect(tanstackServerRuntime).toContain('hydrationScripts');
           expect(ssrDataRuntime).toContain('hydrationScript');
           expect(ssrDataRuntime).toContain('ssrDataScripts +=');
-          expect(tanstackClientRuntime).toContain('(window as any).$_TSR');
+          expect(tanstackClientRuntime).toContain(
+            'Boolean((window as WindowWithTanstackSsr).$_TSR)',
+          );
           expect(tanstackClientRuntime).toContain(
             '<RouterClient router={router} />',
           );

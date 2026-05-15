@@ -10,7 +10,7 @@ const workspaceTemplateDir = path.resolve(
   'template-workspace',
 );
 
-const TANSTACK_ROUTER_VERSION = '1.169.2';
+const TANSTACK_ROUTER_VERSION = '1.170.0';
 const MODULE_FEDERATION_VERSION = '2.4.0';
 const TYPESCRIPT_VERSION = '~5.7.3';
 const REACT_VERSION = '^19.2.6';

@@ -64,6 +64,7 @@ type ModernRouteObject = RouteObject & {
   hasLoader?: boolean;
   inValidSSRRoute?: boolean;
   isClientComponent?: boolean;
+  lazyImport?: () => unknown;
   loader?: ModernLoader;
   pendingComponent?: unknown;
   shouldRevalidate?: ModernShouldRevalidate;
@@ -295,7 +296,7 @@ function wrapModernLoader(
 
       if (typeof route.lazyImport === 'function') {
         try {
-          route.lazyImport();
+          await route.lazyImport();
         } catch {}
       }
 
@@ -402,6 +403,12 @@ function wrapRouteObjectLoader(
     try {
       if (revalidationState) {
         rememberRouteLocation(revalidationState, ctx);
+      }
+
+      if (typeof modernRoute.lazyImport === 'function') {
+        try {
+          await modernRoute.lazyImport();
+        } catch {}
       }
 
       const signal: AbortSignal =
