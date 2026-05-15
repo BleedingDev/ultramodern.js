@@ -55,9 +55,15 @@ type ModernRouteObject = RouteObject & {
   ErrorBoundary?: unknown;
   HydrateFallback?: unknown;
   action?: unknown;
+  clientData?: unknown;
   config?: { handle?: Record<string, unknown> } | unknown;
   file?: string;
   handle?: Record<string, unknown>;
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  inValidSSRRoute?: boolean;
+  isClientComponent?: boolean;
   loader?: ModernLoader;
   pendingComponent?: unknown;
   shouldRevalidate?: ModernShouldRevalidate;
@@ -69,13 +75,19 @@ type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
   children?: ModernGeneratedRoute[];
   component?: unknown;
   config?: { handle?: Record<string, unknown> } | unknown;
+  clientData?: unknown;
   data?: string;
   error?: unknown;
   errorComponent?: unknown;
   filename?: string;
   handle?: Record<string, unknown>;
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  inValidSSRRoute?: boolean;
   id?: string;
   index?: boolean;
+  isClientComponent?: boolean;
   isRoot?: boolean;
   lazyImport?: () => unknown;
   loader?: ModernLoader;
@@ -92,6 +104,10 @@ type MutableTanstackRoute = AnyRoute & {
 type TanstackRouteOptions = Record<string, unknown>;
 type TanstackRootRouteOptions = Record<string, unknown>;
 type ModernTanstackRootRoute = TanstackRootRoute;
+type ModernDeferredDataLike = {
+  __modern_deferred?: unknown;
+  data?: unknown;
+};
 
 function createTanstackRoute(
   options: TanstackRouteOptions,
@@ -154,6 +170,26 @@ function isTanstackRedirect(value: unknown): boolean {
 const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
 function isRedirectResponse(res: Response) {
   return redirectStatusCodes.has(res.status);
+}
+
+function isModernDeferredData(
+  value: unknown,
+): value is ModernDeferredDataLike & { data: Record<string, unknown> } {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const deferred = value as ModernDeferredDataLike;
+  return (
+    deferred.__modern_deferred === true &&
+    Boolean(deferred.data) &&
+    typeof deferred.data === 'object' &&
+    !Array.isArray(deferred.data)
+  );
+}
+
+function normalizeModernLoaderResult(result: unknown): unknown {
+  return isModernDeferredData(result) ? result.data : result;
 }
 
 function throwTanstackRedirect(location: string) {
@@ -306,7 +342,7 @@ function wrapModernLoader(
         }
       }
 
-      return result;
+      return normalizeModernLoaderResult(result);
     } catch (err) {
       if (isResponse(err)) {
         if (isTanstackRedirect(err)) {
@@ -410,7 +446,7 @@ function wrapRouteObjectLoader(
         }
       }
 
-      return result;
+      return normalizeModernLoaderResult(result);
     } catch (err) {
       if (isResponse(err)) {
         if (isTanstackRedirect(err)) {
@@ -474,6 +510,10 @@ function createRouteStaticData(opts: {
   modernRouteId?: string;
   modernRouteAction?: unknown;
   modernRouteHandle?: unknown;
+  modernRouteHasAction?: boolean;
+  modernRouteHasClientLoader?: boolean;
+  modernRouteHasLoader?: boolean;
+  modernRouteIsClientComponent?: boolean;
   modernRouteLoader?: unknown;
   modernRouteShouldRevalidate?: unknown;
 }) {
@@ -489,6 +529,22 @@ function createRouteStaticData(opts: {
 
   if (opts.modernRouteHandle) {
     staticData.modernRouteHandle = opts.modernRouteHandle;
+  }
+
+  if (opts.modernRouteHasAction) {
+    staticData.modernRouteHasAction = true;
+  }
+
+  if (opts.modernRouteHasClientLoader) {
+    staticData.modernRouteHasClientLoader = true;
+  }
+
+  if (opts.modernRouteHasLoader) {
+    staticData.modernRouteHasLoader = true;
+  }
+
+  if (opts.modernRouteIsClientComponent) {
+    staticData.modernRouteIsClientComponent = true;
   }
 
   if (opts.modernRouteLoader) {
@@ -528,11 +584,23 @@ function createRouteFromRouteObject(opts: {
       modernRouteId: routeObject.id,
       modernRouteAction: modernRouteObject.action,
       modernRouteHandle: mergeModernRouteHandle(modernRouteObject),
+      modernRouteHasAction:
+        modernRouteObject.hasAction || Boolean(modernRouteObject.action),
+      modernRouteHasClientLoader:
+        modernRouteObject.hasClientLoader ||
+        typeof modernRouteObject.clientData !== 'undefined',
+      modernRouteHasLoader:
+        modernRouteObject.hasLoader ||
+        typeof modernRouteObject.loader === 'function',
+      modernRouteIsClientComponent: modernRouteObject.isClientComponent,
       modernRouteLoader: modernRouteObject.loader,
       modernRouteShouldRevalidate: shouldRevalidate,
     }),
     loader: wrapRouteObjectLoader(routeObject, revalidationState),
   };
+  if (modernRouteObject.inValidSSRRoute) {
+    base.ssr = false;
+  }
   if (shouldReload) {
     base.shouldReload = shouldReload;
   }
@@ -603,11 +671,20 @@ function createRouteFromModernRoute(opts: {
       modernRouteId: modernId,
       modernRouteAction: modernAction,
       modernRouteHandle: mergeModernRouteHandle(route),
+      modernRouteHasAction: route.hasAction || Boolean(modernAction),
+      modernRouteHasClientLoader:
+        route.hasClientLoader || typeof route.clientData !== 'undefined',
+      modernRouteHasLoader:
+        route.hasLoader || typeof modernLoader === 'function',
+      modernRouteIsClientComponent: route.isClientComponent,
       modernRouteLoader: modernLoader,
       modernRouteShouldRevalidate: modernShouldRevalidate,
     }),
     loader: wrapModernLoader(modernRoute, modernLoader, revalidationState),
   };
+  if (route.inValidSSRRoute) {
+    base.ssr = false;
+  }
   if (shouldReload) {
     base.shouldReload = shouldReload;
   }
@@ -668,6 +745,13 @@ export function createRouteTreeFromModernRoutes(
       modernRouteHandle: rootModern
         ? mergeModernRouteHandle(rootModern)
         : undefined,
+      modernRouteHasAction: rootModern?.hasAction || Boolean(rootAction),
+      modernRouteHasClientLoader:
+        rootModern?.hasClientLoader ||
+        typeof rootModern?.clientData !== 'undefined',
+      modernRouteHasLoader:
+        rootModern?.hasLoader || typeof rootLoader === 'function',
+      modernRouteIsClientComponent: rootModern?.isClientComponent,
       modernRouteLoader: rootLoader,
       modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
@@ -677,6 +761,9 @@ export function createRouteTreeFromModernRoutes(
   };
   if (rootShouldReload) {
     rootRouteOptions.shouldReload = rootShouldReload;
+  }
+  if (rootModern?.inValidSSRRoute) {
+    rootRouteOptions.ssr = false;
   }
 
   const rootRoute = createTanstackRootRoute(rootRouteOptions);
@@ -724,6 +811,14 @@ export function createRouteTreeFromRouteObjects(
       modernRouteHandle: rootLikeRoute
         ? mergeModernRouteHandle(rootLikeRoute)
         : undefined,
+      modernRouteHasAction:
+        rootLikeRoute?.hasAction || Boolean(rootLikeRoute?.action),
+      modernRouteHasClientLoader:
+        rootLikeRoute?.hasClientLoader ||
+        typeof rootLikeRoute?.clientData !== 'undefined',
+      modernRouteHasLoader:
+        rootLikeRoute?.hasLoader || typeof rootLikeRoute?.loader === 'function',
+      modernRouteIsClientComponent: rootLikeRoute?.isClientComponent,
       modernRouteLoader: rootLikeRoute?.loader,
       modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
@@ -733,6 +828,9 @@ export function createRouteTreeFromRouteObjects(
   };
   if (rootShouldReload) {
     rootRouteOptions.shouldReload = rootShouldReload;
+  }
+  if (rootLikeRoute?.inValidSSRRoute) {
+    rootRouteOptions.ssr = false;
   }
 
   const rootRoute = createTanstackRootRoute(rootRouteOptions);

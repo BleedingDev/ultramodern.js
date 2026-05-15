@@ -118,6 +118,7 @@ export type ModernRouteObject = RouteObject & {
   hasClientLoader?: boolean;
   hasLoader?: boolean;
   hasAction?: boolean;
+  inValidSSRRoute?: boolean;
   parentId?: string;
   lazyImport?: () => Promise<{ default: React.ComponentType }>;
   component?: React.ComponentType | LazyComponentDescriptor;

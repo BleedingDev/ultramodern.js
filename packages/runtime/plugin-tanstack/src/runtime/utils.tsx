@@ -24,6 +24,7 @@ export type ModernRouteObject = RouteObject & {
   hasClientLoader?: boolean;
   hasLoader?: boolean;
   hasAction?: boolean;
+  inValidSSRRoute?: boolean;
   lazyImport?: () => Promise<{ default: React.ComponentType }>;
 };
 
@@ -75,6 +76,7 @@ export function getRouteObjects(
         hasClientLoader: Boolean(route.clientData),
         hasAction: Boolean(route.action),
         ...(route.isClientComponent ? { isClientComponent: true } : {}),
+        ...(route.inValidSSRRoute ? { inValidSSRRoute: true } : {}),
         Component: route.component ? route.component : undefined,
         errorElement: route.error ? <route.error /> : undefined,
         children: route.children

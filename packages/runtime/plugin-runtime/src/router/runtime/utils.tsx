@@ -121,6 +121,7 @@ export function getRouteObjects(
         hasClientLoader: !!route.clientData,
         hasAction: !!route.action,
         ...(route.isClientComponent ? { isClientComponent: true } : {}),
+        ...(route.inValidSSRRoute ? { inValidSSRRoute: true } : {}),
         Component: route.component ? route.component : undefined,
         errorElement: route.error ? <route.error /> : undefined,
         children: route.children

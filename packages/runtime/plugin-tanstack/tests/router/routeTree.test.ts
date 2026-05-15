@@ -6,6 +6,7 @@ import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
 } from '../../src/runtime/routeTree';
+import { createRouteObjectsFromConfig } from '../../src/runtime/utils';
 
 type LoaderArgs = {
   params: Record<string, string>;
@@ -16,6 +17,18 @@ type TestRouteObject = RouteObject & {
   config?: {
     handle?: Record<string, unknown>;
   };
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  inValidSSRRoute?: boolean;
+  isClientComponent?: boolean;
+};
+
+type TestNestedRoute = NestedRoute & {
+  children?: TestNestedRoute[];
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
 };
 
 type ShouldRevalidateArgs = {
@@ -35,6 +48,7 @@ type ShouldReloadArgs = {
 type TestRoute = {
   options: {
     shouldReload?: (args: ShouldReloadArgs) => boolean | undefined;
+    ssr?: boolean;
     staticData: Record<string, unknown>;
   };
 };
@@ -75,6 +89,19 @@ function getLooseRoute(router: TestRouter, id: string): TestRoute {
   const route = router.looseRoutesById[id];
   if (!route) {
     throw new Error(`Expected TanStack route ${id} to exist`);
+  }
+  return route;
+}
+
+function getLooseRouteByModernRouteId(
+  router: TestRouter,
+  modernRouteId: string,
+): TestRoute {
+  const route = Object.values(router.looseRoutesById).find(
+    route => route?.options.staticData?.modernRouteId === modernRouteId,
+  );
+  if (!route) {
+    throw new Error(`Expected Modern route ${modernRouteId} to exist`);
   }
   return route;
 }
@@ -206,6 +233,77 @@ describe('tanstack route tree from RouteObject[]', () => {
     );
   });
 
+  test('preserves client route metadata and disables invalid SSR routes', async () => {
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'client',
+            path: 'client',
+            hasAction: true,
+            hasClientLoader: true,
+            hasLoader: true,
+            inValidSSRRoute: true,
+            isClientComponent: true,
+            loader: () => ({ ok: true }),
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/client');
+    const clientRoute = getLooseRoute(router, '/client');
+
+    expect(clientRoute.options.ssr).toBe(false);
+    expect(clientRoute.options.staticData).toMatchObject({
+      modernRouteHasAction: true,
+      modernRouteHasClientLoader: true,
+      modernRouteHasLoader: true,
+      modernRouteIsClientComponent: true,
+    });
+  });
+
+  test('normalizes Modern deferred loader data for TanStack SSR', async () => {
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'deferred',
+            path: 'deferred',
+            loader: () => ({
+              __modern_deferred: true,
+              data: {
+                immediate: 'ok',
+                later: Promise.resolve('done'),
+              },
+            }),
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/deferred');
+    const deferredMatch = router.state.matches.find(
+      match => match.routeId === '/deferred',
+    );
+    const loaderData = deferredMatch?.loaderData as
+      | { immediate: string; later: Promise<string> }
+      | undefined;
+
+    expect(loaderData?.immediate).toBe('ok');
+    await expect(loaderData?.later).resolves.toBe('done');
+  });
+
   test('merges Modern generated route handle into TanStack static data', () => {
     const modernRoutes: NestedRoute[] = [
       {
@@ -252,6 +350,89 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(dashboardRoute.options.staticData.modernRouteHandle).toEqual({
       section: 'analytics',
       role: 'admin',
+    });
+  });
+
+  test('preserves Modern generated client route metadata', () => {
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'client',
+            path: 'client',
+            clientData: './client.data',
+            hasAction: true,
+            hasClientLoader: true,
+            hasLoader: true,
+            inValidSSRRoute: true,
+            isClientComponent: true,
+          },
+        ],
+      },
+    ];
+    const routeTree = createRouteTreeFromModernRoutes(modernRoutes);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({
+        initialEntries: ['/client'],
+      }),
+      context: {},
+    }) as unknown as TestRouter;
+    const clientRoute = getLooseRouteByModernRouteId(router, 'client');
+
+    expect(clientRoute.options.ssr).toBe(false);
+    expect(clientRoute.options.staticData).toMatchObject({
+      modernRouteHasAction: true,
+      modernRouteHasClientLoader: true,
+      modernRouteHasLoader: true,
+      modernRouteIsClientComponent: true,
+    });
+  });
+
+  test('preserves generated client metadata through RouteObject conversion', () => {
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'client',
+            path: 'client',
+            clientData: './client.data',
+            data: './data',
+            inValidSSRRoute: true,
+            isClientComponent: true,
+          },
+        ],
+      },
+    ];
+    const routeObjects = createRouteObjectsFromConfig({
+      routesConfig: { routes: modernRoutes },
+    });
+    const routeTree = createRouteTreeFromRouteObjects(routeObjects || []);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({
+        initialEntries: ['/client'],
+      }),
+      context: {},
+    }) as unknown as TestRouter;
+    const clientRoute = getLooseRouteByModernRouteId(router, 'client');
+
+    expect(clientRoute.options.ssr).toBe(false);
+    expect(clientRoute.options.staticData).toMatchObject({
+      modernRouteHasClientLoader: true,
+      modernRouteIsClientComponent: true,
     });
   });
 });
