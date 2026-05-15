@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-15T23:18:18.468267+00:00",
+  "generated_at": "2026-05-15T23:28:17.730206+00:00",
   "graph_id": "ultramodern-beads-followups",
   "plan_set_hash": "dc5d7b869f",
   "selection_hash": "ac4a2eb44d",
@@ -140,19 +140,19 @@
         {
           "id": "ubf-drift-01",
           "content": "Reconfirm the pushed main-ultramodern baseline, current origin/main delta, remote state, and open Beads follow-up scope before changing code.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "ubf-drift-02",
           "content": "Resolve modernjs-7gp by rebasing or merging main-ultramodern against origin/main and fixing certification drift conflicts in plugin-bff CLI, app-tools serverBuild, and toolkit CLI utilities.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "ubf-drift-03",
           "content": "Rerun SuperApp certification smoke until app-facing commands and upstreamDrift both pass cleanly, then record evidence and update modernjs-7gp.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         }
       ],
@@ -163,36 +163,68 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-beads-upstream-drift",
-      "plan_name": "Ultramodern Beads Upstream Drift Closure",
-      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-upstream-drift.plan.md",
+      "plan_slug": "ultramodern-beads-live-control-plane",
+      "plan_name": "Ultramodern Beads Live Control Plane",
+      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-live-control-plane.plan.md",
       "plan_status": "pending",
       "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "ubf-drift-01",
-          "content": "Reconfirm the pushed main-ultramodern baseline, current origin/main delta, remote state, and open Beads follow-up scope before changing code.",
+          "id": "ubf-live-01",
+          "content": "Design install-backed live local control-plane mode, including package source strategy for generated workspaces outside the Modern.js monorepo.",
           "status": "pending",
           "ordinal": 1
         }
       ],
       "upcoming": [
         {
-          "id": "ubf-drift-02",
-          "content": "Resolve modernjs-7gp by rebasing or merging main-ultramodern against origin/main and fixing certification drift conflicts in plugin-bff CLI, app-tools serverBuild, and toolkit CLI utilities.",
+          "id": "ubf-live-02",
+          "content": "Implement live startup for generated shell, remotes, design-system remote, and Effect service with deterministic process ownership and environment wiring.",
           "status": "pending",
           "ordinal": 2
         },
         {
-          "id": "ubf-drift-03",
-          "content": "Rerun SuperApp certification smoke until app-facing commands and upstreamDrift both pass cleanly, then record evidence and update modernjs-7gp.",
+          "id": "ubf-live-03",
+          "content": "Add live readiness probes, log capture, failure classification, and deterministic teardown while keeping cheap preflight on dry-run mode by default.",
           "status": "pending",
           "ordinal": 3
         }
       ],
       "completed": 0,
-      "total": 3
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-beads-tanstack-rsc-payload-router",
+      "plan_name": "Ultramodern Beads TanStack RSC Payload Router",
+      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-tanstack-rsc-payload-router.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "ubf-rsc-01",
+          "content": "Design the TanStack RSC payload-router adapter by mapping Modern.js React Router RSC server/client machinery and TanStack Start Router RSC semantics onto the current TanStack plugin architecture.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "ubf-rsc-02",
+          "content": "Implement the TanStack RSC server payload adapter, including route matching, loader execution boundaries, redirect/notFound behavior, server payload serialization, and request cleanup.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "ubf-rsc-03",
+          "content": "Implement TanStack RSC client hydration and navigation behavior, including client-loader omission during RSC navigation and compatibility with existing TanStack SSR hydration scripts.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 4
     },
     {
       "plan_slug": "ultramodern-beads-final-readiness",
@@ -230,68 +262,16 @@
       "total": 3
     },
     {
-      "plan_slug": "ultramodern-beads-live-control-plane",
-      "plan_name": "Ultramodern Beads Live Control Plane",
-      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-live-control-plane.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-beads-upstream-drift"],
-      "active": [
-        {
-          "id": "ubf-live-01",
-          "content": "Design install-backed live local control-plane mode, including package source strategy for generated workspaces outside the Modern.js monorepo.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ubf-live-02",
-          "content": "Implement live startup for generated shell, remotes, design-system remote, and Effect service with deterministic process ownership and environment wiring.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ubf-live-03",
-          "content": "Add live readiness probes, log capture, failure classification, and deterministic teardown while keeping cheap preflight on dry-run mode by default.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 4
-    },
-    {
-      "plan_slug": "ultramodern-beads-tanstack-rsc-payload-router",
-      "plan_name": "Ultramodern Beads TanStack RSC Payload Router",
-      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-tanstack-rsc-payload-router.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-beads-upstream-drift"],
-      "active": [
-        {
-          "id": "ubf-rsc-01",
-          "content": "Design the TanStack RSC payload-router adapter by mapping Modern.js React Router RSC server/client machinery and TanStack Start Router RSC semantics onto the current TanStack plugin architecture.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "ubf-rsc-02",
-          "content": "Implement the TanStack RSC server payload adapter, including route matching, loader execution boundaries, redirect/notFound behavior, server payload serialization, and request cleanup.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "ubf-rsc-03",
-          "content": "Implement TanStack RSC client hydration and navigation behavior, including client-loader omission during RSC navigation and compatibility with existing TanStack SSR hydration scripts.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 4
+      "plan_slug": "ultramodern-beads-upstream-drift",
+      "plan_name": "Ultramodern Beads Upstream Drift Closure",
+      "plan_path": "/private/tmp/modernjs-main-ultramodern/.codex/plans/ultramodern-beads-upstream-drift.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 3,
+      "total": 3
     }
   ],
   "errors": [],

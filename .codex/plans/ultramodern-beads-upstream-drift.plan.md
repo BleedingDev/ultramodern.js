@@ -4,13 +4,13 @@ overview: Close the remaining upstream-drift blocker for main-ultramodern so lat
 todos:
   - id: ubf-drift-01
     content: Reconfirm the pushed main-ultramodern baseline, current origin/main delta, remote state, and open Beads follow-up scope before changing code.
-    status: pending
+    status: completed
   - id: ubf-drift-02
     content: Resolve modernjs-7gp by rebasing or merging main-ultramodern against origin/main and fixing certification drift conflicts in plugin-bff CLI, app-tools serverBuild, and toolkit CLI utilities.
-    status: pending
+    status: completed
   - id: ubf-drift-03
     content: Rerun SuperApp certification smoke until app-facing commands and upstreamDrift both pass cleanly, then record evidence and update modernjs-7gp.
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -41,6 +41,11 @@ Minimum proof for completion:
 - `pnpm run validate:superapp-certification:smoke`
 - clean upstream drift result inside the certification report
 - clean `git status --short`
+
+Completed on merged commit `6450cf16c2` with summary
+`.modern/superapp-certification/2026-05-15T23-26-49-290Z/summary.json`.
+The smoke run passed all commands and `upstreamDrift.status` was `merged`
+with no conflicts.
 
 ## Graph Handoff
 
