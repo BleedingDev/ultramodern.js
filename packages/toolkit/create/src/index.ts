@@ -5,6 +5,10 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { i18n, localeKeys } from './locale';
+import {
+  generateUltramodernWorkspace,
+  ULTRAMODERN_WORKSPACE_FLAG,
+} from './ultramodern-workspace';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(__dirname, '..', 'template');
@@ -739,6 +743,9 @@ function showHelp() {
   if (localeKeys.help.optionWorkspace) {
     console.log(i18n.t(localeKeys.help.optionWorkspace));
   }
+  if (localeKeys.help.optionUltramodernWorkspace) {
+    console.log(i18n.t(localeKeys.help.optionUltramodernWorkspace));
+  }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -762,6 +769,9 @@ function showHelp() {
   }
   if (localeKeys.help.example9) {
     console.log(i18n.t(localeKeys.help.example9));
+  }
+  if (localeKeys.help.example10) {
+    console.log(i18n.t(localeKeys.help.example10));
   }
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
@@ -804,6 +814,11 @@ function detectWorkspaceProtocolFlag(): boolean {
   return args.includes('--workspace');
 }
 
+function detectUltramodernWorkspaceFlag(): boolean {
+  const args = process.argv.slice(2);
+  return args.includes(ULTRAMODERN_WORKSPACE_FLAG);
+}
+
 function isDirectoryEmpty(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false;
@@ -840,6 +855,7 @@ async function getProjectName(): Promise<{
     '--bff',
     '--tailwind',
     '--workspace',
+    ULTRAMODERN_WORKSPACE_FLAG,
   ]);
   const positionalArgs: string[] = [];
 
@@ -924,6 +940,30 @@ async function main() {
   const createPackageJson = path.resolve(__dirname, '..', 'package.json');
   const createPackage = JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
   const version = createPackage.version || 'latest';
+  const generateWorkspace = detectUltramodernWorkspaceFlag();
+
+  if (generateWorkspace) {
+    generateUltramodernWorkspace({
+      targetDir,
+      packageName: generatedPackageName,
+      modernVersion: version,
+    });
+
+    const dim = '\x1b[2m\x1b[3m';
+    const reset = '\x1b[0m';
+
+    console.log(`${i18n.t(localeKeys.message.success)}\n`);
+    console.log(i18n.t(localeKeys.message.nextSteps));
+    if (!useCurrentDir) {
+      console.log(
+        `${dim}   ${i18n.t(localeKeys.message.step1, { projectName })}${reset}`,
+      );
+    }
+    console.log(`${dim}   ${i18n.t(localeKeys.message.step2)}${reset}`);
+    console.log(`${dim}   pnpm ultramodern:check${reset}`);
+    console.log(`${dim}   ${i18n.t(localeKeys.message.step3)}${reset}\n`);
+    return;
+  }
 
   const subprojectFlag = detectSubprojectFlag();
   const isSubproject = subprojectFlag === true;

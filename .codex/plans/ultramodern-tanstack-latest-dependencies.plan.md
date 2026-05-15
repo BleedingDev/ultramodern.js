@@ -4,16 +4,16 @@ overview: Refresh every UltraModern TanStack dependency to the current registry 
 todos:
   - id: utsdep-01
     content: Re-check npm registry latest versions for TanStack Router, TanStack History, and any TanStack tooling used by the plugin or generated apps before editing package files.
-    status: pending
+    status: completed
   - id: utsdep-02
     content: Update @modern-js/plugin-tanstack, create templates, TanStack fixtures, Module Federation shared-version metadata, and pnpm-lock.yaml so they agree on the latest supported TanStack stack.
-    status: pending
+    status: completed
   - id: utsdep-03
     content: Add or update tests that fail when generated UltraModern apps emit stale TanStack dependency versions or mismatched MF shared requiredVersion values.
-    status: pending
+    status: completed
   - id: utsdep-04
     content: Run the focused plugin, create-template, routes-tanstack, and routes-tanstack-mf validation set and record the refreshed dependency evidence.
-    status: pending
+    status: completed
 isProject: false
 ---
 

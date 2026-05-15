@@ -30,6 +30,7 @@
   },
   "files": [
     "template",
+    "template-workspace",
     "dist",
     "bin.js"
   ],

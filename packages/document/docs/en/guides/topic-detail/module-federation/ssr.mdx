@@ -37,6 +37,8 @@ export default defineConfig({
 ```
 
 For production rollout, keep fallback boundaries for remote load failures and monitor fallback markers in logs/telemetry.
+
+`moduleFederationAppSSR` enables SSR-compatible Module Federation bundling and runtime behavior. It does not guarantee that every remote component renders its final HTML in the host server response. Some router/runtime combinations, including the TanStack Router fixture, intentionally use typed SSR fallback metadata in the shell and let client hydration replace remote placeholders.
 :::
 
 ## Node SSR Bundle Compatibility
@@ -56,7 +58,7 @@ This avoids runtime incompatibilities between ESM server output and `@module-fed
 Before enabling this for broad production traffic, verify the following scenarios:
 
 1. Host and all remotes use `server.ssr.mode: 'stream'` and the same MF SSR contract flag.
-2. Happy-path SSR works in `dev`, `build`, and `serve` modes.
+2. Happy-path SSR works in `dev`, `build`, and `serve` modes, either as server-rendered remote HTML or as an explicit typed fallback contract.
 3. Remote unavailable path is covered by explicit fallback boundaries (no server crash).
 4. Data-fetch timeout and contract-error cases return deterministic fallback UI.
 5. Trace and telemetry markers are present across host/remote boundaries.
@@ -66,7 +68,7 @@ Before enabling this for broad production traffic, verify the following scenario
 
 1. Baseline enablement (host + remote):
   - Configure both sides with `server.ssr.mode: 'stream'` and `moduleFederationAppSSR: true`.
-  - Verify SSR HTML contains remote shell markers and no fallback markers.
+  - Verify SSR HTML contains either remote shell markers or an explicit typed fallback contract that names the client-hydrated remotes.
 2. Remote unavailable fallback:
   - Keep host flag enabled, stop one remote service, request a remote route.
   - Verify response is still `200`, fallback boundary renders, and server does not crash.

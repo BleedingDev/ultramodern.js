@@ -8,7 +8,7 @@ import {
   createRouter,
   notFound,
   redirect,
-} from '@modern-js/runtime/tanstack-router';
+} from '@modern-js/plugin-tanstack/runtime';
 
 type ModernRouterContext = {
   request?: Request;

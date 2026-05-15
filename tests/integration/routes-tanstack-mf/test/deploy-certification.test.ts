@@ -176,13 +176,19 @@ async function certifySsrBoundary(hostPort: number) {
   expect(html).not.toContain('<!--<?- html ?>-->');
   expect(html).toContain('host-mf-loader');
   expect(html).toContain('host-mf-count:');
-  expect(html).toContain('id="remote-ssr-contract-gap"');
+  expect(html).toContain('id="remote-ssr-fallback-contract"');
   expect(html).toContain(
-    'data-runtime-seam="tanstack-mf-server-remote-render"',
+    'data-ssr-contract="typed-ssr-fallback-client-hydration"',
+  );
+  expect(html).toContain(
+    'data-runtime-boundary="tanstack-mf-client-hydration"',
   );
   expect(html).toContain('id="remote-ssr-fallback-metadata"');
+  expect(html).toContain('"contract":"typed-ssr-fallback-client-hydration"');
   expect(html).toContain('"strategy":"client-hydration"');
-  expect(html).toContain('"reason":"mf-server-remote-resolution-unavailable"');
+  expect(html).toContain('"reason":"remote-unavailable"');
+  expect(html).toContain('"classification":"remote-unavailable"');
+  expect(html).toContain('"telemetryEvent":"mf.ssr.remote.fallback"');
   expect(html).toContain('remote-widget:pending');
   expect(html).toContain('remote-mutator:pending');
   expect(html).toContain('remote2-panel:pending');
@@ -190,7 +196,7 @@ async function certifySsrBoundary(hostPort: number) {
   expect(html).not.toContain('id="remote-mutator"');
   expect(html).not.toContain('remote2-panel:ok');
   return {
-    id: 'ssr-shell-remote-gap-boundary',
+    id: 'ssr-shell-typed-fallback-boundary',
     ok: true,
   };
 }
@@ -234,6 +240,7 @@ async function certifyFallback(input: {
   target: string;
   selector: string;
   expectedErrorName: string;
+  expectedClassification: 'network' | 'contract';
 }) {
   const url = new URL(`http://localhost:${input.hostPort}/mf`);
   url.searchParams.set('mfRemoteFailure', input.mode);
@@ -245,6 +252,14 @@ async function certifyFallback(input: {
   await input.page.waitForSelector(input.selector, { timeout: 50000 });
   const text = await input.page.$eval(input.selector, el => el.textContent);
   expect(text).toContain(`remote-load-error:${input.expectedErrorName}`);
+  const classification = await input.page.$eval(input.selector, el =>
+    el.getAttribute('data-mf-fallback-classification'),
+  );
+  const telemetryEvent = await input.page.$eval(input.selector, el =>
+    el.getAttribute('data-mf-telemetry-event'),
+  );
+  expect(classification).toBe(input.expectedClassification);
+  expect(telemetryEvent).toBe('mf.client.remote.fallback');
   return {
     id: `fallback:${input.mode}:${input.target}`,
     ok: true,
@@ -345,6 +360,7 @@ function writeSummary(checks: Check[]) {
           target: 'remote2/Panel',
           selector: '#remote2-error',
           expectedErrorName: 'RemoteLoadError',
+          expectedClassification: 'network',
         }),
       );
       checks.push(
@@ -355,6 +371,7 @@ function writeSummary(checks: Check[]) {
           target: 'remote/Widget',
           selector: '#remote-error',
           expectedErrorName: 'RemoteComponentContractError',
+          expectedClassification: 'contract',
         }),
       );
 

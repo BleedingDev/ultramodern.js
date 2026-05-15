@@ -35,6 +35,8 @@ export const ZH_LOCALE = {
       '      --tailwind 启用 Tailwind CSS v4 模板（PostCSS + 示例样式）',
     optionWorkspace:
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
+    optionUltramodernWorkspace:
+      '      --ultramodern-workspace 生成标准 UltraModern SuperApp 工作区',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -47,6 +49,7 @@ export const ZH_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
+    example10: '  create my-super-app --ultramodern-workspace',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

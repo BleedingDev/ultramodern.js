@@ -226,7 +226,7 @@
     "@swc/core": "1.15.33",
     "@swc/helpers": "^0.5.21",
     "@swc/plugin-loadable-components": "^11.9.0",
-    "@tanstack/react-router": "1.168.26",
+    "@tanstack/react-router": "1.169.2",
     "@types/loadable__component": "^5.13.10",
     "@types/react-helmet": "^6.1.11",
     "cookie": "1.1.1",

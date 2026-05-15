@@ -14,7 +14,7 @@ Modern.js 的约定式路由支持基于 [React Router 7](https://reactrouter.co
 
 :::tip
 本页示例默认使用 React Router 的导出路径（`@modern-js/runtime/router`）。  
-如果你的项目通过 `--router tanstack` 创建，请改用 `@modern-js/runtime/tanstack-router`。
+如果你的项目通过 `--router tanstack` 创建，请改用 `@modern-js/plugin-tanstack/runtime`。
 :::
 
 ## 什么是嵌套路由
@@ -500,19 +500,19 @@ import Motivation from '@site-docs/components/convention-routing-motivation';
 
 ## 常见问题
 
-1. 为什么要通过 `@modern-js/runtime/router` 或 `@modern-js/runtime/tanstack-router` 引入 API？
+1. 为什么要通过 `@modern-js/runtime/router` 或 `@modern-js/plugin-tanstack/runtime` 引入 API？
 
 Modern.js 提供了按路由框架区分的运行时导出：
 
 - React Router 模式使用 `@modern-js/runtime/router`。
-- TanStack Router 模式使用 `@modern-js/runtime/tanstack-router`。
+- TanStack Router 模式使用 `@modern-js/plugin-tanstack/runtime`。
 
 建议优先使用与当前路由方案对应的 Modern.js 运行时导出，而不是直接从上游路由包中引入。这样可以避免依赖重复，并确保与 Modern.js 的路由生成和运行时行为保持一致。
 
 如果遇到 API 使用问题，可以分别参考上游文档：
 
 - `@modern-js/runtime/router` 对应 React Router 文档。
-- `@modern-js/runtime/tanstack-router` 对应 TanStack Router 文档。
+- `@modern-js/plugin-tanstack/runtime` 对应 TanStack Router 文档。
 
 :::note
 

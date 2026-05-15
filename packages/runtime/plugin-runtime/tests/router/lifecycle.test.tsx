@@ -120,4 +120,19 @@ describe('router lifecycle seams', () => {
       expect(source).not.toContain('@tanstack/react-router');
     }
   });
+
+  it('should not expose deprecated TanStack context fields from the runtime context source', async () => {
+    const source = await readFile(
+      path.join(__dirname, '../../src/core/context/runtime.ts'),
+      'utf-8',
+    );
+
+    for (const deprecatedField of [
+      'tanstackRouter',
+      'tanstackSsrScript',
+      'tanstackMatchedModernRouteIds',
+    ]) {
+      expect(source).not.toContain(deprecatedField);
+    }
+  });
 });

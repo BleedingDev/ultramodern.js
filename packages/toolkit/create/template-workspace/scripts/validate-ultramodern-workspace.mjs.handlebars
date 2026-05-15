@@ -1,0 +1,183 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const packageScope = '{{packageScope}}';
+const tanstackVersion = '1.169.2';
+
+function readText(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), 'utf-8');
+}
+
+function readJson(relativePath) {
+  return JSON.parse(readText(relativePath));
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function assertExists(relativePath) {
+  assert(fs.existsSync(path.join(root, relativePath)), `Missing ${relativePath}`);
+}
+
+const requiredPaths = [
+  'package.json',
+  'pnpm-workspace.yaml',
+  'tsconfig.base.json',
+  'topology/reference-topology.json',
+  'topology/ownership.json',
+  'topology/local-overlays/development.json',
+  '.modernjs/ultramodern-workspace-template-manifest.json',
+  'apps/shell-super-app/package.json',
+  'apps/shell-super-app/modern.config.ts',
+  'apps/shell-super-app/module-federation.config.ts',
+  'apps/remotes/remote-commerce/package.json',
+  'apps/remotes/remote-commerce/modern.config.ts',
+  'apps/remotes/remote-commerce/module-federation.config.ts',
+  'apps/remotes/remote-identity/package.json',
+  'apps/remotes/remote-identity/modern.config.ts',
+  'apps/remotes/remote-identity/module-federation.config.ts',
+  'apps/remotes/remote-design-system/package.json',
+  'apps/remotes/remote-design-system/modern.config.ts',
+  'apps/remotes/remote-design-system/module-federation.config.ts',
+  'services/service-recommendations-effect/package.json',
+  'services/service-recommendations-effect/modern.config.ts',
+  'services/service-recommendations-effect/api/effect/index.ts',
+  'services/service-recommendations-effect/shared/effect/api.ts',
+  'packages/shared-contracts/src/index.ts',
+  'packages/shared-design-tokens/src/index.ts',
+  'packages/shared-effect-api/src/index.ts',
+];
+
+for (const requiredPath of requiredPaths) {
+  assertExists(requiredPath);
+}
+
+const rootPackage = readJson('package.json');
+assert(rootPackage.private === true, 'Root package must be private');
+assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
+assert(
+  rootPackage.scripts?.['ultramodern:check'] ===
+    'node ./scripts/validate-ultramodern-workspace.mjs',
+  'Root must expose the ultramodern:check script',
+);
+
+const appPackagePaths = [
+  'apps/shell-super-app/package.json',
+  'apps/remotes/remote-commerce/package.json',
+  'apps/remotes/remote-identity/package.json',
+  'apps/remotes/remote-design-system/package.json',
+];
+
+for (const packagePath of appPackagePaths) {
+  const packageJson = readJson(packagePath);
+  assert(
+    packageJson.dependencies?.['@modern-js/plugin-tanstack'] === 'workspace:*',
+    `${packagePath} must depend on @modern-js/plugin-tanstack through workspace:*`,
+  );
+  assert(
+    packageJson.dependencies?.['@tanstack/react-router'] === tanstackVersion,
+    `${packagePath} must use @tanstack/react-router ${tanstackVersion}`,
+  );
+  assert(
+    packageJson.dependencies?.['@module-federation/modern-js-v3'] === '2.4.0',
+    `${packagePath} must include the Module Federation plugin`,
+  );
+  assert(
+    packageJson.modernjs?.preset === 'presetUltramodern',
+    `${packagePath} must keep presetUltramodern metadata`,
+  );
+}
+
+for (const configPath of [
+  'apps/shell-super-app/modern.config.ts',
+  'apps/remotes/remote-commerce/modern.config.ts',
+  'apps/remotes/remote-identity/modern.config.ts',
+  'apps/remotes/remote-design-system/modern.config.ts',
+]) {
+  const config = readText(configPath);
+  assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
+  assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
+  assert(config.includes('moduleFederationPlugin()'), `${configPath} must enable Module Federation`);
+}
+
+const shellMf = readText('apps/shell-super-app/module-federation.config.ts');
+assert(shellMf.includes("name: 'shellSuperApp'"), 'Shell MF config must name the shell');
+assert(shellMf.includes('remoteCommerce@http://localhost:3021/mf-manifest.json'), 'Shell must reference commerce remote');
+assert(shellMf.includes('remoteIdentity@http://localhost:3022/mf-manifest.json'), 'Shell must reference identity remote');
+assert(shellMf.includes('remoteDesignSystem@http://localhost:3023/mf-manifest.json'), 'Shell must reference design-system remote');
+
+const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
+assert(commerceMf.includes("name: 'remoteCommerce'"), 'Commerce remote MF name is missing');
+assert(commerceMf.includes('"./Widget"'), 'Commerce remote must expose a widget');
+
+const designMf = readText('apps/remotes/remote-design-system/module-federation.config.ts');
+assert(designMf.includes("name: 'remoteDesignSystem'"), 'Design-system remote MF name is missing');
+assert(designMf.includes('"./Button"'), 'Design-system remote must expose Button');
+assert(designMf.includes('"./tokens"'), 'Design-system remote must expose tokens');
+
+const servicePackage = readJson('services/service-recommendations-effect/package.json');
+assert(
+  servicePackage.devDependencies?.['@modern-js/plugin-bff'] === 'workspace:*',
+  'Effect service must use @modern-js/plugin-bff through workspace:*',
+);
+
+const serviceConfig = readText('services/service-recommendations-effect/modern.config.ts');
+assert(serviceConfig.includes("runtimeFramework: 'effect'"), 'Effect service must use Effect runtime');
+assert(serviceConfig.includes('bffPlugin()'), 'Effect service must enable bffPlugin');
+
+const serviceEntry = readText('services/service-recommendations-effect/api/effect/index.ts');
+assert(serviceEntry.includes('defineEffectBff'), 'Effect service must expose defineEffectBff placeholder');
+assert(serviceEntry.includes('recommendationsEffectApi'), 'Effect service must use shared recommendations API');
+
+const serviceApi = readText('services/service-recommendations-effect/shared/effect/api.ts');
+assert(serviceApi.includes('HttpApi.make'), 'Effect shared API placeholder must define HttpApi');
+
+const topology = readJson('topology/reference-topology.json');
+assert(topology.preset === 'presetUltramodern', 'Topology must reference presetUltramodern');
+assert(topology.shell?.id === 'shell-super-app', 'Topology shell id is incorrect');
+assert(topology.shell?.remoteRefs?.length === 3, 'Topology shell must reference three remotes');
+assert(topology.remotes?.length === 3, 'Topology must contain three remotes');
+assert(
+  topology.remotes.some(
+    remote =>
+      remote.id === 'remote-design-system' &&
+      remote.kind === 'horizontal-design-system',
+  ),
+  'Topology must contain the horizontal design-system remote',
+);
+assert(topology.effectServices?.[0]?.runtime === 'effect', 'Topology must contain an Effect service');
+assert(topology.sharedPackages?.length === 3, 'Topology must contain shared package placeholders');
+
+const ownership = readJson('topology/ownership.json');
+assert(
+  ownership.owners?.some(
+    owner =>
+      owner.id === 'remote-commerce' &&
+      owner.ownership?.team === 'commerce-experience',
+  ),
+  'Ownership metadata must retain commerce owner',
+);
+assert(
+  ownership.owners?.some(
+    owner =>
+      owner.id === 'service-recommendations-effect' &&
+      owner.package === `@${packageScope}/service-recommendations-effect`,
+  ),
+  'Ownership metadata must retain Effect service owner',
+);
+
+const manifest = readJson('.modernjs/ultramodern-workspace-template-manifest.json');
+assert(
+  manifest.template?.id === 'modernjs-ultramodern-superapp-workspace',
+  'Template manifest evidence is missing',
+);
+assert(
+  manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),
+  'Template manifest must document the validation command',
+);
+
+console.log('UltraModern workspace scaffold validated');

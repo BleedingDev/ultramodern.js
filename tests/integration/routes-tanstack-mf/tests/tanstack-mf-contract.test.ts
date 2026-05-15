@@ -44,6 +44,28 @@ const readFixture = (relativePath: string) =>
 const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
 
+type PackageJsonWithDependencies = {
+  dependencies?: Record<string, string>;
+};
+
+type MfSharedEntry = {
+  name: string;
+  singleton?: boolean;
+  version?: string;
+  requiredVersion?: string;
+};
+
+const readTanstackRouterDependency = (appName: string) => {
+  const packageJson = readFixtureJson(
+    `integration/routes-tanstack-mf/${appName}/package.json`,
+  ) as PackageJsonWithDependencies;
+  const version = packageJson.dependencies?.['@tanstack/react-router'];
+  if (!version) {
+    throw new Error(`${appName} is missing @tanstack/react-router`);
+  }
+  return version;
+};
+
 async function ensureTanstackMfDistFixtures() {
   ensurePluginDataLoaderRuntimeBuilt();
 
@@ -93,7 +115,7 @@ afterAll(async () => {
 });
 
 describe('tanstack + module federation contracts', () => {
-  test('executable SSR gap matrix records current MF route contract', () => {
+  test('executable SSR fallback matrix records official MF route contract', () => {
     const hostPage = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/routes/mf/page.tsx',
     );
@@ -134,14 +156,15 @@ describe('tanstack + module federation contracts', () => {
     const matrix = [
       {
         id: 'federated-content-ssr',
-        status: 'gap-runtime-seam',
+        status: 'official-typed-fallback',
         assert: () => {
           expect(hostPage).toContain('const [clientReady, setClientReady]');
           expect(hostPage).toContain('setClientReady(true)');
           expect(hostPage).toContain('{!clientReady ? (');
-          expect(hostPage).toContain('id="remote-ssr-contract-gap"');
+          expect(hostPage).toContain('id="remote-ssr-fallback-contract"');
+          expect(hostPage).toContain('data-ssr-contract=');
           expect(hostPage).toContain(
-            'data-runtime-seam="tanstack-mf-server-remote-render"',
+            'data-runtime-boundary="tanstack-mf-client-hydration"',
           );
           expect(hostPage).toContain(
             'data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"',
@@ -149,6 +172,7 @@ describe('tanstack + module federation contracts', () => {
           expect(hostPage).toContain(
             'data-fallback-metadata-id="remote-ssr-fallback-metadata"',
           );
+          expect(hostPage).toContain('data-hydration-owner="client"');
           expect(hostPage).toContain('id="remote-ssr-fallback-metadata"');
           expect(hostPage).toContain(
             'REMOTE_SSR_FALLBACK_METADATA.remotes.map',
@@ -157,12 +181,28 @@ describe('tanstack + module federation contracts', () => {
             'export type RemoteSsrFallbackDescriptor',
           );
           expect(remoteSsrFallback).toContain(
-            "runtimeSeam: 'tanstack-mf-server-remote-render'",
+            'contract: RemoteSsrFallbackContract',
+          );
+          expect(remoteSsrFallback).toContain(
+            "runtimeBoundary: 'tanstack-mf-client-hydration'",
           );
           expect(remoteSsrFallback).toContain("strategy: 'client-hydration'");
+          expect(remoteSsrFallback).toContain("reason: 'remote-unavailable'");
           expect(remoteSsrFallback).toContain(
-            "reason: 'mf-server-remote-resolution-unavailable'",
+            "classification: 'remote-unavailable'",
           );
+          expect(remoteSsrFallback).toContain(
+            "telemetryEvent: 'mf.ssr.remote.fallback'",
+          );
+          for (const classification of [
+            'remote-unavailable',
+            'timeout',
+            'network',
+            'contract',
+            'version-skew',
+          ]) {
+            expect(remoteSsrFallback).toContain(`'${classification}'`);
+          }
           expect(remoteSsrFallback).toContain("id: 'remote/Widget'");
           expect(remoteSsrFallback).toContain(
             "placeholderId: 'remote-ssr-placeholder'",
@@ -181,6 +221,11 @@ describe('tanstack + module federation contracts', () => {
           expect(remoteLoader).toContain('import { loadRemote }');
           expect(remoteLoader).toContain('if (typeof window ===');
           expect(remoteLoader).toContain('React.lazy');
+          expect(remoteLoader).toContain('classifyRemoteLoadFailure');
+          expect(remoteLoader).toContain(
+            'data-mf-fallback-classification={classification}',
+          );
+          expect(remoteLoader).toContain("mode === 'version-skew'");
           for (const config of [hostConfig, remoteConfig, remoteTwoConfig]) {
             expect(config).toContain("mode: 'string'");
             expect(config).toContain('moduleFederationAppSSR: true');
@@ -301,21 +346,20 @@ describe('tanstack + module federation contracts', () => {
             ]),
           );
           for (const manifest of [
-            hostManifest,
-            remoteManifest,
-            remote2Manifest,
-          ]) {
-            const shared = manifest.shared as Array<{
-              name: string;
-              singleton?: boolean;
-              requiredVersion?: string;
-            }>;
+            [hostManifest, 'mf-host'],
+            [remoteManifest, 'mf-remote'],
+            [remote2Manifest, 'mf-remote-2'],
+          ] as const) {
+            const [manifestJson, appName] = manifest;
+            const expectedVersion = readTanstackRouterDependency(appName);
+            const shared = manifestJson.shared as MfSharedEntry[];
             expect(shared).toEqual(
               expect.arrayContaining([
                 expect.objectContaining({
                   name: '@tanstack/react-router',
                   singleton: true,
-                  requiredVersion: expect.any(String),
+                  version: expectedVersion,
+                  requiredVersion: expectedVersion,
                 }),
               ]),
             );
@@ -325,7 +369,7 @@ describe('tanstack + module federation contracts', () => {
     ];
 
     expect(matrix.map(row => [row.id, row.status])).toEqual([
-      ['federated-content-ssr', 'gap-runtime-seam'],
+      ['federated-content-ssr', 'official-typed-fallback'],
       ['tanstack-hydration-dehydrate', 'covered-runtime-surface'],
       ['loader-handoff', 'covered'],
       ['action-handoff', 'covered-generated-bridge'],

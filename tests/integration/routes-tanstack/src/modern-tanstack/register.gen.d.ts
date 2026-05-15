@@ -3,7 +3,7 @@
 import type { router as router0 } from './stream/router.gen';
 import type { router as router1 } from './string/router.gen';
 
-declare module '@modern-js/runtime/tanstack-router' {
+declare module '@modern-js/plugin-tanstack/runtime' {
   interface Register {
     router: typeof router0 | typeof router1;
   }

@@ -1,0 +1,21 @@
+# {{packageName}}
+
+Generated UltraModern SuperApp workspace.
+
+This workspace keeps `presetUltramodern(...)` as the single public Modern.js
+preset surface and scaffolds the canonical Micro Vertical starter topology:
+
+- `apps/shell-super-app` owns shell route assembly and remote manifest wiring.
+- `apps/remotes/remote-commerce` owns the commerce vertical remote.
+- `apps/remotes/remote-identity` owns the identity vertical remote.
+- `apps/remotes/remote-design-system` owns the horizontal design-system remote.
+- `services/service-recommendations-effect` owns the Effect BFF service.
+- `packages/shared-*` provide placeholders for cross-workspace contracts.
+
+Run the scaffold validator before adding business code:
+
+```bash
+pnpm ultramodern:check
+```
+
+The topology and ownership metadata are generated under `topology/`.

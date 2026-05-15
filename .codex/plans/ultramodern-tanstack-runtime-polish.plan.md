@@ -4,16 +4,16 @@ overview: Remove transitional TanStack runtime baggage and make @modern-js/plugi
 todos:
   - id: utsrp-01
     content: Remove explicit deprecated TanStack fields from internal runtime context and update tests to assert only generic router runtime fields are used.
-    status: pending
+    status: completed
   - id: utsrp-02
     content: Audit and remove or quarantine the old in-runtime TanStack implementation path so generated apps use @modern-js/plugin-tanstack rather than @modern-js/runtime/tanstack-router.
-    status: pending
+    status: completed
   - id: utsrp-03
     content: Align TanStack SSR hydration, matched-route snapshots, action handoff, and lifecycle hooks around routerRuntime, routerInstance, routerHydrationScript, routerMatchedRouteIds, and routerServerSnapshot.
-    status: pending
+    status: completed
   - id: utsrp-04
     content: Add focused tests proving no deprecated TanStack-specific runtime context fields, exports, or generated code survive in the UltraModern path.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -36,3 +36,9 @@ Do not regress React Router compatibility while removing TanStack-specific bagga
 Run this only after the latest TanStack dependency lane is green. New TanStack API breakages should be fixed in the plugin package, not papered over with deprecated `tanstack*` fields.
 
 The success signal is simple: code and tests should speak in generic router runtime terms, while user-facing TanStack imports come from `@modern-js/plugin-tanstack`.
+
+## Completion Evidence
+
+Runtime context no longer exposes `tanstackRouter`, `tanstackSsrScript`, or `tanstackMatchedModernRouteIds`. The UltraModern/generated TanStack path now imports from `@modern-js/plugin-tanstack/runtime`, and docs no longer advertise `@modern-js/runtime/tanstack-router` as the TanStack API path.
+
+The old `@modern-js/runtime/tanstack-router` export remains confined to the core runtime compatibility shim. It is intentionally not used by generated UltraModern fixtures.

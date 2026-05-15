@@ -1,7 +1,9 @@
 import {
+  classifyRemoteLoadFailure,
   loadRemoteModuleWithRetryBase,
   RemoteComponentContractError,
   RemoteLoadError,
+  RemoteLoadTimeoutError,
   resolveRemoteComponentBase,
 } from '../mf-host/src/routes/mf/remoteLoaderCore';
 
@@ -72,5 +74,35 @@ describe('remote loader reliability', () => {
         'default',
       ),
     ).toThrow(RemoteComponentContractError);
+  });
+
+  test('classifies remote fallback telemetry reasons', () => {
+    expect(
+      classifyRemoteLoadFailure(
+        new RemoteLoadTimeoutError('remote/Widget', 20),
+      ),
+    ).toBe('timeout');
+    expect(classifyRemoteLoadFailure(new Error('failed to fetch chunk'))).toBe(
+      'network',
+    );
+    expect(
+      classifyRemoteLoadFailure(
+        new RemoteComponentContractError('remote/Widget', 'default'),
+      ),
+    ).toBe('contract');
+    expect(
+      classifyRemoteLoadFailure(
+        new Error('@tanstack/react-router requiredVersion mismatch'),
+      ),
+    ).toBe('version-skew');
+    expect(
+      classifyRemoteLoadFailure(
+        new RemoteLoadError(
+          'remote/Widget',
+          1,
+          new Error('manifest not found'),
+        ),
+      ),
+    ).toBe('remote-unavailable');
   });
 });

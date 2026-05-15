@@ -37,6 +37,8 @@ export const EN_LOCALE = {
       '      --tailwind Enable Tailwind CSS v4 scaffold (PostCSS + starter styles)',
     optionWorkspace:
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
+    optionUltramodernWorkspace:
+      '      --ultramodern-workspace Generate the canonical UltraModern SuperApp workspace',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -49,6 +51,7 @@ export const EN_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
+    example10: '  create my-super-app --ultramodern-workspace',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

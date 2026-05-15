@@ -12,7 +12,7 @@
     "@modern-js/runtime": "workspace:*",
     "@module-federation/modern-js-v3": "2.4.0",
     "@module-federation/runtime": "2.4.0",
-    "@tanstack/react-router": "1.168.26",
+    "@tanstack/react-router": "1.169.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

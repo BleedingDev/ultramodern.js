@@ -3,6 +3,7 @@ import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import * as React from 'react';
 import { lazyRemoteComponent, RemoteErrorBoundary } from './remoteLoader';
 import {
+  REMOTE_SSR_FALLBACK_CONTRACT,
   REMOTE_SSR_FALLBACK_METADATA,
   serializeRemoteSsrFallbackMetadata,
 } from './remoteSsrFallback';
@@ -49,18 +50,20 @@ export default function MfPage() {
       {!clientReady ? (
         <>
           <div
-            id="remote-ssr-contract-gap"
-            data-runtime-seam="tanstack-mf-server-remote-render"
+            id="remote-ssr-fallback-contract"
+            data-ssr-contract={REMOTE_SSR_FALLBACK_CONTRACT}
+            data-runtime-boundary="tanstack-mf-client-hydration"
             data-expected-remotes="remote/Widget,remote/Mutator,remote2/Panel"
             data-fallback-metadata-id="remote-ssr-fallback-metadata"
+            data-hydration-owner="client"
           >
-            remote-ssr:blocked
+            remote-ssr:client-hydration-fallback
           </div>
           <script
             id="remote-ssr-fallback-metadata"
             type="application/json"
-            // The server shell emits this before hydration so clients and tests
-            // can verify the exact remotes that intentionally fall back to CSR.
+            // The server shell emits the official fallback contract before
+            // hydration so clients and tests can verify replacement ownership.
             dangerouslySetInnerHTML={{
               __html: serializeRemoteSsrFallbackMetadata(
                 REMOTE_SSR_FALLBACK_METADATA,
@@ -72,9 +75,12 @@ export default function MfPage() {
               key={remote.id}
               id={remote.placeholderId}
               data-remote-id={remote.id}
-              data-runtime-seam={remote.runtimeSeam}
+              data-runtime-boundary={remote.runtimeBoundary}
               data-fallback-strategy={remote.strategy}
               data-fallback-reason={remote.reason}
+              data-fallback-classification={remote.classification}
+              data-telemetry-event={remote.telemetryEvent}
+              data-hydration-owner={REMOTE_SSR_FALLBACK_METADATA.hydrationOwner}
             >
               {remote.id === 'remote/Widget'
                 ? 'remote-widget:pending'

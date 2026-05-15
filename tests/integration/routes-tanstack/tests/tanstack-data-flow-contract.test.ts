@@ -10,6 +10,8 @@ const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
 
 const assertTanstackLoaderContract = (code: string) => {
+  expect(code).toContain("} from '@modern-js/plugin-tanstack/runtime'");
+  expect(code).not.toContain('@modern-js/runtime/tanstack-router');
   expect(code).toContain('function modernLoaderToTanstack');
   expect(code).toContain('function createRouteStaticData');
   expect(code).toContain('ctx?.abortController?.signal');

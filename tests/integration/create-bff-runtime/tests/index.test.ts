@@ -95,7 +95,7 @@ describe('create-bff-runtime', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.158.1');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.169.2');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
 
     const modernConfig = fs.readFileSync(

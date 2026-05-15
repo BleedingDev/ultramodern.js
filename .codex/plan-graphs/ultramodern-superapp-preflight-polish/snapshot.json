@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-15T08:27:03.057062+00:00",
+  "generated_at": "2026-05-15T09:16:35.832631+00:00",
   "graph_id": "ultramodern-superapp-preflight-polish",
   "plan_set_hash": "f42a2bc266",
   "selection_hash": "aea0cf9ba9",
   "plan_count": 7,
   "edge_count": 10,
-  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "plans_root": ".codex/plans",
   "selected_globs": [],
   "selected_plan_paths": [
     "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mf-ssr-contract-closure.plan.md",
@@ -68,25 +68,25 @@
         {
           "id": "umssr-01",
           "content": "Re-audit routes-tanstack-mf and runtime MF SSR surfaces after the latest TanStack update to decide whether server remote rendering is implementable now with existing hooks.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "umssr-02",
           "content": "If implementable, add the missing plugin or runtime seam and prove server-rendered remote components in routes-tanstack-mf.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "umssr-03",
           "content": "If not implementable now, promote typed SSR fallback plus client hydration from gap marker to official contract with telemetry, docs, and negative tests.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "umssr-04",
           "content": "Update validation gates so MF SSR behavior is explicit, enforced, and no longer documented as an ambiguous gap.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -103,25 +103,25 @@
         {
           "id": "usdoc-01",
           "content": "Define doctor checks for presetUltramodern, @modern-js/plugin-tanstack, latest TanStack versions, Effect services, MF topology, design-system remote policy, ownership metadata, and shared-package boundaries.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "usdoc-02",
           "content": "Implement human-readable and JSON doctor output by reusing existing topology, template manifest, design-system, dependency, and release-gate validators.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "usdoc-03",
           "content": "Add actionable fix suggestions for stale TanStack versions, deprecated TanStack runtime fields, missing topology metadata, missing MF SSR flags, missing Effect request-context propagation, and forbidden shared-package roles.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "usdoc-04",
           "content": "Wire doctor checks into generated workspace scripts and the preflight CI profile.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -138,25 +138,25 @@
         {
           "id": "uslcp-01",
           "content": "Extract reusable process, port, readiness, metrics, and teardown helpers from SuperApp certification without breaking destroy-run behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uslcp-02",
           "content": "Add local topology runner for generated UltraModern workspaces that starts services, remotes, design-system remote, and shell in dependency order.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uslcp-03",
           "content": "Add rehearsal modes for remote unavailable, version skew, design-system bad release, and service unavailable using topology overlays.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uslcp-04",
           "content": "Validate deterministic startup, failure classification, log and artifact output, and teardown in generated workspace fixtures.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -173,25 +173,25 @@
         {
           "id": "uspready-01",
           "content": "Add one preflight command that generates a temporary workspace, runs doctor checks, validates topology, starts local processes, and executes minimal smoke gates.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uspready-02",
           "content": "Publish a concise greenfield SuperApp getting-started guide built around the preflight command and latest TanStack stack.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uspready-03",
           "content": "Add a generated-workspace CI profile that is stronger than docs-only validation but cheaper than full destroy certification.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uspready-04",
           "content": "Produce final readiness evidence showing a team can bootstrap and validate UltraModern without writing business-domain SuperApp code.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -208,25 +208,25 @@
         {
           "id": "uswgen-01",
           "content": "Define generated workspace output for root config, shell, two vertical remotes, one design-system MF remote, one Effect service, shared packages, topology overlays, and validation scripts.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "uswgen-02",
           "content": "Extend @modern-js/create with one UltraModern workspace generation path while keeping presetUltramodern as the only public preset.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "uswgen-03",
           "content": "Generate topology metadata, ownership metadata, local overlays, package scripts, and template manifest evidence from repo-backed fixtures.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "uswgen-04",
           "content": "Add generator tests that scaffold the workspace and verify layout, package versions, config wiring, MF remote roles, Effect service wiring, and validation commands.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -243,25 +243,25 @@
         {
           "id": "utsdep-01",
           "content": "Re-check npm registry latest versions for TanStack Router, TanStack History, and any TanStack tooling used by the plugin or generated apps before editing package files.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "utsdep-02",
           "content": "Update @modern-js/plugin-tanstack, create templates, TanStack fixtures, Module Federation shared-version metadata, and pnpm-lock.yaml so they agree on the latest supported TanStack stack.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "utsdep-03",
           "content": "Add or update tests that fail when generated UltraModern apps emit stale TanStack dependency versions or mismatched MF shared requiredVersion values.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "utsdep-04",
           "content": "Run the focused plugin, create-template, routes-tanstack, and routes-tanstack-mf validation set and record the refreshed dependency evidence.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -278,25 +278,25 @@
         {
           "id": "utsrp-01",
           "content": "Remove explicit deprecated TanStack fields from internal runtime context and update tests to assert only generic router runtime fields are used.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "utsrp-02",
           "content": "Audit and remove or quarantine the old in-runtime TanStack implementation path so generated apps use @modern-js/plugin-tanstack rather than @modern-js/runtime/tanstack-router.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "utsrp-03",
           "content": "Align TanStack SSR hydration, matched-route snapshots, action handoff, and lifecycle hooks around routerRuntime, routerInstance, routerHydrationScript, routerMatchedRouteIds, and routerServerSnapshot.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "utsrp-04",
           "content": "Add focused tests proving no deprecated TanStack-specific runtime context fields, exports, or generated code survive in the UltraModern path.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         }
       ],
@@ -307,237 +307,87 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-tanstack-latest-dependencies",
-      "plan_name": "Ultramodern TanStack Latest Dependencies",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-latest-dependencies.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "utsdep-01",
-          "content": "Re-check npm registry latest versions for TanStack Router, TanStack History, and any TanStack tooling used by the plugin or generated apps before editing package files.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "utsdep-02",
-          "content": "Update @modern-js/plugin-tanstack, create templates, TanStack fixtures, Module Federation shared-version metadata, and pnpm-lock.yaml so they agree on the latest supported TanStack stack.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "utsdep-03",
-          "content": "Add or update tests that fail when generated UltraModern apps emit stale TanStack dependency versions or mismatched MF shared requiredVersion values.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 4
-    },
-    {
       "plan_slug": "ultramodern-mf-ssr-contract-closure",
       "plan_name": "Ultramodern MF SSR Contract Closure",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-mf-ssr-contract-closure.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-tanstack-runtime-polish"],
-      "active": [
-        {
-          "id": "umssr-01",
-          "content": "Re-audit routes-tanstack-mf and runtime MF SSR surfaces after the latest TanStack update to decide whether server remote rendering is implementable now with existing hooks.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "umssr-02",
-          "content": "If implementable, add the missing plugin or runtime seam and prove server-rendered remote components in routes-tanstack-mf.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "umssr-03",
-          "content": "If not implementable now, promote typed SSR fallback plus client hydration from gap marker to official contract with telemetry, docs, and negative tests.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     },
     {
       "plan_slug": "ultramodern-superapp-contract-doctor",
       "plan_name": "Ultramodern SuperApp Contract Doctor",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-contract-doctor.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-tanstack-runtime-polish",
-        "ultramodern-superapp-workspace-generator"
-      ],
-      "active": [
-        {
-          "id": "usdoc-01",
-          "content": "Define doctor checks for presetUltramodern, @modern-js/plugin-tanstack, latest TanStack versions, Effect services, MF topology, design-system remote policy, ownership metadata, and shared-package boundaries.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "usdoc-02",
-          "content": "Implement human-readable and JSON doctor output by reusing existing topology, template manifest, design-system, dependency, and release-gate validators.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "usdoc-03",
-          "content": "Add actionable fix suggestions for stale TanStack versions, deprecated TanStack runtime fields, missing topology metadata, missing MF SSR flags, missing Effect request-context propagation, and forbidden shared-package roles.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     },
     {
       "plan_slug": "ultramodern-superapp-local-control-plane",
       "plan_name": "Ultramodern SuperApp Local Control Plane",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-local-control-plane.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-superapp-workspace-generator"],
-      "active": [
-        {
-          "id": "uslcp-01",
-          "content": "Extract reusable process, port, readiness, metrics, and teardown helpers from SuperApp certification without breaking destroy-run behavior.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uslcp-02",
-          "content": "Add local topology runner for generated UltraModern workspaces that starts services, remotes, design-system remote, and shell in dependency order.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uslcp-03",
-          "content": "Add rehearsal modes for remote unavailable, version skew, design-system bad release, and service unavailable using topology overlays.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     },
     {
       "plan_slug": "ultramodern-superapp-preflight-readiness-pack",
       "plan_name": "Ultramodern SuperApp Preflight Readiness Pack",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-preflight-readiness-pack.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-superapp-local-control-plane",
-        "ultramodern-superapp-contract-doctor",
-        "ultramodern-mf-ssr-contract-closure"
-      ],
-      "active": [
-        {
-          "id": "uspready-01",
-          "content": "Add one preflight command that generates a temporary workspace, runs doctor checks, validates topology, starts local processes, and executes minimal smoke gates.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uspready-02",
-          "content": "Publish a concise greenfield SuperApp getting-started guide built around the preflight command and latest TanStack stack.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uspready-03",
-          "content": "Add a generated-workspace CI profile that is stronger than docs-only validation but cheaper than full destroy certification.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     },
     {
       "plan_slug": "ultramodern-superapp-workspace-generator",
       "plan_name": "Ultramodern SuperApp Workspace Generator",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-superapp-workspace-generator.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "ultramodern-tanstack-latest-dependencies",
-        "ultramodern-tanstack-runtime-polish"
-      ],
-      "active": [
-        {
-          "id": "uswgen-01",
-          "content": "Define generated workspace output for root config, shell, two vertical remotes, one design-system MF remote, one Effect service, shared packages, topology overlays, and validation scripts.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "uswgen-02",
-          "content": "Extend @modern-js/create with one UltraModern workspace generation path while keeping presetUltramodern as the only public preset.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "uswgen-03",
-          "content": "Generate topology metadata, ownership metadata, local overlays, package scripts, and template manifest evidence from repo-backed fixtures.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-tanstack-latest-dependencies",
+      "plan_name": "Ultramodern TanStack Latest Dependencies",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-latest-dependencies.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     },
     {
       "plan_slug": "ultramodern-tanstack-runtime-polish",
       "plan_name": "Ultramodern TanStack Runtime Polish",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-runtime-polish.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-tanstack-latest-dependencies"],
-      "active": [
-        {
-          "id": "utsrp-01",
-          "content": "Remove explicit deprecated TanStack fields from internal runtime context and update tests to assert only generic router runtime fields are used.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "utsrp-02",
-          "content": "Audit and remove or quarantine the old in-runtime TanStack implementation path so generated apps use @modern-js/plugin-tanstack rather than @modern-js/runtime/tanstack-router.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "utsrp-03",
-          "content": "Align TanStack SSR hydration, matched-route snapshots, action handoff, and lifecycle hooks around routerRuntime, routerInstance, routerHydrationScript, routerMatchedRouteIds, and routerServerSnapshot.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
       "total": 4
     }
   ],

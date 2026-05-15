@@ -2,6 +2,13 @@ export const DEFAULT_REMOTE_TIMEOUT_MS = 4000;
 export const DEFAULT_REMOTE_RETRIES = 1;
 export const DEFAULT_REMOTE_RETRY_DELAY_MS = 200;
 
+export type RemoteLoadFailureClassification =
+  | 'timeout'
+  | 'network'
+  | 'contract'
+  | 'version-skew'
+  | 'remote-unavailable';
+
 export type LoadRemoteModuleBaseOptions<TModule> = {
   timeoutMs?: number;
   retries?: number;
@@ -85,6 +92,31 @@ function isRetryableRemoteError(error: Error) {
     return true;
   }
   return /network|fetch|script|timeout|chunk|loading/i.test(error.message);
+}
+
+export function classifyRemoteLoadFailure(
+  error: Error,
+): RemoteLoadFailureClassification {
+  if (error instanceof RemoteLoadError) {
+    return classifyRemoteLoadFailure(error.causeError);
+  }
+  if (error instanceof RemoteLoadTimeoutError) {
+    return 'timeout';
+  }
+  if (error instanceof RemoteComponentContractError) {
+    return 'contract';
+  }
+
+  const message = error.message;
+  if (
+    /version|requiredVersion|singleton|share scope|shared module/i.test(message)
+  ) {
+    return 'version-skew';
+  }
+  if (/network|fetch|script|timeout|chunk|loading/i.test(message)) {
+    return 'network';
+  }
+  return 'remote-unavailable';
 }
 
 function isComponentType(value: unknown) {

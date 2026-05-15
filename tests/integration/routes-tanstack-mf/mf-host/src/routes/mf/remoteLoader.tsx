@@ -1,6 +1,7 @@
 import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 import * as React from 'react';
 import {
+  classifyRemoteLoadFailure,
   type LoadRemoteModuleBaseOptions,
   loadRemoteModuleWithRetryBase,
   RemoteComponentContractError,
@@ -111,6 +112,17 @@ function getFailureInjectionOptions<TRemote extends RemoteModuleKey>(
     };
   }
 
+  if (mode === 'version-skew') {
+    return {
+      retries: 0,
+      loadRemoteImpl: async () => {
+        throw new Error(
+          'version skew: @tanstack/react-router requiredVersion mismatch',
+        );
+      },
+    };
+  }
+
   return {};
 }
 
@@ -160,8 +172,14 @@ export class RemoteErrorBoundary extends React.Component<
 
   render() {
     if (this.state.error) {
+      const classification = classifyRemoteLoadFailure(this.state.error);
       return (
-        <div id={this.props.fallbackId}>
+        <div
+          id={this.props.fallbackId}
+          data-mf-fallback-contract="typed-ssr-fallback-client-hydration"
+          data-mf-fallback-classification={classification}
+          data-mf-telemetry-event="mf.client.remote.fallback"
+        >
           remote-load-error:{this.state.error.name}
         </div>
       );

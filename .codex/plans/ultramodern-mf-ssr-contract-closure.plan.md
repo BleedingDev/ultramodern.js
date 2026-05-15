@@ -4,16 +4,16 @@ overview: Close the current ambiguity around federated remote SSR by either impl
 todos:
   - id: umssr-01
     content: Re-audit routes-tanstack-mf and runtime MF SSR surfaces after the latest TanStack update to decide whether server remote rendering is implementable now with existing hooks.
-    status: pending
+    status: completed
   - id: umssr-02
     content: If implementable, add the missing plugin or runtime seam and prove server-rendered remote components in routes-tanstack-mf.
-    status: pending
+    status: completed
   - id: umssr-03
     content: If not implementable now, promote typed SSR fallback plus client hydration from gap marker to official contract with telemetry, docs, and negative tests.
-    status: pending
+    status: completed
   - id: umssr-04
     content: Update validation gates so MF SSR behavior is explicit, enforced, and no longer documented as an ambiguous gap.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -34,3 +34,9 @@ Do not allow ambiguous language in docs or tests after this lane. The chosen SSR
 ## Operator Guidance
 
 Run this after TanStack latest dependencies and runtime polish. A newer TanStack version may change SSR behavior, so this decision should be based on the refreshed stack, not the stale baseline.
+
+## Completion Evidence
+
+The refreshed stack still does not expose a proven server remote rendering seam for this fixture. The official contract is now typed SSR fallback metadata in the shell plus client hydration ownership for remote replacement.
+
+Validation now covers fallback metadata schema, fallback telemetry classifications, version-skew classification, MF shared TanStack version alignment, and docs no longer claim guaranteed remote component HTML for every MF SSR route.

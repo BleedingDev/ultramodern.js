@@ -113,13 +113,18 @@ function extractRemoteSsrFallbackMetadata(html: string) {
   return JSON.parse(match![1]) as {
     version: number;
     routeId: string;
+    contract: string;
+    hydrationOwner: string;
+    fallbackClasses: string[];
     remotes: Array<{
       id: string;
       exportName: string;
       placeholderId: string;
       strategy: string;
-      runtimeSeam: string;
+      runtimeBoundary: string;
       reason: string;
+      classification: string;
+      telemetryEvent: string;
     }>;
   };
 }
@@ -502,13 +507,14 @@ async function stopFederatedApps(apps: unknown[]) {
 async function assertRemoteLoadFailureFallback(input: {
   page: Page;
   hostPort: number;
-  mode: 'timeout' | 'network' | 'contract';
+  mode: 'timeout' | 'network' | 'contract' | 'version-skew';
   target: 'remote/Widget' | 'remote/Mutator' | 'remote2/Panel';
   fallbackSelector:
     | '#remote-error'
     | '#remote-mutator-error'
     | '#remote2-error';
   expectedErrorName: 'RemoteLoadError' | 'RemoteComponentContractError';
+  expectedClassification: 'timeout' | 'network' | 'contract' | 'version-skew';
 }) {
   const url = new URL(`http://localhost:${input.hostPort}/mf`);
   url.searchParams.set('mfRemoteFailure', input.mode);
@@ -529,6 +535,20 @@ async function assertRemoteLoadFailureFallback(input: {
   expect(fallbackText).toContain(
     `remote-load-error:${input.expectedErrorName}`,
   );
+  const fallbackContract = await input.page.$eval(input.fallbackSelector, el =>
+    el.getAttribute('data-mf-fallback-contract'),
+  );
+  const fallbackClassification = await input.page.$eval(
+    input.fallbackSelector,
+    el => el.getAttribute('data-mf-fallback-classification'),
+  );
+  const fallbackTelemetryEvent = await input.page.$eval(
+    input.fallbackSelector,
+    el => el.getAttribute('data-mf-telemetry-event'),
+  );
+  expect(fallbackContract).toBe('typed-ssr-fallback-client-hydration');
+  expect(fallbackClassification).toBe(input.expectedClassification);
+  expect(fallbackTelemetryEvent).toBe('mf.client.remote.fallback');
 
   const hostLoaderText = await input.page.$eval(
     '#host-loader',
@@ -550,6 +570,16 @@ async function assertRemoteComponentInteraction(
   await page.waitForSelector('#remote-widget', { timeout: 50000 });
   const remoteText = await page.$eval('#remote-widget', el => el.textContent);
   expect(remoteText).toContain('remote-widget:ok');
+  const remainingSsrFallbackNodes = await page.$$eval(
+    [
+      '#remote-ssr-fallback-contract',
+      '#remote-ssr-placeholder',
+      '#remote-mutator-ssr-placeholder',
+      '#remote2-ssr-placeholder',
+    ].join(','),
+    nodes => nodes.length,
+  );
+  expect(remainingSsrFallbackNodes).toBe(0);
   const remoteWidgetStyle = await page.$eval('#remote-widget', el => {
     const style = window.getComputedStyle(el);
     return {
@@ -855,7 +885,7 @@ describe('routes-tanstack-mf', () => {
     }
   });
 
-  test('renders shell SSR and records the remote content SSR seam', async () => {
+  test('renders shell SSR and records the typed remote fallback contract', async () => {
     const { status, html } = await fetchHtml(
       `http://localhost:${ports.host}/mf`,
     );
@@ -864,38 +894,57 @@ describe('routes-tanstack-mf', () => {
     expect(html).toContain('id="host-loader"');
     expect(html).toContain('host-mf-loader');
     expect(html).toContain('host-mf-count:');
-    expect(html).toContain('id="remote-ssr-contract-gap"');
+    expect(html).toContain('id="remote-ssr-fallback-contract"');
     expect(html).toContain(
-      'data-runtime-seam="tanstack-mf-server-remote-render"',
+      'data-ssr-contract="typed-ssr-fallback-client-hydration"',
     );
+    expect(html).toContain(
+      'data-runtime-boundary="tanstack-mf-client-hydration"',
+    );
+    expect(html).toContain('data-hydration-owner="client"');
     expect(html).toContain('id="remote-ssr-fallback-metadata"');
     expect(extractRemoteSsrFallbackMetadata(html)).toEqual({
       version: 1,
       routeId: 'mf/page',
+      contract: 'typed-ssr-fallback-client-hydration',
+      hydrationOwner: 'client',
+      fallbackClasses: [
+        'remote-unavailable',
+        'timeout',
+        'network',
+        'contract',
+        'version-skew',
+      ],
       remotes: [
         {
           id: 'remote/Widget',
           exportName: 'default',
           placeholderId: 'remote-ssr-placeholder',
           strategy: 'client-hydration',
-          runtimeSeam: 'tanstack-mf-server-remote-render',
-          reason: 'mf-server-remote-resolution-unavailable',
+          runtimeBoundary: 'tanstack-mf-client-hydration',
+          reason: 'remote-unavailable',
+          classification: 'remote-unavailable',
+          telemetryEvent: 'mf.ssr.remote.fallback',
         },
         {
           id: 'remote/Mutator',
           exportName: 'default',
           placeholderId: 'remote-mutator-ssr-placeholder',
           strategy: 'client-hydration',
-          runtimeSeam: 'tanstack-mf-server-remote-render',
-          reason: 'mf-server-remote-resolution-unavailable',
+          runtimeBoundary: 'tanstack-mf-client-hydration',
+          reason: 'remote-unavailable',
+          classification: 'remote-unavailable',
+          telemetryEvent: 'mf.ssr.remote.fallback',
         },
         {
           id: 'remote2/Panel',
           exportName: 'default',
           placeholderId: 'remote2-ssr-placeholder',
           strategy: 'client-hydration',
-          runtimeSeam: 'tanstack-mf-server-remote-render',
-          reason: 'mf-server-remote-resolution-unavailable',
+          runtimeBoundary: 'tanstack-mf-client-hydration',
+          reason: 'remote-unavailable',
+          classification: 'remote-unavailable',
+          telemetryEvent: 'mf.ssr.remote.fallback',
         },
       ],
     });
@@ -968,6 +1017,7 @@ describe('routes-tanstack-mf', () => {
       target: 'remote/Widget',
       fallbackSelector: '#remote-error',
       expectedErrorName: 'RemoteLoadError',
+      expectedClassification: 'timeout',
     });
     await assertRemoteLoadFailureFallback({
       page,
@@ -976,6 +1026,16 @@ describe('routes-tanstack-mf', () => {
       target: 'remote/Widget',
       fallbackSelector: '#remote-error',
       expectedErrorName: 'RemoteComponentContractError',
+      expectedClassification: 'contract',
+    });
+    await assertRemoteLoadFailureFallback({
+      page,
+      hostPort: ports.host,
+      mode: 'version-skew',
+      target: 'remote2/Panel',
+      fallbackSelector: '#remote2-error',
+      expectedErrorName: 'RemoteLoadError',
+      expectedClassification: 'version-skew',
     });
   });
 
@@ -1076,6 +1136,7 @@ describe('routes-tanstack-mf serve mode', () => {
       target: 'remote2/Panel',
       fallbackSelector: '#remote2-error',
       expectedErrorName: 'RemoteLoadError',
+      expectedClassification: 'network',
     });
   });
 
