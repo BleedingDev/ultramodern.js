@@ -3,6 +3,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const EXPECTED_TANSTACK_ROUTER = '1.170.0';
+const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
+const MODERN_PACKAGES = [
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/runtime',
+];
 const DEPRECATED_TANSTACK_MARKERS = [
   '@modern-js/runtime/tanstack-router',
   'tanstackRouter',
@@ -93,6 +100,115 @@ function checkRootPackage(workspace) {
       },
     ),
   ];
+}
+
+function readPackageSource(workspace) {
+  const packageSourceFile = path.join(
+    workspace,
+    '.modernjs/ultramodern-package-source.json',
+  );
+  if (!exists(packageSourceFile)) {
+    return {
+      strategy: 'workspace',
+      modernPackageSpecifier: WORKSPACE_PACKAGE_VERSION,
+      file: undefined,
+    };
+  }
+  const packageSource = readJson(packageSourceFile);
+  return {
+    strategy: packageSource.strategy,
+    modernPackageSpecifier:
+      packageSource.strategy === 'install'
+        ? packageSource.modernPackages?.specifier
+        : WORKSPACE_PACKAGE_VERSION,
+    file: relative(workspace, packageSourceFile),
+    packages: packageSource.modernPackages?.packages || [],
+  };
+}
+
+function checkPackageSource(workspace) {
+  const rootPackageFile = path.join(workspace, 'package.json');
+  const rootPackage = exists(rootPackageFile) ? readJson(rootPackageFile) : {};
+  const packageSource = readPackageSource(workspace);
+  const checks = [
+    createCheck(
+      'package-source-strategy',
+      packageSource.strategy === 'workspace' ||
+        packageSource.strategy === 'install',
+      {
+        file: packageSource.file || '.modernjs/ultramodern-package-source.json',
+        path: 'strategy',
+        message: 'Package source strategy is explicit and supported.',
+        expected: 'workspace or install',
+        actual: packageSource.strategy,
+        suggestion:
+          'Use workspace for monorepo development or install for registry/tarball-backed generated workspaces.',
+      },
+    ),
+    createCheck(
+      'package-source-root-pointer',
+      rootPackage.modernjs?.packageSource?.config ===
+        './.modernjs/ultramodern-package-source.json' || !packageSource.file,
+      {
+        file: 'package.json',
+        path: 'modernjs.packageSource.config',
+        message: 'Root package points to UltraModern package source metadata.',
+        expected: './.modernjs/ultramodern-package-source.json',
+        actual: rootPackage.modernjs?.packageSource?.config,
+        suggestion:
+          'Keep package.json modernjs.packageSource.config aligned with the generated metadata file.',
+      },
+    ),
+    createCheck(
+      'package-source-root-strategy',
+      rootPackage.modernjs?.packageSource?.strategy ===
+        packageSource.strategy || !packageSource.file,
+      {
+        file: 'package.json',
+        path: 'modernjs.packageSource.strategy',
+        message:
+          'Root package strategy matches UltraModern package source metadata.',
+        expected: packageSource.strategy,
+        actual: rootPackage.modernjs?.packageSource?.strategy,
+        suggestion:
+          'Keep package.json modernjs.packageSource.strategy aligned with .modernjs/ultramodern-package-source.json.',
+      },
+    ),
+    createCheck(
+      'package-source-modern-specifier',
+      Boolean(packageSource.modernPackageSpecifier),
+      {
+        file: packageSource.file || '.modernjs/ultramodern-package-source.json',
+        path: 'modernPackages.specifier',
+        message: 'Package source declares a Modern package specifier.',
+        suggestion:
+          'Set modernPackages.specifier to workspace:* or an installable package version.',
+      },
+    ),
+  ];
+
+  if (packageSource.file) {
+    checks.push(
+      createCheck(
+        'package-source-modern-packages',
+        MODERN_PACKAGES.every(packageName =>
+          packageSource.packages.includes(packageName),
+        ),
+        {
+          file: packageSource.file,
+          path: 'modernPackages.packages',
+          message:
+            'Package source lists all Modern runtime/tooling packages used by the workspace.',
+          expected: MODERN_PACKAGES,
+          actual: packageSource.packages,
+          suggestion:
+            'Include app-tools, runtime, plugin-bff, and plugin-tanstack in modernPackages.packages.',
+        },
+      ),
+    );
+  }
+
+  return checks;
 }
 
 function checkTemplateManifest(workspace) {
@@ -234,6 +350,9 @@ function checkAppPackages(workspace) {
     ...(topology.remotes || []).map(r => r.id),
   ].filter(Boolean);
   const checks = [];
+  const packageSource = readPackageSource(workspace);
+  const expectedModernSpecifier =
+    packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
   for (const id of ids) {
     const owner = ownersById.get(id);
     const packageFile = owner?.path
@@ -256,15 +375,29 @@ function checkAppPackages(workspace) {
     checks.push(
       createCheck(
         `tanstack-plugin-${id}`,
-        pkg.dependencies?.['@modern-js/plugin-tanstack'] === 'workspace:*',
+        pkg.dependencies?.['@modern-js/plugin-tanstack'] ===
+          expectedModernSpecifier,
         {
           file: relative(workspace, packageFile),
           path: 'dependencies.@modern-js/plugin-tanstack',
           message: `${id} uses @modern-js/plugin-tanstack.`,
-          expected: 'workspace:*',
+          expected: expectedModernSpecifier,
           actual: pkg.dependencies?.['@modern-js/plugin-tanstack'],
           suggestion:
-            'Use @modern-js/plugin-tanstack as the TanStack runtime path.',
+            'Use the configured UltraModern package source for @modern-js/plugin-tanstack.',
+        },
+      ),
+      createCheck(
+        `modern-runtime-${id}`,
+        pkg.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
+        {
+          file: relative(workspace, packageFile),
+          path: 'dependencies.@modern-js/runtime',
+          message: `${id} uses @modern-js/runtime from the configured package source.`,
+          expected: expectedModernSpecifier,
+          actual: pkg.dependencies?.['@modern-js/runtime'],
+          suggestion:
+            'Use the configured UltraModern package source for @modern-js/runtime.',
         },
       ),
       createCheck(
@@ -304,6 +437,9 @@ function checkEffectService(workspace) {
   }
   const owner = ownersById.get(service.id);
   const serviceRoot = owner?.path ? path.join(workspace, owner.path) : null;
+  const packageFile = serviceRoot
+    ? path.join(serviceRoot, 'package.json')
+    : null;
   const config = serviceRoot
     ? path.join(serviceRoot, 'modern.config.ts')
     : null;
@@ -313,7 +449,28 @@ function checkEffectService(workspace) {
   const entry = serviceRoot
     ? path.join(serviceRoot, 'api/effect/index.ts')
     : null;
+  const packageSource = readPackageSource(workspace);
+  const expectedModernSpecifier =
+    packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
+  const pkg = packageFile && exists(packageFile) ? readJson(packageFile) : {};
   return [
+    createCheck(
+      'effect-service-plugin-bff-source',
+      pkg.devDependencies?.['@modern-js/plugin-bff'] ===
+        expectedModernSpecifier,
+      {
+        file: packageFile
+          ? relative(workspace, packageFile)
+          : 'topology/ownership.json',
+        path: 'devDependencies.@modern-js/plugin-bff',
+        message:
+          'Effect service uses @modern-js/plugin-bff from the configured package source.',
+        expected: expectedModernSpecifier,
+        actual: pkg.devDependencies?.['@modern-js/plugin-bff'],
+        suggestion:
+          'Use the configured UltraModern package source for @modern-js/plugin-bff.',
+      },
+    ),
     createCheck(
       'effect-service-config',
       Boolean(
@@ -415,6 +572,7 @@ function runUltramodernContractDoctor(options = {}) {
   const workspace = path.resolve(options.workspace || process.cwd());
   const checks = [
     ...checkRootPackage(workspace),
+    ...checkPackageSource(workspace),
     ...checkTemplateManifest(workspace),
     ...checkTopology(workspace),
     ...checkOwnership(workspace),

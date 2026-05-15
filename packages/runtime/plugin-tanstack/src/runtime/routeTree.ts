@@ -12,6 +12,10 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import { DefaultNotFound } from './DefaultNotFound';
+import {
+  isTanstackRscPayloadNavigationEnabled,
+  loadTanstackRscRouteData,
+} from './rsc/payloadRouter';
 
 type RouteParams = Record<string, string>;
 
@@ -31,6 +35,7 @@ type ModernShouldRevalidate = (args: {
 
 type TanstackLoaderContext = {
   abortController?: AbortController;
+  cause?: string;
   signal?: AbortSignal;
   context?: {
     request?: Request;
@@ -44,6 +49,9 @@ type TanstackLoaderContext = {
         url?: { href?: string };
       };
   params?: RouteParams;
+  route?: {
+    id?: string;
+  };
 };
 
 type RouteRevalidationState = {
@@ -108,6 +116,9 @@ type ModernTanstackRootRoute = TanstackRootRoute;
 type ModernDeferredDataLike = {
   __modern_deferred?: unknown;
   data?: unknown;
+};
+type RouteTreeOptions = {
+  rscPayloadRouter?: boolean;
 };
 
 function createTanstackRoute(
@@ -193,16 +204,38 @@ function normalizeModernLoaderResult(result: unknown): unknown {
   return isModernDeferredData(result) ? result.data : result;
 }
 
+function normalizeModernLoaderResponse(result: unknown): unknown {
+  if (isResponse(result)) {
+    if (isRedirectResponse(result)) {
+      const location = result.headers.get('Location') || '/';
+      throwTanstackRedirect(location);
+    }
+    if (result.status === 404) {
+      throw notFound();
+    }
+  }
+
+  return normalizeModernLoaderResult(result);
+}
+
+function isAbsoluteUrl(value: string) {
+  try {
+    void new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function throwTanstackRedirect(location: string) {
   const target = location || '/';
   // Prefer `to` for internal/relative redirects so basepath can be applied.
   // Use `href` for absolute redirects (external).
-  try {
-    void new URL(target);
+  if (isAbsoluteUrl(target)) {
     throw redirect({ href: target });
-  } catch {
-    throw redirect({ to: target });
   }
+
+  throw redirect({ to: target });
 }
 
 function mapParamsForModernLoader({
@@ -286,6 +319,7 @@ function wrapModernLoader(
   modernRoute: NestedRoute | PageRoute,
   modernLoader: ModernLoader | undefined,
   revalidationState?: RouteRevalidationState,
+  options: RouteTreeOptions = {},
 ) {
   const route = modernRoute as ModernGeneratedRoute;
   return async (ctx: TanstackLoaderContext) => {
@@ -325,25 +359,29 @@ function wrapModernLoader(
         params: ctx.params || {},
       });
 
-      const result = modernLoader
-        ? await modernLoader({
-            request,
-            params,
-            context: ctx?.context?.requestContext,
-          })
-        : null;
+      const loadModernData = async () => {
+        const result = modernLoader
+          ? await modernLoader({
+              request,
+              params,
+              context: ctx?.context?.requestContext,
+            })
+          : null;
 
-      if (isResponse(result)) {
-        if (isRedirectResponse(result)) {
-          const location = result.headers.get('Location') || '/';
-          throwTanstackRedirect(location);
-        }
-        if (result.status === 404) {
-          throw notFound();
-        }
+        return normalizeModernLoaderResponse(result);
+      };
+
+      if (options.rscPayloadRouter && isTanstackRscPayloadNavigationEnabled()) {
+        return loadTanstackRscRouteData({
+          hasClientLoader:
+            route.hasClientLoader || typeof route.clientData !== 'undefined',
+          loadClientData: loadModernData,
+          request,
+          routeId: ctx.route?.id,
+        });
       }
 
-      return normalizeModernLoaderResult(result);
+      return loadModernData();
     } catch (err) {
       if (isResponse(err)) {
         if (isTanstackRedirect(err)) {
@@ -392,6 +430,7 @@ function mapParamsForRouteObjectLoader({
 function wrapRouteObjectLoader(
   route: RouteObject,
   revalidationState?: RouteRevalidationState,
+  options: RouteTreeOptions = {},
 ) {
   const modernRoute = route as ModernRouteObject;
   const routeLoader = modernRoute.loader;
@@ -437,23 +476,28 @@ function wrapRouteObjectLoader(
         params: ctx.params || {},
       });
 
-      const result = await routeLoader({
-        request,
-        params,
-        context: ctx?.context?.requestContext,
-      });
+      const loadModernData = async () => {
+        const result = await routeLoader({
+          request,
+          params,
+          context: ctx?.context?.requestContext,
+        });
 
-      if (isResponse(result)) {
-        if (isRedirectResponse(result)) {
-          const location = result.headers.get('Location') || '/';
-          throwTanstackRedirect(location);
-        }
-        if (result.status === 404) {
-          throw notFound();
-        }
+        return normalizeModernLoaderResponse(result);
+      };
+
+      if (options.rscPayloadRouter && isTanstackRscPayloadNavigationEnabled()) {
+        return loadTanstackRscRouteData({
+          hasClientLoader:
+            modernRoute.hasClientLoader ||
+            typeof modernRoute.clientData !== 'undefined',
+          loadClientData: loadModernData,
+          request,
+          routeId: ctx.route?.id,
+        });
       }
 
-      return normalizeModernLoaderResult(result);
+      return loadModernData();
     } catch (err) {
       if (isResponse(err)) {
         if (isTanstackRedirect(err)) {
@@ -566,10 +610,11 @@ function createRouteStaticData(opts: {
 }
 
 function createRouteFromRouteObject(opts: {
+  options?: RouteTreeOptions;
   parent: AnyRoute;
   routeObject: RouteObject;
 }): AnyRoute {
-  const { parent, routeObject } = opts;
+  const { options = {}, parent, routeObject } = opts;
   const modernRouteObject = routeObject as ModernRouteObject;
   const revalidationState: RouteRevalidationState = {};
   const shouldRevalidate = modernRouteObject.shouldRevalidate;
@@ -603,7 +648,7 @@ function createRouteFromRouteObject(opts: {
       modernRouteLoader: modernRouteObject.loader,
       modernRouteShouldRevalidate: shouldRevalidate,
     }),
-    loader: wrapRouteObjectLoader(routeObject, revalidationState),
+    loader: wrapRouteObjectLoader(routeObject, revalidationState, options),
   };
   if (modernRouteObject.inValidSSRRoute) {
     base.ssr = false;
@@ -625,7 +670,11 @@ function createRouteFromRouteObject(opts: {
   const children = routeObject.children;
   if (children && children.length > 0) {
     const childRoutes = children.map((child: RouteObject) =>
-      createRouteFromRouteObject({ parent: route, routeObject: child }),
+      createRouteFromRouteObject({
+        options,
+        parent: route,
+        routeObject: child,
+      }),
     );
     route.addChildren(childRoutes);
   }
@@ -634,10 +683,11 @@ function createRouteFromRouteObject(opts: {
 }
 
 function createRouteFromModernRoute(opts: {
+  options?: RouteTreeOptions;
   parent: AnyRoute;
   modernRoute: NestedRoute | PageRoute;
 }): AnyRoute {
-  const { parent, modernRoute } = opts;
+  const { options = {}, parent, modernRoute } = opts;
   const route = modernRoute as ModernGeneratedRoute;
   const revalidationState: RouteRevalidationState = {};
 
@@ -687,7 +737,12 @@ function createRouteFromModernRoute(opts: {
       modernRouteLoader: modernLoader,
       modernRouteShouldRevalidate: modernShouldRevalidate,
     }),
-    loader: wrapModernLoader(modernRoute, modernLoader, revalidationState),
+    loader: wrapModernLoader(
+      modernRoute,
+      modernLoader,
+      revalidationState,
+      options,
+    ),
   };
   if (route.inValidSSRRoute) {
     base.ssr = false;
@@ -709,7 +764,11 @@ function createRouteFromModernRoute(opts: {
   const children = route.children as Array<NestedRoute | PageRoute> | undefined;
   if (children && children.length > 0) {
     const childRoutes = children.map(child =>
-      createRouteFromModernRoute({ parent: tanstackRoute, modernRoute: child }),
+      createRouteFromModernRoute({
+        options,
+        parent: tanstackRoute,
+        modernRoute: child,
+      }),
     );
     tanstackRoute.addChildren(childRoutes);
   }
@@ -719,6 +778,7 @@ function createRouteFromModernRoute(opts: {
 
 export function createRouteTreeFromModernRoutes(
   routes: Array<NestedRoute | PageRoute>,
+  options: RouteTreeOptions = {},
 ): ModernTanstackRootRoute {
   const rootModern = routes.find(
     r =>
@@ -763,7 +823,7 @@ export function createRouteTreeFromModernRoutes(
       modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
     loader: rootModern
-      ? wrapModernLoader(rootModern, rootLoader, rootRevalidationState)
+      ? wrapModernLoader(rootModern, rootLoader, rootRevalidationState, options)
       : undefined,
   };
   if (rootShouldReload) {
@@ -780,7 +840,11 @@ export function createRouteTreeFromModernRoutes(
     : routes;
 
   const childRoutes = topLevel.map(child =>
-    createRouteFromModernRoute({ parent: rootRoute, modernRoute: child }),
+    createRouteFromModernRoute({
+      options,
+      parent: rootRoute,
+      modernRoute: child,
+    }),
   );
 
   rootRoute.addChildren(childRoutes);
@@ -793,6 +857,7 @@ function getRootLikeRouteObject(routes: RouteObject[]) {
 
 export function createRouteTreeFromRouteObjects(
   routes: RouteObject[],
+  options: RouteTreeOptions = {},
 ): ModernTanstackRootRoute {
   const rootLikeRoute = getRootLikeRouteObject(routes) as
     | ModernRouteObject
@@ -830,7 +895,7 @@ export function createRouteTreeFromRouteObjects(
       modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
     loader: rootLikeRoute
-      ? wrapRouteObjectLoader(rootLikeRoute, rootRevalidationState)
+      ? wrapRouteObjectLoader(rootLikeRoute, rootRevalidationState, options)
       : undefined,
   };
   if (rootShouldReload) {
@@ -850,7 +915,7 @@ export function createRouteTreeFromRouteObjects(
     : routes;
 
   const childRoutes = topLevel.map(routeObject =>
-    createRouteFromRouteObject({ parent: rootRoute, routeObject }),
+    createRouteFromRouteObject({ options, parent: rootRoute, routeObject }),
   );
 
   rootRoute.addChildren(childRoutes);

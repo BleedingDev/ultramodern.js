@@ -70,6 +70,10 @@ function parseArgs(argv) {
     workspace: undefined,
     packageName: 'ultramodern-preflight-workspace',
     overlay: 'none',
+    mode: 'dry-run',
+    packageSource: undefined,
+    packageVersion: undefined,
+    packageRegistry: undefined,
     keep: false,
     json: false,
     out: undefined,
@@ -83,6 +87,14 @@ function parseArgs(argv) {
       options.packageName = argv[++index];
     } else if (arg === '--overlay') {
       options.overlay = argv[++index];
+    } else if (arg === '--mode') {
+      options.mode = argv[++index];
+    } else if (arg === '--ultramodern-package-source') {
+      options.packageSource = argv[++index];
+    } else if (arg === '--ultramodern-package-version') {
+      options.packageVersion = argv[++index];
+    } else if (arg === '--ultramodern-package-registry') {
+      options.packageRegistry = argv[++index];
     } else if (arg === '--keep') {
       options.keep = true;
     } else if (arg === '--json') {
@@ -93,6 +105,20 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function createWorkspaceArgs(workspace, options) {
+  const args = [workspace, '--ultramodern-workspace', '--lang', 'en'];
+  if (options.packageSource) {
+    args.push('--ultramodern-package-source', options.packageSource);
+  }
+  if (options.packageVersion) {
+    args.push('--ultramodern-package-version', options.packageVersion);
+  }
+  if (options.packageRegistry) {
+    args.push('--ultramodern-package-registry', options.packageRegistry);
+  }
+  return args;
 }
 
 function workspaceNeedsGeneration(workspace) {
@@ -160,13 +186,17 @@ function runUltramodernPreflight(options = {}) {
   const steps = [];
 
   try {
+    if (generated && (options.mode || 'dry-run') === 'live') {
+      throw new Error(
+        'Live preflight requires --workspace pointing at an existing installed workspace. Generate an install-backed workspace first, run package installation there, then rerun with --workspace.',
+      );
+    }
+
     if (generated) {
-      const createStep = runNode(createBin, [
-        workspace,
-        '--ultramodern-workspace',
-        '--lang',
-        'en',
-      ]);
+      const createStep = runNode(
+        createBin,
+        createWorkspaceArgs(workspace, options),
+      );
       steps.push(createStepSummary('generate-workspace', createStep));
       if (!createStep.ok) {
         throw new Error(createStep.stderr || createStep.stdout);
@@ -200,6 +230,8 @@ function runUltramodernPreflight(options = {}) {
       workspace,
       '--overlay',
       options.overlay || 'none',
+      '--mode',
+      options.mode || 'dry-run',
       '--json',
     ]);
     const controlPlane = readJsonOutput(controlPlaneStep);
@@ -217,6 +249,7 @@ function runUltramodernPreflight(options = {}) {
       workspace,
       generated,
       overlay: options.overlay || 'none',
+      mode: options.mode || 'dry-run',
       workspaceRetained: Boolean(options.keep || options.workspace),
       steps,
       doctor,
@@ -236,6 +269,7 @@ function runUltramodernPreflight(options = {}) {
       workspace,
       generated,
       overlay: options.overlay || 'none',
+      mode: options.mode || 'dry-run',
       workspaceRetained: Boolean(options.keep || options.workspace),
       steps,
       error: error instanceof Error ? error.message : String(error),

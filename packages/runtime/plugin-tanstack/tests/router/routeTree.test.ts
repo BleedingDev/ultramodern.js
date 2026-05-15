@@ -6,6 +6,7 @@ import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
 } from '../../src/runtime/routeTree';
+import { __setTanstackRscPayloadDecoderForTests } from '../../src/runtime/rsc/payloadRouter';
 import { createRouteObjectsFromConfig } from '../../src/runtime/utils';
 
 type LoaderArgs = {
@@ -107,6 +108,11 @@ function getLooseRouteByModernRouteId(
 }
 
 describe('tanstack route tree from RouteObject[]', () => {
+  afterEach(() => {
+    __setTanstackRscPayloadDecoderForTests();
+    rstest.restoreAllMocks();
+  });
+
   test('maps root loader and dynamic params', async () => {
     const routes: RouteObject[] = [
       {
@@ -137,6 +143,64 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('uses TanStack route ids when loading RSC payload route data', async () => {
+    const rootLoader = rstest.fn(() => ({ source: 'modern-root' }));
+    const userLoader = rstest.fn(() => ({ source: 'modern-user' }));
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        loader: rootLoader,
+        Component: () => null,
+        children: [
+          {
+            id: 'user',
+            path: 'user/:id',
+            loader: userLoader,
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+    const payload = {
+      type: 'render',
+      actionData: null,
+      errors: null,
+      loaderData: {
+        __root__: { source: 'rsc-root' },
+        '/user/$id': { source: 'rsc-user' },
+      },
+      location: { href: '/user/123' },
+      routes: [
+        { id: '__root__', hasLoader: true },
+        { id: '/user/$id', hasLoader: true },
+      ],
+    };
+    const fetchMock = rstest.fn(() => Promise.resolve(new Response('payload')));
+    const decodeMock = rstest.fn(async () => payload);
+    rstest.stubGlobal('fetch', fetchMock);
+    rstest.stubGlobal('window', { origin: 'http://localhost' });
+    __setTanstackRscPayloadDecoderForTests(decodeMock);
+
+    const routeTree = createRouteTreeFromRouteObjects(routes, {
+      rscPayloadRouter: true,
+    });
+    const router = await loadRouteTree(routeTree, '/user/123');
+
+    const rootMatch = router.state.matches.find(
+      match => match.routeId === '__root__',
+    );
+    const userMatch = router.state.matches.find(
+      match => match.routeId === '/user/$id',
+    );
+    expect(rootMatch?.loaderData).toEqual({ source: 'rsc-root' });
+    expect(userMatch?.loaderData).toEqual({ source: 'rsc-user' });
+    expect(rootLoader).not.toHaveBeenCalled();
+    expect(userLoader).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(decodeMock).toHaveBeenCalledTimes(1);
   });
 
   test('maps splat params', async () => {

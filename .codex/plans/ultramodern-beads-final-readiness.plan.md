@@ -4,13 +4,13 @@ overview: Integrate the completed upstream-drift, TanStack RSC, and live-control
 todos:
   - id: ubf-final-01
     content: Reconfirm lane integration on main-ultramodern with clean git state, expected branch/remote, and no stale completed plan or graph artifacts.
-    status: pending
+    status: completed
   - id: ubf-final-02
     content: Run full readiness validation across certification, TanStack RSC, live control-plane, UltraModern preflight, topology smoke, and SuperApp contracts.
-    status: pending
+    status: completed
   - id: ubf-final-03
     content: Update Beads statuses, preserve validation evidence, commit, push, and prepare the handoff for the next SuperApp development wave.
-    status: pending
+    status: completed
 isProject: true
 ---
 

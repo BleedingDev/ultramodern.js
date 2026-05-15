@@ -4,6 +4,12 @@ import path from 'node:path';
 const root = process.cwd();
 const packageScope = '{{packageScope}}';
 const tanstackVersion = '1.170.0';
+const modernPackages = [
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/runtime',
+];
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf-8');
@@ -31,6 +37,7 @@ const requiredPaths = [
   'topology/ownership.json',
   'topology/local-overlays/development.json',
   '.modernjs/ultramodern-workspace-template-manifest.json',
+  '.modernjs/ultramodern-package-source.json',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
@@ -57,8 +64,41 @@ for (const requiredPath of requiredPaths) {
 }
 
 const rootPackage = readJson('package.json');
+const packageSource = readJson('.modernjs/ultramodern-package-source.json');
+const expectedModernSpecifier =
+  packageSource.strategy === 'install'
+    ? packageSource.modernPackages?.specifier
+    : 'workspace:*';
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
+assert(
+  rootPackage.modernjs?.packageSource?.config ===
+    './.modernjs/ultramodern-package-source.json',
+  'Root must point to the UltraModern package source metadata',
+);
+assert(
+  rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy,
+  'Root package source strategy must match the UltraModern package source metadata',
+);
+assert(
+  packageSource.strategy === 'workspace' || packageSource.strategy === 'install',
+  'Package source strategy must be workspace or install',
+);
+assert(
+  packageSource.generatedWorkspacePackages?.specifier === 'workspace:*',
+  'Generated shared packages must keep workspace:* links',
+);
+assert(
+  modernPackages.every(packageName =>
+    packageSource.modernPackages?.packages?.includes(packageName),
+  ),
+  'Package source metadata must list all Modern runtime/tooling packages',
+);
+assert(
+  expectedModernSpecifier &&
+    packageSource.modernPackages?.specifier === expectedModernSpecifier,
+  'Package source metadata must provide a Modern package specifier',
+);
 assert(
   rootPackage.scripts?.['ultramodern:check'] ===
     'node ./scripts/validate-ultramodern-workspace.mjs',
@@ -75,8 +115,28 @@ const appPackagePaths = [
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
   assert(
-    packageJson.dependencies?.['@modern-js/plugin-tanstack'] === 'workspace:*',
-    `${packagePath} must depend on @modern-js/plugin-tanstack through workspace:*`,
+    packageJson.dependencies?.['@modern-js/plugin-tanstack'] ===
+      expectedModernSpecifier,
+    `${packagePath} must depend on @modern-js/plugin-tanstack through ${expectedModernSpecifier}`,
+  );
+  assert(
+    packageJson.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
+    `${packagePath} must depend on @modern-js/runtime through ${expectedModernSpecifier}`,
+  );
+  assert(
+    packageJson.devDependencies?.['@modern-js/app-tools'] ===
+      expectedModernSpecifier,
+    `${packagePath} must depend on @modern-js/app-tools through ${expectedModernSpecifier}`,
+  );
+  assert(
+    packageJson.dependencies?.[`@${packageScope}/shared-contracts`] ===
+      'workspace:*',
+    `${packagePath} must link generated shared contracts through workspace:*`,
+  );
+  assert(
+    packageJson.dependencies?.[`@${packageScope}/shared-design-tokens`] ===
+      'workspace:*',
+    `${packagePath} must link generated shared design tokens through workspace:*`,
   );
   assert(
     packageJson.dependencies?.['@tanstack/react-router'] === tanstackVersion,
@@ -121,8 +181,23 @@ assert(designMf.includes('"./tokens"'), 'Design-system remote must expose tokens
 
 const servicePackage = readJson('services/service-recommendations-effect/package.json');
 assert(
-  servicePackage.devDependencies?.['@modern-js/plugin-bff'] === 'workspace:*',
-  'Effect service must use @modern-js/plugin-bff through workspace:*',
+  servicePackage.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
+  `Effect service must use @modern-js/runtime through ${expectedModernSpecifier}`,
+);
+assert(
+  servicePackage.devDependencies?.['@modern-js/app-tools'] ===
+    expectedModernSpecifier,
+  `Effect service must use @modern-js/app-tools through ${expectedModernSpecifier}`,
+);
+assert(
+  servicePackage.devDependencies?.['@modern-js/plugin-bff'] ===
+    expectedModernSpecifier,
+  `Effect service must use @modern-js/plugin-bff through ${expectedModernSpecifier}`,
+);
+assert(
+  servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] ===
+    'workspace:*',
+  'Effect service must link generated shared Effect API through workspace:*',
 );
 
 const serviceConfig = readText('services/service-recommendations-effect/modern.config.ts');
@@ -174,6 +249,10 @@ const manifest = readJson('.modernjs/ultramodern-workspace-template-manifest.jso
 assert(
   manifest.template?.id === 'modernjs-ultramodern-superapp-workspace',
   'Template manifest evidence is missing',
+);
+assert(
+  manifest.packageSource?.strategy === packageSource.strategy,
+  'Template manifest must retain the generated package source strategy',
 );
 assert(
   manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),

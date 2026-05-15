@@ -4,16 +4,16 @@ overview: Implement modernjs-aye by making TanStack RSC payload-router behavior 
 todos:
   - id: ubf-rsc-01
     content: Design the TanStack RSC payload-router adapter by mapping Modern.js React Router RSC server/client machinery and TanStack Start Router RSC semantics onto the current TanStack plugin architecture.
-    status: pending
+    status: completed
   - id: ubf-rsc-02
     content: Implement the TanStack RSC server payload adapter, including route matching, loader execution boundaries, redirect/notFound behavior, server payload serialization, and request cleanup.
-    status: pending
+    status: completed
   - id: ubf-rsc-03
     content: Implement TanStack RSC client hydration and navigation behavior, including client-loader omission during RSC navigation and compatibility with existing TanStack SSR hydration scripts.
-    status: pending
+    status: completed
   - id: ubf-rsc-04
     content: Add RSC parity fixtures, tests, and docs that prove TanStack behavior against React Router-equivalent server/client scenarios, then update modernjs-aye.
-    status: pending
+    status: completed
 isProject: true
 ---
 

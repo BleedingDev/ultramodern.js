@@ -59,6 +59,18 @@ export default defineConfig({
 
 下面的示例都使用这些路径。
 
+## Payload Router 行为
+
+开启 `server.rsc` 后，TanStack RSC 导航会使用原生的 payload-router 路径，而不是 React Router 的 `RSCStaticRouter` 路径：
+
+- 需要服务端 Loader 数据的浏览器导航会携带 `x-rsc-tree: true` 请求当前 URL。
+- 服务端会执行匹配到的 TanStack 路由 Loader，并序列化包含匹配路由 id、params、loader data、errors、location 与路由元信息的 `ServerPayload`，再通过 Modern.js RSC renderer 以流式方式返回。
+- Loader 重定向会以 `X-Modernjs-Redirect` 与 `X-Modernjs-BaseUrl` 响应头返回，让客户端继续交给 TanStack Router 完成导航。
+- `404` 响应和 TanStack `notFound()` 结果会作为路由错误保留，从而渲染最近的 TanStack not-found boundary。
+- 标记了 client loader 的路由会在 RSC 导航期间继续执行自己的 client loader。对应的服务端 loader data 会从 RSC payload 中有意省略，避免用服务端数据覆盖 client-loader 结果。
+
+首次 SSR hydration 仍然使用 TanStack Router 现有的 SSR bootstrap scripts。payload-router 请求路径只用于后续 RSC 导航和 invalidation，因此同一套路由树可以同时使用普通 TanStack SSR loader data 与 RSC loader data。
+
 ## 从 Loader 渲染服务端 UI
 
 当服务端输出不需要客户端提供插槽时，使用 `renderServerComponent`。Loader 在服务端执行，将 Server Component 渲染成 Flight stream，并返回可以被客户端路由组件渲染的值。

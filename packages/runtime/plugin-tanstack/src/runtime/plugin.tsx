@@ -259,7 +259,9 @@ export const tanstackRouterPlugin = (
             if (!routeObjects.length) {
               return null;
             }
-            cachedRouteTree = createRouteTreeFromRouteObjects(routeObjects);
+            cachedRouteTree = createRouteTreeFromRouteObjects(routeObjects, {
+              rscPayloadRouter: getGlobalEnableRsc(),
+            });
             return cachedRouteTree;
           }, []);
 

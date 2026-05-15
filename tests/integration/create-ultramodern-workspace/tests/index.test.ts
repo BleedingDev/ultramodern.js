@@ -59,6 +59,7 @@ describe('create-ultramodern-workspace', () => {
       'README.md',
       'scripts/validate-ultramodern-workspace.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
+      '.modernjs/ultramodern-package-source.json',
       'topology/reference-topology.json',
       'topology/ownership.json',
       'topology/local-overlays/development.json',
@@ -101,6 +102,10 @@ describe('create-ultramodern-workspace', () => {
       'packages/*',
     ]);
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
+    expect(rootPackage.modernjs.packageSource).toEqual({
+      strategy: 'workspace',
+      config: './.modernjs/ultramodern-package-source.json',
+    });
     expect(rootPackage.scripts['ultramodern:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
     );
@@ -115,6 +120,12 @@ describe('create-ultramodern-workspace', () => {
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
       expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
+        'workspace:*',
+      );
+      expect(packageJson.dependencies['@modern-js/runtime']).toBe(
+        'workspace:*',
+      );
+      expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
       );
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
@@ -170,6 +181,9 @@ describe('create-ultramodern-workspace', () => {
       'services/service-recommendations-effect/package.json',
     );
     expect(servicePackage.devDependencies['@modern-js/plugin-bff']).toBe(
+      'workspace:*',
+    );
+    expect(servicePackage.dependencies['@modern-js/runtime']).toBe(
       'workspace:*',
     );
     expect(servicePackage.modernjs.role).toBe('effect-service');
@@ -238,6 +252,97 @@ describe('create-ultramodern-workspace', () => {
     expect(manifest.validation.expectedCommands).toContain(
       'pnpm run ultramodern:check',
     );
+    expect(manifest.packageSource.strategy).toBe('workspace');
+
+    const packageSource = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern-package-source.json',
+    );
+    expect(packageSource.strategy).toBe('workspace');
+    expect(packageSource.modernPackages.specifier).toBe('workspace:*');
+    expect(packageSource.generatedWorkspacePackages.specifier).toBe(
+      'workspace:*',
+    );
+
+    const validationOutput = execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern-workspace.mjs'],
+      {
+        cwd: workspaceDir,
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(validationOutput).toContain(
+      'UltraModern workspace scaffold validated',
+    );
+  });
+
+  test('scaffolds install-backed Modern package source metadata', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-install-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, [
+      '--ultramodern-workspace',
+      '--ultramodern-package-source',
+      'install',
+      '--ultramodern-package-version',
+      '3.2.0-ultramodern.0',
+      '--ultramodern-package-registry',
+      'https://registry.example.test/',
+      '--lang',
+      'en',
+    ]);
+
+    const rootPackage = readJson(workspaceDir, 'package.json');
+    expect(rootPackage.modernjs.packageSource).toEqual({
+      strategy: 'install',
+      config: './.modernjs/ultramodern-package-source.json',
+    });
+
+    const packageSource = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern-package-source.json',
+    );
+    expect(packageSource.strategy).toBe('install');
+    expect(packageSource.modernPackages.specifier).toBe('3.2.0-ultramodern.0');
+    expect(packageSource.modernPackages.registry).toBe(
+      'https://registry.example.test/',
+    );
+    expect(packageSource.generatedWorkspacePackages.specifier).toBe(
+      'workspace:*',
+    );
+
+    const shellPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    expect(shellPackage.dependencies['@modern-js/plugin-tanstack']).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(
+      shellPackage.dependencies['@ultra-install-workspace/shared-contracts'],
+    ).toBe('workspace:*');
+    expect(
+      shellPackage.dependencies[
+        '@ultra-install-workspace/shared-design-tokens'
+      ],
+    ).toBe('workspace:*');
+
+    const servicePackage = readJson(
+      workspaceDir,
+      'services/service-recommendations-effect/package.json',
+    );
+    expect(servicePackage.devDependencies['@modern-js/plugin-bff']).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(
+      servicePackage.dependencies['@ultra-install-workspace/shared-effect-api'],
+    ).toBe('workspace:*');
 
     const validationOutput = execFileSync(
       process.execPath,

@@ -57,7 +57,27 @@ The expected passing result has:
 
 ## Current Boundary
 
-The local control plane intentionally produces a deterministic dry-run process
-plan in this preflight profile. Real dev-server startup belongs in the heavier
-SuperApp certification path after package installation and deployment topology
-are available.
+The local control plane defaults to a deterministic dry-run process plan in this
+preflight profile. The default is intentionally cheap and does not launch dev
+servers.
+
+Live local startup is available only through explicit opt-in:
+
+```bash
+node scripts/superapp-local-control-plane/run-local-control-plane.js \
+  --workspace my-super-app \
+  --mode live \
+  --json
+```
+
+Live mode reuses the dry-run descriptors, then launches each planned process,
+wires descriptor environment variables such as `PORT`, captures stdout/stderr
+under `.modern/superapp-local-control-plane/<process-id>/`, probes health URLs,
+classifies precondition/readiness failures, and tears down tracked processes
+before returning. Generated workspaces must be installed first when descriptors
+use the default `pnpm --filter <package> dev` commands; otherwise live mode
+returns a `missing-install` failure instead of attempting a partial startup.
+For controlled local tests, `topology/local-overlays/development.json` may
+provide per-process command overrides through `commands.<process-id>` or
+`processes.<process-id>.command`; live mode still owns logs, readiness, failure
+classification, and teardown for those commands.

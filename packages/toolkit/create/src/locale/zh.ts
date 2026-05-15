@@ -37,6 +37,8 @@ export const ZH_LOCALE = {
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionUltramodernWorkspace:
       '      --ultramodern-workspace 生成标准 UltraModern SuperApp 工作区',
+    optionUltramodernPackageSource:
+      '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install）',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -49,7 +51,8 @@ export const ZH_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
-    example10: '  create my-super-app --ultramodern-workspace',
+    example10:
+      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

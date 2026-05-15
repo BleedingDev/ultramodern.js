@@ -746,6 +746,9 @@ function showHelp() {
   if (localeKeys.help.optionUltramodernWorkspace) {
     console.log(i18n.t(localeKeys.help.optionUltramodernWorkspace));
   }
+  if (localeKeys.help.optionUltramodernPackageSource) {
+    console.log(i18n.t(localeKeys.help.optionUltramodernPackageSource));
+  }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -819,6 +822,23 @@ function detectUltramodernWorkspaceFlag(): boolean {
   return args.includes(ULTRAMODERN_WORKSPACE_FLAG);
 }
 
+function detectUltramodernPackageSource(args: string[], modernVersion: string) {
+  const strategy =
+    getOptionValue(args, ['--ultramodern-package-source']) ?? 'workspace';
+  if (strategy !== 'workspace' && strategy !== 'install') {
+    console.error(
+      '--ultramodern-package-source must be "workspace" or "install"',
+    );
+    process.exit(1);
+  }
+  return {
+    strategy,
+    modernPackageVersion:
+      getOptionValue(args, ['--ultramodern-package-version']) ?? modernVersion,
+    registry: getOptionValue(args, ['--ultramodern-package-registry']),
+  };
+}
+
 function isDirectoryEmpty(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false;
@@ -842,6 +862,9 @@ async function getProjectName(): Promise<{
     '--router',
     '-r',
     '--bff-runtime',
+    '--ultramodern-package-source',
+    '--ultramodern-package-version',
+    '--ultramodern-package-registry',
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -874,7 +897,10 @@ async function getProjectName(): Promise<{
     if (
       arg.startsWith('--lang=') ||
       arg.startsWith('--router=') ||
-      arg.startsWith('--bff-runtime=')
+      arg.startsWith('--bff-runtime=') ||
+      arg.startsWith('--ultramodern-package-source=') ||
+      arg.startsWith('--ultramodern-package-version=') ||
+      arg.startsWith('--ultramodern-package-registry=')
     ) {
       continue;
     }
@@ -947,6 +973,7 @@ async function main() {
       targetDir,
       packageName: generatedPackageName,
       modernVersion: version,
+      packageSource: detectUltramodernPackageSource(args, version),
     });
 
     const dim = '\x1b[2m\x1b[3m';

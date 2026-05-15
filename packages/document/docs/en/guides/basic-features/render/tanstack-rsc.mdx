@@ -59,6 +59,18 @@ Use the TanStack plugin runtime exports in application code:
 
 The examples below use these paths.
 
+## Payload Router Behavior
+
+When `server.rsc` is enabled, TanStack RSC navigation uses a native payload-router path instead of the React Router `RSCStaticRouter` path:
+
+- Browser navigations that need server loader data request the current URL with `x-rsc-tree: true`.
+- The server runs the matched TanStack route loaders, serializes a `ServerPayload` with matched route ids, params, loader data, errors, location, and route metadata, then streams that payload through the Modern.js RSC renderer.
+- Loader redirects are returned with `X-Modernjs-Redirect` and `X-Modernjs-BaseUrl` headers so the client can continue the navigation through TanStack Router.
+- `404` responses and TanStack `notFound()` results are preserved as route errors so the nearest TanStack not-found boundary can render.
+- Routes marked with a client loader keep running their client loader during RSC navigation. Their server loader data is intentionally omitted from the RSC payload to avoid hydrating stale server data over the client-loader result.
+
+Initial SSR hydration still uses TanStack Router's existing SSR bootstrap scripts. The payload-router request path is only used for subsequent RSC navigations and invalidations, so apps can mix ordinary TanStack SSR loader data and RSC loader data in the same route tree.
+
 ## Render Server UI From a Loader
 
 Use `renderServerComponent` when the server output does not need client-provided slots. The loader runs on the server, renders the Server Component to a Flight stream, and returns a value that can be rendered by the client route component.

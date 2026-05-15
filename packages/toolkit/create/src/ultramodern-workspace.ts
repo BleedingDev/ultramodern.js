@@ -15,6 +15,13 @@ const MODULE_FEDERATION_VERSION = '2.4.0';
 const TYPESCRIPT_VERSION = '~5.7.3';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
+const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
+const modernPackageNames = [
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/runtime',
+];
 
 type JsonValue =
   | string
@@ -39,6 +46,14 @@ type WorkspaceApp = {
   ownership: Ownership;
 };
 
+type UltramodernPackageSourceStrategy = 'workspace' | 'install';
+
+type ResolvedPackageSource = {
+  strategy: UltramodernPackageSourceStrategy;
+  modernPackageVersion: string;
+  registry?: string;
+};
+
 type Ownership = {
   team: string;
   slack: string;
@@ -55,6 +70,11 @@ export type UltramodernWorkspaceOptions = {
   targetDir: string;
   packageName: string;
   modernVersion: string;
+  packageSource?: {
+    strategy?: UltramodernPackageSourceStrategy;
+    modernPackageVersion?: string;
+    registry?: string;
+  };
 };
 
 export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
@@ -336,23 +356,49 @@ function relativeRootFor(packageDir: string): string {
   return normalizePath(path.relative(packageDir, '.') || '.');
 }
 
-function appDependencies(scope: string): Record<string, string> {
+function resolvePackageSource(
+  options: UltramodernWorkspaceOptions,
+): ResolvedPackageSource {
+  const strategy = options.packageSource?.strategy ?? 'workspace';
   return {
-    '@modern-js/plugin-tanstack': 'workspace:*',
-    '@modern-js/runtime': 'workspace:*',
+    strategy,
+    modernPackageVersion:
+      strategy === 'install'
+        ? (options.packageSource?.modernPackageVersion ?? options.modernVersion)
+        : WORKSPACE_PACKAGE_VERSION,
+    registry: options.packageSource?.registry,
+  };
+}
+
+function modernPackageVersion(packageSource: ResolvedPackageSource): string {
+  return packageSource.strategy === 'install'
+    ? packageSource.modernPackageVersion
+    : WORKSPACE_PACKAGE_VERSION;
+}
+
+function appDependencies(
+  scope: string,
+  packageSource: ResolvedPackageSource,
+): Record<string, string> {
+  const modernVersion = modernPackageVersion(packageSource);
+  return {
+    '@modern-js/plugin-tanstack': modernVersion,
+    '@modern-js/runtime': modernVersion,
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
-    [packageName(scope, 'shared-contracts')]: 'workspace:*',
-    [packageName(scope, 'shared-design-tokens')]: 'workspace:*',
+    [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
+    [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
   };
 }
 
-function appDevDependencies(): Record<string, string> {
+function appDevDependencies(
+  packageSource: ResolvedPackageSource,
+): Record<string, string> {
   return {
-    '@modern-js/app-tools': 'workspace:*',
+    '@modern-js/app-tools': modernPackageVersion(packageSource),
     '@types/node': '^20',
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
@@ -360,7 +406,10 @@ function appDevDependencies(): Record<string, string> {
   };
 }
 
-function createRootPackageJson(scope: string): JsonValue {
+function createRootPackageJson(
+  scope: string,
+  packageSource: ResolvedPackageSource,
+): JsonValue {
   return {
     private: true,
     name: scope,
@@ -406,6 +455,10 @@ function createRootPackageJson(scope: string): JsonValue {
       workspace: 'ultramodern-superapp',
       topology: './topology/reference-topology.json',
       ownership: './topology/ownership.json',
+      packageSource: {
+        strategy: packageSource.strategy,
+        config: './.modernjs/ultramodern-package-source.json',
+      },
     },
     devDependencies: {
       '@biomejs/biome': '1.9.4',
@@ -460,7 +513,11 @@ function createPackageTsConfig(
   };
 }
 
-function createAppPackage(scope: string, app: WorkspaceApp): JsonValue {
+function createAppPackage(
+  scope: string,
+  app: WorkspaceApp,
+  packageSource: ResolvedPackageSource,
+): JsonValue {
   return {
     private: true,
     name: packageName(scope, app.packageSuffix),
@@ -477,12 +534,16 @@ function createAppPackage(scope: string, app: WorkspaceApp): JsonValue {
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
     },
-    dependencies: appDependencies(scope),
-    devDependencies: appDevDependencies(),
+    dependencies: appDependencies(scope, packageSource),
+    devDependencies: appDevDependencies(packageSource),
   };
 }
 
-function createServicePackage(scope: string): JsonValue {
+function createServicePackage(
+  scope: string,
+  packageSource: ResolvedPackageSource,
+): JsonValue {
+  const modernVersion = modernPackageVersion(packageSource);
   return {
     private: true,
     name: packageName(scope, effectService.packageSuffix),
@@ -500,14 +561,14 @@ function createServicePackage(scope: string): JsonValue {
       topology: `${relativeRootFor(effectService.directory)}/topology/reference-topology.json`,
     },
     dependencies: {
-      '@modern-js/runtime': 'workspace:*',
-      [packageName(scope, 'shared-effect-api')]: 'workspace:*',
+      '@modern-js/runtime': modernVersion,
+      [packageName(scope, 'shared-effect-api')]: WORKSPACE_PACKAGE_VERSION,
       react: REACT_VERSION,
       'react-dom': REACT_DOM_VERSION,
     },
     devDependencies: {
-      '@modern-js/app-tools': 'workspace:*',
-      '@modern-js/plugin-bff': 'workspace:*',
+      '@modern-js/app-tools': modernVersion,
+      '@modern-js/plugin-bff': modernVersion,
       '@types/node': '^20',
       '@types/react': '^19.1.8',
       '@types/react-dom': '^19.1.6',
@@ -1019,7 +1080,44 @@ function createDevelopmentOverlay(): JsonValue {
   };
 }
 
-function createTemplateManifest(modernVersion: string): JsonValue {
+function createPackageSourceMetadata(
+  scope: string,
+  packageSource: ResolvedPackageSource,
+): JsonValue {
+  const modernPackages: {
+    packages: string[];
+    specifier: string;
+    registry?: string;
+  } = {
+    packages: modernPackageNames,
+    specifier: modernPackageVersion(packageSource),
+  };
+
+  if (packageSource.registry) {
+    modernPackages.registry = packageSource.registry;
+  }
+
+  return {
+    schemaVersion: 1,
+    strategy: packageSource.strategy,
+    modernPackages,
+    generatedWorkspacePackages: {
+      packages: sharedPackages.map(sharedPackage =>
+        packageName(scope, sharedPackage.id),
+      ),
+      specifier: WORKSPACE_PACKAGE_VERSION,
+    },
+    validation: {
+      validator: 'scripts/validate-ultramodern-workspace.mjs',
+      strategyAwareChecks: ['generated-validator', 'contract-doctor'],
+    },
+  };
+}
+
+function createTemplateManifest(
+  modernVersion: string,
+  packageSource: ResolvedPackageSource,
+): JsonValue {
   return {
     schemaVersion: 1,
     template: {
@@ -1077,6 +1175,12 @@ function createTemplateManifest(modernVersion: string): JsonValue {
       ],
       overwritePolicy: 'deny-existing',
     },
+    packageSource: {
+      strategy: packageSource.strategy,
+      config: '.modernjs/ultramodern-package-source.json',
+      modernPackageSpecifier: modernPackageVersion(packageSource),
+      generatedWorkspacePackageSpecifier: WORKSPACE_PACKAGE_VERSION,
+    },
     validation: {
       schemaValidation: true,
       sourceValidation: [
@@ -1103,11 +1207,16 @@ function createTemplateManifest(modernVersion: string): JsonValue {
   };
 }
 
-function writeApp(targetDir: string, scope: string, app: WorkspaceApp) {
+function writeApp(
+  targetDir: string,
+  scope: string,
+  app: WorkspaceApp,
+  packageSource: ResolvedPackageSource,
+) {
   writeJson(
     targetDir,
     `${app.directory}/package.json`,
-    createAppPackage(scope, app),
+    createAppPackage(scope, app, packageSource),
   );
   writeJson(
     targetDir,
@@ -1173,11 +1282,15 @@ function writeApp(targetDir: string, scope: string, app: WorkspaceApp) {
   }
 }
 
-function writeEffectService(targetDir: string, scope: string) {
+function writeEffectService(
+  targetDir: string,
+  scope: string,
+  packageSource: ResolvedPackageSource,
+) {
   writeJson(
     targetDir,
     `${effectService.directory}/package.json`,
-    createServicePackage(scope),
+    createServicePackage(scope, packageSource),
   );
   writeJson(
     targetDir,
@@ -1269,6 +1382,7 @@ export function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
 ) {
   const scope = toPackageScope(options.packageName);
+  const packageSource = resolvePackageSource(options);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   copyRootTemplate(options.targetDir, {
@@ -1276,7 +1390,11 @@ export function generateUltramodernWorkspace(
     packageScope: scope,
   });
 
-  writeJson(options.targetDir, 'package.json', createRootPackageJson(scope));
+  writeJson(
+    options.targetDir,
+    'package.json',
+    createRootPackageJson(scope, packageSource),
+  );
   writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase(scope));
   writeJson(
     options.targetDir,
@@ -1296,14 +1414,19 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     '.modernjs/ultramodern-workspace-template-manifest.json',
-    createTemplateManifest(options.modernVersion),
+    createTemplateManifest(options.modernVersion, packageSource),
+  );
+  writeJson(
+    options.targetDir,
+    '.modernjs/ultramodern-package-source.json',
+    createPackageSourceMetadata(scope, packageSource),
   );
 
-  writeApp(options.targetDir, scope, shellApp);
+  writeApp(options.targetDir, scope, shellApp, packageSource);
   for (const remote of remoteApps) {
-    writeApp(options.targetDir, scope, remote);
+    writeApp(options.targetDir, scope, remote, packageSource);
   }
-  writeEffectService(options.targetDir, scope);
+  writeEffectService(options.targetDir, scope, packageSource);
   writeSharedPackages(options.targetDir, scope);
 }
 

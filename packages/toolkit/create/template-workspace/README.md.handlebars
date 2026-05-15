@@ -19,3 +19,10 @@ pnpm ultramodern:check
 ```
 
 The topology and ownership metadata are generated under `topology/`.
+
+Package source metadata is generated at
+`.modernjs/ultramodern-package-source.json`. The default strategy keeps Modern.js
+runtime and tooling packages on `workspace:*` for monorepo development. To create
+a workspace that can install those packages outside the monorepo, generate with
+`--ultramodern-package-source install`; generated shared packages still use
+`workspace:*` because they are part of this workspace.

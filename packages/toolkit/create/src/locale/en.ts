@@ -39,6 +39,8 @@ export const EN_LOCALE = {
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionUltramodernWorkspace:
       '      --ultramodern-workspace Generate the canonical UltraModern SuperApp workspace',
+    optionUltramodernPackageSource:
+      '      --ultramodern-package-source Select UltraModern package source (workspace or install)',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -51,7 +53,8 @@ export const EN_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
-    example10: '  create my-super-app --ultramodern-workspace',
+    example10:
+      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

@@ -4,16 +4,16 @@ overview: Implement modernjs-1ap by adding an install-backed live UltraModern lo
 todos:
   - id: ubf-live-01
     content: Design install-backed live local control-plane mode, including package source strategy for generated workspaces outside the Modern.js monorepo.
-    status: pending
+    status: completed
   - id: ubf-live-02
     content: Implement live startup for generated shell, remotes, design-system remote, and Effect service with deterministic process ownership and environment wiring.
-    status: pending
+    status: completed
   - id: ubf-live-03
     content: Add live readiness probes, log capture, failure classification, and deterministic teardown while keeping cheap preflight on dry-run mode by default.
-    status: pending
+    status: completed
   - id: ubf-live-04
     content: Prove live mode through generated workspace validation, preserve contract-doctor and dry-run preflight behavior, then update modernjs-1ap.
-    status: pending
+    status: completed
 isProject: true
 ---
 

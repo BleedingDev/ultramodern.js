@@ -62,6 +62,7 @@ function createWorkspace() {
     writeJson(root, `${appPath}/package.json`, {
       dependencies: {
         '@modern-js/plugin-tanstack': 'workspace:*',
+        '@modern-js/runtime': 'workspace:*',
         '@tanstack/react-router': EXPECTED_TANSTACK_ROUTER,
       },
     });
@@ -72,6 +73,11 @@ function createWorkspace() {
     'services/service-recommendations-effect/modern.config.ts',
     "runtimeFramework: 'effect'\n",
   );
+  writeJson(root, 'services/service-recommendations-effect/package.json', {
+    devDependencies: {
+      '@modern-js/plugin-bff': 'workspace:*',
+    },
+  });
   writeText(
     root,
     'services/service-recommendations-effect/shared/effect/api.ts',
@@ -106,6 +112,7 @@ test('reports stale TanStack versions and deprecated generated imports', () => {
     writeJson(root, 'apps/remotes/remote-commerce/package.json', {
       dependencies: {
         '@modern-js/plugin-tanstack': 'workspace:*',
+        '@modern-js/runtime': 'workspace:*',
         '@tanstack/react-router': '1.168.26',
       },
     });
@@ -125,6 +132,109 @@ test('reports stale TanStack versions and deprecated generated imports', () => {
       result.checks.some(
         check =>
           check.id === 'deprecated-marker-modern-js-runtime-tanstack-router' &&
+          check.status === 'fail',
+      ),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('accepts an install-backed UltraModern package source strategy', () => {
+  const root = createWorkspace();
+  try {
+    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+      schemaVersion: 1,
+      strategy: 'install',
+      modernPackages: {
+        packages: [
+          '@modern-js/app-tools',
+          '@modern-js/plugin-bff',
+          '@modern-js/plugin-tanstack',
+          '@modern-js/runtime',
+        ],
+        specifier: '3.2.0',
+      },
+      generatedWorkspacePackages: {
+        packages: ['@test/shared-contracts'],
+        specifier: 'workspace:*',
+      },
+    });
+    writeJson(root, 'package.json', {
+      modernjs: {
+        preset: 'presetUltramodern',
+        packageSource: {
+          strategy: 'install',
+          config: './.modernjs/ultramodern-package-source.json',
+        },
+      },
+    });
+    for (const appPath of [
+      'apps/shell-super-app',
+      'apps/remotes/remote-commerce',
+      'apps/remotes/remote-identity',
+      'apps/remotes/remote-design-system',
+    ]) {
+      writeJson(root, `${appPath}/package.json`, {
+        dependencies: {
+          '@modern-js/plugin-tanstack': '3.2.0',
+          '@modern-js/runtime': '3.2.0',
+          '@tanstack/react-router': EXPECTED_TANSTACK_ROUTER,
+        },
+      });
+    }
+    writeJson(root, 'services/service-recommendations-effect/package.json', {
+      devDependencies: {
+        '@modern-js/plugin-bff': '3.2.0',
+      },
+    });
+
+    const result = runUltramodernContractDoctor({ workspace: root });
+    assert.equal(result.status, 'pass');
+    assert.ok(
+      result.checks.some(check => check.id === 'package-source-strategy'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects root package source strategy drift', () => {
+  const root = createWorkspace();
+  try {
+    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+      schemaVersion: 1,
+      strategy: 'install',
+      modernPackages: {
+        packages: [
+          '@modern-js/app-tools',
+          '@modern-js/plugin-bff',
+          '@modern-js/plugin-tanstack',
+          '@modern-js/runtime',
+        ],
+        specifier: '3.2.0',
+      },
+      generatedWorkspacePackages: {
+        packages: ['@test/shared-contracts'],
+        specifier: 'workspace:*',
+      },
+    });
+    writeJson(root, 'package.json', {
+      modernjs: {
+        preset: 'presetUltramodern',
+        packageSource: {
+          strategy: 'workspace',
+          config: './.modernjs/ultramodern-package-source.json',
+        },
+      },
+    });
+
+    const result = runUltramodernContractDoctor({ workspace: root });
+    assert.equal(result.status, 'fail');
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'package-source-root-strategy' &&
           check.status === 'fail',
       ),
     );

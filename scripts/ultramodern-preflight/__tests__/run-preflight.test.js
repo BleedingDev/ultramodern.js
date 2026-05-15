@@ -17,6 +17,7 @@ test('generates and validates an UltraModern workspace end to end', () => {
     });
 
     assert.equal(result.status, 'pass');
+    assert.equal(result.mode, 'dry-run');
     assert.equal(result.generated, true);
     assert.equal(result.doctor.status, 'pass');
     assert.equal(result.controlPlane.summary.total, 5);
@@ -54,6 +55,55 @@ test('can produce overlay evidence without launching processes', () => {
       ).readiness.status,
       'disabled-by-overlay',
     );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('passes package-source options through generated workspace preflight', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-preflight-'),
+  );
+  const workspace = path.join(tempRoot, 'preflight-install-workspace');
+  try {
+    const result = runUltramodernPreflight({
+      workspace,
+      overlay: 'none',
+      packageSource: 'install',
+      packageVersion: '3.2.0-ultramodern.0',
+      packageRegistry: 'https://registry.example.test/',
+    });
+
+    assert.equal(result.status, 'pass');
+    assert.equal(result.generated, true);
+    assert.equal(result.doctor.status, 'pass');
+    const packageSource = JSON.parse(
+      fs.readFileSync(
+        path.join(workspace, '.modernjs/ultramodern-package-source.json'),
+        'utf-8',
+      ),
+    );
+    assert.equal(packageSource.strategy, 'install');
+    assert.equal(packageSource.modernPackages.specifier, '3.2.0-ultramodern.0');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('live mode requires an existing installed workspace', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-preflight-'),
+  );
+  const workspace = path.join(tempRoot, 'preflight-live-workspace');
+  try {
+    const result = runUltramodernPreflight({
+      workspace,
+      mode: 'live',
+    });
+
+    assert.equal(result.status, 'fail');
+    assert.match(result.error, /existing installed workspace/);
+    assert.equal(result.steps.length, 0);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
