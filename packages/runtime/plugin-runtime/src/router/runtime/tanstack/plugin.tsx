@@ -2,7 +2,9 @@
 
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
+import { normalizePathname } from '@modern-js/runtime-utils/url';
 import {
+  type AnyRouter,
   createBrowserHistory,
   createHashHistory,
   createRouter,
@@ -21,6 +23,7 @@ import {
   getGlobalRoutes,
   InternalRuntimeContext,
 } from '../../../core/context';
+import type { TInternalRuntimeContext } from '../../../core/context/runtime';
 import {
   onAfterCreateRouter as onAfterCreateRouterHook,
   onAfterHydrateRouter as onAfterHydrateRouterHook,
@@ -37,6 +40,26 @@ import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 
+const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
+  '@modern-js/plugin-runtime:tanstack-blocking-subscribe',
+);
+const BLOCKING_STATE_SYMBOL = Symbol.for(
+  '@modern-js/plugin-runtime:tanstack-blocking-state',
+);
+
+type TanstackRouterWithSubscribe = {
+  [BLOCKING_STATE_SYMBOL]?: () => boolean;
+  [BLOCKING_SUBSCRIBE_SYMBOL]?: boolean;
+  subscribe?: (
+    eventType: string,
+    listener: (...args: unknown[]) => void,
+  ) => () => void;
+};
+
+type WindowWithTanstackSsr = Window & {
+  $_TSR?: unknown;
+};
+
 function normalizeBase(b: string) {
   if (b.length > 1 && b.endsWith('/')) return b.slice(0, -1);
   return b || '/';
@@ -46,6 +69,37 @@ function isSegmentPrefix(pathname: string, base: string) {
   const b = normalizeBase(base);
   const p = pathname || '/';
   return p === b || p.startsWith(`${b}/`);
+}
+
+function wrapRouterSubscribeWithBlockState(
+  router: unknown,
+  getBlockNavState?: () => boolean,
+) {
+  if (!router || typeof router !== 'object') {
+    return;
+  }
+
+  const target = router as TanstackRouterWithSubscribe;
+  target[BLOCKING_STATE_SYMBOL] = getBlockNavState;
+  if (
+    target[BLOCKING_SUBSCRIBE_SYMBOL] ||
+    typeof target.subscribe !== 'function'
+  ) {
+    return;
+  }
+
+  const originSubscribe = target.subscribe.bind(target);
+  target.subscribe = (eventType, listener) => {
+    const wrappedListener = (...args: unknown[]) => {
+      const blockRoute = target[BLOCKING_STATE_SYMBOL]?.() || false;
+      if (blockRoute) {
+        return;
+      }
+      return listener(...args);
+    };
+    return originSubscribe(eventType, wrappedListener);
+  };
+  target[BLOCKING_SUBSCRIBE_SYMBOL] = true;
 }
 
 function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
@@ -77,6 +131,31 @@ export const tanstackRouterPlugin = (
     },
     setup: api => {
       api.onBeforeRender(context => {
+        const pluginConfig = api.getRuntimeConfig() as {
+          router?: Partial<RouterConfig>;
+        };
+        const mergedConfig = merge(
+          pluginConfig.router || {},
+          userConfig,
+        ) as RouterConfig;
+        if (
+          typeof window !== 'undefined' &&
+          (window as { _SSR_DATA?: unknown })._SSR_DATA &&
+          mergedConfig.unstable_reloadOnURLMismatch
+        ) {
+          const { ssrContext } = context;
+          const currentPathname = normalizePathname(window.location.pathname);
+          const initialPathname =
+            ssrContext?.request?.pathname &&
+            normalizePathname(ssrContext.request.pathname);
+
+          if (initialPathname && initialPathname !== currentPathname) {
+            const errorMsg = `The initial URL ${initialPathname} and the URL ${currentPathname} to be hydrated do not match, reload.`;
+            console.error(errorMsg);
+            window.location.reload();
+          }
+        }
+
         context.router = {
           useMatches,
           useLocation,
@@ -109,7 +188,7 @@ export const tanstackRouterPlugin = (
           return App;
         }
 
-        const hooks = api.getHooks() as any;
+        const hooks = api.getHooks();
 
         let cachedRouteObjects: RouteObject[] | undefined;
 
@@ -142,12 +221,16 @@ export const tanstackRouterPlugin = (
         };
 
         // Cache routeTree/router in closure to avoid recreating on re-render
-        let cachedRouteTree: any = null;
-        let cachedRouter: any = null;
+        let cachedRouteTree: ReturnType<
+          typeof createRouteTreeFromRouteObjects
+        > | null = null;
+        let cachedRouter: AnyRouter | null = null;
         let cachedRouterBasepath: string | null = null;
 
         const RouterWrapper = () => {
-          const runtimeContext = useContext(InternalRuntimeContext);
+          const runtimeContext = useContext(
+            InternalRuntimeContext,
+          ) as TInternalRuntimeContext;
 
           const baseUrl = selectBasePath(location.pathname).replace(
             /^\/*/,
@@ -188,6 +271,10 @@ export const tanstackRouterPlugin = (
             hooks.onBeforeCreateRouter.call(lifecycleContext);
 
             if (cachedRouter && cachedRouterBasepath === _basename) {
+              wrapRouterSubscribeWithBlockState(
+                cachedRouter,
+                runtimeContext.unstable_getBlockNavState,
+              );
               hooks.onAfterCreateRouter.call({
                 ...lifecycleContext,
                 router: cachedRouter,
@@ -210,6 +297,10 @@ export const tanstackRouterPlugin = (
               context: {},
             });
             cachedRouterBasepath = _basename;
+            wrapRouterSubscribeWithBlockState(
+              cachedRouter,
+              runtimeContext.unstable_getBlockNavState,
+            );
             hooks.onAfterCreateRouter.call({
               ...lifecycleContext,
               router: cachedRouter,
@@ -234,7 +325,8 @@ export const tanstackRouterPlugin = (
 
           // TanStack SSR hydration sets window.$_TSR. If present, use RouterClient to hydrate.
           const hasSSRBootstrap =
-            typeof window !== 'undefined' && (window as any).$_TSR;
+            typeof window !== 'undefined' &&
+            Boolean((window as WindowWithTanstackSsr).$_TSR);
           if (hasSSRBootstrap) {
             hooks.onBeforeHydrateRouter.call({
               ...lifecycleContext,
@@ -263,7 +355,7 @@ export const tanstackRouterPlugin = (
           return App ? <App>{RouterContent}</App> : RouterContent;
         };
 
-        return RouterWrapper as any;
+        return RouterWrapper;
       });
     },
   };

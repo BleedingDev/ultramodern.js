@@ -51,16 +51,48 @@ type ModernTanstackRouterContext = {
   requestContext: RequestContext<Record<string, unknown>>;
 };
 
+type RouterManagedTag = {
+  attrs?: Record<string, unknown>;
+  children?: unknown;
+  tag?: unknown;
+};
+
+type RouterMatchWithError = {
+  error?: unknown;
+  route?: {
+    id?: unknown;
+  };
+  routeId?: unknown;
+};
+
+type TanstackRouterWithServerSsr = AnyRouter & {
+  resolveRedirect?: (redirect: Response) => Response;
+  serverSsr?: {
+    cleanup?: () => void;
+    dehydrate?: () => Promise<void> | void;
+    takeBufferedScripts?: () => unknown;
+  };
+  state: AnyRouter['state'] & {
+    matches?: unknown;
+    redirect?: Response;
+  };
+};
+
 function htmlEscapeAttr(value: string) {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
-function routerManagedTagToHtml(tag: any): string {
-  if (!tag || tag.tag !== 'script') {
+function routerManagedTagToHtml(tag: unknown): string {
+  if (!tag || typeof tag !== 'object') {
     return '';
   }
 
-  const attrs: Record<string, unknown> = tag.attrs || {};
+  const managedTag = tag as RouterManagedTag;
+  if (!managedTag || managedTag.tag !== 'script') {
+    return '';
+  }
+
+  const attrs: Record<string, unknown> = managedTag.attrs || {};
   const attrsStr = Object.entries(attrs)
     .filter(([, v]) => v != null && v !== false)
     .map(([k, v]) => {
@@ -73,11 +105,12 @@ function routerManagedTagToHtml(tag: any): string {
     .join(' ');
 
   const open = attrsStr.length ? `<script ${attrsStr}>` : '<script>';
-  const children = typeof tag.children === 'string' ? tag.children : '';
+  const children =
+    typeof managedTag.children === 'string' ? managedTag.children : '';
   return `${open}${children}</script>`;
 }
 
-function routerManagedTagsToHtml(tags: any): string[] {
+function routerManagedTagsToHtml(tags: unknown): string[] {
   const normalizedTags = Array.isArray(tags) ? tags : [tags];
   return normalizedTags.map(routerManagedTagToHtml).filter(Boolean);
 }
@@ -104,11 +137,12 @@ function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
 function collectRouterErrors(
   tanstackRouter: AnyRouter,
 ): Record<string, unknown> | undefined {
-  const matches = Array.isArray((tanstackRouter as any).state?.matches)
-    ? (tanstackRouter as any).state.matches
+  const state = tanstackRouter.state as { matches?: unknown };
+  const matches = Array.isArray(state.matches)
+    ? (state.matches as RouterMatchWithError[])
     : [];
-  const errors = matches.reduce((acc: Record<string, unknown>, match: any) => {
-    if (!match?.error) {
+  const errors = matches.reduce((acc: Record<string, unknown>, match) => {
+    if (!match.error) {
       return acc;
     }
 
@@ -143,7 +177,9 @@ export const tanstackRouterPlugin = (
     },
     setup: api => {
       api.onBeforeRender(async (context, interrupt) => {
-        const pluginConfig: Record<string, any> = api.getRuntimeConfig();
+        const pluginConfig = api.getRuntimeConfig() as {
+          router?: Partial<RouterConfig>;
+        };
         const mergedConfig = merge(
           pluginConfig.router || {},
           userConfig,
@@ -181,7 +217,12 @@ export const tanstackRouterPlugin = (
           return;
         }
 
-        const { request, nonce, baseUrl } = context.ssrContext!;
+        const {
+          request,
+          nonce,
+          baseUrl,
+          loaderFailureMode = 'errorBoundary',
+        } = context.ssrContext!;
 
         const _basename =
           baseUrl === '/' ? urlJoin(baseUrl, basename || '') : baseUrl;
@@ -226,11 +267,13 @@ export const tanstackRouterPlugin = (
           rewrite,
           origin: new URL(request.raw.url).origin,
           ssr: { nonce },
-          context: routerContext as any,
+          context: routerContext as never,
         });
+        const serverRouter =
+          tanstackRouter as unknown as TanstackRouterWithServerSsr;
 
         attachRouterServerSsrUtils({
-          router: tanstackRouter as any,
+          router: serverRouter,
           manifest: undefined,
         });
 
@@ -243,37 +286,40 @@ export const tanstackRouterPlugin = (
           context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
         }
 
-        if ((tanstackRouter as any).state?.redirect) {
-          const resolved = (tanstackRouter as any).resolveRedirect
-            ? (tanstackRouter as any).resolveRedirect(
-                (tanstackRouter as any).state.redirect,
-              )
-            : (tanstackRouter as any).state.redirect;
+        if (serverRouter.state.redirect) {
+          const resolved = serverRouter.resolveRedirect
+            ? serverRouter.resolveRedirect(serverRouter.state.redirect)
+            : serverRouter.state.redirect;
 
           try {
-            (tanstackRouter as any).serverSsr?.cleanup?.();
+            serverRouter.serverSsr?.cleanup?.();
           } catch {}
 
-          return interrupt(resolved as any);
+          return interrupt(resolved);
+        }
+
+        const routerErrors = collectRouterErrors(tanstackRouter);
+        if (routerErrors && loaderFailureMode === 'clientRender') {
+          context.ssrContext?.response.status(200);
+          try {
+            serverRouter.serverSsr?.cleanup?.();
+          } catch {}
+          throw Object.values(routerErrors)[0];
         }
 
         context.ssrContext?.response.status(tanstackRouter.state.statusCode);
 
-        await (tanstackRouter as any).serverSsr?.dehydrate?.();
+        await serverRouter.serverSsr?.dehydrate?.();
 
-        const ssrScriptTags = (
-          tanstackRouter as any
-        ).serverSsr?.takeBufferedScripts?.();
+        const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
         const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);
-        const matchedRouteIds = getModernRouteIdsFromMatches(
-          tanstackRouter as any,
-        );
+        const matchedRouteIds = getModernRouteIdsFromMatches(serverRouter);
         const routerServerSnapshot: InternalRouterServerSnapshot =
           createRouterServerSnapshot({
             framework: 'tanstack',
             basename: _basename,
             statusCode: tanstackRouter.state.statusCode,
-            errors: collectRouterErrors(tanstackRouter as any),
+            errors: routerErrors,
             matchedRouteIds,
             hydrationScripts,
           });
@@ -281,11 +327,11 @@ export const tanstackRouterPlugin = (
           context as TInternalRuntimeContext,
           {
             snapshot: routerServerSnapshot,
-            cleanup: () => (tanstackRouter as any).serverSsr?.cleanup?.(),
+            cleanup: () => serverRouter.serverSsr?.cleanup?.(),
             state: {
               framework: 'tanstack',
               basename: _basename,
-              instance: tanstackRouter as any,
+              instance: serverRouter,
               hydrationScripts,
               matchedRouteIds,
               serverSnapshot: routerServerSnapshot,
@@ -294,7 +340,7 @@ export const tanstackRouterPlugin = (
         );
         hooks.onAfterCreateRouter.call({
           ...routerLifecycleContext,
-          router: tanstackRouter as any,
+          router: serverRouter,
           serverSnapshot: routerServerSnapshot,
           runtimeContext,
         });
@@ -305,7 +351,7 @@ export const tanstackRouterPlugin = (
           return (props => {
             const context = useContext(
               InternalRuntimeContext,
-            ) as any as TInternalRuntimeContext;
+            ) as unknown as TInternalRuntimeContext;
             const router =
               context.routerInstance ?? context.routerRuntime?.instance;
             if (!router) {
@@ -314,12 +360,12 @@ export const tanstackRouterPlugin = (
 
             const routerWrapper = (
               <Suspense fallback={null}>
-                <RouterProvider router={router as any} />
+                <RouterProvider router={router as AnyRouter} />
               </Suspense>
             );
 
             return App ? <App>{routerWrapper}</App> : routerWrapper;
-          }) as React.FC<any>;
+          }) as React.FC<Record<string, unknown>>;
         };
 
         return getRouteApp();
