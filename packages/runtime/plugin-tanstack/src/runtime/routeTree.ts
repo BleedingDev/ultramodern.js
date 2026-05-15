@@ -14,22 +14,154 @@ import {
 import { toTanstackPath } from '../tanstackPath';
 import { DefaultNotFound } from './DefaultNotFound';
 
+type RouteParams = Record<string, string>;
+
+type ModernLoader = (args: {
+  request: Request;
+  params: RouteParams;
+  context?: unknown;
+}) => unknown | Promise<unknown>;
+
+type ModernShouldRevalidate = (args: {
+  currentParams: RouteParams;
+  currentUrl: URL;
+  nextParams: RouteParams;
+  nextUrl: URL;
+  defaultShouldRevalidate?: boolean;
+}) => boolean | undefined;
+
+type TanstackLoaderContext = {
+  abortController?: AbortController;
+  signal?: AbortSignal;
+  context?: {
+    request?: Request;
+    requestContext?: unknown;
+  };
+  location?:
+    | string
+    | {
+        publicHref?: string;
+        href?: string;
+        url?: { href?: string };
+      };
+  params?: RouteParams;
+};
+
+type RouteRevalidationState = {
+  currentParams?: RouteParams;
+  currentUrl?: URL;
+};
+
+type ModernRouteObject = RouteObject & {
+  ErrorBoundary?: unknown;
+  HydrateFallback?: unknown;
+  action?: unknown;
+  clientData?: unknown;
+  config?: { handle?: Record<string, unknown> } | unknown;
+  file?: string;
+  handle?: Record<string, unknown>;
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  inValidSSRRoute?: boolean;
+  isClientComponent?: boolean;
+  loader?: ModernLoader;
+  pendingComponent?: unknown;
+  shouldRevalidate?: ModernShouldRevalidate;
+};
+
+type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
+  _component?: string;
+  action?: unknown;
+  children?: ModernGeneratedRoute[];
+  component?: unknown;
+  config?: { handle?: Record<string, unknown> } | unknown;
+  clientData?: unknown;
+  data?: string;
+  error?: unknown;
+  errorComponent?: unknown;
+  filename?: string;
+  handle?: Record<string, unknown>;
+  hasAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  inValidSSRRoute?: boolean;
+  id?: string;
+  index?: boolean;
+  isClientComponent?: boolean;
+  isRoot?: boolean;
+  lazyImport?: () => unknown;
+  loader?: ModernLoader;
+  loading?: unknown;
+  pendingComponent?: unknown;
+  path?: string;
+  shouldRevalidate?: ModernShouldRevalidate;
+};
+
+type MutableTanstackRoute = AnyRoute & {
+  addChildren: (children: AnyRoute[]) => void;
+};
+
+type TanstackRouteOptions = Record<string, unknown>;
+type TanstackRootRouteOptions = Record<string, unknown>;
+type ModernTanstackRootRoute = TanstackRootRoute;
+type ModernDeferredDataLike = {
+  __modern_deferred?: unknown;
+  data?: unknown;
+};
+
+function createTanstackRoute(
+  options: TanstackRouteOptions,
+): MutableTanstackRoute {
+  return createRoute(options as never) as unknown as MutableTanstackRoute;
+}
+
+function createTanstackRootRoute(
+  options: TanstackRootRouteOptions,
+): MutableTanstackRoute {
+  return createRootRoute(options as never) as unknown as MutableTanstackRoute;
+}
+
 function isResponse(value: unknown): value is Response {
+  const record = value as { headers?: unknown; status?: unknown } | null;
   return (
-    value != null &&
-    typeof value === 'object' &&
-    typeof (value as any).status === 'number' &&
-    typeof (value as any).headers === 'object'
+    record != null &&
+    typeof record === 'object' &&
+    typeof record.status === 'number' &&
+    typeof record.headers === 'object'
   );
 }
 
 function isTanstackRedirect(value: unknown): boolean {
-  return isResponse(value) && typeof (value as any).options === 'object';
+  return (
+    isResponse(value) &&
+    typeof (value as { options?: unknown }).options === 'object'
+  );
 }
 
 const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
 function isRedirectResponse(res: Response) {
   return redirectStatusCodes.has(res.status);
+}
+
+function isModernDeferredData(
+  value: unknown,
+): value is ModernDeferredDataLike & { data: Record<string, unknown> } {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const deferred = value as ModernDeferredDataLike;
+  return (
+    deferred.__modern_deferred === true &&
+    Boolean(deferred.data) &&
+    typeof deferred.data === 'object' &&
+    !Array.isArray(deferred.data)
+  );
+}
+
+function normalizeModernLoaderResult(result: unknown): unknown {
+  return isModernDeferredData(result) ? result.data : result;
 }
 
 function throwTanstackRedirect(location: string) {
@@ -49,11 +181,13 @@ function mapParamsForModernLoader({
   params,
 }: {
   modernRoute: NestedRoute | PageRoute;
-  params: Record<string, string>;
+  params: RouteParams;
 }) {
   // React Router uses `*` for splat params, TanStack Router uses `_splat`.
   if (modernRoute.type === 'nested' && modernRoute.path?.includes('*')) {
-    const { _splat, ...rest } = params as any;
+    const { _splat, ...rest } = params as RouteParams & {
+      _splat?: string;
+    };
     if (typeof _splat !== 'undefined') {
       return { ...rest, '*': _splat };
     }
@@ -66,94 +200,135 @@ function createModernRequest(input: string, signal: AbortSignal) {
   return new Request(input, { signal });
 }
 
-function createModernLoaderRequest(ctx: any) {
-  const signal: AbortSignal =
-    ctx?.abortController?.signal || ctx?.signal || new AbortController().signal;
-  const baseRequest: Request | undefined =
-    ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
-
+function getModernUrlFromLoaderContext(ctx: TanstackLoaderContext): URL {
   const href =
     typeof ctx?.location === 'string'
       ? ctx.location
       : ctx?.location?.publicHref ||
         ctx?.location?.href ||
         ctx?.location?.url?.href ||
-        '';
+        '/';
+  const baseRequest: Request | undefined =
+    ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
+  const baseUrl =
+    baseRequest?.url ||
+    (typeof window !== 'undefined' ? window.origin : 'http://localhost');
 
-  return baseRequest
-    ? new Request(baseRequest, { signal })
-    : createModernRequest(href, signal);
+  return new URL(href || '/', baseUrl);
 }
 
-function normalizeModernLoaderResult(result: unknown) {
-  if (isResponse(result)) {
-    if (isRedirectResponse(result)) {
-      const location = result.headers.get('Location') || '/';
-      throwTanstackRedirect(location);
-    }
-    if (result.status === 404) {
-      throw notFound();
-    }
-  }
-
-  return result;
-}
-
-function normalizeModernLoaderError(err: unknown): never {
-  if (isResponse(err)) {
-    if (isTanstackRedirect(err)) {
-      throw err;
-    }
-    if (isRedirectResponse(err)) {
-      const location = err.headers.get('Location') || '/';
-      throwTanstackRedirect(location);
-    }
-    if (err.status === 404) {
-      throw notFound();
-    }
-  }
-  throw err;
-}
-
-async function callModernRouteHandler(
-  handler: (args: any) => any,
-  ctx: any,
-  params: Record<string, string>,
+function rememberRouteLocation(
+  state: RouteRevalidationState,
+  ctx: TanstackLoaderContext,
 ) {
-  const request = createModernLoaderRequest(ctx);
-  const result = await handler({
-    request,
-    params,
-    context: ctx?.context?.requestContext,
-  });
+  state.currentUrl = getModernUrlFromLoaderContext(ctx);
+  state.currentParams = ctx?.params || {};
+}
 
-  return normalizeModernLoaderResult(result);
+function createModernShouldReload(
+  shouldRevalidate: unknown,
+  state: RouteRevalidationState,
+) {
+  if (typeof shouldRevalidate !== 'function') {
+    return undefined;
+  }
+  const revalidate = shouldRevalidate as ModernShouldRevalidate;
+
+  return (ctx: TanstackLoaderContext) => {
+    const nextUrl = getModernUrlFromLoaderContext(ctx);
+    const nextParams = ctx?.params || {};
+    const result = revalidate({
+      currentUrl: state.currentUrl || nextUrl,
+      currentParams: state.currentParams || nextParams,
+      nextUrl,
+      nextParams,
+      // Returning undefined keeps TanStack's native stale-reload default.
+      defaultShouldRevalidate: undefined,
+    });
+
+    state.currentUrl = nextUrl;
+    state.currentParams = nextParams;
+
+    return typeof result === 'boolean' ? result : undefined;
+  };
 }
 
 function wrapModernLoader(
   modernRoute: NestedRoute | PageRoute,
-  modernLoader: ((args: any) => any) | undefined,
+  modernLoader: ModernLoader | undefined,
+  revalidationState?: RouteRevalidationState,
 ) {
-  return async (ctx: any) => {
+  const route = modernRoute as ModernGeneratedRoute;
+  return async (ctx: TanstackLoaderContext) => {
     try {
-      if (typeof (modernRoute as any).lazyImport === 'function') {
+      if (revalidationState) {
+        rememberRouteLocation(revalidationState, ctx);
+      }
+
+      if (typeof route.lazyImport === 'function') {
         try {
-          (modernRoute as any).lazyImport();
+          route.lazyImport();
         } catch {}
       }
 
+      const signal: AbortSignal =
+        ctx?.abortController?.signal ||
+        ctx?.signal ||
+        new AbortController().signal;
+      const baseRequest: Request | undefined =
+        ctx?.context?.request instanceof Request
+          ? ctx.context.request
+          : undefined;
+
+      const href =
+        typeof ctx?.location === 'string'
+          ? ctx.location
+          : ctx?.location?.publicHref ||
+            ctx?.location?.href ||
+            ctx?.location?.url?.href ||
+            '';
+
+      const request = baseRequest
+        ? new Request(baseRequest, { signal })
+        : createModernRequest(href, signal);
       const params = mapParamsForModernLoader({
         modernRoute,
         params: ctx.params || {},
       });
 
-      if (!modernLoader) {
-        return null;
+      const result = modernLoader
+        ? await modernLoader({
+            request,
+            params,
+            context: ctx?.context?.requestContext,
+          })
+        : null;
+
+      if (isResponse(result)) {
+        if (isRedirectResponse(result)) {
+          const location = result.headers.get('Location') || '/';
+          throwTanstackRedirect(location);
+        }
+        if (result.status === 404) {
+          throw notFound();
+        }
       }
 
-      return callModernRouteHandler(modernLoader, ctx, params);
+      return normalizeModernLoaderResult(result);
     } catch (err) {
-      normalizeModernLoaderError(err);
+      if (isResponse(err)) {
+        if (isTanstackRedirect(err)) {
+          throw err;
+        }
+        if (isRedirectResponse(err)) {
+          const location = err.headers.get('Location') || '/';
+          throwTanstackRedirect(location);
+        }
+        if (err.status === 404) {
+          throw notFound();
+        }
+      }
+      throw err;
     }
   };
 }
@@ -171,10 +346,12 @@ function mapParamsForRouteObjectLoader({
   params,
 }: {
   route: RouteObject;
-  params: Record<string, string>;
+  params: RouteParams;
 }) {
   if (isRouteObjectSplatRoute(route)) {
-    const { _splat, ...rest } = params as any;
+    const { _splat, ...rest } = params as RouteParams & {
+      _splat?: string;
+    };
     if (typeof _splat !== 'undefined') {
       return { ...rest, '*': _splat };
     }
@@ -183,57 +360,134 @@ function mapParamsForRouteObjectLoader({
   return params;
 }
 
-function wrapRouteObjectLoader(route: RouteObject) {
-  const routeLoader = route.loader;
+function wrapRouteObjectLoader(
+  route: RouteObject,
+  revalidationState?: RouteRevalidationState,
+) {
+  const modernRoute = route as ModernRouteObject;
+  const routeLoader = modernRoute.loader;
   if (typeof routeLoader !== 'function') {
     return undefined;
   }
 
-  return async (ctx: any) => {
+  return async (ctx: TanstackLoaderContext) => {
     try {
+      if (revalidationState) {
+        rememberRouteLocation(revalidationState, ctx);
+      }
+
+      const signal: AbortSignal =
+        ctx?.abortController?.signal ||
+        ctx?.signal ||
+        new AbortController().signal;
+      const baseRequest: Request | undefined =
+        ctx?.context?.request instanceof Request
+          ? ctx.context.request
+          : undefined;
+
+      const href =
+        typeof ctx?.location === 'string'
+          ? ctx.location
+          : ctx?.location?.publicHref ||
+            ctx?.location?.href ||
+            ctx?.location?.url?.href ||
+            '';
+
+      const request = baseRequest
+        ? new Request(baseRequest, { signal })
+        : createModernRequest(href, signal);
+
       const params = mapParamsForRouteObjectLoader({
         route,
         params: ctx.params || {},
       });
 
-      return callModernRouteHandler(routeLoader, ctx, params);
+      const result = await routeLoader({
+        request,
+        params,
+        context: ctx?.context?.requestContext,
+      });
+
+      if (isResponse(result)) {
+        if (isRedirectResponse(result)) {
+          const location = result.headers.get('Location') || '/';
+          throwTanstackRedirect(location);
+        }
+        if (result.status === 404) {
+          throw notFound();
+        }
+      }
+
+      return normalizeModernLoaderResult(result);
     } catch (err) {
-      normalizeModernLoaderError(err);
+      if (isResponse(err)) {
+        if (isTanstackRedirect(err)) {
+          throw err;
+        }
+        if (isRedirectResponse(err)) {
+          const location = err.headers.get('Location') || '/';
+          throwTanstackRedirect(location);
+        }
+        if (err.status === 404) {
+          throw notFound();
+        }
+      }
+      throw err;
     }
   };
 }
 
-function toRouteComponent(route: RouteObject): any {
+function toRouteComponent(routeObject: RouteObject): unknown {
+  const route = routeObject as ModernRouteObject;
   if (route.Component) {
-    return route.Component as any;
+    return route.Component;
   }
   const element = route.element;
   if (element) {
-    return (() => element as any) as any;
+    return () => element;
   }
   return undefined;
 }
 
-function toErrorComponent(route: RouteObject): any {
-  const anyRoute = route as any;
-  if (anyRoute.ErrorBoundary) {
-    return anyRoute.ErrorBoundary as any;
+function toErrorComponent(routeObject: RouteObject): unknown {
+  const route = routeObject as ModernRouteObject;
+  if (route.ErrorBoundary) {
+    return route.ErrorBoundary;
   }
   if (route.errorElement) {
-    return (() => route.errorElement as any) as any;
+    return () => route.errorElement;
   }
   return undefined;
 }
 
-function toPendingComponent(route: RouteObject): any {
-  const anyRoute = route as any;
-  return anyRoute.HydrateFallback || anyRoute.pendingComponent || undefined;
+function toPendingComponent(routeObject: RouteObject): unknown {
+  const route = routeObject as ModernRouteObject;
+  return route.HydrateFallback || route.pendingComponent || undefined;
+}
+
+function mergeModernRouteHandle(route: {
+  config?: { handle?: Record<string, unknown> } | unknown;
+  handle?: Record<string, unknown>;
+}) {
+  const config = route.config as { handle?: Record<string, unknown> } | null;
+  const handle = {
+    ...route.handle,
+    ...(config && typeof config === 'object' ? config.handle : {}),
+  };
+
+  return Object.keys(handle).length > 0 ? handle : undefined;
 }
 
 function createRouteStaticData(opts: {
   modernRouteId?: string;
   modernRouteAction?: unknown;
+  modernRouteHandle?: unknown;
+  modernRouteHasAction?: boolean;
+  modernRouteHasClientLoader?: boolean;
+  modernRouteHasLoader?: boolean;
+  modernRouteIsClientComponent?: boolean;
   modernRouteLoader?: unknown;
+  modernRouteShouldRevalidate?: unknown;
 }) {
   const staticData: Record<string, unknown> = {};
 
@@ -245,8 +499,32 @@ function createRouteStaticData(opts: {
     staticData.modernRouteAction = opts.modernRouteAction;
   }
 
+  if (opts.modernRouteHandle) {
+    staticData.modernRouteHandle = opts.modernRouteHandle;
+  }
+
+  if (opts.modernRouteHasAction) {
+    staticData.modernRouteHasAction = true;
+  }
+
+  if (opts.modernRouteHasClientLoader) {
+    staticData.modernRouteHasClientLoader = true;
+  }
+
+  if (opts.modernRouteHasLoader) {
+    staticData.modernRouteHasLoader = true;
+  }
+
+  if (opts.modernRouteIsClientComponent) {
+    staticData.modernRouteIsClientComponent = true;
+  }
+
   if (opts.modernRouteLoader) {
     staticData.modernRouteLoader = opts.modernRouteLoader;
+  }
+
+  if (opts.modernRouteShouldRevalidate) {
+    staticData.modernRouteShouldRevalidate = opts.modernRouteShouldRevalidate;
   }
 
   return Object.keys(staticData).length > 0 ? staticData : undefined;
@@ -257,14 +535,18 @@ function createRouteFromRouteObject(opts: {
   routeObject: RouteObject;
 }): AnyRoute {
   const { parent, routeObject } = opts;
+  const modernRouteObject = routeObject as ModernRouteObject;
+  const revalidationState: RouteRevalidationState = {};
+  const shouldRevalidate = modernRouteObject.shouldRevalidate;
+  const shouldReload = createModernShouldReload(
+    shouldRevalidate,
+    revalidationState,
+  );
 
   const stableFallbackId =
-    routeObject.id ||
-    (routeObject as any).file ||
-    (routeObject as any).path ||
-    'pathless';
+    routeObject.id || modernRouteObject.file || routeObject.path || 'pathless';
 
-  const base: any = {
+  const base: TanstackRouteOptions = {
     getParentRoute: () => parent,
     component: toRouteComponent(routeObject),
     pendingComponent: toPendingComponent(routeObject),
@@ -272,11 +554,28 @@ function createRouteFromRouteObject(opts: {
     wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: routeObject.id,
-      modernRouteAction: routeObject.action,
-      modernRouteLoader: routeObject.loader,
+      modernRouteAction: modernRouteObject.action,
+      modernRouteHandle: mergeModernRouteHandle(modernRouteObject),
+      modernRouteHasAction:
+        modernRouteObject.hasAction || Boolean(modernRouteObject.action),
+      modernRouteHasClientLoader:
+        modernRouteObject.hasClientLoader ||
+        typeof modernRouteObject.clientData !== 'undefined',
+      modernRouteHasLoader:
+        modernRouteObject.hasLoader ||
+        typeof modernRouteObject.loader === 'function',
+      modernRouteIsClientComponent: modernRouteObject.isClientComponent,
+      modernRouteLoader: modernRouteObject.loader,
+      modernRouteShouldRevalidate: shouldRevalidate,
     }),
-    loader: wrapRouteObjectLoader(routeObject),
+    loader: wrapRouteObjectLoader(routeObject, revalidationState),
   };
+  if (modernRouteObject.inValidSSRRoute) {
+    base.ssr = false;
+  }
+  if (shouldReload) {
+    base.shouldReload = shouldReload;
+  }
 
   if (isRouteObjectPathlessLayout(routeObject)) {
     base.id = stableFallbackId;
@@ -286,14 +585,14 @@ function createRouteFromRouteObject(opts: {
       : toTanstackPath((routeObject.path as string) || '');
   }
 
-  const route = createRoute(base) as unknown as AnyRoute;
+  const route = createTanstackRoute(base);
 
   const children = routeObject.children;
   if (children && children.length > 0) {
     const childRoutes = children.map((child: RouteObject) =>
       createRouteFromRouteObject({ parent: route, routeObject: child }),
     );
-    (route as any).addChildren(childRoutes);
+    route.addChildren(childRoutes);
   }
 
   return route;
@@ -304,33 +603,37 @@ function createRouteFromModernRoute(opts: {
   modernRoute: NestedRoute | PageRoute;
 }): AnyRoute {
   const { parent, modernRoute } = opts;
+  const route = modernRoute as ModernGeneratedRoute;
+  const revalidationState: RouteRevalidationState = {};
 
-  const modernId = (modernRoute as any).id as string | undefined;
+  const modernId = route.id;
   const stableFallbackId =
     modernId ||
-    (modernRoute as any)._component ||
-    (modernRoute as any).filename ||
-    (modernRoute as any).data ||
-    (modernRoute as any).loader;
+    route._component ||
+    route.filename ||
+    route.data ||
+    (typeof route.loader === 'function' ? route.id : undefined);
 
-  const pendingComponent =
-    (modernRoute as any).loading || (modernRoute as any).pendingComponent;
-  const errorComponent =
-    (modernRoute as any).error || (modernRoute as any).errorComponent;
-  const component = (modernRoute as any).component;
-  const modernLoader = (modernRoute as any).loader;
-  const modernAction = (modernRoute as any).action;
+  const pendingComponent = route.loading || route.pendingComponent;
+  const errorComponent = route.error || route.errorComponent;
+  const component = route.component;
+  const modernLoader = route.loader;
+  const modernAction = route.action;
+  const modernShouldRevalidate = route.shouldRevalidate;
+  const shouldReload = createModernShouldReload(
+    modernShouldRevalidate,
+    revalidationState,
+  );
 
   // Pathless layout: no path segment, but must remain in the tree.
   const isPathlessLayout =
-    modernRoute.type === 'nested' &&
-    typeof modernRoute.index !== 'boolean' &&
-    typeof (modernRoute as any).path === 'undefined';
+    route.type === 'nested' &&
+    typeof route.index !== 'boolean' &&
+    typeof route.path === 'undefined';
 
-  const isIndexRoute =
-    modernRoute.type === 'nested' && Boolean((modernRoute as any).index);
+  const isIndexRoute = route.type === 'nested' && Boolean(route.index);
 
-  const base: any = {
+  const base: TanstackRouteOptions = {
     getParentRoute: () => parent,
     component: component || undefined,
     pendingComponent: pendingComponent || undefined,
@@ -339,51 +642,70 @@ function createRouteFromModernRoute(opts: {
     staticData: createRouteStaticData({
       modernRouteId: modernId,
       modernRouteAction: modernAction,
+      modernRouteHandle: mergeModernRouteHandle(route),
+      modernRouteHasAction: route.hasAction || Boolean(modernAction),
+      modernRouteHasClientLoader:
+        route.hasClientLoader || typeof route.clientData !== 'undefined',
+      modernRouteHasLoader:
+        route.hasLoader || typeof modernLoader === 'function',
+      modernRouteIsClientComponent: route.isClientComponent,
       modernRouteLoader: modernLoader,
+      modernRouteShouldRevalidate: modernShouldRevalidate,
     }),
-    loader: wrapModernLoader(modernRoute, modernLoader),
+    loader: wrapModernLoader(modernRoute, modernLoader, revalidationState),
   };
+  if (route.inValidSSRRoute) {
+    base.ssr = false;
+  }
+  if (shouldReload) {
+    base.shouldReload = shouldReload;
+  }
 
   if (isPathlessLayout) {
     // Use a stable custom id for pathless layouts to avoid hydration mismatch.
     base.id = stableFallbackId || 'pathless';
   } else {
-    const rawPath = (modernRoute as any).path as string | undefined;
+    const rawPath = route.path;
     base.path = isIndexRoute ? '/' : toTanstackPath(rawPath || '');
   }
 
-  const route = createRoute(base) as unknown as AnyRoute;
+  const tanstackRoute = createTanstackRoute(base);
 
-  const children = (modernRoute as any).children as
-    | Array<NestedRoute | PageRoute>
-    | undefined;
+  const children = route.children as Array<NestedRoute | PageRoute> | undefined;
   if (children && children.length > 0) {
     const childRoutes = children.map(child =>
-      createRouteFromModernRoute({ parent: route, modernRoute: child }),
+      createRouteFromModernRoute({ parent: tanstackRoute, modernRoute: child }),
     );
-    (route as any).addChildren(childRoutes);
+    tanstackRoute.addChildren(childRoutes);
   }
 
-  return route;
+  return tanstackRoute;
 }
 
 export function createRouteTreeFromModernRoutes(
   routes: Array<NestedRoute | PageRoute>,
-): TanstackRootRoute<any, any, any, any, any, any, any, any, any, any, any> {
+): ModernTanstackRootRoute {
   const rootModern = routes.find(
-    r => r && (r as any).type === 'nested' && (r as any).isRoot,
-  ) as NestedRoute | undefined;
+    r =>
+      r &&
+      (r as ModernGeneratedRoute).type === 'nested' &&
+      (r as ModernGeneratedRoute).isRoot,
+  ) as ModernGeneratedRoute | undefined;
 
-  const rootComponent = (rootModern as any)?.component;
-  const pendingComponent = (rootModern as any)?.loading;
-  const errorComponent = (rootModern as any)?.error;
-  const rootLoader = (rootModern as any)?.loader as
-    | ((args: any) => any)
-    | undefined;
-  const rootAction = (rootModern as any)?.action;
-  const rootModernId = (rootModern as any)?.id as string | undefined;
+  const rootComponent = rootModern?.component;
+  const pendingComponent = rootModern?.loading;
+  const errorComponent = rootModern?.error;
+  const rootLoader = rootModern?.loader;
+  const rootAction = rootModern?.action;
+  const rootModernId = rootModern?.id;
+  const rootShouldRevalidate = rootModern?.shouldRevalidate;
+  const rootRevalidationState: RouteRevalidationState = {};
+  const rootShouldReload = createModernShouldReload(
+    rootShouldRevalidate,
+    rootRevalidationState,
+  );
 
-  const rootRoute = createRootRoute({
+  const rootRouteOptions: TanstackRootRouteOptions = {
     component: rootComponent || undefined,
     pendingComponent: pendingComponent || undefined,
     errorComponent: errorComponent || undefined,
@@ -392,21 +714,42 @@ export function createRouteTreeFromModernRoutes(
     staticData: createRouteStaticData({
       modernRouteId: rootModernId,
       modernRouteAction: rootAction,
+      modernRouteHandle: rootModern
+        ? mergeModernRouteHandle(rootModern)
+        : undefined,
+      modernRouteHasAction: rootModern?.hasAction || Boolean(rootAction),
+      modernRouteHasClientLoader:
+        rootModern?.hasClientLoader ||
+        typeof rootModern?.clientData !== 'undefined',
+      modernRouteHasLoader:
+        rootModern?.hasLoader || typeof rootLoader === 'function',
+      modernRouteIsClientComponent: rootModern?.isClientComponent,
       modernRouteLoader: rootLoader,
+      modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
-    loader: rootModern ? wrapModernLoader(rootModern, rootLoader) : undefined,
-  }) as any;
+    loader: rootModern
+      ? wrapModernLoader(rootModern, rootLoader, rootRevalidationState)
+      : undefined,
+  };
+  if (rootShouldReload) {
+    rootRouteOptions.shouldReload = rootShouldReload;
+  }
+  if (rootModern?.inValidSSRRoute) {
+    rootRouteOptions.ssr = false;
+  }
+
+  const rootRoute = createTanstackRootRoute(rootRouteOptions);
 
   const topLevel = rootModern
-    ? ((rootModern as any).children as Array<NestedRoute | PageRoute>) || []
+    ? (rootModern.children as Array<NestedRoute | PageRoute>) || []
     : routes;
 
   const childRoutes = topLevel.map(child =>
     createRouteFromModernRoute({ parent: rootRoute, modernRoute: child }),
   );
 
-  (rootRoute as any).addChildren(childRoutes);
-  return rootRoute as any;
+  rootRoute.addChildren(childRoutes);
+  return rootRoute as unknown as ModernTanstackRootRoute;
 }
 
 function getRootLikeRouteObject(routes: RouteObject[]) {
@@ -415,10 +758,18 @@ function getRootLikeRouteObject(routes: RouteObject[]) {
 
 export function createRouteTreeFromRouteObjects(
   routes: RouteObject[],
-): TanstackRootRoute<any, any, any, any, any, any, any, any, any, any, any> {
-  const rootLikeRoute = getRootLikeRouteObject(routes);
+): ModernTanstackRootRoute {
+  const rootLikeRoute = getRootLikeRouteObject(routes) as
+    | ModernRouteObject
+    | undefined;
+  const rootRevalidationState: RouteRevalidationState = {};
+  const rootShouldRevalidate = rootLikeRoute?.shouldRevalidate;
+  const rootShouldReload = createModernShouldReload(
+    rootShouldRevalidate,
+    rootRevalidationState,
+  );
 
-  const rootRoute = createRootRoute({
+  const rootRouteOptions: TanstackRootRouteOptions = {
     component: rootLikeRoute ? toRouteComponent(rootLikeRoute) : undefined,
     pendingComponent: rootLikeRoute
       ? toPendingComponent(rootLikeRoute)
@@ -429,10 +780,32 @@ export function createRouteTreeFromRouteObjects(
     staticData: createRouteStaticData({
       modernRouteId: rootLikeRoute?.id,
       modernRouteAction: rootLikeRoute?.action,
+      modernRouteHandle: rootLikeRoute
+        ? mergeModernRouteHandle(rootLikeRoute)
+        : undefined,
+      modernRouteHasAction:
+        rootLikeRoute?.hasAction || Boolean(rootLikeRoute?.action),
+      modernRouteHasClientLoader:
+        rootLikeRoute?.hasClientLoader ||
+        typeof rootLikeRoute?.clientData !== 'undefined',
+      modernRouteHasLoader:
+        rootLikeRoute?.hasLoader || typeof rootLikeRoute?.loader === 'function',
+      modernRouteIsClientComponent: rootLikeRoute?.isClientComponent,
       modernRouteLoader: rootLikeRoute?.loader,
+      modernRouteShouldRevalidate: rootShouldRevalidate,
     }),
-    loader: rootLikeRoute ? wrapRouteObjectLoader(rootLikeRoute) : undefined,
-  }) as any;
+    loader: rootLikeRoute
+      ? wrapRouteObjectLoader(rootLikeRoute, rootRevalidationState)
+      : undefined,
+  };
+  if (rootShouldReload) {
+    rootRouteOptions.shouldReload = rootShouldReload;
+  }
+  if (rootLikeRoute?.inValidSSRRoute) {
+    rootRouteOptions.ssr = false;
+  }
+
+  const rootRoute = createTanstackRootRoute(rootRouteOptions);
 
   const topLevel = rootLikeRoute
     ? [
@@ -445,14 +818,25 @@ export function createRouteTreeFromRouteObjects(
     createRouteFromRouteObject({ parent: rootRoute, routeObject }),
   );
 
-  (rootRoute as any).addChildren(childRoutes);
-  return rootRoute as any;
+  rootRoute.addChildren(childRoutes);
+  return rootRoute as unknown as ModernTanstackRootRoute;
 }
 
 export function getModernRouteIdsFromMatches(router: AnyRouter): string[] {
   const matches = router.state.matches || [];
   const ids = matches
-    .map((m: any) => m.route?.options?.staticData?.modernRouteId)
-    .filter(Boolean);
+    .map(match => {
+      const route = (
+        match as {
+          route?: {
+            options?: {
+              staticData?: { modernRouteId?: unknown };
+            };
+          };
+        }
+      ).route;
+      return route?.options?.staticData?.modernRouteId;
+    })
+    .filter((id): id is string => typeof id === 'string');
   return Array.from(new Set(ids));
 }
