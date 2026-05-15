@@ -24,6 +24,7 @@ const ensureWorkspacePackages = [
   '@modern-js/create-request',
   '@modern-js/bff-core',
   '@modern-js/plugin-bff',
+  '@modern-js/server-runtime',
 ];
 
 const readFixture = (relativePath: string) =>

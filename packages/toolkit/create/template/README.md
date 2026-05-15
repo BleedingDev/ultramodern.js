@@ -48,6 +48,7 @@ with `--sub` so the workspace root owns package-manager and CI policy:
 ```bash
 npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
 npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
+npx @modern-js/create apps/remotes/design-system --router tanstack --tailwind --workspace --sub
 npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
 ```
 
@@ -57,6 +58,11 @@ Shell packages own route assembly and topology selection, remote packages own
 route subtrees and degraded UI, service packages own Effect or explicit Hono
 contracts, and shared packages are limited to tokens, primitives, generated
 clients, or domain-neutral utilities.
+
+If the design system needs independent deployment, keep it as a horizontal
+Module Federation remote with the same topology, trust, SSR compatibility, and
+fallback rules as the vertical remotes. Do not add a second preset or a
+design-system-specific framework mode.
 
 The public opinionated entrypoint is `presetUltramodern(...)`. The older
 `withAppBaseline(...)` helper remains only as a compatibility alias.

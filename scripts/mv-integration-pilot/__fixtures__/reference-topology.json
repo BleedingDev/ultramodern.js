@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "wave2-integration-pilot-reference-topology",
   "description": "Reference topology for Wave 2 integration drills: one shell, two vertical remotes, one shared design-system remote, and one Effect service.",
+  "preset": "presetUltramodern",
   "shell": {
     "id": "shell-super-app",
     "kind": "shell",
@@ -94,6 +95,14 @@
       "id": "remote-commerce",
       "kind": "vertical",
       "domain": "commerce",
+      "moduleFederation": {
+        "remoteEntry": "https://cdn.example.internal/remote-commerce/mf-manifest.json",
+        "ssrEntry": "https://cdn.example.internal/remote-commerce/ssr-entry.js",
+        "ssr": true,
+        "compatibilityDigest": "sha256-2626262626262626262626262626262626262626262626262626262626262626",
+        "fallbackTelemetryEvent": "modernjs:mv-runtime-parity",
+        "sharedContractVersion": "mf-ssr-contract-v1"
+      },
       "urlIndirection": {
         "manifestUrl": "https://deploy.example.internal/mf/remote-commerce/current.json",
         "cdnBaseUrl": "https://cdn.example.internal/remote-commerce",
@@ -177,6 +186,14 @@
       "id": "remote-identity",
       "kind": "vertical",
       "domain": "identity",
+      "moduleFederation": {
+        "remoteEntry": "https://cdn.example.internal/remote-identity/mf-manifest.json",
+        "ssrEntry": "https://cdn.example.internal/remote-identity/ssr-entry.js",
+        "ssr": true,
+        "compatibilityDigest": "sha256-3636363636363636363636363636363636363636363636363636363636363636",
+        "fallbackTelemetryEvent": "modernjs:mv-runtime-parity",
+        "sharedContractVersion": "mf-ssr-contract-v1"
+      },
       "urlIndirection": {
         "manifestUrl": "https://deploy.example.internal/mf/remote-identity/current.json",
         "cdnBaseUrl": "https://cdn.example.internal/remote-identity",
@@ -260,6 +277,14 @@
       "id": "remote-design-system",
       "kind": "horizontal-design-system",
       "domain": "design-system",
+      "moduleFederation": {
+        "remoteEntry": "https://cdn.example.internal/remote-design-system/mf-manifest.json",
+        "ssrEntry": "https://cdn.example.internal/remote-design-system/ssr-entry.js",
+        "ssr": true,
+        "compatibilityDigest": "sha256-4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+        "fallbackTelemetryEvent": "modernjs:mv-runtime-parity",
+        "sharedContractVersion": "mf-ssr-contract-v1"
+      },
       "urlIndirection": {
         "manifestUrl": "https://deploy.example.internal/mf/remote-design-system/current.json",
         "cdnBaseUrl": "https://cdn.example.internal/remote-design-system",

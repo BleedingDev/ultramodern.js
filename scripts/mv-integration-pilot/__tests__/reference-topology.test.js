@@ -12,6 +12,8 @@ test('loads canonical Wave 2 reference topology and summarizes evidence', () => 
   const { topology, evidenceSummary } = loadReferenceTopology();
 
   assert.equal(topology.schemaVersion, 1);
+  assert.equal(topology.preset, 'presetUltramodern');
+  assert.equal(evidenceSummary.preset, 'presetUltramodern');
   assert.equal(topology.shell.kind, 'shell');
   assert.equal(topology.remotes.length, 3);
   assert.equal(evidenceSummary.shellId, 'shell-super-app');
@@ -21,6 +23,10 @@ test('loads canonical Wave 2 reference topology and summarizes evidence', () => 
   assert.equal(evidenceSummary.remotesByKind['horizontal-design-system'], 1);
   assert.equal(evidenceSummary.effectServiceCount, 1);
   assert.equal(evidenceSummary.designSystemConsumerPins, 3);
+  assert.equal(evidenceSummary.mfSsrRemoteCount, 3);
+  assert.deepEqual(evidenceSummary.fallbackTelemetryEvents, [
+    'modernjs:mv-runtime-parity',
+  ]);
   assert.deepEqual(evidenceSummary.environmentOverlays, [
     'development',
     'staging',
@@ -61,6 +67,17 @@ test('canonical topology carries URL, artifact, LKG, ownership, and DS pin metad
     assert.ok(component.ownership.blastRadius.references.length > 0);
   }
 
+  for (const remote of topology.remotes) {
+    assert.equal(remote.moduleFederation.ssr, true);
+    assert.match(remote.moduleFederation.remoteEntry, /^https:\/\//);
+    assert.match(remote.moduleFederation.ssrEntry, /^https:\/\//);
+    assert.match(remote.moduleFederation.compatibilityDigest, /^sha256-/);
+    assert.equal(
+      remote.moduleFederation.fallbackTelemetryEvent,
+      'modernjs:mv-runtime-parity',
+    );
+  }
+
   assert.deepEqual(
     designSystemRemote.designSystem.consumerPins.map(pin => pin.consumerId),
     ['shell-super-app', 'remote-commerce', 'remote-identity'],
@@ -71,6 +88,27 @@ test('canonical topology carries URL, artifact, LKG, ownership, and DS pin metad
         pin.pinnedArtifactId === designSystemRemote.artifact.id &&
         pin.contractVersion === designSystemRemote.designSystem.contractVersion,
     ),
+  );
+});
+
+test('validateReferenceTopology rejects a second preset or DS-specific non-MF mode', () => {
+  const { topology } = loadReferenceTopology();
+  const broken = clone(topology);
+  broken.preset = 'presetMicroVerticals';
+
+  assert.throws(
+    () => validateReferenceTopology(broken),
+    /topology\.preset must be "presetUltramodern"/,
+  );
+
+  const brokenDesignSystem = clone(topology);
+  delete brokenDesignSystem.remotes.find(
+    remote => remote.kind === 'horizontal-design-system',
+  ).moduleFederation;
+
+  assert.throws(
+    () => validateReferenceTopology(brokenDesignSystem),
+    /topology\.remotes\[2\]\.moduleFederation must be an object/,
   );
 });
 

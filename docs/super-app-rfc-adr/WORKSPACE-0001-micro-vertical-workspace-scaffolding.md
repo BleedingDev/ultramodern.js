@@ -12,20 +12,23 @@
 
 ## 1. Purpose
 
-This document defines the canonical downstream workspace shape for teams adopting Micro Verticals on top of `presetUltramodern(...)`.
+This document defines the canonical downstream workspace shape for teams adopting Micro Verticals on top of the single public `presetUltramodern(...)` entrypoint.
 
 The goal is not a second framework mode. The goal is a repeatable repo layout and scaffold recipe that lets teams create shell, remote, service, and shared-package slices while staying aligned with the completed TanStack, Module Federation, Effect, Hono, topology, and certification contracts.
 
+This document is not a migration guide or codemod plan. Existing-app migration guidance is intentionally deferred from this framework topology scope.
+
 ## 2. Canonical Workspace Topology
 
-A Micro Vertical workspace uses four package classes:
+A Micro Vertical workspace uses these package roles:
 
 | Package class | Example path | Owner | Primary contract |
 | --- | --- | --- | --- |
 | Shell app | `apps/shell` | Platform shell owner | Route assembly, trust policy, topology selection, global telemetry, fallback policy |
 | Remote vertical | `apps/remotes/<vertical>` | Vertical owner | Route subtree, remote-local loader/action behavior, remote manifest, degradation UI |
-| Service | `services/<service>` | Service owner | Effect or Hono API boundary, request context propagation, operation contracts |
+| Service | `services/<service>` | Service owner | Effect API boundary, request context propagation, operation contracts; Hono only as explicit compatibility |
 | Shared package | `packages/<name>` | Platform or vertical owner | Tokens, primitives, domain-neutral utilities, generated clients |
+| Horizontal design-system remote | `apps/remotes/design-system` | Design-system owner | Module Federation remote for tokens/primitives when independent deployment is required |
 
 The workspace root owns package-manager configuration, CI orchestration, shared lint/test tooling, and release-gate entrypoints. It must not own feature workflow code.
 
@@ -38,6 +41,7 @@ micro-vertical-workspace/
     remotes/
       catalog/
       checkout/
+      design-system/
   services/
     catalog-api/
     checkout-api/
@@ -121,6 +125,8 @@ Reference proof:
 
 Shared packages are created as normal workspace packages, not app remotes.
 
+When the design system needs an independent release train, create it as a horizontal Module Federation remote instead of treating it as a special framework subsystem. It must use the same topology, trust, compatibility, SSR, and fallback expectations as vertical remotes.
+
 Allowed shared-package roles:
 
 1. design tokens.
@@ -174,6 +180,10 @@ A generated Micro Vertical workspace is scaffold-ready only when these checks ha
 | Hono compatibility lane | `tests/integration/bff-hono` |
 | Template manifest and supply-chain policy | `packages/toolkit/create/src/index.ts` manifest validation and `.modernjs/mv-template-manifest.json` output |
 | Release gate compatibility | `pnpm run validate:bun-smoke` |
+
+The minimal topology smoke path is `pnpm run validate:mv-topology-smoke`.
+Graph handoff metadata for plan/subagent orchestration lives at
+`docs/super-app-rfc-adr/evidence/mv-topology-smoke/current/graph-handoff.json`.
 
 ## 6. Generator Surface Policy
 

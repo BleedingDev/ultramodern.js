@@ -73,13 +73,17 @@ default, with Hono kept as an explicit compatibility lane.
 ```bash
 npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
 npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
+npx @modern-js/create apps/remotes/design-system --router tanstack --tailwind --workspace --sub
 npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
 npx @modern-js/create services/legacy-api --bff-runtime hono --workspace --sub
 ```
 
-Shared packages should be regular workspace packages for tokens, primitives,
-generated clients, or domain-neutral utilities. Keep feature composites and
-workflow logic owned by a shell, remote, or service package.
+When a design system needs independent deployment, treat it as a horizontal
+Module Federation remote with the same topology, trust, SSR, compatibility, and
+fallback expectations as feature remotes. Otherwise shared packages should be
+regular workspace packages for tokens, primitives, generated clients, or
+domain-neutral utilities. Keep feature composites and workflow logic owned by a
+shell, remote, or service package.
 
 See
 `docs/super-app-rfc-adr/WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`

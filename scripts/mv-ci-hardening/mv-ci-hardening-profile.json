@@ -17,7 +17,7 @@
       "maxRuntimeMinutes": 30,
       "maxTimeoutMinutes": 30,
       "maxFlakeWaivers": 1,
-      "requiredEvidence": "migration, compatibility, and regression evidence"
+      "requiredEvidence": "compatibility and regression evidence"
     },
     "experimental": {
       "maxRuntimeMinutes": 12,
@@ -42,8 +42,8 @@
     {
       "id": "mv-compat-runtime-regression",
       "tier": "compat",
-      "owner": "migration-platform",
-      "riskClass": "supported-migration",
+      "owner": "compatibility-platform",
+      "riskClass": "supported-compatibility",
       "runtimeBudgetMinutes": 24,
       "timeoutMinutes": 30,
       "command": "node --test scripts/mv-integration-pilot/__tests__/remote-failure-drills.test.js scripts/mv-integration-pilot/__tests__/rollback-kill-switch-drill.test.js",

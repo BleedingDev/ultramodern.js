@@ -140,7 +140,12 @@ const validateExtractedVertical = ({ drill, topology }) => {
 
   const beforeStable = clone(baseRemote);
   const afterStable = clone(extracted);
-  for (const mutableField of ['artifact', 'urlIndirection', 'envOverlays']) {
+  for (const mutableField of [
+    'artifact',
+    'moduleFederation',
+    'urlIndirection',
+    'envOverlays',
+  ]) {
     delete beforeStable[mutableField];
     delete afterStable[mutableField];
   }
@@ -149,6 +154,48 @@ const validateExtractedVertical = ({ drill, topology }) => {
     after: afterStable,
     context: 'drill.extractedVertical non-deploy fields',
   });
+
+  ensureObject(
+    extracted.moduleFederation,
+    'drill.extractedVertical.moduleFederation',
+  );
+  ensureString(
+    extracted.moduleFederation.remoteEntry,
+    'drill.extractedVertical.moduleFederation.remoteEntry',
+  );
+  ensureString(
+    extracted.moduleFederation.ssrEntry,
+    'drill.extractedVertical.moduleFederation.ssrEntry',
+  );
+  ensureString(
+    extracted.moduleFederation.compatibilityDigest,
+    'drill.extractedVertical.moduleFederation.compatibilityDigest',
+  );
+  ensureBoolean(
+    extracted.moduleFederation.ssr,
+    'drill.extractedVertical.moduleFederation.ssr',
+  );
+  if (extracted.moduleFederation.ssr !== baseRemote.moduleFederation.ssr) {
+    throw new Error(
+      'drill.extractedVertical.moduleFederation.ssr must stay stable',
+    );
+  }
+  if (
+    extracted.moduleFederation.fallbackTelemetryEvent !==
+    baseRemote.moduleFederation.fallbackTelemetryEvent
+  ) {
+    throw new Error(
+      'drill.extractedVertical.moduleFederation.fallbackTelemetryEvent must stay stable',
+    );
+  }
+  if (
+    extracted.moduleFederation.sharedContractVersion !==
+    baseRemote.moduleFederation.sharedContractVersion
+  ) {
+    throw new Error(
+      'drill.extractedVertical.moduleFederation.sharedContractVersion must stay stable',
+    );
+  }
 
   ensureObject(
     extracted.urlIndirection,

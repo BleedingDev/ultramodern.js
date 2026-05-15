@@ -26,7 +26,6 @@ describe('tanstack create-routes contracts', () => {
   let releaseFixtureLock: ReleaseFixtureLock | undefined;
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 5);
     releaseFixtureLock = await acquireFixtureLock(appDir);
     await modernBuild(appDir);
   });

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "uw2-04-vertical-extraction-drill",
-  "description": "Extract remote-commerce to independent deploy by changing only artifact, URL indirection, and environment overlays.",
+  "description": "Extract remote-commerce to independent deploy by changing only artifact, Module Federation deploy metadata, URL indirection, and environment overlays.",
   "strategy": "url-indirection-environment-overlay",
   "extractedVerticalId": "remote-commerce",
   "shellStability": {
@@ -64,6 +64,14 @@
     "id": "remote-commerce",
     "kind": "vertical",
     "domain": "commerce",
+    "moduleFederation": {
+      "remoteEntry": "https://cdn.example.internal/independent/remote-commerce/mf-manifest.json",
+      "ssrEntry": "https://cdn.example.internal/independent/remote-commerce/ssr-entry.js",
+      "ssr": true,
+      "compatibilityDigest": "sha256-6868686868686868686868686868686868686868686868686868686868686868",
+      "fallbackTelemetryEvent": "modernjs:mv-runtime-parity",
+      "sharedContractVersion": "mf-ssr-contract-v1"
+    },
     "urlIndirection": {
       "manifestUrl": "https://deploy.example.internal/mf/remote-commerce/independent/current.json",
       "cdnBaseUrl": "https://cdn.example.internal/independent/remote-commerce",

@@ -7,13 +7,13 @@ todos:
     status: completed
   - id: untms-02
     content: Convert the shell-to-remote SSR contract into executable fixtures for a shell route subtree backed by independently built TanStack MF remotes.
-    status: pending
+    status: completed
   - id: untms-03
     content: Add version-skew, remote-unavailable, compatibility-mismatch, and SSR-to-CSR degradation tests with observable fallback telemetry.
-    status: pending
+    status: completed
   - id: untms-04
     content: Tighten runtime flags and docs so app-level MF SSR is explicit, deterministic, and not hidden behind preset-only policy.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -30,6 +30,8 @@ Current investigation already found one high-risk gap to validate first: the Tan
 `untms-01` is complete after adding an executable gap matrix in `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` and a focused report in `.codex/reports/routes-tanstack-mf-ssr-gap-matrix-20260514.md`. The matrix keeps `federated-content-ssr` marked as a gap, records TanStack hydration/dehydrate as covered runtime surface, proves loader and generated action static-data handoff, and preserves remote fallback plus manifest singleton/version-skew evidence.
 
 PR #8317 upstream discussion changes the implementation constraint: TanStack should work as `@modern-js/plugin-tanstack`, with core limited to router/SSR extension hooks. `untms-02` must therefore clean the fixture around a plugin-compatible SSR seam instead of adding more TanStack-specific behavior directly to `@modern-js/runtime`.
+
+`untms-02` through `untms-04` are complete in the closed `modernjs-6o2` lane. The current branch has a standalone `@modern-js/plugin-tanstack` package, generic runtime router CLI/SSR hooks, focused contract fixtures, fallback/version-skew/static-data assertions, and app-level MF SSR validation that keeps TanStack behavior plugin-owned instead of hidden behind preset-only policy. The topology smoke path validates the retained in-repo MF/TanStack contract slice through `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts`.
 
 ## Constraints
 

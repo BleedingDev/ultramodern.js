@@ -133,6 +133,36 @@ const validateEnvOverlays = (envOverlays, context) => {
   });
 };
 
+const validateModuleFederationRemote = (moduleFederation, context) => {
+  ensureObject(moduleFederation, context);
+  [
+    'remoteEntry',
+    'ssrEntry',
+    'compatibilityDigest',
+    'fallbackTelemetryEvent',
+    'sharedContractVersion',
+  ].forEach(field =>
+    ensureString(moduleFederation[field], `${context}.${field}`),
+  );
+  ensureBoolean(moduleFederation.ssr, `${context}.ssr`);
+  if (!moduleFederation.remoteEntry.startsWith('https://')) {
+    throw new Error(`${context}.remoteEntry must be an immutable HTTPS URL`);
+  }
+  if (!moduleFederation.ssrEntry.startsWith('https://')) {
+    throw new Error(`${context}.ssrEntry must be an immutable HTTPS URL`);
+  }
+  if (!DIGEST_PATTERN.test(moduleFederation.compatibilityDigest)) {
+    throw new Error(`${context}.compatibilityDigest must be a sha256 digest`);
+  }
+  if (
+    moduleFederation.fallbackTelemetryEvent !== 'modernjs:mv-runtime-parity'
+  ) {
+    throw new Error(
+      `${context}.fallbackTelemetryEvent must use the shared MV fallback telemetry event`,
+    );
+  }
+};
+
 const validateControlPlane = ({
   controlPlane,
   artifactIds,
@@ -209,6 +239,9 @@ const validateReferenceTopology = topology => {
       )}. Expected ${String(SCHEMA_VERSION)}.`,
     );
   }
+  if (topology.preset !== 'presetUltramodern') {
+    throw new Error('topology.preset must be "presetUltramodern"');
+  }
 
   ensureObject(topology.shell, 'topology.shell');
   ensureArray(topology.remotes, 'topology.remotes');
@@ -255,6 +288,10 @@ const validateReferenceTopology = topology => {
   const remoteKindCounts = new Map();
   topology.remotes.forEach((remote, index) => {
     ensureString(remote.kind, `topology.remotes[${index}].kind`);
+    validateModuleFederationRemote(
+      remote.moduleFederation,
+      `topology.remotes[${index}].moduleFederation`,
+    );
     remoteKindCounts.set(
       remote.kind,
       (remoteKindCounts.get(remote.kind) || 0) + 1,
@@ -363,6 +400,7 @@ const summarizeTopologyEvidence = topology => {
   return {
     topologyId: topology.id,
     schemaVersion: topology.schemaVersion,
+    preset: topology.preset,
     shellId: topology.shell.id,
     componentCount: components.length,
     remoteCount: topology.remotes.length,
@@ -384,6 +422,16 @@ const summarizeTopologyEvidence = topology => {
       topology.remotes.find(
         remote => remote.kind === 'horizontal-design-system',
       )?.designSystem.consumerPins.length || 0,
+    mfSsrRemoteCount: topology.remotes.filter(
+      remote => remote.moduleFederation?.ssr === true,
+    ).length,
+    fallbackTelemetryEvents: [
+      ...new Set(
+        topology.remotes.map(
+          remote => remote.moduleFederation?.fallbackTelemetryEvent,
+        ),
+      ),
+    ].filter(Boolean),
     ownershipRefs: components.map(component => ({
       id: component.id,
       team: component.ownership.team,

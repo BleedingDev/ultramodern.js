@@ -49,14 +49,16 @@ UltraModern additions are designed to land as stronger defaults, explicit compat
 - We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
 - We avoid incompatible API changes unless there is a hard reliability requirement.
 
-## Migration Notes
+## Adoption Notes
 
-For teams already on Modern.js v3, the path remains compatibility-first: keep the Modern.js mental model, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you migrate.
+For teams already on Modern.js v3, the path remains compatibility-first: keep the Modern.js mental model, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt the stronger profile.
 
-1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route migration, but the React Router lane remains supported while teams move on their own schedule.
-2. Prefer `bff.runtimeFramework: 'effect'` for new or migrated BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
+1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
+2. Prefer `bff.runtimeFramework: 'effect'` for new BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
 3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
 4. The public preset now ships with explicit release and certification gates. The generated starter also ships `.github/workflows/ultramodern-gates.yml`, so `pnpm run ultramodern:check` and `pnpm run build` stay part of the adoption contract from day one.
+
+This page is not a migration guide or codemod plan. Migration guidance for existing applications is intentionally deferred from the current Micro Verticals framework scope.
 
 ## Micro Vertical Delivery Path
 

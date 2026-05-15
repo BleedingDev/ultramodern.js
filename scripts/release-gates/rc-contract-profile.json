@@ -31,6 +31,18 @@
         ]
       },
       {
+        "id": "effect-service-boundary-propagation-contract",
+        "path": "packages/cli/plugin-bff/tests/regression.test.ts",
+        "includes": [
+          "propagates auth, tenant, locale, and trace metadata into Effect services",
+          "useEffectContext()",
+          "authorization: 'Bearer shell-user-token'",
+          "'x-tenant-id': 'tenant-acme'",
+          "'x-correlation-id': 'corr-shell-remote-001'",
+          "enableHandleWeb"
+        ]
+      },
+      {
         "id": "bff-cross-project-policy-contract",
         "path": "packages/server/bff-core/src/security/crossProjectPolicy.ts",
         "includes": [
@@ -74,7 +86,7 @@
         "id": "tanstack-create-routes-register-contract",
         "path": "tests/integration/routes-tanstack-create-routes/src/modern-tanstack/register.gen.d.ts",
         "includes": [
-          "declare module '@modern-js/runtime/tanstack-router'",
+          "declare module '@modern-js/plugin-tanstack/runtime'",
           "interface Register",
           "router: typeof router0;"
         ]
@@ -354,6 +366,7 @@
   },
   "gateCommands": [
     "pnpm --dir packages/cli/builder exec rstest run tests/rsdoctor.test.ts --passWithNoTests",
+    "pnpm --dir packages/cli/plugin-bff exec rstest run tests/regression.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/create-request test",
     "pnpm --filter @modern-js/bff-core test",
     "pnpm --filter @modern-js/plugin-express test",

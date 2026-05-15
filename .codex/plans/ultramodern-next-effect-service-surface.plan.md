@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: unes-04
     content: Add the minimal release-gate evidence that an Effect service can act as a Micro Vertical backend boundary without ad hoc header plumbing.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -28,6 +28,8 @@ Effect v4 beta is an accepted dependency choice for this fork. The goal is not t
 `unes-02` is complete in commit `96e4bd06df`: `@modern-js/plugin-bff/server` now resolves to the Effect runtime surface by default, `@modern-js/plugin-bff/hono-server` preserves explicit Hono compatibility, unresolved runtime selection defaults to Effect, and plugin BFF build/tests passed.
 
 `unes-03` is complete after adding Effect adapter regression coverage for authorization, tenant, locale, traceparent, and correlation headers across direct `Request`, explicit `EffectContext`, AsyncLocalStorage `useEffectContext()`, and dev/build/serve-equivalent middleware paths. The same slice audited Hono compatibility imports so Hono-specific docs and fixtures now use `@modern-js/plugin-bff/hono-server`.
+
+`unes-04` is complete after adding an RC gate contract target for Effect service boundary propagation, running that target through a new targeted plugin-bff gate command, refreshing release-candidate evidence for `modernjs-2ub`, and fixing the superapp-contract harness blockers needed to validate the gate.
 
 This plan should start with the dependency update because API churn can invalidate follow-up work. After the dependency is green enough, implementation should focus on the narrow public surface needed by Micro Verticals: generated clients, request-context propagation, service operation contracts, and release evidence.
 
