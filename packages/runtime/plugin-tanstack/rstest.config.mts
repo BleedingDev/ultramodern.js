@@ -32,7 +32,10 @@ export default {
     withTestPreset({
       name: 'plugin-tanstack-client',
       testEnvironment: 'happy-dom',
-      include: ['tests/router/dataMutation.test.tsx'],
+      include: [
+        'tests/router/dataMutation.test.tsx',
+        'tests/router/prefetchLink.test.tsx',
+      ],
       extends: commonConfig,
     }),
   ],

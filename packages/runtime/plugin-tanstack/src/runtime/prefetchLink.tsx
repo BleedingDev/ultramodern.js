@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router';
 import type { ReactElement } from 'react';
 
-export type PrefetchBehavior = 'intent' | 'render' | 'none';
+export type PrefetchBehavior = 'intent' | 'render' | 'viewport' | 'none';
 
 function resolvePreloadFromPrefetch(
   prefetch: PrefetchBehavior | undefined,
@@ -20,7 +20,11 @@ function resolvePreloadFromPrefetch(
     return false;
   }
 
-  if (prefetch === 'intent' || prefetch === 'render') {
+  if (
+    prefetch === 'intent' ||
+    prefetch === 'render' ||
+    prefetch === 'viewport'
+  ) {
     return prefetch;
   }
 
@@ -55,12 +59,25 @@ type LinkComponent = <
   props: LinkProps<TRouter, TFrom, TTo, TMaskFrom, TMaskTo>,
 ) => ReactElement;
 
-const LinkComponentImpl = (props: any) => {
+type LinkComponentImplProps = LinkProps<
+  AnyRouter,
+  string,
+  string | undefined,
+  string,
+  string
+>;
+
+const LinkComponentImpl = (props: LinkComponentImplProps) => {
   const { prefetch, preload, ...rest } = props;
   return (
     <TanStackLink
       {...rest}
-      preload={resolvePreloadFromPrefetch(prefetch, preload)}
+      preload={
+        resolvePreloadFromPrefetch(
+          prefetch,
+          preload,
+        ) as LinkComponentImplProps['preload']
+      }
     />
   );
 };
