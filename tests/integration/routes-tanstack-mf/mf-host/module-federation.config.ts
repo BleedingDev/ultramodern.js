@@ -20,6 +20,11 @@ export default createModuleFederationConfig({
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
+  dts: {
+    generateTypes: {
+      tsConfigPath: './tsconfig.typecheck.json',
+    },
+  },
   remotes: {
     remote: `tanstackRemote@http://localhost:${remotePort}/mf-manifest.json`,
     remote2: `tanstackRemote2@http://localhost:${remoteTwoPort}/mf-manifest.json`,

@@ -18,6 +18,11 @@ export default createModuleFederationConfig({
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
+  dts: {
+    generateTypes: {
+      tsConfigPath: './tsconfig.typecheck.json',
+    },
+  },
   filename: 'remoteEntry.js',
   exposes: {
     './Panel': './src/components/Panel.tsx',

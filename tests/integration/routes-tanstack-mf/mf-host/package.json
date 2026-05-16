@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@modern-js/plugin-bff": "workspace:*"
+    "@modern-js/plugin-bff": "workspace:*",
+    "typescript": "6.0.3"
   }
 }

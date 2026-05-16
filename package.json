@@ -112,6 +112,7 @@
   },
   "pnpm": {
     "overrides": {
+      "typescript": "6.0.3",
       "micromatch": "^4.0.8",
       "read-yaml-file>js-yaml": "3.14.2",
       "@remix-run/router": ">=1.23.2",
