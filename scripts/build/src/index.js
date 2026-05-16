@@ -1,6 +1,5 @@
-// reference '../../../packages/solutions/module-tools/src/constants/build-presets.ts'
 /**
- * @typedef {import('../../../packages/solutions/module-tools').PartialBaseBuildConfig} PartialBaseBuildConfig
+ * @typedef {Record<string, any>} PartialBaseBuildConfig
  */
 
 const externalHelpers = true;

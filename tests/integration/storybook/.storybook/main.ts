@@ -24,13 +24,8 @@ const config: StorybookConfig = {
   ],
   framework: 'storybook-react-rsbuild',
   typescript: {
-    reactDocgen: 'react-docgen-typescript',
-    reactDocgenTypescriptOptions: {
-      shouldExtractLiteralValuesFromEnum: true,
-      shouldRemoveUndefinedFromOptional: true,
-      propFilter: () => true,
-    },
-    check: true,
+    reactDocgen: false,
+    check: false,
   },
 };
 

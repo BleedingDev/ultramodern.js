@@ -12,7 +12,7 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.0';
 const MODULE_FEDERATION_VERSION = '2.4.0';
-const TYPESCRIPT_VERSION = '~5.7.3';
+const TYPESCRIPT_VERSION = '6.0.3';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
@@ -526,7 +526,7 @@ function createAppPackage(
       dev: 'modern dev',
       build: 'modern build',
       serve: 'modern serve',
-      typecheck: 'tsc --noEmit -p tsconfig.json',
+      typecheck: 'tsgo --noEmit -p tsconfig.json',
     },
     modernjs: {
       preset: 'presetUltramodern',
@@ -552,7 +552,7 @@ function createServicePackage(
       dev: 'modern dev',
       build: 'modern build',
       serve: 'modern serve',
-      typecheck: 'tsc --noEmit -p tsconfig.json',
+      typecheck: 'tsgo --noEmit -p tsconfig.json',
     },
     modernjs: {
       preset: 'presetUltramodern',
@@ -592,7 +592,7 @@ function createSharedPackage(
       '.': './src/index.ts',
     },
     scripts: {
-      typecheck: 'tsc --noEmit -p tsconfig.json',
+      typecheck: 'tsgo --noEmit -p tsconfig.json',
     },
     devDependencies: {
       typescript: TYPESCRIPT_VERSION,
@@ -658,6 +658,7 @@ const reactDomVersion = (
 
 export default createModuleFederationConfig({
   name: '${shellApp.mfName}',
+  dts: false,
   remotes: {
     commerce:
       process.env.REMOTE_COMMERCE_MF_MANIFEST ??
@@ -716,6 +717,7 @@ const reactDomVersion = (
 
 export default createModuleFederationConfig({
   name: '${app.mfName}',
+  dts: false,
   filename: 'remoteEntry.js',
   exposes: ${exposes},
   shared: {

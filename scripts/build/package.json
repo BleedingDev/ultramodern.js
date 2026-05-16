@@ -5,15 +5,11 @@
   "main": "./src/index.js",
   "types": "index.d.ts",
   "bin": {
-    "modern-lib": "./bin/modern.js",
-    "mdn": "./bin/modern.js",
     "only-allow-pnpm": "./bin/onlyAllowPnpm.js"
   },
   "devDependencies": {
-    "@modern-js/core": "2.70.4",
-    "@modern-js/module-tools": "2.70.4",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.6.0",
-    "typescript": "6.0.3"
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1"
   }
 }

@@ -13,9 +13,7 @@ export default defineConfig({
         },
         target: 'node',
       },
-      dts: {
-        distPath: 'dist/types',
-      },
+      dts: false,
       autoExtension: true,
     },
   ],

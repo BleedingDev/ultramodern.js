@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "fs-extra": "^11.3.4",
+    "fs-extra": "^11.3.5",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
@@ -18,9 +18,9 @@
     "@modern-js/app-tools": "workspace:*",
     "@types/fs-extra": "11.0.4",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "6.0.3"
+    "@typescript/native-preview": "7.0.0-dev.20260516.1"
   }
 }

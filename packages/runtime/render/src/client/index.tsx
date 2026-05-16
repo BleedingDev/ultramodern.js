@@ -5,15 +5,15 @@ import React, {
   useState,
 } from 'react';
 import {
+  createFromFetch,
   createFromReadableStream,
   createServerReference,
   setServerCallback,
 } from 'react-server-dom-rspack/client.browser';
 
-export { createFromFetch } from 'react-server-dom-rspack/client.browser';
 export { rscStream } from '../rsc-html-stream/client';
 export { callServer } from './callServer';
-export { createFromReadableStream, createServerReference };
+export { createFromFetch, createFromReadableStream, createServerReference };
 
 declare global {
   interface Window {

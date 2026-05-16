@@ -1,6 +1,7 @@
 import {
   defineEffectBff,
   Effect,
+  type EffectRuntimeLayer,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
@@ -96,7 +97,9 @@ const erpLayer = HttpApiBuilder.group(superAppApi, 'erp', (handlers: any) => {
   );
 });
 
-const layer = HttpApiBuilder.layer(superAppApi).pipe(Layer.provide(erpLayer));
+const layer = HttpApiBuilder.layer(superAppApi).pipe(
+  Layer.provide(erpLayer),
+) as EffectRuntimeLayer;
 
 export default defineEffectBff({
   api: superAppApi,

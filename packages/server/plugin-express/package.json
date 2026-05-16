@@ -13,16 +13,16 @@
     "express": "^5.2.1",
     "finalhandler": "^2.1.1",
     "formidable": "^3.5.4",
-    "type-is": "^2.0.1"
+    "type-is": "^2.1.0"
   },
   "devDependencies": {
     "@scripts/rstest-config": "workspace:*",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/finalhandler": "^1.2.3",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
     "@types/supertest": "^7.2.0",
-    "supertest": "^7.2.2",
-    "typescript": "6.0.3"
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "supertest": "^7.2.2"
   }
 }

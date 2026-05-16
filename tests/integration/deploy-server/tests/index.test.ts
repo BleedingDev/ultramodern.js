@@ -11,17 +11,16 @@ import {
 rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
 
 const appDir = path.resolve(__dirname, '../');
+const tsgoBin = path.join(
+  path.dirname(require.resolve('@typescript/native-preview/package.json')),
+  'bin/tsgo.js',
+);
 
 function expectTypecheckPasses() {
   try {
     execFileSync(
       process.execPath,
-      [
-        require.resolve('typescript/bin/tsc'),
-        '--noEmit',
-        '-p',
-        'tsconfig.json',
-      ],
+      [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
       {
         cwd: appDir,
         stdio: 'pipe',

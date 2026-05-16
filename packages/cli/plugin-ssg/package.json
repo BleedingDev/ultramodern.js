@@ -68,13 +68,13 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.21.4",
+    "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.14.2",
-    "typescript": "6.0.3"
+    "react-router-dom": "^7.15.1"
   },
   "sideEffects": false,
   "publishConfig": {

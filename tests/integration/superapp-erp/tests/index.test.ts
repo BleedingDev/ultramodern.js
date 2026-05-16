@@ -355,7 +355,7 @@ async function expectSuperAppUi(page: Page, port: number) {
 }
 
 function expectTypecheckPasses() {
-  execSync('pnpm exec tsc --noEmit -p tsconfig.json', {
+  execSync('pnpm exec tsgo --noEmit -p tsconfig.json', {
     cwd: appDir,
     stdio: 'pipe',
   });

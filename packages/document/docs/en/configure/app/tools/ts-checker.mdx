@@ -14,8 +14,8 @@ const defaultOptions = {
     memoryLimit: 8192,
     // use tsconfig of user project
     configFile: tsconfigPath,
-    // use typescript of user project
-    typescriptPath: require.resolve('typescript'),
+    // use TS-Go native preview of user project
+    typescriptPath: require.resolve('@typescript/native-preview/package.json'),
   },
   issue: {
     exclude: [
@@ -35,7 +35,7 @@ const defaultOptions = {
 },
 ```
 
-By default, the [@rsbuild/plugin-type-check](https://github.com/rspack-contrib/rsbuild-plugin-type-check) is enabled for type checking. You can use `output.disableTsChecker` config to disable it.
+By default, Modern.js type checking is aligned with the TS-Go native preview used by this fork. You can use `output.disableTsChecker` config to disable build-time checking.
 
 ## Example
 
@@ -53,4 +53,4 @@ export default {
 };
 ```
 
-> Please refer to [@rsbuild/plugin-type-check](https://github.com/rspack-contrib/rsbuild-plugin-type-check) for more details.
+> This fork keeps the TypeScript toolchain on `@typescript/native-preview` / `tsgo`; do not install the classic `typescript` compiler for application type checking.

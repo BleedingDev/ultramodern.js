@@ -1,5 +1,7 @@
 /// <reference path="./ssr-shim.d.ts" />
 
+import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';
+import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import {
   getGlobalEnableRsc,
   getGlobalLayoutApp,
@@ -8,7 +10,6 @@ import {
   type ServerPayload,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
-import type { RuntimePlugin } from '@modern-js/runtime/plugin';
 import { merge } from '@modern-js/runtime-utils/merge';
 import {
   createRequestContext,
@@ -57,6 +58,25 @@ type ModernTanstackRouterContext = {
   request: Request;
   requestContext: RequestContext<Record<string, unknown>>;
 };
+
+type TanstackRouterRuntimeConfig = {
+  plugins?: TanstackRouterRuntimePlugin[];
+  router?: Partial<RouterConfig>;
+  [key: string]: unknown;
+};
+
+type TanstackRouterRuntimeExtends = Required<
+  RuntimePluginExtends<TanstackRouterRuntimeConfig, TInternalRuntimeContext>
+> & {
+  extendHooks: RouterExtendsHooks;
+};
+
+type TanstackRouterPluginAPI = RuntimePluginAPI<TanstackRouterRuntimeExtends>;
+
+type TanstackRouterRuntimePlugin = Plugin<
+  TanstackRouterPluginAPI,
+  TInternalRuntimeContext
+>;
 
 const setTanstackRscServerPayload = (payload: ServerPayload) => {
   const storageContext = storage.useContext?.() as
@@ -274,10 +294,8 @@ function collectRouterErrors(
 
 export const tanstackRouterPlugin = (
   userConfig: Partial<RouterConfig> = {},
-): RuntimePlugin<{
-  extendHooks: RouterExtendsHooks;
-}> => {
-  return {
+): TanstackRouterRuntimePlugin => {
+  const plugin: TanstackRouterRuntimePlugin = {
     name: '@modern-js/plugin-router-tanstack',
     registryHooks: {
       modifyRoutes: modifyRoutesHook,
@@ -287,7 +305,7 @@ export const tanstackRouterPlugin = (
       onBeforeCreateRoutes: onBeforeCreateRoutesHook,
       onBeforeHydrateRouter: onBeforeHydrateRouterHook,
     },
-    setup: api => {
+    setup: (api: TanstackRouterPluginAPI) => {
       api.onBeforeRender(async (context, interrupt) => {
         const pluginConfig = api.getRuntimeConfig() as {
           router?: Partial<RouterConfig>;
@@ -510,6 +528,7 @@ export const tanstackRouterPlugin = (
       });
     },
   };
+  return plugin;
 };
 
 export default tanstackRouterPlugin;

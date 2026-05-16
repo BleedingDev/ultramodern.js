@@ -39,7 +39,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
@@ -49,10 +49,10 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
-    "@rslib/core": "0.21.4",
+    "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^25.6.0",
-    "typescript": "6.0.3"
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1"
   },
   "sideEffects": false,
   "publishConfig": {

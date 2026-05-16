@@ -5,7 +5,6 @@
     "moduleResolution": "Bundler",
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "rootDir": ".",
     "paths": {
       "@/*": ["./src/*"],

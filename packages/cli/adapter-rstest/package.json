@@ -21,24 +21,24 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "build": "rslib build",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build --watch",
     "test": "rstest"
   },
   "dependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rstest/adapter-rsbuild": "^0.2.6"
+    "@rstest/adapter-rsbuild": "^0.10.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsbuild/core": "2.0.3",
-    "@rslib/core": "0.21.4",
-    "@rstest/core": "0.9.10",
+    "@rsbuild/core": "2.0.6",
+    "@rslib/core": "0.21.5",
+    "@rstest/core": "0.10.0",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^25.6.0",
-    "typescript": "6.0.3"
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
+    "moduleResolution": "Bundler",
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,

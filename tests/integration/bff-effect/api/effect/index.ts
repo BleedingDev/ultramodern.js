@@ -90,7 +90,7 @@ function createSyntheticTraceSpans(
 
 const traceSpanProcessor: TraceSpanProcessor = {
   onStart: () => {},
-  onEnd: span => {
+  onEnd: (span: FinishedSpan) => {
     traceSpans.push(toSpanSnapshot(span));
   },
   forceFlush: async () => {

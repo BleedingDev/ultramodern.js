@@ -211,7 +211,7 @@
     "dev": "rslib build --watch",
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build && pnpm run gen-static",
-    "gen-static": "ts-node ./scripts/gen-static.ts",
+    "gen-static": "node --disable-warning=ExperimentalWarning --experimental-strip-types ./scripts/gen-static.mts",
     "test": "rstest"
   },
   "dependencies": {
@@ -226,8 +226,8 @@
     "@swc/core": "1.15.33",
     "@swc/helpers": "^0.5.21",
     "@swc/plugin-loadable-components": "^11.9.0",
-    "@tanstack/react-router": "1.170.0",
-    "@tanstack/router-core": "1.170.0",
+    "@tanstack/react-router": "1.170.1",
+    "@tanstack/router-core": "1.170.1",
     "@types/loadable__component": "^5.13.10",
     "@types/react-helmet": "^6.1.11",
     "cookie": "1.1.1",
@@ -235,9 +235,9 @@
     "es-module-lexer": "^2.1.0",
     "esbuild": "^0.28.0",
     "invariant": "^2.2.4",
-    "isbot": "5.1.39",
+    "isbot": "5.1.40",
     "react-helmet": "^6.1.0",
-    "react-is": "^19.2.5"
+    "react-is": "^19.2.6"
   },
   "peerDependencies": {
     "react": "^19.2.6",
@@ -247,19 +247,18 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@remix-run/web-fetch": "^4.4.2",
-    "@rsbuild/core": "2.0.3",
-    "@rslib/core": "0.21.4",
+    "@rsbuild/core": "2.0.6",
+    "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
     "@tanstack/history": "1.162.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/invariant": "^2.2.37",
     "@types/loadable__server": "5.12.11",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "ts-node": "^10.9.2",
-    "typescript": "6.0.3"
+    "react-dom": "^19.2.6"
   },
   "sideEffects": false,
   "publishConfig": {

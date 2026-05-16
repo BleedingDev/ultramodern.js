@@ -89,7 +89,7 @@ export async function loadFromProject(moduleName: string, appDir: string) {
   }
 }
 
-// Avoid `import` to be tranpiled to `require` by babel/tsc/rollup
+// Avoid `import` to be tranpiled to `require` by babel/TS-Go/rollup
 export const dynamicImport = new Function(
   'modulePath',
   'return import(modulePath)',

@@ -35,7 +35,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rslib build",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build --watch"
   },
   "dependencies": {
@@ -46,10 +46,10 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rslib/core": "0.21.4",
-    "@types/node": "^25.6.0",
+    "@rslib/core": "0.21.5",
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "typescript": "6.0.3"
+    "react-dom": "^19.2.6"
   }
 }

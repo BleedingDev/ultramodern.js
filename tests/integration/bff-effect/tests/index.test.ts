@@ -32,7 +32,7 @@ const browserLaunchOptions = launchOptions as Parameters<
 >[0];
 
 function expectTypecheckPasses() {
-  execSync('pnpm exec tsc --noEmit -p tsconfig.json', {
+  execSync('pnpm exec tsgo --noEmit -p tsconfig.json', {
     cwd: appDir,
     stdio: 'pipe',
   });

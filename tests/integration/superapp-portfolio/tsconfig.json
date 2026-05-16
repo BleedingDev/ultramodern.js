@@ -3,7 +3,7 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "react-jsx",
-    "baseUrl": "./",
+    "moduleResolution": "Bundler",
     "paths": {
       "@/*": ["./src/*"],
       "@api/*": ["./api/*"],

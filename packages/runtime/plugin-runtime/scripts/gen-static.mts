@@ -1,13 +1,16 @@
 import { fs } from '@modern-js/utils';
+import { createRequire } from 'module';
 import path from 'path';
-import {
+
+const require = createRequire(import.meta.url);
+const {
   modernInline,
   runRouterDataFnStr,
   runWindowFnStr,
-} from '../src/router/runtime/constants';
+} = require('../dist/cjs/router/runtime/constants.js');
 
 (async () => {
-  const targetDir = path.join(__dirname, '../static');
+  const targetDir = path.join(import.meta.dirname, '../static');
   await fs.ensureDir(targetDir);
 
   const modernDefineInitPath = path.join(targetDir, 'modern-inline.js');

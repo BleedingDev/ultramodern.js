@@ -20,9 +20,7 @@ export const rslibConfig: RslibConfig = {
         },
         target: 'node' as const,
       },
-      dts: {
-        distPath: 'dist/types',
-      },
+      dts: false,
       source: {
         define: {
           'process.env.MODERN_LIB_FORMAT': '"esm"',
@@ -54,9 +52,7 @@ export const rslibConfig: RslibConfig = {
         },
         target: 'web' as const,
       },
-      dts: {
-        distPath: 'dist/types',
-      },
+      dts: false,
     },
     {
       id: 'cjs-node',

@@ -34,7 +34,7 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "build": "ts-node scripts/template.ts && rslib build",
+    "build": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/template.mts && rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build --watch",
     "test": "rstest --passWithNoTests"
   },
@@ -45,18 +45,18 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@modern-js/codesmith": "2.6.9",
     "@modern-js/codesmith-api-handlebars": "2.6.9",
     "@modern-js/codesmith-utils": "2.6.9",
     "@modern-js/create": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.21.4",
-    "@types/node": "^25.6.0",
+    "@rslib/core": "0.21.5",
+    "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/recursive-readdir": "^2.2.4",
-    "recursive-readdir": "^2.2.3",
-    "ts-node": "^10.9.2",
-    "typescript": "6.0.3"
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "recursive-readdir": "^2.2.3"
   },
   "sideEffects": false,
   "publishConfig": {

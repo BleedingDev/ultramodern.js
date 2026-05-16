@@ -10,6 +10,10 @@ import {
 } from '../../../utils/modernTestUtils';
 
 const appDir = path.resolve(__dirname, '../');
+const tsgoBin = path.join(
+  path.dirname(require.resolve('@typescript/native-preview/package.json')),
+  'bin/tsgo.js',
+);
 
 async function fetchHtml(url: string) {
   const res = await fetch(url, {
@@ -32,16 +36,11 @@ describe('routes-tanstack', () => {
     jest.setTimeout(1000 * 60 * 5);
     await modernBuild(appDir);
 
-    // Prove TanStack Router type-safety via `tsc` (route paths/params/loaderData).
+    // Prove TanStack Router type-safety via TS-Go (route paths/params/loaderData).
     try {
       execFileSync(
         process.execPath,
-        [
-          require.resolve('typescript/bin/tsc'),
-          '--noEmit',
-          '-p',
-          'tsconfig.json',
-        ],
+        [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
         { cwd: appDir, stdio: 'pipe' },
       );
     } catch (e: any) {

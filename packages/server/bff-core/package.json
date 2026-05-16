@@ -44,17 +44,15 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.21.4",
+    "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
-    "@types/node": "^25.6.0",
-    "ts-node": "^10.9.2",
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "6.0.3",
-    "zod": "^4.4.1"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.1"
   },

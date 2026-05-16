@@ -68,6 +68,8 @@
     "validate:superapp-certification:nightly": "node scripts/superapp-certification/run-superapp-certification.js --profile nightly",
     "validate:superapp-upstream-drift": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke --drift-only",
     "validate:superapp-readiness-report": "node scripts/superapp-certification/generate-readiness-report.js",
+    "tsgo:dts": "node scripts/tsgo-dts.mjs",
+    "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
     "test:all:parallel": "node scripts/test-orchestrator/run-parallel-tests.js",
@@ -78,11 +80,6 @@
     "pnpm": ">=10.0.0"
   },
   "packageManager": "pnpm@10.33.2",
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ]
-  },
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true"
@@ -94,25 +91,28 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/plugin-transform-modules-commonjs": "^7.28.6",
-    "@biomejs/biome": "2.4.13",
+    "@biomejs/biome": "2.4.15",
     "@changesets/cli": "^2.31.0",
-    "@commitlint/cli": "^20.5.3",
-    "@commitlint/config-conventional": "^20.5.3",
     "@modern-js/tsconfig": "workspace:*",
-    "@rstest/core": "0.9.10",
+    "@rstest/core": "0.10.0",
     "@scripts/build": "workspace:*",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "check-dependency-version-consistency": "6.0.0",
     "cross-env": "^10.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "~16.4.0",
-    "nx": "^22.7.1",
+    "lint-staged": "~17.0.4",
+    "nx": "^22.7.2",
     "rimraf": "^6.1.3"
   },
   "pnpm": {
+    "patchedDependencies": {
+      "@module-federation/manifest@2.4.0": "patches/@module-federation__manifest@2.4.0.patch",
+      "@module-federation/rspack@2.4.0": "patches/@module-federation__rspack@2.4.0.patch"
+    },
     "overrides": {
-      "typescript": "6.0.3",
+      "typescript": "npm:@typescript/native-preview@7.0.0-dev.20260516.1",
       "micromatch": "^4.0.8",
       "read-yaml-file>js-yaml": "3.14.2",
       "@remix-run/router": ">=1.23.2",
@@ -127,7 +127,16 @@
       "@isaacs/brace-expansion": ">=5.0.1"
     },
     "peerDependencyRules": {
+      "ignoreMissing": [
+        "ioredis",
+        "webpack"
+      ],
       "allowedVersions": {
+        "@module-federation/dts-plugin>typescript": "7",
+        "@module-federation/enhanced>typescript": "7",
+        "@module-federation/modern-js-v3>typescript": "7",
+        "@module-federation/rspack>typescript": "7",
+        "@module-federation/sdk>node-fetch": "3.3.0",
         "react-side-effect@2.1.2>react": "19"
       }
     },

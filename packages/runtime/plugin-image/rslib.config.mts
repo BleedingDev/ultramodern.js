@@ -5,7 +5,7 @@ export default defineConfig({
     {
       format: 'esm',
       syntax: 'es2021',
-      dts: true,
+      dts: false,
       source: {
         entry: { runtime: 'src/runtime.ts' },
       },

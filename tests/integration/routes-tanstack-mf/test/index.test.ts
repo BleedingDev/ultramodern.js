@@ -177,15 +177,15 @@ async function assertSharedTreeShakingStats(port: number) {
 }
 
 function runTypecheck(appDir: string, tsconfig = 'tsconfig.json') {
+  const tsgoBin = path.join(
+    path.dirname(require.resolve('@typescript/native-preview/package.json')),
+    'bin/tsgo.js',
+  );
   try {
-    execFileSync(
-      process.execPath,
-      [require.resolve('typescript/bin/tsc'), '--noEmit', '-p', tsconfig],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    );
+    execFileSync(process.execPath, [tsgoBin, '--noEmit', '-p', tsconfig], {
+      cwd: appDir,
+      stdio: 'pipe',
+    });
   } catch (error: any) {
     const stdout = error?.stdout ? String(error.stdout) : '';
     const stderr = error?.stderr ? String(error.stderr) : '';

@@ -13,6 +13,10 @@ import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
+const tsgoBin = path.join(
+  path.dirname(require.resolve('@typescript/native-preview/package.json')),
+  'bin/tsgo.js',
+);
 const host = 'http://localhost';
 const ensureWorkspacePackages = [
   '@modern-js/plugin-bff',
@@ -71,12 +75,7 @@ function expectTypecheckPasses() {
   try {
     execFileSync(
       process.execPath,
-      [
-        require.resolve('typescript/bin/tsc'),
-        '--noEmit',
-        '-p',
-        'tsconfig.json',
-      ],
+      [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
       {
         cwd: appDir,
         stdio: 'pipe',

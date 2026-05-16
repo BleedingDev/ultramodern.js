@@ -479,7 +479,7 @@ describe('superapp portfolio fixture', () => {
   let browser: Browser | undefined;
 
   beforeAll(async () => {
-    execSync('pnpm tsc --noEmit', {
+    execSync('pnpm tsgo --noEmit', {
       cwd: appDir,
       stdio: 'inherit',
     });

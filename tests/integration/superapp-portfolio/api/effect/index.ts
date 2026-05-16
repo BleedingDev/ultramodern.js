@@ -1,6 +1,7 @@
 import {
   defineEffectBff,
   Effect,
+  type EffectRuntimeLayer,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
@@ -705,7 +706,7 @@ const portfolioLayer = HttpApiBuilder.group(
 
 const layer = HttpApiBuilder.layer(portfolioApi).pipe(
   Layer.provide(portfolioLayer),
-);
+) as EffectRuntimeLayer;
 
 const runtime = defineEffectBff({
   api: portfolioApi,

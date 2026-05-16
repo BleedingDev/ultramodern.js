@@ -67,7 +67,7 @@
     "@modern-js/polyfill-lib": "^1.0.2",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.21",
-    "lru-cache": "^11.3.5",
+    "lru-cache": "^11.3.6",
     "ua-parser-js": "^2.0.9"
   },
   "devDependencies": {
@@ -75,11 +75,11 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.21.4",
+    "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.8.0",
     "@types/ua-parser-js": "^0.7.39",
-    "typescript": "6.0.3"
+    "@typescript/native-preview": "7.0.0-dev.20260516.1"
   },
   "sideEffects": false,
   "publishConfig": {

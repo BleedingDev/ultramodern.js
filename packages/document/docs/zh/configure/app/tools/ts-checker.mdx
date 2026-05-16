@@ -14,8 +14,8 @@ const defaultOptions = {
     memoryLimit: 8192,
     // use tsconfig of user project
     configFile: tsconfigPath,
-    // use typescript of user project
-    typescriptPath: require.resolve('typescript'),
+    // use TS-Go native preview of user project
+    typescriptPath: require.resolve('@typescript/native-preview/package.json'),
   },
   issue: {
     exclude: [

@@ -65,7 +65,7 @@ export const build = async (
   // we need load server plugin to appContext for ssg & deploy commands.
   await loadServerPlugins(api, appContext.appDirectory, appContext.metaName);
 
-  // Setup ts-node and tsconfig-paths for TypeScript runtime support
+  // Setup Node-native TypeScript path alias support.
   await setupTsRuntime(
     appContext.appDirectory,
     appContext.distDirectory,

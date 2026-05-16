@@ -4,7 +4,7 @@ export default defineConfig({
   lib: [
     {
       format: 'esm',
-      dts: true,
+      dts: false,
       bundle: false,
       syntax: 'es2021',
     },

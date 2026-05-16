@@ -33,7 +33,7 @@ export function TanstackRouterTypeTests() {
 
   // @ts-expect-error invalid prefetch mode
   // biome-ignore format: keep this on one line so @ts-expect-error applies.
-  const badPrefetchValue = <Link to="/user/$id" params={{ id: '123' }} prefetch="viewport" />;
+  const badPrefetchValue = <Link to="/user/$id" params={{ id: '123' }} prefetch="hover" />;
 
   // Optional param route: params should be optional
   const optionalLinkNoParams = <Link to="/optional/{-$id}" />;

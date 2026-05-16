@@ -1,7 +1,10 @@
 import { renderString } from '@modern-js/codesmith-api-handlebars';
 import { fs } from '@modern-js/codesmith-utils/fs-extra';
+import { createRequire } from 'module';
 import path from 'path';
 import recursive from 'recursive-readdir';
+
+const require = createRequire(import.meta.url);
 
 const IgnoreFiles = [
   '.nvmrc',
@@ -45,7 +48,7 @@ export async function handleTemplate(
 }
 
 async function handleCodesandboxTemplate() {
-  const templateDir = path.join(__dirname, 'codesandbox');
+  const templateDir = path.join(import.meta.dirname, 'codesandbox');
   const files: Record<string, string> = {
     ...(await handleTemplate(templateDir)),
   };
@@ -76,7 +79,7 @@ async function handleCreateTemplate() {
 async function main() {
   const codesandboxFiles = await handleCodesandboxTemplate();
   const createFiles = await handleCreateTemplate();
-  const srcTemplatesDir = path.join(__dirname, '..', 'src/templates');
+  const srcTemplatesDir = path.join(import.meta.dirname, '..', 'src/templates');
   const commonFiles = { ...codesandboxFiles };
   fs.writeFileSync(
     path.join(srcTemplatesDir, 'common.ts'),

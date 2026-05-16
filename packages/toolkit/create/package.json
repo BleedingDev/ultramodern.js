@@ -35,17 +35,17 @@
     "bin.js"
   ],
   "scripts": {
-    "build": "rslib build",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build -w",
     "start": "node ./dist/index.js"
   },
   "devDependencies": {
     "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.21.4",
-    "@types/node": "^25.6.0",
-    "tsx": "^4.21.0",
-    "typescript": "6.0.3"
+    "@rslib/core": "0.21.5",
+    "@types/node": "^25.8.0",
+    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "tsx": "^4.22.0"
   },
   "publishConfig": {
     "main": "./dist/index.js",

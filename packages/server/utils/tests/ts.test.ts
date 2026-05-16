@@ -93,9 +93,15 @@ describe('typescript', () => {
         path.join(distDir, './api/relative.js'),
       );
 
-      expect(apiContent.toString()).toContain(`from "../shared/index.js"`);
-      expect(jsAliasContent.toString()).toContain(`from "../shared/index.js"`);
-      expect(relativeContent.toString()).toContain(`from "../shared/index.js"`);
+      expect(apiContent.toString()).toMatch(
+        /from ['"]\.\.\/shared\/index\.js['"]/,
+      );
+      expect(jsAliasContent.toString()).toMatch(
+        /from ['"]\.\.\/shared\/index\.js['"]/,
+      );
+      expect(relativeContent.toString()).toMatch(
+        /from ['"]\.\.\/shared\/index\.js['"]/,
+      );
     } finally {
       await fs.remove(distDir);
     }

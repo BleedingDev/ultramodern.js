@@ -1,6 +1,5 @@
 #!/usr/bin/env sh
 
-# skip husky in CI
-[ -n "$CI" ] && exit 0
-
-npx --no-install commitlint --edit $1
+# Commit message linting is intentionally not wired here: the repository keeps
+# the TypeScript toolchain on TS-Go v7 only, while commitlint currently pulls the
+# classic TypeScript compiler through cosmiconfig-typescript-loader.
