@@ -57,8 +57,7 @@ export const EN_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
-    example10:
-      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
+    example10: '  pnpm dlx @bleedingdev/modern-js-create my-super-app',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

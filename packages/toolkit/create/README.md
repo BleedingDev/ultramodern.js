@@ -12,6 +12,13 @@
 
 Please follow [Quick Start](https://modernjs.dev/en/guides/get-started/quick-start) to get started with Modern.js.
 
+For UltraModern.js, use the BleedingDev create package. It defaults to the
+canonical SuperApp workspace and published BleedingDev package aliases:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app
+```
+
 ### Router Template
 
 You can scaffold a TanStack Router first template:
@@ -88,6 +95,11 @@ shell, remote, or service package.
 See
 `docs/super-app-rfc-adr/WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`
 for the canonical workspace topology and local orchestration model.
+
+The published `@bleedingdev/modern-js-create` package is the preferred
+UltraModern.js entrypoint. The lower-level `--ultramodern-*` flags remain
+available for release engineering and local package-source testing, but users
+should not need them for normal app creation.
 
 ### Local Monorepo Testing
 

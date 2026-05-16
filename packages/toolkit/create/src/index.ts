@@ -15,6 +15,10 @@ const templateDir = path.resolve(__dirname, '..', 'template');
 type RouterFramework = 'react-router' | 'tanstack';
 type BffRuntime = 'none' | 'hono' | 'effect';
 type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
+type CreatePackageJson = {
+  name?: string;
+  version?: string;
+};
 
 type TemplateManifest = {
   schemaVersion: 1;
@@ -711,9 +715,17 @@ function writeTemplateManifestEvidence(
   fs.writeFileSync(evidencePath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-function showVersion() {
+function readCreatePackageJson(): CreatePackageJson {
   const createPackageJson = path.resolve(__dirname, '..', 'package.json');
-  const createPackage = JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
+  return JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
+}
+
+function isBleedingDevCreatePackage(createPackage: CreatePackageJson): boolean {
+  return createPackage.name === '@bleedingdev/modern-js-create';
+}
+
+function showVersion() {
+  const createPackage = readCreatePackageJson();
   const version = createPackage.version || 'unknown';
   console.log(i18n.t(localeKeys.version.message, { version }));
   process.exit(0);
@@ -823,14 +835,25 @@ function detectWorkspaceProtocolFlag(): boolean {
   return args.includes('--workspace');
 }
 
-function detectUltramodernWorkspaceFlag(): boolean {
+function detectUltramodernWorkspaceFlag(
+  createPackage: CreatePackageJson,
+): boolean {
   const args = process.argv.slice(2);
-  return args.includes(ULTRAMODERN_WORKSPACE_FLAG);
+  return (
+    args.includes(ULTRAMODERN_WORKSPACE_FLAG) ||
+    isBleedingDevCreatePackage(createPackage)
+  );
 }
 
-function detectUltramodernPackageSource(args: string[], modernVersion: string) {
+function detectUltramodernPackageSource(
+  args: string[],
+  modernVersion: string,
+  createPackage: CreatePackageJson,
+) {
+  const bleedingDevDefaults = isBleedingDevCreatePackage(createPackage);
   const strategy =
-    getOptionValue(args, ['--ultramodern-package-source']) ?? 'workspace';
+    getOptionValue(args, ['--ultramodern-package-source']) ??
+    (bleedingDevDefaults ? 'install' : 'workspace');
   if (strategy !== 'workspace' && strategy !== 'install') {
     console.error(
       '--ultramodern-package-source must be "workspace" or "install"',
@@ -842,7 +865,11 @@ function detectUltramodernPackageSource(args: string[], modernVersion: string) {
     modernPackageVersion:
       getOptionValue(args, ['--ultramodern-package-version']) ?? modernVersion,
     registry: getOptionValue(args, ['--ultramodern-package-registry']),
-    aliasScope: getOptionValue(args, ['--ultramodern-package-scope']),
+    aliasScope:
+      getOptionValue(args, ['--ultramodern-package-scope']) ??
+      (bleedingDevDefaults && strategy === 'install'
+        ? 'bleedingdev'
+        : undefined),
     aliasPackageNamePrefix:
       getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
       'modern-js-',
@@ -977,17 +1004,20 @@ async function main() {
     }
   }
 
-  const createPackageJson = path.resolve(__dirname, '..', 'package.json');
-  const createPackage = JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
+  const createPackage = readCreatePackageJson();
   const version = createPackage.version || 'latest';
-  const generateWorkspace = detectUltramodernWorkspaceFlag();
+  const generateWorkspace = detectUltramodernWorkspaceFlag(createPackage);
 
   if (generateWorkspace) {
     generateUltramodernWorkspace({
       targetDir,
       packageName: generatedPackageName,
       modernVersion: version,
-      packageSource: detectUltramodernPackageSource(args, version),
+      packageSource: detectUltramodernPackageSource(
+        args,
+        version,
+        createPackage,
+      ),
     });
 
     const dim = '\x1b[2m\x1b[3m';
