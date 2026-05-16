@@ -11,7 +11,7 @@ This page is the complete public difference reference for the UltraModern.js 3.0
 
 ## Scope (3.0 Only)
 
-- Baseline: Modern.js `release-v3.x`.
+- Baseline: the current merged Modern.js `release-v3.x` baseline tracked by this fork; current fork packages are `3.2.0`, so this page should not be read as a frozen patch-version comparison.
 - Scope: all user-visible differences shipped in UltraModern.js 3.0.
 - Excluded: roadmap/mainline-only work that is not shipped to UltraModern.js 3.0.
 
@@ -43,7 +43,7 @@ This page is the complete public difference reference for the UltraModern.js 3.0
 | Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable module contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
 | Release/module certification gate automation | No super-app release evidence profile in baseline | Adds RC + module-certification gate profiles, evidence metadata validation, and dedicated CI workflows | Implemented | `.github/workflows/release-contract-gates.yml` + module/bun gate workflows |
-| Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR MF contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
+| Contract test coverage | No tests for these new contracts in the tracked Modern.js 3.x baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR MF contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
 | Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the reference page for the public preset profile |
 
 ## Detailed 3.0 Differences
