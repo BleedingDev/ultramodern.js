@@ -12,6 +12,24 @@ on:
       packages:
         description: "Comma-separated source/target packages to publish; empty publishes all"
         required: false
+      package_mode:
+        description: "Package selection mode: changed, affected, explicit, or all"
+        required: true
+        default: changed
+        type: choice
+        options:
+          - changed
+          - explicit
+          - affected
+          - all
+      affected_base:
+        description: "Base ref for package_mode=affected"
+        required: false
+        default: HEAD~1
+      affected_head:
+        description: "Head ref for package_mode=affected"
+        required: false
+        default: HEAD
       tag:
         description: "npm dist-tag"
         required: true
@@ -67,11 +85,37 @@ jobs:
       - name: Build Packages
         run: pnpm run prepare-build
 
+      - name: Resolve package selection
+        id: package-selection
+        env:
+          PACKAGE_MODE: ${{ inputs.package_mode }}
+          EXPLICIT_PACKAGES: ${{ inputs.packages }}
+          AFFECTED_BASE: ${{ inputs.affected_base }}
+          AFFECTED_HEAD: ${{ inputs.affected_head }}
+        run: |
+          packages="$EXPLICIT_PACKAGES"
+
+          if [ "$PACKAGE_MODE" = "changed" ] || [ "$PACKAGE_MODE" = "affected" ]; then
+            packages="$(pnpm ultramodern:affected-bleedingdev-publish -- --mode "$PACKAGE_MODE" --base "$AFFECTED_BASE" --head "$AFFECTED_HEAD")"
+          elif [ "$PACKAGE_MODE" = "all" ]; then
+            packages=""
+          elif [ "$PACKAGE_MODE" != "explicit" ]; then
+            echo "Unsupported package_mode: $PACKAGE_MODE" >&2
+            exit 1
+          fi
+
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          if [ -n "$packages" ]; then
+            echo "Publishing package selection: $packages"
+          else
+            echo "Publishing all packages"
+          fi
+
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
-          PUBLISH_PACKAGES: ${{ inputs.packages }}
+          PUBLISH_PACKAGES: ${{ steps.package-selection.outputs.packages }}
           PUBLISH_TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_EXISTING: ${{ inputs.skip_existing }}

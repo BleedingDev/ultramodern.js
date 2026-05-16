@@ -70,6 +70,7 @@
     "validate:superapp-readiness-report": "node scripts/superapp-certification/generate-readiness-report.js",
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
     "ultramodern:publish-bleedingdev": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish",
+    "ultramodern:affected-bleedingdev-publish": "node scripts/ultramodern-publish/resolve-affected-packages.mjs",
     "ultramodern:trust-bleedingdev-publish": "node scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs",
     "tsgo:dts": "node scripts/tsgo-dts.mjs",
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
