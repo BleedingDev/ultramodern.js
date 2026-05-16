@@ -23,7 +23,7 @@ jobs:
         run: echo "$RUNNER_CONTEXT"
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -38,14 +38,14 @@ jobs:
         run: echo "${{steps.skip-ci.outputs.RESULT}}"
 
       - name: Setup Node.js 22.x
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: 'pnpm'
 
       - name: Nx Cache
         id: nx-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .nx/cache
           key: nx-${{ github.ref_name }}-${{ github.sha }}
@@ -55,7 +55,7 @@ jobs:
 
       - name: Install Dependencies
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm install --ignore-scripts --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Prepare
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
