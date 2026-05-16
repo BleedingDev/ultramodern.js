@@ -6,6 +6,12 @@ on:
       version:
         description: "Package version to publish, for example 3.2.0-ultramodern.1"
         required: true
+      dependency_version:
+        description: "Version to use for internal @bleedingdev dependencies; defaults to version"
+        required: false
+      packages:
+        description: "Comma-separated source/target packages to publish; empty publishes all"
+        required: false
       tag:
         description: "npm dist-tag"
         required: true
@@ -64,6 +70,8 @@ jobs:
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
+          DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
+          PUBLISH_PACKAGES: ${{ inputs.packages }}
           PUBLISH_TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_EXISTING: ${{ inputs.skip_existing }}
@@ -72,6 +80,14 @@ jobs:
             --version "$PUBLISH_VERSION"
             --tag "$PUBLISH_TAG"
           )
+
+          if [ -n "$DEPENDENCY_VERSION" ]; then
+            args+=(--dependency-version "$DEPENDENCY_VERSION")
+          fi
+
+          if [ -n "$PUBLISH_PACKAGES" ]; then
+            args+=(--packages "$PUBLISH_PACKAGES")
+          fi
 
           if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)

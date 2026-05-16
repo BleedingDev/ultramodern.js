@@ -18,6 +18,9 @@ type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
 type CreatePackageJson = {
   name?: string;
   version?: string;
+  ultramodern?: {
+    frameworkVersion?: string;
+  };
 };
 
 type TemplateManifest = {
@@ -724,6 +727,16 @@ function isBleedingDevCreatePackage(createPackage: CreatePackageJson): boolean {
   return createPackage.name === '@bleedingdev/modern-js-create';
 }
 
+function getBleedingDevFrameworkVersion(
+  createPackage: CreatePackageJson,
+  fallbackVersion: string,
+): string {
+  const frameworkVersion = createPackage.ultramodern?.frameworkVersion;
+  return typeof frameworkVersion === 'string' && frameworkVersion.length > 0
+    ? frameworkVersion
+    : fallbackVersion;
+}
+
 function showVersion() {
   const createPackage = readCreatePackageJson();
   const version = createPackage.version || 'unknown';
@@ -847,7 +860,7 @@ function detectUltramodernWorkspaceFlag(
 
 function detectUltramodernPackageSource(
   args: string[],
-  modernVersion: string,
+  defaultPackageVersion: string,
   createPackage: CreatePackageJson,
 ) {
   const bleedingDevDefaults = isBleedingDevCreatePackage(createPackage);
@@ -863,7 +876,8 @@ function detectUltramodernPackageSource(
   return {
     strategy,
     modernPackageVersion:
-      getOptionValue(args, ['--ultramodern-package-version']) ?? modernVersion,
+      getOptionValue(args, ['--ultramodern-package-version']) ??
+      defaultPackageVersion,
     registry: getOptionValue(args, ['--ultramodern-package-registry']),
     aliasScope:
       getOptionValue(args, ['--ultramodern-package-scope']) ??
@@ -1006,6 +1020,9 @@ async function main() {
 
   const createPackage = readCreatePackageJson();
   const version = createPackage.version || 'latest';
+  const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
+    ? getBleedingDevFrameworkVersion(createPackage, version)
+    : version;
   const generateWorkspace = detectUltramodernWorkspaceFlag(createPackage);
 
   if (generateWorkspace) {
@@ -1015,7 +1032,7 @@ async function main() {
       modernVersion: version,
       packageSource: detectUltramodernPackageSource(
         args,
-        version,
+        ultramodernPackageVersion,
         createPackage,
       ),
     });

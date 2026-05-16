@@ -11,7 +11,9 @@ function parseArgs(argv) {
     scope: 'bleedingdev',
     prefix: 'modern-js-',
     version: undefined,
+    dependencyVersion: undefined,
     tag: 'ultramodern-canary',
+    packages: undefined,
     out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
     repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
     homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
@@ -42,8 +44,15 @@ function parseArgs(argv) {
       options.prefix = readValue();
     } else if (arg === '--version') {
       options.version = readValue();
+    } else if (arg === '--dependency-version') {
+      options.dependencyVersion = readValue();
     } else if (arg === '--tag') {
       options.tag = readValue();
+    } else if (arg === '--packages') {
+      options.packages = readValue()
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
     } else if (arg === '--out') {
       options.out = path.resolve(readValue());
     } else if (arg === '--repository-url') {
@@ -68,6 +77,8 @@ function parseArgs(argv) {
       'Missing --version, for example --version 3.2.0-ultramodern.0',
     );
   }
+
+  options.dependencyVersion ??= options.version;
 
   return options;
 }
@@ -102,7 +113,9 @@ function targetPackageName(sourceName, options) {
 }
 
 function aliasSpecifier(sourceName, options) {
-  return `npm:${targetPackageName(sourceName, options)}@${options.version}`;
+  return `npm:${targetPackageName(sourceName, options)}@${
+    options.dependencyVersion
+  }`;
 }
 
 function normalizeBinPath(binPath) {
@@ -151,8 +164,29 @@ function rewritePackageMetadata(packageJson, options) {
   };
 }
 
+function matchesPackageFilter(item, options) {
+  if (!options.packages) {
+    return true;
+  }
+
+  const sourceName = item.packageJson.name;
+  const targetName = targetPackageName(sourceName, options);
+  const unscopedSourceName = sourceName.split('/').at(-1);
+  const unscopedTargetName = targetName.split('/').at(-1);
+  return options.packages.some(packageName =>
+    [
+      sourceName,
+      targetName,
+      unscopedSourceName,
+      unscopedTargetName,
+      sourceName.replace('@modern-js/', ''),
+      targetName.replace(`@${options.scope}/`, ''),
+    ].includes(packageName),
+  );
+}
+
 function collectModernPackages(options) {
-  const packages = collectPackageJsonFiles(path.join(repoRoot, 'packages'))
+  const allPackages = collectPackageJsonFiles(path.join(repoRoot, 'packages'))
     .map(packageJsonPath => {
       const packageJson = readJson(packageJsonPath);
       return {
@@ -165,13 +199,33 @@ function collectModernPackages(options) {
     .filter(({ packageJson }) => !packageJson.private)
     .sort((a, b) => a.packageJson.name.localeCompare(b.packageJson.name));
 
-  const sourceNames = new Set(packages.map(item => item.packageJson.name));
+  const sourceNames = new Set(allPackages.map(item => item.packageJson.name));
   const aliases = Object.fromEntries(
-    packages.map(item => [
+    allPackages.map(item => [
       item.packageJson.name,
       targetPackageName(item.packageJson.name, options),
     ]),
   );
+  const packages = allPackages.filter(item =>
+    matchesPackageFilter(item, options),
+  );
+
+  if (options.packages && packages.length !== options.packages.length) {
+    const matchedNames = new Set(
+      packages.flatMap(item => [
+        item.packageJson.name,
+        targetPackageName(item.packageJson.name, options),
+        item.packageJson.name.split('/').at(-1),
+        targetPackageName(item.packageJson.name, options).split('/').at(-1),
+      ]),
+    );
+    const unmatched = options.packages.filter(
+      packageName => !matchedNames.has(packageName),
+    );
+    if (unmatched.length > 0) {
+      throw new Error(`Unknown --packages value(s): ${unmatched.join(', ')}`);
+    }
+  }
 
   return {
     packages,
@@ -211,7 +265,7 @@ function rewriteDependencyBlock(
     }
 
     block[packageName] = peer
-      ? options.version
+      ? options.dependencyVersion
       : aliasSpecifier(packageName, options);
   }
 }
@@ -225,6 +279,12 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
     ...(packageJson.publishConfig ?? {}),
     access: 'public',
   };
+  if (sourceName === '@modern-js/create') {
+    packageJson.ultramodern = {
+      ...(packageJson.ultramodern ?? {}),
+      frameworkVersion: options.dependencyVersion,
+    };
+  }
 
   rewriteDependencyBlock(packageJson.dependencies, options, sourceNames);
   rewriteDependencyBlock(
@@ -333,6 +393,7 @@ function main() {
     scope: options.scope,
     prefix: options.prefix,
     version: options.version,
+    dependencyVersion: options.dependencyVersion,
     tag: options.tag,
     aliases,
     packages: [],
