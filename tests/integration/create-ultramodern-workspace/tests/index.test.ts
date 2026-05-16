@@ -102,6 +102,9 @@ describe('create-ultramodern-workspace', () => {
       'packages/*',
     ]);
     expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
+      "allowBuilds:\n  '@biomejs/biome': true\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
+    );
+    expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
       "onlyBuiltDependencies:\n  - '@biomejs/biome'\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
     );
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
