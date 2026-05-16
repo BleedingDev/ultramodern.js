@@ -3,3 +3,10 @@ packages:
   - apps/remotes/*
   - services/*
   - packages/*
+
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@swc/core'
+  - core-js
+  - esbuild
+  - msgpackr-extract

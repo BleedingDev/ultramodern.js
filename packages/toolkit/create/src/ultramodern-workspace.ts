@@ -494,15 +494,6 @@ function createRootPackageJson(
       pnpm: '>=10.0.0',
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
-    pnpm: {
-      onlyBuiltDependencies: [
-        '@biomejs/biome',
-        '@swc/core',
-        'core-js',
-        'esbuild',
-        'msgpackr-extract',
-      ],
-    },
     modernjs: {
       preset: 'presetUltramodern',
       workspace: 'ultramodern-superapp',
