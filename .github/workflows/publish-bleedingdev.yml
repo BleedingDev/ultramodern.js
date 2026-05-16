@@ -1,0 +1,92 @@
+name: Publish BleedingDev Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish, for example 3.2.0-ultramodern.1"
+        required: true
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: ultramodern-canary
+      dry_run:
+        description: "Run npm publish --dry-run"
+        required: true
+        type: boolean
+        default: false
+      skip_existing:
+        description: "Skip packages whose exact version already exists on npm"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-bleedingdev-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @bleedingdev packages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main-ultramodern'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Dependencies
+        run: pnpm install --ignore-scripts --frozen-lockfile
+
+      - name: Verify publish toolchain
+        run: |
+          node --version
+          npm --version
+          pnpm --version
+          node -e "const version = process.versions.node.split('.').map(Number); if (version[0] < 22 || (version[0] === 22 && version[1] < 14)) throw new Error('npm trusted publishing requires Node.js 22.14.0 or newer');"
+          node -e "const { execFileSync } = require('node:child_process'); const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (version[0] < 11 || (version[0] === 11 && version[1] < 5) || (version[0] === 11 && version[1] === 5 && version[2] < 1)) throw new Error('npm trusted publishing requires npm 11.5.1 or newer');"
+
+      - name: Build Packages
+        run: pnpm run prepare-build
+
+      - name: Publish Packages
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+          PUBLISH_TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SKIP_EXISTING: ${{ inputs.skip_existing }}
+        run: |
+          args=(
+            --version "$PUBLISH_VERSION"
+            --tag "$PUBLISH_TAG"
+          )
+
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+
+          if [ "$SKIP_EXISTING" != "true" ]; then
+            args+=(--no-skip-existing)
+          fi
+
+          pnpm ultramodern:publish-bleedingdev -- "${args[@]}"
+
+      - name: Upload publish manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bleedingdev-publish-manifest
+          path: .modern/bleedingdev-publish/manifest.json
+          if-no-files-found: ignore
