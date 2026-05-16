@@ -129,7 +129,7 @@ describe('create-ultramodern-workspace', () => {
         'workspace:*',
       );
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.0',
+        '1.170.1',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.4.0',

@@ -63,7 +63,7 @@ describe('create-tailwind', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.0');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.1');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.1.18');

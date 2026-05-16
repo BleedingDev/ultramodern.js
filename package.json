@@ -102,7 +102,7 @@
     "check-dependency-version-consistency": "6.0.0",
     "cross-env": "^10.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "~17.0.4",
+    "lint-staged": "~17.0.5",
     "nx": "^22.7.2",
     "rimraf": "^6.1.3"
   },

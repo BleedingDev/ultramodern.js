@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const EXPECTED_TANSTACK_ROUTER = '1.170.0';
+const EXPECTED_TANSTACK_ROUTER = '1.170.1';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const MODERN_PACKAGES = [
   '@modern-js/app-tools',

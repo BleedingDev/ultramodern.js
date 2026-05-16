@@ -24,6 +24,11 @@ export default function PortfolioAppPage() {
   }, [loaderData.appId]);
 
   const runWorkflow = async () => {
+    if (!loaderData.appId) {
+      setEventId('unknown-app');
+      return;
+    }
+
     const result = await effectBff.client.portfolio.runWorkflow({
       params: {
         appId: loaderData.appId,

@@ -73,8 +73,8 @@ importers:
         specifier: ^9.1.7
         version: 9.1.7
       lint-staged:
-        specifier: ~17.0.4
-        version: 17.0.4
+        specifier: ~17.0.5
+        version: 17.0.5
       nx:
         specifier: ^22.7.2
         version: 22.7.2(@swc/core@1.15.33(@swc/helpers@0.5.21))
@@ -1041,8 +1041,8 @@ importers:
         specifier: ^3.4.2
         version: 3.4.2
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.19
+        version: 4.12.19
       ts-deepmerge:
         specifier: 7.0.3
         version: 7.0.3
@@ -1296,8 +1296,8 @@ importers:
         specifier: 7.0.0-dev.20260516.1
         version: 7.0.0-dev.20260516.1
       lint-staged:
-        specifier: ~17.0.4
-        version: 17.0.4
+        specifier: ~17.0.5
+        version: 17.0.5
 
   packages/server/server:
     dependencies:
@@ -2419,8 +2419,8 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.19
+        version: 4.12.19
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -2651,8 +2651,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/server/server-runtime
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.19
+        version: 4.12.19
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -2697,8 +2697,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/server/server-runtime
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.19
+        version: 4.12.19
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3351,7 +3351,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.2.0
         version: 26.2.0
@@ -3385,7 +3385,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.2.0
         version: 26.2.0
@@ -3419,7 +3419,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.4.0
         version: 2.4.0(node-fetch@2.7.0(encoding@0.1.13))
@@ -3860,7 +3860,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.4.0
         version: 2.4.0(node-fetch@2.7.0(encoding@0.1.13))
@@ -3898,7 +3898,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.4.0
         version: 2.4.0(node-fetch@2.7.0(encoding@0.1.13))
@@ -3932,7 +3932,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.4.0
-        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.4.0
         version: 2.4.0(node-fetch@2.7.0(encoding@0.1.13))
@@ -5011,8 +5011,8 @@ importers:
         specifier: ^6.4.2
         version: 6.4.2(luxon@3.7.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.19
+        version: 4.12.19
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -11855,8 +11855,8 @@ packages:
     resolution: {integrity: sha512-eSmmWE5bZTK2Nou4g0AI3zZ9rswp7GRKoKXS1BLUkvPviOqs4YTN1djQIqrXy9k5gEtdLPy86JjRwsNM9tnDcA==}
     engines: {node: '>=0.10.0'}
 
-  hono@4.12.18:
-    resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
+  hono@4.12.19:
+    resolution: {integrity: sha512-xa3eYXYXx68XTT4hZ7dRzsXBhaq85ToSrlUJNoR0gwz/1Ap/CNwX47wfvV7pc/xWhjKVVkLT7zBJy8chhNguqQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -12734,8 +12734,8 @@ packages:
     resolution: {integrity: sha512-wM1+Z03eypVAVUCE7QdSqpVIvelbOakn1M0bPDoA4SGWPx3sNDVUiMo3L6To6WWGClB7VyXnhQ4Sn7gxiJbE6A==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  lint-staged@17.0.4:
-    resolution: {integrity: sha512-+rU9lSUyVOZ/hDUmRLVGzyS2v73cDdQjX+XQz1AaOdIE4RysLq0HoPW2HrrgeNCLklkhi904VBU1bmgWLHVnkA==}
+  lint-staged@17.0.5:
+    resolution: {integrity: sha512-d12yC+/e8RhBjZtaxZn71FyrgU/P5e+uAPifhCLwdosQZP/zamSdKRWDC30ocVIbzDKiFG1McHc/LUgB92GIPw==}
     engines: {node: '>=22.22.1'}
     hasBin: true
 
@@ -16159,8 +16159,8 @@ packages:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
 
-  yaml@1.10.2:
-    resolution: {integrity: sha512-r3vXyErRCYJ7wg28yvBY5VSoAF8ZvlcW9/BwUzEtUsjvX/DKs24dIkuwjtuprwJJHsbyUbLApepYTR1BN4uHrg==}
+  yaml@1.10.3:
+    resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
     engines: {node: '>= 6'}
 
   yaml@2.8.0:
@@ -18022,14 +18022,14 @@ snapshots:
     transitivePeerDependencies:
       - node-fetch
 
-  '@module-federation/bridge-react@2.4.0(hono@4.12.18)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)':
+  '@module-federation/bridge-react@2.4.0(hono@4.12.19)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@module-federation/sdk': 2.4.0(node-fetch@3.3.0)
       lru-cache: 10.4.3
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
     optionalDependencies:
-      hono: 4.12.18
+      hono: 4.12.19
       react-router: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-router-dom: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     transitivePeerDependencies:
@@ -18239,9 +18239,9 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/modern-js-v3@2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/bridge-react': 2.4.0(hono@4.12.18)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+      '@module-federation/bridge-react': 2.4.0(hono@4.12.19)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       '@module-federation/cli': 2.4.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.4.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
       '@module-federation/node': 2.7.42(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -18267,9 +18267,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/modern-js-v3@2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.18)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.4.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.4.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(hono@4.12.19)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/bridge-react': 2.4.0(hono@4.12.18)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+      '@module-federation/bridge-react': 2.4.0(hono@4.12.19)(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       '@module-federation/cli': 2.4.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.4.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
       '@module-federation/node': 2.7.42(@rspack/core@2.0.3(@module-federation/runtime-tools@2.4.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -18851,7 +18851,7 @@ snapshots:
   '@parcel/watcher-wasm@2.5.6':
     dependencies:
       is-glob: 4.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   '@parcel/watcher-win32-arm64@2.5.6':
     optional: true
@@ -22062,7 +22062,7 @@ snapshots:
       import-fresh: 3.3.1
       parse-json: 5.2.0
       path-type: 4.0.0
-      yaml: 1.10.2
+      yaml: 1.10.3
 
   cosmiconfig@8.3.6:
     dependencies:
@@ -23139,10 +23139,6 @@ snapshots:
     dependencies:
       bser: 2.1.1
 
-  fdir@6.5.0(picomatch@4.0.3):
-    optionalDependencies:
-      picomatch: 4.0.3
-
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
@@ -23709,7 +23705,7 @@ snapshots:
     dependencies:
       parse-passwd: 1.0.0
 
-  hono@4.12.18: {}
+  hono@4.12.19: {}
 
   hookable@6.1.1: {}
 
@@ -24476,7 +24472,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   jest-util@30.3.0:
     dependencies:
@@ -24751,7 +24747,7 @@ snapshots:
 
   lines-and-columns@2.0.4: {}
 
-  lint-staged@17.0.4:
+  lint-staged@17.0.5:
     dependencies:
       listr2: 10.2.1
       picomatch: 4.0.4
@@ -28138,8 +28134,8 @@ snapshots:
 
   tinyglobby@0.2.15:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
 
   tinyglobby@0.2.16:
     dependencies:
@@ -28729,7 +28725,7 @@ snapshots:
 
   yallist@5.0.0: {}
 
-  yaml@1.10.2: {}
+  yaml@1.10.3: {}
 
   yaml@2.8.0: {}
 

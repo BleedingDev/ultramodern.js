@@ -67,7 +67,7 @@
     "@types/merge-deep": "^3.0.3",
     "@types/node": "^25.8.0",
     "@typescript/native-preview": "7.0.0-dev.20260516.1",
-    "lint-staged": "~17.0.4"
+    "lint-staged": "~17.0.5"
   },
   "sideEffects": [],
   "engines": {

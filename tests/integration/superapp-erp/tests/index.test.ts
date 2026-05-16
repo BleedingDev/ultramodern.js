@@ -337,11 +337,20 @@ async function expectSuperAppUi(page: Page, port: number) {
   await expect(
     page.$eval('[data-testid="route-kind"]', el => el.textContent),
   ).resolves.toBe('ops-chat-command-channel');
-  await page.click('[data-testid="chat-input"]', {
-    clickCount: 3,
-  });
-  await page.keyboard.press('Backspace');
-  await page.type('[data-testid="chat-input"]', 'Reroute high priority loads');
+  await page.$eval(
+    '[data-testid="chat-input"]',
+    (element, value) => {
+      const input = element as HTMLInputElement;
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set;
+
+      valueSetter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    },
+    'Reroute high priority loads',
+  );
   await page.click('[data-testid="chat-send"]');
   await page.waitForFunction(() =>
     document

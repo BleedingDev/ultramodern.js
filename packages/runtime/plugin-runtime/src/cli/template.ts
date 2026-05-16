@@ -344,7 +344,7 @@ export const runtimeGlobalContextForRSCClient = ({
      setServerCallback,
    } from '@${metaName}/runtime/rsc/client';`
        : ''
-   }
+}
    import { createElement, Fragment } from 'react';
    import { setGlobalContext } from '@${metaName}/runtime/context';
 
@@ -379,9 +379,9 @@ export const runtimeGlobalContextForRSCClient = ({
        : `createFromReadableStream(rscStream, {
      callServer: callServer,
    })`
-   };`
+};`
        : ''
-   }
+}
 
    const DefaultRoot = ({ children }) =>
      createElement(Fragment, null, children);
@@ -390,7 +390,7 @@ export const runtimeGlobalContextForRSCClient = ({
      customEntry
        ? 'const RSCRoot = () => createElement(RscClientRoot, { rscPayload: data });'
        : ''
-   }
+}
 
    setGlobalContext({
      App: ${customEntry ? 'RSCRoot' : 'DefaultRoot'}
