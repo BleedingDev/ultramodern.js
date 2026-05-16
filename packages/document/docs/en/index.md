@@ -1,4 +1,4 @@
 ---
 pageType: home
 ---
-# Modern.js - A Progressive React Framework for modern web development
+# UltraModern.js 3.0 - A SuperApp framework for Effect, TanStack, SSR, BFF, and Micro Verticals

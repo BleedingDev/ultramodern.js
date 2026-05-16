@@ -2,8 +2,9 @@
 
 Generated UltraModern SuperApp workspace.
 
-This workspace keeps `presetUltramodern(...)` as the single public Modern.js
-preset surface and scaffolds the canonical Micro Vertical starter topology:
+This workspace keeps `presetUltramodern(...)` as the single public
+UltraModern.js 3.0 SuperApp surface and scaffolds the canonical Micro Vertical
+starter topology:
 
 - `apps/shell-super-app` owns shell route assembly and remote manifest wiring.
 - `apps/remotes/remote-commerce` owns the commerce vertical remote.
@@ -21,8 +22,8 @@ pnpm ultramodern:check
 The topology and ownership metadata are generated under `topology/`.
 
 Package source metadata is generated at
-`.modernjs/ultramodern-package-source.json`. The default strategy keeps Modern.js
-runtime and tooling packages on `workspace:*` for monorepo development. To create
-a workspace that can install those packages outside the monorepo, generate with
-`--ultramodern-package-source install`; generated shared packages still use
-`workspace:*` because they are part of this workspace.
+`.modernjs/ultramodern-package-source.json`. The default strategy keeps
+UltraModern.js runtime and tooling packages on `workspace:*` for monorepo
+development. To create a workspace that can install those packages outside the
+monorepo, generate with `--ultramodern-package-source install`; generated shared
+packages still use `workspace:*` because they are part of this workspace.

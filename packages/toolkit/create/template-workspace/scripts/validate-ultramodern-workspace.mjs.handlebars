@@ -69,6 +69,18 @@ const expectedModernSpecifier =
   packageSource.strategy === 'install'
     ? packageSource.modernPackages?.specifier
     : 'workspace:*';
+
+function expectedModernDependency(packageName) {
+  if (packageSource.strategy !== 'install') {
+    return 'workspace:*';
+  }
+
+  const aliasPackageName = packageSource.modernPackages?.aliases?.[packageName];
+  return aliasPackageName
+    ? `npm:${aliasPackageName}@${expectedModernSpecifier}`
+    : expectedModernSpecifier;
+}
+
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(
@@ -116,17 +128,18 @@ for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
   assert(
     packageJson.dependencies?.['@modern-js/plugin-tanstack'] ===
-      expectedModernSpecifier,
-    `${packagePath} must depend on @modern-js/plugin-tanstack through ${expectedModernSpecifier}`,
+      expectedModernDependency('@modern-js/plugin-tanstack'),
+    `${packagePath} must depend on @modern-js/plugin-tanstack through ${expectedModernDependency('@modern-js/plugin-tanstack')}`,
   );
   assert(
-    packageJson.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
-    `${packagePath} must depend on @modern-js/runtime through ${expectedModernSpecifier}`,
+    packageJson.dependencies?.['@modern-js/runtime'] ===
+      expectedModernDependency('@modern-js/runtime'),
+    `${packagePath} must depend on @modern-js/runtime through ${expectedModernDependency('@modern-js/runtime')}`,
   );
   assert(
     packageJson.devDependencies?.['@modern-js/app-tools'] ===
-      expectedModernSpecifier,
-    `${packagePath} must depend on @modern-js/app-tools through ${expectedModernSpecifier}`,
+      expectedModernDependency('@modern-js/app-tools'),
+    `${packagePath} must depend on @modern-js/app-tools through ${expectedModernDependency('@modern-js/app-tools')}`,
   );
   assert(
     packageJson.dependencies?.[`@${packageScope}/shared-contracts`] ===
@@ -181,18 +194,19 @@ assert(designMf.includes('"./tokens"'), 'Design-system remote must expose tokens
 
 const servicePackage = readJson('services/service-recommendations-effect/package.json');
 assert(
-  servicePackage.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
-  `Effect service must use @modern-js/runtime through ${expectedModernSpecifier}`,
+  servicePackage.dependencies?.['@modern-js/runtime'] ===
+    expectedModernDependency('@modern-js/runtime'),
+  `Effect service must use @modern-js/runtime through ${expectedModernDependency('@modern-js/runtime')}`,
 );
 assert(
   servicePackage.devDependencies?.['@modern-js/app-tools'] ===
-    expectedModernSpecifier,
-  `Effect service must use @modern-js/app-tools through ${expectedModernSpecifier}`,
+    expectedModernDependency('@modern-js/app-tools'),
+  `Effect service must use @modern-js/app-tools through ${expectedModernDependency('@modern-js/app-tools')}`,
 );
 assert(
   servicePackage.devDependencies?.['@modern-js/plugin-bff'] ===
-    expectedModernSpecifier,
-  `Effect service must use @modern-js/plugin-bff through ${expectedModernSpecifier}`,
+    expectedModernDependency('@modern-js/plugin-bff'),
+  `Effect service must use @modern-js/plugin-bff through ${expectedModernDependency('@modern-js/plugin-bff')}`,
 );
 assert(
   servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] ===

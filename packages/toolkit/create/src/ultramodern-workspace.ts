@@ -52,6 +52,8 @@ type ResolvedPackageSource = {
   strategy: UltramodernPackageSourceStrategy;
   modernPackageVersion: string;
   registry?: string;
+  aliasScope?: string;
+  aliasPackageNamePrefix?: string;
 };
 
 type Ownership = {
@@ -74,6 +76,8 @@ export type UltramodernWorkspaceOptions = {
     strategy?: UltramodernPackageSourceStrategy;
     modernPackageVersion?: string;
     registry?: string;
+    aliasScope?: string;
+    aliasPackageNamePrefix?: string;
   };
 };
 
@@ -367,6 +371,8 @@ function resolvePackageSource(
         ? (options.packageSource?.modernPackageVersion ?? options.modernVersion)
         : WORKSPACE_PACKAGE_VERSION,
     registry: options.packageSource?.registry,
+    aliasScope: options.packageSource?.aliasScope,
+    aliasPackageNamePrefix: options.packageSource?.aliasPackageNamePrefix,
   };
 }
 
@@ -376,14 +382,49 @@ function modernPackageVersion(packageSource: ResolvedPackageSource): string {
     : WORKSPACE_PACKAGE_VERSION;
 }
 
+function modernAliasPackageName(
+  packageName: string,
+  packageSource: ResolvedPackageSource,
+): string {
+  if (!packageSource.aliasScope) {
+    return packageName;
+  }
+
+  const scope = packageSource.aliasScope.replace(/^@/, '');
+  const unscopedName = packageName.split('/').at(-1);
+  return `@${scope}/${packageSource.aliasPackageNamePrefix ?? ''}${unscopedName}`;
+}
+
+function modernPackageSpecifier(
+  packageName: string,
+  packageSource: ResolvedPackageSource,
+): string {
+  if (packageSource.strategy !== 'install') {
+    return WORKSPACE_PACKAGE_VERSION;
+  }
+
+  if (!packageSource.aliasScope) {
+    return packageSource.modernPackageVersion;
+  }
+
+  return `npm:${modernAliasPackageName(packageName, packageSource)}@${
+    packageSource.modernPackageVersion
+  }`;
+}
+
 function appDependencies(
   scope: string,
   packageSource: ResolvedPackageSource,
 ): Record<string, string> {
-  const modernVersion = modernPackageVersion(packageSource);
   return {
-    '@modern-js/plugin-tanstack': modernVersion,
-    '@modern-js/runtime': modernVersion,
+    '@modern-js/plugin-tanstack': modernPackageSpecifier(
+      '@modern-js/plugin-tanstack',
+      packageSource,
+    ),
+    '@modern-js/runtime': modernPackageSpecifier(
+      '@modern-js/runtime',
+      packageSource,
+    ),
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
@@ -398,7 +439,10 @@ function appDevDependencies(
   packageSource: ResolvedPackageSource,
 ): Record<string, string> {
   return {
-    '@modern-js/app-tools': modernPackageVersion(packageSource),
+    '@modern-js/app-tools': modernPackageSpecifier(
+      '@modern-js/app-tools',
+      packageSource,
+    ),
     '@types/node': '^20',
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
@@ -450,6 +494,15 @@ function createRootPackageJson(
       pnpm: '>=10.0.0',
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
+    pnpm: {
+      onlyBuiltDependencies: [
+        '@biomejs/biome',
+        '@swc/core',
+        'core-js',
+        'esbuild',
+        'msgpackr-extract',
+      ],
+    },
     modernjs: {
       preset: 'presetUltramodern',
       workspace: 'ultramodern-superapp',
@@ -543,7 +596,6 @@ function createServicePackage(
   scope: string,
   packageSource: ResolvedPackageSource,
 ): JsonValue {
-  const modernVersion = modernPackageVersion(packageSource);
   return {
     private: true,
     name: packageName(scope, effectService.packageSuffix),
@@ -561,14 +613,23 @@ function createServicePackage(
       topology: `${relativeRootFor(effectService.directory)}/topology/reference-topology.json`,
     },
     dependencies: {
-      '@modern-js/runtime': modernVersion,
+      '@modern-js/runtime': modernPackageSpecifier(
+        '@modern-js/runtime',
+        packageSource,
+      ),
       [packageName(scope, 'shared-effect-api')]: WORKSPACE_PACKAGE_VERSION,
       react: REACT_VERSION,
       'react-dom': REACT_DOM_VERSION,
     },
     devDependencies: {
-      '@modern-js/app-tools': modernVersion,
-      '@modern-js/plugin-bff': modernVersion,
+      '@modern-js/app-tools': modernPackageSpecifier(
+        '@modern-js/app-tools',
+        packageSource,
+      ),
+      '@modern-js/plugin-bff': modernPackageSpecifier(
+        '@modern-js/plugin-bff',
+        packageSource,
+      ),
       '@types/node': '^20',
       '@types/react': '^19.1.8',
       '@types/react-dom': '^19.1.6',
@@ -1090,6 +1151,7 @@ function createPackageSourceMetadata(
     packages: string[];
     specifier: string;
     registry?: string;
+    aliases?: Record<string, string>;
   } = {
     packages: modernPackageNames,
     specifier: modernPackageVersion(packageSource),
@@ -1097,6 +1159,15 @@ function createPackageSourceMetadata(
 
   if (packageSource.registry) {
     modernPackages.registry = packageSource.registry;
+  }
+
+  if (packageSource.aliasScope) {
+    modernPackages.aliases = Object.fromEntries(
+      modernPackageNames.map(packageName => [
+        packageName,
+        modernAliasPackageName(packageName, packageSource),
+      ]),
+    );
   }
 
   return {

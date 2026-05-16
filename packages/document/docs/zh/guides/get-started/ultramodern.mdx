@@ -1,39 +1,39 @@
 ---
-title: UltraModern.js
+title: UltraModern.js 3.0
 sidebar_position: 2
 ---
 
-# UltraModern.js v3 与 Modern.js v3 对比
+# UltraModern.js 3.0 与 Modern.js 3.0 对比
 
-本文对比 **UltraModern.js v3** 与 **Modern.js v3**（基线：`v3.0.2`）。
+本文对比 **UltraModern.js 3.0** 与 **Modern.js 3.0**（基线：`v3.0.2`）。
 
-UltraModern.js 在这里更像是“更强默认值的 Modern.js 配置档案”这一参考名词：目标是在不把 Modern.js 分叉成另一套框架的前提下，为 Super App / ERP 场景加固默认基线。
+UltraModern.js 3.0 是我们从 Modern.js 分叉出来的 SuperApp 框架。它保留有利于接入的 Modern.js 插件/运行时心智模型，但产品定位是独立框架：面向 Effect-first BFF、TanStack Router、SSR、Module Federation 与可独立部署的 Micro Verticals。
 
 ## 设计原则
 
-- 差异要小且明确。
-- 保持上游 Modern.js 的心智模型与可持续回灌能力。
+- 差异要明确、可审计。
+- 保留有价值的 Modern.js 兼容概念，但不再把 UltraModern.js 表达成“只是一个预设”。
 - 仅在跨团队稳定性场景增加平台契约。
 - 保留按应用关闭和显式兼容分支的能力。
 
 ## 兼容性承诺
 
-UltraModern.js v3 保持以下不变：
+UltraModern.js 3.0 保持以下不变：
 
 - Modern.js 的应用/配置/插件心智模型。
 - 既有项目结构与命令使用方式。
 - 渐进式接入路径（应用无需大规模重构）。
 
-UltraModern 的增强能力会尽量以“更强默认值”“显式兼容分支”或“可审计 gate”的形式落地，而不是演化成另一套独立产品面。
+UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支仍然存在，用于降低迁移风险，但框架方向是 Effect + TanStack + SSR + Micro Verticals。
 
-## 有意引入的差异（v3 线）
+## 有意引入的差异（3.0 线）
 
-| 领域 | Modern.js v3 基线 | UltraModern.js v3 |
+| 领域 | Modern.js 3.0 基线 | UltraModern.js 3.0 |
 | --- | --- | --- |
 | 构建诊断能力 | RsDoctor 多为显式开启 | 新增 `performance.rsdoctor`，并在 Rspack 生产构建默认开启，同时产出 `.rsdoctor/ultramodern-diagnostics.json` 契约文件 |
 | 输出与静态资源回源 | 预压缩策略通常由业务自定义 | 默认开启 `output.precompress`，并按 `Accept-Encoding` 协商 `.br` / `.gz` 回源 |
 | BFF 运行时与契约 | 提供标准 BFF 运行时与客户端生成能力 | 增加 `requestId` 维度隔离、初始化 fail-fast 校验与操作/追踪关联 Header |
-| BFF 运行时选型 | Modern.js v3 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-first 契约与 MF failure-injection 覆盖 |
+| BFF 运行时选型 | Modern.js 3.0 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-first 契约与 MF failure-injection 覆盖 |
 | Telemetry 标准化 | 可观测链路通常由业务侧自行拼装 | 增加框架级 telemetry 管线，内置 OTLP/VictoriaMetrics，支持脱敏、批处理与背压 |
 | 应用级 MF SSR 协议 | 没有以 super-app 为重点的应用级稳定性契约开关 | 增加 `server.ssr.moduleFederationAppSSR` 配置/环境变量握手，并补齐集成级回归保障 |
 | MF 远程加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加 timeout/network/contract-error 的确定性可靠性矩阵与分布式 OTEL 连续性断言 |
@@ -44,14 +44,14 @@ UltraModern 的增强能力会尽量以“更强默认值”“显式兼容分�
 
 ## 我们刻意不做的事情
 
-- 不将核心架构分叉成另一套不兼容框架模型。
-- 不强制替换普通 Modern.js 团队已稳定使用的默认行为。
+- 不再把这个 fork 隐藏在旧 Modern.js 品牌后面。
+- 当通用 Modern.js 默认值与 SuperApp 可靠性冲突时，不优先优化通用默认值。
 - 运行时保持 `effect` 与 `hono` 双模式并存，但不提供隐式回退。
 - 除非稳定性硬需求，否则避免引入破坏性 API 变更。
 
 ## 迁移说明
 
-对于已经在使用 Modern.js v3 的团队，迁移路径依然是“兼容优先”：保持 Modern.js 的心智模型不变，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，同时把兼容分支明确保留下来。
+对于已经在使用 Modern.js 3.0 的团队，迁移路径是“兼容感知”：保留能降低风险的部分，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，并把 UltraModern.js 3.0 作为独立框架采用。
 
 1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。

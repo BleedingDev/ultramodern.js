@@ -1,0 +1,395 @@
+#!/usr/bin/env node
+import { execFileSync, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+
+function parseArgs(argv) {
+  const options = {
+    scope: 'bleedingdev',
+    prefix: 'modern-js-',
+    version: undefined,
+    tag: 'ultramodern-canary',
+    out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+    publish: false,
+    dryRun: false,
+    skipExisting: true,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--') {
+      continue;
+    }
+
+    const readValue = () => {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error(`${arg} requires a value`);
+      }
+      index += 1;
+      return value;
+    };
+
+    if (arg === '--scope') {
+      options.scope = readValue().replace(/^@/, '');
+    } else if (arg === '--prefix') {
+      options.prefix = readValue();
+    } else if (arg === '--version') {
+      options.version = readValue();
+    } else if (arg === '--tag') {
+      options.tag = readValue();
+    } else if (arg === '--out') {
+      options.out = path.resolve(readValue());
+    } else if (arg === '--repository-url') {
+      options.repositoryUrl = readValue();
+    } else if (arg === '--homepage') {
+      options.homepage = readValue();
+    } else if (arg === '--bugs-url') {
+      options.bugsUrl = readValue();
+    } else if (arg === '--publish') {
+      options.publish = true;
+    } else if (arg === '--dry-run') {
+      options.dryRun = true;
+    } else if (arg === '--no-skip-existing') {
+      options.skipExisting = false;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (!options.version) {
+    throw new Error(
+      'Missing --version, for example --version 3.2.0-ultramodern.0',
+    );
+  }
+
+  return options;
+}
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function writeJson(filePath, value) {
+  fs.writeFileSync(`${filePath}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
+  fs.renameSync(`${filePath}.tmp`, filePath);
+}
+
+function collectPackageJsonFiles(dir) {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const filePath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== 'dist') {
+        results.push(...collectPackageJsonFiles(filePath));
+      }
+    } else if (entry.name === 'package.json') {
+      results.push(filePath);
+    }
+  }
+  return results;
+}
+
+function targetPackageName(sourceName, options) {
+  const unscopedName = sourceName.split('/').at(-1);
+  return `@${options.scope}/${options.prefix}${unscopedName}`;
+}
+
+function aliasSpecifier(sourceName, options) {
+  return `npm:${targetPackageName(sourceName, options)}@${options.version}`;
+}
+
+function normalizeBinPath(binPath) {
+  if (typeof binPath !== 'string') {
+    return binPath;
+  }
+
+  if (binPath.startsWith('./')) {
+    return binPath.slice(2);
+  }
+
+  return binPath;
+}
+
+function normalizeBin(packageJson) {
+  if (typeof packageJson.bin === 'string') {
+    packageJson.bin = normalizeBinPath(packageJson.bin);
+    return;
+  }
+
+  if (!packageJson.bin || typeof packageJson.bin !== 'object') {
+    return;
+  }
+
+  for (const binName of Object.keys(packageJson.bin)) {
+    packageJson.bin[binName] = normalizeBinPath(packageJson.bin[binName]);
+  }
+}
+
+function rewritePackageMetadata(packageJson, options) {
+  const directory =
+    packageJson.repository &&
+    typeof packageJson.repository === 'object' &&
+    typeof packageJson.repository.directory === 'string'
+      ? packageJson.repository.directory
+      : undefined;
+
+  packageJson.homepage = options.homepage;
+  packageJson.bugs = {
+    url: options.bugsUrl,
+  };
+  packageJson.repository = {
+    type: 'git',
+    url: options.repositoryUrl,
+    ...(directory ? { directory } : {}),
+  };
+}
+
+function collectModernPackages(options) {
+  const packages = collectPackageJsonFiles(path.join(repoRoot, 'packages'))
+    .map(packageJsonPath => {
+      const packageJson = readJson(packageJsonPath);
+      return {
+        packageJsonPath,
+        dir: path.dirname(packageJsonPath),
+        packageJson,
+      };
+    })
+    .filter(({ packageJson }) => packageJson.name?.startsWith('@modern-js/'))
+    .filter(({ packageJson }) => !packageJson.private)
+    .sort((a, b) => a.packageJson.name.localeCompare(b.packageJson.name));
+
+  const sourceNames = new Set(packages.map(item => item.packageJson.name));
+  const aliases = Object.fromEntries(
+    packages.map(item => [
+      item.packageJson.name,
+      targetPackageName(item.packageJson.name, options),
+    ]),
+  );
+
+  return {
+    packages,
+    sourceNames,
+    aliases,
+  };
+}
+
+function rewriteDependencyBlock(
+  block,
+  options,
+  sourceNames,
+  { peer = false, optional = false } = {},
+) {
+  if (!block) {
+    return;
+  }
+
+  for (const packageName of Object.keys(block)) {
+    if (!packageName.startsWith('@modern-js/')) {
+      continue;
+    }
+
+    if (!sourceNames.has(packageName) && optional) {
+      delete block[packageName];
+      continue;
+    }
+
+    if (!sourceNames.has(packageName)) {
+      if (!String(block[packageName]).startsWith('workspace:')) {
+        continue;
+      }
+
+      throw new Error(
+        `Cannot rewrite unpublished internal dependency ${packageName}`,
+      );
+    }
+
+    block[packageName] = peer
+      ? options.version
+      : aliasSpecifier(packageName, options);
+  }
+}
+
+function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
+  packageJson.name = targetPackageName(sourceName, options);
+  packageJson.version = options.version;
+  rewritePackageMetadata(packageJson, options);
+  normalizeBin(packageJson);
+  packageJson.publishConfig = {
+    ...(packageJson.publishConfig ?? {}),
+    access: 'public',
+  };
+
+  rewriteDependencyBlock(packageJson.dependencies, options, sourceNames);
+  rewriteDependencyBlock(
+    packageJson.optionalDependencies,
+    options,
+    sourceNames,
+  );
+  rewriteDependencyBlock(packageJson.devDependencies, options, sourceNames, {
+    optional: true,
+  });
+  rewriteDependencyBlock(packageJson.peerDependencies, options, sourceNames, {
+    peer: true,
+  });
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? repoRoot,
+    stdio: options.stdio ?? 'inherit',
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+    },
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status}`,
+    );
+  }
+}
+
+function packSourcePackage(packageName, packDir) {
+  const before = new Set(fs.readdirSync(packDir));
+  run(
+    'pnpm',
+    ['--filter', packageName, 'pack', '--pack-destination', packDir],
+    {
+      stdio: 'pipe',
+    },
+  );
+  const after = fs.readdirSync(packDir);
+  const created = after.filter(
+    name => !before.has(name) && name.endsWith('.tgz'),
+  );
+  if (created.length !== 1) {
+    throw new Error(
+      `Expected one pack artifact for ${packageName}, got ${created.length}`,
+    );
+  }
+  return path.join(packDir, created[0]);
+}
+
+function extractTarball(tarball, targetDir) {
+  fs.rmSync(targetDir, { recursive: true, force: true });
+  fs.mkdirSync(targetDir, { recursive: true });
+  run('tar', ['-xzf', tarball, '-C', targetDir], { stdio: 'pipe' });
+  return path.join(targetDir, 'package');
+}
+
+function packageExists(packageName, version) {
+  const result = spawnSync(
+    'npm',
+    ['view', `${packageName}@${version}`, 'version'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    },
+  );
+  return result.status === 0;
+}
+
+function publishPackage(packageDir, options) {
+  const packageJson = readJson(path.join(packageDir, 'package.json'));
+  const args = [
+    'publish',
+    packageDir,
+    '--access',
+    'public',
+    '--tag',
+    options.tag,
+  ];
+
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+
+  run('npm', args);
+  return packageJson.name;
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const { packages, sourceNames, aliases } = collectModernPackages(options);
+  const packDir = path.join(options.out, 'source-tarballs');
+  const stageDir = path.join(options.out, 'packages');
+
+  fs.rmSync(options.out, { recursive: true, force: true });
+  fs.mkdirSync(packDir, { recursive: true });
+  fs.mkdirSync(stageDir, { recursive: true });
+
+  const manifest = {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    scope: options.scope,
+    prefix: options.prefix,
+    version: options.version,
+    tag: options.tag,
+    aliases,
+    packages: [],
+  };
+
+  for (const item of packages) {
+    const sourceName = item.packageJson.name;
+    const targetName = targetPackageName(sourceName, options);
+    const tarball = packSourcePackage(sourceName, packDir);
+    const packageDir = extractTarball(
+      tarball,
+      path.join(stageDir, targetName.replaceAll('/', '__')),
+    );
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    const packageJson = readJson(packageJsonPath);
+    rewritePackageJson(packageJson, sourceName, options, sourceNames);
+    writeJson(packageJsonPath, packageJson);
+
+    manifest.packages.push({
+      sourceName,
+      targetName,
+      version: options.version,
+      packageDir: path.relative(repoRoot, packageDir),
+    });
+  }
+
+  writeJson(path.join(options.out, 'manifest.json'), manifest);
+
+  console.log(
+    `Prepared ${manifest.packages.length} package(s) under ${path.relative(
+      repoRoot,
+      options.out,
+    )}`,
+  );
+
+  if (!options.publish) {
+    console.log('Publish skipped. Re-run with --publish to publish packages.');
+    return;
+  }
+
+  for (const item of manifest.packages) {
+    const packageDir = path.join(repoRoot, item.packageDir);
+    if (
+      options.skipExisting &&
+      packageExists(item.targetName, options.version)
+    ) {
+      console.log(`Skipping existing ${item.targetName}@${options.version}`);
+      continue;
+    }
+    const publishedName = publishPackage(packageDir, options);
+    console.log(`Published ${publishedName}@${options.version}`);
+  }
+}
+
+try {
+  main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}

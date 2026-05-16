@@ -68,6 +68,8 @@
     "validate:superapp-certification:nightly": "node scripts/superapp-certification/run-superapp-certification.js --profile nightly",
     "validate:superapp-upstream-drift": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke --drift-only",
     "validate:superapp-readiness-report": "node scripts/superapp-certification/generate-readiness-report.js",
+    "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
+    "ultramodern:publish-bleedingdev": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish",
     "tsgo:dts": "node scripts/tsgo-dts.mjs",
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",

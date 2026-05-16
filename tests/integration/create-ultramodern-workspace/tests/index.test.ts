@@ -101,6 +101,13 @@ describe('create-ultramodern-workspace', () => {
       'services/*',
       'packages/*',
     ]);
+    expect(rootPackage.pnpm.onlyBuiltDependencies).toEqual([
+      '@biomejs/biome',
+      '@swc/core',
+      'core-js',
+      'esbuild',
+      'msgpackr-extract',
+    ]);
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
       strategy: 'workspace',
@@ -343,6 +350,61 @@ describe('create-ultramodern-workspace', () => {
     expect(
       servicePackage.dependencies['@ultra-install-workspace/shared-effect-api'],
     ).toBe('workspace:*');
+
+    const validationOutput = execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern-workspace.mjs'],
+      {
+        cwd: workspaceDir,
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(validationOutput).toContain(
+      'UltraModern workspace scaffold validated',
+    );
+  });
+
+  test('scaffolds npm alias package source metadata for external forks', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-alias-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, [
+      '--ultramodern-workspace',
+      '--ultramodern-package-source',
+      'install',
+      '--ultramodern-package-version',
+      '3.2.0-ultramodern.0',
+      '--ultramodern-package-scope',
+      'bleedingdev',
+      '--ultramodern-package-name-prefix',
+      'modern-js-',
+      '--lang',
+      'en',
+    ]);
+
+    const packageSource = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern-package-source.json',
+    );
+    expect(packageSource.modernPackages.aliases).toMatchObject({
+      '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+      '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
+      '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
+      '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    });
+
+    const shellPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    expect(shellPackage.dependencies['@modern-js/plugin-tanstack']).toBe(
+      'npm:@bleedingdev/modern-js-plugin-tanstack@3.2.0-ultramodern.0',
+    );
+    expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
+      'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.0',
+    );
+    expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
+      'npm:@bleedingdev/modern-js-app-tools@3.2.0-ultramodern.0',
+    );
 
     const validationOutput = execFileSync(
       process.execPath,

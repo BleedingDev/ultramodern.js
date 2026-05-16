@@ -1,23 +1,23 @@
 ---
-title: UltraModern.js V3
+title: UltraModern.js 3.0
 sidebar_position: 6
 ---
 
-# UltraModern.js V3 vs Modern.js V3
+# UltraModern.js 3.0 vs Modern.js 3.0
 
-UltraModern.js V3 documents the public `presetUltramodern(...)` Modern.js profile for large, independently deployable super-app and ERP-style systems.
+UltraModern.js 3.0 is our SuperApp framework forked from Modern.js for large, independently deployable super-app and ERP-style systems.
 
-This page is the complete public difference reference for that documented V3 profile.
+This page is the complete public difference reference for the UltraModern.js 3.0 framework line.
 
-## Scope (V3 Only)
+## Scope (3.0 Only)
 
 - Baseline: Modern.js `release-v3.x`.
-- Scope: all user-visible differences shipped in UltraModern.js V3.
-- Excluded: roadmap/mainline-only work that is not shipped to V3.
+- Scope: all user-visible differences shipped in UltraModern.js 3.0.
+- Excluded: roadmap/mainline-only work that is not shipped to UltraModern.js 3.0.
 
-## Complete Difference Matrix (V3)
+## Complete Difference Matrix (3.0)
 
-| Area | Modern.js V3 baseline | UltraModern.js V3 difference | Status in V3 | Notes |
+| Area | Modern.js 3.0 baseline | UltraModern.js 3.0 difference | Status in 3.0 | Notes |
 | --- | --- | --- | --- | --- |
 | Build diagnostics default | RsDoctor usage is opt-in in most projects | Rspack production build enables RsDoctor by default | Implemented | Can be disabled via `performance.rsdoctor` |
 | Build diagnostics config surface | No `performance.rsdoctor` option in framework docs | Adds `performance.rsdoctor` (`boolean` or `{ enabled, disableClientServer, reportDir, mode }`) | Implemented | `disableClientServer` defaults to `true` |
@@ -39,18 +39,18 @@ This page is the complete public difference reference for that documented V3 pro
 | App-level MF SSR contract flag | No dedicated app-level MF SSR stability contract switch | Adds `server.ssr.moduleFederationAppSSR` contract and auto-enables env wiring when MF SSR markers are detected | Implemented | Sets `process.env.MODERN_MF_APP_SSR` |
 | App-level MF SSR runtime bridge | Not a stable default bridge path | V3 applies stable bridge defaults for MF SSR node output/runtime env when server rendering + MF markers are present | Implemented | Keeps explicit opt-out path via config/env |
 | MF remote loader reliability contracts | Remote loading fallback patterns are typically app-defined | Adds deterministic timeout/network/contract-error fallback matrix and distributed OTEL continuity assertions | Implemented | `routes-tanstack-mf` reliability suite |
-| BFF runtime choices | Hono runtime path only in Modern.js V3 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-only MF data contracts plus failure-injection coverage for federated data fetch | Implemented (Effect-default + strict split) | Stream is explicit about no Zod introduction |
+| BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-only MF data contracts plus failure-injection coverage for federated data fetch | Implemented (Effect-default + strict split) | Stream is explicit about no Zod introduction |
 | Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable module contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
 | Release/module certification gate automation | No super-app release evidence profile in baseline | Adds RC + module-certification gate profiles, evidence metadata validation, and dedicated CI workflows | Implemented | `.github/workflows/release-contract-gates.yml` + module/bun gate workflows |
 | Contract test coverage | No tests for these new contracts in V3 baseline | Adds focused tests for RsDoctor defaults, BFF requestId, telemetry, SSR MF contract env wiring | Implemented | Reduces regression risk in super-app scenarios |
 | Public docs surface | No UltraModern V3 comparison page | Adds dedicated V3 difference page and linked config docs | Implemented | This page is the reference page for the public preset profile |
 
-## Detailed V3 Differences
+## Detailed 3.0 Differences
 
 ### 1) `performance.rsdoctor` and default-on diagnostics
 
-UltraModern.js V3 extends performance config with:
+UltraModern.js 3.0 extends performance config with:
 
 - `performance.rsdoctor: boolean | { enabled?: boolean; disableClientServer?: boolean; reportDir?: string; mode?: 'normal' | 'brief' | 'lite' }`
 - Rspack + production: enabled by default.
@@ -75,7 +75,7 @@ export default defineConfig({
 
 ### 2) Cross-project BFF hardening with `requestId`
 
-UltraModern.js V3 adds explicit producer identity across the BFF toolchain:
+UltraModern.js 3.0 adds explicit producer identity across the BFF toolchain:
 
 - `bff.requestId` in plugin config.
 - Loader/client generation passes `requestId` to `createRequest(...)`.
@@ -92,7 +92,7 @@ configure({
 });
 ```
 
-Contract behavior in V3:
+Contract behavior in 3.0:
 
 - Non-default producer calls without prior `configure({ requestId })` throw `ProducerClientNotInitializedError`.
 - `allowedHeaders` / `request` / `setDomain` are isolated by `requestId`.
@@ -104,7 +104,7 @@ Contract behavior in V3:
 
 ### 3) `server.telemetry` standardization and exporters
 
-UltraModern.js V3 adds a unified telemetry contract:
+UltraModern.js 3.0 adds a unified telemetry contract:
 
 - Config surface in `server.telemetry`.
 - Internal registry with sampling, batching, redaction, backpressure handling.
@@ -147,7 +147,7 @@ Important V3 behavior:
 
 ### 4) Trace tags in SSR metrics
 
-When an incoming request contains W3C `traceparent`, UltraModern.js V3 parses and injects:
+When an incoming request contains W3C `traceparent`, UltraModern.js 3.0 parses and injects:
 
 - `trace_id`
 - `span_id`
@@ -156,7 +156,7 @@ into SSR metric tags, improving correlation between app metrics and distributed 
 
 ### 5) App-level MF SSR stable contract (`server.ssr.moduleFederationAppSSR`)
 
-UltraModern.js V3 adds:
+UltraModern.js 3.0 adds:
 
 - Preferred flag: `server.ssr.moduleFederationAppSSR` (also works under `server.ssrByEntries`).
 - Global compile-time env:
@@ -176,7 +176,7 @@ When MF SSR markers are detected in server-rendered entries, V3 now enables the 
 
 ### 6) Contract-level test hardening in V3
 
-UltraModern.js V3 adds dedicated coverage for:
+UltraModern.js 3.0 adds dedicated coverage for:
 
 - RsDoctor default behavior and opt-out semantics.
 - BFF `requestId` generation/runtime isolation and fail-fast checks.
@@ -185,7 +185,7 @@ UltraModern.js V3 adds dedicated coverage for:
 
 ### 7) Module SDK contract + boundary anti-pattern guards
 
-UltraModern.js V3 adds platform-boundary enforcement artifacts for module onboarding:
+UltraModern.js 3.0 adds platform-boundary enforcement artifacts for module onboarding:
 
 - Contract artifact: `docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
 - Example manifest: `docs/super-app-rfc-adr/contracts/module-manifest.example.json`
@@ -200,7 +200,7 @@ UltraModern.js V3 adds platform-boundary enforcement artifacts for module onboar
 
 ### 8) Default precompression + precompressed static serving
 
-UltraModern.js V3 changes default output and serving behavior for production web assets:
+UltraModern.js 3.0 changes default output and serving behavior for production web assets:
 
 - `output.precompress` defaults to `true` in app-tools config.
 - Build emits gzip (`.gz`) and brotli (`.br`) variants for static assets.
@@ -224,7 +224,7 @@ export default defineConfig({
 
 ### 9) First-class TanStack Router + Tailwind scaffolding
 
-UltraModern.js V3 adds a first-class TanStack path in runtime and project scaffolding:
+UltraModern.js 3.0 adds a first-class TanStack path in runtime and project scaffolding:
 
 - Runtime/CLI support for TanStack route tree generation and SSR/stream integration.
 - Create templates include TanStack-ready scaffolds and Tailwind starter wiring.
@@ -235,7 +235,7 @@ UltraModern.js V3 adds a first-class TanStack path in runtime and project scaffo
 
 ### 10) Effect-first MF data reliability and data-platform contracts
 
-UltraModern.js V3 shipped additional reliability work aligned to Beads stream D:
+UltraModern.js 3.0 shipped additional reliability work aligned to Beads stream D:
 
 - `@modern-js/plugin-bff` runtime path migrated to Effect v4.
 - Effect-only MF data-fetch contract guidance (explicitly no Zod layer in this stream).
@@ -251,7 +251,7 @@ Reference materials:
 
 ### 11) Release and module certification gate model
 
-This public UltraModern preset profile includes a machine-verifiable gate model beyond baseline Modern.js V3:
+UltraModern.js 3.0 includes a machine-verifiable gate model beyond baseline Modern.js 3.0:
 
 - Gate profiles:
   - `scripts/release-gates/rc-contract-profile.json`
@@ -273,7 +273,7 @@ This public UltraModern preset profile includes a machine-verifiable gate model 
   - `.github/workflows/ultramodern-gates.yml`
   - runs `pnpm run ultramodern:check` and `pnpm run build`
 
-## Not Part of UltraModern.js V3
+## Not Part of UltraModern.js 3.0
 
 The following are intentionally out of scope for this public V3 preset profile:
 

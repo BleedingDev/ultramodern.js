@@ -3,7 +3,7 @@ name: Docs Pages
 on:
   push:
     branches:
-      - main
+      - main-ultramodern
   workflow_dispatch:
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
           cache: pnpm
 
       - name: Install Dependencies
-        run: pnpm install --ignore-scripts --frozen-lockfile
+        run: pnpm install --ignore-scripts --no-frozen-lockfile
 
       - name: Resolve docs base
         run: |

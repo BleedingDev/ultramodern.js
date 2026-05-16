@@ -3,13 +3,13 @@ import type { EN_US } from './enUS';
 export const ZH_CN: Record<keyof typeof EN_US, string> = {
   // Announcement
   announcementLabel: 'NEW',
-  announcementText: 'Modern.js 3.0 正式发布！',
+  announcementText: 'UltraModern.js 3.0 已面向 SuperApp 就绪',
 
-  introduction: '介绍',
-  quickStart: '快速上手',
+  introduction: 'UltraModern 指南',
+  quickStart: '开始构建',
 
   // Slogans
-  slogan: '基于 React 的渐进式 Web 开发框架',
+  slogan: '面向 Effect、TanStack、SSR、BFF 与 Micro Verticals 的 SuperApp 框架',
   secondSlogan1: '享受愉悦的开发体验，',
   secondSlogan2: '让创新更快发生。',
 

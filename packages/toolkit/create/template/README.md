@@ -1,4 +1,4 @@
-# Modern.js `presetUltramodern` Starter
+# UltraModern.js 3.0 Starter
 
 ## Setup
 
@@ -64,8 +64,9 @@ Module Federation remote with the same topology, trust, SSR compatibility, and
 fallback rules as the vertical remotes. Do not add a second preset or a
 design-system-specific framework mode.
 
-The public opinionated entrypoint is `presetUltramodern(...)`. The older
-`withAppBaseline(...)` helper remains only as a compatibility alias.
+The public opinionated entrypoint is `presetUltramodern(...)`. It is the default
+UltraModern.js SuperApp surface for Effect, TanStack, SSR, BFF, and Micro
+Verticals.
 
 Preview the production build locally:
 
@@ -74,5 +75,5 @@ pnpm serve
 ```
 
 For more information, see the
-[UltraModern.js guide](https://modernjs.dev/en/guides/get-started/ultramodern.html)
-and the [Modern.js documentation](https://modernjs.dev/en).
+[UltraModern.js guide](https://bleedingdev.github.io/ultramodern.js/en/guides/get-started/ultramodern.html)
+and the [UltraModern.js documentation](https://bleedingdev.github.io/ultramodern.js/en/).

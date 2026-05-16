@@ -41,6 +41,10 @@ export const EN_LOCALE = {
       '      --ultramodern-workspace Generate the canonical UltraModern SuperApp workspace',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source Select UltraModern package source (workspace or install)',
+    optionUltramodernPackageScope:
+      '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
+    optionUltramodernPackageNamePrefix:
+      '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -54,7 +58,7 @@ export const EN_LOCALE = {
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10:
-      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install',
+      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

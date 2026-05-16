@@ -749,6 +749,12 @@ function showHelp() {
   if (localeKeys.help.optionUltramodernPackageSource) {
     console.log(i18n.t(localeKeys.help.optionUltramodernPackageSource));
   }
+  if (localeKeys.help.optionUltramodernPackageScope) {
+    console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
+  }
+  if (localeKeys.help.optionUltramodernPackageNamePrefix) {
+    console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
+  }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -836,6 +842,10 @@ function detectUltramodernPackageSource(args: string[], modernVersion: string) {
     modernPackageVersion:
       getOptionValue(args, ['--ultramodern-package-version']) ?? modernVersion,
     registry: getOptionValue(args, ['--ultramodern-package-registry']),
+    aliasScope: getOptionValue(args, ['--ultramodern-package-scope']),
+    aliasPackageNamePrefix:
+      getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
+      'modern-js-',
   };
 }
 
@@ -865,6 +875,8 @@ async function getProjectName(): Promise<{
     '--ultramodern-package-source',
     '--ultramodern-package-version',
     '--ultramodern-package-registry',
+    '--ultramodern-package-scope',
+    '--ultramodern-package-name-prefix',
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -900,7 +912,9 @@ async function getProjectName(): Promise<{
       arg.startsWith('--bff-runtime=') ||
       arg.startsWith('--ultramodern-package-source=') ||
       arg.startsWith('--ultramodern-package-version=') ||
-      arg.startsWith('--ultramodern-package-registry=')
+      arg.startsWith('--ultramodern-package-registry=') ||
+      arg.startsWith('--ultramodern-package-scope=') ||
+      arg.startsWith('--ultramodern-package-name-prefix=')
     ) {
       continue;
     }

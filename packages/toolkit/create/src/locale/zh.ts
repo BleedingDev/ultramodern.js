@@ -39,6 +39,10 @@ export const ZH_LOCALE = {
       '      --ultramodern-workspace 生成标准 UltraModern SuperApp 工作区',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install）',
+    optionUltramodernPackageScope:
+      '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
+    optionUltramodernPackageNamePrefix:
+      '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -52,7 +56,7 @@ export const ZH_LOCALE = {
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10:
-      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install',
+      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

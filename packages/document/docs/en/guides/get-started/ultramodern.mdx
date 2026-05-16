@@ -1,39 +1,39 @@
 ---
-title: UltraModern.js
+title: UltraModern.js 3.0
 sidebar_position: 2
 ---
 
-# UltraModern.js v3 vs Modern.js v3
+# UltraModern.js 3.0 vs Modern.js 3.0
 
-This page compares **UltraModern.js v3** with **Modern.js v3** (baseline: `v3.0.2`).
+This page compares **UltraModern.js 3.0** with **Modern.js 3.0** (baseline: `v3.0.2`).
 
-UltraModern.js serves here as the reference name for the public `presetUltramodern(...)` Modern.js profile. The goal is to harden the baseline for super-app and ERP-scale systems without forking Modern.js into a separate framework.
+UltraModern.js 3.0 is our SuperApp framework forked from Modern.js. It keeps compatibility with the Modern.js plugin/runtime mental model where that helps adoption, but it is positioned as a separate framework for Effect-first BFFs, TanStack Router, SSR, Module Federation, and independently deployable Micro Verticals.
 
 ## Design Principles
 
-- Keep deltas small and explicit.
-- Preserve the upstream Modern.js mental model and mergeability.
+- Keep deltas explicit and auditable.
+- Preserve compatibility with useful Modern.js concepts without presenting UltraModern.js as a preset-only variant.
 - Add platform-level contracts only where they improve cross-team reliability.
 - Keep opt-out switches and explicit compatibility lanes available.
 
 ## Compatibility Contract
 
-UltraModern.js v3 keeps:
+UltraModern.js 3.0 keeps:
 
 - Modern.js app/config/plugin mental model.
 - Existing project structure and command flow.
 - Progressive adoption path (apps can stay mostly unchanged).
 
-UltraModern additions are designed to land as stronger defaults, explicit compatibility lanes, or auditable gates rather than as a separate product surface.
+UltraModern.js additions are designed as the default product surface for new SuperApps. Compatibility lanes remain available when they reduce migration risk, but the framework direction is Effect + TanStack + SSR + Micro Verticals.
 
 ## Intentional Differences (v3 line)
 
-| Area | Modern.js v3 baseline | UltraModern.js v3 |
+| Area | Modern.js 3.0 baseline | UltraModern.js 3.0 |
 | --- | --- | --- |
 | Build diagnostics | RsDoctor is generally opt-in | Adds `performance.rsdoctor`, default-on diagnostics in production Rspack builds, and `.rsdoctor/ultramodern-diagnostics.json` contract artifact |
 | Output and static serving | Precompression behavior is app-defined | Enables `output.precompress` by default and serves `.br` / `.gz` variants via `Accept-Encoding` negotiation |
 | BFF runtime and contracts | Standard BFF runtime/client generation | Adds `requestId`-aware producer isolation, fail-fast initialization checks, and operation/trace correlation headers |
-| BFF runtime choices | Hono runtime path only in Modern.js v3 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |
+| BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |
 | Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP/VictoriaMetrics exporters, redaction, batching, and backpressure controls |
 | App-level MF SSR handshake | No dedicated super-app app-level stability contract focus | Adds `server.ssr.moduleFederationAppSSR` plus integration-tested env/config handshake |
 | MF remote reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
@@ -44,14 +44,14 @@ UltraModern additions are designed to land as stronger defaults, explicit compat
 
 ## What We Intentionally Do Not Change
 
-- We do not fork core architecture into a separate framework model.
-- We do not replace normal Modern.js defaults for teams that do not need super-app contracts.
+- We do not hide the fork behind legacy Modern.js branding.
+- We do not optimize for generic Modern.js defaults when they conflict with SuperApp reliability.
 - We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
 - We avoid incompatible API changes unless there is a hard reliability requirement.
 
 ## Adoption Notes
 
-For teams already on Modern.js v3, the path remains compatibility-first: keep the Modern.js mental model, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt the stronger profile.
+For teams already on Modern.js 3.0, the adoption path remains compatibility-aware: keep the pieces that reduce risk, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt UltraModern.js 3.0 as a separate framework.
 
 1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
 2. Prefer `bff.runtimeFramework: 'effect'` for new BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.

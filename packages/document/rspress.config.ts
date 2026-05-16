@@ -5,11 +5,11 @@ import path from 'path';
 import { pluginOpenGraph } from 'rsbuild-plugin-open-graph';
 
 const docPath = path.join(__dirname, 'docs');
-const siteTitle = 'Modern.js';
+const siteTitle = 'UltraModern.js 3.0';
 const siteDescription =
-  'The Modern.js framework is a progressive web framework based on React. At ByteDance, we use Modern.js to build upper-level frameworks that have supported the development of thousands of web applications.';
+  'UltraModern.js 3.0 is a SuperApp framework forked from Modern.js for Effect, TanStack Router, SSR, BFF, and independently deployable Micro Verticals.';
 const socialDescription =
-  'A Progressive React Framework for modern web development.';
+  'A SuperApp framework for Effect, TanStack Router, SSR, BFF, and Micro Verticals.';
 const socialImage =
   'https://lf3-static.bytednsdoc.com/obj/eden-cn/nuvjhpqnuvr/modern-website/banner.jpeg';
 
@@ -76,7 +76,7 @@ export default defineConfig({
     ],
     editLink: {
       docRepoBaseUrl:
-        'https://github.com/web-infra-dev/modern.js/tree/main/packages/document/docs',
+        'https://github.com/BleedingDev/ultramodern.js/tree/main-ultramodern/packages/document/docs',
       text: 'Edit this page on GitHub',
     },
     socialLinks: [
@@ -88,7 +88,7 @@ export default defineConfig({
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/web-infra-dev/modern.js',
+        content: 'https://github.com/BleedingDev/ultramodern.js',
       },
     ],
   },
@@ -98,8 +98,7 @@ export default defineConfig({
   },
   replaceRules: [
     {
-      // The major version is different inside the ByteDance,
-      // so we use a flag to define it.
+      // Preserve the upstream replacement contract for inherited docs.
       search: /MAJOR_VERSION/g,
       replace: '2',
     },
@@ -136,15 +135,15 @@ export default defineConfig({
       pluginSass(),
       pluginOpenGraph({
         // Note, title is page-specific
-        title: 'Modern.js Home Page',
+        title: 'UltraModern.js 3.0 Home Page',
         // While site name is site wide
         siteName: siteTitle,
         type: 'website',
-        url: 'https://modernjs.dev/',
+        url: 'https://bleedingdev.github.io/ultramodern.js/',
         image: socialImage,
         description: socialDescription,
         twitter: {
-          site: '@_Modern_JS',
+          site: '@BleedingDev',
           card: 'summary_large_image',
         },
       }),
