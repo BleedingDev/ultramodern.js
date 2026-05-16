@@ -95,6 +95,8 @@ describe('create-ultramodern-workspace', () => {
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
+    expect(rootPackage.packageManager).toBe('pnpm@11.1.2');
+    expect(rootPackage.engines.pnpm).toBe('>=11.0.0');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
       'apps/remotes/*',
@@ -255,6 +257,10 @@ describe('create-ultramodern-workspace', () => {
       'modernjs-ultramodern-superapp-workspace',
     );
     expect(manifest.template.compatibilityLane).toBe('ultramodern-mv');
+    expect(manifest.validation.expectedCommands).toContain('pnpm install');
+    expect(manifest.validation.expectedCommands).not.toContain(
+      'pnpm install --ignore-scripts',
+    );
     expect(manifest.validation.expectedCommands).toContain(
       'pnpm run ultramodern:check',
     );

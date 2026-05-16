@@ -458,6 +458,7 @@ function createRootPackageJson(
     private: true,
     name: scope,
     version: '0.1.0',
+    packageManager: 'pnpm@11.1.2',
     scripts: {
       dev: `pnpm --parallel --filter ${packageName(
         scope,
@@ -491,7 +492,7 @@ function createRootPackageJson(
     },
     engines: {
       node: '>=20',
-      pnpm: '>=10.0.0',
+      pnpm: '>=11.0.0',
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
     modernjs: {
@@ -1263,10 +1264,7 @@ function createTemplateManifest(
         'ultramodern-workspace-contract-check',
         'template-manifest-retained',
       ],
-      expectedCommands: [
-        'pnpm install --ignore-scripts',
-        'pnpm run ultramodern:check',
-      ],
+      expectedCommands: ['pnpm install', 'pnpm run ultramodern:check'],
     },
   };
 }

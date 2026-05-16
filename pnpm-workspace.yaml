@@ -1,21 +1,102 @@
 packages:
- - 'packages/*'
- - 'packages/cli/*'
- - 'packages/document/*'
- - 'packages/runtime/*'
- - 'packages/generator/*'
- - 'packages/generator/generators/*'
- - 'packages/generator/plugins/*'
- - 'packages/review/*'
- - 'packages/server/*'
- - 'packages/builder/*'
- - 'packages/module/*'
- - 'packages/solutions/*'
- - 'packages/toolkit/*'
- - 'packages/toolkit/compiler/*'
- - 'scripts/*'
- - 'tests'
- - 'tests/integration/**/*'
- - 'tests/e2e/**/*'
- - 'website/*'
- - 'benchmark/*'
+  - 'packages/*'
+  - 'packages/cli/*'
+  - 'packages/document/*'
+  - 'packages/runtime/*'
+  - 'packages/generator/*'
+  - 'packages/generator/generators/*'
+  - 'packages/generator/plugins/*'
+  - 'packages/review/*'
+  - 'packages/server/*'
+  - 'packages/builder/*'
+  - 'packages/module/*'
+  - 'packages/solutions/*'
+  - 'packages/toolkit/*'
+  - 'packages/toolkit/compiler/*'
+  - 'scripts/*'
+  - 'tests'
+  - 'tests/integration/**/*'
+  - 'tests/e2e/**/*'
+  - 'website/*'
+  - 'benchmark/*'
+
+autoInstallPeers: false
+linkWorkspacePackages: false
+strictPeerDependencies: false
+
+allowBuilds:
+  '@biomejs/biome': true
+  '@parcel/watcher': true
+  '@swc/core': true
+  bufferutil: true
+  core-js: true
+  es5-ext: true
+  esbuild: true
+  msgpackr-extract: true
+  nx: true
+  puppeteer: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
+
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@parcel/watcher'
+  - '@swc/core'
+  - bufferutil
+  - core-js
+  - es5-ext
+  - esbuild
+  - msgpackr-extract
+  - nx
+  - puppeteer
+  - sharp
+  - unrs-resolver
+  - utf-8-validate
+
+patchedDependencies:
+  '@module-federation/manifest@2.4.0': patches/@module-federation__manifest@2.4.0.patch
+  '@module-federation/rspack@2.4.0': patches/@module-federation__rspack@2.4.0.patch
+
+overrides:
+  typescript: npm:@typescript/native-preview@7.0.0-dev.20260516.1
+  micromatch: ^4.0.8
+  'read-yaml-file>js-yaml': 3.14.2
+  '@remix-run/router': '>=1.23.2'
+  h3: '>=1.15.11'
+  tar: '>=7.5.15'
+  diff: '>=4.0.4'
+  debug: '>=4.4.3'
+  cross-spawn: '>=6.0.6'
+  lodash-es: '>=4.18.1'
+  esbuild: '>=0.25.0'
+  tmp: '>=0.2.5'
+  '@isaacs/brace-expansion': '>=5.0.1'
+
+peerDependencyRules:
+  ignoreMissing:
+    - ioredis
+    - webpack
+  allowedVersions:
+    '@module-federation/dts-plugin>typescript': '7'
+    '@module-federation/enhanced>typescript': '7'
+    '@module-federation/modern-js-v3>typescript': '7'
+    '@module-federation/rspack>typescript': '7'
+    '@module-federation/sdk>node-fetch': 3.3.0
+    'react-side-effect@2.1.2>react': '19'
+
+allowedDeprecatedVersions:
+  '@babel/plugin-proposal-object-rest-spread': 7.12.1 || 7.20.7
+  '@babel/plugin-proposal-private-property-in-object': 7.21.0
+  '@financial-times/polyfill-useragent-normaliser': 1.10.2
+  formidable: 1.2.6
+  sourcemap-codec: 1.4.8
+  js-polyfills: 0.1.43
+  picturefill: 3.0.3
+  querystring: 0.2.0
+  string-similarity: 4.0.4
+  source-map-resolve: 0.6.0 || 0.5.3
+  '@formatjs/intl-utils': 3.8.4
+  debug: 4.1.1
+  uuid: 3.4.0
+  trim: 0.0.1

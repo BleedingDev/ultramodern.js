@@ -410,7 +410,7 @@ const runCommand = ({ command, logFilePath, args, quiet }) =>
       [
         'exec',
         '--yes',
-        'pnpm@10',
+        'pnpm@11',
         '--',
         '--dir',
         command.packageDir,
