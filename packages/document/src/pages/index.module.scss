@@ -170,8 +170,10 @@
 
 .leftButton,
 .rightButton {
-  width: 142px;
+  min-width: 184px;
+  padding: 0 24px;
   font-weight: bold;
+  white-space: nowrap;
 
   &:hover {
     opacity: 0.7;
