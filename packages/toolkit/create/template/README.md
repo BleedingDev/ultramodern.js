@@ -75,5 +75,5 @@ pnpm serve
 ```
 
 For more information, see the
-[UltraModern.js guide](https://bleedingdev.github.io/ultramodern.js/en/guides/get-started/ultramodern.html)
-and the [UltraModern.js documentation](https://bleedingdev.github.io/ultramodern.js/en/).
+[UltraModern.js guide](https://bleedingdev.github.io/ultramodern.js/guides/get-started/ultramodern.html)
+and the [UltraModern.js documentation](https://bleedingdev.github.io/ultramodern.js/).
