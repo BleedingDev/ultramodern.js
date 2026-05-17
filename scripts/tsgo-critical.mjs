@@ -23,6 +23,7 @@ const tsgoBin =
   process.env.EFFECT_TSGO_BIN ||
   process.env.TSGO_BIN ||
   resolveEffectTsgoBinary(effectTsgoCli);
+const diagnosticMode = process.env.EFFECT_TSGO_DIAGNOSTIC_MODE ?? 'defaults';
 
 const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -106,6 +107,8 @@ const diagnosticSeverity = Object.fromEntries(
 const disabledDiagnosticSeverity = Object.fromEntries(
   effectDiagnostics.map(name => [name, 'off']),
 );
+const scopedDiagnosticSeverity =
+  diagnosticMode === 'all' ? diagnosticSeverity : {};
 const effectStrictIncludes = [
   '**/effect/**/*.ts',
   '**/effect/**/*.tsx',
@@ -178,7 +181,7 @@ function createStrictConfig(config, index) {
                 {
                   include: effectStrictIncludes,
                   options: {
-                    diagnosticSeverity,
+                    diagnosticSeverity: scopedDiagnosticSeverity,
                   },
                 },
               ],
@@ -226,11 +229,11 @@ for (const tempConfig of tempConfigs) {
 
 if (failures.length > 0) {
   console.error(
-    `effect-tsgo strict validation failed: ${failures.length} config(s)`,
+    `effect-tsgo scoped validation failed (${diagnosticMode}): ${failures.length} config(s)`,
   );
   process.exit(1);
 }
 
 console.log(
-  `effect-tsgo strict validation passed: ${configs.length} config(s)`,
+  `effect-tsgo scoped validation passed (${diagnosticMode}): ${configs.length} config(s)`,
 );

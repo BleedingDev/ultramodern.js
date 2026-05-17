@@ -1,3 +1,4 @@
+import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
@@ -82,6 +83,12 @@ export type EffectRpcSerialization =
   | 'jsonRpc'
   | 'ndJsonRpc'
   | 'msgPack';
+
+export class EffectRpcClientError extends Data.TaggedError(
+  'EffectRpcClientError',
+)<{
+  readonly cause: unknown;
+}> {}
 
 type EffectRpcMiddlewareLayerOption<Rpcs extends Rpc.Any> = [
   Rpc.MiddlewareClient<Rpcs>,
@@ -247,8 +254,7 @@ export function makeEffectRpcClient<
         throw error;
       }
     },
-    catch: (error: unknown) =>
-      error instanceof Error ? error : new Error(String(error)),
+    catch: (error: unknown) => new EffectRpcClientError({ cause: error }),
   });
 }
 
