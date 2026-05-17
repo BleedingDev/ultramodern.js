@@ -16,6 +16,16 @@ const TYPESCRIPT_VERSION = '6.0.3';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
+const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
+const baselineAgentSkills = [
+  'rsbuild-best-practices',
+  'rspack-best-practices',
+  'rspack-tracing',
+  'rsdoctor-analysis',
+  'rslib-best-practices',
+  'rslib-modern-package',
+  'rstest-best-practices',
+];
 const modernPackageNames = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
@@ -1217,7 +1227,9 @@ function createTemplateManifest(
     materialization: {
       targetRoot: 'generated-project-root',
       allowedPaths: [
+        '.agents/**',
         '.modernjs/**',
+        'AGENTS.md',
         'README.md',
         'apps/**',
         'packages/**',
@@ -1245,6 +1257,17 @@ function createTemplateManifest(
       config: '.modernjs/ultramodern-package-source.json',
       modernPackageSpecifier: modernPackageVersion(packageSource),
       generatedWorkspacePackageSpecifier: WORKSPACE_PACKAGE_VERSION,
+    },
+    agentSkills: {
+      installDir: '.agents/skills',
+      source: {
+        repository: 'https://github.com/rstackjs/agent-skills',
+        commit: RSTACK_AGENT_SKILLS_COMMIT,
+        license: 'MIT',
+        licensePath: '.agents/rstackjs-agent-skills-LICENSE',
+      },
+      baseline: baselineAgentSkills,
+      lockFile: '.agents/skills-lock.json',
     },
     validation: {
       schemaValidation: true,

@@ -4,11 +4,22 @@ import path from 'node:path';
 const root = process.cwd();
 const packageScope = '{{packageScope}}';
 const tanstackVersion = '1.170.1';
+const rstackAgentSkillsCommit =
+  '61c948b42512e223bad44b83af4080eba48b2677';
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
+];
+const baselineAgentSkills = [
+  'rsbuild-best-practices',
+  'rspack-best-practices',
+  'rspack-tracing',
+  'rsdoctor-analysis',
+  'rslib-best-practices',
+  'rslib-modern-package',
+  'rstest-best-practices',
 ];
 
 function readText(relativePath) {
@@ -30,9 +41,22 @@ function assertExists(relativePath) {
 }
 
 const requiredPaths = [
+  'AGENTS.md',
   'package.json',
   'pnpm-workspace.yaml',
   'tsconfig.base.json',
+  '.agents/skills-lock.json',
+  '.agents/rstackjs-agent-skills-LICENSE',
+  '.agents/skills/rsbuild-best-practices/SKILL.md',
+  '.agents/skills/rspack-best-practices/SKILL.md',
+  '.agents/skills/rspack-tracing/SKILL.md',
+  '.agents/skills/rspack-tracing/references/tracing-guide.md',
+  '.agents/skills/rspack-tracing/scripts/analyze_trace.js',
+  '.agents/skills/rsdoctor-analysis/SKILL.md',
+  '.agents/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
+  '.agents/skills/rslib-best-practices/SKILL.md',
+  '.agents/skills/rslib-modern-package/SKILL.md',
+  '.agents/skills/rstest-best-practices/SKILL.md',
   'topology/reference-topology.json',
   'topology/ownership.json',
   'topology/local-overlays/development.json',
@@ -65,6 +89,7 @@ for (const requiredPath of requiredPaths) {
 
 const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
+const skillsLock = readJson('.agents/skills-lock.json');
 const expectedModernSpecifier =
   packageSource.strategy === 'install'
     ? packageSource.modernPackages?.specifier
@@ -83,6 +108,8 @@ function expectedModernDependency(packageName) {
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
+assert(rootPackage.packageManager === 'pnpm@11.1.2', 'Root must pin pnpm 11.1.2');
+assert(rootPackage.engines?.pnpm === '>=11.0.0', 'Root must require pnpm >=11');
 assert(
   rootPackage.modernjs?.packageSource?.config ===
     './.modernjs/ultramodern-package-source.json',
@@ -116,6 +143,36 @@ assert(
     'node ./scripts/validate-ultramodern-workspace.mjs',
   'Root must expose the ultramodern:check script',
 );
+
+const agentsInstructions = readText('AGENTS.md');
+assert(
+  agentsInstructions.includes('UltraModern Agent Contract') &&
+    agentsInstructions.includes('Required Skill Baseline'),
+  'Root AGENTS.md must document the UltraModern agent contract',
+);
+assert(
+  skillsLock.source?.repository === 'https://github.com/rstackjs/agent-skills',
+  'Agent skills lock must retain the Rstack skill source repository',
+);
+assert(
+  skillsLock.source?.commit === rstackAgentSkillsCommit,
+  'Agent skills lock must pin the expected Rstack skill commit',
+);
+assert(
+  skillsLock.installDir === '.agents/skills',
+  'Agent skills lock must use .agents/skills as installDir',
+);
+for (const skillName of baselineAgentSkills) {
+  assert(
+    skillsLock.baseline?.some(skill => skill.name === skillName),
+    `Agent skills lock must include ${skillName}`,
+  );
+  const skillContent = readText(`.agents/skills/${skillName}/SKILL.md`);
+  assert(
+    skillContent.includes(`name: ${skillName}`),
+    `${skillName} must contain matching skill metadata`,
+  );
+}
 
 const appPackagePaths = [
   'apps/shell-super-app/package.json',
@@ -267,6 +324,16 @@ assert(
 assert(
   manifest.packageSource?.strategy === packageSource.strategy,
   'Template manifest must retain the generated package source strategy',
+);
+assert(
+  manifest.agentSkills?.source?.commit === rstackAgentSkillsCommit,
+  'Template manifest must retain the Rstack agent skills commit',
+);
+assert(
+  baselineAgentSkills.every(skillName =>
+    manifest.agentSkills?.baseline?.includes(skillName),
+  ),
+  'Template manifest must list every baseline agent skill',
 );
 assert(
   manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),

@@ -54,9 +54,22 @@ describe('create-ultramodern-workspace', () => {
     runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
 
     for (const relativePath of [
+      'AGENTS.md',
       'package.json',
       'pnpm-workspace.yaml',
       'README.md',
+      '.agents/skills-lock.json',
+      '.agents/rstackjs-agent-skills-LICENSE',
+      '.agents/skills/rsbuild-best-practices/SKILL.md',
+      '.agents/skills/rspack-best-practices/SKILL.md',
+      '.agents/skills/rspack-tracing/SKILL.md',
+      '.agents/skills/rspack-tracing/references/tracing-guide.md',
+      '.agents/skills/rspack-tracing/scripts/analyze_trace.js',
+      '.agents/skills/rsdoctor-analysis/SKILL.md',
+      '.agents/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
+      '.agents/skills/rslib-best-practices/SKILL.md',
+      '.agents/skills/rslib-modern-package/SKILL.md',
+      '.agents/skills/rstest-best-practices/SKILL.md',
       'scripts/validate-ultramodern-workspace.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
@@ -117,6 +130,33 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['ultramodern:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
     );
+
+    const agentsInstructions = readText(workspaceDir, 'AGENTS.md');
+    expect(agentsInstructions).toContain('UltraModern Agent Contract');
+    expect(agentsInstructions).toContain('Required Skill Baseline');
+
+    const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
+    expect(skillsLock.source.repository).toBe(
+      'https://github.com/rstackjs/agent-skills',
+    );
+    expect(skillsLock.source.commit).toBe(
+      '61c948b42512e223bad44b83af4080eba48b2677',
+    );
+    expect(skillsLock.installDir).toBe('.agents/skills');
+    expect(
+      skillsLock.baseline.map((skill: { name: string }) => skill.name),
+    ).toEqual([
+      'rsbuild-best-practices',
+      'rspack-best-practices',
+      'rspack-tracing',
+      'rsdoctor-analysis',
+      'rslib-best-practices',
+      'rslib-modern-package',
+      'rstest-best-practices',
+    ]);
+    expect(
+      readText(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md'),
+    ).toContain('name: rslib-modern-package');
 
     const appPackagePaths = [
       'apps/shell-super-app/package.json',
@@ -265,6 +305,18 @@ describe('create-ultramodern-workspace', () => {
       'pnpm run ultramodern:check',
     );
     expect(manifest.packageSource.strategy).toBe('workspace');
+    expect(manifest.agentSkills.source.commit).toBe(
+      '61c948b42512e223bad44b83af4080eba48b2677',
+    );
+    expect(manifest.agentSkills.baseline).toEqual([
+      'rsbuild-best-practices',
+      'rspack-best-practices',
+      'rspack-tracing',
+      'rsdoctor-analysis',
+      'rslib-best-practices',
+      'rslib-modern-package',
+      'rstest-best-practices',
+    ]);
 
     const packageSource = readJson(
       workspaceDir,

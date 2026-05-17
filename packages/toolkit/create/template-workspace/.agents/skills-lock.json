@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/rstackjs/agent-skills",
+    "commit": "61c948b42512e223bad44b83af4080eba48b2677",
+    "license": "MIT",
+    "licensePath": ".agents/rstackjs-agent-skills-LICENSE"
+  },
+  "installDir": ".agents/skills",
+  "baseline": [
+    {
+      "name": "rsbuild-best-practices",
+      "path": ".agents/skills/rsbuild-best-practices",
+      "reason": "Modern.js application build configuration and Rsbuild troubleshooting"
+    },
+    {
+      "name": "rspack-best-practices",
+      "path": ".agents/skills/rspack-best-practices",
+      "reason": "Rspack bundling, CSS, asset, profiling, and production behavior"
+    },
+    {
+      "name": "rspack-tracing",
+      "path": ".agents/skills/rspack-tracing",
+      "reason": "Trace-backed Rspack failure and performance debugging"
+    },
+    {
+      "name": "rsdoctor-analysis",
+      "path": ".agents/skills/rsdoctor-analysis",
+      "reason": "Evidence-backed bundle composition, duplication, and retained-module analysis"
+    },
+    {
+      "name": "rslib-best-practices",
+      "path": ".agents/skills/rslib-best-practices",
+      "reason": "Rslib shared package and design-system library authoring"
+    },
+    {
+      "name": "rslib-modern-package",
+      "path": ".agents/skills/rslib-modern-package",
+      "reason": "Modern package contracts, exports, declarations, side effects, and release readiness"
+    },
+    {
+      "name": "rstest-best-practices",
+      "path": ".agents/skills/rstest-best-practices",
+      "reason": "Rstest configuration, test writing, mocking, snapshots, coverage, and CI behavior"
+    }
+  ],
+  "excludedByDefault": [
+    "migrate-to-rsbuild",
+    "migrate-to-rslib",
+    "migrate-to-rslint",
+    "migrate-to-rstest",
+    "rsbuild-v2-upgrade",
+    "rspack-v2-upgrade",
+    "rspress-v2-upgrade"
+  ]
+}
