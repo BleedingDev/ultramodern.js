@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off unnecessaryArrowBlock:off
 const COUNTER_KEY = '__tanstackMutationCounter';
 
 function getCount() {

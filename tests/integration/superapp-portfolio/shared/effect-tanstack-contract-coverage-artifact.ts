@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import {
   SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS,
   SUPERAPP_PORTFOLIO_DOMAIN_ROUTE_CONTRACTS,

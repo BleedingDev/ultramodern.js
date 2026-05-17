@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off
 import { findExists, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';
 import { APP_FILE_NAME } from './constants';

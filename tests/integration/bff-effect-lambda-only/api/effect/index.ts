@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 const EFFECT_HELLO_PATH = '/effect/hello';
 
 export default {

@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 export default () => {
   return {
     routeKind: 'executive-command-center',

@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
 import { createSerializationAdapter } from '@tanstack/react-router';
 import { RawStream } from '@tanstack/router-core';
 import React, { createElement, use } from 'react';

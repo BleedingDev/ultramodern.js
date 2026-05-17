@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import { Api, Upload } from '@modern-js/plugin-bff/hono-server';
 import { z } from 'zod';
 

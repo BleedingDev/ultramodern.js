@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RuntimePlugin } from '../../core';
 import type { RouterExtendsHooks } from './hooks';

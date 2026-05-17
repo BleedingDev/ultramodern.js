@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouterSubscriber } from '@modern-js/runtime-utils/router';

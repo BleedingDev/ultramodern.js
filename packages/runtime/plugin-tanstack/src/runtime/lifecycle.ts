@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import type { TInternalRuntimeContext } from '@modern-js/runtime/context';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type {

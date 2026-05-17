@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { ServerUserConfig } from '@modern-js/app-tools';
 import {
   isRouteErrorResponse,

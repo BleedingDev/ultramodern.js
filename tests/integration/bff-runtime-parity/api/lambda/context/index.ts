@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import { useHonoContext } from '@modern-js/server-runtime';
 
 export default async () => {

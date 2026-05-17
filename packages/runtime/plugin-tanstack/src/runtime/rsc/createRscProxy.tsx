@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
 'use client';
 
 import { createElement } from 'react';

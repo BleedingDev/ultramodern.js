@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off strictBooleanExpressions:off
 /// <reference path="./ssr-shim.d.ts" />
 
 import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';

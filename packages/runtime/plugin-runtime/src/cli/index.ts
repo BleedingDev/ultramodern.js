@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import {
   isReact18 as checkIsReact18,

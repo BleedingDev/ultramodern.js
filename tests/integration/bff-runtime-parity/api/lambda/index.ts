@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off unnecessaryArrowBlock:off
 import {
   Api,
   Data,

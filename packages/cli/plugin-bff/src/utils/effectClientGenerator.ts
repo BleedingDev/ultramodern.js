@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off
 import {
   createOperationEntries,
   createOperationSchemaHash,

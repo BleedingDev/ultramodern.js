@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off
 export const DEFAULT_REMOTE_TIMEOUT_MS = 4000;
 export const DEFAULT_REMOTE_RETRIES = 1;
 export const DEFAULT_REMOTE_RETRY_DELAY_MS = 200;

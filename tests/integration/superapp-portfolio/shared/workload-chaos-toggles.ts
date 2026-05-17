@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import {
   getWorkloadChaosFailureCase,
   SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS,

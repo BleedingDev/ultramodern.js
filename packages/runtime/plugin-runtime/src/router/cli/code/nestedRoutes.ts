@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { NestedRouteForCli } from '@modern-js/types';
 import { fs, JS_EXTENSIONS, normalizeToPosixPath } from '@modern-js/utils';
 import * as path from 'path';

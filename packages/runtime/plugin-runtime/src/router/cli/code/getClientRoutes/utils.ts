@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off
 import { createDebugger, fs, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';
 import { FILE_SYSTEM_ROUTES_IGNORED_REGEX } from '../../constants';

@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 /**
  * The following code is modified based on
  * https://github.com/gregberge/loadable-components

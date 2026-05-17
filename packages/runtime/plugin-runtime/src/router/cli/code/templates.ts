@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { open as fsOpen } from 'node:fs/promises';
 import type {
   AppNormalizedConfig,

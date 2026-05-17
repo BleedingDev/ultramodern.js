@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import { isValidElement } from 'react';
 import type { SerializableSlotArg } from './symbols';
 

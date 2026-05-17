@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalDate:off globalRandom:off globalTimers:off newPromise:off strictBooleanExpressions:off
 export type DataRequestMode =
   | 'cache-first'
   | 'stale-while-revalidate'

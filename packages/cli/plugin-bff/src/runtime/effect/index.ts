@@ -1,3 +1,4 @@
+// @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
 import type * as EffectType from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';

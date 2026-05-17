@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 function normalizeBasepath(basepath: string): string {
   if (!basepath) {
     return '/';

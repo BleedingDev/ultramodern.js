@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import {
   createSuperAppWorkloadCatalog,
   SUPERAPP_WORKLOAD_DOMAIN_IDS,

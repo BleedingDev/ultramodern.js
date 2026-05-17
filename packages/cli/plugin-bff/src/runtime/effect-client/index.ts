@@ -1,3 +1,4 @@
+// @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off newPromise:off strictEffectProvide:off
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';

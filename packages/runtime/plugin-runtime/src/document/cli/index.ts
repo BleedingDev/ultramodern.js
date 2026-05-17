@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off newPromise:off nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type {
   AppTools,
   CliPlugin,

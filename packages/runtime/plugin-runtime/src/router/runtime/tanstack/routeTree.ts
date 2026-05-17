@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type {

@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 // Todo: This import will introduce router code, like remix, even if router config is false
 import { matchRoutes } from '@modern-js/runtime-utils/router';
 import ReactHelmet, { type HelmetData } from 'react-helmet';

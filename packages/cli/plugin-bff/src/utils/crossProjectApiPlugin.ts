@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off strictBooleanExpressions:off
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import path from 'path';
 

@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { Entrypoint } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
 import path from 'path';

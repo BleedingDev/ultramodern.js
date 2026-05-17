@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 import {
   type AppNormalizedConfig,
   type AppUserConfig,

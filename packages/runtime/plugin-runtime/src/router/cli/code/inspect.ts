@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalConsole:off nodeBuiltinImport:off strictBooleanExpressions:off
 import type {
   AppNormalizedConfig,
   AppTools,

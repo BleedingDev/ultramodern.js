@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import type { AppToolsContext } from '@modern-js/app-tools';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { findExists, formatImportPath, fs, slash } from '@modern-js/utils';

@@ -1,3 +1,4 @@
+// @effect-diagnostics globalFetch:off
 import { useEffect, useState } from 'react';
 
 export default function Page() {

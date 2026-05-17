@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off
 import { renderSSRStream } from '@modern-js/render/ssr';
 import { storage } from '@modern-js/runtime-utils/node';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';

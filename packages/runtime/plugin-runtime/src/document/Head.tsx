@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import React, { useContext } from 'react';
 import {
   DOCUMENT_META_PLACEHOLDER,

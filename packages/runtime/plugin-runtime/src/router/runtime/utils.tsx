@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import { renderNestedRoute } from '@modern-js/runtime-utils/browser';
 import type { DataRouter } from '@modern-js/runtime-utils/router';
 import {

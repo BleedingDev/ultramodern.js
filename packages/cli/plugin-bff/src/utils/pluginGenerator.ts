@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off
 import { fs, logger, normalizeToPosixPath } from '@modern-js/utils';
 import path from 'path';
 import {

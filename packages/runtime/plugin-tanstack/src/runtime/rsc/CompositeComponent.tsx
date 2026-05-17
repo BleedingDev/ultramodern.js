@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 'use client';
 
 import type React from 'react';

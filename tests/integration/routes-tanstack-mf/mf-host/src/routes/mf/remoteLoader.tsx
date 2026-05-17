@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off
 import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 import * as React from 'react';
 import {

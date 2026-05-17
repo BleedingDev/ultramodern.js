@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute, PageRoute, SSRMode } from '@modern-js/types';
 import React from 'react';

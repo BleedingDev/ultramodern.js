@@ -1,3 +1,4 @@
+// @effect-diagnostics anyUnknownInErrorContext:off strictBooleanExpressions:off
 import {
   defineEffectBff,
   Effect,

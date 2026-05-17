@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';

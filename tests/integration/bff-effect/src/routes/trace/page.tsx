@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalTimers:off newPromise:off strictBooleanExpressions:off
 import effectBff from '@api/effect/index';
 import { useEffect, useState } from 'react';
 

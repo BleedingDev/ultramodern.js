@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 /// <reference path="./ssr-shim.d.ts" />
 
 import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';

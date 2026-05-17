@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off
 export interface ReplayableStreamOptions {
   signal?: AbortSignal;
 }

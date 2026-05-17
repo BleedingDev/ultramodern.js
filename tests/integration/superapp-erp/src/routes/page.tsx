@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import effectBff from '@api/effect/index';
 import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';

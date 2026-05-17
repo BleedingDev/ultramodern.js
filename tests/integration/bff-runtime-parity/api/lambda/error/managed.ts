@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import { Api, Get } from '@modern-js/plugin-bff/hono-server';
 import { HTTPException } from 'hono/http-exception';
 

@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
 import React, { type ReactElement } from 'react';
 import { Body } from './Body';
 import { DocumentStructureContext } from './DocumentStructureContext';

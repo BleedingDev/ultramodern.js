@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 function getCountStore() {
   const key = '__MODERN_TANSTACK_MF_COUNT__';
   const globalObject = globalThis as Record<string, unknown>;

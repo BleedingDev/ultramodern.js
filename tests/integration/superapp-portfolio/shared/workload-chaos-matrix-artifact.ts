@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import {
   createSuperAppWorkloadChaosFailureTaxonomy,
   type WorkloadChaosExpectedStatus,

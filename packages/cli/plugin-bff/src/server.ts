@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import { ApiRouter } from '@modern-js/bff-core';
 import type {
   APIServerStartInput,

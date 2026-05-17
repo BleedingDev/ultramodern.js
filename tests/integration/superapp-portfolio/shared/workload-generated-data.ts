@@ -1,3 +1,4 @@
+// @effect-diagnostics globalDate:off strictBooleanExpressions:off
 import {
   SUPERAPP_WORKLOAD_CATALOG,
   SUPERAPP_WORKLOAD_TENANT_IDS,

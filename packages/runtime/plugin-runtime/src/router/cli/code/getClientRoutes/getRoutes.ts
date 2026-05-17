@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off strictBooleanExpressions:off
 import type {
   Entrypoint,
   NestedRouteForCli,

@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalDate:off
 import {
   defineServerConfig,
   type MiddlewareHandler,

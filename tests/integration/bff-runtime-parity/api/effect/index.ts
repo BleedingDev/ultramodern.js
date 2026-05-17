@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import { useEffectContext } from '@modern-js/plugin-bff/effect-server';
 
 type ErrorWithStatus = Error & {

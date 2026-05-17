@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off newPromise:off processEnv:off strictBooleanExpressions:off
 import { storage } from '@modern-js/runtime-utils/node';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type { ReactElement } from 'react';

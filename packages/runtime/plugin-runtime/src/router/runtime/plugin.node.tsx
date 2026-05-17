@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { merge } from '@modern-js/runtime-utils/merge';
 import {
   createRequestContext,

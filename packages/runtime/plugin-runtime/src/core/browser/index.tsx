@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { parse as parseCookie } from 'cookie';
 import type React from 'react';

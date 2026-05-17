@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalFetch:off strictBooleanExpressions:off
 import type { PayloadRoute, ServerPayload } from '@modern-js/runtime/context';
 import { notFound, redirect } from '@tanstack/react-router';
 

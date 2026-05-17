@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { RuntimePluginConfig } from '@modern-js/app-tools';
 import { findExists, formatImportPath, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';

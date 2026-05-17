@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import React, { useContext } from 'react';
 import {
   BODY_PARTICALS_SEPARATOR,

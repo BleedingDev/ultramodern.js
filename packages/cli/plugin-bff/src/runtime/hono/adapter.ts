@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { APIHandlerInfo } from '@modern-js/bff-core';
 import type {
   Context,

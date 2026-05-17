@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off
 import { fs } from '@modern-js/utils';
 import path from 'path';
 

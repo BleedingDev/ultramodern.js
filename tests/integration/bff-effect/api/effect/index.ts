@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import { randomBytes } from 'node:crypto';
 import {
   defineEffectBff,

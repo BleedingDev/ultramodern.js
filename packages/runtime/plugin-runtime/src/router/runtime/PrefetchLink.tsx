@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalConsole:off globalTimers:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 'use client';
 import {
   matchRoutes,

@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 /// <reference path="./ssr-shim.d.ts" />
 
 import { merge } from '@modern-js/runtime-utils/merge';

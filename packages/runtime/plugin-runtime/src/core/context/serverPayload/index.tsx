@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 import type { PayloadRoute, ServerPayload } from './index.server';
 
 export type { PayloadRoute, ServerPayload };

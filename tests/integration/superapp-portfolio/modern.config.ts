@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnv:off strictBooleanExpressions:off
 import { bffPlugin } from '@modern-js/plugin-bff';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { applyBaseConfig } from '../../utils/applyBaseConfig';

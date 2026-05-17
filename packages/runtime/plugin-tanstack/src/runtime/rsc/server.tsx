@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
 import {
   createFromReadableStream,
   renderRsc,

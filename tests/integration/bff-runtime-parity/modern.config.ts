@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnv:off
 import { bffPlugin } from '@modern-js/plugin-bff';
 import { applyBaseConfig } from './applyBaseConfig';
 

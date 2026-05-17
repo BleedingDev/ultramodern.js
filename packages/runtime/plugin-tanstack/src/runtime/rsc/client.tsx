@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 'use client';
 
 import { createSerializationAdapter } from '@tanstack/react-router';

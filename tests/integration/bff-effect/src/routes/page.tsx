@@ -1,3 +1,4 @@
+// @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off
 import effectBff from '@api/effect/index';
 import {
   makeEffectRpcClient,
