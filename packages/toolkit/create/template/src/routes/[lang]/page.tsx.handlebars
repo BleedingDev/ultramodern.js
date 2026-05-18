@@ -1,19 +1,62 @@
 import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useLocation } from '@modern-js/runtime/{{routerImportPath}}';
 {{#if useEffectBff}}import effectBff from '@api/effect/index';
 import { Effect } from '@modern-js/plugin-bff/effect-client';
 import { useEffect, useState } from 'react';
 {{/if}}
 import { useTranslation } from 'react-i18next';
-import './index.css';
+import '../index.css';
+
+const fallbackLanguage = 'en';
+const supportedLanguages = ['en', 'cs'] as const;
+type SupportedLanguage = (typeof supportedLanguages)[number];
+
+const isSupportedLanguage = (value: string): value is SupportedLanguage =>
+  supportedLanguages.includes(value as SupportedLanguage);
+
+const stripLanguagePrefix = (pathname: string) => {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 0 && isSupportedLanguage(segments[0] ?? '')) {
+    segments.shift();
+  }
+  return `/${segments.join('/')}`;
+};
+
+const localizedPath = (pathname: string, language: SupportedLanguage) => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname);
+  return pathWithoutLanguage === '/' ? `/${language}` : `/${language}${pathWithoutLanguage}`;
+};
+
+const absoluteUrl = (pathname: string) => {
+  const origin = ULTRAMODERN_SITE_URL.replace(/\/+$/u, '');
+  return `${origin}${pathname}`;
+};
+
+const locationSuffix = (location: { hash?: unknown; search?: unknown; searchStr?: unknown }) => {
+  const { hash, search, searchStr } = location;
+  let locationSearch = '';
+  if (typeof searchStr === 'string') {
+    locationSearch = searchStr;
+  } else if (typeof search === 'string') {
+    locationSearch = search;
+  }
+  const locationHash = typeof hash === 'string' ? hash : '';
+  return `${locationSearch}${locationHash}`;
+};
 
 const Index = () => {
   const { t } = useTranslation();
-  const { changeLanguage, language } = useModernI18n();
-  const languageOptions = [
-    { code: 'en', label: t('home.language.en') },
-    { code: 'cs', label: t('home.language.cs') },
-  ];
+  const { language } = useModernI18n();
+  const location = useLocation();
+  const currentLanguage = isSupportedLanguage(language) ? language : fallbackLanguage;
+  const canonicalPath = localizedPath(location.pathname, currentLanguage);
+  const suffix = locationSuffix(location);
+  const languageOptions = supportedLanguages.map((code) => ({
+    code,
+    href: `${localizedPath(location.pathname, code)}${suffix}`,
+    label: t(`home.language.${code}`),
+  }));
 {{#if useEffectBff}}  const [effectMessage, setEffectMessage] = useState('loading...');
 
   useEffect(() => {
@@ -42,18 +85,31 @@ const Index = () => {
           type="image/x-icon"
           href="https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico"
         />
+        <link rel="canonical" href={absoluteUrl(canonicalPath)} />
+        {supportedLanguages.map((code) => (
+          <link
+            href={absoluteUrl(localizedPath(location.pathname, code))}
+            hrefLang={code}
+            key={code}
+            rel="alternate"
+          />
+        ))}
+        <link
+          href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
+          hrefLang="x-default"
+          rel="alternate"
+        />
       </Helmet>
       <main>
         <nav className="language-switcher" aria-label={t('home.language.switcher')}>
           {languageOptions.map((option) => (
-            <button
-              disabled={language === option.code}
+            <a
+              aria-current={currentLanguage === option.code ? 'page' : undefined}
+              href={option.href}
               key={option.code}
-              onClick={() => void changeLanguage(option.code)}
-              type="button"
             >
               {option.label}
-            </button>
+            </a>
           ))}
         </nav>
         <div className="title">

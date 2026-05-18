@@ -65,25 +65,33 @@ const requiredPaths = [
   'apps/shell-super-app/config/public/locales/cs/translation.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
+  'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
+  'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-commerce/package.json',
   'apps/remotes/remote-commerce/config/public/locales/en/translation.json',
   'apps/remotes/remote-commerce/config/public/locales/cs/translation.json',
   'apps/remotes/remote-commerce/modern.config.ts',
   'apps/remotes/remote-commerce/module-federation.config.ts',
+  'apps/remotes/remote-commerce/src/modern-app-env.d.ts',
   'apps/remotes/remote-commerce/src/modern.runtime.ts',
+  'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-identity/package.json',
   'apps/remotes/remote-identity/config/public/locales/en/translation.json',
   'apps/remotes/remote-identity/config/public/locales/cs/translation.json',
   'apps/remotes/remote-identity/modern.config.ts',
   'apps/remotes/remote-identity/module-federation.config.ts',
+  'apps/remotes/remote-identity/src/modern-app-env.d.ts',
   'apps/remotes/remote-identity/src/modern.runtime.ts',
+  'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-design-system/package.json',
   'apps/remotes/remote-design-system/config/public/locales/en/translation.json',
   'apps/remotes/remote-design-system/config/public/locales/cs/translation.json',
   'apps/remotes/remote-design-system/modern.config.ts',
   'apps/remotes/remote-design-system/module-federation.config.ts',
+  'apps/remotes/remote-design-system/src/modern-app-env.d.ts',
   'apps/remotes/remote-design-system/src/modern.runtime.ts',
+  'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
   'services/service-recommendations-effect/package.json',
   'services/service-recommendations-effect/modern.config.ts',
   'services/service-recommendations-effect/api/effect/index.ts',
@@ -95,6 +103,18 @@ const requiredPaths = [
 
 for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
+}
+
+for (const appDirectory of [
+  'apps/shell-super-app',
+  'apps/remotes/remote-commerce',
+  'apps/remotes/remote-identity',
+  'apps/remotes/remote-design-system',
+]) {
+  assert(
+    !fs.existsSync(path.join(root, appDirectory, 'src/routes/page.tsx')),
+    `${appDirectory} must use src/routes/[lang]/page.tsx`,
+  );
 }
 
 const rootPackage = readJson('package.json');
@@ -286,11 +306,26 @@ for (const configPath of [
   const config = readText(configPath);
   assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
   assert(config.includes('i18nPlugin('), `${configPath} must enable plugin-i18n`);
+  assert(config.includes('localePathRedirect: true'), `${configPath} must prefix localized URLs`);
+  assert(config.includes('ULTRAMODERN_SITE_URL'), `${configPath} must expose site URL metadata`);
   assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
   assert(
     config.includes('moduleFederationPlugin()'),
     `${configPath} must enable Module Federation`,
   );
+}
+
+for (const routePath of [
+  'apps/shell-super-app/src/routes/[lang]/page.tsx',
+  'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
+  'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
+  'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
+]) {
+  const route = readText(routePath);
+  assert(route.includes('rel="canonical"'), `${routePath} must emit canonical metadata`);
+  assert(route.includes('rel="alternate"'), `${routePath} must emit alternate locale metadata`);
+  assert(route.includes('hrefLang="x-default"'), `${routePath} must emit x-default metadata`);
+  assert(route.includes('localizedPath('), `${routePath} must build localized URLs`);
 }
 
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');
