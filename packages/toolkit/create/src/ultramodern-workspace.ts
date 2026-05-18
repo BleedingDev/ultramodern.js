@@ -793,6 +793,18 @@ import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
+const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
+const hasConfiguredSiteUrl = typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
+const isProductionBuild =
+  process.env['NODE_ENV'] === 'production' || process.argv.includes('build');
+
+if (isProductionBuild && !hasConfiguredSiteUrl) {
+  throw new Error(
+    'MODERN_PUBLIC_SITE_URL must be set for production builds so canonical and hreflang URLs use the deployed origin.',
+  );
+}
+
+const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\${port}\`;
 
 export default defineConfig(
   presetUltramodern(
@@ -808,6 +820,7 @@ export default defineConfig(
           localeDetection: {
             fallbackLanguage: 'en',
             languages: ['en', 'cs'],
+            localePathRedirect: true,
           },
         }),
         tanstackRouterPlugin(),
@@ -818,6 +831,11 @@ export default defineConfig(
         ssr: {
           mode: 'string',
           moduleFederationAppSSR: true,
+        },
+      },
+      source: {
+        globalVars: {
+          ULTRAMODERN_SITE_URL: siteUrl,
         },
       },
     },
@@ -997,32 +1015,108 @@ export default defineRuntimeConfig({
 `;
 }
 
+function createLocalizedHeadComponent(includeLocationSuffix = false): string {
+  return `const fallbackLanguage = 'en';
+const supportedLanguages = ['en', 'cs'] as const;
+type SupportedLanguage = (typeof supportedLanguages)[number];
+
+const isSupportedLanguage = (value: string): value is SupportedLanguage =>
+  supportedLanguages.includes(value as SupportedLanguage);
+
+const stripLanguagePrefix = (pathname: string) => {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 0 && isSupportedLanguage(segments[0] ?? '')) {
+    segments.shift();
+  }
+  return \`/\${segments.join('/')}\`;
+};
+
+const localizedPath = (pathname: string, language: SupportedLanguage) => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname);
+  return pathWithoutLanguage === '/' ? \`/\${language}\` : \`/\${language}\${pathWithoutLanguage}\`;
+};
+
+const absoluteUrl = (pathname: string) => {
+  const origin = ULTRAMODERN_SITE_URL.replace(/\\/+$/u, '');
+  return \`\${origin}\${pathname}\`;
+};
+${
+  includeLocationSuffix
+    ? `
+const locationSuffix = (location: { hash?: unknown; search?: unknown; searchStr?: unknown }) => {
+  const { hash, search, searchStr } = location;
+  let locationSearch = '';
+  if (typeof searchStr === 'string') {
+    locationSearch = searchStr;
+  } else if (typeof search === 'string') {
+    locationSearch = search;
+  }
+  const locationHash = typeof hash === 'string' ? hash : '';
+  return \`\${locationSearch}\${locationHash}\`;
+};
+`
+    : ''
+}
+const LocalizedHead = () => {
+  const { language } = useModernI18n();
+  const location = useLocation();
+  const currentLanguage = isSupportedLanguage(language) ? language : fallbackLanguage;
+  const canonicalPath = localizedPath(location.pathname, currentLanguage);
+
+  return (
+    <Helmet>
+      <link rel="canonical" href={absoluteUrl(canonicalPath)} />
+      {supportedLanguages.map((code) => (
+        <link
+          href={absoluteUrl(localizedPath(location.pathname, code))}
+          hrefLang={code}
+          key={code}
+          rel="alternate"
+        />
+      ))}
+      <link
+        href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
+        hrefLang="x-default"
+        rel="alternate"
+      />
+    </Helmet>
+  );
+};
+`;
+}
+
 function createShellPage(): string {
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `import { Helmet } from '@modern-js/runtime/head';
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useLocation } from '@modern-js/runtime/tanstack-router';
 import { useTranslation } from 'react-i18next';
 
 const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
 
+${createLocalizedHeadComponent(true)}
 export default function ShellHome() {
   const { t } = useTranslation();
-  const { changeLanguage, language } = useModernI18n();
-  const languageOptions = [
-    { code: 'en', label: t('language.en') },
-    { code: 'cs', label: t('language.cs') },
-  ];
-
+  const { language } = useModernI18n();
+  const location = useLocation();
+  const currentLanguage = isSupportedLanguage(language) ? language : fallbackLanguage;
+  const suffix = locationSuffix(location);
+  const languageOptions = supportedLanguages.map((code) => ({
+    code,
+    href: \`\${localizedPath(location.pathname, code)}\${suffix}\`,
+    label: t(\`language.\${code}\`),
+  }));
   return (
     <main>
+      <LocalizedHead />
       <nav aria-label={t('language.switcher')}>
         {languageOptions.map((option) => (
-          <button
-            disabled={language === option.code}
+          <a
+            aria-current={currentLanguage === option.code ? 'page' : undefined}
+            href={option.href}
             key={option.code}
-            onClick={() => void changeLanguage(option.code)}
-            type="button"
           >
             {option.label}
-          </button>
+          </a>
         ))}
       </nav>
       <h1>{t('shell.title')}</h1>
@@ -1039,13 +1133,18 @@ export default function ShellHome() {
 }
 
 function createRemotePage(app: WorkspaceApp): string {
-  return `import { useTranslation } from 'react-i18next';
+  return `import { Helmet } from '@modern-js/runtime/head';
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useLocation } from '@modern-js/runtime/tanstack-router';
+import { useTranslation } from 'react-i18next';
 
+${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { t } = useTranslation();
 
   return (
     <main>
+      <LocalizedHead />
       <h1>{t('remote.title')}</h1>
       <p data-mf-role="${app.kind}">{t('remote.domain')}</p>
     </main>
@@ -1565,7 +1664,7 @@ function writeApp(
   writeFile(
     targetDir,
     `${app.directory}/src/modern-app-env.d.ts`,
-    "/// <reference types='@modern-js/app-tools/types' />\n",
+    "/// <reference types='@modern-js/app-tools/types' />\n\ndeclare const ULTRAMODERN_SITE_URL: string;\n",
   );
   writeFile(
     targetDir,
@@ -1601,7 +1700,7 @@ function writeApp(
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/routes/page.tsx`,
+    `${app.directory}/src/routes/[lang]/page.tsx`,
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
 

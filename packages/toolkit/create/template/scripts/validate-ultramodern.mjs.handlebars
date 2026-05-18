@@ -17,6 +17,10 @@ const requiredTokens = [
   'enableBffRequestId',
   'enableTelemetryExporters',
   'i18nPlugin(',
+  'localePathRedirect: true',
+  'ULTRAMODERN_SITE_URL',
+  'MODERN_PUBLIC_SITE_URL must be set for production builds',
+  'globalVars',
 ];
 const missing = requiredTokens.filter((token) => !content.includes(token));
 
@@ -55,12 +59,36 @@ const requiredPaths = [
   'scripts/check-i18n-strings.mjs',
   'config/public/locales/en/translation.json',
   'config/public/locales/cs/translation.json',
+  'src/modern-app-env.d.ts',
+  'src/routes/[lang]/page.tsx',
 ];
 const manifestErrors = [];
 
 for (const requiredPath of requiredPaths) {
   if (!fs.existsSync(path.resolve(process.cwd(), requiredPath))) {
     console.error(`${requiredPath} not found`);
+    process.exit(1);
+  }
+}
+
+if (fs.existsSync(path.resolve(process.cwd(), 'src/routes/page.tsx'))) {
+  console.error('src/routes/page.tsx must move under src/routes/[lang]/page.tsx');
+  process.exit(1);
+}
+
+const pageContent = fs.readFileSync(
+  path.resolve(process.cwd(), 'src/routes/[lang]/page.tsx'),
+  'utf-8',
+);
+for (const token of [
+  'rel="canonical"',
+  'rel="alternate"',
+  'hrefLang="x-default"',
+  'localizedPath(',
+  '<a',
+]) {
+  if (!pageContent.includes(token)) {
+    console.error(`Localized route is missing ${token}`);
     process.exit(1);
   }
 }

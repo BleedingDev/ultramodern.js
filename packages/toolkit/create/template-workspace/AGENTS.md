@@ -14,6 +14,8 @@ This workspace is generated as an agent-ready UltraModern.js SuperApp. Agents sh
 
 Runtime i18n is enabled by default for generated apps. Agents must put user-visible UI copy in each app's `config/public/locales/<lang>/translation.json` and render it through `react-i18next` or `@modern-js/plugin-i18n/runtime`. Do not add hardcoded JSX text, `aria-label`, `title`, `alt`, or `placeholder` strings unless the value is a non-translatable technical token.
 
+Routes are locale-prefixed by default through `localePathRedirect: true`. Keep localized app pages under `src/routes/[lang]`, use links for language switching, and preserve canonical plus `hreflang` metadata. Production builds fail unless `MODERN_PUBLIC_SITE_URL` is set per deployed app, so canonical URLs always use the production origin.
+
 ## Required Skill Baseline
 
 Use these skills when the task touches the matching subsystem:

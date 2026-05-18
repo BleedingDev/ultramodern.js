@@ -12,6 +12,18 @@ const enableTelemetryExporters =
   process.env['MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS'] !== 'false';
 const telemetryFailLoudStartup = process.env['MODERN_TELEMETRY_FAIL_LOUD_STARTUP'] !== 'false';
 const otlpEndpoint = process.env['MODERN_TELEMETRY_OTLP_ENDPOINT'];
+const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
+const hasConfiguredSiteUrl = typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
+const isProductionBuild =
+  process.env['NODE_ENV'] === 'production' || process.argv.includes('build');
+
+if (isProductionBuild && !hasConfiguredSiteUrl) {
+  throw new Error(
+    'MODERN_PUBLIC_SITE_URL must be set for production builds so canonical and hreflang URLs use the deployed origin.',
+  );
+}
+
+const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : 'http://localhost:8080';
 const victoriaMetricsEndpoint = process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'];
 
 // https://bleedingdev.github.io/ultramodern.js/configure/app/usage.html
@@ -32,6 +44,7 @@ export default defineConfig(
           localeDetection: {
             fallbackLanguage: 'en',
             languages: ['en', 'cs'],
+            localePathRedirect: true,
           },
         }),
 {{#if isTanstackRouter}}
@@ -39,6 +52,11 @@ export default defineConfig(
 {{/if}}{{#if enableBff}}
         bffPlugin(),
 {{/if}}      ],
+      source: {
+        globalVars: {
+          ULTRAMODERN_SITE_URL: siteUrl,
+        },
+      },
     },
     {
       appId,
