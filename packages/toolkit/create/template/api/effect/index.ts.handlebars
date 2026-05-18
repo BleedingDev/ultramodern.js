@@ -2,33 +2,24 @@
   Effect,
   HttpApiBuilder,
   Layer,
-  ServiceMap,
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
 import { bffEffectApi } from '../../shared/effect/api';
 
-class GreetingService extends ServiceMap.Service<GreetingService>()('GreetingService', {
-  make: Effect.succeed({
-    hello: Effect.fn('GreetingService.hello')(() =>
+const greetingsLayer = HttpApiBuilder.group(
+  bffEffectApi,
+  'greetings',
+  (handlers: any) =>
+    handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from Effect HttpApi',
         runtime: 'effect' as const,
       }),
     ),
-  }),
-}) {
-  static readonly layer = Layer.effect(this, this.make);
-}
-
-const greetingsLayer = HttpApiBuilder.group(bffEffectApi, 'greetings', handlers =>
-  handlers.handle('hello', () =>
-    GreetingService.use(service => service.hello()),
-  ),
 );
 
 const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
   Layer.provide(greetingsLayer),
-  Layer.provide(GreetingService.layer),
 );
 
 export default defineEffectBff({

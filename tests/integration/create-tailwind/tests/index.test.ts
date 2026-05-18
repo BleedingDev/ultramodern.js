@@ -212,6 +212,46 @@ describe('create-tailwind', () => {
     );
   });
 
+  test('supports BleedingDev npm aliases for UltraModern package installs', () => {
+    const appDir = path.join(tempRoot, 'with-bleedingdev-aliases');
+    runCreate(appDir, [
+      '--router',
+      'tanstack',
+      '--bff-runtime',
+      'effect',
+      '--ultramodern-package-source',
+      'install',
+      '--ultramodern-package-version',
+      '3.2.0-ultramodern.5',
+      '--ultramodern-package-scope',
+      'bleedingdev',
+      '--ultramodern-package-name-prefix',
+      'modern-js-',
+      '--lang',
+      'en',
+    ]);
+
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+    );
+
+    expect(packageJson.dependencies['@modern-js/runtime']).toBe(
+      'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
+      'npm:@bleedingdev/modern-js-plugin-tanstack@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
+      'npm:@bleedingdev/modern-js-app-tools@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.devDependencies['@modern-js/tsconfig']).toBe(
+      'npm:@bleedingdev/modern-js-tsconfig@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBe(
+      'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.5',
+    );
+  });
+
   test('supports --workspace with tailwind and effect runtime', () => {
     const appDir = path.join(tempRoot, 'with-tailwind-effect-workspace');
     runCreate(appDir, [

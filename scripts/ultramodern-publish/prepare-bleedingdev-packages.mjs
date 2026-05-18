@@ -228,10 +228,35 @@ function collectModernPackages(options) {
   }
 
   return {
+    allPackages,
     packages,
     sourceNames,
     aliases,
   };
+}
+
+function enforceSingleVersionPolicy(options, packages, allPackages) {
+  if (options.dependencyVersion !== options.version) {
+    return;
+  }
+
+  const selected = new Set(packages.map(item => item.packageJson.name));
+  const missing = allPackages
+    .map(item => item.packageJson.name)
+    .filter(packageName => !selected.has(packageName));
+
+  if (missing.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `Single-version policy violation for ${options.version}.`,
+      'When dependencyVersion equals version, every public @modern-js/* package must be published together so generated projects cannot reference a partially published framework version.',
+      'Use package_mode=all, or pass --dependency-version to intentionally publish a subset against an already coherent framework version.',
+      `Missing packages: ${missing.join(', ')}`,
+    ].join('\n'),
+  );
 }
 
 function rewriteDependencyBlock(
@@ -298,6 +323,41 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
   rewriteDependencyBlock(packageJson.peerDependencies, options, sourceNames, {
     peer: true,
   });
+}
+
+function collectExportedTypePaths(value, typePaths = new Set()) {
+  if (!value || typeof value !== 'object') {
+    return typePaths;
+  }
+
+  if (typeof value.types === 'string') {
+    typePaths.add(value.types);
+  }
+
+  for (const child of Object.values(value)) {
+    collectExportedTypePaths(child, typePaths);
+  }
+
+  return typePaths;
+}
+
+function validateStagedTypeFiles(packageDir, packageJson) {
+  const typePaths = collectExportedTypePaths(packageJson.exports);
+  if (typeof packageJson.types === 'string') {
+    typePaths.add(packageJson.types);
+  }
+
+  const missing = [...typePaths]
+    .filter(typePath => typePath.startsWith('.'))
+    .filter(typePath => !fs.existsSync(path.join(packageDir, typePath)));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `${packageJson.name}@${packageJson.version} declares missing type files: ${missing.join(
+        ', ',
+      )}`,
+    );
+  }
 }
 
 function run(command, args, options = {}) {
@@ -379,7 +439,9 @@ function publishPackage(packageDir, options) {
 
 function main() {
   const options = parseArgs(process.argv.slice(2));
-  const { packages, sourceNames, aliases } = collectModernPackages(options);
+  const { allPackages, packages, sourceNames, aliases } =
+    collectModernPackages(options);
+  enforceSingleVersionPolicy(options, packages, allPackages);
   const packDir = path.join(options.out, 'source-tarballs');
   const stageDir = path.join(options.out, 'packages');
 
@@ -411,6 +473,7 @@ function main() {
     const packageJson = readJson(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
     writeJson(packageJsonPath, packageJson);
+    validateStagedTypeFiles(packageDir, packageJson);
 
     manifest.packages.push({
       sourceName,

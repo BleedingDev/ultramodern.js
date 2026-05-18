@@ -15,7 +15,7 @@ on:
       package_mode:
         description: "Package selection mode: changed, affected, explicit, or all"
         required: true
-        default: changed
+        default: all
         type: choice
         options:
           - changed

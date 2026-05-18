@@ -15,6 +15,13 @@ const templateDir = path.resolve(__dirname, '..', 'template');
 type RouterFramework = 'react-router' | 'tanstack';
 type BffRuntime = 'none' | 'hono' | 'effect';
 type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
+type UltramodernPackageSource = {
+  strategy: 'workspace' | 'install';
+  modernPackageVersion: string;
+  registry?: string;
+  aliasScope?: string;
+  aliasPackageNamePrefix?: string;
+};
 type CreatePackageJson = {
   name?: string;
   version?: string;
@@ -865,7 +872,7 @@ function detectUltramodernPackageSource(
   args: string[],
   defaultPackageVersion: string,
   createPackage: CreatePackageJson,
-) {
+): UltramodernPackageSource {
   const bleedingDevDefaults = isBleedingDevCreatePackage(createPackage);
   const strategy =
     getOptionValue(args, ['--ultramodern-package-source']) ??
@@ -891,6 +898,37 @@ function detectUltramodernPackageSource(
       getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
       'modern-js-',
   };
+}
+
+function modernAliasPackageName(
+  packageName: string,
+  packageSource: UltramodernPackageSource,
+): string {
+  if (!packageSource.aliasScope) {
+    return packageName;
+  }
+
+  const scope = packageSource.aliasScope.replace(/^@/, '');
+  const unscopedName = packageName.split('/').at(-1);
+  return `@${scope}/${packageSource.aliasPackageNamePrefix ?? ''}${unscopedName}`;
+}
+
+function singleAppModernPackageSpecifier(
+  packageName: string,
+  packageSource: UltramodernPackageSource,
+  useWorkspaceProtocol: boolean,
+): string {
+  if (useWorkspaceProtocol) {
+    return 'workspace:*';
+  }
+
+  if (packageSource.strategy !== 'install' || !packageSource.aliasScope) {
+    return packageSource.modernPackageVersion;
+  }
+
+  return `npm:${modernAliasPackageName(packageName, packageSource)}@${
+    packageSource.modernPackageVersion
+  }`;
 }
 
 function isDirectoryEmpty(dirPath: string): boolean {
@@ -1062,13 +1100,44 @@ async function main() {
   const bffRuntime = detectBffRuntime();
   const enableTailwind = detectTailwindFlag();
   const useWorkspaceProtocol = detectWorkspaceProtocolFlag();
-  const dependencyVersion = useWorkspaceProtocol ? 'workspace:*' : version;
+  const packageSource = detectUltramodernPackageSource(
+    args,
+    ultramodernPackageVersion,
+    createPackage,
+  );
   const templateManifest = createBuiltinTemplateManifest(version);
   validateTemplateManifest(templateManifest);
 
   copyTemplate(templateDir, targetDir, {
     packageName: generatedPackageName,
-    version: dependencyVersion,
+    version: useWorkspaceProtocol
+      ? 'workspace:*'
+      : packageSource.modernPackageVersion,
+    runtimeVersion: singleAppModernPackageSpecifier(
+      '@modern-js/runtime',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
+    appToolsVersion: singleAppModernPackageSpecifier(
+      '@modern-js/app-tools',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
+    tsconfigVersion: singleAppModernPackageSpecifier(
+      '@modern-js/tsconfig',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
+    pluginTanstackVersion: singleAppModernPackageSpecifier(
+      '@modern-js/plugin-tanstack',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
+    pluginBffVersion: singleAppModernPackageSpecifier(
+      '@modern-js/plugin-bff',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
     isSubproject,
     routerFramework,
     bffRuntime,
@@ -1128,6 +1197,11 @@ function copyTemplate(
   options: {
     packageName: string;
     version: string;
+    runtimeVersion: string;
+    appToolsVersion: string;
+    tsconfigVersion: string;
+    pluginTanstackVersion: string;
+    pluginBffVersion: string;
     isSubproject: boolean;
     routerFramework: RouterFramework;
     bffRuntime: BffRuntime;
@@ -1183,6 +1257,11 @@ function copyTemplate(
           const rendered = renderTemplate(templateContent, {
             packageName: options.packageName,
             version: options.version,
+            runtimeVersion: options.runtimeVersion,
+            appToolsVersion: options.appToolsVersion,
+            tsconfigVersion: options.tsconfigVersion,
+            pluginTanstackVersion: options.pluginTanstackVersion,
+            pluginBffVersion: options.pluginBffVersion,
             isSubproject: options.isSubproject,
             isTanstackRouter: options.routerFramework === 'tanstack',
             enableBff: options.bffRuntime !== 'none',

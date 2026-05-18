@@ -5,15 +5,15 @@ import path from 'node:path';
 {{/if}}{{#if isTanstackRouter}}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 {{/if}}
 
-const appId = process.env.MODERN_BASELINE_APP_ID || path.basename(process.cwd());
+const appId = process.env['MODERN_BASELINE_APP_ID'] || path.basename(process.cwd());
 const enableModuleFederationSSR =
-  process.env.MODERN_BASELINE_ENABLE_MF_SSR !== 'false';
+  process.env['MODERN_BASELINE_ENABLE_MF_SSR'] !== 'false';
 const enableBffRequestId =
-  process.env.MODERN_BASELINE_ENABLE_BFF_REQUEST_ID !== 'false';
+  process.env['MODERN_BASELINE_ENABLE_BFF_REQUEST_ID'] !== 'false';
 const enableTelemetryExporters =
-  process.env.MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS !== 'false';
+  process.env['MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS'] !== 'false';
 const telemetryFailLoudStartup =
-  process.env.MODERN_TELEMETRY_FAIL_LOUD_STARTUP !== 'false';
+  process.env['MODERN_TELEMETRY_FAIL_LOUD_STARTUP'] !== 'false';
 
 // https://bleedingdev.github.io/ultramodern.js/configure/app/usage.html
 export default defineConfig(
@@ -44,8 +44,8 @@ export default defineConfig(
       enableModuleFederationSSR,
       enableTelemetryExporters,
       telemetryFailLoudStartup,
-      otlpEndpoint: process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
-      victoriaMetricsEndpoint: process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
+      otlpEndpoint: process.env['MODERN_TELEMETRY_OTLP_ENDPOINT'],
+      victoriaMetricsEndpoint: process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'],
     },
   ),
 );

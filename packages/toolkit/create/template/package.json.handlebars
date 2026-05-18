@@ -6,7 +6,7 @@
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
-    "typecheck": "node -e \"const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"",
+    "typecheck": "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"",
     "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
     "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
@@ -29,16 +29,16 @@
     "pre-commit": "npx lint-staged"
   }{{/unless}},
   "dependencies": {
-    "@modern-js/runtime": "{{version}}"{{#if isTanstackRouter}},
-    "@modern-js/plugin-tanstack": "{{version}}",
+    "@modern-js/runtime": "{{runtimeVersion}}"{{#if isTanstackRouter}},
+    "@modern-js/plugin-tanstack": "{{pluginTanstackVersion}}",
     "@tanstack/react-router": "1.170.1"{{/if}},
     "react": "^19.2.3",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@modern-js/app-tools": "{{version}}",
-    "@modern-js/tsconfig": "{{version}}"{{#if enableBff}},
-    "@modern-js/plugin-bff": "{{version}}"{{/if}}{{#if enableTailwind}},
+    "@modern-js/app-tools": "{{appToolsVersion}}",
+    "@modern-js/tsconfig": "{{tsconfigVersion}}"{{#if enableBff}},
+    "@modern-js/plugin-bff": "{{pluginBffVersion}}"{{/if}}{{#if enableTailwind}},
     "@tailwindcss/postcss": "^4.1.18",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18"{{/if}},

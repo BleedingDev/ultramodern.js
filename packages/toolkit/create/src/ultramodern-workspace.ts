@@ -38,7 +38,7 @@ const privateAgentSkills = [
   'debugger-mode',
 ];
 const effectTsgoTypecheckCommand =
-  "node -e \"const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"";
+  "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"";
 const modernPackageNames = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
@@ -645,7 +645,6 @@ function createTsConfigBase(scope: string): JsonValue {
       noImplicitReturns: true,
       skipLibCheck: true,
       resolveJsonModule: true,
-      baseUrl: '.',
       paths: Object.fromEntries(
         sharedPackages.map(sharedPackage => [
           packageName(scope, sharedPackage.id),
@@ -796,7 +795,7 @@ import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
 const appId = '${app.id}';
-const port = Number(process.env.${app.portEnv} ?? ${app.port});
+const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
 
 export default defineConfig(
   presetUltramodern(
@@ -852,13 +851,13 @@ export default createModuleFederationConfig({
   dts: false,
   remotes: {
     commerce:
-      process.env.REMOTE_COMMERCE_MF_MANIFEST ??
+      process.env['REMOTE_COMMERCE_MF_MANIFEST'] ??
       'remoteCommerce@http://localhost:3021/mf-manifest.json',
     identity:
-      process.env.REMOTE_IDENTITY_MF_MANIFEST ??
+      process.env['REMOTE_IDENTITY_MF_MANIFEST'] ??
       'remoteIdentity@http://localhost:3022/mf-manifest.json',
     designSystem:
-      process.env.REMOTE_DESIGN_SYSTEM_MF_MANIFEST ??
+      process.env['REMOTE_DESIGN_SYSTEM_MF_MANIFEST'] ??
       'remoteDesignSystem@http://localhost:3023/mf-manifest.json',
   },
   shared: {
@@ -944,7 +943,7 @@ import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools'
 import { bffPlugin } from '@modern-js/plugin-bff';
 
 const appId = '${effectService.id}';
-const port = Number(process.env.${effectService.portEnv} ?? ${effectService.port});
+const port = Number(process.env['${effectService.portEnv}'] ?? ${effectService.port});
 
 export default defineConfig(
   presetUltramodern(

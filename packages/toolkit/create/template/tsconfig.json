@@ -22,7 +22,6 @@
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
-    "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"],
       "@api/*": ["./api/*"],
