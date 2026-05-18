@@ -1,10 +1,6 @@
-import type {
-  ClientManifest,
-  SSRManifest,
-  SSRModuleMap,
-} from '@modern-js/types/server';
+import type { ClientManifest } from '@modern-js/types/server';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import type { ReactDOMServerReadableStream } from 'react-dom/server';
 import { renderToReadableStream } from 'react-dom/server.edge';
 import { ServerElementsProvider } from '../../client/index';
@@ -25,6 +21,12 @@ function CSSLinks({ cssFiles }: { cssFiles: string[] }) {
 type Options = {
   request: Request;
   routes?: unknown[];
+  rscManifest?: {
+    clientManifest?: ClientManifest;
+    serverConsumerModuleMap?: unknown;
+    serverManifest?: unknown;
+    entryCssFiles?: Record<string, string[]>;
+  };
 } & Parameters<typeof renderToReadableStream>[1];
 
 function wrapStream(
@@ -45,11 +47,10 @@ export const renderSSRStream = async (
   children: React.ReactNode,
   options: Options & { rscRoot: React.ReactElement },
 ): Promise<ReturnType<typeof renderToReadableStream>> => {
-  const { rscRoot, routes } = options;
-  const clientManifest = __rspack_rsc_manifest__?.clientManifest;
-  const serverConsumerModuleMap =
-    __rspack_rsc_manifest__?.serverConsumerModuleMap;
-  const entryCssFiles = __rspack_rsc_manifest__?.entryCssFiles;
+  const { rscManifest, rscRoot, routes } = options;
+  const clientManifest = rscManifest?.clientManifest;
+  const serverConsumerModuleMap = rscManifest?.serverConsumerModuleMap;
+  const entryCssFiles = rscManifest?.entryCssFiles;
 
   const hasRoutes = Boolean(routes && routes.length > 0);
 
@@ -63,7 +64,7 @@ export const renderSSRStream = async (
   try {
     const [{ renderRsc }, { createFromReadableStream }, { injectRSCPayload }] =
       await Promise.all([
-        import('../rsc/index'),
+        import('@modern-js/render/rsc'),
         import('react-server-dom-rspack/client.edge'),
         import('../../rsc-html-stream/server'),
       ]);

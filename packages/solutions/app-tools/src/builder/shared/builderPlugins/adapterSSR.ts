@@ -236,9 +236,10 @@ async function applySSRLoaderEntry(
   optinos: BuilderOptions,
   isServer: boolean,
 ) {
-  const { appContext } = optinos;
+  const { appContext, normalizedConfig } = optinos;
   const { internalDirectory } = appContext;
   const { entrypoints } = appContext;
+  const isRsc = isUseRsc(normalizedConfig);
 
   await Promise.all(
     entrypoints.map(async entrypoint => {
@@ -265,6 +266,10 @@ async function applySSRLoaderEntry(
         } catch (err) {
           // ignore the error
         }
+      } else if (isRsc) {
+        chain
+          .entry(`${entryName}-server-loaders`)
+          .add('data:text/javascript,export%20{};');
       }
     }),
   );

@@ -16,6 +16,13 @@ import type { RenderStreaming, SSRConfig } from '../shared';
 import { SSRErrors, SSRTimings } from '../tracer';
 import { getSSRConfigByEntry } from '../utils';
 
+export type RscManifest = {
+  clientManifest?: RscClientManifest;
+  serverConsumerModuleMap?: unknown;
+  serverManifest?: RscServerManifest;
+  entryCssFiles?: Record<string, string[]>;
+};
+
 export type CreateReadableStreamFromElementOptions = {
   runtimeContext: TRuntimeContext;
   config: HandleRequestConfig;
@@ -26,6 +33,7 @@ export type CreateReadableStreamFromElementOptions = {
   rscClientManifest?: RscClientManifest;
   rscSSRManifest?: RscSSRManifest;
   rscServerManifest?: RscServerManifest;
+  rscManifest?: RscManifest;
   rscRoot?: React.ReactElement;
   onShellReady?: () => void;
   onShellError?: (error: unknown) => void;
@@ -165,6 +173,8 @@ export function createRenderStreaming(
       rscClientManifest: options.rscClientManifest,
       rscSSRManifest: options.rscSSRManifest,
       rscServerManifest: options.rscServerManifest,
+      rscManifest: (options as typeof options & { rscManifest?: RscManifest })
+        .rscManifest,
       rscRoot: options.rscRoot,
       onShellReady() {
         const cost = end();

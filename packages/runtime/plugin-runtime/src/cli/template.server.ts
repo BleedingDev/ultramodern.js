@@ -38,6 +38,7 @@ const handleRequest = async (request, ServerRoot, options) => {
     </ServerRoot>,
     {
       ...options,
+      rscManifest: __rspack_rsc_manifest__,
       rscRoot: options.rscRoot,
     },
   );
