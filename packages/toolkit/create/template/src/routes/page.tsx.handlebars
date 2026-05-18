@@ -1,11 +1,19 @@
 import { Helmet } from '@modern-js/runtime/head';
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 {{#if useEffectBff}}import effectBff from '@api/effect/index';
 import { Effect } from '@modern-js/plugin-bff/effect-client';
 import { useEffect, useState } from 'react';
 {{/if}}
+import { useTranslation } from 'react-i18next';
 import './index.css';
 
 const Index = () => {
+  const { t } = useTranslation();
+  const { changeLanguage, language } = useModernI18n();
+  const languageOptions = [
+    { code: 'en', label: t('home.language.en') },
+    { code: 'cs', label: t('home.language.cs') },
+  ];
 {{#if useEffectBff}}  const [effectMessage, setEffectMessage] = useState('loading...');
 
   useEffect(() => {
@@ -36,25 +44,41 @@ const Index = () => {
         />
       </Helmet>
       <main>
+        <nav className="language-switcher" aria-label={t('home.language.switcher')}>
+          {languageOptions.map((option) => (
+            <button
+              disabled={language === option.code}
+              key={option.code}
+              onClick={() => void changeLanguage(option.code)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </nav>
         <div className="title">
-          UltraModern.js 3.0
+          {t('home.title')}
           <img
+            alt={t('home.logoAlt')}
             className="logo"
             src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/modern-js-logo.svg"
-            alt="UltraModern.js Logo"
           />
-          <p className="name">presetUltramodern</p>
+          <p className="name">{t('home.name')}</p>
         </div>
         <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          This starter ships the public <code className="code">presetUltramodern(...)</code>{' '}
-          profile. Start in
-          <code className="code">modern.config.ts</code>, keep
-          <code className="code">pnpm run ultramodern:check</code> green, and tune the generated
-          preset only where your app needs a softer lane.
+          {t('home.description.intro')} <code className="code">presetUltramodern(...)</code>{' '}
+          {/* i18n-ignore technical token */}
+          {t('home.description.afterPreset')}
+          <code className="code">modern.config.ts</code>
+          {/* i18n-ignore technical token */}
+          {t('home.description.afterConfig')}
+          <code className="code">pnpm run ultramodern:check</code>
+          {/* i18n-ignore technical token */}
+          {t('home.description.end')}
         </p>
 {{#if useEffectBff}}
         <p className="description effect-message{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          Effect HttpApi response: <code className="code">{effectMessage}</code>
+          {t('home.bff.response')} <code className="code">{effectMessage}</code>
         </p>
 {{/if}}
         <div className="grid">
@@ -65,14 +89,14 @@ const Index = () => {
             className="card"
           >
             <h2>
-              UltraModern.js Guide
+              {t('home.cards.guide.title')}
               <img
+                alt=""
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-                alt="Guide"
               />
             </h2>
-            <p>Review the MV-first, TanStack-ready, Effect-ready public preset.</p>
+            <p>{t('home.cards.guide.body')}</p>
           </a>
           <a
             href="https://bleedingdev.github.io/ultramodern.js/configure/app/usage.html"
@@ -81,16 +105,14 @@ const Index = () => {
             rel="noreferrer"
           >
             <h2>
-              Configure presetUltramodern
+              {t('home.cards.config.title')}
               <img
+                alt=""
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-                alt="Tutorials"
               />
             </h2>
-            <p>
-              Tune the generated defaults in <code className="code">modern.config.ts</code>.
-            </p>
+            <p>{t('home.cards.config.body')}</p>
           </a>
           <a
             href="https://github.com/BleedingDev/ultramodern.js/blob/main-ultramodern/packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars"
@@ -99,17 +121,14 @@ const Index = () => {
             rel="noreferrer"
           >
             <h2>
-              Ultramodern Gates
+              {t('home.cards.gates.title')}
               <img
+                alt=""
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-                alt="Config"
               />
             </h2>
-            <p>
-              The starter includes a PR workflow for <code className="code">ultramodern:check</code>{' '}
-              and build.
-            </p>
+            <p>{t('home.cards.gates.body')}</p>
           </a>
           <a
             href="https://bleedingdev.github.io/ultramodern.js/configure/app/bff/effect.html"
@@ -118,14 +137,14 @@ const Index = () => {
             className="card"
           >
             <h2>
-              BFF + Effect
+              {t('home.cards.bff.title')}
               <img
+                alt=""
                 className="arrow-right"
                 src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-                alt="Github"
               />
             </h2>
-            <p>Keep Effect as the preferred BFF lane while Hono stays an explicit fallback.</p>
+            <p>{t('home.cards.bff.body')}</p>
           </a>
         </div>
       </main>

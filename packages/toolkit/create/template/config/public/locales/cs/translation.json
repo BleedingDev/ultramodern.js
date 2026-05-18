@@ -1,0 +1,39 @@
+{
+  "home": {
+    "bff": {
+      "response": "Odpoved Effect HttpApi:"
+    },
+    "cards": {
+      "bff": {
+        "body": "Pouzivej Effect jako hlavni BFF cestu, Hono nech jako explicitni zalozni volbu.",
+        "title": "BFF + Effect"
+      },
+      "config": {
+        "body": "Upravuj vygenerovane vychozi hodnoty v modern.config.ts.",
+        "title": "Konfigurace presetUltramodern"
+      },
+      "gates": {
+        "body": "Starter obsahuje PR workflow pro ultramodern:check a build.",
+        "title": "Ultramodern kontroly"
+      },
+      "guide": {
+        "body": "Projdi si verejny preset pripraveny pro MV, TanStack a Effect.",
+        "title": "UltraModern.js pruvodce"
+      }
+    },
+    "description": {
+      "afterConfig": ", udrzuj",
+      "afterPreset": "profil. Zacni v",
+      "end": "zelene a lad vygenerovany preset jen tam, kde aplikace potrebuje mekci cestu.",
+      "intro": "Tento starter prinasi verejny"
+    },
+    "language": {
+      "cs": "Cestina",
+      "en": "Anglictina",
+      "switcher": "Jazyk"
+    },
+    "logoAlt": "Logo UltraModern.js",
+    "name": "presetUltramodern",
+    "title": "UltraModern.js 3.0"
+  }
+}

@@ -8,9 +8,10 @@
     "build": "modern build",
     "serve": "modern serve",
     "typecheck": "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"",
+    "i18n:check": "node ./scripts/check-i18n-strings.mjs",
     "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
-    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
+    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
@@ -18,12 +19,16 @@
     "prepare": "simple-git-hooks"{{/unless}}
   },
   "dependencies": {
+    "@modern-js/plugin-i18n": "{{pluginI18nVersion}}",
 {{#if isTanstackRouter}}    "@modern-js/plugin-tanstack": "{{pluginTanstackVersion}}",
-{{/if}}    "@modern-js/runtime": "{{runtimeVersion}}",
+{{/if}}
+    "@modern-js/runtime": "{{runtimeVersion}}",
 {{#if isTanstackRouter}}    "@tanstack/react-router": "1.170.1",
 {{/if}}
+    "i18next": "26.2.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-i18next": "17.0.8"
   },
   "devDependencies": {
     "@effect/tsgo": "0.7.3",

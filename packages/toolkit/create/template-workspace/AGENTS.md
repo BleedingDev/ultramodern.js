@@ -7,7 +7,12 @@ This workspace is generated as an agent-ready UltraModern.js SuperApp. Agents sh
 - `pnpm lint` runs Oxlint with the Ultracite preset.
 - `pnpm format` runs oxfmt.
 - `pnpm typecheck` runs effect-tsgo as the TypeScript checker.
-- `pnpm check` runs formatting, linting, effect-tsgo, private-skill availability checks, and the generated workspace contract.
+- `pnpm i18n:check` rejects hardcoded user-visible JSX text in generated apps.
+- `pnpm check` runs formatting, linting, effect-tsgo, i18n checks, private-skill availability checks, and the generated workspace contract.
+
+## Internationalization
+
+Runtime i18n is enabled by default for generated apps. Agents must put user-visible UI copy in each app's `config/public/locales/<lang>/translation.json` and render it through `react-i18next` or `@modern-js/plugin-i18n/runtime`. Do not add hardcoded JSX text, `aria-label`, `title`, `alt`, or `placeholder` strings unless the value is a non-translatable technical token.
 
 ## Required Skill Baseline
 

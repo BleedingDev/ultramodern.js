@@ -222,7 +222,7 @@ function renderTemplate(
   data: Record<string, unknown>,
 ): string {
   type ConditionalKind = 'if' | 'unless';
-  const tagRegex = /\{\{(#if|#unless|\/if|\/unless)(?:\s+(\w+))?\}\}/g;
+  const tagRegex = /\{\{(~?)(#if|#unless|\/if|\/unless)(?:\s+(\w+))?(~?)\}\}/g;
 
   function renderConditionals(
     startIndex: number,
@@ -244,7 +244,7 @@ function renderTemplate(
         };
       }
 
-      const [raw, tag, condition] = match;
+      const [raw, , tag, condition, rightTrim] = match;
       const tagIndex = match.index;
       rendered += template.slice(cursor, tagIndex);
       cursor = tagIndex + raw.length;
@@ -266,9 +266,14 @@ function renderTemplate(
       if (tag === '/if' || tag === '/unless') {
         const kind: ConditionalKind = tag === '/if' ? 'if' : 'unless';
         if (expectedClose === kind) {
+          let nextIndex = cursor;
+          if (rightTrim === '~') {
+            const trailingWhitespace = /^\s*/u.exec(template.slice(nextIndex));
+            nextIndex += trailingWhitespace?.[0].length ?? 0;
+          }
           return {
             rendered,
-            nextIndex: cursor,
+            nextIndex,
           };
         }
         rendered += raw;
@@ -385,6 +390,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
         'AGENTS.md',
         'README.md',
         'api/**',
+        'config/**',
         'modern.config.ts',
         'oxfmt.config.ts',
         'oxlint.config.ts',
@@ -1138,6 +1144,11 @@ async function main() {
       packageSource,
       useWorkspaceProtocol,
     ),
+    pluginI18nVersion: singleAppModernPackageSpecifier(
+      '@modern-js/plugin-i18n',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
     isSubproject,
     routerFramework,
     bffRuntime,
@@ -1202,6 +1213,7 @@ function copyTemplate(
     tsconfigVersion: string;
     pluginTanstackVersion: string;
     pluginBffVersion: string;
+    pluginI18nVersion: string;
     isSubproject: boolean;
     routerFramework: RouterFramework;
     bffRuntime: BffRuntime;
@@ -1262,6 +1274,7 @@ function copyTemplate(
             tsconfigVersion: options.tsconfigVersion,
             pluginTanstackVersion: options.pluginTanstackVersion,
             pluginBffVersion: options.pluginBffVersion,
+            pluginI18nVersion: options.pluginI18nVersion,
             isSubproject: options.isSubproject,
             isTanstackRouter: options.routerFramework === 'tanstack',
             enableBff: options.bffRuntime !== 'none',

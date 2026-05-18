@@ -1,0 +1,39 @@
+{
+  "home": {
+    "bff": {
+      "response": "Effect HttpApi response:"
+    },
+    "cards": {
+      "bff": {
+        "body": "Keep Effect as the preferred BFF lane while Hono stays an explicit fallback.",
+        "title": "BFF + Effect"
+      },
+      "config": {
+        "body": "Tune the generated defaults in modern.config.ts.",
+        "title": "Configure presetUltramodern"
+      },
+      "gates": {
+        "body": "The starter includes a PR workflow for ultramodern:check and build.",
+        "title": "Ultramodern Gates"
+      },
+      "guide": {
+        "body": "Review the MV-first, TanStack-ready, Effect-ready public preset.",
+        "title": "UltraModern.js Guide"
+      }
+    },
+    "description": {
+      "afterConfig": ", keep",
+      "afterPreset": "profile. Start in",
+      "end": "green, and tune the generated preset only where your app needs a softer lane.",
+      "intro": "This starter ships the public"
+    },
+    "language": {
+      "cs": "Czech",
+      "en": "English",
+      "switcher": "Language"
+    },
+    "logoAlt": "UltraModern.js Logo",
+    "name": "presetUltramodern",
+    "title": "UltraModern.js 3.0"
+  }
+}

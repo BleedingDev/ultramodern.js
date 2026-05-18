@@ -2,7 +2,8 @@
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import path from 'node:path';
 {{#if enableBff}}import { bffPlugin } from '@modern-js/plugin-bff';
-{{/if}}{{#if isTanstackRouter}}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
+{{/if}}import { i18nPlugin } from '@modern-js/plugin-i18n';
+{{#if isTanstackRouter}}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 {{/if}}
 const appId = process.env['MODERN_BASELINE_APP_ID'] || path.basename(process.cwd());
 const enableModuleFederationSSR = process.env['MODERN_BASELINE_ENABLE_MF_SSR'] !== 'false';
@@ -27,6 +28,12 @@ export default defineConfig(
 
 {{/if}}      plugins: [
         appTools(),
+        i18nPlugin({
+          localeDetection: {
+            fallbackLanguage: 'en',
+            languages: ['en', 'cs'],
+          },
+        }),
 {{#if isTanstackRouter}}
         tanstackRouterPlugin(),
 {{/if}}{{#if enableBff}}

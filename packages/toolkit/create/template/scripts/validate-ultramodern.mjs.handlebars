@@ -16,6 +16,7 @@ const requiredTokens = [
   'enableModuleFederationSSR',
   'enableBffRequestId',
   'enableTelemetryExporters',
+  'i18nPlugin(',
 ];
 const missing = requiredTokens.filter((token) => !content.includes(token));
 
@@ -51,6 +52,9 @@ const requiredPaths = [
   'oxlint.config.ts',
   'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/check-i18n-strings.mjs',
+  'config/public/locales/en/translation.json',
+  'config/public/locales/cs/translation.json',
 ];
 const manifestErrors = [];
 
@@ -118,6 +122,7 @@ const skillsLock = JSON.parse(
 const requiredScripts = {
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
+  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
@@ -137,6 +142,13 @@ if (
 ) {
   console.error('typecheck must use effect-tsgo as the TypeScript checker');
   process.exit(1);
+}
+
+for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next']) {
+  if (!packageJson.dependencies?.[dependency]) {
+    console.error(`Missing dependency: ${dependency}`);
+    process.exit(1);
+  }
 }
 
 for (const dependency of [

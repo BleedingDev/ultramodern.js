@@ -1,7 +1,23 @@
 import { defineRuntimeConfig } from '@modern-js/runtime';
+import { createInstance } from 'i18next';
+
+const i18nInstance = createInstance();
 
 export default defineRuntimeConfig({
+  i18n: {
+    i18nInstance,
+    initOptions: {
+      defaultNS: 'translation',
+      fallbackLng: 'en',
+      interpolation: {
+        escapeValue: false,
+      },
+      ns: ['translation'],
+      supportedLngs: ['en', 'cs'],
+    },
+  },
 {{#if isTanstackRouter}}  router: {
     framework: 'tanstack',
-  },{{/if}}
+  },
+{{/if~}}
 });

@@ -7,7 +7,12 @@ This project is generated for Codex-first UltraModern.js work.
 - `pnpm lint` runs Oxlint with the Ultracite preset.
 - `pnpm format` runs oxfmt.
 - `pnpm typecheck` runs effect-tsgo as the TypeScript checker.
+- `pnpm i18n:check` rejects hardcoded user-visible JSX text.
 - `pnpm ultramodern:check` verifies the generated contract.
+
+## Internationalization
+
+Runtime i18n is enabled by default. Agents must put user-visible UI copy in `config/public/locales/<lang>/translation.json` and render it through `react-i18next` or `@modern-js/plugin-i18n/runtime`. Do not add hardcoded JSX text, `aria-label`, `title`, `alt`, or `placeholder` strings unless the value is a non-translatable technical token.
 
 ## Private Skills
 

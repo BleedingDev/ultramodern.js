@@ -8,6 +8,7 @@ const rstackAgentSkillsCommit = '61c948b42512e223bad44b83af4080eba48b2677';
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -58,18 +59,31 @@ const requiredPaths = [
   '.modernjs/ultramodern-workspace-template-manifest.json',
   '.modernjs/ultramodern-package-source.json',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/check-i18n-strings.mjs',
   'apps/shell-super-app/package.json',
+  'apps/shell-super-app/config/public/locales/en/translation.json',
+  'apps/shell-super-app/config/public/locales/cs/translation.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
+  'apps/shell-super-app/src/modern.runtime.ts',
   'apps/remotes/remote-commerce/package.json',
+  'apps/remotes/remote-commerce/config/public/locales/en/translation.json',
+  'apps/remotes/remote-commerce/config/public/locales/cs/translation.json',
   'apps/remotes/remote-commerce/modern.config.ts',
   'apps/remotes/remote-commerce/module-federation.config.ts',
+  'apps/remotes/remote-commerce/src/modern.runtime.ts',
   'apps/remotes/remote-identity/package.json',
+  'apps/remotes/remote-identity/config/public/locales/en/translation.json',
+  'apps/remotes/remote-identity/config/public/locales/cs/translation.json',
   'apps/remotes/remote-identity/modern.config.ts',
   'apps/remotes/remote-identity/module-federation.config.ts',
+  'apps/remotes/remote-identity/src/modern.runtime.ts',
   'apps/remotes/remote-design-system/package.json',
+  'apps/remotes/remote-design-system/config/public/locales/en/translation.json',
+  'apps/remotes/remote-design-system/config/public/locales/cs/translation.json',
   'apps/remotes/remote-design-system/modern.config.ts',
   'apps/remotes/remote-design-system/module-federation.config.ts',
+  'apps/remotes/remote-design-system/src/modern.runtime.ts',
   'services/service-recommendations-effect/package.json',
   'services/service-recommendations-effect/modern.config.ts',
   'services/service-recommendations-effect/api/effect/index.ts',
@@ -134,6 +148,7 @@ assert(
 const requiredRootScripts = {
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
+  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
@@ -208,6 +223,13 @@ const appPackagePaths = [
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
   assert(
+    packageJson.dependencies?.['@modern-js/plugin-i18n'] ===
+      expectedModernDependency('@modern-js/plugin-i18n'),
+    `${packagePath} must use @modern-js/plugin-i18n through ${expectedModernDependency(
+      '@modern-js/plugin-i18n',
+    )}`,
+  );
+  assert(
     packageJson.dependencies?.['@modern-js/plugin-tanstack'] ===
       expectedModernDependency('@modern-js/plugin-tanstack'),
     `${packagePath} must use @modern-js/plugin-tanstack through ${expectedModernDependency(
@@ -236,6 +258,11 @@ for (const packagePath of appPackagePaths) {
     packageJson.dependencies?.[`@${packageScope}/shared-design-tokens`] === 'workspace:*',
     `${packagePath} must link generated shared design tokens through workspace:*`,
   );
+  assert(packageJson.dependencies?.i18next === '26.2.0', `${packagePath} must include i18next`);
+  assert(
+    packageJson.dependencies?.['react-i18next'] === '17.0.8',
+    `${packagePath} must include react-i18next`,
+  );
   assert(
     packageJson.dependencies?.['@tanstack/react-router'] === tanstackVersion,
     `${packagePath} must use @tanstack/react-router ${tanstackVersion}`,
@@ -258,6 +285,7 @@ for (const configPath of [
 ]) {
   const config = readText(configPath);
   assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
+  assert(config.includes('i18nPlugin('), `${configPath} must enable plugin-i18n`);
   assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
   assert(
     config.includes('moduleFederationPlugin()'),

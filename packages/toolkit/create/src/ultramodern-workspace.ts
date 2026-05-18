@@ -17,8 +17,10 @@ const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260518.1';
 const OXLINT_VERSION = '1.65.0';
 const OXFMT_VERSION = '0.50.0';
 const ULTRACITE_VERSION = '7.7.0';
+const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
+const REACT_I18NEXT_VERSION = '17.0.8';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
 const baselineAgentSkills = [
@@ -42,6 +44,7 @@ const effectTsgoTypecheckCommand =
 const modernPackageNames = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -516,6 +519,10 @@ function appDependencies(
   packageSource: ResolvedPackageSource,
 ): Record<string, string> {
   return {
+    '@modern-js/plugin-i18n': modernPackageSpecifier(
+      '@modern-js/plugin-i18n',
+      packageSource,
+    ),
     '@modern-js/plugin-tanstack': modernPackageSpecifier(
       '@modern-js/plugin-tanstack',
       packageSource,
@@ -529,8 +536,10 @@ function appDependencies(
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
+    i18next: I18NEXT_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
+    'react-i18next': REACT_I18NEXT_VERSION,
   };
 }
 
@@ -588,6 +597,7 @@ function createRootPackageJson(
       build: 'pnpm -r --filter ./apps/** --filter ./services/** build',
       format: 'oxfmt .',
       'format:check': 'oxfmt --check .',
+      'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
       lint: 'oxlint .',
       'lint:fix': 'oxlint . --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
@@ -595,7 +605,7 @@ function createRootPackageJson(
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       check:
-        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:check',
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm skills:check && pnpm ultramodern:check',
     },
     engines: {
       node: '>=20',
@@ -777,6 +787,7 @@ function createSharedPackage(
 function createAppModernConfig(app: WorkspaceApp): string {
   return `// @effect-diagnostics processEnv:off
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
+import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
@@ -791,7 +802,17 @@ export default defineConfig(
         polyfill: 'off',
         splitRouteChunks: false,
       },
-      plugins: [appTools(), tanstackRouterPlugin(), moduleFederationPlugin()],
+      plugins: [
+        appTools(),
+        i18nPlugin({
+          localeDetection: {
+            fallbackLanguage: 'en',
+            languages: ['en', 'cs'],
+          },
+        }),
+        tanstackRouterPlugin(),
+        moduleFederationPlugin(),
+      ],
       server: {
         port,
         ssr: {
@@ -824,6 +845,11 @@ function createSharedModuleFederationConfig(): string {
       singleton: true,
       treeShaking: false,
     },
+    i18next: {
+      requiredVersion: dependencies.i18next,
+      singleton: true,
+      treeShaking: false,
+    },
     react: {
       requiredVersion: reactVersion,
       singleton: true,
@@ -831,6 +857,11 @@ function createSharedModuleFederationConfig(): string {
     },
     'react-dom': {
       requiredVersion: reactDomVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    'react-i18next': {
+      requiredVersion: dependencies['react-i18next'],
       singleton: true,
       treeShaking: false,
     },
@@ -940,17 +971,65 @@ export default defineConfig(
 `;
 }
 
+function createAppRuntimeConfig(): string {
+  return `import { defineRuntimeConfig } from '@modern-js/runtime';
+import { createInstance } from 'i18next';
+
+const i18nInstance = createInstance();
+
+export default defineRuntimeConfig({
+  i18n: {
+    i18nInstance,
+    initOptions: {
+      defaultNS: 'translation',
+      fallbackLng: 'en',
+      interpolation: {
+        escapeValue: false,
+      },
+      ns: ['translation'],
+      supportedLngs: ['en', 'cs'],
+    },
+  },
+  router: {
+    framework: 'tanstack',
+  },
+});
+`;
+}
+
 function createShellPage(): string {
-  return `const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useTranslation } from 'react-i18next';
+
+const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
 
 export default function ShellHome() {
+  const { t } = useTranslation();
+  const { changeLanguage, language } = useModernI18n();
+  const languageOptions = [
+    { code: 'en', label: t('language.en') },
+    { code: 'cs', label: t('language.cs') },
+  ];
+
   return (
     <main>
-      <h1>UltraModern SuperApp Shell</h1>
-      <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
+      <nav aria-label={t('language.switcher')}>
+        {languageOptions.map((option) => (
+          <button
+            disabled={language === option.code}
+            key={option.code}
+            onClick={() => void changeLanguage(option.code)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </nav>
+      <h1>{t('shell.title')}</h1>
+      <p data-testid="ultramodern-preset">{t('shell.preset')}</p>
       <ul>
         {remotes.map((remote) => (
-          <li key={remote}>{remote}</li>
+          <li key={remote}>{t(\`shell.remotes.\${remote}\`)}</li>
         ))}
       </ul>
     </main>
@@ -960,11 +1039,15 @@ export default function ShellHome() {
 }
 
 function createRemotePage(app: WorkspaceApp): string {
-  return `export default function ${toPascalCase(app.id)}Home() {
+  return `import { useTranslation } from 'react-i18next';
+
+export default function ${toPascalCase(app.id)}Home() {
+  const { t } = useTranslation();
+
   return (
     <main>
-      <h1>${app.displayName}</h1>
-      <p data-mf-role="${app.kind}">${app.domain ?? app.kind}</p>
+      <h1>{t('remote.title')}</h1>
+      <p data-mf-role="${app.kind}">{t('remote.domain')}</p>
     </main>
   );
 }
@@ -990,11 +1073,15 @@ function createRemoteEntry(app: WorkspaceApp): string {
 function createRemoteWidget(app: WorkspaceApp): string {
   const componentName =
     app.id === 'remote-identity' ? 'IdentityWidget' : 'CommerceWidget';
-  return `export default function ${componentName}() {
+  return `import { useTranslation } from 'react-i18next';
+
+export default function ${componentName}() {
+  const { t } = useTranslation();
+
   return (
     <section data-mf-remote="${app.id}">
-      <h2>${app.displayName}</h2>
-      <p>Owns the ${app.domain} vertical route surface.</p>
+      <h2>{t('remote.widget.title')}</h2>
+      <p>{t('remote.widget.body')}</p>
     </section>
   );
 }
@@ -1004,7 +1091,7 @@ function createRemoteWidget(app: WorkspaceApp): string {
 function createDesignButton(): string {
   return `import { designTokens } from '../tokens';
 
-export default function Button({ label = 'Design System Button' }: { label?: string }) {
+export default function Button({ label }: { label: string }) {
   return (
     <button
       type="button"
@@ -1031,6 +1118,76 @@ function createDesignTokens(): string {
   },
 } as const;
 `;
+}
+
+function createEnglishTranslations(app: WorkspaceApp): JsonValue {
+  if (app.kind === 'shell') {
+    return {
+      language: {
+        cs: 'Czech',
+        en: 'English',
+        switcher: 'Language',
+      },
+      shell: {
+        preset: 'presetUltramodern workspace',
+        remotes: {
+          'remote-commerce': 'Commerce Remote',
+          'remote-design-system': 'Design System Remote',
+          'remote-identity': 'Identity Remote',
+        },
+        title: 'UltraModern SuperApp Shell',
+      },
+    };
+  }
+
+  return {
+    remote: {
+      domain: app.domain ?? app.kind,
+      title: app.displayName,
+      widget: {
+        body:
+          app.kind === 'vertical'
+            ? `Owns the ${app.domain} vertical route surface.`
+            : 'Provides shared UI primitives for the workspace.',
+        title: app.displayName,
+      },
+    },
+  };
+}
+
+function createCzechTranslations(app: WorkspaceApp): JsonValue {
+  if (app.kind === 'shell') {
+    return {
+      language: {
+        cs: 'Cestina',
+        en: 'Anglictina',
+        switcher: 'Jazyk',
+      },
+      shell: {
+        preset: 'presetUltramodern workspace',
+        remotes: {
+          'remote-commerce': 'Commerce remote',
+          'remote-design-system': 'Design system remote',
+          'remote-identity': 'Identity remote',
+        },
+        title: 'UltraModern SuperApp shell',
+      },
+    };
+  }
+
+  return {
+    remote: {
+      domain: app.domain ?? app.kind,
+      title: app.displayName,
+      widget: {
+        body:
+          app.kind === 'vertical'
+            ? `Vlastni ${app.domain} vertical route surface.`
+            : 'Poskytuje sdilene UI prvky pro workspace.',
+        title: app.displayName,
+      },
+    },
+  };
 }
 
 function createEffectSharedApi(): string {
@@ -1414,6 +1571,21 @@ function writeApp(
     targetDir,
     `${app.directory}/modern.config.ts`,
     createAppModernConfig(app),
+  );
+  writeFile(
+    targetDir,
+    `${app.directory}/src/modern.runtime.ts`,
+    createAppRuntimeConfig(),
+  );
+  writeJson(
+    targetDir,
+    `${app.directory}/config/public/locales/en/translation.json`,
+    createEnglishTranslations(app),
+  );
+  writeJson(
+    targetDir,
+    `${app.directory}/config/public/locales/cs/translation.json`,
+    createCzechTranslations(app),
   );
   writeFile(
     targetDir,
