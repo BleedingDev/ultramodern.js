@@ -1638,6 +1638,7 @@ function createTemplateManifest(
       ],
       postMaterializationValidation: [
         'ultramodern-workspace-contract-check',
+        'pnpm-11-policy-enforced',
         'template-manifest-retained',
       ],
       expectedCommands: ['pnpm install', 'pnpm run ultramodern:check'],

@@ -21,7 +21,7 @@ tests/
 .idea/
 
 src/
-compiled/
+/compiled/
 
 modern.config.*
 jest.config.js
@@ -29,4 +29,3 @@ jest.config.js
 .eslintrc
 tsconfig.json
 CHANGELOG.md
-

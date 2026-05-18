@@ -33,6 +33,30 @@ function readGeneratedPage(appDir: string) {
   );
 }
 
+function expectPnpm11Policy(projectDir: string) {
+  const pnpmWorkspace = fs.readFileSync(
+    path.join(projectDir, 'pnpm-workspace.yaml'),
+    'utf-8',
+  );
+  for (const requiredSnippet of [
+    'minimumReleaseAge: 1440',
+    'minimumReleaseAgeStrict: true',
+    'minimumReleaseAgeIgnoreMissingTime: false',
+    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+    'trustPolicy: no-downgrade',
+    'trustPolicyIgnoreAfter: 1440',
+    'blockExoticSubdeps: true',
+    'engineStrict: true',
+    'pmOnFail: error',
+    'verifyDepsBeforeRun: error',
+    'strictDepBuilds: true',
+    "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
+  ]) {
+    expect(pnpmWorkspace).toContain(requiredSnippet);
+  }
+  expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
+}
+
 function expectSingleAppContract(appDir: string) {
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
@@ -40,6 +64,7 @@ function expectSingleAppContract(appDir: string) {
   expect(packageJson.private).toBe(true);
   expect(packageJson.packageManager).toBe('pnpm@11.1.2');
   expect(packageJson.engines.pnpm).toBe('>=11.0.0');
+  expect(packageJson.pnpm).toBeUndefined();
   expect(packageJson.scripts.test).toBe('rstest run');
   expect(packageJson.scripts['ultramodern:check']).toContain('pnpm test');
   expect(
@@ -63,6 +88,8 @@ function expectSingleAppContract(appDir: string) {
       path.join(appDir, '.modernjs/ultramodern-package-source.json'),
     ),
   ).toBe(true);
+  expect(fs.existsSync(path.join(appDir, 'pnpm-workspace.yaml'))).toBe(true);
+  expectPnpm11Policy(appDir);
   expect(fs.existsSync(path.join(appDir, 'src/routes/page.tsx'))).toBe(false);
   const page = readGeneratedPage(appDir);
   expect(page).toContain('@modern-js/plugin-tanstack/runtime');

@@ -11,6 +11,7 @@ on:
       - 'packages/toolkit/create/README.md'
       - 'packages/toolkit/create/template/README.md'
       - 'packages/toolkit/create/template/package.json.handlebars'
+      - 'packages/toolkit/create/template/pnpm-workspace.yaml'
       - 'packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars'
       - 'packages/toolkit/create/template/rstest.config.mts'
       - 'packages/toolkit/create/template/scripts/**'

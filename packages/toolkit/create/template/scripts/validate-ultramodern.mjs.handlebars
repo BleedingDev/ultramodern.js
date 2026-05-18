@@ -53,6 +53,7 @@ const requiredPostMaterialization = [
   'ultramodern-contract-check',
   'dependency-install-with-lifecycle-deny',
   'package-source-retained',
+  'pnpm-11-policy-enforced',
   'rstest-smoke-tests',
   'template-manifest-retained',
 ];
@@ -66,6 +67,7 @@ const requiredPaths = [
   'scripts/bootstrap-agent-skills.mjs',
 {{/unless}}
   '.modernjs/ultramodern-package-source.json',
+  'pnpm-workspace.yaml',
   'rstest.config.mts',
   'scripts/check-i18n-strings.mjs',
   'config/public/locales/en/translation.json',
@@ -162,6 +164,10 @@ if (manifestErrors.length > 0) {
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
+const pnpmWorkspace = fs.readFileSync(
+  path.resolve(process.cwd(), 'pnpm-workspace.yaml'),
+  'utf-8',
+);
 const packageSource = JSON.parse(fs.readFileSync(packageSourcePath, 'utf-8'));
 const unresolvedTemplateMarker = String.fromCodePoint(123, 123);
 if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
@@ -222,6 +228,36 @@ if (packageJson.packageManager !== 'pnpm@11.1.2') {
 
 if (packageJson.engines?.pnpm !== '>=11.0.0') {
   console.error('Generated app package must require pnpm >=11.0.0');
+  process.exit(1);
+}
+
+if (packageJson.pnpm !== undefined) {
+  console.error('Generated app must keep pnpm policy in pnpm-workspace.yaml, not package.json');
+  process.exit(1);
+}
+
+for (const requiredSnippet of [
+  'minimumReleaseAge: 1440',
+  'minimumReleaseAgeStrict: true',
+  'minimumReleaseAgeIgnoreMissingTime: false',
+  "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+  'trustPolicy: no-downgrade',
+  'trustPolicyIgnoreAfter: 1440',
+  'blockExoticSubdeps: true',
+  'engineStrict: true',
+  'pmOnFail: error',
+  'verifyDepsBeforeRun: error',
+  'strictDepBuilds: true',
+  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
+]) {
+  if (!pnpmWorkspace.includes(requiredSnippet)) {
+    console.error(`pnpm-workspace.yaml must retain ${requiredSnippet.split('\n')[0]}`);
+    process.exit(1);
+  }
+}
+
+if (pnpmWorkspace.includes('onlyBuiltDependencies')) {
+  console.error('pnpm-workspace.yaml must use pnpm 11 allowBuilds instead of onlyBuiltDependencies');
   process.exit(1);
 }
 

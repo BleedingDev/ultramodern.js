@@ -142,14 +142,28 @@ assert(rootPackage.packageManager === 'pnpm@11.1.2', 'Root must pin pnpm 11.1.2'
 assert(rootPackage.engines?.pnpm === '>=11.0.0', 'Root must require pnpm >=11');
 for (const requiredSnippet of [
   'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
-  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
-  "onlyBuiltDependencies:\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
+  'minimumReleaseAge: 1440',
+  'minimumReleaseAgeStrict: true',
+  'minimumReleaseAgeIgnoreMissingTime: false',
+  "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+  'trustPolicy: no-downgrade',
+  'trustPolicyIgnoreAfter: 1440',
+  'blockExoticSubdeps: true',
+  'engineStrict: true',
+  'pmOnFail: error',
+  'verifyDepsBeforeRun: error',
+  'strictDepBuilds: true',
+  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
 ]) {
   assert(
     pnpmWorkspace.includes(requiredSnippet),
     `pnpm-workspace.yaml must retain ${requiredSnippet.split('\n')[0]}`,
   );
 }
+assert(
+  !pnpmWorkspace.includes('onlyBuiltDependencies'),
+  'pnpm-workspace.yaml must use pnpm 11 allowBuilds instead of onlyBuiltDependencies',
+);
 assert(
   rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json',
   'Root must point to the UltraModern package source metadata',
@@ -487,6 +501,10 @@ assert(
 assert(
   manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),
   'Template manifest must document the validation command',
+);
+assert(
+  manifest.validation?.postMaterializationValidation?.includes('pnpm-11-policy-enforced'),
+  'Template manifest must document pnpm 11 policy validation',
 );
 
 console.log('UltraModern workspace scaffold validated');

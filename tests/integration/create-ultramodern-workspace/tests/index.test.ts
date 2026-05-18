@@ -33,6 +33,27 @@ function expectPath(root: string, relativePath: string) {
   expect(fs.existsSync(path.join(root, relativePath))).toBe(true);
 }
 
+function expectPnpm11Policy(workspaceDir: string) {
+  const pnpmWorkspace = readText(workspaceDir, 'pnpm-workspace.yaml');
+  for (const requiredSnippet of [
+    'minimumReleaseAge: 1440',
+    'minimumReleaseAgeStrict: true',
+    'minimumReleaseAgeIgnoreMissingTime: false',
+    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+    'trustPolicy: no-downgrade',
+    'trustPolicyIgnoreAfter: 1440',
+    'blockExoticSubdeps: true',
+    'engineStrict: true',
+    'pmOnFail: error',
+    'verifyDepsBeforeRun: error',
+    'strictDepBuilds: true',
+    "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
+  ]) {
+    expect(pnpmWorkspace).toContain(requiredSnippet);
+  }
+  expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
+}
+
 describe('create-ultramodern-workspace', () => {
   let tempRoot = '';
 
@@ -119,11 +140,9 @@ describe('create-ultramodern-workspace', () => {
       'services/*',
       'packages/*',
     ]);
+    expectPnpm11Policy(workspaceDir);
     expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
-      "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
-    );
-    expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
-      "onlyBuiltDependencies:\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
+      'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
     );
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
@@ -334,6 +353,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(manifest.validation.expectedCommands).toContain(
       'pnpm run ultramodern:check',
+    );
+    expect(manifest.validation.postMaterializationValidation).toContain(
+      'pnpm-11-policy-enforced',
     );
     expect(manifest.packageSource.strategy).toBe('workspace');
     expect(manifest.agentSkills.source.commit).toBe(
