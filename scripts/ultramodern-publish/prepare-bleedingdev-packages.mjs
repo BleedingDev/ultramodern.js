@@ -531,26 +531,44 @@ function packageExists(packageName, version) {
 }
 
 function verifyRegistryPackage(packageName, version) {
-  const result = spawnSync(
-    'npm',
-    ['view', `${packageName}@${version}`, 'version', '--json'],
-    {
-      cwd: repoRoot,
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    },
+  const attempts = 12;
+  const retryDelayMs = 5000;
+  let lastError = '';
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = spawnSync(
+      'npm',
+      ['view', `${packageName}@${version}`, 'version', '--json'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      },
+    );
+    if (result.status === 0) {
+      const publishedVersion = JSON.parse(result.stdout);
+      if (publishedVersion !== version) {
+        throw new Error(
+          `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
+        );
+      }
+      return;
+    }
+
+    lastError = result.stderr || result.stdout;
+    if (attempt < attempts) {
+      Atomics.wait(
+        new Int32Array(new SharedArrayBuffer(4)),
+        0,
+        0,
+        retryDelayMs,
+      );
+    }
+  }
+
+  throw new Error(
+    `Published package ${packageName}@${version} was not visible on npm after ${attempts} attempts: ${lastError}`,
   );
-  if (result.status !== 0) {
-    throw new Error(
-      `Published package ${packageName}@${version} was not visible on npm: ${result.stderr}`,
-    );
-  }
-  const publishedVersion = JSON.parse(result.stdout);
-  if (publishedVersion !== version) {
-    throw new Error(
-      `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
-    );
-  }
 }
 
 function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
