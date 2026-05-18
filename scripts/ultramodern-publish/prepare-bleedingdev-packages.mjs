@@ -341,6 +341,63 @@ function collectExportedTypePaths(value, typePaths = new Set()) {
   return typePaths;
 }
 
+function collectDeclaredTypePaths(packageJson) {
+  const typePaths = collectExportedTypePaths(packageJson.exports);
+  if (typeof packageJson.types === 'string') {
+    typePaths.add(packageJson.types);
+  }
+  if (typeof packageJson.publishConfig?.types === 'string') {
+    typePaths.add(packageJson.publishConfig.types);
+  }
+  return typePaths;
+}
+
+function hasDeclaredTypeFile(packageDir, typePath) {
+  if (typeof typePath !== 'string') {
+    return true;
+  }
+
+  const prefixedPath = typePath.startsWith('./') ? typePath : `./${typePath}`;
+  const candidates = [typePath];
+  if (prefixedPath.startsWith('./dist/')) {
+    candidates.push(
+      typePath.startsWith('./')
+        ? prefixedPath.replace('./dist/', './dist/types/')
+        : prefixedPath.replace('./dist/', './dist/types/').slice(2),
+    );
+  }
+
+  return candidates.some(candidate =>
+    fs.existsSync(path.join(packageDir, candidate)),
+  );
+}
+
+function shouldGenerateSourceDeclarations(packageDir, packageJson) {
+  if (
+    !fs.existsSync(path.join(packageDir, 'src')) ||
+    !fs.existsSync(path.join(packageDir, 'tsconfig.json'))
+  ) {
+    return false;
+  }
+
+  return [...collectDeclaredTypePaths(packageJson)].some(
+    typePath =>
+      typeof typePath === 'string' &&
+      (typePath.includes('/dist/types/') ||
+        typePath.startsWith('dist/types/') ||
+        /^\.?\/?dist\/.+\.d\.[cm]?ts$/.test(typePath)) &&
+      !hasDeclaredTypeFile(packageDir, typePath),
+  );
+}
+
+function generateSourceDeclarations(item) {
+  if (!shouldGenerateSourceDeclarations(item.dir, item.packageJson)) {
+    return;
+  }
+
+  run('pnpm', ['-w', 'run', 'tsgo:dts', item.dir]);
+}
+
 function normalizeTypePath(packageDir, typePath) {
   if (typeof typePath !== 'string') {
     return typePath;
@@ -400,10 +457,7 @@ function normalizeDeclaredTypePaths(packageDir, packageJson) {
 }
 
 function validateStagedTypeFiles(packageDir, packageJson) {
-  const typePaths = collectExportedTypePaths(packageJson.exports);
-  if (typeof packageJson.types === 'string') {
-    typePaths.add(packageJson.types);
-  }
+  const typePaths = collectDeclaredTypePaths(packageJson);
 
   const missing = [...typePaths]
     .filter(typePath => typePath.startsWith('.'))
@@ -522,6 +576,7 @@ function main() {
   for (const item of packages) {
     const sourceName = item.packageJson.name;
     const targetName = targetPackageName(sourceName, options);
+    generateSourceDeclarations(item);
     const tarball = packSourcePackage(sourceName, packDir);
     const packageDir = extractTarball(
       tarball,
