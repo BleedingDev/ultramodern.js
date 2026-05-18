@@ -1,4 +1,0 @@
-globalThis.jest ??= {
-  setTimeout: () => {},
-  retryTimes: () => {},
-};

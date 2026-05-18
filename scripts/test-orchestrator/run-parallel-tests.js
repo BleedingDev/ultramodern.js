@@ -139,7 +139,6 @@ const EXCLUDED_SCRIPT_PATTERN = /watch/i;
 const TEST_WORKSPACE_WRAPPER_SCRIPT_NAMES = new Set([
   'test',
   'test:rstest',
-  'test:rspack',
   'test:ut',
 ]);
 
@@ -217,10 +216,7 @@ const detectRunawayScript = command =>
 
 const detectFrameworkScript = command => {
   const source = `${command.packagePath}#${command.scriptName} ${command.scriptCommand}`;
-  return (
-    /test:framework|test:rspack/i.test(source) ||
-    /vitest\.framework\.config|vitest\.effect\.config/i.test(source)
-  );
+  return /test:framework/i.test(source);
 };
 
 const detectBuilderScript = command => {

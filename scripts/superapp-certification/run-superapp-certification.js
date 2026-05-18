@@ -154,7 +154,7 @@ function superappLoadThresholdCommands(thresholdProfile, outDir) {
 }
 
 function certificationCommands(profile, outDir) {
-  const vitest = 'pnpm vitest run -c vitest.framework.config.mjs';
+  const rstest = 'pnpm exec rstest run -c rstest.config.mts';
   const smoke = [
     command('lint', 'pnpm run lint'),
     command('changeset', 'pnpm run check-changeset'),
@@ -162,17 +162,17 @@ function certificationCommands(profile, outDir) {
     command('dependencies', 'pnpm check-dependencies'),
     command(
       'superapp-erp-smoke',
-      `${vitest} integration/superapp-erp/tests/index.test.ts`,
+      `${rstest} integration/superapp-erp/tests/index.test.ts`,
       { cwd: path.join(repoRoot, 'tests') },
     ),
     command(
       'superapp-portfolio-smoke',
-      `${vitest} integration/superapp-portfolio/tests/index.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/index.test.ts`,
       { cwd: path.join(repoRoot, 'tests') },
     ),
     command(
       'superapp-portfolio-security',
-      `${vitest} integration/superapp-portfolio/tests/security.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/security.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -186,7 +186,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-mf-certification',
-      `${vitest} integration/routes-tanstack-mf/test/deploy-certification.test.ts`,
+      `${rstest} integration/routes-tanstack-mf/test/deploy-certification.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -204,7 +204,7 @@ function certificationCommands(profile, outDir) {
     ...smoke,
     command(
       'superapp-browser-matrix-smoke',
-      `${vitest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      `${rstest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -218,7 +218,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-erp-stress',
-      `${vitest} integration/superapp-erp/tests/stress.test.ts`,
+      `${rstest} integration/superapp-erp/tests/stress.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -233,7 +233,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-stress',
-      `${vitest} integration/superapp-portfolio/tests/stress.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/stress.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -249,7 +249,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-pilot-chaos',
-      `${vitest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -261,7 +261,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-load',
-      `${vitest} integration/superapp-portfolio/tests/load.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/load.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -293,7 +293,7 @@ function certificationCommands(profile, outDir) {
     ...release,
     command(
       'superapp-browser-matrix-full',
-      `${vitest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      `${rstest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -308,7 +308,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-erp-soak',
-      `${vitest} integration/superapp-erp/tests/soak.test.ts`,
+      `${rstest} integration/superapp-erp/tests/soak.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -321,7 +321,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-nightly',
-      `${vitest} integration/superapp-portfolio/tests/nightly.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/nightly.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -337,7 +337,7 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-load-boundary',
-      `${vitest} integration/superapp-portfolio/tests/load.test.ts`,
+      `${rstest} integration/superapp-portfolio/tests/load.test.ts`,
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {

@@ -1,14 +1,14 @@
+import { describe, expect, it, rstest } from '@rstest/core';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it, vi } from 'vitest';
 import {
   builderPluginPerformance,
   createRsdoctorDiagnosticsContract,
   RSDOCTOR_DIAGNOSTICS_CONTRACT_FILE,
 } from '@/plugins/performance';
 
-vi.mock('@rsdoctor/rspack-plugin', () => ({
+rstest.mock('@rsdoctor/rspack-plugin', () => ({
   RsdoctorRspackPlugin: class RsdoctorRspackPlugin {
     options: unknown;
 
@@ -70,7 +70,7 @@ const createPluginApi = ({
 const createChain = () => {
   return {
     chain: {
-      profile: vi.fn(),
+      profile: rstest.fn(),
     },
   };
 };

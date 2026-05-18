@@ -8,7 +8,7 @@
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
-    "test": "pnpm --dir ../.. exec vitest run -c vitest.integration-node.config.mjs integration/server-routes/tests/index.test.ts",
+    "test": "pnpm --dir ../../ exec rstest integration/server-routes/tests/index.test.ts",
     "preview": "modern deploy --mode preview",
     "deploy": "modern deploy"
   },

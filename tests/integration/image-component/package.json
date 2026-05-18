@@ -6,7 +6,7 @@
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
-    "test:me": "pnpm --dir ../.. exec vitest run -c vitest.integration-node.config.mjs integration/image-component/tests/index.test.ts",
+    "test:me": "pnpm --dir ../../ exec rstest integration/image-component/tests/index.test.ts",
     "test": "pnpm run test:me"
   },
   "dependencies": {

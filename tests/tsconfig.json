@@ -3,12 +3,6 @@
   "compilerOptions": {
     "strictNullChecks": false,
     "noEmit": true,
-    "types": [
-      "jasmine",
-      "jest",
-      "vitest/globals",
-      "node",
-      "@rstest/core/globals"
-    ]
+    "types": ["@rstest/core/globals"]
   }
 }

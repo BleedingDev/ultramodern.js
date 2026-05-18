@@ -7,14 +7,9 @@
   "scripts": {
     "test": "pnpm test:builder && pnpm test:framework && pnpm test:rstest-adapter",
     "test:rstest": "pnpm test:framework && pnpm test:rstest-adapter",
-    "test:framework": "vitest run -c vitest.framework.config.mjs",
-    "test:framework:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.framework.config.mjs",
-    "test:framework:effect": "vitest run -c vitest.effect.config.mjs",
-    "test:framework:effect:serial": "VITEST_FRAMEWORK_PARALLEL=0 vitest run -c vitest.effect.config.mjs",
+    "test:framework": "cross-env MODERN_SERVER_LOG_LEVEL=info rstest",
     "test:rstest-adapter": "rstest -c rstest.adapter.config.mts",
     "test:builder": "cd e2e/builder && pnpm test",
-    "test:builder:rspack": "cd e2e/builder && pnpm test",
-    "test:rspack": "pnpm test:builder:rspack && pnpm test:framework",
     "test:module-tools": "rstest run -c rstest.module-tools.config.ts --passWithNoTests",
     "test:superapp-contracts": "rstest run -c rstest.superapp-contracts.config.mts",
     "test:ut": "pnpm -w run test:ut",
@@ -26,7 +21,6 @@
     "@modern-js/plugin-polyfill": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/core": "1.15.33",
-    "@types/jest": "^30.0.0",
     "@types/node": "^25.8.0",
     "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "cross-spawn": "^7.0.6",
@@ -37,7 +31,6 @@
     "puppeteer": "^25.0.2",
     "rimraf": "^6.1.3",
     "tree-kill": "^1.2.2",
-    "tsm": "2.3.0",
-    "vitest": "^4.1.6"
+    "tsm": "2.3.0"
   }
 }

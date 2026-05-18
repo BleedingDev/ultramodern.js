@@ -241,7 +241,7 @@ function parseArgs(argv, env = process.env, now = new Date()) {
 function createDestroyPlan(options) {
   const artifactRoot = path.join(options.outputDir, 'artifacts');
   const testsCwd = path.join(REPO_ROOT, 'tests');
-  const vitest = 'pnpm vitest run -c vitest.framework.config.mjs';
+  const rstest = 'pnpm exec rstest run -c rstest.config.mts';
   const profileDefinition =
     options.profileDefinition || resolveDestroyProfile(options.profile);
   if (!profileDefinition) {
@@ -355,7 +355,7 @@ function createDestroyPlan(options) {
       commands: [
         command(
           'superapp-browser-runtime-smoke',
-          `${vitest} integration/superapp-portfolio/tests/browser-runtime.test.ts`,
+          `${rstest} integration/superapp-portfolio/tests/browser-runtime.test.ts`,
           {
             artifactDir: artifactDir(artifactRoot, 'browser-runtime-smoke'),
             cwd: testsCwd,
@@ -376,7 +376,7 @@ function createDestroyPlan(options) {
       commands: [
         command(
           'superapp-pilot-chaos',
-          `${vitest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
+          `${rstest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
           {
             artifactDir: artifactDir(artifactRoot, 'pilot-chaos'),
             cwd: testsCwd,
@@ -415,7 +415,7 @@ function createDestroyPlan(options) {
       commands: [
         command(
           'superapp-effect-bff-contracts',
-          `${vitest} integration/superapp-portfolio/tests/effect-bff-contracts.test.ts integration/superapp-portfolio/tests/effect-tanstack-contract-behavior.test.ts integration/superapp-portfolio/tests/effect-tanstack-contract-coverage-artifact.test.ts`,
+          `${rstest} integration/superapp-portfolio/tests/effect-bff-contracts.test.ts integration/superapp-portfolio/tests/effect-tanstack-contract-behavior.test.ts integration/superapp-portfolio/tests/effect-tanstack-contract-coverage-artifact.test.ts`,
           {
             artifactDir: artifactDir(artifactRoot, 'contracts'),
             cwd: testsCwd,
@@ -440,7 +440,7 @@ function createDestroyPlan(options) {
       commands: [
         command(
           'superapp-browser-runtime-matrix',
-          `${vitest} integration/superapp-portfolio/tests/browser-runtime-matrix.test.ts`,
+          `${rstest} integration/superapp-portfolio/tests/browser-runtime-matrix.test.ts`,
           {
             artifactDir: artifactDir(artifactRoot, 'browser-runtime-matrix'),
             cwd: testsCwd,
