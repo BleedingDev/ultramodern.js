@@ -3,7 +3,7 @@ import { createDebugger, fs, JS_EXTENSIONS } from '@modern-js/utils';
 import path from 'path';
 import { FILE_SYSTEM_ROUTES_IGNORED_REGEX } from '../../constants';
 
-const debug = createDebugger('get-client-routes');
+const debug: (...args: unknown[]) => void = createDebugger('get-client-routes');
 
 export { debug };
 
