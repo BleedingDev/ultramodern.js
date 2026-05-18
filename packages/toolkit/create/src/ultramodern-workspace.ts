@@ -1088,7 +1088,7 @@ const LocalizedHead = () => {
 function createShellPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/runtime/tanstack-router';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useTranslation } from 'react-i18next';
 
 const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
@@ -1135,7 +1135,7 @@ export default function ShellHome() {
 function createRemotePage(app: WorkspaceApp): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/runtime/tanstack-router';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useTranslation } from 'react-i18next';
 
 ${createLocalizedHeadComponent()}

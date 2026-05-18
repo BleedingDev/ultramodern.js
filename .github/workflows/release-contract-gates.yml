@@ -10,10 +10,17 @@ on:
       - 'packages/document/docs/**/configure/app/bff/runtime-framework.mdx'
       - 'packages/toolkit/create/README.md'
       - 'packages/toolkit/create/template/README.md'
+      - 'packages/toolkit/create/template/package.json.handlebars'
       - 'packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars'
-      - 'packages/toolkit/create/template/src/routes/page.tsx.handlebars'
+      - 'packages/toolkit/create/template/rstest.config.mts'
+      - 'packages/toolkit/create/template/scripts/**'
+      - 'packages/toolkit/create/template/src/routes/[lang]/page.tsx.handlebars'
+      - 'packages/toolkit/create/template/tests/**'
+      - 'packages/toolkit/create/template-workspace/**'
       - 'packages/toolkit/sandpack-react/src/templates/mwa.ts'
       - 'scripts/release-gates/**'
+      - 'scripts/ultramodern-publish/**'
+      - '.github/workflows/publish-bleedingdev.yml'
       - '.github/workflows/release-contract-gates.yml'
   workflow_dispatch:
     inputs:

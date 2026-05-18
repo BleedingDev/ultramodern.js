@@ -74,6 +74,8 @@ function parseArgs(argv) {
     packageSource: undefined,
     packageVersion: undefined,
     packageRegistry: undefined,
+    packageScope: undefined,
+    packageNamePrefix: undefined,
     keep: false,
     json: false,
     out: undefined,
@@ -95,6 +97,10 @@ function parseArgs(argv) {
       options.packageVersion = argv[++index];
     } else if (arg === '--ultramodern-package-registry') {
       options.packageRegistry = argv[++index];
+    } else if (arg === '--ultramodern-package-scope') {
+      options.packageScope = argv[++index];
+    } else if (arg === '--ultramodern-package-name-prefix') {
+      options.packageNamePrefix = argv[++index];
     } else if (arg === '--keep') {
       options.keep = true;
     } else if (arg === '--json') {
@@ -117,6 +123,12 @@ function createWorkspaceArgs(workspace, options) {
   }
   if (options.packageRegistry) {
     args.push('--ultramodern-package-registry', options.packageRegistry);
+  }
+  if (options.packageScope) {
+    args.push('--ultramodern-package-scope', options.packageScope);
+  }
+  if (options.packageNamePrefix) {
+    args.push('--ultramodern-package-name-prefix', options.packageNamePrefix);
   }
   return args;
 }

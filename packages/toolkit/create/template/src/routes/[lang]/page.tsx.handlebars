@@ -1,6 +1,6 @@
 import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/runtime/{{routerImportPath}}';
+import { useLocation } from '{{routerRuntimeImport}}';
 {{#if useEffectBff}}import effectBff from '@api/effect/index';
 import { Effect } from '@modern-js/plugin-bff/effect-client';
 import { useEffect, useState } from 'react';

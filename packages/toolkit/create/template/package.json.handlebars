@@ -1,17 +1,22 @@
 {
   "name": "{{packageName}}",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "reset": "npx rimraf node_modules ./**/node_modules",
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
+    "test": "rstest run",
     "typecheck": "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"",
     "i18n:check": "node ./scripts/check-i18n-strings.mjs",
+{{#unless isSubproject}}
     "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
-    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
+{{/unless}}
+    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
@@ -32,16 +37,20 @@
   },
   "devDependencies": {
     "@effect/tsgo": "0.7.3",
+    "@modern-js/adapter-rstest": "{{adapterRstestVersion}}",
     "@modern-js/app-tools": "{{appToolsVersion}}",
 {{#if enableBff}}    "@modern-js/plugin-bff": "{{pluginBffVersion}}",
 {{/if}}    "@modern-js/tsconfig": "{{tsconfigVersion}}",
+    "@rstest/core": "0.10.0",
 {{#if enableTailwind}}
     "@tailwindcss/postcss": "^4.1.18",
 {{/if}}
+    "@testing-library/jest-dom": "^6.9.1",
     "@types/node": "^20",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@typescript/native-preview": "7.0.0-dev.20260518.1",
+    "happy-dom": "^20.8.9",
 {{#unless isSubproject}}
     "lint-staged": "~15.4.0",
     "oxfmt": "0.50.0",
@@ -62,6 +71,15 @@
     ]
   }{{/unless}},
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "pnpm": ">=11.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "core-js",
+      "esbuild",
+      "msgpackr-extract"
+    ]
   }
 }

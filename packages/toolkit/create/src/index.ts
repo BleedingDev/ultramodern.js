@@ -126,7 +126,6 @@ const templateIdPattern = /^[a-z0-9][a-z0-9._-]*$/;
 const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
 const requiredDeniedPaths = [
   '.git/**',
-  '.github/**',
   '.npmrc',
   '.yarnrc',
   '.env',
@@ -384,6 +383,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       allowedPaths: [
         '.agents/**',
         '.browserslistrc',
+        '.github/**',
         '.gitignore',
         '.modernjs/**',
         '.nvmrc',
@@ -396,10 +396,12 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
         'oxlint.config.ts',
         'package.json',
         'postcss.config.mjs',
+        'rstest.config.mts',
         'scripts/**',
         'shared/**',
         'src/**',
         'tailwind.config.ts',
+        'tests/**',
         'tsconfig.json',
       ],
       deniedPaths: requiredDeniedPaths,
@@ -428,10 +430,13 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       postMaterializationValidation: [
         'ultramodern-contract-check',
         'dependency-install-with-lifecycle-deny',
+        'package-source-retained',
+        'rstest-smoke-tests',
         'template-manifest-retained',
       ],
       expectedCommands: [
         'pnpm install --ignore-scripts',
+        'pnpm test',
         'pnpm run ultramodern:check',
       ],
     },
@@ -937,6 +942,68 @@ function singleAppModernPackageSpecifier(
   }`;
 }
 
+const singleAppModernPackages = [
+  '@modern-js/runtime',
+  '@modern-js/app-tools',
+  '@modern-js/tsconfig',
+  '@modern-js/plugin-i18n',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/plugin-bff',
+  '@modern-js/adapter-rstest',
+];
+
+function createSingleAppPackageSourceEvidence(
+  packageSource: UltramodernPackageSource,
+  useWorkspaceProtocol: boolean,
+) {
+  const strategy = useWorkspaceProtocol ? 'workspace' : 'install';
+  const specifier = useWorkspaceProtocol
+    ? 'workspace:*'
+    : packageSource.modernPackageVersion;
+  const aliases =
+    strategy === 'install' && packageSource.aliasScope
+      ? Object.fromEntries(
+          singleAppModernPackages.map(packageName => [
+            packageName,
+            modernAliasPackageName(packageName, packageSource),
+          ]),
+        )
+      : undefined;
+
+  return {
+    schemaVersion: 1,
+    preset: 'presetUltramodern',
+    strategy,
+    modernPackages: {
+      specifier,
+      packages: singleAppModernPackages,
+      ...(packageSource.registry ? { registry: packageSource.registry } : {}),
+      ...(aliases ? { aliases } : {}),
+    },
+  };
+}
+
+function writeSingleAppPackageSourceEvidence(
+  targetDir: string,
+  packageSource: UltramodernPackageSource,
+  useWorkspaceProtocol: boolean,
+) {
+  const evidencePath = path.join(
+    targetDir,
+    '.modernjs',
+    'ultramodern-package-source.json',
+  );
+  fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
+  fs.writeFileSync(
+    evidencePath,
+    `${JSON.stringify(
+      createSingleAppPackageSourceEvidence(packageSource, useWorkspaceProtocol),
+      null,
+      2,
+    )}\n`,
+  );
+}
+
 function isDirectoryEmpty(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false;
@@ -1129,6 +1196,11 @@ async function main() {
       packageSource,
       useWorkspaceProtocol,
     ),
+    adapterRstestVersion: singleAppModernPackageSpecifier(
+      '@modern-js/adapter-rstest',
+      packageSource,
+      useWorkspaceProtocol,
+    ),
     tsconfigVersion: singleAppModernPackageSpecifier(
       '@modern-js/tsconfig',
       packageSource,
@@ -1159,6 +1231,14 @@ async function main() {
   const targetPackageJson = path.join(targetDir, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(targetPackageJson, 'utf-8'));
   packageJson.name = generatedPackageName;
+  packageJson.modernjs = {
+    ...(packageJson.modernjs ?? {}),
+    preset: 'presetUltramodern',
+    packageSource: {
+      strategy: useWorkspaceProtocol ? 'workspace' : 'install',
+      config: './.modernjs/ultramodern-package-source.json',
+    },
+  };
 
   if (isSubproject) {
     delete packageJson['lint-staged'];
@@ -1186,6 +1266,11 @@ async function main() {
     `${JSON.stringify(packageJson, null, 2)}\n`,
   );
   writeTemplateManifestEvidence(targetDir, templateManifest);
+  writeSingleAppPackageSourceEvidence(
+    targetDir,
+    packageSource,
+    useWorkspaceProtocol,
+  );
 
   // ANSI escape codes: \x1b[2m = dim, \x1b[3m = italic, \x1b[0m = reset
   const dim = '\x1b[2m\x1b[3m';
@@ -1210,6 +1295,7 @@ function copyTemplate(
     version: string;
     runtimeVersion: string;
     appToolsVersion: string;
+    adapterRstestVersion: string;
     tsconfigVersion: string;
     pluginTanstackVersion: string;
     pluginBffVersion: string;
@@ -1225,6 +1311,7 @@ function copyTemplate(
 
   const excludeInSubproject = [
     '.agents',
+    '.github',
     '.gitignore.handlebars',
     'AGENTS.md',
     '.npmrc',
@@ -1271,6 +1358,7 @@ function copyTemplate(
             version: options.version,
             runtimeVersion: options.runtimeVersion,
             appToolsVersion: options.appToolsVersion,
+            adapterRstestVersion: options.adapterRstestVersion,
             tsconfigVersion: options.tsconfigVersion,
             pluginTanstackVersion: options.pluginTanstackVersion,
             pluginBffVersion: options.pluginBffVersion,
@@ -1282,10 +1370,10 @@ function copyTemplate(
             useHonoBff: options.bffRuntime === 'hono',
             bffRuntime: options.bffRuntime,
             enableTailwind: options.enableTailwind,
-            routerImportPath:
+            routerRuntimeImport:
               options.routerFramework === 'tanstack'
-                ? 'tanstack-router'
-                : 'router',
+                ? '@modern-js/plugin-tanstack/runtime'
+                : '@modern-js/runtime/router',
           });
           if (rendered.trim().length === 0) {
             continue;

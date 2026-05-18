@@ -120,6 +120,8 @@ for (const appDirectory of [
 const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const skillsLock = readJson('.agents/skills-lock.json');
+const pnpmWorkspace = readText('pnpm-workspace.yaml');
+const deprecatedTanstackRuntime = '@modern-js/runtime/' + 'tanstack-router';
 const expectedModernSpecifier =
   packageSource.strategy === 'install' ? packageSource.modernPackages?.specifier : 'workspace:*';
 
@@ -138,6 +140,16 @@ assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(rootPackage.packageManager === 'pnpm@11.1.2', 'Root must pin pnpm 11.1.2');
 assert(rootPackage.engines?.pnpm === '>=11.0.0', 'Root must require pnpm >=11');
+for (const requiredSnippet of [
+  'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
+  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
+  "onlyBuiltDependencies:\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
+]) {
+  assert(
+    pnpmWorkspace.includes(requiredSnippet),
+    `pnpm-workspace.yaml must retain ${requiredSnippet.split('\n')[0]}`,
+  );
+}
 assert(
   rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json',
   'Root must point to the UltraModern package source metadata',
@@ -330,6 +342,14 @@ for (const routePath of [
   assert(route.includes('rel="alternate"'), `${routePath} must emit alternate locale metadata`);
   assert(route.includes('hrefLang="x-default"'), `${routePath} must emit x-default metadata`);
   assert(route.includes('localizedPath('), `${routePath} must build localized URLs`);
+  assert(
+    route.includes('@modern-js/plugin-tanstack/runtime'),
+    `${routePath} must import TanStack runtime from @modern-js/plugin-tanstack/runtime`,
+  );
+  assert(
+    !route.includes(deprecatedTanstackRuntime),
+    `${routePath} must not import deprecated TanStack runtime path`,
+  );
 }
 
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');

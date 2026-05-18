@@ -85,11 +85,11 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
       'apps/remotes/remote-commerce/module-federation.config.ts',
-      'apps/remotes/remote-commerce/src/components/CommerceWidget.tsx',
+      'apps/remotes/remote-commerce/src/components/commerce-widget.tsx',
       'apps/remotes/remote-identity/package.json',
       'apps/remotes/remote-identity/modern.config.ts',
       'apps/remotes/remote-identity/module-federation.config.ts',
-      'apps/remotes/remote-identity/src/components/IdentityWidget.tsx',
+      'apps/remotes/remote-identity/src/components/identity-widget.tsx',
       'apps/remotes/remote-design-system/package.json',
       'apps/remotes/remote-design-system/modern.config.ts',
       'apps/remotes/remote-design-system/module-federation.config.ts',
@@ -244,16 +244,16 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/module-federation.config.ts',
     );
     expect(commerceMfConfig).toContain("name: 'remoteCommerce'");
-    expect(commerceMfConfig).toContain('"./Widget"');
-    expect(commerceMfConfig).toContain('"./Route"');
+    expect(commerceMfConfig).toContain("'./Widget'");
+    expect(commerceMfConfig).toContain("'./Route'");
 
     const designMfConfig = readText(
       workspaceDir,
       'apps/remotes/remote-design-system/module-federation.config.ts',
     );
     expect(designMfConfig).toContain("name: 'remoteDesignSystem'");
-    expect(designMfConfig).toContain('"./Button"');
-    expect(designMfConfig).toContain('"./tokens"');
+    expect(designMfConfig).toContain("'./Button'");
+    expect(designMfConfig).toContain("'./tokens'");
 
     const servicePackage = readJson(
       workspaceDir,

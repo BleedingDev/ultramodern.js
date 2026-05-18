@@ -7,6 +7,7 @@ const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const MODERN_PACKAGES = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -123,7 +124,15 @@ function readPackageSource(workspace) {
         : WORKSPACE_PACKAGE_VERSION,
     file: relative(workspace, packageSourceFile),
     packages: packageSource.modernPackages?.packages || [],
+    aliases: packageSource.modernPackages?.aliases || {},
   };
+}
+
+function expectedModernDependency(packageSource, packageName) {
+  const specifier =
+    packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
+  const alias = packageSource.aliases?.[packageName];
+  return typeof alias === 'string' ? `npm:${alias}@${specifier}` : specifier;
 }
 
 function checkPackageSource(workspace) {
@@ -202,7 +211,7 @@ function checkPackageSource(workspace) {
           expected: MODERN_PACKAGES,
           actual: packageSource.packages,
           suggestion:
-            'Include app-tools, runtime, plugin-bff, and plugin-tanstack in modernPackages.packages.',
+            'Include app-tools, runtime, plugin-bff, plugin-i18n, and plugin-tanstack in modernPackages.packages.',
         },
       ),
     );
@@ -351,8 +360,6 @@ function checkAppPackages(workspace) {
   ].filter(Boolean);
   const checks = [];
   const packageSource = readPackageSource(workspace);
-  const expectedModernSpecifier =
-    packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
   for (const id of ids) {
     const owner = ownersById.get(id);
     const packageFile = owner?.path
@@ -376,28 +383,69 @@ function checkAppPackages(workspace) {
       createCheck(
         `tanstack-plugin-${id}`,
         pkg.dependencies?.['@modern-js/plugin-tanstack'] ===
-          expectedModernSpecifier,
+          expectedModernDependency(packageSource, '@modern-js/plugin-tanstack'),
         {
           file: relative(workspace, packageFile),
           path: 'dependencies.@modern-js/plugin-tanstack',
           message: `${id} uses @modern-js/plugin-tanstack.`,
-          expected: expectedModernSpecifier,
+          expected: expectedModernDependency(
+            packageSource,
+            '@modern-js/plugin-tanstack',
+          ),
           actual: pkg.dependencies?.['@modern-js/plugin-tanstack'],
           suggestion:
             'Use the configured UltraModern package source for @modern-js/plugin-tanstack.',
         },
       ),
       createCheck(
+        `i18n-plugin-${id}`,
+        pkg.dependencies?.['@modern-js/plugin-i18n'] ===
+          expectedModernDependency(packageSource, '@modern-js/plugin-i18n'),
+        {
+          file: relative(workspace, packageFile),
+          path: 'dependencies.@modern-js/plugin-i18n',
+          message: `${id} uses @modern-js/plugin-i18n from the configured package source.`,
+          expected: expectedModernDependency(
+            packageSource,
+            '@modern-js/plugin-i18n',
+          ),
+          actual: pkg.dependencies?.['@modern-js/plugin-i18n'],
+          suggestion:
+            'Use the configured UltraModern package source for @modern-js/plugin-i18n.',
+        },
+      ),
+      createCheck(
         `modern-runtime-${id}`,
-        pkg.dependencies?.['@modern-js/runtime'] === expectedModernSpecifier,
+        pkg.dependencies?.['@modern-js/runtime'] ===
+          expectedModernDependency(packageSource, '@modern-js/runtime'),
         {
           file: relative(workspace, packageFile),
           path: 'dependencies.@modern-js/runtime',
           message: `${id} uses @modern-js/runtime from the configured package source.`,
-          expected: expectedModernSpecifier,
+          expected: expectedModernDependency(
+            packageSource,
+            '@modern-js/runtime',
+          ),
           actual: pkg.dependencies?.['@modern-js/runtime'],
           suggestion:
             'Use the configured UltraModern package source for @modern-js/runtime.',
+        },
+      ),
+      createCheck(
+        `app-tools-${id}`,
+        pkg.devDependencies?.['@modern-js/app-tools'] ===
+          expectedModernDependency(packageSource, '@modern-js/app-tools'),
+        {
+          file: relative(workspace, packageFile),
+          path: 'devDependencies.@modern-js/app-tools',
+          message: `${id} uses @modern-js/app-tools from the configured package source.`,
+          expected: expectedModernDependency(
+            packageSource,
+            '@modern-js/app-tools',
+          ),
+          actual: pkg.devDependencies?.['@modern-js/app-tools'],
+          suggestion:
+            'Use the configured UltraModern package source for @modern-js/app-tools.',
         },
       ),
       createCheck(
@@ -450,14 +498,12 @@ function checkEffectService(workspace) {
     ? path.join(serviceRoot, 'api/effect/index.ts')
     : null;
   const packageSource = readPackageSource(workspace);
-  const expectedModernSpecifier =
-    packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
   const pkg = packageFile && exists(packageFile) ? readJson(packageFile) : {};
   return [
     createCheck(
       'effect-service-plugin-bff-source',
       pkg.devDependencies?.['@modern-js/plugin-bff'] ===
-        expectedModernSpecifier,
+        expectedModernDependency(packageSource, '@modern-js/plugin-bff'),
       {
         file: packageFile
           ? relative(workspace, packageFile)
@@ -465,7 +511,10 @@ function checkEffectService(workspace) {
         path: 'devDependencies.@modern-js/plugin-bff',
         message:
           'Effect service uses @modern-js/plugin-bff from the configured package source.',
-        expected: expectedModernSpecifier,
+        expected: expectedModernDependency(
+          packageSource,
+          '@modern-js/plugin-bff',
+        ),
         actual: pkg.devDependencies?.['@modern-js/plugin-bff'],
         suggestion:
           'Use the configured UltraModern package source for @modern-js/plugin-bff.',

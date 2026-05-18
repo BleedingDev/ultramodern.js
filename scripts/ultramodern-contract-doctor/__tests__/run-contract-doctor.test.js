@@ -61,9 +61,13 @@ function createWorkspace() {
   ]) {
     writeJson(root, `${appPath}/package.json`, {
       dependencies: {
+        '@modern-js/plugin-i18n': 'workspace:*',
         '@modern-js/plugin-tanstack': 'workspace:*',
         '@modern-js/runtime': 'workspace:*',
         '@tanstack/react-router': EXPECTED_TANSTACK_ROUTER,
+      },
+      devDependencies: {
+        '@modern-js/app-tools': 'workspace:*',
       },
     });
     writeText(root, `${appPath}/src/routes/page.tsx`, 'export default null;\n');
@@ -150,6 +154,7 @@ test('accepts an install-backed UltraModern package source strategy', () => {
         packages: [
           '@modern-js/app-tools',
           '@modern-js/plugin-bff',
+          '@modern-js/plugin-i18n',
           '@modern-js/plugin-tanstack',
           '@modern-js/runtime',
         ],
@@ -177,9 +182,13 @@ test('accepts an install-backed UltraModern package source strategy', () => {
     ]) {
       writeJson(root, `${appPath}/package.json`, {
         dependencies: {
+          '@modern-js/plugin-i18n': '3.2.0',
           '@modern-js/plugin-tanstack': '3.2.0',
           '@modern-js/runtime': '3.2.0',
           '@tanstack/react-router': EXPECTED_TANSTACK_ROUTER,
+        },
+        devDependencies: {
+          '@modern-js/app-tools': '3.2.0',
         },
       });
     }

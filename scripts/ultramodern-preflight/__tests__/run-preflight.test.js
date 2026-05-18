@@ -72,6 +72,8 @@ test('passes package-source options through generated workspace preflight', () =
       packageSource: 'install',
       packageVersion: '3.2.0-ultramodern.0',
       packageRegistry: 'https://registry.example.test/',
+      packageScope: 'bleedingdev',
+      packageNamePrefix: 'modern-js-',
     });
 
     assert.equal(result.status, 'pass');
@@ -85,6 +87,10 @@ test('passes package-source options through generated workspace preflight', () =
     );
     assert.equal(packageSource.strategy, 'install');
     assert.equal(packageSource.modernPackages.specifier, '3.2.0-ultramodern.0');
+    assert.equal(
+      packageSource.modernPackages.aliases['@modern-js/runtime'],
+      '@bleedingdev/modern-js-runtime',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

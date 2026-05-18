@@ -530,6 +530,73 @@ function packageExists(packageName, version) {
   return result.status === 0;
 }
 
+function verifyRegistryPackage(packageName, version) {
+  const result = spawnSync(
+    'npm',
+    ['view', `${packageName}@${version}`, 'version', '--json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Published package ${packageName}@${version} was not visible on npm: ${result.stderr}`,
+    );
+  }
+  const publishedVersion = JSON.parse(result.stdout);
+  if (publishedVersion !== version) {
+    throw new Error(
+      `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
+    );
+  }
+}
+
+function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
+  const block = packageJson[blockName];
+  if (!block || typeof block !== 'object') {
+    return;
+  }
+
+  for (const [dependencyName, specifier] of Object.entries(block)) {
+    if (typeof specifier === 'string' && specifier.startsWith('workspace:')) {
+      throw new Error(
+        `${packageName} ${blockName}.${dependencyName} still uses ${specifier}`,
+      );
+    }
+  }
+}
+
+function validatePublishManifest(manifest) {
+  for (const item of manifest.packages) {
+    const packageJson = readJson(
+      path.join(repoRoot, item.packageDir, 'package.json'),
+    );
+    if (packageJson.name !== item.targetName) {
+      throw new Error(
+        `Publish manifest target mismatch: expected ${item.targetName}, got ${packageJson.name}`,
+      );
+    }
+    if (packageJson.version !== item.version) {
+      throw new Error(
+        `${item.targetName} has version ${packageJson.version}, expected ${item.version}`,
+      );
+    }
+    if (packageJson.publishConfig?.access !== 'public') {
+      throw new Error(`${item.targetName} must publish with public access`);
+    }
+    for (const blockName of [
+      'dependencies',
+      'devDependencies',
+      'optionalDependencies',
+      'peerDependencies',
+    ]) {
+      validateNoWorkspaceProtocol(packageJson, item.targetName, blockName);
+    }
+  }
+}
+
 function publishPackage(packageDir, options) {
   const packageJson = readJson(path.join(packageDir, 'package.json'));
   const args = [
@@ -543,6 +610,8 @@ function publishPackage(packageDir, options) {
 
   if (options.dryRun) {
     args.push('--dry-run');
+  } else {
+    args.push('--provenance');
   }
 
   run('npm', args);
@@ -598,6 +667,7 @@ function main() {
   }
 
   writeJson(path.join(options.out, 'manifest.json'), manifest);
+  validatePublishManifest(manifest);
 
   console.log(
     `Prepared ${manifest.packages.length} package(s) under ${path.relative(
@@ -618,10 +688,12 @@ function main() {
       packageExists(item.targetName, options.version)
     ) {
       console.log(`Skipping existing ${item.targetName}@${options.version}`);
+      verifyRegistryPackage(item.targetName, options.version);
       continue;
     }
     const publishedName = publishPackage(packageDir, options);
     console.log(`Published ${publishedName}@${options.version}`);
+    verifyRegistryPackage(publishedName, options.version);
   }
 }
 

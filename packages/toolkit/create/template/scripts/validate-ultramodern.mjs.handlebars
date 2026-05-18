@@ -3,6 +3,11 @@ import path from 'node:path';
 
 const configPath = path.resolve(process.cwd(), 'modern.config.ts');
 const templateManifestPath = path.resolve(process.cwd(), '.modernjs/mv-template-manifest.json');
+const packageSourcePath = path.resolve(
+  process.cwd(),
+  '.modernjs/ultramodern-package-source.json',
+);
+const isSubproject = {{isSubproject}};
 
 if (!fs.existsSync(configPath)) {
   console.error('modern.config.ts not found');
@@ -37,7 +42,6 @@ if (!fs.existsSync(templateManifestPath)) {
 const templateManifest = JSON.parse(fs.readFileSync(templateManifestPath, 'utf-8'));
 const requiredDeniedPaths = [
   '.git/**',
-  '.github/**',
   '.npmrc',
   '.yarnrc',
   '.env',
@@ -48,19 +52,28 @@ const requiredDeniedPaths = [
 const requiredPostMaterialization = [
   'ultramodern-contract-check',
   'dependency-install-with-lifecycle-deny',
+  'package-source-retained',
+  'rstest-smoke-tests',
   'template-manifest-retained',
 ];
 const requiredPaths = [
+{{#unless isSubproject}}
   'AGENTS.md',
   '.agents/skills-lock.json',
+  '.github/workflows/ultramodern-gates.yml',
   'oxlint.config.ts',
   'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
+{{/unless}}
+  '.modernjs/ultramodern-package-source.json',
+  'rstest.config.mts',
   'scripts/check-i18n-strings.mjs',
   'config/public/locales/en/translation.json',
   'config/public/locales/cs/translation.json',
   'src/modern-app-env.d.ts',
   'src/routes/[lang]/page.tsx',
+  'tests/rstest.setup.ts',
+  'tests/ultramodern.contract.test.ts',
 ];
 const manifestErrors = [];
 
@@ -86,12 +99,22 @@ for (const token of [
   'hrefLang="x-default"',
   'localizedPath(',
   '<a',
+{{#if isTanstackRouter}}
+  "@modern-js/plugin-tanstack/runtime",
+{{/if}}
 ]) {
   if (!pageContent.includes(token)) {
     console.error(`Localized route is missing ${token}`);
     process.exit(1);
   }
 }
+{{#if isTanstackRouter}}
+const deprecatedTanstackRuntime = '@modern-js/runtime/' + 'tanstack-router';
+if (pageContent.includes(deprecatedTanstackRuntime)) {
+  console.error('Localized route must import TanStack runtime from @modern-js/plugin-tanstack/runtime');
+  process.exit(1);
+}
+{{/if}}
 
 if (templateManifest.schemaVersion !== 1) {
   manifestErrors.push('schemaVersion');
@@ -139,22 +162,32 @@ if (manifestErrors.length > 0) {
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
+const packageSource = JSON.parse(fs.readFileSync(packageSourcePath, 'utf-8'));
 const unresolvedTemplateMarker = String.fromCodePoint(123, 123);
 if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
   console.error('package.json contains unresolved template markers');
   process.exit(1);
 }
+if (JSON.stringify(packageSource).includes(unresolvedTemplateMarker)) {
+  console.error('package source metadata contains unresolved template markers');
+  process.exit(1);
+}
+{{#unless isSubproject}}
 const skillsLock = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), '.agents/skills-lock.json'), 'utf-8'),
 );
+{{/unless}}
 const requiredScripts = {
+  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
+  test: 'rstest run',
+{{#unless isSubproject}}
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
-  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+{{/unless}}
 };
 
 for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
@@ -172,6 +205,112 @@ if (
   process.exit(1);
 }
 
+if (!packageJson.scripts?.['ultramodern:check']?.includes('pnpm test')) {
+  console.error('ultramodern:check must run the generated Rstest suite');
+  process.exit(1);
+}
+
+if (packageJson.private !== true) {
+  console.error('Generated app package must be private by default');
+  process.exit(1);
+}
+
+if (packageJson.packageManager !== 'pnpm@11.1.2') {
+  console.error('Generated app package must pin pnpm@11.1.2');
+  process.exit(1);
+}
+
+if (packageJson.engines?.pnpm !== '>=11.0.0') {
+  console.error('Generated app package must require pnpm >=11.0.0');
+  process.exit(1);
+}
+
+if (packageJson.modernjs?.preset !== 'presetUltramodern') {
+  console.error('package.json must declare presetUltramodern metadata');
+  process.exit(1);
+}
+
+if (
+  packageJson.modernjs?.packageSource?.config !== './.modernjs/ultramodern-package-source.json'
+) {
+  console.error('package.json must retain package source metadata location');
+  process.exit(1);
+}
+
+if (packageSource.schemaVersion !== 1) {
+  console.error('Package source metadata must use schemaVersion 1');
+  process.exit(1);
+}
+
+if (packageSource.preset !== 'presetUltramodern') {
+  console.error('Package source metadata must declare presetUltramodern');
+  process.exit(1);
+}
+
+if (packageSource.strategy !== 'workspace' && packageSource.strategy !== 'install') {
+  console.error('Package source strategy must be workspace or install');
+  process.exit(1);
+}
+
+const expectedModernPackages = [
+  '@modern-js/runtime',
+  '@modern-js/app-tools',
+  '@modern-js/tsconfig',
+  '@modern-js/plugin-i18n',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/plugin-bff',
+  '@modern-js/adapter-rstest',
+];
+
+for (const packageName of expectedModernPackages) {
+  if (!packageSource.modernPackages?.packages?.includes(packageName)) {
+    console.error(`Package source metadata must include ${packageName}`);
+    process.exit(1);
+  }
+}
+
+const expectedModernSpecifier = packageSource.modernPackages?.specifier;
+if (typeof expectedModernSpecifier !== 'string' || expectedModernSpecifier.length === 0) {
+  console.error('Package source metadata must provide a Modern package specifier');
+  process.exit(1);
+}
+
+const expectedModernDependency = (packageName) => {
+  const alias = packageSource.modernPackages?.aliases?.[packageName];
+  return typeof alias === 'string'
+    ? `npm:${alias}@${expectedModernSpecifier}`
+    : expectedModernSpecifier;
+};
+
+for (const packageName of [
+  '@modern-js/runtime',
+  '@modern-js/plugin-i18n',
+  '@modern-js/plugin-tanstack',
+]) {
+  if (
+    packageJson.dependencies?.[packageName] &&
+    packageJson.dependencies[packageName] !== expectedModernDependency(packageName)
+  ) {
+    console.error(`Dependency ${packageName} must match package source metadata`);
+    process.exit(1);
+  }
+}
+
+for (const packageName of [
+  '@modern-js/app-tools',
+  '@modern-js/adapter-rstest',
+  '@modern-js/tsconfig',
+  '@modern-js/plugin-bff',
+]) {
+  if (
+    packageJson.devDependencies?.[packageName] &&
+    packageJson.devDependencies[packageName] !== expectedModernDependency(packageName)
+  ) {
+    console.error(`Dev dependency ${packageName} must match package source metadata`);
+    process.exit(1);
+  }
+}
+
 for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next']) {
   if (!packageJson.dependencies?.[dependency]) {
     console.error(`Missing dependency: ${dependency}`);
@@ -181,10 +320,16 @@ for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next'])
 
 for (const dependency of [
   '@effect/tsgo',
+  '@modern-js/adapter-rstest',
+  '@rstest/core',
+  '@testing-library/jest-dom',
   '@typescript/native-preview',
+  'happy-dom',
+{{#unless isSubproject}}
   'oxlint',
   'oxfmt',
   'ultracite',
+{{/unless}}
 ]) {
   if (!packageJson.devDependencies?.[dependency]) {
     console.error(`Missing devDependency: ${dependency}`);
@@ -192,6 +337,7 @@ for (const dependency of [
   }
 }
 
+{{#unless isSubproject}}
 const privateSource = skillsLock.sources?.find(
   (source) => source.repository === 'https://github.com/TechsioCZ/skills',
 );
@@ -202,5 +348,6 @@ for (const skillName of ['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugge
     process.exit(1);
   }
 }
+{{/unless}}
 
 console.log('Ultramodern contract check passed.');
