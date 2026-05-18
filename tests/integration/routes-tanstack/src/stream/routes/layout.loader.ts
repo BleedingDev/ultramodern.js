@@ -1,6 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
-export default () => {
-  return {
-    message: 'stream-layout',
-  };
-};
+export default () => ({
+  message: 'stream-layout',
+});

@@ -1,6 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
-export const loader = () => {
-  return {
-    page: 'index',
-  };
-};
+export const loader = () => ({
+  page: 'index',
+});

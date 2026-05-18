@@ -1,4 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
 'use client';
 
 import { createSerializationAdapter } from '@tanstack/react-router';
@@ -79,9 +78,8 @@ const adapter = createSerializationAdapter({
   toSerializable: (): never => {
     throw new Error('TanStack RSC data cannot be serialized on client.');
   },
-  fromSerializable: (value: SerializedRsc): AnyCompositeComponent => {
-    return createFromFlightStream(value) as AnyCompositeComponent;
-  },
+  fromSerializable: (value: SerializedRsc): AnyCompositeComponent =>
+    createFromFlightStream(value) as AnyCompositeComponent,
 });
 
 export function getTanstackRscSerializationAdapters() {

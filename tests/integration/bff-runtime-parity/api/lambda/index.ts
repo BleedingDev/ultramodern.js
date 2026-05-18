@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off unnecessaryArrowBlock:off
+// @effect-diagnostics asyncFunction:off
 import {
   Api,
   Data,
@@ -13,11 +13,9 @@ import {
 import { useHonoContext } from '@modern-js/server-runtime';
 import { z } from 'zod';
 
-export default async () => {
-  return {
-    message: 'Hello Modern.js',
-  };
-};
+export default async () => ({
+  message: 'Hello Modern.js',
+});
 
 const QuerySchema = z.object({
   user: z.string().email(),

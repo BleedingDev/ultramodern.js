@@ -1,6 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
-export default () => {
-  return {
-    message: 'string-layout',
-  };
-};
+export default () => ({
+  message: 'string-layout',
+});

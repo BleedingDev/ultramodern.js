@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off unnecessaryArrowBlock:off
+// @effect-diagnostics asyncFunction:off
 const COUNTER_KEY = '__tanstackMutationCounter';
 
 function getCount() {
@@ -6,11 +6,9 @@ function getCount() {
   return typeof value === 'number' ? value : 0;
 }
 
-export const loader = () => {
-  return {
-    count: getCount(),
-  };
-};
+export const loader = () => ({
+  count: getCount(),
+});
 
 export const action = async ({ request }: { request: Request }) => {
   const formData = await request.formData();

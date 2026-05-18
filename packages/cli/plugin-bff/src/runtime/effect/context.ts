@@ -1,4 +1,4 @@
-// @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics strictBooleanExpressions:off
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 export type EffectContext = {
@@ -23,9 +23,7 @@ const effectContextStorage =
 export const runWithEffectContext = <T>(
   context: EffectContext,
   cb: () => T,
-): T => {
-  return effectContextStorage.run(context, cb);
-};
+): T => effectContextStorage.run(context, cb);
 
 export const useEffectContext = (): EffectContext => {
   const context = effectContextStorage.getStore();
