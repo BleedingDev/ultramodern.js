@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import path from 'node:path';
 import type {
   AppNormalizedConfig,
@@ -258,24 +258,20 @@ export function tanstackRouterPlugin(
         return { entrypoint, plugins };
       });
 
-      api.checkEntryPoint(({ path: entryPath, entry }) => {
-        const { isRouteEntry } = getRuntimeRouterCli();
-        return {
-          path: entryPath,
-          entry: entry || isRouteEntry(entryPath, routesDir),
-        };
-      });
+      api.checkEntryPoint(({ path: entryPath, entry }) => ({
+        path: entryPath,
+        entry:
+          entry || getRuntimeRouterCli().isRouteEntry(entryPath, routesDir),
+      }));
 
-      api.config(() => {
-        return {
-          source: {
-            include: [
-              /[\\/]node_modules[\\/]@tanstack[\\/]react-router[\\/]/,
-              path.resolve(__dirname, '../runtime').replace('cjs', 'esm'),
-            ],
-          },
-        };
-      });
+      api.config(() => ({
+        source: {
+          include: [
+            /[\\/]node_modules[\\/]@tanstack[\\/]react-router[\\/]/,
+            path.resolve(__dirname, '../runtime').replace('cjs', 'esm'),
+          ],
+        },
+      }));
 
       api.modifyEntrypoints(async ({ entrypoints }) => {
         const { handleModifyEntrypoints } = getRuntimeRouterCli();

@@ -1,12 +1,11 @@
-// @effect-diagnostics globalConsole:off strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics globalConsole:off strictBooleanExpressions:off
 import type { ShouldRevalidateFunction } from '@modern-js/runtime-utils/router';
 import { ROUTE_MODULES } from '@modern-js/utils/universal/constants';
 import type Module from 'module';
 
-export const createShouldRevalidate = (
-  routeId: string,
-): ShouldRevalidateFunction => {
-  return arg => {
+export const createShouldRevalidate =
+  (routeId: string): ShouldRevalidateFunction =>
+  arg => {
     const routeModule =
       typeof window !== 'undefined'
         ? window?.[ROUTE_MODULES as keyof Window]?.[routeId]
@@ -17,7 +16,6 @@ export const createShouldRevalidate = (
 
     return arg.defaultShouldRevalidate;
   };
-};
 
 export const handleRouteModule = (routeModule: Module, routeId: string) => {
   if (typeof document !== 'undefined') {

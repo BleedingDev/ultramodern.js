@@ -1,4 +1,4 @@
-// @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics strictBooleanExpressions:off
 import type { ServerUserConfig } from '@modern-js/app-tools';
 import {
   isRouteErrorResponse,
@@ -8,9 +8,11 @@ import type { SSRConfig } from './shared';
 
 export function attributesToString(attributes: Record<string, any>) {
   // Iterate through the properties and convert them into a string, only including properties that are not undefined.
-  return Object.entries(attributes).reduce((str, [key, value]) => {
-    return value === undefined ? str : `${str} ${key}="${value}"`;
-  }, '');
+  return Object.entries(attributes).reduce(
+    (str, [key, value]) =>
+      value === undefined ? str : `${str} ${key}="${value}"`,
+    '',
+  );
 }
 
 /**

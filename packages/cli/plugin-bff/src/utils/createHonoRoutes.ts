@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { APIHandlerInfo } from '@modern-js/bff-core';
 import {
   HttpMetadata,
@@ -13,8 +13,8 @@ import typeIs from 'type-is';
 
 type Handler = APIHandlerInfo['handler'];
 
-const createHonoRoutes = (handlerInfos: APIHandlerInfo[] = []) => {
-  return handlerInfos.map(({ routePath, handler, httpMethod }) => {
+const createHonoRoutes = (handlerInfos: APIHandlerInfo[] = []) =>
+  handlerInfos.map(({ routePath, handler, httpMethod }) => {
     const routeMiddlwares = Reflect.getMetadata('middleware', handler) || [];
     const honoHandler = createHonoHandler(handler);
 
@@ -27,7 +27,6 @@ const createHonoRoutes = (handlerInfos: APIHandlerInfo[] = []) => {
           : honoHandler,
     };
   });
-};
 
 const handleResponseMeta = (c: Context, handler: Handler) => {
   const responseMeta: ResponseMeta[] = Reflect.getMetadata(
@@ -55,56 +54,54 @@ const handleResponseMeta = (c: Context, handler: Handler) => {
   return null;
 };
 
-export const createHonoHandler = (handler: Handler) => {
-  return async (c: Context) => {
-    const input = await getHonoInput(c);
+export const createHonoHandler = (handler: Handler) => async (c: Context) => {
+  const input = await getHonoInput(c);
 
-    if (isWithMetaHandler(handler)) {
-      try {
-        const response = handleResponseMeta(c, handler);
-        if (response) {
-          return response;
-        }
-        if (c.finalized) return;
-
-        const result = await handler(input);
-        if (result instanceof Response) {
-          return result;
-        }
-        return result && typeof result === 'object'
-          ? c.json(result)
-          : c.body(result);
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          c.status((error as any).status);
-
-          return c.json({
-            message: error.message,
-          });
-        }
-        throw error;
+  if (isWithMetaHandler(handler)) {
+    try {
+      const response = handleResponseMeta(c, handler);
+      if (response) {
+        return response;
       }
-    } else {
-      const routePath = c.req.routePath;
-      const paramNames = routePath.match(/:\w+/g)?.map(s => s.slice(1)) || [];
-      const params = Object.fromEntries(
-        paramNames.map(name => [name, input.params[name]]),
-      );
-      const args = Object.values(params).concat(input);
+      if (c.finalized) return;
 
-      const body = await handler(...args);
-      if (c.finalized) {
-        return await Promise.resolve();
+      const result = await handler(input);
+      if (result instanceof Response) {
+        return result;
       }
+      return result && typeof result === 'object'
+        ? c.json(result)
+        : c.body(result);
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        c.status((error as any).status);
 
-      if (typeof body !== 'undefined') {
-        if (body instanceof Response) {
-          return body;
-        }
-        return c.json(body);
+        return c.json({
+          message: error.message,
+        });
       }
+      throw error;
     }
-  };
+  } else {
+    const routePath = c.req.routePath;
+    const paramNames = routePath.match(/:\w+/g)?.map(s => s.slice(1)) || [];
+    const params = Object.fromEntries(
+      paramNames.map(name => [name, input.params[name]]),
+    );
+    const args = Object.values(params).concat(input);
+
+    const body = await handler(...args);
+    if (c.finalized) {
+      return await Promise.resolve();
+    }
+
+    if (typeof body !== 'undefined') {
+      if (body instanceof Response) {
+        return body;
+      }
+      return c.json(body);
+    }
+  }
 };
 
 const getHonoInput = async (c: Context) => {

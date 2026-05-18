@@ -1,6 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
-export default () => {
-  return {
-    routeKind: 'ops-chat-command-channel',
-  };
-};
+export default () => ({
+  routeKind: 'ops-chat-command-channel',
+});

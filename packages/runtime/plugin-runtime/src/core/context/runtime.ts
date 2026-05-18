@@ -1,4 +1,3 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
 import type {
   RouteObject,
   StaticHandlerContext,
@@ -76,6 +75,5 @@ export const getInitialContext = (
 /**
  * @deprecated use use(RuntimeContext) instead
  */
-export const useRuntimeContext = (): TRuntimeContext => {
-  return useContext(RuntimeContext);
-};
+export const useRuntimeContext = (): TRuntimeContext =>
+  useContext(RuntimeContext);

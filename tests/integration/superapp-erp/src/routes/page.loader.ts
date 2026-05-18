@@ -1,7 +1,4 @@
-// @effect-diagnostics unnecessaryArrowBlock:off
-export default () => {
-  return {
-    routeKind: 'executive-command-center',
-    criticalPath: ['dispatch', 'finance', 'inventory', 'chat'],
-  };
-};
+export default () => ({
+  routeKind: 'executive-command-center',
+  criticalPath: ['dispatch', 'finance', 'inventory', 'chat'],
+});
