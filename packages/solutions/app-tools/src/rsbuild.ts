@@ -1,4 +1,5 @@
 import { parseRspackConfig } from '@modern-js/builder';
+import { INTERNAL_RUNTIME_PLUGINS } from '@modern-js/utils';
 import {
   builderPluginAdapterBasic,
   builderPluginAdapterHooks,
@@ -6,6 +7,7 @@ import {
 import { DEFAULT_CONFIG_FILE } from './constants';
 import type { AppNormalizedConfig, AppUserConfig } from './types';
 import { getConfigFile } from './utils/getConfigFile';
+import { loadInternalPlugins } from './utils/loadPlugins';
 
 const MODERN_META_NAME = 'modern-js';
 
@@ -23,6 +25,7 @@ type CreateConfigOptionsFn = (options: {
   command: string;
   cwd?: string;
   configFile: string;
+  internalPlugins?: unknown[];
   metaName?: string;
   modifyModernConfig?: (
     config: AppUserConfig,
@@ -53,6 +56,7 @@ export async function resolveModernRsbuildConfig(
     command: options.command,
     cwd,
     configFile,
+    internalPlugins: await loadInternalPlugins(cwd, INTERNAL_RUNTIME_PLUGINS),
     metaName,
     modifyModernConfig: options.modifyModernConfig,
   });
