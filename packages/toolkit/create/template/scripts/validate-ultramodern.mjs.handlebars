@@ -116,7 +116,8 @@ if (manifestErrors.length > 0) {
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'),
 );
-if (JSON.stringify(packageJson).includes('{{')) {
+const unresolvedTemplateMarker = '{' + '{';
+if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
   console.error('package.json contains unresolved template markers');
   process.exit(1);
 }
