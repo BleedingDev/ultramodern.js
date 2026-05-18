@@ -793,7 +793,18 @@ import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
-const siteUrl = process.env['MODERN_PUBLIC_SITE_URL'] ?? \`http://localhost:\${port}\`;
+const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
+const hasConfiguredSiteUrl = typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
+const isProductionBuild =
+  process.env['NODE_ENV'] === 'production' || process.argv.includes('build');
+
+if (isProductionBuild && !hasConfiguredSiteUrl) {
+  throw new Error(
+    'MODERN_PUBLIC_SITE_URL must be set for production builds so canonical and hreflang URLs use the deployed origin.',
+  );
+}
+
+const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\${port}\`;
 
 export default defineConfig(
   presetUltramodern(

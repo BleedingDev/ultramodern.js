@@ -14,7 +14,7 @@ This project is generated for Codex-first UltraModern.js work.
 
 Runtime i18n is enabled by default. Agents must put user-visible UI copy in `config/public/locales/<lang>/translation.json` and render it through `react-i18next` or `@modern-js/plugin-i18n/runtime`. Do not add hardcoded JSX text, `aria-label`, `title`, `alt`, or `placeholder` strings unless the value is a non-translatable technical token.
 
-Routes are locale-prefixed by default through `localePathRedirect: true`. Keep localized pages under `src/routes/[lang]`, use links for language switching, and preserve canonical plus `hreflang` metadata. Set `MODERN_PUBLIC_SITE_URL` in deployed environments so canonical URLs use the production origin.
+Routes are locale-prefixed by default through `localePathRedirect: true`. Keep localized pages under `src/routes/[lang]`, use links for language switching, and preserve canonical plus `hreflang` metadata. Production builds fail unless `MODERN_PUBLIC_SITE_URL` is set, so deployed canonical URLs always use the production origin.
 
 ## Private Skills
 

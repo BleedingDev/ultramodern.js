@@ -308,6 +308,10 @@ for (const configPath of [
   assert(config.includes('i18nPlugin('), `${configPath} must enable plugin-i18n`);
   assert(config.includes('localePathRedirect: true'), `${configPath} must prefix localized URLs`);
   assert(config.includes('ULTRAMODERN_SITE_URL'), `${configPath} must expose site URL metadata`);
+  assert(
+    config.includes('MODERN_PUBLIC_SITE_URL must be set for production builds'),
+    `${configPath} must require MODERN_PUBLIC_SITE_URL for production builds`,
+  );
   assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
   assert(
     config.includes('moduleFederationPlugin()'),

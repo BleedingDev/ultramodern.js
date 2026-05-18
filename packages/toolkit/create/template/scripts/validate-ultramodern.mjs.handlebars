@@ -19,6 +19,7 @@ const requiredTokens = [
   'i18nPlugin(',
   'localePathRedirect: true',
   'ULTRAMODERN_SITE_URL',
+  'MODERN_PUBLIC_SITE_URL must be set for production builds',
   'globalVars',
 ];
 const missing = requiredTokens.filter((token) => !content.includes(token));
