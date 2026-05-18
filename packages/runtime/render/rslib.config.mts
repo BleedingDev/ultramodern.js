@@ -1,24 +1,42 @@
 import { defineConfig } from '@rslib/core';
 
+const sharedConfig = {
+  format: 'esm' as const,
+  syntax: 'es2021' as const,
+  bundle: true,
+  dts: false,
+  output: {
+    distPath: {
+      root: './dist/esm',
+    },
+    target: 'web' as const,
+  },
+};
+
 export default defineConfig({
   lib: [
     {
-      format: 'esm',
-      syntax: 'es2021',
-      bundle: true,
-      dts: false,
+      ...sharedConfig,
       source: {
         entry: {
           ssr: './src/ssr.ts',
-          rsc: './src/rsc.ts',
-          client: './src/client.ts',
         },
       },
-      output: {
-        distPath: {
-          root: './dist/esm',
+    },
+    {
+      ...sharedConfig,
+      source: {
+        entry: {
+          rsc: './src/rsc.ts',
         },
-        target: 'web',
+      },
+    },
+    {
+      ...sharedConfig,
+      source: {
+        entry: {
+          client: './src/client.ts',
+        },
       },
     },
   ],

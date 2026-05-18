@@ -3,6 +3,8 @@ import path from 'path';
 
 // Constants for RSC configuration
 const ASYNC_STORAGE_PATTERN = /universal[/\\]async_storage/;
+const RENDER_RSC_SOURCE_PATTERN = /render[/\\].*[/\\]server[/\\]rsc/;
+const RENDER_RSC_RSLIB_ENTRY_PATTERN = /render[/\\]dist[/\\]esm[/\\]rsc\.mjs$/;
 const RSC_COMMON_LAYER = 'rsc-common';
 const ENTRY_NAME_VAR = '__MODERN_JS_ENTRY_NAME';
 
@@ -227,7 +229,12 @@ export async function getRscPlugins(
     return [
       pluginRSC({
         layers: {
-          rsc: [/render[/\\].*[/\\]server[/\\]rsc/, /AppProxy/, routesFileReg],
+          rsc: [
+            RENDER_RSC_SOURCE_PATTERN,
+            RENDER_RSC_RSLIB_ENTRY_PATTERN,
+            /AppProxy/,
+            routesFileReg,
+          ],
         },
       }),
       pluginRscConfig(),
