@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 import React from 'react';
 import { Helmet } from '../../../../exports/head';
 

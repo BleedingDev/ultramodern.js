@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import { storage } from '@modern-js/runtime-utils/node';
 export const getResponseProxy = () => {
   const context = storage.useContext();

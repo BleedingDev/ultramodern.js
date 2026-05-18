@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { TInternalRuntimeContext, TRuntimeContext } from '../context';
 
 export function transformHookRunner(hookRunnerName: string) {

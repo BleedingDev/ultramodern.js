@@ -1,3 +1,4 @@
+// @effect-diagnostics unnecessaryArrowBlock:off
 import type { RuntimePlugin } from '../plugin/types';
 import { getHookRunners } from './hooks';
 

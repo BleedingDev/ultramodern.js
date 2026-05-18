@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off unnecessaryArrowBlock:off
 export const getResponseProxy = () => {
   return null;
 };

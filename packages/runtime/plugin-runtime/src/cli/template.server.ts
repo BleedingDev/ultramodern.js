@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { formatImportPath } from '@modern-js/utils';
 
 const SERVER_ENTRY = `

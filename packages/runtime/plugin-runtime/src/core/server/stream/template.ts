@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import {
   type BuildShellAfterTemplateOptions,
   buildShellAfterTemplate,

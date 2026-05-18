@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { type Chunk, ChunkExtractor } from '@loadable/server';
 import type { ReactElement } from 'react';
 import { attributesToString, checkIsNode } from '../utils';

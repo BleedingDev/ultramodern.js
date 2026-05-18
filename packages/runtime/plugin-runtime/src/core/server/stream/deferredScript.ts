@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnv:off strictBooleanExpressions:off
 import type { DeferredData } from '@modern-js/runtime-utils/browser';
 import { runRouterDataFnStr } from '../../../router/runtime/constants';
 

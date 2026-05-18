@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnv:off strictBooleanExpressions:off
 import type {
   DeferredData,
   TrackedPromise,

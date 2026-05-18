@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import path from 'node:path';
 import type { AppToolsContext } from '@modern-js/app-tools';
 import type { Entrypoint, NestedRouteForCli } from '@modern-js/types';

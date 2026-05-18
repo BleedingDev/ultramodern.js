@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnv:off
 import { createRenderStreaming } from './shared';
 
 const createReadableStreamFromElement =

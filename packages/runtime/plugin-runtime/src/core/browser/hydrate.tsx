@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off newPromise:off processEnv:off
 import { loadableReady } from '@loadable/component';
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import type React from 'react';

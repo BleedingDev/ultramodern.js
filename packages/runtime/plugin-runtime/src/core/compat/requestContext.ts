@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import type { BaseSSRServerContext } from '@modern-js/types';
 // this plugin is use to provide request context to runtime context
 import type { TInternalRuntimeContext } from '../context';

@@ -23,7 +23,6 @@ const tsgoBin =
   process.env.EFFECT_TSGO_BIN ||
   process.env.TSGO_BIN ||
   resolveEffectTsgoBinary(effectTsgoCli);
-const diagnosticMode = process.env.EFFECT_TSGO_DIAGNOSTIC_MODE ?? 'defaults';
 
 const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -104,19 +103,6 @@ const effectDiagnostics = [
 const diagnosticSeverity = Object.fromEntries(
   effectDiagnostics.map(name => [name, 'error']),
 );
-const disabledDiagnosticSeverity = Object.fromEntries(
-  effectDiagnostics.map(name => [name, 'off']),
-);
-const scopedDiagnosticSeverity =
-  diagnosticMode === 'all' ? diagnosticSeverity : {};
-const effectStrictIncludes = [
-  '**/effect/**/*.ts',
-  '**/effect/**/*.tsx',
-  '**/effect-client/**/*.ts',
-  '**/effect-client/**/*.tsx',
-  '**/*effect*.ts',
-  '**/*effect*.tsx',
-];
 
 function resolveEffectTsgoBinary(cliPath) {
   if (!existsSync(cliPath)) {
@@ -176,15 +162,7 @@ function createStrictConfig(config, index) {
               ignoreEffectWarningsInTscExitCode: false,
               ignoreEffectErrorsInTscExitCode: false,
               skipDisabledOptimization: true,
-              diagnosticSeverity: disabledDiagnosticSeverity,
-              overrides: [
-                {
-                  include: effectStrictIncludes,
-                  options: {
-                    diagnosticSeverity: scopedDiagnosticSeverity,
-                  },
-                },
-              ],
+              diagnosticSeverity,
             },
           ],
         },
@@ -228,12 +206,8 @@ for (const tempConfig of tempConfigs) {
 }
 
 if (failures.length > 0) {
-  console.error(
-    `effect-tsgo scoped validation failed (${diagnosticMode}): ${failures.length} config(s)`,
-  );
+  console.error(`effect-tsgo validation failed: ${failures.length} config(s)`);
   process.exit(1);
 }
 
-console.log(
-  `effect-tsgo scoped validation passed (${diagnosticMode}): ${configs.length} config(s)`,
-);
+console.log(`effect-tsgo validation passed: ${configs.length} config(s)`);

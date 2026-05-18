@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import { renderToString } from 'react-dom/server';
 import {
   DOCUMENT_SCRIPT_ATTRIBUTES_END,
