@@ -14,6 +14,9 @@ const enableTelemetryExporters =
   process.env['MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS'] !== 'false';
 const telemetryFailLoudStartup =
   process.env['MODERN_TELEMETRY_FAIL_LOUD_STARTUP'] !== 'false';
+const otlpEndpoint = process.env['MODERN_TELEMETRY_OTLP_ENDPOINT'];
+const victoriaMetricsEndpoint =
+  process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'];
 
 // https://bleedingdev.github.io/ultramodern.js/configure/app/usage.html
 export default defineConfig(
@@ -44,8 +47,10 @@ export default defineConfig(
       enableModuleFederationSSR,
       enableTelemetryExporters,
       telemetryFailLoudStartup,
-      otlpEndpoint: process.env['MODERN_TELEMETRY_OTLP_ENDPOINT'],
-      victoriaMetricsEndpoint: process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'],
+      ...(typeof otlpEndpoint === 'string' ? { otlpEndpoint } : {}),
+      ...(typeof victoriaMetricsEndpoint === 'string'
+        ? { victoriaMetricsEndpoint }
+        : {}),
     },
   ),
 );

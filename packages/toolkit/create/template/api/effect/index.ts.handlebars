@@ -9,7 +9,7 @@ import { bffEffectApi } from '../../shared/effect/api';
 const greetingsLayer = HttpApiBuilder.group(
   bffEffectApi,
   'greetings',
-  (handlers: any) =>
+  handlers =>
     handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from Effect HttpApi',

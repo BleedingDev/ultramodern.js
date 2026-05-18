@@ -39,7 +39,7 @@ export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
 export { type EffectContext, useEffectContext } from './context';
 
-export type EffectRuntimeLayer = Layer.Layer<any, unknown, any>;
+export type EffectRuntimeLayer = Layer.Layer<never, unknown, unknown>;
 export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
