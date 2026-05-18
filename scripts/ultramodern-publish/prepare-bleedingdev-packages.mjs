@@ -341,6 +341,64 @@ function collectExportedTypePaths(value, typePaths = new Set()) {
   return typePaths;
 }
 
+function normalizeTypePath(packageDir, typePath) {
+  if (typeof typePath !== 'string') {
+    return typePath;
+  }
+
+  if (!typePath.startsWith('.') && !typePath.startsWith('dist/')) {
+    return typePath;
+  }
+
+  if (fs.existsSync(path.join(packageDir, typePath))) {
+    return typePath;
+  }
+
+  const prefixedPath = typePath.startsWith('./') ? typePath : `./${typePath}`;
+  if (!prefixedPath.startsWith('./dist/')) {
+    return typePath;
+  }
+
+  const candidate = prefixedPath.replace('./dist/', './dist/types/');
+  if (fs.existsSync(path.join(packageDir, candidate))) {
+    return typePath.startsWith('./') ? candidate : candidate.slice(2);
+  }
+
+  return typePath;
+}
+
+function normalizeExportTypePaths(packageDir, value) {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  if (typeof value.types === 'string') {
+    value.types = normalizeTypePath(packageDir, value.types);
+  }
+
+  for (const child of Object.values(value)) {
+    normalizeExportTypePaths(packageDir, child);
+  }
+}
+
+function normalizeDeclaredTypePaths(packageDir, packageJson) {
+  if (typeof packageJson.types === 'string') {
+    packageJson.types = normalizeTypePath(packageDir, packageJson.types);
+    const hasRootEntrypoint =
+      typeof packageJson.main === 'string' ||
+      (packageJson.exports &&
+        typeof packageJson.exports === 'object' &&
+        Object.hasOwn(packageJson.exports, '.'));
+    if (
+      !hasRootEntrypoint &&
+      !fs.existsSync(path.join(packageDir, packageJson.types))
+    ) {
+      delete packageJson.types;
+    }
+  }
+  normalizeExportTypePaths(packageDir, packageJson.exports);
+}
+
 function validateStagedTypeFiles(packageDir, packageJson) {
   const typePaths = collectExportedTypePaths(packageJson.exports);
   if (typeof packageJson.types === 'string') {
@@ -472,6 +530,7 @@ function main() {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJson(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
+    normalizeDeclaredTypePaths(packageDir, packageJson);
     writeJson(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
 
