@@ -4,5 +4,4 @@ import { defineConfig } from '@rstest/core';
 export default defineConfig({
   extends: withModernConfig(),
   testEnvironment: 'happy-dom',
-  setupFiles: ['./tests/rstest.setup.ts'],
 });

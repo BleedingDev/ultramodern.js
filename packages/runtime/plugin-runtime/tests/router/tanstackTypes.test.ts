@@ -55,5 +55,9 @@ describe('tanstack router type generation', () => {
     );
     expect(routerGenTs).toContain('modernRouteLoader: loader_0');
     expect(routerGenTs).toContain('modernRouteAction: action_0');
+    expect(routerGenTs).toContain('modernRouteId?: string;');
+    expect(routerGenTs).not.toContain(
+      'return Object.keys(staticData).length > 0 ? staticData : undefined;',
+    );
   });
 });
