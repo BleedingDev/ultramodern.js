@@ -17,9 +17,18 @@ export default defineConfig({
   lib: [
     {
       ...sharedConfig,
+      output: {
+        ...sharedConfig.output,
+        externals: [
+          {
+            '@modern-js/render/rsc': 'module-import @modern-js/render/rsc',
+          },
+        ],
+      },
       source: {
         entry: {
           ssr: './src/ssr.ts',
+          client: './src/client.ts',
         },
       },
     },
@@ -28,14 +37,6 @@ export default defineConfig({
       source: {
         entry: {
           rsc: './src/rsc.ts',
-        },
-      },
-    },
-    {
-      ...sharedConfig,
-      source: {
-        entry: {
-          client: './src/client.ts',
         },
       },
     },

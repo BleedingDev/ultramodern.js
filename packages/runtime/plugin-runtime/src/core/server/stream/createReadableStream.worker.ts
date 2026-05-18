@@ -23,6 +23,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       config,
       ssrConfig,
       entryName,
+      rscManifest,
       rscRoot,
     } = options;
 
@@ -39,6 +40,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       const readableOriginal = await renderSSRStream(rootElement, {
         request,
         nonce: config.nonce,
+        rscManifest,
         rscRoot: rscRoot!,
         routes: runtimeContext.routes,
         onError(error: unknown) {
