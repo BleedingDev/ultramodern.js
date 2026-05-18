@@ -146,7 +146,7 @@ const remoteApps: WorkspaceApp[] = [
     mfName: 'remoteCommerce',
     exposes: {
       './Route': './src/remote-entry.tsx',
-      './Widget': './src/components/CommerceWidget.tsx',
+      './Widget': './src/components/commerce-widget.tsx',
     },
     ownership: {
       team: 'commerce-experience',
@@ -176,7 +176,7 @@ const remoteApps: WorkspaceApp[] = [
     mfName: 'remoteIdentity',
     exposes: {
       './Route': './src/remote-entry.tsx',
-      './Widget': './src/components/IdentityWidget.tsx',
+      './Widget': './src/components/identity-widget.tsx',
     },
     ownership: {
       team: 'identity-platform',
@@ -205,7 +205,7 @@ const remoteApps: WorkspaceApp[] = [
     port: 3023,
     mfName: 'remoteDesignSystem',
     exposes: {
-      './Button': './src/components/Button.tsx',
+      './Button': './src/components/button.tsx',
       './tokens': './src/tokens.ts',
     },
     ownership: {
@@ -558,6 +558,7 @@ function createRootPackageJson(
     private: true,
     name: scope,
     version: '0.1.0',
+    type: 'module',
     packageManager: 'pnpm@11.1.2',
     scripts: {
       dev: `pnpm --parallel --filter ${packageName(
@@ -589,8 +590,7 @@ function createRootPackageJson(
       'format:check': 'oxfmt --check .',
       lint: 'oxlint .',
       'lint:fix': 'oxlint . --fix',
-      typecheck:
-        'pnpm -r --filter ./apps/** --filter ./services/** --filter ./packages/** typecheck',
+      typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
@@ -622,7 +622,7 @@ function createRootPackageJson(
   };
 }
 
-function createTsConfigBase(scope: string): JsonValue {
+function createTsConfigBase(): JsonValue {
   return {
     compilerOptions: {
       target: 'ESNext',
@@ -645,12 +645,6 @@ function createTsConfigBase(scope: string): JsonValue {
       noImplicitReturns: true,
       skipLibCheck: true,
       resolveJsonModule: true,
-      paths: Object.fromEntries(
-        sharedPackages.map(sharedPackage => [
-          packageName(scope, sharedPackage.id),
-          [`${sharedPackage.directory}/src/index.ts`],
-        ]),
-      ),
       plugins: [
         {
           name: '@effect/language-service',
@@ -679,14 +673,6 @@ function createPackageTsConfig(
   }
   return {
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
-    compilerOptions: {
-      baseUrl: '.',
-      paths: {
-        '@/*': ['./src/*'],
-        '@api/*': ['./api/*'],
-        '@shared/*': ['./shared/*'],
-      },
-    },
     include,
   };
 }
@@ -800,6 +786,12 @@ const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
 export default defineConfig(
   presetUltramodern(
     {
+      output: {
+        disableTsChecker: true,
+        polyfill: 'off',
+        splitRouteChunks: false,
+      },
+      plugins: [appTools(), tanstackRouterPlugin(), moduleFederationPlugin()],
       server: {
         port,
         ssr: {
@@ -807,27 +799,56 @@ export default defineConfig(
           moduleFederationAppSSR: true,
         },
       },
-      output: {
-        polyfill: 'off',
-        disableTsChecker: true,
-        splitRouteChunks: false,
-      },
-      plugins: [
-        appTools(),
-        tanstackRouterPlugin(),
-        moduleFederationPlugin(),
-      ],
     },
     {
       appId,
-      enableModuleFederationSSR: true,
       enableBffRequestId: true,
+      enableModuleFederationSSR: true,
       enableTelemetryExporters: true,
       telemetryFailLoudStartup: false,
     },
   ),
 );
 `;
+}
+
+function createSharedModuleFederationConfig(): string {
+  return `  shared: {
+    '@modern-js/runtime': {
+      requiredVersion: runtimeVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    '@tanstack/react-router': {
+      requiredVersion: dependencies['@tanstack/react-router'],
+      singleton: true,
+      treeShaking: false,
+    },
+    react: {
+      requiredVersion: reactVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    'react-dom': {
+      requiredVersion: reactDomVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+  }`;
+}
+
+function formatTsObjectLiteral(value: Record<string, string>): string {
+  const entries = Object.entries(value).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+
+  if (entries.length === 0) {
+    return '{}';
+  }
+
+  return `{
+${entries.map(([key, entryValue]) => `    '${key}': '${entryValue}',`).join('\n')}
+  }`;
 }
 
 function createShellModuleFederationConfig(): string {
@@ -837,102 +858,48 @@ import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
 const require = createRequire(import.meta.url);
-const runtimeVersion = (
-  require('@modern-js/runtime/package.json') as { version: string }
-).version;
-const reactVersion = (require('react/package.json') as { version: string })
-  .version;
-const reactDomVersion = (
-  require('react-dom/package.json') as { version: string }
-).version;
+const runtimeVersion = (require('@modern-js/runtime/package.json') as { version: string }).version;
+const reactVersion = (require('react/package.json') as { version: string }).version;
+const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  name: '${shellApp.mfName}',
   dts: false,
+  filename: 'remoteEntry.js',
+  name: '${shellApp.mfName}',
   remotes: {
     commerce:
       process.env['REMOTE_COMMERCE_MF_MANIFEST'] ??
       'remoteCommerce@http://localhost:3021/mf-manifest.json',
-    identity:
-      process.env['REMOTE_IDENTITY_MF_MANIFEST'] ??
-      'remoteIdentity@http://localhost:3022/mf-manifest.json',
     designSystem:
       process.env['REMOTE_DESIGN_SYSTEM_MF_MANIFEST'] ??
       'remoteDesignSystem@http://localhost:3023/mf-manifest.json',
+    identity:
+      process.env['REMOTE_IDENTITY_MF_MANIFEST'] ??
+      'remoteIdentity@http://localhost:3022/mf-manifest.json',
   },
-  shared: {
-    react: {
-      singleton: true,
-      requiredVersion: reactVersion,
-      treeShaking: false,
-    },
-    'react-dom': {
-      singleton: true,
-      requiredVersion: reactDomVersion,
-      treeShaking: false,
-    },
-    '@tanstack/react-router': {
-      singleton: true,
-      requiredVersion: dependencies['@tanstack/react-router'],
-      treeShaking: false,
-    },
-    '@modern-js/runtime': {
-      singleton: true,
-      requiredVersion: runtimeVersion,
-      treeShaking: false,
-    },
-  },
+${createSharedModuleFederationConfig()},
 });
 `;
 }
 
 function createRemoteModuleFederationConfig(app: WorkspaceApp): string {
-  const exposes = JSON.stringify(app.exposes ?? {}, null, 4).replace(
-    /^/gm,
-    '  ',
-  );
+  const exposes = formatTsObjectLiteral(app.exposes ?? {});
   return `// @effect-diagnostics nodeBuiltinImport:off
 import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
 const require = createRequire(import.meta.url);
-const runtimeVersion = (
-  require('@modern-js/runtime/package.json') as { version: string }
-).version;
-const reactVersion = (require('react/package.json') as { version: string })
-  .version;
-const reactDomVersion = (
-  require('react-dom/package.json') as { version: string }
-).version;
+const runtimeVersion = (require('@modern-js/runtime/package.json') as { version: string }).version;
+const reactVersion = (require('react/package.json') as { version: string }).version;
+const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  name: '${app.mfName}',
   dts: false,
-  filename: 'remoteEntry.js',
   exposes: ${exposes},
-  shared: {
-    react: {
-      singleton: true,
-      requiredVersion: reactVersion,
-      treeShaking: false,
-    },
-    'react-dom': {
-      singleton: true,
-      requiredVersion: reactDomVersion,
-      treeShaking: false,
-    },
-    '@tanstack/react-router': {
-      singleton: true,
-      requiredVersion: dependencies['@tanstack/react-router'],
-      treeShaking: false,
-    },
-    '@modern-js/runtime': {
-      singleton: true,
-      requiredVersion: runtimeVersion,
-      treeShaking: false,
-    },
-  },
+  filename: 'remoteEntry.js',
+  name: '${app.mfName}',
+${createSharedModuleFederationConfig()},
 });
 `;
 }
@@ -948,19 +915,19 @@ const port = Number(process.env['${effectService.portEnv}'] ?? ${effectService.p
 export default defineConfig(
   presetUltramodern(
     {
-      server: {
-        port,
-      },
       bff: {
-        prefix: '/recommendations-api',
-        runtimeFramework: 'effect',
         effect: {
           openapi: {
             path: '/openapi.json',
           },
         },
+        prefix: '/recommendations-api',
+        runtimeFramework: 'effect',
       },
       plugins: [appTools(), bffPlugin()],
+      server: {
+        port,
+      },
     },
     {
       appId,
@@ -974,11 +941,7 @@ export default defineConfig(
 }
 
 function createShellPage(): string {
-  return `const remotes = [
-  'remote-commerce',
-  'remote-identity',
-  'remote-design-system',
-];
+  return `const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
 
 export default function ShellHome() {
   return (
@@ -986,7 +949,7 @@ export default function ShellHome() {
       <h1>UltraModern SuperApp Shell</h1>
       <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <ul>
-        {remotes.map(remote => (
+        {remotes.map((remote) => (
           <li key={remote}>{remote}</li>
         ))}
       </ul>
@@ -1018,9 +981,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 }
 
 function createRemoteEntry(app: WorkspaceApp): string {
-  const componentName =
-    app.id === 'remote-identity' ? 'IdentityWidget' : 'CommerceWidget';
-  return `export { default } from './components/${componentName}';
+  const componentFile =
+    app.id === 'remote-identity' ? 'identity-widget' : 'commerce-widget';
+  return `export { default } from './components/${componentFile}';
 `;
 }
 
@@ -1060,8 +1023,8 @@ export default function Button({ label = 'Design System Button' }: { label?: str
 function createDesignTokens(): string {
   return `export const designTokens = {
   color: {
-    foreground: '#133225',
     accent: '#2f8f68',
+    foreground: '#133225',
   },
   radius: {
     control: '999px',
@@ -1083,9 +1046,7 @@ const recommendationSchema = Schema.Struct({
   title: Schema.String,
 });
 
-export const recommendationsEffectApi = HttpApi.make(
-  'RecommendationsEffectApi',
-).add(
+export const recommendationsEffectApi = HttpApi.make('RecommendationsEffectApi').add(
   HttpApiGroup.make('recommendations').add(
     HttpApiEndpoint.get('list', '/effect/recommendations', {
       success: Schema.Struct({
@@ -1109,7 +1070,7 @@ import { recommendationsEffectApi } from '../../shared/effect/api';
 const recommendationsLayer = HttpApiBuilder.group(
   recommendationsEffectApi,
   'recommendations',
-  handlers =>
+  (handlers) =>
     handlers.handle('list', () =>
       Effect.succeed({
         items: [
@@ -1480,8 +1441,8 @@ function writeApp(
     );
     const widgetFile =
       app.id === 'remote-identity'
-        ? 'IdentityWidget.tsx'
-        : 'CommerceWidget.tsx';
+        ? 'identity-widget.tsx'
+        : 'commerce-widget.tsx';
     writeFile(
       targetDir,
       `${app.directory}/src/components/${widgetFile}`,
@@ -1492,7 +1453,7 @@ function writeApp(
   if (app.kind === 'horizontal-design-system') {
     writeFile(
       targetDir,
-      `${app.directory}/src/components/Button.tsx`,
+      `${app.directory}/src/components/button.tsx`,
       createDesignButton(),
     );
     writeFile(
@@ -1565,9 +1526,9 @@ function writeSharedPackages(targetDir: string, scope: string) {
     targetDir,
     'packages/shared-contracts/src/index.ts',
     `export const ultramodernWorkspaceContract = {
+  ownership: 'topology/ownership.json',
   preset: 'presetUltramodern',
   topology: 'topology/reference-topology.json',
-  ownership: 'topology/ownership.json',
 } as const;
 `,
   );
@@ -1576,9 +1537,9 @@ function writeSharedPackages(targetDir: string, scope: string) {
     'packages/shared-design-tokens/src/index.ts',
     `export const sharedDesignTokens = {
   color: {
-    surface: '#f6fbf7',
-    foreground: '#133225',
     accent: '#2f8f68',
+    foreground: '#133225',
+    surface: '#f6fbf7',
   },
 } as const;
 `,
@@ -1586,14 +1547,14 @@ function writeSharedPackages(targetDir: string, scope: string) {
   writeFile(
     targetDir,
     'packages/shared-effect-api/src/index.ts',
-    `export type Recommendation = {
+    `export interface Recommendation {
   id: string;
   title: string;
-};
+}
 
 export const recommendationsApiContract = {
-  serviceId: '${effectService.id}',
   basePath: '/recommendations-api/effect/recommendations',
+  serviceId: '${effectService.id}',
 } as const;
 `,
   );
@@ -1616,7 +1577,7 @@ export function generateUltramodernWorkspace(
     'package.json',
     createRootPackageJson(scope, packageSource),
   );
-  writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase(scope));
+  writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase());
   writeJson(
     options.targetDir,
     'topology/reference-topology.json',

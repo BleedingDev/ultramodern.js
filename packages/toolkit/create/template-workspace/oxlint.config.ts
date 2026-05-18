@@ -1,6 +1,6 @@
-import { defineConfig } from "oxlint";
-import core from "ultracite/oxlint/core";
-import react from "ultracite/oxlint/react";
+import { defineConfig } from 'oxlint';
+import core from 'ultracite/oxlint/core';
+import react from 'ultracite/oxlint/react';
 
 export default defineConfig({
   env: {
@@ -8,5 +8,12 @@ export default defineConfig({
     node: true,
   },
   extends: [core, react],
-  ignorePatterns: ["dist", "node_modules", ".modern", ".modernjs", "**/routeTree.gen.ts"],
+  ignorePatterns: [
+    '.agents',
+    'dist',
+    'node_modules',
+    '.modern',
+    '.modernjs',
+    '**/routeTree.gen.ts',
+  ],
 });

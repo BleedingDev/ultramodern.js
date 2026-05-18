@@ -4,8 +4,7 @@ import path from 'node:path';
 const root = process.cwd();
 const packageScope = '{{packageScope}}';
 const tanstackVersion = '1.170.1';
-const rstackAgentSkillsCommit =
-  '61c948b42512e223bad44b83af4080eba48b2677';
+const rstackAgentSkillsCommit = '61c948b42512e223bad44b83af4080eba48b2677';
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
@@ -21,31 +20,18 @@ const baselineAgentSkills = [
   'rslib-modern-package',
   'rstest-best-practices',
 ];
-const privateAgentSkills = [
-  'plan-graph',
-  'dag',
-  'subagent-graph',
-  'helm',
-  'debugger-mode',
-];
+const privateAgentSkills = ['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugger-mode'];
 
-function readText(relativePath) {
-  return fs.readFileSync(path.join(root, relativePath), 'utf-8');
-}
-
-function readJson(relativePath) {
-  return JSON.parse(readText(relativePath));
-}
-
-function assert(condition, message) {
+const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
+const readJson = (relativePath) => JSON.parse(readText(relativePath));
+const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function assertExists(relativePath) {
+};
+const assertExists = (relativePath) => {
   assert(fs.existsSync(path.join(root, relativePath)), `Missing ${relativePath}`);
-}
+};
 
 const requiredPaths = [
   'AGENTS.md',
@@ -101,11 +87,9 @@ const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const skillsLock = readJson('.agents/skills-lock.json');
 const expectedModernSpecifier =
-  packageSource.strategy === 'install'
-    ? packageSource.modernPackages?.specifier
-    : 'workspace:*';
+  packageSource.strategy === 'install' ? packageSource.modernPackages?.specifier : 'workspace:*';
 
-function expectedModernDependency(packageName) {
+const expectedModernDependency = (packageName) => {
   if (packageSource.strategy !== 'install') {
     return 'workspace:*';
   }
@@ -114,15 +98,14 @@ function expectedModernDependency(packageName) {
   return aliasPackageName
     ? `npm:${aliasPackageName}@${expectedModernSpecifier}`
     : expectedModernSpecifier;
-}
+};
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(rootPackage.packageManager === 'pnpm@11.1.2', 'Root must pin pnpm 11.1.2');
 assert(rootPackage.engines?.pnpm === '>=11.0.0', 'Root must require pnpm >=11');
 assert(
-  rootPackage.modernjs?.packageSource?.config ===
-    './.modernjs/ultramodern-package-source.json',
+  rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json',
   'Root must point to the UltraModern package source metadata',
 );
 assert(
@@ -138,46 +121,38 @@ assert(
   'Generated shared packages must keep workspace:* links',
 );
 assert(
-  modernPackages.every(packageName =>
+  modernPackages.every((packageName) =>
     packageSource.modernPackages?.packages?.includes(packageName),
   ),
   'Package source metadata must list all Modern runtime/tooling packages',
 );
 assert(
-  expectedModernSpecifier &&
-    packageSource.modernPackages?.specifier === expectedModernSpecifier,
+  expectedModernSpecifier && packageSource.modernPackages?.specifier === expectedModernSpecifier,
   'Package source metadata must provide a Modern package specifier',
 );
-assert(
-  rootPackage.scripts?.['ultramodern:check'] ===
-    'node ./scripts/validate-ultramodern-workspace.mjs',
-  'Root must expose the ultramodern:check script',
-);
+
 const requiredRootScripts = {
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
-  'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
+  'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+  typecheck: `pnpm -r --filter "@${packageScope}/*" typecheck`,
+  'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
 };
 for (const [scriptName, scriptCommand] of Object.entries(requiredRootScripts)) {
-  assert(
-    rootPackage.scripts?.[scriptName] === scriptCommand,
-    `Root must expose ${scriptName}`,
-  );
+  assert(rootPackage.scripts?.[scriptName] === scriptCommand, `Root must expose ${scriptName}`);
 }
+
 for (const dependency of [
   '@effect/tsgo',
   '@typescript/native-preview',
-  'oxlint',
   'oxfmt',
+  'oxlint',
   'ultracite',
 ]) {
-  assert(
-    rootPackage.devDependencies?.[dependency],
-    `Root must depend on ${dependency}`,
-  );
+  assert(rootPackage.devDependencies?.[dependency], `Root must depend on ${dependency}`);
 }
 
 const agentsInstructions = readText('AGENTS.md');
@@ -200,17 +175,17 @@ assert(
 );
 for (const skillName of baselineAgentSkills) {
   assert(
-    skillsLock.baseline?.some(skill => skill.name === skillName),
+    skillsLock.baseline?.some((skill) => skill.name === skillName),
     `Agent skills lock must include ${skillName}`,
   );
-  const skillContent = readText(`.agents/skills/${skillName}/SKILL.md`);
   assert(
-    skillContent.includes(`name: ${skillName}`),
+    readText(`.agents/skills/${skillName}/SKILL.md`).includes(`name: ${skillName}`),
     `${skillName} must contain matching skill metadata`,
   );
 }
+
 const privateSource = skillsLock.sources?.find(
-  source => source.repository === 'https://github.com/TechsioCZ/skills',
+  (source) => source.repository === 'https://github.com/TechsioCZ/skills',
 );
 assert(
   privateSource?.install === 'clone-if-authorized',
@@ -218,7 +193,7 @@ assert(
 );
 for (const skillName of privateAgentSkills) {
   assert(
-    privateSource.baseline?.some(skill => skill.name === skillName),
+    privateSource.baseline?.some((skill) => skill.name === skillName),
     `Agent skills lock must allowlist private skill ${skillName}`,
   );
 }
@@ -235,26 +210,30 @@ for (const packagePath of appPackagePaths) {
   assert(
     packageJson.dependencies?.['@modern-js/plugin-tanstack'] ===
       expectedModernDependency('@modern-js/plugin-tanstack'),
-    `${packagePath} must depend on @modern-js/plugin-tanstack through ${expectedModernDependency('@modern-js/plugin-tanstack')}`,
+    `${packagePath} must use @modern-js/plugin-tanstack through ${expectedModernDependency(
+      '@modern-js/plugin-tanstack',
+    )}`,
   );
   assert(
     packageJson.dependencies?.['@modern-js/runtime'] ===
       expectedModernDependency('@modern-js/runtime'),
-    `${packagePath} must depend on @modern-js/runtime through ${expectedModernDependency('@modern-js/runtime')}`,
+    `${packagePath} must use @modern-js/runtime through ${expectedModernDependency(
+      '@modern-js/runtime',
+    )}`,
   );
   assert(
     packageJson.devDependencies?.['@modern-js/app-tools'] ===
       expectedModernDependency('@modern-js/app-tools'),
-    `${packagePath} must depend on @modern-js/app-tools through ${expectedModernDependency('@modern-js/app-tools')}`,
+    `${packagePath} must use @modern-js/app-tools through ${expectedModernDependency(
+      '@modern-js/app-tools',
+    )}`,
   );
   assert(
-    packageJson.dependencies?.[`@${packageScope}/shared-contracts`] ===
-      'workspace:*',
+    packageJson.dependencies?.[`@${packageScope}/shared-contracts`] === 'workspace:*',
     `${packagePath} must link generated shared contracts through workspace:*`,
   );
   assert(
-    packageJson.dependencies?.[`@${packageScope}/shared-design-tokens`] ===
-      'workspace:*',
+    packageJson.dependencies?.[`@${packageScope}/shared-design-tokens`] === 'workspace:*',
     `${packagePath} must link generated shared design tokens through workspace:*`,
   );
   assert(
@@ -280,56 +259,83 @@ for (const configPath of [
   const config = readText(configPath);
   assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
   assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
-  assert(config.includes('moduleFederationPlugin()'), `${configPath} must enable Module Federation`);
+  assert(
+    config.includes('moduleFederationPlugin()'),
+    `${configPath} must enable Module Federation`,
+  );
 }
 
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');
 assert(shellMf.includes("name: 'shellSuperApp'"), 'Shell MF config must name the shell');
-assert(shellMf.includes('remoteCommerce@http://localhost:3021/mf-manifest.json'), 'Shell must reference commerce remote');
-assert(shellMf.includes('remoteIdentity@http://localhost:3022/mf-manifest.json'), 'Shell must reference identity remote');
-assert(shellMf.includes('remoteDesignSystem@http://localhost:3023/mf-manifest.json'), 'Shell must reference design-system remote');
+assert(
+  shellMf.includes('remoteCommerce@http://localhost:3021/mf-manifest.json'),
+  'Shell must reference commerce remote',
+);
+assert(
+  shellMf.includes('remoteIdentity@http://localhost:3022/mf-manifest.json'),
+  'Shell must reference identity remote',
+);
+assert(
+  shellMf.includes('remoteDesignSystem@http://localhost:3023/mf-manifest.json'),
+  'Shell must reference design-system remote',
+);
 
 const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
 assert(commerceMf.includes("name: 'remoteCommerce'"), 'Commerce remote MF name is missing');
-assert(commerceMf.includes('"./Widget"'), 'Commerce remote must expose a widget');
+assert(commerceMf.includes("'./Widget'"), 'Commerce remote must expose a widget');
 
 const designMf = readText('apps/remotes/remote-design-system/module-federation.config.ts');
 assert(designMf.includes("name: 'remoteDesignSystem'"), 'Design-system remote MF name is missing');
-assert(designMf.includes('"./Button"'), 'Design-system remote must expose Button');
-assert(designMf.includes('"./tokens"'), 'Design-system remote must expose tokens');
+assert(designMf.includes("'./Button'"), 'Design-system remote must expose Button');
+assert(designMf.includes("'./tokens'"), 'Design-system remote must expose tokens');
 
 const servicePackage = readJson('services/service-recommendations-effect/package.json');
 assert(
   servicePackage.dependencies?.['@modern-js/runtime'] ===
     expectedModernDependency('@modern-js/runtime'),
-  `Effect service must use @modern-js/runtime through ${expectedModernDependency('@modern-js/runtime')}`,
+  `Effect service must use @modern-js/runtime through ${expectedModernDependency(
+    '@modern-js/runtime',
+  )}`,
 );
 assert(
   servicePackage.devDependencies?.['@modern-js/app-tools'] ===
     expectedModernDependency('@modern-js/app-tools'),
-  `Effect service must use @modern-js/app-tools through ${expectedModernDependency('@modern-js/app-tools')}`,
+  `Effect service must use @modern-js/app-tools through ${expectedModernDependency(
+    '@modern-js/app-tools',
+  )}`,
 );
 assert(
   servicePackage.devDependencies?.['@modern-js/plugin-bff'] ===
     expectedModernDependency('@modern-js/plugin-bff'),
-  `Effect service must use @modern-js/plugin-bff through ${expectedModernDependency('@modern-js/plugin-bff')}`,
+  `Effect service must use @modern-js/plugin-bff through ${expectedModernDependency(
+    '@modern-js/plugin-bff',
+  )}`,
 );
 assert(
-  servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] ===
-    'workspace:*',
+  servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
   'Effect service must link generated shared Effect API through workspace:*',
 );
 
 const serviceConfig = readText('services/service-recommendations-effect/modern.config.ts');
-assert(serviceConfig.includes("runtimeFramework: 'effect'"), 'Effect service must use Effect runtime');
+assert(
+  serviceConfig.includes("runtimeFramework: 'effect'"),
+  'Effect service must use Effect runtime',
+);
 assert(serviceConfig.includes('bffPlugin()'), 'Effect service must enable bffPlugin');
 
 const serviceEntry = readText('services/service-recommendations-effect/api/effect/index.ts');
-assert(serviceEntry.includes('defineEffectBff'), 'Effect service must expose defineEffectBff placeholder');
-assert(serviceEntry.includes('recommendationsEffectApi'), 'Effect service must use shared recommendations API');
-
-const serviceApi = readText('services/service-recommendations-effect/shared/effect/api.ts');
-assert(serviceApi.includes('HttpApi.make'), 'Effect shared API placeholder must define HttpApi');
+assert(
+  serviceEntry.includes('defineEffectBff'),
+  'Effect service must expose defineEffectBff placeholder',
+);
+assert(
+  serviceEntry.includes('recommendationsEffectApi'),
+  'Effect service must use shared recommendations API',
+);
+assert(
+  readText('services/service-recommendations-effect/shared/effect/api.ts').includes('HttpApi.make'),
+  'Effect shared API placeholder must define HttpApi',
+);
 
 const topology = readJson('topology/reference-topology.json');
 assert(topology.preset === 'presetUltramodern', 'Topology must reference presetUltramodern');
@@ -338,27 +344,26 @@ assert(topology.shell?.remoteRefs?.length === 3, 'Topology shell must reference 
 assert(topology.remotes?.length === 3, 'Topology must contain three remotes');
 assert(
   topology.remotes.some(
-    remote =>
-      remote.id === 'remote-design-system' &&
-      remote.kind === 'horizontal-design-system',
+    (remote) => remote.id === 'remote-design-system' && remote.kind === 'horizontal-design-system',
   ),
   'Topology must contain the horizontal design-system remote',
 );
-assert(topology.effectServices?.[0]?.runtime === 'effect', 'Topology must contain an Effect service');
+assert(
+  topology.effectServices?.[0]?.runtime === 'effect',
+  'Topology must contain an Effect service',
+);
 assert(topology.sharedPackages?.length === 3, 'Topology must contain shared package placeholders');
 
 const ownership = readJson('topology/ownership.json');
 assert(
   ownership.owners?.some(
-    owner =>
-      owner.id === 'remote-commerce' &&
-      owner.ownership?.team === 'commerce-experience',
+    (owner) => owner.id === 'remote-commerce' && owner.ownership?.team === 'commerce-experience',
   ),
   'Ownership metadata must retain commerce owner',
 );
 assert(
   ownership.owners?.some(
-    owner =>
+    (owner) =>
       owner.id === 'service-recommendations-effect' &&
       owner.package === `@${packageScope}/service-recommendations-effect`,
   ),
@@ -379,18 +384,15 @@ assert(
   'Template manifest must retain the Rstack agent skills commit',
 );
 assert(
-  baselineAgentSkills.every(skillName =>
-    manifest.agentSkills?.baseline?.includes(skillName),
-  ),
+  baselineAgentSkills.every((skillName) => manifest.agentSkills?.baseline?.includes(skillName)),
   'Template manifest must list every baseline agent skill',
 );
 assert(
-  manifest.agentSkills?.privateSource?.repository ===
-    'https://github.com/TechsioCZ/skills',
+  manifest.agentSkills?.privateSource?.repository === 'https://github.com/TechsioCZ/skills',
   'Template manifest must retain the private TechsioCZ skill source',
 );
 assert(
-  privateAgentSkills.every(skillName =>
+  privateAgentSkills.every((skillName) =>
     manifest.agentSkills?.privateSource?.baseline?.includes(skillName),
   ),
   'Template manifest must list every private agent skill allowlist entry',
