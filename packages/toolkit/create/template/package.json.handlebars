@@ -1,6 +1,7 @@
 {
   "name": "{{packageName}}",
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "reset": "npx rimraf node_modules ./**/node_modules",
     "dev": "modern dev",
@@ -16,42 +17,46 @@
     "lint:fix": "oxlint . --fix",
     "prepare": "simple-git-hooks"{{/unless}}
   },
-  "engines": {
-    "node": ">=20"
+  "dependencies": {
+{{#if isTanstackRouter}}    "@modern-js/plugin-tanstack": "{{pluginTanstackVersion}}",
+{{/if}}    "@modern-js/runtime": "{{runtimeVersion}}",
+{{#if isTanstackRouter}}    "@tanstack/react-router": "1.170.1",
+{{/if}}
+    "react": "^19.2.3",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "0.7.3",
+    "@modern-js/app-tools": "{{appToolsVersion}}",
+{{#if enableBff}}    "@modern-js/plugin-bff": "{{pluginBffVersion}}",
+{{/if}}    "@modern-js/tsconfig": "{{tsconfigVersion}}",
+{{#if enableTailwind}}
+    "@tailwindcss/postcss": "^4.1.18",
+{{/if}}
+    "@types/node": "^20",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@typescript/native-preview": "7.0.0-dev.20260518.1",
+{{#unless isSubproject}}
+    "lint-staged": "~15.4.0",
+    "oxfmt": "0.50.0",
+    "oxlint": "1.65.0",
+{{/unless}}{{#if enableTailwind}}    "postcss": "^8.5.6",
+{{/if}}    "rimraf": "^6.0.1"{{#unless isSubproject}},
+    "simple-git-hooks": "^2.11.1"{{/unless}}{{#if enableTailwind}},
+    "tailwindcss": "^4.1.18"{{/if}}{{#unless isSubproject}},
+    "ultracite": "7.7.0"{{/unless}}
   }{{#unless isSubproject}},
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "oxfmt --write",
       "oxlint --fix"
     ]
-  },
-  "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
   }{{/unless}},
-  "dependencies": {
-    "@modern-js/runtime": "{{runtimeVersion}}"{{#if isTanstackRouter}},
-    "@modern-js/plugin-tanstack": "{{pluginTanstackVersion}}",
-    "@tanstack/react-router": "1.170.1"{{/if}},
-    "react": "^19.2.3",
-    "react-dom": "^19.2.0"
-  },
-  "devDependencies": {
-    "@modern-js/app-tools": "{{appToolsVersion}}",
-    "@modern-js/tsconfig": "{{tsconfigVersion}}"{{#if enableBff}},
-    "@modern-js/plugin-bff": "{{pluginBffVersion}}"{{/if}}{{#if enableTailwind}},
-    "@tailwindcss/postcss": "^4.1.18",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18"{{/if}},
-    "@effect/tsgo": "0.7.3",
-    "@typescript/native-preview": "7.0.0-dev.20260518.1",
-    "@types/node": "^20",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6"{{#unless isSubproject}},
-    "oxlint": "1.65.0",
-    "oxfmt": "0.50.0",
-    "ultracite": "7.7.0",
-    "lint-staged": "~15.4.0",
-    "simple-git-hooks": "^2.11.1"{{/unless}},
-    "rimraf": "^6.0.1"
+  "engines": {
+    "node": ">=20"
   }
 }

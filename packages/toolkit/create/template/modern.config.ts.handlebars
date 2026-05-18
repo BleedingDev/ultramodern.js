@@ -4,42 +4,34 @@ import path from 'node:path';
 {{#if enableBff}}import { bffPlugin } from '@modern-js/plugin-bff';
 {{/if}}{{#if isTanstackRouter}}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 {{/if}}
-
 const appId = process.env['MODERN_BASELINE_APP_ID'] || path.basename(process.cwd());
-const enableModuleFederationSSR =
-  process.env['MODERN_BASELINE_ENABLE_MF_SSR'] !== 'false';
-const enableBffRequestId =
-  process.env['MODERN_BASELINE_ENABLE_BFF_REQUEST_ID'] !== 'false';
+const enableModuleFederationSSR = process.env['MODERN_BASELINE_ENABLE_MF_SSR'] !== 'false';
+const enableBffRequestId = process.env['MODERN_BASELINE_ENABLE_BFF_REQUEST_ID'] !== 'false';
 const enableTelemetryExporters =
   process.env['MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS'] !== 'false';
-const telemetryFailLoudStartup =
-  process.env['MODERN_TELEMETRY_FAIL_LOUD_STARTUP'] !== 'false';
+const telemetryFailLoudStartup = process.env['MODERN_TELEMETRY_FAIL_LOUD_STARTUP'] !== 'false';
 const otlpEndpoint = process.env['MODERN_TELEMETRY_OTLP_ENDPOINT'];
-const victoriaMetricsEndpoint =
-  process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'];
+const victoriaMetricsEndpoint = process.env['MODERN_TELEMETRY_VICTORIA_ENDPOINT'];
 
 // https://bleedingdev.github.io/ultramodern.js/configure/app/usage.html
 export default defineConfig(
   presetUltramodern(
     {
-      plugins: [
+{{#if enableBff}}      bff: {
+{{#if useEffectBff}}        effect: {
+          openapi: true,
+        },
+
+{{/if}}        runtimeFramework: '{{bffRuntime}}',
+      },
+
+{{/if}}      plugins: [
         appTools(),
 {{#if isTanstackRouter}}
         tanstackRouterPlugin(),
 {{/if}}{{#if enableBff}}
         bffPlugin(),
-{{/if}}
-      ],
-{{#if enableBff}}
-      bff: {
-        runtimeFramework: '{{bffRuntime}}',
-{{#if useEffectBff}}
-        effect: {
-          openapi: true,
-        },
-{{/if}}
-      },
-{{/if}}
+{{/if}}      ],
     },
     {
       appId,
@@ -48,9 +40,7 @@ export default defineConfig(
       enableTelemetryExporters,
       telemetryFailLoudStartup,
       ...(typeof otlpEndpoint === 'string' ? { otlpEndpoint } : {}),
-      ...(typeof victoriaMetricsEndpoint === 'string'
-        ? { victoriaMetricsEndpoint }
-        : {}),
+      ...(typeof victoriaMetricsEndpoint === 'string' ? { victoriaMetricsEndpoint } : {}),
     },
   ),
 );

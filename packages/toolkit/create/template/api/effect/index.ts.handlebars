@@ -6,24 +6,18 @@
 } from '@modern-js/plugin-bff/effect-server';
 import { bffEffectApi } from '../../shared/effect/api';
 
-const greetingsLayer = HttpApiBuilder.group(
-  bffEffectApi,
-  'greetings',
-  handlers =>
-    handlers.handle('hello', () =>
-      Effect.succeed({
-        message: 'Hello from Effect HttpApi',
-        runtime: 'effect' as const,
-      }),
-    ),
+const greetingsLayer = HttpApiBuilder.group(bffEffectApi, 'greetings', (handlers) =>
+  handlers.handle('hello', () =>
+    Effect.succeed({
+      message: 'Hello from Effect HttpApi',
+      runtime: 'effect' as const,
+    }),
+  ),
 );
 
-const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
-  Layer.provide(greetingsLayer),
-);
+const layer = HttpApiBuilder.layer(bffEffectApi).pipe(Layer.provide(greetingsLayer));
 
 export default defineEffectBff({
   api: bffEffectApi,
   layer,
-});
-{{/if}}
+});{{/if}}

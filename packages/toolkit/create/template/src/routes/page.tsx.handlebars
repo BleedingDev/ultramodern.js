@@ -1,20 +1,31 @@
 import { Helmet } from '@modern-js/runtime/head';
 {{#if useEffectBff}}import effectBff from '@api/effect/index';
+import { Effect } from '@modern-js/plugin-bff/effect-client';
 import { useEffect, useState } from 'react';
 {{/if}}
 import './index.css';
 
 const Index = () => {
-{{#if useEffectBff}}
-  const [effectMessage, setEffectMessage] = useState('loading...');
+{{#if useEffectBff}}  const [effectMessage, setEffectMessage] = useState('loading...');
 
   useEffect(() => {
-    effectBff.client.greetings.hello({}).then(data => {
-      setEffectMessage(data.message);
-    });
+    let mounted = true;
+    Effect.runFork(
+      Effect.promise(() => effectBff.client.greetings.hello({})).pipe(
+        Effect.tap((data) =>
+          Effect.sync(() => {
+            if (mounted) {
+              setEffectMessage(data.message);
+            }
+          }),
+        ),
+      ),
+    );
+    return () => {
+      mounted = false;
+    };
   }, []);
 {{/if}}
-
   return (
     <div className="container-box">
       <Helmet>
@@ -35,10 +46,11 @@ const Index = () => {
           <p className="name">presetUltramodern</p>
         </div>
         <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          This starter ships the public <code className="code">presetUltramodern(...)</code> profile. Start in
+          This starter ships the public <code className="code">presetUltramodern(...)</code>{' '}
+          profile. Start in
           <code className="code">modern.config.ts</code>, keep
-          <code className="code">pnpm run ultramodern:check</code> green, and
-          tune the generated preset only where your app needs a softer lane.
+          <code className="code">pnpm run ultramodern:check</code> green, and tune the generated
+          preset only where your app needs a softer lane.
         </p>
 {{#if useEffectBff}}
         <p className="description effect-message{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
@@ -76,7 +88,9 @@ const Index = () => {
                 alt="Tutorials"
               />
             </h2>
-            <p>Tune the generated defaults in <code className="code">modern.config.ts</code>.</p>
+            <p>
+              Tune the generated defaults in <code className="code">modern.config.ts</code>.
+            </p>
           </a>
           <a
             href="https://github.com/BleedingDev/ultramodern.js/blob/main-ultramodern/packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars"
@@ -92,7 +106,10 @@ const Index = () => {
                 alt="Config"
               />
             </h2>
-            <p>The starter includes a PR workflow for <code className="code">ultramodern:check</code> and build.</p>
+            <p>
+              The starter includes a PR workflow for <code className="code">ultramodern:check</code>{' '}
+              and build.
+            </p>
           </a>
           <a
             href="https://bleedingdev.github.io/ultramodern.js/configure/app/bff/effect.html"
