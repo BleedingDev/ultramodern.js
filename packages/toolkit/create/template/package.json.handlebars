@@ -6,8 +6,14 @@
     "dev": "modern dev",
     "build": "modern build",
     "serve": "modern serve",
-    "ultramodern:check": "node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
-    "lint": "biome check",
+    "typecheck": "node -e \"const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"",
+    "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
+    "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
+    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
     "prepare": "simple-git-hooks"{{/unless}}
   },
   "engines": {
@@ -15,7 +21,8 @@
   }{{#unless isSubproject}},
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
-      "biome check --files-ignore-unknown=true"
+      "oxfmt --write",
+      "oxlint --fix"
     ]
   },
   "simple-git-hooks": {
@@ -34,12 +41,15 @@
     "@modern-js/plugin-bff": "{{version}}"{{/if}}{{#if enableTailwind}},
     "@tailwindcss/postcss": "^4.1.18",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18"{{/if}}{{#unless isSubproject}},
-    "@biomejs/biome": "1.9.4"{{/unless}},
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "tailwindcss": "^4.1.18"{{/if}},
+    "@effect/tsgo": "0.7.3",
+    "@typescript/native-preview": "7.0.0-dev.20260518.1",
     "@types/node": "^20",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6"{{#unless isSubproject}},
+    "oxlint": "1.65.0",
+    "oxfmt": "0.50.0",
+    "ultracite": "7.7.0",
     "lint-staged": "~15.4.0",
     "simple-git-hooks": "^2.11.1"{{/unless}},
     "rimraf": "^6.0.1"

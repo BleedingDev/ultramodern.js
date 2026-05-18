@@ -52,7 +52,21 @@ const requiredPostMaterialization = [
   'dependency-install-with-lifecycle-deny',
   'template-manifest-retained',
 ];
+const requiredPaths = [
+  'AGENTS.md',
+  '.agents/skills-lock.json',
+  'oxlint.config.ts',
+  'oxfmt.config.ts',
+  'scripts/bootstrap-agent-skills.mjs',
+];
 const manifestErrors = [];
+
+for (const requiredPath of requiredPaths) {
+  if (!fs.existsSync(path.resolve(process.cwd(), requiredPath))) {
+    console.error(`${requiredPath} not found`);
+    process.exit(1);
+  }
+}
 
 if (templateManifest.schemaVersion !== 1) {
   manifestErrors.push('schemaVersion');
@@ -97,6 +111,71 @@ if (manifestErrors.length > 0) {
     )}`,
   );
   process.exit(1);
+}
+
+const packageJson = JSON.parse(
+  fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'),
+);
+const skillsLock = JSON.parse(
+  fs.readFileSync(
+    path.resolve(process.cwd(), '.agents/skills-lock.json'),
+    'utf8',
+  ),
+);
+const requiredScripts = {
+  format: 'oxfmt .',
+  'format:check': 'oxfmt --check .',
+  lint: 'oxlint .',
+  'lint:fix': 'oxlint . --fix',
+  'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+  'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
+};
+
+for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
+  if (packageJson.scripts?.[scriptName] !== scriptCommand) {
+    console.error(`Missing or invalid package script: ${scriptName}`);
+    process.exit(1);
+  }
+}
+
+if (
+  !packageJson.scripts?.typecheck?.includes('effect-tsgo') ||
+  !packageJson.scripts.typecheck.includes('get-exe-path')
+) {
+  console.error('typecheck must use effect-tsgo as the TypeScript checker');
+  process.exit(1);
+}
+
+for (const dependency of [
+  '@effect/tsgo',
+  '@typescript/native-preview',
+  'oxlint',
+  'oxfmt',
+  'ultracite',
+]) {
+  if (!packageJson.devDependencies?.[dependency]) {
+    console.error(`Missing devDependency: ${dependency}`);
+    process.exit(1);
+  }
+}
+
+const privateSource = skillsLock.sources?.find(
+  source => source.repository === 'https://github.com/TechsioCZ/skills',
+);
+const privateSkills = new Set(
+  privateSource?.baseline?.map(skill => skill.name) ?? [],
+);
+for (const skillName of [
+  'plan-graph',
+  'dag',
+  'subagent-graph',
+  'helm',
+  'debugger-mode',
+]) {
+  if (!privateSkills.has(skillName)) {
+    console.error(`Missing private skill allowlist entry: ${skillName}`);
+    process.exit(1);
+  }
 }
 
 console.log('Ultramodern contract check passed.');

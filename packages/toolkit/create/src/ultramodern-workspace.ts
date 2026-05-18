@@ -12,7 +12,11 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.1';
 const MODULE_FEDERATION_VERSION = '2.4.0';
-const TYPESCRIPT_VERSION = '6.0.3';
+const EFFECT_TSGO_VERSION = '0.7.3';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260518.1';
+const OXLINT_VERSION = '1.65.0';
+const OXFMT_VERSION = '0.50.0';
+const ULTRACITE_VERSION = '7.7.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
@@ -26,6 +30,15 @@ const baselineAgentSkills = [
   'rslib-modern-package',
   'rstest-best-practices',
 ];
+const privateAgentSkills = [
+  'plan-graph',
+  'dag',
+  'subagent-graph',
+  'helm',
+  'debugger-mode',
+];
+const effectTsgoTypecheckCommand =
+  "node -e \"const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"";
 const modernPackageNames = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
@@ -235,6 +248,82 @@ const effectService = {
     },
   },
 };
+
+const effectDiagnostics = [
+  'anyUnknownInErrorContext',
+  'classSelfMismatch',
+  'duplicatePackage',
+  'effectFnImplicitAny',
+  'floatingEffect',
+  'genericEffectServices',
+  'missingEffectContext',
+  'missingEffectError',
+  'missingLayerContext',
+  'missingReturnYieldStar',
+  'missingStarInYieldEffectGen',
+  'nonObjectEffectServiceType',
+  'outdatedApi',
+  'overriddenSchemaConstructor',
+  'catchUnfailableEffect',
+  'effectFnIife',
+  'effectGenUsesAdapter',
+  'effectInFailure',
+  'effectInVoidSuccess',
+  'globalErrorInEffectCatch',
+  'globalErrorInEffectFailure',
+  'layerMergeAllWithDependencies',
+  'lazyPromiseInEffectSync',
+  'leakingRequirements',
+  'multipleEffectProvide',
+  'returnEffectInGen',
+  'runEffectInsideEffect',
+  'schemaSyncInEffect',
+  'scopeInLayerEffect',
+  'strictEffectProvide',
+  'tryCatchInEffectGen',
+  'unknownInEffectCatch',
+  'asyncFunction',
+  'cryptoRandomUUID',
+  'cryptoRandomUUIDInEffect',
+  'extendsNativeError',
+  'globalConsole',
+  'globalConsoleInEffect',
+  'globalDate',
+  'globalDateInEffect',
+  'globalFetch',
+  'globalFetchInEffect',
+  'globalRandom',
+  'globalRandomInEffect',
+  'globalTimers',
+  'globalTimersInEffect',
+  'instanceOfSchema',
+  'newPromise',
+  'nodeBuiltinImport',
+  'preferSchemaOverJson',
+  'processEnv',
+  'processEnvInEffect',
+  'unsafeEffectTypeAssertion',
+  'catchAllToMapError',
+  'deterministicKeys',
+  'effectDoNotation',
+  'effectFnOpportunity',
+  'effectMapFlatten',
+  'effectMapVoid',
+  'effectSucceedWithVoid',
+  'missedPipeableOpportunity',
+  'missingEffectServiceDependency',
+  'nestedEffectGenYield',
+  'redundantSchemaTagIdentifier',
+  'schemaStructWithTag',
+  'schemaUnionOfLiterals',
+  'serviceNotAsClass',
+  'strictBooleanExpressions',
+  'unnecessaryArrowBlock',
+  'unnecessaryEffectGen',
+  'unnecessaryFailYieldableError',
+  'unnecessaryPipe',
+  'unnecessaryPipeChain',
+];
 
 const sharedPackages = [
   {
@@ -453,10 +542,11 @@ function appDevDependencies(
       '@modern-js/app-tools',
       packageSource,
     ),
+    '@effect/tsgo': EFFECT_TSGO_VERSION,
+    '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     '@types/node': '^20',
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
-    typescript: TYPESCRIPT_VERSION,
   };
 }
 
@@ -495,10 +585,17 @@ function createRootPackageJson(
         effectService.packageSuffix,
       )} dev`,
       build: 'pnpm -r --filter ./apps/** --filter ./services/** build',
+      format: 'oxfmt .',
+      'format:check': 'oxfmt --check .',
+      lint: 'oxlint .',
+      'lint:fix': 'oxlint . --fix',
       typecheck:
         'pnpm -r --filter ./apps/** --filter ./services/** --filter ./packages/** typecheck',
+      'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+      'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
-      check: 'pnpm ultramodern:check',
+      check:
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:check',
     },
     engines: {
       node: '>=20',
@@ -516,8 +613,11 @@ function createRootPackageJson(
       },
     },
     devDependencies: {
-      '@biomejs/biome': '1.9.4',
-      typescript: TYPESCRIPT_VERSION,
+      '@effect/tsgo': EFFECT_TSGO_VERSION,
+      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      oxlint: OXLINT_VERSION,
+      oxfmt: OXFMT_VERSION,
+      ultracite: ULTRACITE_VERSION,
     },
   };
 }
@@ -525,14 +625,24 @@ function createRootPackageJson(
 function createTsConfigBase(scope: string): JsonValue {
   return {
     compilerOptions: {
-      target: 'ES2022',
-      lib: ['DOM', 'DOM.Iterable', 'ES2022'],
-      module: 'ESNext',
+      target: 'ESNext',
+      lib: ['ESNext', 'DOM', 'DOM.Iterable'],
+      module: 'preserve',
       moduleResolution: 'Bundler',
+      moduleDetection: 'force',
       jsx: 'preserve',
+      isolatedModules: true,
+      verbatimModuleSyntax: true,
       strict: true,
       noEmit: true,
+      allowJs: true,
       esModuleInterop: true,
+      noUncheckedIndexedAccess: true,
+      exactOptionalPropertyTypes: true,
+      noImplicitOverride: true,
+      noFallthroughCasesInSwitch: true,
+      noPropertyAccessFromIndexSignature: true,
+      noImplicitReturns: true,
       skipLibCheck: true,
       resolveJsonModule: true,
       baseUrl: '.',
@@ -542,6 +652,20 @@ function createTsConfigBase(scope: string): JsonValue {
           [`${sharedPackage.directory}/src/index.ts`],
         ]),
       ),
+      plugins: [
+        {
+          name: '@effect/language-service',
+          diagnostics: true,
+          includeSuggestionsInTsc: true,
+          ignoreEffectSuggestionsInTscExitCode: false,
+          ignoreEffectWarningsInTscExitCode: false,
+          ignoreEffectErrorsInTscExitCode: false,
+          skipDisabledOptimization: true,
+          diagnosticSeverity: Object.fromEntries(
+            effectDiagnostics.map(name => [name, 'error']),
+          ),
+        },
+      ],
     },
   };
 }
@@ -581,7 +705,7 @@ function createAppPackage(
       dev: 'modern dev',
       build: 'modern build',
       serve: 'modern serve',
-      typecheck: 'tsgo --noEmit -p tsconfig.json',
+      typecheck: effectTsgoTypecheckCommand,
     },
     modernjs: {
       preset: 'presetUltramodern',
@@ -606,7 +730,7 @@ function createServicePackage(
       dev: 'modern dev',
       build: 'modern build',
       serve: 'modern serve',
-      typecheck: 'tsgo --noEmit -p tsconfig.json',
+      typecheck: effectTsgoTypecheckCommand,
     },
     modernjs: {
       preset: 'presetUltramodern',
@@ -632,10 +756,11 @@ function createServicePackage(
         '@modern-js/plugin-bff',
         packageSource,
       ),
+      '@effect/tsgo': EFFECT_TSGO_VERSION,
+      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
       '@types/node': '^20',
       '@types/react': '^19.1.8',
       '@types/react-dom': '^19.1.6',
-      typescript: TYPESCRIPT_VERSION,
     },
   };
 }
@@ -655,16 +780,18 @@ function createSharedPackage(
       '.': './src/index.ts',
     },
     scripts: {
-      typecheck: 'tsgo --noEmit -p tsconfig.json',
+      typecheck: effectTsgoTypecheckCommand,
     },
     devDependencies: {
-      typescript: TYPESCRIPT_VERSION,
+      '@effect/tsgo': EFFECT_TSGO_VERSION,
+      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     },
   };
 }
 
 function createAppModernConfig(app: WorkspaceApp): string {
-  return `import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
+  return `// @effect-diagnostics processEnv:off
+import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
@@ -705,7 +832,8 @@ export default defineConfig(
 }
 
 function createShellModuleFederationConfig(): string {
-  return `import { createRequire } from 'node:module';
+  return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
+import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
@@ -764,7 +892,8 @@ function createRemoteModuleFederationConfig(app: WorkspaceApp): string {
     /^/gm,
     '  ',
   );
-  return `import { createRequire } from 'node:module';
+  return `// @effect-diagnostics nodeBuiltinImport:off
+import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
@@ -810,7 +939,8 @@ export default createModuleFederationConfig({
 }
 
 function createServiceModernConfig(): string {
-  return `import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
+  return `// @effect-diagnostics processEnv:off
+import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import { bffPlugin } from '@modern-js/plugin-bff';
 
 const appId = '${effectService.id}';
@@ -980,7 +1110,7 @@ import { recommendationsEffectApi } from '../../shared/effect/api';
 const recommendationsLayer = HttpApiBuilder.group(
   recommendationsEffectApi,
   'recommendations',
-  (handlers: any) =>
+  handlers =>
     handlers.handle('list', () =>
       Effect.succeed({
         items: [
@@ -1234,6 +1364,8 @@ function createTemplateManifest(
         'apps/**',
         'packages/**',
         'package.json',
+        'oxfmt.config.ts',
+        'oxlint.config.ts',
         'pnpm-workspace.yaml',
         'scripts/**',
         'services/**',
@@ -1267,6 +1399,11 @@ function createTemplateManifest(
         licensePath: '.agents/rstackjs-agent-skills-LICENSE',
       },
       baseline: baselineAgentSkills,
+      privateSource: {
+        repository: 'https://github.com/TechsioCZ/skills',
+        install: 'clone-if-authorized',
+        baseline: privateAgentSkills,
+      },
       lockFile: '.agents/skills-lock.json',
     },
     validation: {

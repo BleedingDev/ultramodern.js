@@ -157,8 +157,13 @@ describe('create-tailwind', () => {
     expect(packageJson['lint-staged']).toBeUndefined();
     expect(packageJson['simple-git-hooks']).toBeUndefined();
     expect(packageJson.scripts.lint).toBeUndefined();
+    expect(packageJson.scripts['lint:fix']).toBeUndefined();
+    expect(packageJson.scripts.format).toBeUndefined();
+    expect(packageJson.scripts['format:check']).toBeUndefined();
     expect(packageJson.scripts.prepare).toBeUndefined();
-    expect(packageJson.devDependencies['@biomejs/biome']).toBeUndefined();
+    expect(packageJson.devDependencies.oxlint).toBeUndefined();
+    expect(packageJson.devDependencies.oxfmt).toBeUndefined();
+    expect(packageJson.devDependencies.ultracite).toBeUndefined();
     expect(packageJson.devDependencies['lint-staged']).toBeUndefined();
     expect(packageJson.devDependencies['simple-git-hooks']).toBeUndefined();
 

@@ -370,14 +370,17 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
     materialization: {
       targetRoot: 'generated-project-root',
       allowedPaths: [
+        '.agents/**',
         '.browserslistrc',
         '.gitignore',
         '.modernjs/**',
         '.nvmrc',
+        'AGENTS.md',
         'README.md',
         'api/**',
-        'biome.json',
         'modern.config.ts',
+        'oxfmt.config.ts',
+        'oxlint.config.ts',
         'package.json',
         'postcss.config.mjs',
         'scripts/**',
@@ -1082,12 +1085,19 @@ async function main() {
     delete packageJson['simple-git-hooks'];
     if (packageJson.scripts) {
       delete packageJson.scripts.prepare;
+      delete packageJson.scripts.format;
+      delete packageJson.scripts['format:check'];
       delete packageJson.scripts.lint;
+      delete packageJson.scripts['lint:fix'];
+      delete packageJson.scripts['skills:install'];
+      delete packageJson.scripts['skills:check'];
     }
     if (packageJson.devDependencies) {
       delete packageJson.devDependencies['lint-staged'];
       delete packageJson.devDependencies['simple-git-hooks'];
-      delete packageJson.devDependencies['@biomejs/biome'];
+      delete packageJson.devDependencies.oxlint;
+      delete packageJson.devDependencies.oxfmt;
+      delete packageJson.devDependencies.ultracite;
     }
   }
 
@@ -1128,10 +1138,13 @@ function copyTemplate(
   fs.mkdirSync(dest, { recursive: true });
 
   const excludeInSubproject = [
+    '.agents',
     '.gitignore.handlebars',
-    'biome.json',
+    'AGENTS.md',
     '.npmrc',
     '.nvmrc',
+    'oxfmt.config.ts',
+    'oxlint.config.ts',
   ];
 
   function copyRecursive(srcDir: string, destDir: string) {

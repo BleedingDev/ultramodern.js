@@ -21,6 +21,13 @@ const baselineAgentSkills = [
   'rslib-modern-package',
   'rstest-best-practices',
 ];
+const privateAgentSkills = [
+  'plan-graph',
+  'dag',
+  'subagent-graph',
+  'helm',
+  'debugger-mode',
+];
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf-8');
@@ -45,6 +52,8 @@ const requiredPaths = [
   'package.json',
   'pnpm-workspace.yaml',
   'tsconfig.base.json',
+  'oxlint.config.ts',
+  'oxfmt.config.ts',
   '.agents/skills-lock.json',
   '.agents/rstackjs-agent-skills-LICENSE',
   '.agents/skills/rsbuild-best-practices/SKILL.md',
@@ -62,6 +71,7 @@ const requiredPaths = [
   'topology/local-overlays/development.json',
   '.modernjs/ultramodern-workspace-template-manifest.json',
   '.modernjs/ultramodern-package-source.json',
+  'scripts/bootstrap-agent-skills.mjs',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
@@ -143,6 +153,32 @@ assert(
     'node ./scripts/validate-ultramodern-workspace.mjs',
   'Root must expose the ultramodern:check script',
 );
+const requiredRootScripts = {
+  format: 'oxfmt .',
+  'format:check': 'oxfmt --check .',
+  lint: 'oxlint .',
+  'lint:fix': 'oxlint . --fix',
+  'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+  'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
+};
+for (const [scriptName, scriptCommand] of Object.entries(requiredRootScripts)) {
+  assert(
+    rootPackage.scripts?.[scriptName] === scriptCommand,
+    `Root must expose ${scriptName}`,
+  );
+}
+for (const dependency of [
+  '@effect/tsgo',
+  '@typescript/native-preview',
+  'oxlint',
+  'oxfmt',
+  'ultracite',
+]) {
+  assert(
+    rootPackage.devDependencies?.[dependency],
+    `Root must depend on ${dependency}`,
+  );
+}
 
 const agentsInstructions = readText('AGENTS.md');
 assert(
@@ -171,6 +207,19 @@ for (const skillName of baselineAgentSkills) {
   assert(
     skillContent.includes(`name: ${skillName}`),
     `${skillName} must contain matching skill metadata`,
+  );
+}
+const privateSource = skillsLock.sources?.find(
+  source => source.repository === 'https://github.com/TechsioCZ/skills',
+);
+assert(
+  privateSource?.install === 'clone-if-authorized',
+  'Agent skills lock must configure TechsioCZ skills as clone-if-authorized',
+);
+for (const skillName of privateAgentSkills) {
+  assert(
+    privateSource.baseline?.some(skill => skill.name === skillName),
+    `Agent skills lock must allowlist private skill ${skillName}`,
   );
 }
 
@@ -334,6 +383,17 @@ assert(
     manifest.agentSkills?.baseline?.includes(skillName),
   ),
   'Template manifest must list every baseline agent skill',
+);
+assert(
+  manifest.agentSkills?.privateSource?.repository ===
+    'https://github.com/TechsioCZ/skills',
+  'Template manifest must retain the private TechsioCZ skill source',
+);
+assert(
+  privateAgentSkills.every(skillName =>
+    manifest.agentSkills?.privateSource?.baseline?.includes(skillName),
+  ),
+  'Template manifest must list every private agent skill allowlist entry',
 );
 assert(
   manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),

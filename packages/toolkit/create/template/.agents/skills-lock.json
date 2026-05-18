@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "installDir": ".agents/skills",
+  "sources": [
+    {
+      "id": "techsiocz-private",
+      "visibility": "private",
+      "repository": "https://github.com/TechsioCZ/skills",
+      "install": "clone-if-authorized",
+      "baseline": [
+        {
+          "name": "plan-graph",
+          "reason": "Build and validate DAGs from .plan.md files"
+        },
+        {
+          "name": "dag",
+          "reason": "Inspect current plan frontiers and blocked lanes"
+        },
+        {
+          "name": "subagent-graph",
+          "reason": "Design dependency-aware multi-agent launch graphs"
+        },
+        {
+          "name": "helm",
+          "reason": "Steer already-running multi-agent work"
+        },
+        {
+          "name": "debugger-mode",
+          "reason": "Run hypothesis-driven debugging with runtime evidence"
+        }
+      ]
+    }
+  ]
+}

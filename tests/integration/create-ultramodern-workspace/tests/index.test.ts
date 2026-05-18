@@ -58,6 +58,8 @@ describe('create-ultramodern-workspace', () => {
       'package.json',
       'pnpm-workspace.yaml',
       'README.md',
+      'oxlint.config.ts',
+      'oxfmt.config.ts',
       '.agents/skills-lock.json',
       '.agents/rstackjs-agent-skills-LICENSE',
       '.agents/skills/rsbuild-best-practices/SKILL.md',
@@ -71,6 +73,7 @@ describe('create-ultramodern-workspace', () => {
       '.agents/skills/rslib-modern-package/SKILL.md',
       '.agents/skills/rstest-best-practices/SKILL.md',
       'scripts/validate-ultramodern-workspace.mjs',
+      'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
       'topology/reference-topology.json',
@@ -117,10 +120,10 @@ describe('create-ultramodern-workspace', () => {
       'packages/*',
     ]);
     expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
-      "allowBuilds:\n  '@biomejs/biome': true\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
+      "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true",
     );
     expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
-      "onlyBuiltDependencies:\n  - '@biomejs/biome'\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
+      "onlyBuiltDependencies:\n  - '@swc/core'\n  - core-js\n  - esbuild\n  - msgpackr-extract",
     );
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
@@ -130,10 +133,25 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['ultramodern:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
     );
+    expect(rootPackage.scripts.format).toBe('oxfmt .');
+    expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
+    expect(rootPackage.scripts.lint).toBe('oxlint .');
+    expect(rootPackage.scripts['lint:fix']).toBe('oxlint . --fix');
+    expect(rootPackage.scripts['skills:install']).toBe(
+      'node ./scripts/bootstrap-agent-skills.mjs',
+    );
+    expect(rootPackage.devDependencies).toMatchObject({
+      '@effect/tsgo': '0.7.3',
+      '@typescript/native-preview': '7.0.0-dev.20260518.1',
+      oxlint: '1.65.0',
+      oxfmt: '0.50.0',
+      ultracite: '7.7.0',
+    });
 
     const agentsInstructions = readText(workspaceDir, 'AGENTS.md');
     expect(agentsInstructions).toContain('UltraModern Agent Contract');
     expect(agentsInstructions).toContain('Required Skill Baseline');
+    expect(agentsInstructions).toContain('TechsioCZ/skills');
 
     const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
     expect(skillsLock.source.repository).toBe(
@@ -157,6 +175,14 @@ describe('create-ultramodern-workspace', () => {
     expect(
       readText(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md'),
     ).toContain('name: rslib-modern-package');
+    const privateSource = skillsLock.sources.find(
+      (source: { repository: string }) =>
+        source.repository === 'https://github.com/TechsioCZ/skills',
+    );
+    expect(privateSource.install).toBe('clone-if-authorized');
+    expect(
+      privateSource.baseline.map((skill: { name: string }) => skill.name),
+    ).toEqual(['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugger-mode']);
 
     const appPackagePaths = [
       'apps/shell-super-app/package.json',
@@ -176,6 +202,11 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
       );
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.7.3');
+      expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
+        '7.0.0-dev.20260518.1',
+      );
+      expect(packageJson.scripts.typecheck).toContain('effect-tsgo');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
         '1.170.1',
       );
@@ -317,6 +348,17 @@ describe('create-ultramodern-workspace', () => {
       'rslib-modern-package',
       'rstest-best-practices',
     ]);
+    expect(manifest.agentSkills.privateSource).toMatchObject({
+      repository: 'https://github.com/TechsioCZ/skills',
+      install: 'clone-if-authorized',
+      baseline: [
+        'plan-graph',
+        'dag',
+        'subagent-graph',
+        'helm',
+        'debugger-mode',
+      ],
+    });
 
     const packageSource = readJson(
       workspaceDir,
