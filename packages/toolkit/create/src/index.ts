@@ -431,6 +431,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       postMaterializationValidation: [
         'ultramodern-contract-check',
         'dependency-install-with-lifecycle-deny',
+        'github-workflow-security-enforced',
         'package-source-retained',
         'pnpm-11-policy-enforced',
         'rstest-smoke-tests',

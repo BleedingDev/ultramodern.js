@@ -1,0 +1,53 @@
+name: Workflow Security
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/renovate.json'
+      - 'packages/toolkit/create/template/.github/**'
+      - 'packages/toolkit/create/template-workspace/.github/**'
+      - 'scripts/security/**'
+      - 'package.json'
+  push:
+    branches:
+      - main-ultramodern
+    paths:
+      - '.github/workflows/**'
+      - '.github/renovate.json'
+      - 'packages/toolkit/create/template/.github/**'
+      - 'packages/toolkit/create/template-workspace/.github/**'
+      - 'scripts/security/**'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  workflow-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Validate workflow security
+        run: node scripts/security/validate-github-workflows.mjs

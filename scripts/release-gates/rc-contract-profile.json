@@ -297,8 +297,8 @@
         "id": "ultramodern-public-doc-contract",
         "path": "packages/document/docs/en/guides/get-started/ultramodern.mdx",
         "includes": [
-          "public `presetUltramodern(...)` Modern.js profile",
-          "without forking Modern.js into a separate framework",
+          "UltraModern.js 3.0 is our SuperApp framework forked from Modern.js",
+          "UltraModern.js additions are designed as the default product surface",
           "generated starter also ships `.github/workflows/ultramodern-gates.yml`",
           "Starter preset enforcement"
         ]
@@ -307,7 +307,7 @@
         "id": "ultramodern-starter-readme-contract",
         "path": "packages/toolkit/create/template/README.md",
         "includes": [
-          "# Modern.js `presetUltramodern` Starter",
+          "# UltraModern.js 3.0 Starter",
           "pnpm dev",
           ".github/workflows/ultramodern-gates.yml",
           "pnpm run ultramodern:check"
@@ -318,8 +318,80 @@
         "path": "packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars",
         "includes": [
           "Ultramodern Gates",
+          "permissions:\n  contents: read",
+          "persist-credentials: false",
+          "pnpm install --frozen-lockfile",
+          "MODERN_PUBLIC_SITE_URL: http://localhost:8080",
+          "egress-policy: audit",
           "pnpm run ultramodern:check",
           "pnpm run build"
+        ]
+      },
+      {
+        "id": "ultramodern-template-renovate-contract",
+        "path": "packages/toolkit/create/template/.github/renovate.json",
+        "includes": [
+          "\"dependencyDashboard\": true",
+          "\"minimumReleaseAge\": \"1 day\"",
+          "\"helpers:pinGitHubActionDigests\"",
+          "\"dependencyDashboardApproval\": true"
+        ]
+      },
+      {
+        "id": "ultramodern-workspace-template-workflow-contract",
+        "path": "packages/toolkit/create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars",
+        "includes": [
+          "Ultramodern Workspace Gates",
+          "permissions:\n  contents: read",
+          "persist-credentials: false",
+          "pnpm install --frozen-lockfile",
+          "pnpm -r --filter \"./apps/**\" run build",
+          "MODERN_PUBLIC_SITE_URL: http://localhost:8080",
+          "egress-policy: audit",
+          "pnpm run ultramodern:check"
+        ]
+      },
+      {
+        "id": "ultramodern-workspace-template-renovate-contract",
+        "path": "packages/toolkit/create/template-workspace/.github/renovate.json",
+        "includes": [
+          "\"dependencyDashboard\": true",
+          "\"minimumReleaseAge\": \"1 day\"",
+          "\"helpers:pinGitHubActionDigests\"",
+          "\"dependencyDashboardApproval\": true"
+        ]
+      },
+      {
+        "id": "ultramodern-publish-security-contract",
+        "path": "scripts/ultramodern-publish/validate-publish-security.mjs",
+        "includes": [
+          "NPM_TOKEN",
+          "NODE_AUTH_TOKEN",
+          "refs/heads/main-ultramodern",
+          "BleedingDev/ultramodern.js",
+          "https://registry.npmjs.org/"
+        ]
+      },
+      {
+        "id": "ultramodern-publish-security-runbook-contract",
+        "path": "docs/super-app-rfc-adr/PUBLISH-SECURITY-RUNBOOK.md",
+        "includes": [
+          "GitHub organization membership must require 2FA",
+          "npm trusted publishing must be configured",
+          "`NPM_TOKEN` or `NODE_AUTH_TOKEN`",
+          "Do not use `pull_request_target`",
+          "StepSecurity harden-runner in audit mode",
+          "review GitHub security alerts"
+        ]
+      },
+      {
+        "id": "ultramodern-workflow-security-contract",
+        "path": "scripts/security/validate-github-workflows.mjs",
+        "includes": [
+          "pull_request_target",
+          "helpers:pinGitHubActionDigests",
+          "id-token: write",
+          "NPM_TOKEN"
         ]
       },
       {
@@ -347,7 +419,8 @@
         "path": "packages/document/docs/en/components/init-app.mdx",
         "includes": [
           "current default runtime",
-          "presetUltramodern(...)",
+          "public UltraModern.js SuperApp path",
+          "@bleedingdev/modern-js-create",
           "--bff-runtime effect",
           "--bff-runtime hono"
         ]

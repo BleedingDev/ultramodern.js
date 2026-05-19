@@ -19,7 +19,12 @@ Run the scaffold validator before adding business code:
 pnpm ultramodern:check
 ```
 
-The topology and ownership metadata are generated under `topology/`.
+The topology and ownership metadata are generated under `topology/`. The
+workspace also ships `.github/workflows/ultramodern-workspace-gates.yml` and
+`.github/renovate.json` with read-only workflow permissions, commit-pinned
+actions, frozen installs, StepSecurity audit-mode runner hardening, dependency
+dashboard review, one-day release age, grouped updates, and manual approval for
+major upgrades.
 
 Package source metadata is generated at
 `.modernjs/ultramodern-package-source.json`. The default strategy keeps

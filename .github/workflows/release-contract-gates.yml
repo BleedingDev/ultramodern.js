@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'docs/super-app-rfc-adr/evidence/release-candidate/**'
+      - 'docs/super-app-rfc-adr/PUBLISH-SECURITY-RUNBOOK.md'
       - 'packages/document/docs/**/guides/get-started/ultramodern.mdx'
       - 'packages/document/main-doc/docs/**/guides/get-started/ultramodern.mdx'
       - 'packages/document/docs/**/components/init-app.mdx'
@@ -12,6 +13,7 @@ on:
       - 'packages/toolkit/create/template/README.md'
       - 'packages/toolkit/create/template/package.json.handlebars'
       - 'packages/toolkit/create/template/pnpm-workspace.yaml'
+      - 'packages/toolkit/create/template/.github/renovate.json'
       - 'packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars'
       - 'packages/toolkit/create/template/rstest.config.mts'
       - 'packages/toolkit/create/template/scripts/**'
@@ -20,9 +22,12 @@ on:
       - 'packages/toolkit/create/template-workspace/**'
       - 'packages/toolkit/sandpack-react/src/templates/mwa.ts'
       - 'scripts/release-gates/**'
+      - 'scripts/security/**'
       - 'scripts/ultramodern-publish/**'
+      - '.github/renovate.json'
       - '.github/workflows/publish-bleedingdev.yml'
       - '.github/workflows/release-contract-gates.yml'
+      - '.github/workflows/workflow-security.yml'
   workflow_dispatch:
     inputs:
       evidence_dir:

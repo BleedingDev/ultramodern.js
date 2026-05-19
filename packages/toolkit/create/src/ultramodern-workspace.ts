@@ -1574,6 +1574,7 @@ function createTemplateManifest(
       targetRoot: 'generated-project-root',
       allowedPaths: [
         '.agents/**',
+        '.github/**',
         '.modernjs/**',
         'AGENTS.md',
         'README.md',
@@ -1590,7 +1591,6 @@ function createTemplateManifest(
       ],
       deniedPaths: [
         '.git/**',
-        '.github/**',
         '.npmrc',
         '.yarnrc',
         '.env',
@@ -1638,6 +1638,7 @@ function createTemplateManifest(
       ],
       postMaterializationValidation: [
         'ultramodern-workspace-contract-check',
+        'github-workflow-security-enforced',
         'pnpm-11-policy-enforced',
         'template-manifest-retained',
       ],

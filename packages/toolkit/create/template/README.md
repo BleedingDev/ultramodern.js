@@ -36,9 +36,13 @@ MODERN_BASELINE_ENABLE_BFF_REQUEST_ID=false
 MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS=false
 ```
 
-The generated starter also includes `.github/workflows/ultramodern-gates.yml`.
-That workflow runs `pnpm run ultramodern:check` and `pnpm run build` on every
-push and pull request so the `presetUltramodern(...)` contract stays explicit.
+The generated starter also includes `.github/workflows/ultramodern-gates.yml`
+and `.github/renovate.json`. The workflow runs `pnpm run ultramodern:check` and
+`pnpm run build` on every push and pull request with read-only permissions,
+commit-pinned actions, frozen installs, and StepSecurity audit-mode runner
+hardening. Renovate is configured for dependency dashboard review, one-day
+release age, grouped updates, action digest pinning, and manual approval for
+major upgrades.
 
 ## Micro Vertical Workspaces
 

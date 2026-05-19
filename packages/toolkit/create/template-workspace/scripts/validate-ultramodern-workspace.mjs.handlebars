@@ -41,6 +41,8 @@ const requiredPaths = [
   'tsconfig.base.json',
   'oxlint.config.ts',
   'oxfmt.config.ts',
+  '.github/renovate.json',
+  '.github/workflows/ultramodern-workspace-gates.yml',
   '.agents/skills-lock.json',
   '.agents/rstackjs-agent-skills-LICENSE',
   '.agents/skills/rsbuild-best-practices/SKILL.md',
@@ -121,6 +123,8 @@ const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const skillsLock = readJson('.agents/skills-lock.json');
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
+const workflowContent = readText('.github/workflows/ultramodern-workspace-gates.yml');
+const renovateConfig = readJson('.github/renovate.json');
 const deprecatedTanstackRuntime = '@modern-js/runtime/' + 'tanstack-router';
 const expectedModernSpecifier =
   packageSource.strategy === 'install' ? packageSource.modernPackages?.specifier : 'workspace:*';
@@ -163,6 +167,42 @@ for (const requiredSnippet of [
 assert(
   !pnpmWorkspace.includes('onlyBuiltDependencies'),
   'pnpm-workspace.yaml must use pnpm 11 allowBuilds instead of onlyBuiltDependencies',
+);
+for (const requiredSnippet of [
+  'permissions:\n  contents: read',
+  'pull_request:',
+  'persist-credentials: false',
+  'pnpm install --frozen-lockfile',
+  'pnpm -r --filter "./apps/**" run build',
+  'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
+  'timeout-minutes:',
+  'egress-policy: audit',
+]) {
+  assert(
+    workflowContent.includes(requiredSnippet),
+    `Generated workspace workflow must retain ${requiredSnippet.split('\n')[0]}`,
+  );
+}
+assert(
+  !workflowContent.includes('pull_request_target'),
+  'Generated workspace workflow must not use pull_request_target',
+);
+for (const match of workflowContent.matchAll(/^\s*uses:\s*([^@\s]+)@([^\s#]+)/gmu)) {
+  const [, actionName, actionRef] = match;
+  assert(
+    /^[a-f0-9]{40}$/u.test(actionRef),
+    `Generated workspace workflow must pin ${actionName}@${actionRef} to a commit SHA`,
+  );
+}
+assert(
+  renovateConfig.dependencyDashboard === true &&
+    renovateConfig.minimumReleaseAge === '1 day' &&
+    renovateConfig.extends?.includes('helpers:pinGitHubActionDigests') &&
+    renovateConfig.packageRules?.some(
+      (rule) =>
+        rule.dependencyDashboardApproval === true && rule.matchUpdateTypes?.includes('major'),
+    ),
+  'Generated workspace Renovate config must retain dashboard, release-age, action pinning, and major-approval policy',
 );
 assert(
   rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json',
@@ -505,6 +545,10 @@ assert(
 assert(
   manifest.validation?.postMaterializationValidation?.includes('pnpm-11-policy-enforced'),
   'Template manifest must document pnpm 11 policy validation',
+);
+assert(
+  manifest.validation?.postMaterializationValidation?.includes('github-workflow-security-enforced'),
+  'Template manifest must document generated workflow security validation',
 );
 
 console.log('UltraModern workspace scaffold validated');

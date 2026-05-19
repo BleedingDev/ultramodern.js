@@ -1,4 +1,4 @@
-name: Ultramodern Gates
+name: Ultramodern Workspace Gates
 
 on:
   push:
@@ -12,13 +12,13 @@ defaults:
     shell: bash
 
 concurrency:
-  group: ultramodern-gates-${{ github.workflow }}-${{ github.ref }}
+  group: ultramodern-workspace-gates-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ultramodern-gates:
+  ultramodern-workspace-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -43,10 +43,10 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate Ultramodern Contract
+      - name: Validate Ultramodern Workspace Contract
         run: pnpm run ultramodern:check
 
-      - name: Build
+      - name: Build Workspace Apps
         env:
           MODERN_PUBLIC_SITE_URL: http://localhost:8080
-        run: pnpm run build
+        run: pnpm -r --filter "./apps/**" run build
