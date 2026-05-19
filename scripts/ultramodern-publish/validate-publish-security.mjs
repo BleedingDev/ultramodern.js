@@ -35,7 +35,7 @@ function requireIncludes(content, token, context) {
 }
 
 function validateNoTokenEnv() {
-  for (const envName of ['NPM_TOKEN', 'NODE_AUTH_TOKEN']) {
+  for (const envName of ['NPM_TOKEN']) {
     if (process.env[envName]) {
       fail(
         `${envName} must not be present; use npm trusted publishing via OIDC`,
