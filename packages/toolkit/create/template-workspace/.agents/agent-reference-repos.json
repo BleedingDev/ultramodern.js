@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "defaultEnabled": true,
+  "strategy": "git-subtree-squash",
   "installDir": "repos",
   "repositories": [
     {

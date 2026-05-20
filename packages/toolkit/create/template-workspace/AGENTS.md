@@ -40,7 +40,7 @@ The installer copies only the allowlisted private skills from `.agents/skills-lo
 
 ## Agent Reference Repositories
 
-The workspace installs read-only source snapshots under `repos/` by default during `pnpm install`. These repositories are reference material for coding agents, not application source:
+The workspace installs read-only source references under `repos/` by default during `pnpm install` using `git subtree add --squash`. These repositories are reference material for coding agents, not application source:
 
 - `repos/effect` from `Effect-TS/effect`.
 - `repos/ultramodern.js` from `BleedingDev/ultramodern.js`.

@@ -286,6 +286,10 @@ assert(
   'Agent reference repositories must be enabled by default',
 );
 assert(
+  agentReferenceRepos.strategy === 'git-subtree-squash',
+  'Agent reference repositories must use git subtree squash strategy',
+);
+assert(
   agentReferenceRepos.repositories?.some(
     (repo) =>
       repo.id === 'effect' &&
@@ -308,6 +312,10 @@ assert(
     'ULTRAMODERN_SKIP_AGENT_REPOS',
   ),
   'Agent reference repository setup must expose an opt-out environment variable',
+);
+assert(
+  readText('scripts/setup-agent-reference-repos.mjs').includes('git-subtree-dir'),
+  'Agent reference repository setup must validate git subtree evidence',
 );
 for (const skillName of baselineAgentSkills) {
   assert(

@@ -7,7 +7,6 @@ const args = new Set(process.argv.slice(2));
 const checkOnly = args.has('--check');
 const configPath = path.join(root, '.agents', 'agent-reference-repos.json');
 const manifestPath = path.join(root, '.modernjs', 'agent-reference-repos.json');
-const tempRoot = path.join(root, '.modernjs', 'agent-reference-repos-tmp');
 
 const truthy = value => /^(1|true|yes|on)$/i.test(String(value ?? ''));
 const falsy = value => /^(0|false|no|off)$/i.test(String(value ?? ''));
@@ -17,6 +16,17 @@ const skipRequested =
   falsy(process.env.ULTRAMODERN_AGENT_REPOS);
 const required = truthy(process.env.ULTRAMODERN_AGENT_REPOS_REQUIRED);
 const refresh = truthy(process.env.ULTRAMODERN_AGENT_REPOS_REFRESH);
+
+const gitIdentityEnv = {
+  GIT_AUTHOR_NAME:
+    process.env.GIT_AUTHOR_NAME || 'UltraModern Agent Reference Setup',
+  GIT_AUTHOR_EMAIL:
+    process.env.GIT_AUTHOR_EMAIL || 'ultramodern-agent-refs@local',
+  GIT_COMMITTER_NAME:
+    process.env.GIT_COMMITTER_NAME || 'UltraModern Agent Reference Setup',
+  GIT_COMMITTER_EMAIL:
+    process.env.GIT_COMMITTER_EMAIL || 'ultramodern-agent-refs@local',
+};
 
 const log = message => console.log(`[agent-reference-repos] ${message}`);
 const warn = message => console.warn(`[agent-reference-repos] ${message}`);
@@ -36,6 +46,11 @@ function run(command, commandArgs, options = {}) {
   const result = spawnSync(command, commandArgs, {
     cwd: options.cwd ?? root,
     encoding: 'utf-8',
+    env: {
+      ...process.env,
+      ...gitIdentityEnv,
+      ...(options.env ?? {}),
+    },
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
     timeout: options.timeout ?? 120000,
   });
@@ -74,38 +89,160 @@ function hasGit() {
   return result.status === 0;
 }
 
-function existingReference(targetPath, repo) {
-  const markerPath = path.join(targetPath, '.ultramodern-reference-repo.json');
-  if (!fs.existsSync(markerPath)) {
+function hasGitSubtree() {
+  const result = spawnSync('git', ['subtree', '-h'], {
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  return (
+    (result.status === 0 || result.status === 129) &&
+    result.stdout.includes('usage: git subtree')
+  );
+}
+
+function isGitWorkTree() {
+  const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd: root,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  return result.status === 0 && result.stdout.trim() === 'true';
+}
+
+function hasCommits() {
+  const result = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  return result.status === 0;
+}
+
+function porcelainStatus() {
+  return run('git', ['status', '--porcelain'], { timeout: 30000 });
+}
+
+function ensureGitRepository() {
+  if (!isGitWorkTree()) {
+    if (checkOnly) {
+      fail('workspace is not a git repository');
+      return false;
+    }
+    log('initializing git repository for agent reference subtrees');
+    run('git', ['init'], { timeout: 30000 });
+  }
+
+  if (!hasCommits()) {
+    if (checkOnly) {
+      fail('workspace has no initial git commit');
+      return false;
+    }
+    log('creating initial workspace commit before adding reference subtrees');
+    run('git', ['add', '-A'], { timeout: 30000 });
+    run('git', ['commit', '-m', 'Initialize UltraModern workspace'], {
+      timeout: 120000,
+    });
+    return true;
+  }
+
+  const status = porcelainStatus();
+  if (status) {
+    fail(
+      'workspace has uncommitted changes; commit or stash them before installing reference subtrees',
+    );
+    return false;
+  }
+
+  return true;
+}
+
+function remoteCommit(repo) {
+  let output = run('git', ['ls-remote', repo.url, `refs/heads/${repo.ref}`], {
+    timeout: 120000,
+  });
+  if (!output) {
+    output = run('git', ['ls-remote', repo.url, repo.ref], {
+      timeout: 120000,
+    });
+  }
+  const [commit] = output.split(/\s+/);
+  if (!/^[a-f0-9]{40}$/i.test(commit ?? '')) {
+    throw new Error(`Could not resolve ${repo.url}#${repo.ref}`);
+  }
+  return commit;
+}
+
+function subtreeCommitExists(repo) {
+  const result = spawnSync(
+    'git',
+    [
+      'log',
+      '--grep',
+      `git-subtree-dir: ${repo.path}`,
+      '--format=%H',
+      '-n',
+      '1',
+    ],
+    {
+      cwd: root,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  return result.status === 0 && result.stdout.trim().length > 0;
+}
+
+function installedManifestEntry(repo) {
+  if (!fs.existsSync(manifestPath)) {
     return undefined;
   }
   try {
-    const marker = readJson(markerPath);
-    if (marker.url === repo.url && marker.ref === repo.ref) {
-      return marker;
-    }
+    const manifest = readJson(manifestPath);
+    return manifest.repositories?.find(entry => entry.id === repo.id);
   } catch {
     return undefined;
   }
-  return undefined;
 }
 
-function materializeRepository(repo) {
+function assertSubtreePresent(repo) {
   assertSafeRepoPath(repo.path);
   const targetPath = path.join(root, repo.path);
-  const existing = existingReference(targetPath, repo);
+  if (!fs.existsSync(targetPath)) {
+    fail(`${repo.path} is missing`);
+    return undefined;
+  }
+  if (!subtreeCommitExists(repo)) {
+    fail(`${repo.path} is present but has no git-subtree commit evidence`);
+    return undefined;
+  }
+  return (
+    installedManifestEntry(repo) ?? {
+      id: repo.id,
+      name: repo.name,
+      url: repo.url,
+      ref: repo.ref,
+      path: repo.path,
+      readOnly: repo.readOnly !== false,
+      status: 'present',
+      strategy: 'git-subtree-squash',
+    }
+  );
+}
+
+function addSubtree(repo) {
+  assertSafeRepoPath(repo.path);
+  const targetPath = path.join(root, repo.path);
+  const existing = fs.existsSync(targetPath);
 
   if (existing && !refresh) {
-    log(`${repo.id} already present at ${repo.path} (${existing.commit})`);
-    return { ...existing, status: 'present' };
+    return assertSubtreePresent(repo);
   }
 
-  if (fs.existsSync(targetPath)) {
-    if (!refresh) {
-      fail(`${repo.path} exists but is not a managed reference repo`);
-      return undefined;
-    }
-    fs.rmSync(targetPath, { recursive: true, force: true });
+  if (existing && refresh) {
+    fail(
+      `${repo.path} already exists; refresh for subtree references is intentionally manual`,
+    );
+    return undefined;
   }
 
   if (checkOnly) {
@@ -113,53 +250,70 @@ function materializeRepository(repo) {
     return undefined;
   }
 
-  fs.mkdirSync(tempRoot, { recursive: true });
-  const tempPath = fs.mkdtempSync(path.join(tempRoot, `${repo.id}-`));
+  const commit = remoteCommit(repo);
+  log(`adding ${repo.name} as git subtree at ${repo.path} (${commit})`);
+  run('git', ['fetch', '--depth', '1', repo.url, repo.ref], {
+    timeout: 300000,
+  });
+  run(
+    'git',
+    [
+      'subtree',
+      'add',
+      '--prefix',
+      repo.path,
+      'FETCH_HEAD',
+      '--squash',
+      '-m',
+      `Add ${repo.name} agent reference repo`,
+    ],
+    { timeout: 600000 },
+  );
 
-  try {
-    log(`cloning ${repo.name} from ${repo.url}#${repo.ref}`);
-    run(
-      'git',
-      [
-        'clone',
-        '--depth',
-        '1',
-        '--single-branch',
-        '--branch',
-        repo.ref,
-        '--filter=blob:none',
-        repo.url,
-        tempPath,
-      ],
-      { timeout: 300000 },
-    );
-    const commit = run('git', ['-C', tempPath, 'rev-parse', 'HEAD']);
-    fs.rmSync(path.join(tempPath, '.git'), { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.renameSync(tempPath, targetPath);
+  return {
+    schemaVersion: 1,
+    id: repo.id,
+    name: repo.name,
+    url: repo.url,
+    ref: repo.ref,
+    commit,
+    path: repo.path,
+    readOnly: repo.readOnly !== false,
+    strategy: 'git-subtree-squash',
+    status: 'installed',
+    installedAt: new Date().toISOString(),
+  };
+}
 
-    const marker = {
-      schemaVersion: 1,
-      id: repo.id,
-      name: repo.name,
-      url: repo.url,
-      ref: repo.ref,
-      commit,
-      path: repo.path,
-      readOnly: repo.readOnly !== false,
-      installedAt: new Date().toISOString(),
-    };
-    fs.writeFileSync(
-      path.join(targetPath, '.ultramodern-reference-repo.json'),
-      `${JSON.stringify(marker, null, 2)}\n`,
-    );
-    log(`${repo.id} installed at ${repo.path} (${commit})`);
-    return { ...marker, status: 'installed' };
-  } catch (error) {
-    fs.rmSync(tempPath, { recursive: true, force: true });
-    fail(`Could not install ${repo.id}: ${error.message}`);
-    return undefined;
+function writeManifest(entries) {
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(
+    manifestPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        strategy: 'git-subtree-squash',
+        installDir: 'repos',
+        repositories: entries,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function commitManifestIfChanged() {
+  const status = run('git', ['status', '--porcelain', '--', manifestPath], {
+    timeout: 30000,
+  });
+  if (!status) {
+    return;
   }
+  run('git', ['add', manifestPath], { timeout: 30000 });
+  run('git', ['commit', '-m', 'Record agent reference repo manifest'], {
+    timeout: 120000,
+  });
 }
 
 function main() {
@@ -180,30 +334,25 @@ function main() {
     fail('git is required to install agent reference repositories');
     return;
   }
+  if (!hasGitSubtree()) {
+    fail('git subtree is required to install agent reference repositories');
+    return;
+  }
+  if (!ensureGitRepository()) {
+    return;
+  }
 
-  const installed = [];
+  const entries = [];
   for (const repo of config.repositories ?? []) {
-    const result = materializeRepository(repo);
+    const result = checkOnly ? assertSubtreePresent(repo) : addSubtree(repo);
     if (result) {
-      installed.push(result);
+      entries.push(result);
     }
   }
 
   if (!checkOnly) {
-    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-    fs.writeFileSync(
-      manifestPath,
-      `${JSON.stringify(
-        {
-          schemaVersion: 1,
-          generatedAt: new Date().toISOString(),
-          installDir: config.installDir ?? 'repos',
-          repositories: installed,
-        },
-        null,
-        2,
-      )}\n`,
-    );
+    writeManifest(entries);
+    commitManifestIfChanged();
   }
 }
 
@@ -212,6 +361,4 @@ try {
 } catch (error) {
   console.error(`[agent-reference-repos] ${error.message}`);
   process.exitCode = 1;
-} finally {
-  fs.rmSync(tempRoot, { recursive: true, force: true });
 }
