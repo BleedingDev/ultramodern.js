@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
@@ -44,7 +45,10 @@ describe('create-bff-runtime', () => {
   let tempRoot = '';
 
   beforeAll(() => {
-    jest.setTimeout(1000 * 60 * 3);
+    rstest.setConfig({
+      testTimeout: 1000 * 60 * 3,
+      hookTimeout: 1000 * 60 * 3,
+    });
     tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-create-bff-runtime-'),
     );
@@ -66,6 +70,8 @@ describe('create-bff-runtime', () => {
     );
     expect(packageJson.name).toBe('with-bff-effect-default');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
 
     const modernConfig = fs.readFileSync(
       path.join(appDir, 'modern.config.ts'),
@@ -79,8 +85,13 @@ describe('create-bff-runtime', () => {
     expect(fs.existsSync(path.join(appDir, 'api/lambda/hello.ts'))).toBe(false);
     expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(true);
     expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(true);
+    expect(
+      fs.readFileSync(path.join(appDir, 'src/routes/index.css'), 'utf-8'),
+    ).toContain("@import 'tailwindcss';");
 
-    const routePage = path.join(appDir, 'src/routes/page.tsx');
+    const routePage = path.join(appDir, 'src/routes/[lang]/page.tsx');
     expectNoHandlebarsArtifacts(fs.readFileSync(routePage, 'utf-8'));
   });
 
@@ -95,8 +106,9 @@ describe('create-bff-runtime', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.1');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.6');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
 
     const modernConfig = fs.readFileSync(
       path.join(appDir, 'modern.config.ts'),
@@ -123,7 +135,7 @@ describe('create-bff-runtime', () => {
       '@modern-js/plugin-bff/effect-client',
     );
 
-    const routePage = path.join(appDir, 'src/routes/page.tsx');
+    const routePage = path.join(appDir, 'src/routes/[lang]/page.tsx');
     expectNoHandlebarsArtifacts(fs.readFileSync(routePage, 'utf-8'));
     expect(fs.readFileSync(routePage, 'utf-8')).toContain(
       "import effectBff from '@api/effect/index'",
@@ -159,7 +171,7 @@ describe('create-bff-runtime', () => {
       false,
     );
 
-    const routePage = path.join(appDir, 'src/routes/page.tsx');
+    const routePage = path.join(appDir, 'src/routes/[lang]/page.tsx');
     const routePageContent = fs.readFileSync(routePage, 'utf-8');
     expectNoHandlebarsArtifacts(routePageContent);
     expect(routePageContent).not.toContain(

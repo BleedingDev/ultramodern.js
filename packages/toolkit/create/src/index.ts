@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { i18n, localeKeys } from './locale';
 import {
+  addUltramodernMicroVertical,
   generateUltramodernWorkspace,
+  type MicroVerticalKind,
   ULTRAMODERN_WORKSPACE_FLAG,
 } from './ultramodern-workspace';
 
@@ -124,6 +126,9 @@ const sha1Pattern = /^[0-9a-f]{40}$/;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const templateIdPattern = /^[a-z0-9][a-z0-9._-]*$/;
 const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
+const TANSTACK_ROUTER_VERSION = '1.170.6';
+const TAILWIND_VERSION = '4.3.0';
+const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const requiredDeniedPaths = [
   '.git/**',
   '.npmrc',
@@ -180,12 +185,12 @@ function detectRouterFramework(): RouterFramework {
   }
 
   const routerValue = getOptionValue(args, ['--router', '-r']);
-  if (!routerValue || routerValue === 'react-router') {
-    return 'react-router';
+  if (!routerValue || routerValue === 'tanstack') {
+    return 'tanstack';
   }
 
-  if (routerValue === 'tanstack') {
-    return 'tanstack';
+  if (routerValue === 'react-router') {
+    return 'react-router';
   }
 
   console.error(
@@ -804,6 +809,9 @@ function showHelp() {
   if (localeKeys.help.optionUltramodernPackageNamePrefix) {
     console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
   }
+  if (localeKeys.help.optionMicroVertical) {
+    console.log(i18n.t(localeKeys.help.optionMicroVertical));
+  }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -830,6 +838,9 @@ function showHelp() {
   }
   if (localeKeys.help.example10) {
     console.log(i18n.t(localeKeys.help.example10));
+  }
+  if (localeKeys.help.example11) {
+    console.log(i18n.t(localeKeys.help.example11));
   }
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
@@ -864,12 +875,33 @@ function detectSubprojectFlag(): boolean | null {
 
 function detectTailwindFlag(): boolean {
   const args = process.argv.slice(2);
-  return args.includes('--tailwind');
+  return !args.includes('--no-tailwind');
 }
 
 function detectWorkspaceProtocolFlag(): boolean {
   const args = process.argv.slice(2);
   return args.includes('--workspace');
+}
+
+function detectMicroVerticalKind(): MicroVerticalKind | undefined {
+  const kind = getOptionValue(process.argv.slice(2), ['--microvertical']);
+  if (!kind) {
+    return undefined;
+  }
+
+  if (
+    kind === 'remote' ||
+    kind === 'horizontal-remote' ||
+    kind === 'service' ||
+    kind === 'shared'
+  ) {
+    return kind;
+  }
+
+  console.error(
+    '--microvertical must be one of: remote, horizontal-remote, service, shared',
+  );
+  process.exit(1);
 }
 
 function detectUltramodernWorkspaceFlag(
@@ -1035,6 +1067,7 @@ async function getProjectName(): Promise<{
     '--ultramodern-package-registry',
     '--ultramodern-package-scope',
     '--ultramodern-package-name-prefix',
+    '--microvertical',
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -1047,6 +1080,7 @@ async function getProjectName(): Promise<{
     '--tanstack',
     '--bff',
     '--tailwind',
+    '--no-tailwind',
     '--workspace',
     ULTRAMODERN_WORKSPACE_FLAG,
   ]);
@@ -1072,7 +1106,8 @@ async function getProjectName(): Promise<{
       arg.startsWith('--ultramodern-package-version=') ||
       arg.startsWith('--ultramodern-package-registry=') ||
       arg.startsWith('--ultramodern-package-scope=') ||
-      arg.startsWith('--ultramodern-package-name-prefix=')
+      arg.startsWith('--ultramodern-package-name-prefix=') ||
+      arg.startsWith('--microvertical=')
     ) {
       continue;
     }
@@ -1126,6 +1161,39 @@ async function main() {
     useCurrentDir || path.isAbsolute(projectName)
       ? path.basename(targetDir)
       : projectName;
+  const createPackage = readCreatePackageJson();
+  const version = createPackage.version || 'latest';
+  const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
+    ? getBleedingDevFrameworkVersion(createPackage, version)
+    : version;
+  const microVerticalKind = detectMicroVerticalKind();
+
+  if (microVerticalKind) {
+    const overridePackageSource = args.some(arg =>
+      arg.startsWith('--ultramodern-package-'),
+    )
+      ? detectUltramodernPackageSource(
+          args,
+          ultramodernPackageVersion,
+          createPackage,
+        )
+      : undefined;
+    addUltramodernMicroVertical({
+      workspaceRoot: process.cwd(),
+      name: generatedPackageName,
+      kind: microVerticalKind,
+      modernVersion: version,
+      enableTailwind: detectTailwindFlag(),
+      packageSource: overridePackageSource,
+    });
+
+    const dim = '\x1b[2m\x1b[3m';
+    const reset = '\x1b[0m';
+
+    console.log(`${i18n.t(localeKeys.message.success)}\n`);
+    console.log(`${dim}   pnpm ultramodern:check${reset}\n`);
+    return;
+  }
 
   if (fs.existsSync(targetDir)) {
     const files = fs.readdirSync(targetDir);
@@ -1135,11 +1203,6 @@ async function main() {
     }
   }
 
-  const createPackage = readCreatePackageJson();
-  const version = createPackage.version || 'latest';
-  const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
-    ? getBleedingDevFrameworkVersion(createPackage, version)
-    : version;
   const generateWorkspace = detectUltramodernWorkspaceFlag(createPackage);
 
   if (generateWorkspace) {
@@ -1147,6 +1210,7 @@ async function main() {
       targetDir,
       packageName: generatedPackageName,
       modernVersion: version,
+      enableTailwind: detectTailwindFlag(),
       packageSource: detectUltramodernPackageSource(
         args,
         ultramodernPackageVersion,
@@ -1224,6 +1288,9 @@ async function main() {
       packageSource,
       useWorkspaceProtocol,
     ),
+    tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
+    tailwindVersion: TAILWIND_VERSION,
+    tailwindPostcssVersion: TAILWIND_POSTCSS_VERSION,
     isSubproject,
     routerFramework,
     bffRuntime,
@@ -1303,6 +1370,9 @@ function copyTemplate(
     pluginTanstackVersion: string;
     pluginBffVersion: string;
     pluginI18nVersion: string;
+    tanstackRouterVersion: string;
+    tailwindVersion: string;
+    tailwindPostcssVersion: string;
     isSubproject: boolean;
     routerFramework: RouterFramework;
     bffRuntime: BffRuntime;
@@ -1366,6 +1436,9 @@ function copyTemplate(
             pluginTanstackVersion: options.pluginTanstackVersion,
             pluginBffVersion: options.pluginBffVersion,
             pluginI18nVersion: options.pluginI18nVersion,
+            tanstackRouterVersion: options.tanstackRouterVersion,
+            tailwindVersion: options.tailwindVersion,
+            tailwindPostcssVersion: options.tailwindPostcssVersion,
             isSubproject: options.isSubproject,
             isTanstackRouter: options.routerFramework === 'tanstack',
             enableBff: options.bffRuntime !== 'none',

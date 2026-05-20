@@ -126,9 +126,9 @@ describe('create-tailwind', () => {
     }
   });
 
-  test('scaffolds Tailwind v4 files with --tailwind', () => {
+  test('scaffolds Tailwind v4 files by default', () => {
     const appDir = path.join(tempRoot, 'with-tailwind');
-    runCreate(appDir, ['--router', 'tanstack', '--tailwind', '--lang', 'en']);
+    runCreate(appDir, ['--router', 'tanstack', '--lang', 'en']);
 
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
@@ -137,10 +137,10 @@ describe('create-tailwind', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.1');
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.6');
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.1.18');
+    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
     expectSingleAppContract(appDir);
 
     const postcssConfigPath = path.join(appDir, 'postcss.config.mjs');
@@ -174,9 +174,15 @@ describe('create-tailwind', () => {
     expectNoHandlebarsArtifacts(modernConfig);
   });
 
-  test('keeps default css scaffold when --tailwind is not set', () => {
+  test('supports --no-tailwind opt-out', () => {
     const appDir = path.join(tempRoot, 'without-tailwind');
-    runCreate(appDir, ['--router', 'tanstack', '--lang', 'en']);
+    runCreate(appDir, [
+      '--router',
+      'tanstack',
+      '--no-tailwind',
+      '--lang',
+      'en',
+    ]);
 
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
@@ -206,24 +212,17 @@ describe('create-tailwind', () => {
     );
   });
 
-  test('supports --tailwind with --sub', () => {
+  test('keeps Tailwind default-on with --sub', () => {
     const appDir = path.join(tempRoot, 'with-tailwind-sub');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--tailwind',
-      '--sub',
-      '--lang',
-      'en',
-    ]);
+    runCreate(appDir, ['--router', 'tanstack', '--sub', '--lang', 'en']);
 
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
 
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.1.18');
+    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
 
     expect(packageJson['lint-staged']).toBeUndefined();
     expect(packageJson['simple-git-hooks']).toBeUndefined();
@@ -258,12 +257,11 @@ describe('create-tailwind', () => {
     expect(validationOutput).toContain('Ultramodern contract check passed.');
   });
 
-  test('supports --tailwind with --bff-runtime effect', () => {
+  test('keeps Tailwind default-on with --bff-runtime effect', () => {
     const appDir = path.join(tempRoot, 'with-tailwind-effect');
     runCreate(appDir, [
       '--router',
       'tanstack',
-      '--tailwind',
       '--bff-runtime',
       'effect',
       '--lang',
@@ -273,7 +271,7 @@ describe('create-tailwind', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
 
     const modernConfig = fs.readFileSync(
@@ -350,12 +348,11 @@ describe('create-tailwind', () => {
     });
   });
 
-  test('supports --workspace with tailwind and effect runtime', () => {
+  test('keeps Tailwind default-on with --workspace and effect runtime', () => {
     const appDir = path.join(tempRoot, 'with-tailwind-effect-workspace');
     runCreate(appDir, [
       '--router',
       'tanstack',
-      '--tailwind',
       '--bff-runtime',
       'effect',
       '--workspace',
@@ -367,7 +364,7 @@ describe('create-tailwind', () => {
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
     expectWorkspaceModernVersions(packageJson);
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.1.18');
+    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
 
     expectNoHandlebarsArtifacts(
       fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),

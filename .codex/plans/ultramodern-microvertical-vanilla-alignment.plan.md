@@ -4,25 +4,25 @@ overview: Align UltraModern workspace generation with vanilla Modern.js and offi
 todos:
   - id: dependency-baseline
     content: Update generator dependency constants and validators to current latest compatible versions: zephyr-modernjs-plugin 1.1.1, @module-federation/modern-js-v3 2.4.0, @tanstack/react-router 1.170.6, tailwindcss 4.3.0, and @tailwindcss/postcss 4.3.0.
-    status: pending
+    status: completed
   - id: tailwind-default-everywhere
     content: Make Tailwind CSS v4 default-on for generated UltraModern apps and workspaces, preserve opt-out behavior, and update generated PostCSS/Tailwind config plus package metadata consistently.
-    status: pending
+    status: completed
   - id: zephyr-vanilla-lifecycle
     content: Keep Zephyr wired only through the official zephyr-modernjs-plugin with withZephyr() in the Modern.js plugins array; validate normal modern dev/build/serve lifecycle and avoid adding zephyr-specific user commands.
-    status: pending
+    status: completed
   - id: microvertical-descriptors
     content: Refactor the hardcoded demo topology into reusable neutral MicroVertical descriptors for shell, vertical remote, horizontal remote, service, and shared package generation.
-    status: pending
+    status: completed
   - id: add-flow-design
     content: Design and implement a thin UltraModern add/subproject flow close to @modern-js/create that derives paths, package names, ports, MF names, and topology updates from a requested MicroVertical name and kind.
-    status: pending
+    status: completed
   - id: validator-and-tests
     content: Update workspace validator and integration tests to assert domain-neutral SuperApp/MicroVertical invariants, Tailwind default-on behavior, official Zephyr plugin placement, normal build lifecycle, and generated topology consistency.
-    status: pending
+    status: completed
   - id: docs-and-operator-contract
     content: Update README and ADR guidance to describe the vanilla-aligned add flow, Tailwind defaults, Zephyr validation expectations, opt-outs, and non-ERP scope boundaries.
-    status: pending
+    status: completed
 isProject: true
 ---
 

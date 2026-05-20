@@ -31,8 +31,7 @@ export const ZH_LOCALE = {
     optionRouter: '  -r, --router   选择路由框架 (react-router 或 tanstack)',
     optionBff: '      --bff      启用 BFF 模板（默认运行时：effect）',
     optionBffRuntime: '      --bff-runtime 选择 BFF 运行时（hono 或 effect）',
-    optionTailwind:
-      '      --tailwind 启用 Tailwind CSS v4 模板（PostCSS + 示例样式）',
+    optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 模板',
     optionWorkspace:
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionUltramodernWorkspace:
@@ -43,6 +42,8 @@ export const ZH_LOCALE = {
       '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
+    optionMicroVertical:
+      '      --microvertical 向现有 UltraModern 工作区添加 MicroVertical 包（remote、horizontal-remote、service、shared）',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -50,13 +51,14 @@ export const ZH_LOCALE = {
     example3: '  create my-app --sub',
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
-    example6: '  create my-app --router tanstack --tailwind',
+    example6: '  create my-app --router tanstack --no-tailwind',
     example7: '  create my-app --bff',
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10:
       '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
+    example11: '  create catalog --microvertical remote',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

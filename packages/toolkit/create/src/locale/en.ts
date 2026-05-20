@@ -34,7 +34,7 @@ export const EN_LOCALE = {
     optionBff: '      --bff      Enable BFF scaffold (default runtime: effect)',
     optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
     optionTailwind:
-      '      --tailwind Enable Tailwind CSS v4 scaffold (PostCSS + starter styles)',
+      '      --no-tailwind Disable default Tailwind CSS v4 scaffold',
     optionWorkspace:
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionUltramodernWorkspace:
@@ -45,6 +45,8 @@ export const EN_LOCALE = {
       '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
+    optionMicroVertical:
+      '      --microvertical Add a MicroVertical package to an existing UltraModern workspace (remote, horizontal-remote, service, shared)',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -52,12 +54,13 @@ export const EN_LOCALE = {
     example3: '  create my-app --sub',
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
-    example6: '  create my-app --router tanstack --tailwind',
+    example6: '  create my-app --router tanstack --no-tailwind',
     example7: '  create my-app --bff',
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-super-app',
+    example11: '  create catalog --microvertical remote',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

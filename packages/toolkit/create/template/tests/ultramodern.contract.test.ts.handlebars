@@ -20,6 +20,22 @@ describe('generated UltraModern contract', () => {
     expect(page).toContain('rel="alternate"');
     expect(page).toContain('hrefLang="x-default"');
     expect(page).toContain('localizedPath(');
+{{#if enableTailwind}}
+    expect(readText('src/routes/index.css')).toContain(
+      "@import 'tailwindcss';",
+    );
+    expect(readText('postcss.config.mjs')).toContain('@tailwindcss/postcss');
+    expect(readText('tailwind.config.ts')).toContain(
+      "content: ['./src/**/*.{js,ts,jsx,tsx}']",
+    );
+{{/if}}
+{{#unless enableTailwind}}
+    expect(readText('src/routes/index.css')).not.toContain(
+      "@import 'tailwindcss';",
+    );
+    expect(fs.existsSync(path.join(root, 'postcss.config.mjs'))).toBe(false);
+    expect(fs.existsSync(path.join(root, 'tailwind.config.ts'))).toBe(false);
+{{/unless}}
 
     const config = readText('rstest.config.mts');
     expect(config).toContain("withModernConfig()");
@@ -63,5 +79,17 @@ describe('generated UltraModern contract', () => {
     expect(
       packageJson.devDependencies?.['@modern-js/adapter-rstest'],
     ).toBeTruthy();
+{{#if enableTailwind}}
+    expect(packageJson.devDependencies?.tailwindcss).toBe('^4.3.0');
+    expect(packageJson.devDependencies?.['@tailwindcss/postcss']).toBe(
+      '^4.3.0',
+    );
+{{/if}}
+{{#unless enableTailwind}}
+    expect(packageJson.devDependencies?.tailwindcss).toBeUndefined();
+    expect(
+      packageJson.devDependencies?.['@tailwindcss/postcss'],
+    ).toBeUndefined();
+{{/unless}}
   });
 });

@@ -46,14 +46,15 @@ major upgrades.
 
 ## Micro Vertical Workspaces
 
-Inside a Micro Vertical workspace, generate shell, remote, and service packages
-with `--sub` so the workspace root owns package-manager and CI policy:
+Inside a Micro Vertical workspace, add packages from the workspace root with
+the UltraModern add flow. It derives paths, package names, ports, Module
+Federation names, topology entries, overlays, ownership, and root dev scripts:
 
 ```bash
-npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
-npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
-npx @modern-js/create apps/remotes/design-system --router tanstack --tailwind --workspace --sub
-npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
+npx @modern-js/create catalog --microvertical remote
+npx @modern-js/create design-system --microvertical horizontal-remote
+npx @modern-js/create catalog-api --microvertical service
+npx @modern-js/create catalog-contracts --microvertical shared
 ```
 
 The canonical topology is documented in

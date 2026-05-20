@@ -17,6 +17,17 @@ function runCreate(projectDir: string, args: string[]) {
   });
 }
 
+function runCreateInWorkspace(workspaceDir: string, args: string[]) {
+  execFileSync(process.execPath, [createBin, ...args], {
+    cwd: workspaceDir,
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+    },
+    stdio: 'pipe',
+  });
+}
+
 function readText(root: string, relativePath: string) {
   return fs.readFileSync(path.join(root, relativePath), 'utf-8');
 }
@@ -103,23 +114,39 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/package.json',
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
+      'apps/shell-super-app/postcss.config.mjs',
+      'apps/shell-super-app/tailwind.config.ts',
+      'apps/shell-super-app/src/routes/index.css',
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
       'apps/remotes/remote-commerce/module-federation.config.ts',
+      'apps/remotes/remote-commerce/postcss.config.mjs',
+      'apps/remotes/remote-commerce/tailwind.config.ts',
+      'apps/remotes/remote-commerce/src/routes/index.css',
       'apps/remotes/remote-commerce/src/components/commerce-widget.tsx',
       'apps/remotes/remote-identity/package.json',
       'apps/remotes/remote-identity/modern.config.ts',
       'apps/remotes/remote-identity/module-federation.config.ts',
+      'apps/remotes/remote-identity/postcss.config.mjs',
+      'apps/remotes/remote-identity/tailwind.config.ts',
+      'apps/remotes/remote-identity/src/routes/index.css',
       'apps/remotes/remote-identity/src/components/identity-widget.tsx',
       'apps/remotes/remote-design-system/package.json',
       'apps/remotes/remote-design-system/modern.config.ts',
       'apps/remotes/remote-design-system/module-federation.config.ts',
-      'apps/remotes/remote-design-system/src/components/Button.tsx',
+      'apps/remotes/remote-design-system/postcss.config.mjs',
+      'apps/remotes/remote-design-system/tailwind.config.ts',
+      'apps/remotes/remote-design-system/src/routes/index.css',
+      'apps/remotes/remote-design-system/src/components/button.tsx',
       'apps/remotes/remote-design-system/src/tokens.ts',
       'services/service-recommendations-effect/package.json',
       'services/service-recommendations-effect/modern.config.ts',
+      'services/service-recommendations-effect/postcss.config.mjs',
+      'services/service-recommendations-effect/tailwind.config.ts',
       'services/service-recommendations-effect/api/effect/index.ts',
       'services/service-recommendations-effect/shared/effect/api.ts',
+      'services/service-recommendations-effect/src/routes/index.css',
+      'services/service-recommendations-effect/src/routes/page.tsx',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-effect-api/src/index.ts',
@@ -159,6 +186,11 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['skills:install']).toBe(
       'node ./scripts/bootstrap-agent-skills.mjs',
     );
+    expect(
+      Object.keys(rootPackage.scripts).every(
+        scriptName => !scriptName.startsWith('zephyr:'),
+      ),
+    ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.7.3',
       '@typescript/native-preview': '7.0.0-dev.20260518.1',
@@ -225,14 +257,44 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
         '7.0.0-dev.20260518.1',
       );
+      expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
+      expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
+        '^4.3.0',
+      );
+      expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
+      expect(packageJson.scripts.dev).toBe('modern dev');
+      expect(packageJson.scripts.build).toBe('modern build');
+      expect(packageJson.scripts.serve).toBe('modern serve');
+      expect(
+        Object.keys(packageJson.scripts).every(
+          scriptName => !scriptName.startsWith('zephyr:'),
+        ),
+      ).toBe(true);
       expect(packageJson.scripts.typecheck).toContain('effect-tsgo');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.1',
+        '1.170.6',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.4.0',
       );
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
+    }
+
+    for (const appDirectory of [
+      'apps/shell-super-app',
+      'apps/remotes/remote-commerce',
+      'apps/remotes/remote-identity',
+      'apps/remotes/remote-design-system',
+    ]) {
+      expect(
+        readText(workspaceDir, `${appDirectory}/src/routes/index.css`),
+      ).toContain("@import 'tailwindcss';");
+      expect(
+        readText(workspaceDir, `${appDirectory}/postcss.config.mjs`),
+      ).toContain("'@tailwindcss/postcss'");
+      expect(
+        readText(workspaceDir, `${appDirectory}/tailwind.config.ts`),
+      ).toContain("content: ['./src/**/*.{js,jsx,ts,tsx}']");
     }
 
     const shellConfig = readText(
@@ -284,7 +346,25 @@ describe('create-ultramodern-workspace', () => {
     expect(servicePackage.dependencies['@modern-js/runtime']).toBe(
       'workspace:*',
     );
+    expect(servicePackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(servicePackage.devDependencies['@tailwindcss/postcss']).toBe(
+      '^4.3.0',
+    );
+    expect(servicePackage.devDependencies.postcss).toBe('^8.5.6');
     expect(servicePackage.modernjs.role).toBe('effect-service');
+
+    expect(
+      readText(
+        workspaceDir,
+        'services/service-recommendations-effect/src/routes/index.css',
+      ),
+    ).toContain("@import 'tailwindcss';");
+    expect(
+      readText(
+        workspaceDir,
+        'services/service-recommendations-effect/postcss.config.mjs',
+      ),
+    ).toContain("'@tailwindcss/postcss'");
 
     const serviceConfig = readText(
       workspaceDir,
@@ -402,6 +482,150 @@ describe('create-ultramodern-workspace', () => {
     ).toString();
     expect(validationOutput).toContain(
       'UltraModern workspace scaffold validated',
+    );
+  });
+
+  test('adds a remote MicroVertical to an existing workspace', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-add-remote-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreateInWorkspace(workspaceDir, [
+      'catalog',
+      '--microvertical',
+      'remote',
+      '--lang',
+      'en',
+    ]);
+
+    for (const relativePath of [
+      'apps/remotes/remote-catalog/package.json',
+      'apps/remotes/remote-catalog/modern.config.ts',
+      'apps/remotes/remote-catalog/module-federation.config.ts',
+      'apps/remotes/remote-catalog/src/routes/[lang]/page.tsx',
+      'apps/remotes/remote-catalog/src/routes/index.css',
+      'apps/remotes/remote-catalog/src/remote-entry.tsx',
+      'apps/remotes/remote-catalog/src/components/catalog-widget.tsx',
+      'apps/remotes/remote-catalog/postcss.config.mjs',
+      'apps/remotes/remote-catalog/tailwind.config.ts',
+    ]) {
+      expectPath(workspaceDir, relativePath);
+    }
+
+    const remotePackage = readJson(
+      workspaceDir,
+      'apps/remotes/remote-catalog/package.json',
+    );
+    expect(remotePackage.scripts).toMatchObject({
+      dev: 'modern dev',
+      build: 'modern build',
+      serve: 'modern serve',
+    });
+    expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
+      '1.170.6',
+    );
+    expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
+      '2.4.0',
+    );
+    expect(remotePackage.dependencies['zephyr-modernjs-plugin']).toBe('1.1.1');
+    expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
+
+    const remoteConfig = readText(
+      workspaceDir,
+      'apps/remotes/remote-catalog/modern.config.ts',
+    );
+    expect(remoteConfig).toContain('tanstackRouterPlugin()');
+    expect(remoteConfig).toContain('moduleFederationPlugin()');
+    expect(remoteConfig).toContain('withZephyr()');
+
+    const shellMfConfig = readText(
+      workspaceDir,
+      'apps/shell-super-app/module-federation.config.ts',
+    );
+    expect(shellMfConfig).toContain(
+      'remoteCatalog@http://localhost:3031/mf-manifest.json',
+    );
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    expect(topology.shell.remoteRefs).toContain('remote-catalog');
+    expect(
+      topology.remotes.find(
+        (remote: { id: string }) => remote.id === 'remote-catalog',
+      ).moduleFederation.manifestUrl,
+    ).toBe('http://localhost:3031/mf-manifest.json');
+
+    const ownership = readJson(workspaceDir, 'topology/ownership.json');
+    expect(
+      ownership.owners.find(
+        (owner: { id: string }) => owner.id === 'remote-catalog',
+      ).ownership.team,
+    ).toBe('super-app-platform');
+
+    const overlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    expect(overlay.ports['remote-catalog']).toBe(3031);
+    expect(overlay.manifests['remote-catalog']).toBe(
+      'http://localhost:3031/mf-manifest.json',
+    );
+  });
+
+  test('adds an Effect service MicroVertical to an existing workspace', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-add-service-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreateInWorkspace(workspaceDir, [
+      'catalog-api',
+      '--microvertical',
+      'service',
+      '--lang',
+      'en',
+    ]);
+
+    for (const relativePath of [
+      'services/service-catalog-api-effect/package.json',
+      'services/service-catalog-api-effect/modern.config.ts',
+      'services/service-catalog-api-effect/api/effect/index.ts',
+      'services/service-catalog-api-effect/shared/effect/api.ts',
+      'services/service-catalog-api-effect/src/routes/index.css',
+      'services/service-catalog-api-effect/postcss.config.mjs',
+      'services/service-catalog-api-effect/tailwind.config.ts',
+    ]) {
+      expectPath(workspaceDir, relativePath);
+    }
+
+    const servicePackage = readJson(
+      workspaceDir,
+      'services/service-catalog-api-effect/package.json',
+    );
+    expect(servicePackage.modernjs.role).toBe('effect-service');
+    expect(servicePackage.devDependencies['@modern-js/plugin-bff']).toBe(
+      'workspace:*',
+    );
+    expect(servicePackage.devDependencies.tailwindcss).toBe('^4.3.0');
+
+    const serviceConfig = readText(
+      workspaceDir,
+      'services/service-catalog-api-effect/modern.config.ts',
+    );
+    expect(serviceConfig).toContain("runtimeFramework: 'effect'");
+    expect(serviceConfig).toContain("prefix: '/catalog-api'");
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    expect(
+      topology.effectServices.find(
+        (service: { id: string }) =>
+          service.id === 'service-catalog-api-effect',
+      ).bff.prefix,
+    ).toBe('/catalog-api');
+
+    const overlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    expect(overlay.ports['service-catalog-api-effect']).toBe(3031);
+    expect(overlay.services['service-catalog-api-effect']).toBe(
+      'http://localhost:3031/catalog-api',
     );
   });
 

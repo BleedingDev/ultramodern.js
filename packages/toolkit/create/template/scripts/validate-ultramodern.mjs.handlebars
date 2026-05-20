@@ -8,6 +8,7 @@ const packageSourcePath = path.resolve(
   '.modernjs/ultramodern-package-source.json',
 );
 const isSubproject = {{isSubproject}};
+const enableTailwind = {{enableTailwind}};
 
 if (!fs.existsSync(configPath)) {
   console.error('modern.config.ts not found');
@@ -72,9 +73,14 @@ const requiredPaths = [
   'pnpm-workspace.yaml',
   'rstest.config.mts',
   'scripts/check-i18n-strings.mjs',
+{{#if enableTailwind}}
+  'postcss.config.mjs',
+  'tailwind.config.ts',
+{{/if}}
   'config/public/locales/en/translation.json',
   'config/public/locales/cs/translation.json',
   'src/modern-app-env.d.ts',
+  'src/routes/index.css',
   'src/routes/[lang]/page.tsx',
   'tests/ultramodern.contract.test.ts',
 ];
@@ -90,6 +96,36 @@ for (const requiredPath of requiredPaths) {
 if (fs.existsSync(path.resolve(process.cwd(), 'src/routes/page.tsx'))) {
   console.error('src/routes/page.tsx must move under src/routes/[lang]/page.tsx');
   process.exit(1);
+}
+
+const routeCss = fs.readFileSync(path.resolve(process.cwd(), 'src/routes/index.css'), 'utf-8');
+if (enableTailwind) {
+  if (!routeCss.includes("@import 'tailwindcss';")) {
+    console.error('src/routes/index.css must import Tailwind CSS by default');
+    process.exit(1);
+  }
+  const postcssConfig = fs.readFileSync(path.resolve(process.cwd(), 'postcss.config.mjs'), 'utf-8');
+  if (!postcssConfig.includes("'@tailwindcss/postcss'")) {
+    console.error('postcss.config.mjs must configure @tailwindcss/postcss');
+    process.exit(1);
+  }
+  const tailwindConfig = fs.readFileSync(path.resolve(process.cwd(), 'tailwind.config.ts'), 'utf-8');
+  if (!tailwindConfig.includes("content: ['./src/**/*.{js,ts,jsx,tsx}']")) {
+    console.error('tailwind.config.ts must scan generated source files');
+    process.exit(1);
+  }
+} else {
+  if (routeCss.includes("@import 'tailwindcss';")) {
+    console.error('src/routes/index.css must omit Tailwind CSS when disabled');
+    process.exit(1);
+  }
+  if (
+    fs.existsSync(path.resolve(process.cwd(), 'postcss.config.mjs')) ||
+    fs.existsSync(path.resolve(process.cwd(), 'tailwind.config.ts'))
+  ) {
+    console.error('Tailwind config files must not be written when Tailwind is disabled');
+    process.exit(1);
+  }
 }
 
 {{#unless isSubproject}}
@@ -408,6 +444,11 @@ for (const dependency of [
   '@rstest/core',
   '@typescript/native-preview',
   'happy-dom',
+{{#if enableTailwind}}
+  '@tailwindcss/postcss',
+  'postcss',
+  'tailwindcss',
+{{/if}}
 {{#unless isSubproject}}
   'oxlint',
   'oxfmt',
@@ -419,6 +460,26 @@ for (const dependency of [
     process.exit(1);
   }
 }
+
+{{#if enableTailwind}}
+if (
+  packageJson.devDependencies?.tailwindcss !== '^4.3.0' ||
+  packageJson.devDependencies?.['@tailwindcss/postcss'] !== '^4.3.0'
+) {
+  console.error('Tailwind CSS dependencies must use the UltraModern default baseline');
+  process.exit(1);
+}
+{{/if}}
+{{#unless enableTailwind}}
+if (
+  packageJson.devDependencies?.tailwindcss ||
+  packageJson.devDependencies?.['@tailwindcss/postcss'] ||
+  packageJson.devDependencies?.postcss
+) {
+  console.error('Tailwind CSS dependencies must be absent when Tailwind is disabled');
+  process.exit(1);
+}
+{{/unless}}
 
 {{#unless isSubproject}}
 const privateSource = skillsLock.sources?.find(

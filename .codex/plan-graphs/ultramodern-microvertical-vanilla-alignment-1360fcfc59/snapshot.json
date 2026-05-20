@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T21:53:08.725376+00:00",
+  "generated_at": "2026-05-20T22:27:25.227391+00:00",
   "graph_id": "ultramodern-microvertical-vanilla-alignment-1360fcfc59",
   "plan_set_hash": "bc1c4a6cca",
   "selection_hash": "1360fcfc59",
@@ -21,43 +21,43 @@
         {
           "id": "dependency-baseline",
           "content": "Update generator dependency constants and validators to current latest compatible versions: zephyr-modernjs-plugin 1.1.1, @module-federation/modern-js-v3 2.4.0, @tanstack/react-router 1.170.6, tailwindcss 4.3.0, and @tailwindcss/postcss 4.3.0.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "tailwind-default-everywhere",
           "content": "Make Tailwind CSS v4 default-on for generated UltraModern apps and workspaces, preserve opt-out behavior, and update generated PostCSS/Tailwind config plus package metadata consistently.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "zephyr-vanilla-lifecycle",
           "content": "Keep Zephyr wired only through the official zephyr-modernjs-plugin with withZephyr() in the Modern.js plugins array; validate normal modern dev/build/serve lifecycle and avoid adding zephyr-specific user commands.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "microvertical-descriptors",
           "content": "Refactor the hardcoded demo topology into reusable neutral MicroVertical descriptors for shell, vertical remote, horizontal remote, service, and shared package generation.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "add-flow-design",
           "content": "Design and implement a thin UltraModern add/subproject flow close to @modern-js/create that derives paths, package names, ports, MF names, and topology updates from a requested MicroVertical name and kind.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "validator-and-tests",
           "content": "Update workspace validator and integration tests to assert domain-neutral SuperApp/MicroVertical invariants, Tailwind default-on behavior, official Zephyr plugin placement, normal build lifecycle, and generated topology consistency.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         },
         {
           "id": "docs-and-operator-contract",
           "content": "Update README and ADR guidance to describe the vanilla-aligned add flow, Tailwind defaults, Zephyr validation expectations, opt-outs, and non-ERP scope boundaries.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 7
         }
       ],
@@ -71,42 +71,19 @@
       "plan_slug": "ultramodern-microvertical-vanilla-alignment",
       "plan_name": "Ultramodern MicroVertical Vanilla Alignment",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-microvertical-vanilla-alignment.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
+      "plan_status": "completed",
+      "state": "done",
       "blocked_by": [],
-      "active": [
-        {
-          "id": "dependency-baseline",
-          "content": "Update generator dependency constants and validators to current latest compatible versions: zephyr-modernjs-plugin 1.1.1, @module-federation/modern-js-v3 2.4.0, @tanstack/react-router 1.170.6, tailwindcss 4.3.0, and @tailwindcss/postcss 4.3.0.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "tailwind-default-everywhere",
-          "content": "Make Tailwind CSS v4 default-on for generated UltraModern apps and workspaces, preserve opt-out behavior, and update generated PostCSS/Tailwind config plus package metadata consistently.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "zephyr-vanilla-lifecycle",
-          "content": "Keep Zephyr wired only through the official zephyr-modernjs-plugin with withZephyr() in the Modern.js plugins array; validate normal modern dev/build/serve lifecycle and avoid adding zephyr-specific user commands.",
-          "status": "pending",
-          "ordinal": 3
-        },
-        {
-          "id": "microvertical-descriptors",
-          "content": "Refactor the hardcoded demo topology into reusable neutral MicroVertical descriptors for shell, vertical remote, horizontal remote, service, and shared package generation.",
-          "status": "pending",
-          "ordinal": 4
-        }
-      ],
-      "completed": 0,
+      "active": [],
+      "upcoming": [],
+      "completed": 7,
       "total": 7
     }
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "matched-plan-set"
+  "graph_source": "generated-selection",
+  "snapshot_path": "/Users/satan/side/experiments/modernjs/.codex/plan-graphs/ultramodern-microvertical-vanilla-alignment-1360fcfc59/snapshot.json",
+  "state_path": "/Users/satan/side/experiments/modernjs/.codex/plan-graphs/ultramodern-microvertical-vanilla-alignment-1360fcfc59/snapshot.json",
+  "state_dir": "/Users/satan/side/experiments/modernjs/.codex/plan-graphs/ultramodern-microvertical-vanilla-alignment-1360fcfc59"
 }

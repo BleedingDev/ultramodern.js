@@ -3,7 +3,10 @@ import path from 'node:path';
 
 const root = process.cwd();
 const packageScope = '{{packageScope}}';
-const tanstackVersion = '1.170.1';
+const tanstackVersion = '1.170.6';
+const tailwindEnabled = '{{tailwindEnabled}}' === 'true';
+const tailwindVersion = '^4.3.0';
+const tailwindPostcssVersion = '^4.3.0';
 const rstackAgentSkillsCommit = '61c948b42512e223bad44b83af4080eba48b2677';
 const modernPackages = [
   '@modern-js/app-tools',
@@ -72,6 +75,7 @@ const requiredPaths = [
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
+  'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-commerce/package.json',
   'apps/remotes/remote-commerce/config/public/locales/en/translation.json',
@@ -80,6 +84,7 @@ const requiredPaths = [
   'apps/remotes/remote-commerce/module-federation.config.ts',
   'apps/remotes/remote-commerce/src/modern-app-env.d.ts',
   'apps/remotes/remote-commerce/src/modern.runtime.ts',
+  'apps/remotes/remote-commerce/src/routes/index.css',
   'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-identity/package.json',
   'apps/remotes/remote-identity/config/public/locales/en/translation.json',
@@ -88,6 +93,7 @@ const requiredPaths = [
   'apps/remotes/remote-identity/module-federation.config.ts',
   'apps/remotes/remote-identity/src/modern-app-env.d.ts',
   'apps/remotes/remote-identity/src/modern.runtime.ts',
+  'apps/remotes/remote-identity/src/routes/index.css',
   'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-design-system/package.json',
   'apps/remotes/remote-design-system/config/public/locales/en/translation.json',
@@ -96,15 +102,33 @@ const requiredPaths = [
   'apps/remotes/remote-design-system/module-federation.config.ts',
   'apps/remotes/remote-design-system/src/modern-app-env.d.ts',
   'apps/remotes/remote-design-system/src/modern.runtime.ts',
+  'apps/remotes/remote-design-system/src/routes/index.css',
   'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
   'services/service-recommendations-effect/package.json',
   'services/service-recommendations-effect/modern.config.ts',
   'services/service-recommendations-effect/api/effect/index.ts',
   'services/service-recommendations-effect/shared/effect/api.ts',
+  'services/service-recommendations-effect/src/routes/index.css',
+  'services/service-recommendations-effect/src/routes/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-effect-api/src/index.ts',
 ];
+
+if (tailwindEnabled) {
+  requiredPaths.push(
+    'apps/shell-super-app/postcss.config.mjs',
+    'apps/shell-super-app/tailwind.config.ts',
+    'apps/remotes/remote-commerce/postcss.config.mjs',
+    'apps/remotes/remote-commerce/tailwind.config.ts',
+    'apps/remotes/remote-identity/postcss.config.mjs',
+    'apps/remotes/remote-identity/tailwind.config.ts',
+    'apps/remotes/remote-design-system/postcss.config.mjs',
+    'apps/remotes/remote-design-system/tailwind.config.ts',
+    'services/service-recommendations-effect/postcss.config.mjs',
+    'services/service-recommendations-effect/tailwind.config.ts',
+  );
+}
 
 for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
@@ -252,6 +276,10 @@ const requiredRootScripts = {
 for (const [scriptName, scriptCommand] of Object.entries(requiredRootScripts)) {
   assert(rootPackage.scripts?.[scriptName] === scriptCommand, `Root must expose ${scriptName}`);
 }
+assert(
+  Object.keys(rootPackage.scripts ?? {}).every((scriptName) => !scriptName.startsWith('zephyr:')),
+  'Root package must not expose custom zephyr:* lifecycle commands',
+);
 
 for (const dependency of [
   '@effect/tsgo',
@@ -351,6 +379,13 @@ const appPackagePaths = [
 
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
+  assert(packageJson.scripts?.dev === 'modern dev', `${packagePath} must use vanilla modern dev`);
+  assert(packageJson.scripts?.build === 'modern build', `${packagePath} must use vanilla modern build`);
+  assert(packageJson.scripts?.serve === 'modern serve', `${packagePath} must use vanilla modern serve`);
+  assert(
+    Object.keys(packageJson.scripts ?? {}).every((scriptName) => !scriptName.startsWith('zephyr:')),
+    `${packagePath} must not expose custom zephyr:* lifecycle commands`,
+  );
   assert(
     packageJson.dependencies?.['@modern-js/plugin-i18n'] ===
       expectedModernDependency('@modern-js/plugin-i18n'),
@@ -404,10 +439,68 @@ for (const packagePath of appPackagePaths) {
     packageJson.dependencies?.['zephyr-modernjs-plugin'] === '1.1.1',
     `${packagePath} must include the official Zephyr Modern.js plugin`,
   );
+  if (tailwindEnabled) {
+    assert(
+      packageJson.devDependencies?.tailwindcss === tailwindVersion,
+      `${packagePath} must include Tailwind CSS ${tailwindVersion}`,
+    );
+    assert(
+      packageJson.devDependencies?.['@tailwindcss/postcss'] === tailwindPostcssVersion,
+      `${packagePath} must include @tailwindcss/postcss ${tailwindPostcssVersion}`,
+    );
+    assert(
+      packageJson.devDependencies?.postcss === '^8.5.6',
+      `${packagePath} must include PostCSS for Tailwind CSS`,
+    );
+  } else {
+    assert(!packageJson.devDependencies?.tailwindcss, `${packagePath} must not include Tailwind CSS`);
+    assert(
+      !packageJson.devDependencies?.['@tailwindcss/postcss'],
+      `${packagePath} must not include @tailwindcss/postcss`,
+    );
+  }
   assert(
     packageJson.modernjs?.preset === 'presetUltramodern',
     `${packagePath} must keep presetUltramodern metadata`,
   );
+}
+
+for (const appDirectory of [
+  'apps/shell-super-app',
+  'apps/remotes/remote-commerce',
+  'apps/remotes/remote-identity',
+  'apps/remotes/remote-design-system',
+]) {
+  const css = readText(`${appDirectory}/src/routes/index.css`);
+  if (tailwindEnabled) {
+    assert(
+      css.includes("@import 'tailwindcss';"),
+      `${appDirectory} must import Tailwind CSS by default`,
+    );
+    const postcssConfig = readText(`${appDirectory}/postcss.config.mjs`);
+    assert(
+      postcssConfig.includes("'@tailwindcss/postcss'"),
+      `${appDirectory} must configure the Tailwind CSS PostCSS plugin`,
+    );
+    const tailwindConfig = readText(`${appDirectory}/tailwind.config.ts`);
+    assert(
+      tailwindConfig.includes("content: ['./src/**/*.{js,jsx,ts,tsx}']"),
+      `${appDirectory} must scan app source files for Tailwind CSS classes`,
+    );
+  } else {
+    assert(
+      !css.includes("@import 'tailwindcss';"),
+      `${appDirectory} must omit Tailwind CSS import when Tailwind is disabled`,
+    );
+    assert(
+      !fs.existsSync(path.join(root, appDirectory, 'postcss.config.mjs')),
+      `${appDirectory} must not write PostCSS config when Tailwind is disabled`,
+    );
+    assert(
+      !fs.existsSync(path.join(root, appDirectory, 'tailwind.config.ts')),
+      `${appDirectory} must not write Tailwind config when Tailwind is disabled`,
+    );
+  }
 }
 
 for (const configPath of [
@@ -468,6 +561,7 @@ for (const routePath of [
     route.includes('@modern-js/plugin-tanstack/runtime'),
     `${routePath} must import TanStack runtime from @modern-js/plugin-tanstack/runtime`,
   );
+  assert(route.includes("import '../index.css';"), `${routePath} must import route CSS`);
   assert(
     !route.includes(deprecatedTanstackRuntime),
     `${routePath} must not import deprecated TanStack runtime path`,
@@ -524,6 +618,38 @@ assert(
   servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
   'Effect service must link generated shared Effect API through workspace:*',
 );
+if (tailwindEnabled) {
+  assert(
+    servicePackage.devDependencies?.tailwindcss === tailwindVersion,
+    'Effect service must include Tailwind CSS',
+  );
+  assert(
+    servicePackage.devDependencies?.['@tailwindcss/postcss'] === tailwindPostcssVersion,
+    'Effect service must include @tailwindcss/postcss',
+  );
+  assert(
+    servicePackage.devDependencies?.postcss === '^8.5.6',
+    'Effect service must include PostCSS for Tailwind CSS',
+  );
+  assert(
+    readText('services/service-recommendations-effect/src/routes/index.css').includes(
+      "@import 'tailwindcss';",
+    ),
+    'Effect service must import Tailwind CSS by default',
+  );
+} else {
+  assert(!servicePackage.devDependencies?.tailwindcss, 'Effect service must not include Tailwind CSS');
+  assert(
+    !servicePackage.devDependencies?.['@tailwindcss/postcss'],
+    'Effect service must not include @tailwindcss/postcss',
+  );
+  assert(
+    !readText('services/service-recommendations-effect/src/routes/index.css').includes(
+      "@import 'tailwindcss';",
+    ),
+    'Effect service must omit Tailwind CSS import when Tailwind is disabled',
+  );
+}
 
 const serviceConfig = readText('services/service-recommendations-effect/modern.config.ts');
 assert(
@@ -531,6 +657,9 @@ assert(
   'Effect service must use Effect runtime',
 );
 assert(serviceConfig.includes('bffPlugin()'), 'Effect service must enable bffPlugin');
+
+const serviceRoute = readText('services/service-recommendations-effect/src/routes/page.tsx');
+assert(serviceRoute.includes("import './index.css';"), 'Effect service must import route CSS');
 
 const serviceEntry = readText('services/service-recommendations-effect/api/effect/index.ts');
 assert(

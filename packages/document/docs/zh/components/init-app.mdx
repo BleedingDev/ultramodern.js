@@ -19,16 +19,16 @@ npx @modern-js/create@latest myapp
 npx @modern-js/create@latest myapp --router tanstack
 ```
 
-初始化 Tailwind CSS v4 模板：
+默认会初始化 Tailwind CSS v4 模板。如需关闭：
 
 ```bash
-npx @modern-js/create@latest myapp --tailwind
+npx @modern-js/create@latest myapp --no-tailwind
 ```
 
-同时初始化 TanStack Router + Tailwind CSS v4：
+初始化 TanStack Router，并使用默认 Tailwind CSS v4 模板：
 
 ```bash
-npx @modern-js/create@latest myapp --router tanstack --tailwind
+npx @modern-js/create@latest myapp --router tanstack
 ```
 
 初始化当前默认运行时的 BFF 模板：
@@ -101,7 +101,7 @@ npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --work
 └── tsconfig.json
 ```
 
-当启用 `--tailwind` 时，项目根目录会额外生成 `postcss.config.mjs` 和 `tailwind.config.ts`。
+默认会生成 Tailwind CSS v4；传入 `--no-tailwind` 时会省略 `postcss.config.mjs`、`tailwind.config.ts` 和 Tailwind 导入。
 
 当启用 `--bff` 或 `--bff-runtime effect` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
 当启用 `--bff-runtime hono` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/lambda/hello.ts`，并将 `bff.runtimeFramework` 设置为 `hono`。

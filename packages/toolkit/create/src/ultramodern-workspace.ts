@@ -10,9 +10,11 @@ const workspaceTemplateDir = path.resolve(
   'template-workspace',
 );
 
-const TANSTACK_ROUTER_VERSION = '1.170.1';
+const TANSTACK_ROUTER_VERSION = '1.170.6';
 const MODULE_FEDERATION_VERSION = '2.4.0';
 const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
+const TAILWIND_VERSION = '4.3.0';
+const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.7.3';
 const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260518.1';
 const OXLINT_VERSION = '1.65.0';
@@ -63,7 +65,7 @@ type WorkspaceApp = {
   directory: string;
   packageSuffix: string;
   displayName: string;
-  kind: 'shell' | 'vertical' | 'horizontal-design-system';
+  kind: 'shell' | 'vertical' | 'horizontal-remote' | 'horizontal-design-system';
   domain?: string;
   portEnv: string;
   port: number;
@@ -72,6 +74,12 @@ type WorkspaceApp = {
   remoteRefs?: string[];
   ownership: Ownership;
 };
+
+export type MicroVerticalKind =
+  | 'remote'
+  | 'horizontal-remote'
+  | 'service'
+  | 'shared';
 
 type UltramodernPackageSourceStrategy = 'workspace' | 'install';
 
@@ -99,6 +107,7 @@ export type UltramodernWorkspaceOptions = {
   targetDir: string;
   packageName: string;
   modernVersion: string;
+  enableTailwind?: boolean;
   packageSource?: {
     strategy?: UltramodernPackageSourceStrategy;
     modernPackageVersion?: string;
@@ -106,6 +115,15 @@ export type UltramodernWorkspaceOptions = {
     aliasScope?: string;
     aliasPackageNamePrefix?: string;
   };
+};
+
+export type AddUltramodernMicroVerticalOptions = {
+  workspaceRoot: string;
+  name: string;
+  kind: MicroVerticalKind;
+  modernVersion: string;
+  enableTailwind?: boolean;
+  packageSource?: UltramodernWorkspaceOptions['packageSource'];
 };
 
 export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
@@ -348,6 +366,84 @@ const sharedPackages = [
   },
 ];
 
+function createNeutralOwnership(
+  id: string,
+  tier = 'tier-2-microvertical',
+): Ownership {
+  return {
+    team: 'super-app-platform',
+    slack: '#super-app-platform',
+    pagerDuty: 'pd-super-app-platform',
+    runbookRef: `runbooks/microverticals/${id}.md`,
+    adrRef: `docs/super-app-rfc-adr/microverticals.md#${id}`,
+    blastRadius: {
+      tier,
+      references: [`docs/super-app-rfc-adr/blast-radius.md#${id}`],
+    },
+  };
+}
+
+function createRemoteDescriptor(
+  name: string,
+  kind: Extract<MicroVerticalKind, 'remote' | 'horizontal-remote'>,
+  port: number,
+): WorkspaceApp {
+  const domain = toKebabCase(name);
+  const id = `remote-${domain}`;
+  const displayPrefix = toPascalCase(domain).replace(
+    /([a-z])([A-Z])/g,
+    '$1 $2',
+  );
+  return {
+    id,
+    directory: `apps/remotes/${id}`,
+    packageSuffix: id,
+    displayName: `${displayPrefix} Remote`,
+    kind: kind === 'horizontal-remote' ? 'horizontal-remote' : 'vertical',
+    domain,
+    portEnv: `REMOTE_${toEnvSegment(domain)}_PORT`,
+    port,
+    mfName: `remote${toPascalCase(domain)}`,
+    exposes: {
+      './Route': './src/remote-entry.tsx',
+      './Widget': `./src/components/${domain}-widget.tsx`,
+    },
+    ownership: createNeutralOwnership(id),
+  };
+}
+
+function createServiceDescriptor(name: string, port: number) {
+  const normalized = toKebabCase(name);
+  const suffix = normalized.endsWith('-effect')
+    ? normalized
+    : `service-${normalized.replace(/^service-/, '')}-effect`;
+  return {
+    id: suffix,
+    directory: `services/${suffix}`,
+    packageSuffix: suffix,
+    portEnv: `${toEnvSegment(suffix)}_PORT`,
+    port,
+    ownership: createNeutralOwnership(suffix, 'tier-2-effect-service'),
+  };
+}
+
+function serviceApiPrefix(service: { id: string }): string {
+  const name = service.id.replace(/^service-/, '').replace(/-effect$/, '');
+  return name.endsWith('-api') ? `/${name}` : `/${name}-api`;
+}
+
+function createSharedPackageDescriptor(name: string) {
+  const normalized = toKebabCase(name);
+  const id = normalized.startsWith('shared-')
+    ? normalized
+    : `shared-${normalized}`;
+  return {
+    id,
+    directory: `packages/${id}`,
+    description: `Shared ${normalized.replace(/^shared-/, '')} package placeholder.`,
+  };
+}
+
 function normalizePath(filePath: string): string {
   return filePath.split(path.sep).join('/');
 }
@@ -378,6 +474,18 @@ function writeFile(targetDir: string, relativePath: string, content: string) {
       `Refusing to overwrite generated workspace file: ${relativePath}`,
     );
   }
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+function writeFileReplacing(
+  targetDir: string,
+  relativePath: string,
+  content: string,
+) {
+  assertSafeRelativePath(relativePath);
+  const filePath = path.join(targetDir, relativePath);
+  ensureInsideRoot(targetDir, filePath);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf-8');
 }
@@ -453,6 +561,27 @@ function toPackageScope(packageName: string): string {
     .replace(/^[._-]+|[._-]+$/g, '')
     .replace(/-{2,}/g, '-');
   return normalized || 'ultramodern-superapp';
+}
+
+function toKebabCase(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/[._]+/g, '-')
+    .toLowerCase()
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized;
+}
+
+function toCamelCase(value: string): string {
+  const pascal = toPascalCase(value);
+  return `${pascal.charAt(0).toLowerCase()}${pascal.slice(1)}`;
+}
+
+function toEnvSegment(value: string): string {
+  return toKebabCase(value).replace(/-/g, '_').toUpperCase();
 }
 
 function packageName(scope: string, suffix: string): string {
@@ -547,6 +676,7 @@ function appDependencies(
 
 function appDevDependencies(
   packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
 ): Record<string, string> {
   return {
     '@modern-js/app-tools': modernPackageSpecifier(
@@ -554,6 +684,13 @@ function appDevDependencies(
       packageSource,
     ),
     '@effect/tsgo': EFFECT_TSGO_VERSION,
+    ...(enableTailwind
+      ? {
+          '@tailwindcss/postcss': `^${TAILWIND_POSTCSS_VERSION}`,
+          postcss: '^8.5.6',
+          tailwindcss: `^${TAILWIND_VERSION}`,
+        }
+      : {}),
     '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     '@types/node': '^20',
     '@types/react': '^19.1.8',
@@ -697,6 +834,7 @@ function createAppPackage(
   scope: string,
   app: WorkspaceApp,
   packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
 ): JsonValue {
   return {
     private: true,
@@ -715,17 +853,19 @@ function createAppPackage(
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
     },
     dependencies: appDependencies(scope, packageSource),
-    devDependencies: appDevDependencies(packageSource),
+    devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
 }
 
 function createServicePackage(
   scope: string,
   packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
+  service = effectService,
 ): JsonValue {
   return {
     private: true,
-    name: packageName(scope, effectService.packageSuffix),
+    name: packageName(scope, service.packageSuffix),
     version: '0.1.0',
     scripts: {
       dev: 'modern dev',
@@ -736,8 +876,8 @@ function createServicePackage(
     modernjs: {
       preset: 'presetUltramodern',
       role: 'effect-service',
-      appId: effectService.id,
-      topology: `${relativeRootFor(effectService.directory)}/topology/reference-topology.json`,
+      appId: service.id,
+      topology: `${relativeRootFor(service.directory)}/topology/reference-topology.json`,
     },
     dependencies: {
       '@modern-js/runtime': modernPackageSpecifier(
@@ -758,6 +898,13 @@ function createServicePackage(
         packageSource,
       ),
       '@effect/tsgo': EFFECT_TSGO_VERSION,
+      ...(enableTailwind
+        ? {
+            '@tailwindcss/postcss': `^${TAILWIND_POSTCSS_VERSION}`,
+            postcss: '^8.5.6',
+            tailwindcss: `^${TAILWIND_VERSION}`,
+          }
+        : {}),
       '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
       '@types/node': '^20',
       '@types/react': '^19.1.8',
@@ -917,7 +1064,24 @@ ${entries.map(([key, entryValue]) => `    '${key}': '${entryValue}',`).join('\n'
   }`;
 }
 
-function createShellModuleFederationConfig(): string {
+function createRemoteManifestEnv(remote: WorkspaceApp): string {
+  return `REMOTE_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
+}
+
+function createShellModuleFederationConfig(
+  remotes: WorkspaceApp[] = remoteApps,
+): string {
+  const remoteEntries = remotes
+    .map(remote => {
+      const key = toCamelCase(
+        remote.domain ?? remote.id.replace(/^remote-/, ''),
+      );
+      return `    ${key}:
+      process.env['${createRemoteManifestEnv(remote)}'] ??
+      '${remote.mfName}@http://localhost:${remote.port}/mf-manifest.json',`;
+    })
+    .join('\n');
+
   return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
 import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
@@ -933,15 +1097,7 @@ export default createModuleFederationConfig({
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
   remotes: {
-    commerce:
-      process.env['REMOTE_COMMERCE_MF_MANIFEST'] ??
-      'remoteCommerce@http://localhost:3021/mf-manifest.json',
-    designSystem:
-      process.env['REMOTE_DESIGN_SYSTEM_MF_MANIFEST'] ??
-      'remoteDesignSystem@http://localhost:3023/mf-manifest.json',
-    identity:
-      process.env['REMOTE_IDENTITY_MF_MANIFEST'] ??
-      'remoteIdentity@http://localhost:3022/mf-manifest.json',
+${remoteEntries}
   },
 ${createSharedModuleFederationConfig()},
 });
@@ -970,13 +1126,21 @@ ${createSharedModuleFederationConfig()},
 `;
 }
 
+function remoteWidgetFile(app: WorkspaceApp): string {
+  return `${app.domain ?? app.id.replace(/^remote-/, '')}-widget`;
+}
+
 function createServiceModernConfig(): string {
+  return createServiceModernConfigFor(effectService);
+}
+
+function createServiceModernConfigFor(service = effectService): string {
   return `// @effect-diagnostics processEnv:off
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import { bffPlugin } from '@modern-js/plugin-bff';
 
-const appId = '${effectService.id}';
-const port = Number(process.env['${effectService.portEnv}'] ?? ${effectService.port});
+const appId = '${service.id}';
+const port = Number(process.env['${service.portEnv}'] ?? ${service.port});
 
 export default defineConfig(
   presetUltramodern(
@@ -987,7 +1151,7 @@ export default defineConfig(
             path: '/openapi.json',
           },
         },
-        prefix: '/recommendations-api',
+        prefix: '${serviceApiPrefix(service)}',
         runtimeFramework: 'effect',
       },
       plugins: [appTools(), bffPlugin()],
@@ -1029,6 +1193,59 @@ export default defineRuntimeConfig({
     framework: 'tanstack',
   },
 });
+`;
+}
+
+function createAppStyles(enableTailwind: boolean): string {
+  return `${enableTailwind ? "@import 'tailwindcss';\n\n" : ''}:root {
+  color: #10231c;
+  background: #f6f8f7;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+a {
+  color: #166b4b;
+}
+`;
+}
+
+function createPostcssConfig(): string {
+  return `export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+`;
+}
+
+function createTailwindConfig(): string {
+  return `import type { Config } from 'tailwindcss';
+
+export default {
+  content: ['./src/**/*.{js,jsx,ts,tsx}'],
+} satisfies Config;
 `;
 }
 
@@ -1107,6 +1324,7 @@ function createShellPage(): string {
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useTranslation } from 'react-i18next';
+import '../index.css';
 
 const remotes = ['remote-commerce', 'remote-identity', 'remote-design-system'];
 
@@ -1154,6 +1372,7 @@ function createRemotePage(app: WorkspaceApp): string {
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useTranslation } from 'react-i18next';
+import '../index.css';
 
 ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
@@ -1172,6 +1391,7 @@ export default function ${toPascalCase(app.id)}Home() {
 
 function createLayout(appId: string): string {
   return `import type { ReactNode } from 'react';
+import './index.css';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return <div data-app-id="${appId}">{children}</div>;
@@ -1180,15 +1400,12 @@ export default function Layout({ children }: { children: ReactNode }) {
 }
 
 function createRemoteEntry(app: WorkspaceApp): string {
-  const componentFile =
-    app.id === 'remote-identity' ? 'identity-widget' : 'commerce-widget';
-  return `export { default } from './components/${componentFile}';
+  return `export { default } from './components/${remoteWidgetFile(app)}';
 `;
 }
 
 function createRemoteWidget(app: WorkspaceApp): string {
-  const componentName =
-    app.id === 'remote-identity' ? 'IdentityWidget' : 'CommerceWidget';
+  const componentName = `${toPascalCase(app.domain ?? app.id)}Widget`;
   return `import { useTranslation } from 'react-i18next';
 
 export default function ${componentName}() {
@@ -1670,11 +1887,12 @@ function writeApp(
   scope: string,
   app: WorkspaceApp,
   packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
 ) {
   writeJson(
     targetDir,
     `${app.directory}/package.json`,
-    createAppPackage(scope, app, packageSource),
+    createAppPackage(scope, app, packageSource, enableTailwind),
   );
   writeJson(
     targetDir,
@@ -1696,6 +1914,23 @@ function writeApp(
     `${app.directory}/src/modern.runtime.ts`,
     createAppRuntimeConfig(),
   );
+  writeFile(
+    targetDir,
+    `${app.directory}/src/routes/index.css`,
+    createAppStyles(enableTailwind),
+  );
+  if (enableTailwind) {
+    writeFile(
+      targetDir,
+      `${app.directory}/postcss.config.mjs`,
+      createPostcssConfig(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/tailwind.config.ts`,
+      createTailwindConfig(),
+    );
+  }
   writeJson(
     targetDir,
     `${app.directory}/config/public/locales/en/translation.json`,
@@ -1724,19 +1959,15 @@ function writeApp(
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
 
-  if (app.kind === 'vertical') {
+  if (app.kind === 'vertical' || app.kind === 'horizontal-remote') {
     writeFile(
       targetDir,
       `${app.directory}/src/remote-entry.tsx`,
       createRemoteEntry(app),
     );
-    const widgetFile =
-      app.id === 'remote-identity'
-        ? 'identity-widget.tsx'
-        : 'commerce-widget.tsx';
     writeFile(
       targetDir,
-      `${app.directory}/src/components/${widgetFile}`,
+      `${app.directory}/src/components/${remoteWidgetFile(app)}.tsx`,
       createRemoteWidget(app),
     );
   }
@@ -1759,44 +1990,87 @@ function writeEffectService(
   targetDir: string,
   scope: string,
   packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
+  service = effectService,
 ) {
   writeJson(
     targetDir,
-    `${effectService.directory}/package.json`,
-    createServicePackage(scope, packageSource),
+    `${service.directory}/package.json`,
+    createServicePackage(scope, packageSource, enableTailwind, service),
   );
   writeJson(
     targetDir,
-    `${effectService.directory}/tsconfig.json`,
-    createPackageTsConfig(effectService.directory, true),
+    `${service.directory}/tsconfig.json`,
+    createPackageTsConfig(service.directory, true),
   );
   writeFile(
     targetDir,
-    `${effectService.directory}/src/modern-app-env.d.ts`,
+    `${service.directory}/src/modern-app-env.d.ts`,
     "/// <reference types='@modern-js/app-tools/types' />\n",
   );
   writeFile(
     targetDir,
-    `${effectService.directory}/src/routes/page.tsx`,
-    `export default function RecommendationsServiceHome() {
-  return <main>Recommendations Effect service</main>;
+    `${service.directory}/src/routes/page.tsx`,
+    `import './index.css';
+
+export default function ${toPascalCase(service.id)}Home() {
+  return <main>${service.id} Effect service</main>;
 }
 `,
   );
   writeFile(
     targetDir,
-    `${effectService.directory}/modern.config.ts`,
-    createServiceModernConfig(),
+    `${service.directory}/src/routes/index.css`,
+    createAppStyles(enableTailwind),
+  );
+  if (enableTailwind) {
+    writeFile(
+      targetDir,
+      `${service.directory}/postcss.config.mjs`,
+      createPostcssConfig(),
+    );
+    writeFile(
+      targetDir,
+      `${service.directory}/tailwind.config.ts`,
+      createTailwindConfig(),
+    );
+  }
+  writeFile(
+    targetDir,
+    `${service.directory}/modern.config.ts`,
+    createServiceModernConfigFor(service),
   );
   writeFile(
     targetDir,
-    `${effectService.directory}/shared/effect/api.ts`,
+    `${service.directory}/shared/effect/api.ts`,
     createEffectSharedApi(),
   );
   writeFile(
     targetDir,
-    `${effectService.directory}/api/effect/index.ts`,
+    `${service.directory}/api/effect/index.ts`,
     createEffectServiceEntry(),
+  );
+}
+
+function writeGenericSharedPackage(
+  targetDir: string,
+  scope: string,
+  sharedPackage: (typeof sharedPackages)[number],
+) {
+  writeJson(
+    targetDir,
+    `${sharedPackage.directory}/package.json`,
+    createSharedPackage(scope, sharedPackage.id, sharedPackage.description),
+  );
+  writeJson(targetDir, `${sharedPackage.directory}/tsconfig.json`, {
+    extends: `${relativeRootFor(sharedPackage.directory)}/tsconfig.base.json`,
+    include: ['src'],
+  });
+  writeFile(
+    targetDir,
+    `${sharedPackage.directory}/src/index.ts`,
+    `export const packageId = '${sharedPackage.id}';
+`,
   );
 }
 
@@ -1851,16 +2125,359 @@ export const recommendationsApiContract = {
   );
 }
 
+function readJsonFile(filePath: string): Record<string, any> {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function writeJsonFile(filePath: string, value: JsonValue) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
+function existingPackageSource(
+  workspaceRoot: string,
+  modernVersion: string,
+  packageSource?: UltramodernWorkspaceOptions['packageSource'],
+): ResolvedPackageSource {
+  if (packageSource) {
+    return resolvePackageSource({
+      targetDir: workspaceRoot,
+      packageName: path.basename(workspaceRoot),
+      modernVersion,
+      packageSource,
+    });
+  }
+
+  const metadataPath = path.join(
+    workspaceRoot,
+    '.modernjs/ultramodern-package-source.json',
+  );
+  if (!fs.existsSync(metadataPath)) {
+    return resolvePackageSource({
+      targetDir: workspaceRoot,
+      packageName: path.basename(workspaceRoot),
+      modernVersion,
+    });
+  }
+
+  const metadata = readJsonFile(metadataPath);
+  const aliases = metadata.modernPackages?.aliases ?? {};
+  const firstAlias = Object.values(aliases).find(
+    (value): value is string => typeof value === 'string',
+  );
+  const firstPackage = Object.keys(aliases)[0];
+  const aliasScope = firstAlias?.match(/^@([^/]+)\//)?.[1];
+  const unscopedName = firstPackage?.split('/').at(-1) ?? '';
+  const aliasUnscopedName = firstAlias?.split('/').at(-1) ?? '';
+  const aliasPackageNamePrefix =
+    aliasUnscopedName &&
+    unscopedName &&
+    aliasUnscopedName.endsWith(unscopedName)
+      ? aliasUnscopedName.slice(0, -unscopedName.length)
+      : undefined;
+
+  return {
+    strategy: metadata.strategy === 'install' ? 'install' : 'workspace',
+    modernPackageVersion:
+      typeof metadata.modernPackages?.specifier === 'string'
+        ? metadata.modernPackages.specifier
+        : modernVersion,
+    registry: metadata.modernPackages?.registry,
+    aliasScope,
+    aliasPackageNamePrefix,
+  };
+}
+
+function assertValidMicroVerticalName(name: string): string {
+  const normalized = toKebabCase(name);
+  if (!normalized || normalized !== name) {
+    throw new Error(
+      `Invalid MicroVertical name "${name}". Use lowercase kebab-case.`,
+    );
+  }
+  return normalized;
+}
+
+function nextAvailablePort(ports: Record<string, unknown>): number {
+  const numericPorts = Object.values(ports).filter(
+    (value): value is number =>
+      typeof value === 'number' && Number.isFinite(value),
+  );
+  return Math.max(3030, ...numericPorts) + 1;
+}
+
+function assertCanCreate(workspaceRoot: string, relativePath: string) {
+  if (fs.existsSync(path.join(workspaceRoot, relativePath))) {
+    throw new Error(`Refusing to overwrite existing path: ${relativePath}`);
+  }
+}
+
+function addRootDevScript(
+  workspaceRoot: string,
+  scope: string,
+  packageSuffix: string,
+  scriptName: string,
+) {
+  const packagePath = path.join(workspaceRoot, 'package.json');
+  const rootPackage = readJsonFile(packagePath);
+  rootPackage.scripts ??= {};
+  rootPackage.scripts[`dev:${scriptName}`] =
+    `pnpm --filter ${packageName(scope, packageSuffix)} dev`;
+  if (
+    typeof rootPackage.scripts.dev === 'string' &&
+    !rootPackage.scripts.dev.includes(packageName(scope, packageSuffix))
+  ) {
+    const packageFilter = `--filter ${packageName(scope, packageSuffix)}`;
+    rootPackage.scripts.dev = rootPackage.scripts.dev.endsWith(' dev')
+      ? rootPackage.scripts.dev.replace(/ dev$/u, ` ${packageFilter} dev`)
+      : `${rootPackage.scripts.dev} ${packageFilter}`;
+  }
+  writeJsonFile(packagePath, rootPackage as JsonValue);
+}
+
+function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
+  return {
+    id: remote.id,
+    kind: remote.kind,
+    domain: remote.domain,
+    package: packageName(scope, remote.packageSuffix),
+    moduleFederation: {
+      role: 'remote',
+      name: remote.mfName,
+      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+      exposes: Object.keys(remote.exposes ?? {}),
+      ssr: true,
+      fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
+      sharedContractVersion: 'mf-ssr-contract-v1',
+    },
+    ownership: remote.ownership,
+  };
+}
+
+function ownershipEntry(
+  scope: string,
+  owner: {
+    id: string;
+    packageSuffix: string;
+    directory: string;
+    ownership: Ownership;
+  },
+): JsonValue {
+  return {
+    id: owner.id,
+    package: packageName(scope, owner.packageSuffix),
+    path: owner.directory,
+    ownership: owner.ownership,
+  };
+}
+
+function remotesFromTopology(
+  topology: Record<string, any>,
+  ports: Record<string, unknown>,
+) {
+  return (topology.remotes ?? []).map((remote: any) => ({
+    id: remote.id,
+    directory: '',
+    packageSuffix: remote.package?.split('/').at(-1) ?? remote.id,
+    displayName: remote.id,
+    kind: remote.kind ?? 'vertical',
+    domain: remote.domain ?? String(remote.id).replace(/^remote-/, ''),
+    portEnv: '',
+    port: typeof ports[remote.id] === 'number' ? ports[remote.id] : 0,
+    mfName: remote.moduleFederation?.name ?? `remote${toPascalCase(remote.id)}`,
+    ownership: remote.ownership ?? createNeutralOwnership(remote.id),
+  })) as WorkspaceApp[];
+}
+
+export function addUltramodernMicroVertical(
+  options: AddUltramodernMicroVerticalOptions,
+) {
+  const name = assertValidMicroVerticalName(options.name);
+  const rootPackage = readJsonFile(
+    path.join(options.workspaceRoot, 'package.json'),
+  );
+  const scope = toPackageScope(
+    String(rootPackage.name ?? path.basename(options.workspaceRoot)),
+  );
+  const topologyPath = path.join(
+    options.workspaceRoot,
+    'topology/reference-topology.json',
+  );
+  const ownershipPath = path.join(
+    options.workspaceRoot,
+    'topology/ownership.json',
+  );
+  const overlayPath = path.join(
+    options.workspaceRoot,
+    'topology/local-overlays/development.json',
+  );
+
+  for (const requiredPath of [topologyPath, ownershipPath, overlayPath]) {
+    if (!fs.existsSync(requiredPath)) {
+      throw new Error(`Missing UltraModern workspace file: ${requiredPath}`);
+    }
+  }
+
+  const topology = readJsonFile(topologyPath);
+  const ownership = readJsonFile(ownershipPath);
+  const overlay = readJsonFile(overlayPath);
+  overlay.ports ??= {};
+  const packageSource = existingPackageSource(
+    options.workspaceRoot,
+    options.modernVersion,
+    options.packageSource,
+  );
+  const enableTailwind = options.enableTailwind !== false;
+  const port = nextAvailablePort(overlay.ports);
+
+  if (options.kind === 'remote' || options.kind === 'horizontal-remote') {
+    const remote = createRemoteDescriptor(name, options.kind, port);
+    assertCanCreate(options.workspaceRoot, remote.directory);
+    if ((topology.remotes ?? []).some((entry: any) => entry.id === remote.id)) {
+      throw new Error(`Topology already contains ${remote.id}`);
+    }
+    if (Object.values(overlay.ports).includes(remote.port)) {
+      throw new Error(`Development port ${remote.port} is already in use`);
+    }
+
+    writeApp(
+      options.workspaceRoot,
+      scope,
+      remote,
+      packageSource,
+      enableTailwind,
+    );
+    topology.shell ??= {};
+    topology.shell.remoteRefs ??= [];
+    topology.shell.remoteRefs.push(remote.id);
+    topology.shell.moduleFederation ??= {};
+    topology.shell.moduleFederation.remotes ??= [];
+    topology.shell.moduleFederation.remotes.push({
+      id: remote.id,
+      name: remote.mfName,
+      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+    });
+    topology.remotes ??= [];
+    topology.remotes.push(remoteTopologyEntry(scope, remote));
+    ownership.owners ??= [];
+    ownership.owners.push(ownershipEntry(scope, remote));
+    overlay.ports[remote.id] = remote.port;
+    overlay.manifests ??= {};
+    overlay.manifests[remote.id] =
+      `http://localhost:${remote.port}/mf-manifest.json`;
+    writeJsonFile(topologyPath, topology as JsonValue);
+    writeJsonFile(ownershipPath, ownership as JsonValue);
+    writeJsonFile(overlayPath, overlay as JsonValue);
+    const shellConfigPath = path.join(
+      options.workspaceRoot,
+      `${shellApp.directory}/module-federation.config.ts`,
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      `${shellApp.directory}/module-federation.config.ts`,
+      createShellModuleFederationConfig(
+        remotesFromTopology(topology, overlay.ports),
+      ),
+    );
+    if (!fs.existsSync(shellConfigPath)) {
+      throw new Error('Shell Module Federation config was not regenerated');
+    }
+    addRootDevScript(options.workspaceRoot, scope, remote.packageSuffix, name);
+    return;
+  }
+
+  if (options.kind === 'service') {
+    const service = createServiceDescriptor(name, port);
+    assertCanCreate(options.workspaceRoot, service.directory);
+    if (
+      (topology.effectServices ?? []).some(
+        (entry: any) => entry.id === service.id,
+      )
+    ) {
+      throw new Error(`Topology already contains ${service.id}`);
+    }
+    writeEffectService(
+      options.workspaceRoot,
+      scope,
+      packageSource,
+      enableTailwind,
+      service,
+    );
+    topology.effectServices ??= [];
+    topology.effectServices.push({
+      id: service.id,
+      kind: 'effect-service',
+      runtime: 'effect',
+      package: packageName(scope, service.packageSuffix),
+      consumedBy: [shellApp.id],
+      bff: {
+        prefix: serviceApiPrefix(service),
+        openapi: '/openapi.json',
+      },
+      ownership: service.ownership,
+    });
+    ownership.owners ??= [];
+    ownership.owners.push(ownershipEntry(scope, service));
+    overlay.ports[service.id] = service.port;
+    overlay.services ??= {};
+    overlay.services[service.id] =
+      `http://localhost:${service.port}${serviceApiPrefix(service)}`;
+    writeJsonFile(topologyPath, topology as JsonValue);
+    writeJsonFile(ownershipPath, ownership as JsonValue);
+    writeJsonFile(overlayPath, overlay as JsonValue);
+    addRootDevScript(options.workspaceRoot, scope, service.packageSuffix, name);
+    return;
+  }
+
+  if (options.kind === 'shared') {
+    const sharedPackage = createSharedPackageDescriptor(name);
+    assertCanCreate(options.workspaceRoot, sharedPackage.directory);
+    if (
+      (topology.sharedPackages ?? []).some(
+        (entry: any) => entry.id === sharedPackage.id,
+      )
+    ) {
+      throw new Error(`Topology already contains ${sharedPackage.id}`);
+    }
+    writeGenericSharedPackage(options.workspaceRoot, scope, sharedPackage);
+    topology.sharedPackages ??= [];
+    topology.sharedPackages.push({
+      id: sharedPackage.id,
+      package: packageName(scope, sharedPackage.id),
+      path: sharedPackage.directory,
+      description: sharedPackage.description,
+    });
+    ownership.owners ??= [];
+    ownership.owners.push(
+      ownershipEntry(scope, {
+        id: sharedPackage.id,
+        packageSuffix: sharedPackage.id,
+        directory: sharedPackage.directory,
+        ownership: createNeutralOwnership(
+          sharedPackage.id,
+          'tier-1-shared-contract',
+        ),
+      }),
+    );
+    writeJsonFile(topologyPath, topology as JsonValue);
+    writeJsonFile(ownershipPath, ownership as JsonValue);
+    return;
+  }
+
+  throw new Error(`Unsupported MicroVertical kind: ${options.kind}`);
+}
+
 export function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
 ) {
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
+  const enableTailwind = options.enableTailwind !== false;
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   copyRootTemplate(options.targetDir, {
     packageName: options.packageName,
     packageScope: scope,
+    tailwindEnabled: String(enableTailwind),
   });
 
   writeJson(
@@ -1895,15 +2512,17 @@ export function generateUltramodernWorkspace(
     createPackageSourceMetadata(scope, packageSource),
   );
 
-  writeApp(options.targetDir, scope, shellApp, packageSource);
+  writeApp(options.targetDir, scope, shellApp, packageSource, enableTailwind);
   for (const remote of remoteApps) {
-    writeApp(options.targetDir, scope, remote, packageSource);
+    writeApp(options.targetDir, scope, remote, packageSource, enableTailwind);
   }
-  writeEffectService(options.targetDir, scope, packageSource);
+  writeEffectService(options.targetDir, scope, packageSource, enableTailwind);
   writeSharedPackages(options.targetDir, scope);
 }
 
 export const ultramodernWorkspaceVersions = {
   tanstackRouter: TANSTACK_ROUTER_VERSION,
   moduleFederation: MODULE_FEDERATION_VERSION,
+  tailwind: TAILWIND_VERSION,
+  tailwindPostcss: TAILWIND_POSTCSS_VERSION,
 };

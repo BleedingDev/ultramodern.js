@@ -48,6 +48,55 @@ test('validateWithZephyrPlacement rejects Zephyr config wrapper shape', () => {
   );
 });
 
+test('validateWithZephyrPlacement rejects non-official Modern.js Zephyr package', () => {
+  const violations = validateWithZephyrPlacement({
+    configPath: 'modern.config.js',
+    content: `
+      const { appTools, defineConfig } = require('@modern-js/app-tools');
+      const { withZephyr } = require('@modern-js/plugin-zephyr');
+
+      module.exports = defineConfig({
+        plugins: [appTools({ bundler: 'rspack' }), withZephyr()],
+        output: { distPath: { html: './' } },
+        html: { outputStructure: 'flat' },
+        source: { mainEntryName: 'index' },
+      });
+    `,
+  });
+
+  assert.equal(
+    violations.some(
+      violation =>
+        violation.rule === 'with-zephyr-package' &&
+        /official|not the official/.test(violation.message),
+    ),
+    true,
+  );
+});
+
+test('validateWithZephyrPlacement rejects withZephyr outside plugins array', () => {
+  const violations = validateWithZephyrPlacement({
+    configPath: 'modern.config.js',
+    content: `
+      const { appTools, defineConfig } = require('@modern-js/app-tools');
+      const { withZephyr } = require('zephyr-modernjs-plugin');
+
+      const zephyr = withZephyr();
+      module.exports = defineConfig({
+        plugins: [appTools({ bundler: 'rspack' })],
+        output: { distPath: { html: './' } },
+        html: { outputStructure: 'flat' },
+        source: { mainEntryName: 'index' },
+      });
+    `,
+  });
+
+  assert.equal(
+    violations.some(violation => violation.rule === 'with-zephyr-placement'),
+    true,
+  );
+});
+
 test('validateSourceConstraints rejects hardcoded URLs and boot hacks', () => {
   const report = validateSourceConstraints({
     sourceRoot: path.join(invalidDir, 'src'),

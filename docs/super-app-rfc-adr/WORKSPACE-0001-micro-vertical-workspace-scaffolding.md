@@ -56,12 +56,15 @@ micro-vertical-workspace/
 
 ## 3. Scaffold Recipes
 
-Use the existing `@modern-js/create` surface and compose the workspace from generated packages.
+Use the existing `@modern-js/create` entrypoint and add MicroVerticals from the
+workspace root with the UltraModern add flow. The add flow derives paths,
+package names, ports, Module Federation names, topology entries, overlays,
+ownership, and root dev scripts from the requested name and kind.
 
-### 3.1 Shell app
+### 3.1 Initial workspace
 
 ```bash
-npx @modern-js/create apps/shell --router tanstack --tailwind --workspace --sub
+pnpm dlx @bleedingdev/modern-js-create my-super-app
 ```
 
 Shell requirements:
@@ -79,7 +82,7 @@ Reference proof:
 ### 3.2 Remote vertical
 
 ```bash
-npx @modern-js/create apps/remotes/catalog --router tanstack --tailwind --workspace --sub
+npx @modern-js/create catalog --microvertical remote
 ```
 
 Remote requirements:
@@ -94,15 +97,27 @@ Reference proof:
 1. `tests/integration/routes-tanstack-mf/mf-remote`
 2. `tests/integration/routes-tanstack-mf/mf-remote-2`
 
-### 3.3 Service package
+### 3.3 Horizontal remote
+
+```bash
+npx @modern-js/create design-system --microvertical horizontal-remote
+```
+
+Horizontal remote requirements:
+
+1. own a cross-vertical runtime surface such as independently deployed UI primitives.
+2. use the same topology, trust, SSR compatibility, and fallback contracts as vertical remotes.
+3. avoid becoming a second framework mode or shared global application state.
+
+### 3.4 Service package
 
 Effect-first service:
 
 ```bash
-npx @modern-js/create services/catalog-api --bff-runtime effect --workspace --sub
+npx @modern-js/create catalog-api --microvertical service
 ```
 
-Hono compatibility service:
+Hono compatibility services remain manual lower-level scaffolds:
 
 ```bash
 npx @modern-js/create services/catalog-api --bff-runtime hono --workspace --sub
@@ -121,7 +136,11 @@ Reference proof:
 2. `tests/integration/bff-corss-project`
 3. `tests/integration/bff-hono`
 
-### 3.4 Shared package
+### 3.5 Shared package
+
+```bash
+npx @modern-js/create catalog-contracts --microvertical shared
+```
 
 Shared packages are created as normal workspace packages, not app remotes.
 
@@ -154,16 +173,16 @@ Local orchestration should model production boundaries while keeping iteration f
 Minimum local commands:
 
 ```bash
-pnpm --dir apps/remotes/catalog dev
-pnpm --dir services/catalog-api dev
-pnpm --dir apps/shell dev
+pnpm --filter @my-super-app/remote-catalog dev
+pnpm --filter @my-super-app/service-catalog-api-effect dev
+pnpm --filter @my-super-app/shell-super-app dev
 ```
 
 Version-skew rehearsal:
 
 ```bash
-pnpm --dir apps/remotes/catalog build
-pnpm --dir apps/shell dev
+pnpm --filter @my-super-app/remote-catalog build
+pnpm --filter @my-super-app/shell-super-app dev
 ```
 
 The shell must still resolve the remote through topology references and fallback when the selected artifact is unavailable, revoked, or incompatible.
@@ -187,15 +206,19 @@ Graph handoff metadata for plan/subagent orchestration lives at
 
 ## 6. Generator Surface Policy
 
-The create package already exposes the primitives needed to scaffold the topology:
+The create package exposes both low-level Modern.js scaffold primitives and the
+UltraModern add flow:
 
-1. `--router tanstack` for the Golden router path.
-2. `--bff-runtime effect` for strict new service contracts.
-3. `--bff-runtime hono` for compatibility services.
-4. `--workspace` for local monorepo package development.
-5. `--sub` for package-in-workspace generation without root-level hooks.
+1. `--microvertical remote` for vertical Module Federation remotes.
+2. `--microvertical horizontal-remote` for independently deployed horizontal remotes.
+3. `--microvertical service` for Effect-first service packages.
+4. `--microvertical shared` for shared workspace packages.
+5. `--router tanstack`, `--bff-runtime effect`, `--bff-runtime hono`, `--workspace`, and `--sub` remain available as low-level manual scaffolding primitives.
 
-New CLI flags should be added only when they produce materially different files. Until then, Micro Vertical scaffolding is a documented composition of these existing flags, plus workspace root orchestration and topology metadata.
+New CLI flags should be added only when they produce materially different files
+or eliminate repeated, error-prone workspace metadata edits. `--microvertical`
+is intentionally thin sugar over existing generator primitives plus topology,
+ownership, overlay, and root-script updates.
 
 ## 7. Acceptance Checklist
 

@@ -28,7 +28,7 @@
 {{#if isTanstackRouter}}    "@modern-js/plugin-tanstack": "{{pluginTanstackVersion}}",
 {{/if}}
     "@modern-js/runtime": "{{runtimeVersion}}",
-{{#if isTanstackRouter}}    "@tanstack/react-router": "1.170.1",
+{{#if isTanstackRouter}}    "@tanstack/react-router": "{{tanstackRouterVersion}}",
 {{/if}}
     "i18next": "26.2.0",
     "react": "^19.2.3",
@@ -43,7 +43,7 @@
 {{/if}}    "@modern-js/tsconfig": "{{tsconfigVersion}}",
     "@rstest/core": "0.10.0",
 {{#if enableTailwind}}
-    "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/postcss": "^{{tailwindPostcssVersion}}",
 {{/if}}
     "@types/node": "^20",
     "@types/react": "^19.1.8",
@@ -57,7 +57,7 @@
 {{/unless}}{{#if enableTailwind}}    "postcss": "^8.5.6",
 {{/if}}    "rimraf": "^6.0.1"{{#unless isSubproject}},
     "simple-git-hooks": "^2.11.1"{{/unless}}{{#if enableTailwind}},
-    "tailwindcss": "^4.1.18"{{/if}}{{#unless isSubproject}},
+    "tailwindcss": "^{{tailwindVersion}}"{{/if}}{{#unless isSubproject}},
     "ultracite": "7.7.0"{{/unless}}
   }{{#unless isSubproject}},
   "simple-git-hooks": {
