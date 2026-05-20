@@ -23,7 +23,7 @@ const readFixture = relativePath =>
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
-test('validateWithZephyrPlacement accepts outermost CommonJS wrapper', () => {
+test('validateWithZephyrPlacement accepts official Modern.js plugins array shape', () => {
   const violations = validateWithZephyrPlacement({
     configPath: 'modern.config.js',
     content: readFixture('valid/modern.config.js'),
@@ -32,7 +32,7 @@ test('validateWithZephyrPlacement accepts outermost CommonJS wrapper', () => {
   assert.deepEqual(violations, []);
 });
 
-test('validateWithZephyrPlacement rejects nested Zephyr wrapper', () => {
+test('validateWithZephyrPlacement rejects Zephyr config wrapper shape', () => {
   const violations = validateWithZephyrPlacement({
     configPath: 'modern.config.js',
     content: readFixture('invalid/nested.config.js'),
@@ -42,7 +42,7 @@ test('validateWithZephyrPlacement rejects nested Zephyr wrapper', () => {
     violations.some(
       violation =>
         violation.rule === 'with-zephyr-placement' &&
-        /outermost|nested/.test(violation.message),
+        /plugin|wrapper|nested/.test(violation.message),
     ),
     true,
   );

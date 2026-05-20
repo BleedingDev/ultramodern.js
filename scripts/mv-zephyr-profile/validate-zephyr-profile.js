@@ -78,37 +78,108 @@ const addViolation = (violations, rule, message, details = {}) => {
 const validateWithZephyrPlacement = ({ configPath, content }) => {
   const violations = [];
   const source = stripComments(content);
+
+  const officialPackagePattern =
+    /(?:\bfrom\s+['"]zephyr-modernjs-plugin['"]|\brequire\s*\(\s*['"]zephyr-modernjs-plugin['"]\s*\))/;
+  if (!officialPackagePattern.test(source)) {
+    addViolation(
+      violations,
+      'with-zephyr-package',
+      '`withZephyr` must come from the official zephyr-modernjs-plugin package.',
+      { file: configPath },
+    );
+  }
+
+  if (
+    /(?:\bfrom\s+['"]@modern-js\/plugin-zephyr['"]|\brequire\s*\(\s*['"]@modern-js\/plugin-zephyr['"]\s*\))/.test(
+      source,
+    )
+  ) {
+    addViolation(
+      violations,
+      'with-zephyr-package',
+      '`@modern-js/plugin-zephyr` is not the official Zephyr Modern.js package for this profile.',
+      { file: configPath },
+    );
+  }
+
   if (!/\bwithZephyr\s*\(/.test(source)) {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr` must wrap the exported Modern.js config.',
+      '`withZephyr()` must be registered in the Modern.js plugins array.',
       { file: configPath },
     );
     return violations;
   }
 
-  const exportPatterns = [
-    /\bexport\s+default\s+withZephyr\s*\(/,
-    /\bmodule\.exports\s*=\s*withZephyr\s*\(/,
-    /\bexports\.default\s*=\s*withZephyr\s*\(/,
-  ];
-  if (!exportPatterns.some(pattern => pattern.test(source))) {
+  const exportedWrapperPattern =
+    /\b(?:export\s+default|module\.exports\s*=|exports\.default\s*=)\s*withZephyr\s*\(/;
+  if (exportedWrapperPattern.test(source)) {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr` must be the outermost exported config wrapper.',
+      '`withZephyr()` must be a Modern.js plugin entry, not an exported config wrapper.',
       { file: configPath },
     );
   }
 
   const nestedPattern =
-    /\b(?:defineConfig|appTools|moduleFederationPlugin|withModuleFederation|withHtml|withRuntime|withOutput)\s*\([\s\S]*?\bwithZephyr\s*\(/;
+    /\b(?:appTools|moduleFederationPlugin|withModuleFederation|withHtml|withRuntime|withOutput)\s*\(\s*withZephyr\s*\(/;
   if (nestedPattern.test(source)) {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr` is nested inside another Modern.js config wrapper.',
+      '`withZephyr()` must not be nested inside another Modern.js config helper.',
+      { file: configPath },
+    );
+  }
+
+  const pluginsArrayPattern =
+    /\bplugins\s*:\s*\[[\s\S]*?\bwithZephyr\s*\(\s*\)/;
+  if (!pluginsArrayPattern.test(source)) {
+    addViolation(
+      violations,
+      'with-zephyr-placement',
+      '`withZephyr()` must appear in the exported Modern.js `plugins` array.',
+      { file: configPath },
+    );
+  }
+
+  if (
+    !/\bappTools\s*\(\s*\{[\s\S]*?\bbundler\s*:\s*['"]rspack['"]/.test(source)
+  ) {
+    addViolation(
+      violations,
+      'modernjs-zephyr-config',
+      '`appTools` must use the rspack bundler for the Zephyr Modern.js profile.',
+      { file: configPath },
+    );
+  }
+
+  if (!/\bdistPath\s*:\s*\{[\s\S]*?\bhtml\s*:\s*['"]\.\/['"]/.test(source)) {
+    addViolation(
+      violations,
+      'modernjs-zephyr-config',
+      'Modern.js output.distPath.html must be `./` for the Zephyr Modern.js profile.',
+      { file: configPath },
+    );
+  }
+
+  if (!/\boutputStructure\s*:\s*['"]flat['"]/.test(source)) {
+    addViolation(
+      violations,
+      'modernjs-zephyr-config',
+      'Modern.js html.outputStructure must be `flat` for the Zephyr Modern.js profile.',
+      { file: configPath },
+    );
+  }
+
+  if (!/\bmainEntryName\s*:\s*['"]index['"]/.test(source)) {
+    addViolation(
+      violations,
+      'modernjs-zephyr-config',
+      'Modern.js source.mainEntryName must be `index` for the Zephyr Modern.js profile.',
       { file: configPath },
     );
   }
@@ -256,11 +327,11 @@ const validateProfileConstraints = topologyManifest => {
     );
     return violations;
   }
-  if (constraints.withZephyrPlacement !== 'outermost-modern-config-wrapper') {
+  if (constraints.withZephyrPlacement !== 'modern-config-plugins-array') {
     addViolation(
       violations,
       'profile-constraint',
-      'profile.constraints.withZephyrPlacement must be outermost-modern-config-wrapper.',
+      'profile.constraints.withZephyrPlacement must be modern-config-plugins-array.',
     );
   }
 
@@ -314,11 +385,11 @@ const validateProfileConstraints = topologyManifest => {
       }
     }
   }
-  if (runtime?.dynamicRemoteUrlSource !== 'topology-manifest') {
+  if (runtime?.dynamicRemoteUrlSource !== 'zephyr-module-federation-manifest') {
     addViolation(
       violations,
       'dynamic-remote-url-source',
-      'Dynamic remote URLs must come from the topology manifest.',
+      'Dynamic remote URLs must come from Zephyr-published Module Federation manifests.',
     );
   }
 

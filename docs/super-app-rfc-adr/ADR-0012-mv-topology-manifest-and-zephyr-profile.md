@@ -91,9 +91,9 @@ This profile describes a vanilla Modern.js application delivered through Zephyr 
 
 ### 4.1 `withZephyr` placement
 
-`withZephyr` must be the outermost Modern.js config wrapper.
+`withZephyr()` must be registered through the official `zephyr-modernjs-plugin` package in the exported Modern.js `plugins` array, alongside `appTools({ bundler: 'rspack' })`.
 
-The profile records this as `outermost-modern-config-wrapper` so validators can reject configurations where Zephyr is nested inside app, output, HTML, runtime, or module federation plugin wrappers in a way that can rewrite MF artifacts after Modern.js has produced them.
+The profile records this as `modern-config-plugins-array` so validators can reject private wrapper shapes and keep UltraModern workspaces close to vanilla Modern.js + Zephyr integration.
 
 ### 4.2 Output constraints
 
@@ -146,7 +146,7 @@ At runtime, a shell using this contract follows this order:
 7. degrade through kill switch, LKG, or CSR fallback when policy requires it.
 8. emit fallback telemetry for every degraded path.
 
-Dynamic remote URLs are allowed only when they come from the selected topology manifest. Runtime-computed URLs from route params, HTML snippets, global mutation, or service responses are outside this profile.
+Dynamic remote URLs are allowed only when they come from Zephyr-published Module Federation manifests. Runtime-computed URLs from route params, HTML snippets, global mutation, private topology loaders, or service responses are outside this profile.
 
 ## 6. Consequences
 
@@ -171,7 +171,7 @@ Future validation should check:
 
 1. schema validity for topology manifests.
 2. no shell source hardcoded remote or service URLs under the Zephyr profile.
-3. `withZephyr` is the outermost Modern.js config wrapper.
+3. `withZephyr()` comes from `zephyr-modernjs-plugin` and is registered in the Modern.js `plugins` array.
 4. MF outputs are preserved.
 5. remote trust metadata is complete.
 6. revoked artifacts are not selectable.

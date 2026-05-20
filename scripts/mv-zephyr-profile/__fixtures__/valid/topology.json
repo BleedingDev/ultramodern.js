@@ -10,7 +10,7 @@
     "channel": "preview",
     "owner": "mv-platform",
     "constraints": {
-      "withZephyrPlacement": "outermost-modern-config-wrapper",
+      "withZephyrPlacement": "modern-config-plugins-array",
       "output": {
         "noRuntimePublicPathMutation": true,
         "preserveMfManifest": true,
@@ -35,7 +35,7 @@
           "runtime_public_path_mutation",
           "post_build_manifest_rewrite"
         ],
-        "dynamicRemoteUrlSource": "topology-manifest"
+        "dynamicRemoteUrlSource": "zephyr-module-federation-manifest"
       }
     }
   },

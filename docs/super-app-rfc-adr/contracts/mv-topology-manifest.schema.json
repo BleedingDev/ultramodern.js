@@ -185,7 +185,7 @@
           "properties": {
             "withZephyrPlacement": {
               "type": "string",
-              "enum": ["outermost-modern-config-wrapper"]
+              "enum": ["modern-config-plugins-array"]
             },
             "output": {
               "type": "object",
@@ -272,7 +272,7 @@
                 },
                 "dynamicRemoteUrlSource": {
                   "type": "string",
-                  "enum": ["topology-manifest"]
+                  "enum": ["zephyr-module-federation-manifest"]
                 }
               }
             }

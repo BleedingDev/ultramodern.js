@@ -358,6 +358,10 @@ for (const packagePath of appPackagePaths) {
     `${packagePath} must include the Module Federation plugin`,
   );
   assert(
+    packageJson.dependencies?.['zephyr-modernjs-plugin'] === '1.1.1',
+    `${packagePath} must include the official Zephyr Modern.js plugin`,
+  );
+  assert(
     packageJson.modernjs?.preset === 'presetUltramodern',
     `${packagePath} must keep presetUltramodern metadata`,
   );
@@ -382,6 +386,27 @@ for (const configPath of [
   assert(
     config.includes('moduleFederationPlugin()'),
     `${configPath} must enable Module Federation`,
+  );
+  assert(
+    config.includes("from 'zephyr-modernjs-plugin'"),
+    `${configPath} must import the official Zephyr Modern.js plugin`,
+  );
+  assert(config.includes('withZephyr()'), `${configPath} must enable Zephyr through plugins`);
+  assert(
+    config.includes("bundler: 'rspack'"),
+    `${configPath} must keep appTools on the rspack bundler for Zephyr`,
+  );
+  assert(
+    config.includes("html: './'"),
+    `${configPath} must keep Modern.js output.distPath.html compatible with Zephyr`,
+  );
+  assert(
+    config.includes("outputStructure: 'flat'"),
+    `${configPath} must keep Modern.js HTML output flat for Zephyr`,
+  );
+  assert(
+    config.includes("mainEntryName: 'index'"),
+    `${configPath} must keep Modern.js source.mainEntryName compatible with Zephyr`,
   );
 }
 

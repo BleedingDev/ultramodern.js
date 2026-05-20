@@ -1,4 +1,4 @@
 const { appTools } = require('@modern-js/app-tools');
-const { withZephyr } = require('@modern-js/plugin-zephyr');
+const { withZephyr } = require('zephyr-modernjs-plugin');
 
-module.exports = appTools(withZephyr({ runtime: {} }));
+module.exports = withZephyr(appTools({ bundler: 'rspack' }));

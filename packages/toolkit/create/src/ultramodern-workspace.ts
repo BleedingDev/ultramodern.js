@@ -12,6 +12,7 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.1';
 const MODULE_FEDERATION_VERSION = '2.4.0';
+const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
 const EFFECT_TSGO_VERSION = '0.7.3';
 const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260518.1';
 const OXLINT_VERSION = '1.65.0';
@@ -534,6 +535,7 @@ function appDependencies(
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
+    'zephyr-modernjs-plugin': ZEPHYR_MODERNJS_PLUGIN_VERSION,
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
     i18next: I18NEXT_VERSION,
@@ -790,6 +792,7 @@ import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools'
 import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
+import { withZephyr } from 'zephyr-modernjs-plugin';
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
@@ -811,11 +814,19 @@ export default defineConfig(
     {
       output: {
         disableTsChecker: true,
+        distPath: {
+          html: './',
+        },
         polyfill: 'off',
         splitRouteChunks: false,
       },
+      html: {
+        outputStructure: 'flat',
+      },
       plugins: [
-        appTools(),
+        appTools({
+          bundler: 'rspack',
+        }),
         i18nPlugin({
           localeDetection: {
             fallbackLanguage: 'en',
@@ -825,6 +836,7 @@ export default defineConfig(
         }),
         tanstackRouterPlugin(),
         moduleFederationPlugin(),
+        withZephyr(),
       ],
       server: {
         port,
@@ -834,6 +846,7 @@ export default defineConfig(
         },
       },
       source: {
+        mainEntryName: 'index',
         globalVars: {
           ULTRAMODERN_SITE_URL: siteUrl,
         },
