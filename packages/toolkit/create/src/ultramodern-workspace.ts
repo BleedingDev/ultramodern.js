@@ -605,7 +605,11 @@ function createRootPackageJson(
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
+      'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
+      'agents:refs:check':
+        'node ./scripts/setup-agent-reference-repos.mjs --check',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
+      postinstall: 'node ./scripts/setup-agent-reference-repos.mjs',
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm skills:check && pnpm ultramodern:check',
     },
@@ -1588,6 +1592,7 @@ function createTemplateManifest(
       allowedPaths: [
         '.agents/**',
         '.github/**',
+        '.gitignore',
         '.modernjs/**',
         'AGENTS.md',
         'README.md',

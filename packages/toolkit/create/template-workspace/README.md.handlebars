@@ -19,6 +19,11 @@ Run the scaffold validator before adding business code:
 pnpm ultramodern:check
 ```
 
+By default, `pnpm install` also prepares read-only agent reference repositories
+under `repos/` for Effect and UltraModern.js source lookup. Disable this setup
+with `ULTRAMODERN_SKIP_AGENT_REPOS=1 pnpm install`, or rerun it explicitly with
+`pnpm agents:refs:install`.
+
 The topology and ownership metadata are generated under `topology/`. The
 workspace also ships `.github/workflows/ultramodern-workspace-gates.yml` and
 `.github/renovate.json` with read-only workflow permissions, commit-pinned

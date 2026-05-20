@@ -36,6 +36,7 @@ const assertExists = (relativePath) => {
 
 const requiredPaths = [
   'AGENTS.md',
+  '.gitignore',
   'package.json',
   'pnpm-workspace.yaml',
   'tsconfig.base.json',
@@ -44,6 +45,7 @@ const requiredPaths = [
   '.github/renovate.json',
   '.github/workflows/ultramodern-workspace-gates.yml',
   '.agents/skills-lock.json',
+  '.agents/agent-reference-repos.json',
   '.agents/rstackjs-agent-skills-LICENSE',
   '.agents/skills/rsbuild-best-practices/SKILL.md',
   '.agents/skills/rspack-best-practices/SKILL.md',
@@ -61,6 +63,7 @@ const requiredPaths = [
   '.modernjs/ultramodern-workspace-template-manifest.json',
   '.modernjs/ultramodern-package-source.json',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/setup-agent-reference-repos.mjs',
   'scripts/check-i18n-strings.mjs',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/config/public/locales/en/translation.json',
@@ -122,6 +125,7 @@ for (const appDirectory of [
 const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const skillsLock = readJson('.agents/skills-lock.json');
+const agentReferenceRepos = readJson('.agents/agent-reference-repos.json');
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
 const workflowContent = readText('.github/workflows/ultramodern-workspace-gates.yml');
 const renovateConfig = readJson('.github/renovate.json');
@@ -237,6 +241,9 @@ const requiredRootScripts = {
   'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
+  'agents:refs:check': 'node ./scripts/setup-agent-reference-repos.mjs --check',
+  'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
+  postinstall: 'node ./scripts/setup-agent-reference-repos.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
   typecheck: `pnpm -r --filter "@${packageScope}/*" typecheck`,
@@ -273,6 +280,34 @@ assert(
 assert(
   skillsLock.installDir === '.agents/skills',
   'Agent skills lock must use .agents/skills as installDir',
+);
+assert(
+  agentReferenceRepos.defaultEnabled === true,
+  'Agent reference repositories must be enabled by default',
+);
+assert(
+  agentReferenceRepos.repositories?.some(
+    (repo) =>
+      repo.id === 'effect' &&
+      repo.url === 'https://github.com/Effect-TS/effect.git' &&
+      repo.path === 'repos/effect',
+  ),
+  'Agent reference repositories must include Effect',
+);
+assert(
+  agentReferenceRepos.repositories?.some(
+    (repo) =>
+      repo.id === 'ultramodern-js' &&
+      repo.url === 'https://github.com/BleedingDev/ultramodern.js.git' &&
+      repo.path === 'repos/ultramodern.js',
+  ),
+  'Agent reference repositories must include UltraModern.js',
+);
+assert(
+  readText('scripts/setup-agent-reference-repos.mjs').includes(
+    'ULTRAMODERN_SKIP_AGENT_REPOS',
+  ),
+  'Agent reference repository setup must expose an opt-out environment variable',
 );
 for (const skillName of baselineAgentSkills) {
   assert(

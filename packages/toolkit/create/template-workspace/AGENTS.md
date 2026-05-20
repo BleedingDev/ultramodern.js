@@ -38,6 +38,15 @@ pnpm skills:install
 
 The installer copies only the allowlisted private skills from `.agents/skills-lock.json`: `plan-graph`, `dag`, `subagent-graph`, `helm`, and `debugger-mode`.
 
+## Agent Reference Repositories
+
+The workspace installs read-only source snapshots under `repos/` by default during `pnpm install`. These repositories are reference material for coding agents, not application source:
+
+- `repos/effect` from `Effect-TS/effect`.
+- `repos/ultramodern.js` from `BleedingDev/ultramodern.js`.
+
+Agents may read files under `repos/` to understand upstream patterns, APIs, and project conventions. Do not edit files under `repos/`, import from them, or make production code depend on them. To skip this setup, run installs with `ULTRAMODERN_SKIP_AGENT_REPOS=1`.
+
 ## Project Priorities
 
 - Keep `presetUltramodern` as the single preset.
