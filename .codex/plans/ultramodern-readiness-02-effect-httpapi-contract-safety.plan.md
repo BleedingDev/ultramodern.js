@@ -4,10 +4,10 @@ overview: Make Effect HttpApi the strict default service boundary for generated 
 todos:
   - id: map-existing-effect-bff-capability
     content: Audit the existing Modern.js Effect BFF runtime, client helpers, generated UltraModern service files, and integration tests to separate already-implemented type-safety from generator-level gaps.
-    status: pending
+    status: completed
   - id: define-canonical-contract-location
     content: Decide the generated canonical contract location for services so shell, remotes, and service implementations import the same HttpApi definition instead of duplicating or hiding contracts under service-local paths.
-    status: pending
+    status: completed
   - id: generate-typed-client-usage
     content: Update the generated workspace design so at least one shell or remote imports the generated Effect HttpApi contract and calls the typed client with inferred request, response, and error types.
     status: pending
@@ -66,3 +66,11 @@ The strongest acceptance signal is a test set that proves both sides:
 - invalid backend handler implementation fails typecheck,
 - invalid runtime payloads fail schema decoding,
 - services added later by `--microvertical service` get the same guarantees.
+
+## Processed Findings
+
+The initial subagent-graph audit confirmed that Modern.js already has the important Effect HttpApi runtime pieces: `defineEffectBff` preserves the API type, `HttpApiBuilder` enforces backend handler shape, and the Effect client helpers support request execution, operation manifests, request context, and HttpApi client creation.
+
+The UltraModern-specific gap is generator structure, not Modern.js capability. The generated service currently defines the real `HttpApi` in `services/<service>/shared/effect/api.ts`, while `packages/shared-effect-api` contains only placeholder interface/base-path metadata. That makes the generated workspace weaker than the intended SuperApp contract model.
+
+Canonical decision: UltraModern generated workspaces should make `packages/shared-effect-api` the contract source of truth. Generated services should import the real `recommendationsEffectApi` or service-specific `HttpApi` from that package. A service-local `shared/effect/api.ts` file may remain only as a re-export shim for familiarity with the simpler Modern.js app pattern.

@@ -4,7 +4,7 @@ overview: Prove that generated UltraModern workspaces deploy through the officia
 todos:
   - id: inspect-official-zephyr-path
     content: Re-read the official Zephyr Modern.js integration docs and compare the generated UltraModern config against the required plugin package, import, and lifecycle hook expectations.
-    status: pending
+    status: completed
   - id: define-evidence-workspace
     content: Define the smallest generated workspace shape that proves shell plus one remote can be built and published through Zephyr using the official plugin.
     status: pending
@@ -37,3 +37,9 @@ The goal is evidence, not abstraction. UltraModern should prove that its generat
 ## Operator Guidance
 
 Start by validating the latest public Zephyr documentation against the current generated config. Then design the smallest deployable proof: shell, one remote, Module Federation manifest, official Zephyr plugin, and a page assertion that the remote rendered from the deployed artifact.
+
+## Processed Findings
+
+The subagent-graph audit verified the official Modern.js Zephyr docs at `https://docs.zephyr-cloud.io/meta-frameworks/modernjs` and compared them against generated UltraModern output. The generated config is aligned on the important vanilla requirements: `zephyr-modernjs-plugin`, `withZephyr()` in the Modern.js `plugins` array, `appTools({ bundler: 'rspack' })`, flat HTML output, `source.mainEntryName: 'index'`, and ordinary `modern dev`, `modern build`, and `modern serve` scripts.
+
+The remaining gap is not config shape. The remaining gap is live deployment evidence: build and deploy a generated shell plus one remote through Zephyr using normal Modern.js lifecycle commands, capture the Zephyr artifact or manifest URL, and prove the deployed shell renders the Zephyr-hosted remote.

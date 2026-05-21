@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-21T21:04:32.179893+00:00",
+  "generated_at": "2026-05-21T21:33:36.040495+00:00",
   "graph_id": "ultramodern-readiness-01-zephyr-live-evidence-plus-5-plans-e2963f5e24",
   "plan_set_hash": "d15fc3c285",
   "selection_hash": "e2963f5e24",
@@ -47,7 +47,7 @@
         {
           "id": "inspect-official-zephyr-path",
           "content": "Re-read the official Zephyr Modern.js integration docs and compare the generated UltraModern config against the required plugin package, import, and lifecycle hook expectations.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -88,13 +88,13 @@
         {
           "id": "map-existing-effect-bff-capability",
           "content": "Audit the existing Modern.js Effect BFF runtime, client helpers, generated UltraModern service files, and integration tests to separate already-implemented type-safety from generator-level gaps.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "define-canonical-contract-location",
           "content": "Decide the generated canonical contract location for services so shell, remotes, and service implementations import the same HttpApi definition instead of duplicating or hiding contracts under service-local paths.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
@@ -313,27 +313,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "inspect-official-zephyr-path",
-          "content": "Re-read the official Zephyr Modern.js integration docs and compare the generated UltraModern config against the required plugin package, import, and lifecycle hook expectations.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "define-evidence-workspace",
           "content": "Define the smallest generated workspace shape that proves shell plus one remote can be built and published through Zephyr using the official plugin.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "design-ci-or-manual-proof",
           "content": "Design an opt-in CI or manual validation path that runs normal Modern.js build commands with Zephyr credentials and records deployment evidence without exposing secrets.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "capture-runtime-proof",
+          "content": "Specify the evidence bundle needed to prove the shell loads the remote from Zephyr, including manifest URL or artifact reference, build logs, and runtime page assertion.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 5
     },
     {
@@ -345,27 +345,27 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "map-existing-effect-bff-capability",
-          "content": "Audit the existing Modern.js Effect BFF runtime, client helpers, generated UltraModern service files, and integration tests to separate already-implemented type-safety from generator-level gaps.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "define-canonical-contract-location",
-          "content": "Decide the generated canonical contract location for services so shell, remotes, and service implementations import the same HttpApi definition instead of duplicating or hiding contracts under service-local paths.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
           "id": "generate-typed-client-usage",
           "content": "Update the generated workspace design so at least one shell or remote imports the generated Effect HttpApi contract and calls the typed client with inferred request, response, and error types.",
           "status": "pending",
           "ordinal": 3
         }
       ],
-      "completed": 0,
+      "upcoming": [
+        {
+          "id": "enforce-backend-contract-implementation",
+          "content": "Ensure generated service handlers use HttpApiBuilder against the shared contract so wrong handler names, request shapes, response shapes, or error channels fail typecheck.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "add-negative-type-safety-tests",
+          "content": "Add focused type tests or fixture tests proving invalid client calls, invalid payloads, invalid params, invalid success responses, and invalid error responses fail at typecheck time.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "completed": 2,
       "total": 8
     },
     {
