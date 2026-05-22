@@ -73,13 +73,13 @@ The initial subagent-graph audit confirmed that Modern.js already has the import
 
 The UltraModern-specific gap is generator structure, not Modern.js capability. The generated service currently defines the real `HttpApi` in `services/<service>/shared/effect/api.ts`, while `packages/shared-effect-api` contains only placeholder interface/base-path metadata. That makes the generated workspace weaker than the intended SuperApp contract model.
 
-Canonical decision: UltraModern generated workspaces should make `packages/shared-effect-api` the contract source of truth. Generated services should import the real `recommendationsEffectApi` or service-specific `HttpApi` from that package. A service-local `shared/effect/api.ts` file may remain only as a re-export shim for familiarity with the simpler Modern.js app pattern.
+Canonical decision: UltraModern generated workspaces should make `packages/shared-effect-api` the only contract source of truth. Generated services should import the real `recommendationsEffectApi` or service-specific `HttpApi` from that package. Do not generate service-local compatibility files for Effect API contracts.
 
 Implementation slice completed:
 
 - `packages/shared-effect-api` now owns the generated real `HttpApi` contract.
-- The generated Effect service imports that package instead of service-local `shared/effect/api.ts`.
-- The service-local file remains as a re-export shim only.
+- The generated Effect service imports that package directly.
+- No service-local `shared/effect/api.ts` compatibility shim is generated.
 - The shell gets a small typed Effect HttpApi client helper using `makeEffectHttpApiClient` and `runEffectRequest`.
 - `--microvertical service` appends the new service contract into `packages/shared-effect-api` and imports it from generated service code.
 

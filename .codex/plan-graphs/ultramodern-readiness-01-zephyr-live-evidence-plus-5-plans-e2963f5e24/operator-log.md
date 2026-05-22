@@ -21,14 +21,14 @@ State dir: `.codex/plan-graphs/ultramodern-readiness-01-zephyr-live-evidence-plu
 - Current critical-path point 2 decision:
   - Canonical UltraModern contract location should be `packages/shared-effect-api`.
   - Generated services should import `recommendationsEffectApi` from the package, not from service-local `shared/effect/api.ts`.
-  - Service-local re-export may remain only as a familiarity shim if useful.
+  - Service-local re-export shims are intentionally not generated.
 
 ## 2026-05-23
 
 - Implemented point 2 minimal slice:
   - `packages/shared-effect-api` owns generated Effect `HttpApi` contracts.
   - Generated services import their canonical contract from `@scope/shared-effect-api`.
-  - Service-local `shared/effect/api.ts` is now a re-export shim.
+  - Service-local `shared/effect/api.ts` is not generated.
   - Shell generates `src/effect/recommendations-client.ts` with `makeEffectHttpApiClient` and `runEffectRequest`.
   - `--microvertical service` appends its contract to `packages/shared-effect-api`.
 - Completed plan todos:

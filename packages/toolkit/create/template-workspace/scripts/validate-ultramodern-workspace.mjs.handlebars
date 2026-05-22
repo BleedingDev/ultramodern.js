@@ -36,6 +36,9 @@ const assert = (condition, message) => {
 const assertExists = (relativePath) => {
   assert(fs.existsSync(path.join(root, relativePath)), `Missing ${relativePath}`);
 };
+const assertNotExists = (relativePath) => {
+  assert(!fs.existsSync(path.join(root, relativePath)), `Unexpected ${relativePath}`);
+};
 
 const requiredPaths = [
   'AGENTS.md',
@@ -107,7 +110,6 @@ const requiredPaths = [
   'services/service-recommendations-effect/package.json',
   'services/service-recommendations-effect/modern.config.ts',
   'services/service-recommendations-effect/api/effect/index.ts',
-  'services/service-recommendations-effect/shared/effect/api.ts',
   'services/service-recommendations-effect/src/routes/index.css',
   'services/service-recommendations-effect/src/routes/page.tsx',
   'packages/shared-contracts/src/index.ts',
@@ -701,15 +703,11 @@ assert(
   !serviceEntry.includes('../../shared/effect/api'),
   'Effect service must not import service-local Effect API as source of truth',
 );
-const effectApiShim = readText('services/service-recommendations-effect/shared/effect/api.ts');
 assert(
-  effectApiShim.includes(`from '@${packageScope}/shared-effect-api'`),
-  'Effect service-local API file must re-export the canonical shared Effect API package',
+  !serviceEntry.includes('/shared/effect/api'),
+  'Effect service must not import any service-local Effect API file',
 );
-assert(
-  !effectApiShim.includes('HttpApi.make'),
-  'Effect service-local API file must not define its own HttpApi',
-);
+assertNotExists('services/service-recommendations-effect/shared/effect/api.ts');
 const sharedEffectApi = readText('packages/shared-effect-api/src/index.ts');
 assert(
   sharedEffectApi.includes('HttpApi.make'),

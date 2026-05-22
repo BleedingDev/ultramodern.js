@@ -44,6 +44,10 @@ function expectPath(root: string, relativePath: string) {
   expect(fs.existsSync(path.join(root, relativePath))).toBe(true);
 }
 
+function expectNoPath(root: string, relativePath: string) {
+  expect(fs.existsSync(path.join(root, relativePath))).toBe(false);
+}
+
 function expectPnpm11Policy(workspaceDir: string) {
   const pnpmWorkspace = readText(workspaceDir, 'pnpm-workspace.yaml');
   for (const requiredSnippet of [
@@ -145,7 +149,6 @@ describe('create-ultramodern-workspace', () => {
       'services/service-recommendations-effect/postcss.config.mjs',
       'services/service-recommendations-effect/tailwind.config.ts',
       'services/service-recommendations-effect/api/effect/index.ts',
-      'services/service-recommendations-effect/shared/effect/api.ts',
       'services/service-recommendations-effect/src/routes/index.css',
       'services/service-recommendations-effect/src/routes/page.tsx',
       'packages/shared-contracts/src/index.ts',
@@ -382,15 +385,11 @@ describe('create-ultramodern-workspace', () => {
     expect(serviceEntry).toContain('recommendationsEffectApi');
     expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
     expect(serviceEntry).not.toContain('../../shared/effect/api');
-
-    const serviceSharedEffectApi = readText(
+    expect(serviceEntry).not.toContain('/shared/effect/api');
+    expectNoPath(
       workspaceDir,
       'services/service-recommendations-effect/shared/effect/api.ts',
     );
-    expect(serviceSharedEffectApi).toContain(
-      "from '@ultra-workspace/shared-effect-api'",
-    );
-    expect(serviceSharedEffectApi).not.toContain('HttpApi.make');
 
     const sharedEffectApi = readText(
       workspaceDir,
@@ -608,7 +607,6 @@ describe('create-ultramodern-workspace', () => {
       'services/service-catalog-api-effect/package.json',
       'services/service-catalog-api-effect/modern.config.ts',
       'services/service-catalog-api-effect/api/effect/index.ts',
-      'services/service-catalog-api-effect/shared/effect/api.ts',
       'services/service-catalog-api-effect/src/routes/index.css',
       'services/service-catalog-api-effect/postcss.config.mjs',
       'services/service-catalog-api-effect/tailwind.config.ts',
@@ -642,6 +640,11 @@ describe('create-ultramodern-workspace', () => {
       "from '@ultra-add-service-workspace/shared-effect-api'",
     );
     expect(serviceEntry).not.toContain('../../shared/effect/api');
+    expect(serviceEntry).not.toContain('/shared/effect/api');
+    expectNoPath(
+      workspaceDir,
+      'services/service-catalog-api-effect/shared/effect/api.ts',
+    );
 
     const sharedEffectApi = readText(
       workspaceDir,

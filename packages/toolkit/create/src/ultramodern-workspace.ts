@@ -1616,22 +1616,6 @@ function createEffectSharedApi(service = effectService): string {
 ${createEffectSharedApiContract(service)}`;
 }
 
-function createEffectServiceApiShim(
-  scope: string,
-  service = effectService,
-): string {
-  const apiExport = serviceEffectApiExport(service);
-  const contractExport = `${serviceEffectGroupName(service)}ApiContract`;
-  const schemaExport = serviceEffectSchemaExport(service);
-
-  return `export {
-  ${apiExport},
-  ${contractExport},
-  ${schemaExport},
-} from '${packageName(scope, 'shared-effect-api')}';
-`;
-}
-
 function createEffectServiceEntry(
   scope: string,
   service = effectService,
@@ -2163,11 +2147,6 @@ export default function ${toPascalCase(service.id)}Home() {
     targetDir,
     `${service.directory}/modern.config.ts`,
     createServiceModernConfigFor(service),
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/shared/effect/api.ts`,
-    createEffectServiceApiShim(scope, service),
   );
   writeFile(
     targetDir,
