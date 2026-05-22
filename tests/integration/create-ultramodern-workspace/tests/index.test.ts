@@ -117,6 +117,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
       'apps/shell-super-app/src/routes/index.css',
+      'apps/shell-super-app/src/effect/recommendations-client.ts',
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
       'apps/remotes/remote-commerce/module-federation.config.ts',
@@ -379,13 +380,34 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(serviceEntry).toContain('defineEffectBff');
     expect(serviceEntry).toContain('recommendationsEffectApi');
+    expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
+    expect(serviceEntry).not.toContain('../../shared/effect/api');
 
-    const sharedEffectApi = readText(
+    const serviceSharedEffectApi = readText(
       workspaceDir,
       'services/service-recommendations-effect/shared/effect/api.ts',
     );
+    expect(serviceSharedEffectApi).toContain(
+      "from '@ultra-workspace/shared-effect-api'",
+    );
+    expect(serviceSharedEffectApi).not.toContain('HttpApi.make');
+
+    const sharedEffectApi = readText(
+      workspaceDir,
+      'packages/shared-effect-api/src/index.ts',
+    );
     expect(sharedEffectApi).toContain('HttpApi.make');
     expect(sharedEffectApi).toContain('RecommendationsEffectApi');
+    expect(sharedEffectApi).toContain('recommendationsApiContract');
+
+    const shellEffectClient = readText(
+      workspaceDir,
+      'apps/shell-super-app/src/effect/recommendations-client.ts',
+    );
+    expect(shellEffectClient).toContain('makeEffectHttpApiClient');
+    expect(shellEffectClient).toContain('runEffectRequest');
+    expect(shellEffectClient).toContain('recommendationsEffectApi');
+    expect(shellEffectClient).toContain('client.recommendations.list({})');
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     expect(topology.sourceFixture).toBe(
@@ -611,6 +633,27 @@ describe('create-ultramodern-workspace', () => {
     expect(serviceConfig).toContain("runtimeFramework: 'effect'");
     expect(serviceConfig).toContain("prefix: '/catalog-api'");
 
+    const serviceEntry = readText(
+      workspaceDir,
+      'services/service-catalog-api-effect/api/effect/index.ts',
+    );
+    expect(serviceEntry).toContain('catalogEffectApi');
+    expect(serviceEntry).toContain(
+      "from '@ultra-add-service-workspace/shared-effect-api'",
+    );
+    expect(serviceEntry).not.toContain('../../shared/effect/api');
+
+    const sharedEffectApi = readText(
+      workspaceDir,
+      'packages/shared-effect-api/src/index.ts',
+    );
+    expect(sharedEffectApi).toContain('recommendationsEffectApi');
+    expect(sharedEffectApi).toContain('catalogEffectApi');
+    expect(sharedEffectApi).toContain('CatalogEffectApi');
+    expect(sharedEffectApi).toContain(
+      "basePath: '/catalog-api/effect/catalog'",
+    );
+
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     expect(
       topology.effectServices.find(
@@ -673,6 +716,12 @@ describe('create-ultramodern-workspace', () => {
     expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
       '3.2.0-ultramodern.0',
     );
+    expect(shellPackage.dependencies['@modern-js/plugin-bff']).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(
+      shellPackage.dependencies['@ultra-install-workspace/shared-effect-api'],
+    ).toBe('workspace:*');
     expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
       '3.2.0-ultramodern.0',
     );
@@ -695,6 +744,14 @@ describe('create-ultramodern-workspace', () => {
     expect(
       servicePackage.dependencies['@ultra-install-workspace/shared-effect-api'],
     ).toBe('workspace:*');
+
+    const sharedEffectPackage = readJson(
+      workspaceDir,
+      'packages/shared-effect-api/package.json',
+    );
+    expect(sharedEffectPackage.dependencies['@modern-js/plugin-bff']).toBe(
+      '3.2.0-ultramodern.0',
+    );
 
     const validationOutput = execFileSync(
       process.execPath,

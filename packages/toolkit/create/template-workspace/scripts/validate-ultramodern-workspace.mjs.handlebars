@@ -583,6 +583,29 @@ assert(
   'Shell must reference design-system remote',
 );
 
+const shellPackage = readJson('apps/shell-super-app/package.json');
+assert(
+  shellPackage.dependencies?.['@modern-js/plugin-bff'] ===
+    expectedModernDependency('@modern-js/plugin-bff'),
+  `Shell must use @modern-js/plugin-bff through ${expectedModernDependency(
+    '@modern-js/plugin-bff',
+  )}`,
+);
+assert(
+  shellPackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
+  'Shell must link generated shared Effect API through workspace:*',
+);
+
+const shellEffectClient = readText('apps/shell-super-app/src/effect/recommendations-client.ts');
+assert(
+  shellEffectClient.includes('makeEffectHttpApiClient'),
+  'Shell must include typed Effect HttpApi client helper',
+);
+assert(
+  shellEffectClient.includes('client.recommendations.list({})'),
+  'Shell typed Effect client helper must call the shared recommendations contract',
+);
+
 const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
 assert(commerceMf.includes("name: 'remoteCommerce'"), 'Commerce remote MF name is missing');
 assert(commerceMf.includes("'./Widget'"), 'Commerce remote must expose a widget');
@@ -671,8 +694,30 @@ assert(
   'Effect service must use shared recommendations API',
 );
 assert(
-  readText('services/service-recommendations-effect/shared/effect/api.ts').includes('HttpApi.make'),
-  'Effect shared API placeholder must define HttpApi',
+  serviceEntry.includes(`from '@${packageScope}/shared-effect-api'`),
+  'Effect service must import canonical shared Effect API package',
+);
+assert(
+  !serviceEntry.includes('../../shared/effect/api'),
+  'Effect service must not import service-local Effect API as source of truth',
+);
+const effectApiShim = readText('services/service-recommendations-effect/shared/effect/api.ts');
+assert(
+  effectApiShim.includes(`from '@${packageScope}/shared-effect-api'`),
+  'Effect service-local API file must re-export the canonical shared Effect API package',
+);
+assert(
+  !effectApiShim.includes('HttpApi.make'),
+  'Effect service-local API file must not define its own HttpApi',
+);
+const sharedEffectApi = readText('packages/shared-effect-api/src/index.ts');
+assert(
+  sharedEffectApi.includes('HttpApi.make'),
+  'Canonical shared Effect API package must define HttpApi',
+);
+assert(
+  sharedEffectApi.includes('recommendationsEffectApi'),
+  'Canonical shared Effect API package must export recommendationsEffectApi',
 );
 
 const topology = readJson('topology/reference-topology.json');

@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-05-21T21:33:36.040495+00:00",
+  "generated_at": "2026-05-22T22:36:00.241342+00:00",
   "graph_id": "ultramodern-readiness-01-zephyr-live-evidence-plus-5-plans-e2963f5e24",
   "plan_set_hash": "d15fc3c285",
-  "selection_hash": "e2963f5e24",
+  "selection_hash": "e79da3a385",
   "plan_count": 6,
   "edge_count": 5,
   "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
@@ -18,19 +18,19 @@
   "edges": [
     {
       "source": "ultramodern-readiness-01-zephyr-live-evidence",
-      "target": "ultramodern-readiness-05-add-flow-hardening"
+      "target": "ultramodern-readiness-02-effect-httpapi-contract-safety"
     },
     {
       "source": "ultramodern-readiness-02-effect-httpapi-contract-safety",
       "target": "ultramodern-readiness-03-request-operation-context"
     },
     {
-      "source": "ultramodern-readiness-02-effect-httpapi-contract-safety",
-      "target": "ultramodern-readiness-05-add-flow-hardening"
-    },
-    {
       "source": "ultramodern-readiness-03-request-operation-context",
       "target": "ultramodern-readiness-04-observability-otel-fallback"
+    },
+    {
+      "source": "ultramodern-readiness-02-effect-httpapi-contract-safety",
+      "target": "ultramodern-readiness-05-add-flow-hardening"
     },
     {
       "source": "ultramodern-readiness-05-add-flow-hardening",
@@ -100,13 +100,13 @@
         {
           "id": "generate-typed-client-usage",
           "content": "Update the generated workspace design so at least one shell or remote imports the generated Effect HttpApi contract and calls the typed client with inferred request, response, and error types.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "enforce-backend-contract-implementation",
           "content": "Ensure generated service handlers use HttpApiBuilder against the shared contract so wrong handler names, request shapes, response shapes, or error channels fail typecheck.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
@@ -124,7 +124,7 @@
         {
           "id": "cover-add-flow-services",
           "content": "Ensure every service generated through the MicroVertical add flow gets the same canonical contract, implementation, client import path, and validation coverage as the initial starter service.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 7
         },
         {
@@ -341,23 +341,9 @@
       "plan_name": "Ultramodern Readiness 02 Effect HttpApi Contract Safety",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-02-effect-httpapi-contract-safety.plan.md",
       "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
+      "state": "blocked",
+      "blocked_by": ["ultramodern-readiness-01-zephyr-live-evidence"],
       "active": [
-        {
-          "id": "generate-typed-client-usage",
-          "content": "Update the generated workspace design so at least one shell or remote imports the generated Effect HttpApi contract and calls the typed client with inferred request, response, and error types.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "enforce-backend-contract-implementation",
-          "content": "Ensure generated service handlers use HttpApiBuilder against the shared contract so wrong handler names, request shapes, response shapes, or error channels fail typecheck.",
-          "status": "pending",
-          "ordinal": 4
-        },
         {
           "id": "add-negative-type-safety-tests",
           "content": "Add focused type tests or fixture tests proving invalid client calls, invalid payloads, invalid params, invalid success responses, and invalid error responses fail at typecheck time.",
@@ -365,7 +351,21 @@
           "ordinal": 5
         }
       ],
-      "completed": 2,
+      "upcoming": [
+        {
+          "id": "add-runtime-schema-tests",
+          "content": "Add runtime tests proving HttpApi schema decoding rejects invalid boundary data and returns the expected Modern.js Effect BFF error behavior.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "update-docs-with-real-pattern",
+          "content": "Document the generated Effect HttpApi pattern as the default strict service-boundary approach, including where contracts live, how callers import clients, and which checks prove safety.",
+          "status": "pending",
+          "ordinal": 8
+        }
+      ],
+      "completed": 5,
       "total": 8
     },
     {
@@ -438,10 +438,7 @@
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-05-add-flow-hardening.plan.md",
       "plan_status": "pending",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-readiness-01-zephyr-live-evidence",
-        "ultramodern-readiness-02-effect-httpapi-contract-safety"
-      ],
+      "blocked_by": ["ultramodern-readiness-02-effect-httpapi-contract-safety"],
       "active": [
         {
           "id": "inventory-add-flow-variants",
@@ -502,5 +499,5 @@
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "matched-plan-set"
+  "graph_source": "explicit"
 }

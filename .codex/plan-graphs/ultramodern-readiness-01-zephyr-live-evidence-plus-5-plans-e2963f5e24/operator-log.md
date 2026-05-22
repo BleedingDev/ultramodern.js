@@ -22,6 +22,23 @@ State dir: `.codex/plan-graphs/ultramodern-readiness-01-zephyr-live-evidence-plu
   - Canonical UltraModern contract location should be `packages/shared-effect-api`.
   - Generated services should import `recommendationsEffectApi` from the package, not from service-local `shared/effect/api.ts`.
   - Service-local re-export may remain only as a familiarity shim if useful.
+
+## 2026-05-23
+
+- Implemented point 2 minimal slice:
+  - `packages/shared-effect-api` owns generated Effect `HttpApi` contracts.
+  - Generated services import their canonical contract from `@scope/shared-effect-api`.
+  - Service-local `shared/effect/api.ts` is now a re-export shim.
+  - Shell generates `src/effect/recommendations-client.ts` with `makeEffectHttpApiClient` and `runEffectRequest`.
+  - `--microvertical service` appends its contract to `packages/shared-effect-api`.
+- Completed plan todos:
+  - `generate-typed-client-usage`
+  - `enforce-backend-contract-implementation`
+  - `cover-add-flow-services`
+- Remaining point 2 frontier:
+  - `add-negative-type-safety-tests`
+  - `add-runtime-schema-tests`
+  - `update-docs-with-real-pattern`
 - Blocked lanes:
   - Request/operation context waits on Effect HttpApi contract safety.
   - Observability waits on request/operation context.

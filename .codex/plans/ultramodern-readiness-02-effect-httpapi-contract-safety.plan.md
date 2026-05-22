@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: generate-typed-client-usage
     content: Update the generated workspace design so at least one shell or remote imports the generated Effect HttpApi contract and calls the typed client with inferred request, response, and error types.
-    status: pending
+    status: completed
   - id: enforce-backend-contract-implementation
     content: Ensure generated service handlers use HttpApiBuilder against the shared contract so wrong handler names, request shapes, response shapes, or error channels fail typecheck.
-    status: pending
+    status: completed
   - id: add-negative-type-safety-tests
     content: Add focused type tests or fixture tests proving invalid client calls, invalid payloads, invalid params, invalid success responses, and invalid error responses fail at typecheck time.
     status: pending
@@ -22,7 +22,7 @@ todos:
     status: pending
   - id: cover-add-flow-services
     content: Ensure every service generated through the MicroVertical add flow gets the same canonical contract, implementation, client import path, and validation coverage as the initial starter service.
-    status: pending
+    status: completed
   - id: update-docs-with-real-pattern
     content: Document the generated Effect HttpApi pattern as the default strict service-boundary approach, including where contracts live, how callers import clients, and which checks prove safety.
     status: pending
@@ -74,3 +74,16 @@ The initial subagent-graph audit confirmed that Modern.js already has the import
 The UltraModern-specific gap is generator structure, not Modern.js capability. The generated service currently defines the real `HttpApi` in `services/<service>/shared/effect/api.ts`, while `packages/shared-effect-api` contains only placeholder interface/base-path metadata. That makes the generated workspace weaker than the intended SuperApp contract model.
 
 Canonical decision: UltraModern generated workspaces should make `packages/shared-effect-api` the contract source of truth. Generated services should import the real `recommendationsEffectApi` or service-specific `HttpApi` from that package. A service-local `shared/effect/api.ts` file may remain only as a re-export shim for familiarity with the simpler Modern.js app pattern.
+
+Implementation slice completed:
+
+- `packages/shared-effect-api` now owns the generated real `HttpApi` contract.
+- The generated Effect service imports that package instead of service-local `shared/effect/api.ts`.
+- The service-local file remains as a re-export shim only.
+- The shell gets a small typed Effect HttpApi client helper using `makeEffectHttpApiClient` and `runEffectRequest`.
+- `--microvertical service` appends the new service contract into `packages/shared-effect-api` and imports it from generated service code.
+
+Still pending:
+
+- Negative type-safety fixtures for invalid client/backend shapes.
+- Runtime schema rejection tests for invalid request data.

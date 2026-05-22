@@ -647,8 +647,9 @@ function modernPackageSpecifier(
 function appDependencies(
   scope: string,
   packageSource: ResolvedPackageSource,
+  app: WorkspaceApp,
 ): Record<string, string> {
-  return {
+  const dependencies: Record<string, string> = {
     '@modern-js/plugin-i18n': modernPackageSpecifier(
       '@modern-js/plugin-i18n',
       packageSource,
@@ -672,6 +673,17 @@ function appDependencies(
     'react-dom': REACT_DOM_VERSION,
     'react-i18next': REACT_I18NEXT_VERSION,
   };
+
+  if (app.kind === 'shell') {
+    dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
+      '@modern-js/plugin-bff',
+      packageSource,
+    );
+    dependencies[packageName(scope, 'shared-effect-api')] =
+      WORKSPACE_PACKAGE_VERSION;
+  }
+
+  return dependencies;
 }
 
 function appDevDependencies(
@@ -852,7 +864,7 @@ function createAppPackage(
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
     },
-    dependencies: appDependencies(scope, packageSource),
+    dependencies: appDependencies(scope, packageSource, app),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
 }
@@ -917,8 +929,9 @@ function createSharedPackage(
   scope: string,
   id: string,
   description: string,
+  packageSource: ResolvedPackageSource,
 ): JsonValue {
-  return {
+  const packageJson: Record<string, JsonValue> = {
     private: true,
     name: packageName(scope, id),
     version: '0.1.0',
@@ -935,6 +948,17 @@ function createSharedPackage(
       '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     },
   };
+
+  if (id === 'shared-effect-api') {
+    packageJson.dependencies = {
+      '@modern-js/plugin-bff': modernPackageSpecifier(
+        '@modern-js/plugin-bff',
+        packageSource,
+      ),
+    };
+  }
+
+  return packageJson;
 }
 
 function createAppModernConfig(app: WorkspaceApp): string {
@@ -1523,64 +1547,156 @@ function createCzechTranslations(app: WorkspaceApp): JsonValue {
   };
 }
 
-function createEffectSharedApi(): string {
+function serviceContractStem(service = effectService) {
+  return service.id
+    .replace(/^service-/, '')
+    .replace(/-effect$/, '')
+    .replace(/-api$/, '');
+}
+
+function serviceEffectApiExport(service = effectService) {
+  return `${toCamelCase(serviceContractStem(service))}EffectApi`;
+}
+
+function serviceEffectGroupName(service = effectService) {
+  return toCamelCase(serviceContractStem(service));
+}
+
+function serviceEffectApiName(service = effectService) {
+  return `${toPascalCase(serviceContractStem(service))}EffectApi`;
+}
+
+function serviceEffectSchemaExport(service = effectService) {
+  return `${toCamelCase(serviceContractStem(service))}ItemSchema`;
+}
+
+function createEffectSharedApiImports(): string {
   return `import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
+`;
+}
 
-const recommendationSchema = Schema.Struct({
+function createEffectSharedApiContract(service = effectService): string {
+  const schemaExport = serviceEffectSchemaExport(service);
+  const apiExport = serviceEffectApiExport(service);
+  const apiName = serviceEffectApiName(service);
+  const groupName = serviceEffectGroupName(service);
+  const stem = serviceContractStem(service);
+  const servicePrefix = serviceApiPrefix(service);
+
+  return `export const ${schemaExport} = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
 });
 
-export const recommendationsEffectApi = HttpApi.make('RecommendationsEffectApi').add(
-  HttpApiGroup.make('recommendations').add(
-    HttpApiEndpoint.get('list', '/effect/recommendations', {
+export const ${apiExport} = HttpApi.make('${apiName}').add(
+  HttpApiGroup.make('${groupName}').add(
+    HttpApiEndpoint.get('list', '/effect/${stem}', {
       success: Schema.Struct({
-        items: Schema.Array(recommendationSchema),
+        items: Schema.Array(${schemaExport}),
       }),
     }),
   ),
 );
+
+export const ${groupName}ApiContract = {
+  basePath: '${servicePrefix}/effect/${stem}',
+  serviceId: '${service.id}',
+  servicePrefix: '${servicePrefix}',
+} as const;
 `;
 }
 
-function createEffectServiceEntry(): string {
+function createEffectSharedApi(service = effectService): string {
+  return `${createEffectSharedApiImports()}
+${createEffectSharedApiContract(service)}`;
+}
+
+function createEffectServiceApiShim(
+  scope: string,
+  service = effectService,
+): string {
+  const apiExport = serviceEffectApiExport(service);
+  const contractExport = `${serviceEffectGroupName(service)}ApiContract`;
+  const schemaExport = serviceEffectSchemaExport(service);
+
+  return `export {
+  ${apiExport},
+  ${contractExport},
+  ${schemaExport},
+} from '${packageName(scope, 'shared-effect-api')}';
+`;
+}
+
+function createEffectServiceEntry(
+  scope: string,
+  service = effectService,
+): string {
+  const apiExport = serviceEffectApiExport(service);
+  const groupName = serviceEffectGroupName(service);
+  const stem = serviceContractStem(service);
+
   return `import {
   defineEffectBff,
   Effect,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
-import { recommendationsEffectApi } from '../../shared/effect/api';
+import { ${apiExport} } from '${packageName(scope, 'shared-effect-api')}';
 
-const recommendationsLayer = HttpApiBuilder.group(
-  recommendationsEffectApi,
-  'recommendations',
+const ${groupName}Layer = HttpApiBuilder.group(
+  ${apiExport},
+  '${groupName}',
   (handlers) =>
     handlers.handle('list', () =>
       Effect.succeed({
         items: [
           {
-            id: 'starter-recommendation',
-            title: 'Wire a real recommendation source here',
+            id: 'starter-${stem}',
+            title: 'Wire a real ${stem} source here',
           },
         ],
       }),
     ),
 );
 
-const layer = HttpApiBuilder.layer(recommendationsEffectApi).pipe(
-  Layer.provide(recommendationsLayer),
+const layer = HttpApiBuilder.layer(${apiExport}).pipe(
+  Layer.provide(${groupName}Layer),
 );
 
 export default defineEffectBff({
-  api: recommendationsEffectApi,
+  api: ${apiExport},
   layer,
 });
+`;
+}
+
+function createShellEffectClient(scope: string): string {
+  return `import {
+  makeEffectHttpApiClient,
+  runEffectRequest,
+} from '@modern-js/plugin-bff/effect-client';
+import {
+  recommendationsApiContract,
+  recommendationsEffectApi,
+} from '${packageName(scope, 'shared-effect-api')}';
+
+export function createRecommendationsClient(
+  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+) {
+  return makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl });
+}
+
+export async function listRecommendations(
+  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+) {
+  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
+  return runEffectRequest(client.recommendations.list({}));
+}
 `;
 }
 
@@ -1959,6 +2075,14 @@ function writeApp(
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
 
+  if (app.kind === 'shell') {
+    writeFile(
+      targetDir,
+      `${app.directory}/src/effect/recommendations-client.ts`,
+      createShellEffectClient(scope),
+    );
+  }
+
   if (app.kind === 'vertical' || app.kind === 'horizontal-remote') {
     writeFile(
       targetDir,
@@ -2043,24 +2167,30 @@ export default function ${toPascalCase(service.id)}Home() {
   writeFile(
     targetDir,
     `${service.directory}/shared/effect/api.ts`,
-    createEffectSharedApi(),
+    createEffectServiceApiShim(scope, service),
   );
   writeFile(
     targetDir,
     `${service.directory}/api/effect/index.ts`,
-    createEffectServiceEntry(),
+    createEffectServiceEntry(scope, service),
   );
 }
 
 function writeGenericSharedPackage(
   targetDir: string,
   scope: string,
+  packageSource: ResolvedPackageSource,
   sharedPackage: (typeof sharedPackages)[number],
 ) {
   writeJson(
     targetDir,
     `${sharedPackage.directory}/package.json`,
-    createSharedPackage(scope, sharedPackage.id, sharedPackage.description),
+    createSharedPackage(
+      scope,
+      sharedPackage.id,
+      sharedPackage.description,
+      packageSource,
+    ),
   );
   writeJson(targetDir, `${sharedPackage.directory}/tsconfig.json`, {
     extends: `${relativeRootFor(sharedPackage.directory)}/tsconfig.base.json`,
@@ -2074,12 +2204,21 @@ function writeGenericSharedPackage(
   );
 }
 
-function writeSharedPackages(targetDir: string, scope: string) {
+function writeSharedPackages(
+  targetDir: string,
+  scope: string,
+  packageSource: ResolvedPackageSource,
+) {
   for (const sharedPackage of sharedPackages) {
     writeJson(
       targetDir,
       `${sharedPackage.directory}/package.json`,
-      createSharedPackage(scope, sharedPackage.id, sharedPackage.description),
+      createSharedPackage(
+        scope,
+        sharedPackage.id,
+        sharedPackage.description,
+        packageSource,
+      ),
     );
     writeJson(targetDir, `${sharedPackage.directory}/tsconfig.json`, {
       extends: `${relativeRootFor(sharedPackage.directory)}/tsconfig.base.json`,
@@ -2112,16 +2251,7 @@ function writeSharedPackages(targetDir: string, scope: string) {
   writeFile(
     targetDir,
     'packages/shared-effect-api/src/index.ts',
-    `export interface Recommendation {
-  id: string;
-  title: string;
-}
-
-export const recommendationsApiContract = {
-  basePath: '/recommendations-api/effect/recommendations',
-  serviceId: '${effectService.id}',
-} as const;
-`,
+    createEffectSharedApi(),
   );
 }
 
@@ -2131,6 +2261,29 @@ function readJsonFile(filePath: string): Record<string, any> {
 
 function writeJsonFile(filePath: string, value: JsonValue) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
+function appendEffectSharedApiContract(
+  targetDir: string,
+  service = effectService,
+) {
+  const relativePath = 'packages/shared-effect-api/src/index.ts';
+  assertSafeRelativePath(relativePath);
+  const filePath = path.join(targetDir, relativePath);
+  ensureInsideRoot(targetDir, filePath);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing generated Effect API package: ${relativePath}`);
+  }
+  const current = fs.readFileSync(filePath, 'utf-8');
+  const apiExport = serviceEffectApiExport(service);
+  if (current.includes(`export const ${apiExport} =`)) {
+    return;
+  }
+  fs.writeFileSync(
+    filePath,
+    `${current.trimEnd()}\n\n${createEffectSharedApiContract(service)}`,
+    'utf-8',
+  );
 }
 
 function existingPackageSource(
@@ -2402,6 +2555,7 @@ export function addUltramodernMicroVertical(
       enableTailwind,
       service,
     );
+    appendEffectSharedApiContract(options.workspaceRoot, service);
     topology.effectServices ??= [];
     topology.effectServices.push({
       id: service.id,
@@ -2438,7 +2592,12 @@ export function addUltramodernMicroVertical(
     ) {
       throw new Error(`Topology already contains ${sharedPackage.id}`);
     }
-    writeGenericSharedPackage(options.workspaceRoot, scope, sharedPackage);
+    writeGenericSharedPackage(
+      options.workspaceRoot,
+      scope,
+      packageSource,
+      sharedPackage,
+    );
     topology.sharedPackages ??= [];
     topology.sharedPackages.push({
       id: sharedPackage.id,
@@ -2517,7 +2676,7 @@ export function generateUltramodernWorkspace(
     writeApp(options.targetDir, scope, remote, packageSource, enableTailwind);
   }
   writeEffectService(options.targetDir, scope, packageSource, enableTailwind);
-  writeSharedPackages(options.targetDir, scope);
+  writeSharedPackages(options.targetDir, scope, packageSource);
 }
 
 export const ultramodernWorkspaceVersions = {
