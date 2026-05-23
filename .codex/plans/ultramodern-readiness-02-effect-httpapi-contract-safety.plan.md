@@ -16,16 +16,16 @@ todos:
     status: completed
   - id: add-negative-type-safety-tests
     content: Add focused type tests or fixture tests proving invalid client calls, invalid payloads, invalid params, invalid success responses, and invalid error responses fail at typecheck time.
-    status: pending
+    status: completed
   - id: add-runtime-schema-tests
     content: Add runtime tests proving HttpApi schema decoding rejects invalid boundary data and returns the expected Modern.js Effect BFF error behavior.
-    status: pending
+    status: completed
   - id: cover-add-flow-services
     content: Ensure every service generated through the MicroVertical add flow gets the same canonical contract, implementation, client import path, and validation coverage as the initial starter service.
     status: completed
   - id: update-docs-with-real-pattern
     content: Document the generated Effect HttpApi pattern as the default strict service-boundary approach, including where contracts live, how callers import clients, and which checks prove safety.
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -83,7 +83,12 @@ Implementation slice completed:
 - The shell gets a small typed Effect HttpApi client helper using `makeEffectHttpApiClient` and `runEffectRequest`.
 - `--microvertical service` appends the new service contract into `packages/shared-effect-api` and imports it from generated service code.
 
-Still pending:
+Final implementation slice completed:
 
-- Negative type-safety fixtures for invalid client/backend shapes.
-- Runtime schema rejection tests for invalid request data.
+- The generated canonical Effect HttpApi contract now exercises query, params, payload, success, and declared error schemas.
+- Missing-resource handling uses schema-owned `TaggedErrorClass` errors and `new RecommendationNotFound({ id })`; generated code does not manually construct tagged error object literals.
+- Generated service handlers cover list, get, and create through `HttpApiBuilder` against the shared contract.
+- Generated shell client usage covers typed query, params, and payload calls through `makeEffectHttpApiClient`.
+- Integration fixtures run native TypeScript against generated positive and negative client/backend contract cases.
+- Plugin BFF runtime tests prove invalid payload data is rejected before handlers run and schema-owned typed errors map to declared HttpApi status.
+- Template docs and scaffold validator describe and enforce the real pattern.

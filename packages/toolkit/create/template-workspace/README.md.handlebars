@@ -13,6 +13,13 @@ starter topology:
 - `services/service-recommendations-effect` owns the Effect BFF service.
 - `packages/shared-*` provide placeholders for cross-workspace contracts.
 
+Effect service contracts live in `packages/shared-effect-api`. The generated
+service imports the same `HttpApi` contract as callers, implements it through
+`HttpApiBuilder`, and uses schema-owned `TaggedErrorClass` errors for declared
+error channels. The shell helper in
+`apps/shell-super-app/src/effect/recommendations-client.ts` calls the typed
+client directly through `makeEffectHttpApiClient`.
+
 Run the scaffold validator before adding business code:
 
 ```bash

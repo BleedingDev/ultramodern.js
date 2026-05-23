@@ -1570,11 +1570,29 @@ function serviceEffectSchemaExport(service = effectService) {
   return `${toCamelCase(serviceContractStem(service))}ItemSchema`;
 }
 
+function serviceEffectErrorStem(service = effectService) {
+  const stem = serviceContractStem(service);
+  return stem === 'recommendations' ? 'recommendation' : stem;
+}
+
+function serviceEffectCreatePayloadSchemaExport(service = effectService) {
+  return `${toCamelCase(serviceContractStem(service))}CreatePayloadSchema`;
+}
+
+function serviceEffectNotFoundErrorExport(service = effectService) {
+  return `${toPascalCase(serviceEffectErrorStem(service))}NotFound`;
+}
+
+function serviceEffectNotFoundSchemaExport(service = effectService) {
+  return `${toCamelCase(serviceEffectErrorStem(service))}NotFoundSchema`;
+}
+
 function createEffectSharedApiImports(): string {
   return `import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
+  HttpApiSchema,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
 `;
@@ -1582,6 +1600,10 @@ function createEffectSharedApiImports(): string {
 
 function createEffectSharedApiContract(service = effectService): string {
   const schemaExport = serviceEffectSchemaExport(service);
+  const createPayloadSchemaExport =
+    serviceEffectCreatePayloadSchemaExport(service);
+  const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
+  const notFoundSchemaExport = serviceEffectNotFoundSchemaExport(service);
   const apiExport = serviceEffectApiExport(service);
   const apiName = serviceEffectApiName(service);
   const groupName = serviceEffectGroupName(service);
@@ -1593,14 +1615,50 @@ function createEffectSharedApiContract(service = effectService): string {
   title: Schema.String,
 });
 
+export const ${createPayloadSchemaExport} = Schema.Struct({
+  title: Schema.String,
+});
+
+export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundErrorExport}>()(
+  '${notFoundErrorExport}',
+  {
+    id: Schema.String,
+  },
+) {}
+
+export const ${notFoundSchemaExport} = ${notFoundErrorExport}.pipe(
+  HttpApiSchema.status(404),
+);
+
 export const ${apiExport} = HttpApi.make('${apiName}').add(
-  HttpApiGroup.make('${groupName}').add(
-    HttpApiEndpoint.get('list', '/effect/${stem}', {
-      success: Schema.Struct({
-        items: Schema.Array(${schemaExport}),
+  HttpApiGroup.make('${groupName}')
+    .add(
+      HttpApiEndpoint.get('list', '/effect/${stem}', {
+        query: {
+          limit: Schema.optional(Schema.NumberFromString),
+        },
+        success: Schema.Struct({
+          items: Schema.Array(${schemaExport}),
+        }),
       }),
-    }),
-  ),
+    )
+    .add(
+      HttpApiEndpoint.get('get', '/effect/${stem}/:id', {
+        params: {
+          id: Schema.String,
+        },
+        success: ${schemaExport},
+        error: ${notFoundSchemaExport},
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('create', '/effect/${stem}', {
+        payload: ${createPayloadSchemaExport},
+        success: Schema.Struct({
+          item: ${schemaExport},
+        }),
+      }),
+    ),
 );
 
 export const ${groupName}ApiContract = {
@@ -1622,6 +1680,7 @@ function createEffectServiceEntry(
 ): string {
   const apiExport = serviceEffectApiExport(service);
   const groupName = serviceEffectGroupName(service);
+  const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
   const stem = serviceContractStem(service);
 
   return `import {
@@ -1630,22 +1689,48 @@ function createEffectServiceEntry(
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
-import { ${apiExport} } from '${packageName(scope, 'shared-effect-api')}';
+import {
+  ${apiExport},
+  ${notFoundErrorExport},
+} from '${packageName(scope, 'shared-effect-api')}';
+
+const ${groupName}Items = [
+  {
+    id: 'starter-${stem}',
+    title: 'Wire a real ${stem} source here',
+  },
+];
 
 const ${groupName}Layer = HttpApiBuilder.group(
   ${apiExport},
   '${groupName}',
   (handlers) =>
-    handlers.handle('list', () =>
-      Effect.succeed({
-        items: [
-          {
-            id: 'starter-${stem}',
-            title: 'Wire a real ${stem} source here',
+    handlers
+      .handle('list', ({ query }) =>
+        Effect.succeed({
+          items:
+            typeof query.limit === 'number'
+              ? ${groupName}Items.slice(0, query.limit)
+              : ${groupName}Items,
+        }),
+      )
+      .handle('get', ({ params }) => {
+        const item = ${groupName}Items.find(item => item.id === params.id);
+        return item
+          ? Effect.succeed(item)
+          : Effect.fail(new ${notFoundErrorExport}({ id: params.id }));
+      })
+      .handle('create', ({ payload }) =>
+        Effect.succeed({
+          item: {
+            id: \`generated-${stem}-\${payload.title
+              .toLowerCase()
+              .replaceAll(/[^a-z0-9]+/g, '-')
+              .replaceAll(/^-|-$/g, '')}\`,
+            title: payload.title,
           },
-        ],
-      }),
-    ),
+        }),
+      ),
 );
 
 const layer = HttpApiBuilder.layer(${apiExport}).pipe(
@@ -1677,9 +1762,28 @@ export function createRecommendationsClient(
 
 export async function listRecommendations(
   baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+  limit?: number,
 ) {
   const client = await runEffectRequest(createRecommendationsClient(baseUrl));
-  return runEffectRequest(client.recommendations.list({}));
+  return runEffectRequest(client.recommendations.list({ query: { limit } }));
+}
+
+export async function getRecommendation(
+  id: string,
+  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+) {
+  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
+  return runEffectRequest(client.recommendations.get({ params: { id } }));
+}
+
+export async function createRecommendation(
+  title: string,
+  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+) {
+  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
+  return runEffectRequest(
+    client.recommendations.create({ payload: { title } }),
+  );
 }
 `;
 }

@@ -604,8 +604,10 @@ assert(
   'Shell must include typed Effect HttpApi client helper',
 );
 assert(
-  shellEffectClient.includes('client.recommendations.list({})'),
-  'Shell typed Effect client helper must call the shared recommendations contract',
+  shellEffectClient.includes('client.recommendations.list({ query: { limit } })') &&
+    shellEffectClient.includes('client.recommendations.get({ params: { id } })') &&
+    shellEffectClient.includes('client.recommendations.create({ payload: { title } })'),
+  'Shell typed Effect client helper must call shared query, params, and payload contracts',
 );
 
 const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
@@ -696,6 +698,18 @@ assert(
   'Effect service must use shared recommendations API',
 );
 assert(
+  serviceEntry.includes('new RecommendationNotFound'),
+  'Effect service must use schema-owned typed errors from shared Effect API package',
+);
+assert(
+  serviceEntry.includes(".handle('get'") && serviceEntry.includes(".handle('create'"),
+  'Effect service must implement params and payload endpoints from the shared contract',
+);
+assert(
+  !serviceEntry.includes('_tag'),
+  'Effect service must not manually construct tagged error object literals',
+);
+assert(
   serviceEntry.includes(`from '@${packageScope}/shared-effect-api'`),
   'Effect service must import canonical shared Effect API package',
 );
@@ -714,8 +728,21 @@ assert(
   'Canonical shared Effect API package must define HttpApi',
 );
 assert(
+  sharedEffectApi.includes('HttpApiSchema') &&
+    sharedEffectApi.includes('TaggedErrorClass') &&
+    sharedEffectApi.includes('RecommendationNotFound'),
+  'Canonical shared Effect API package must define schema-owned typed errors',
+);
+assert(
   sharedEffectApi.includes('recommendationsEffectApi'),
   'Canonical shared Effect API package must export recommendationsEffectApi',
+);
+assert(
+  sharedEffectApi.includes('query:') &&
+    sharedEffectApi.includes('params:') &&
+    sharedEffectApi.includes('payload:') &&
+    sharedEffectApi.includes('error:'),
+  'Canonical shared Effect API package must exercise query, params, payload, and error contracts',
 );
 
 const topology = readJson('topology/reference-topology.json');

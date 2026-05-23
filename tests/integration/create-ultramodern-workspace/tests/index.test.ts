@@ -36,6 +36,12 @@ function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
 }
 
+function writeText(root: string, relativePath: string, content: string) {
+  const filePath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
 function expectNoHandlebarsArtifacts(content: string) {
   expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
 }
@@ -67,6 +73,241 @@ function expectPnpm11Policy(workspaceDir: string) {
     expect(pnpmWorkspace).toContain(requiredSnippet);
   }
   expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
+}
+
+function linkTypecheckPackage(
+  workspaceDir: string,
+  name: string,
+  target: string,
+) {
+  const linkPath = path.join(workspaceDir, 'node_modules', ...name.split('/'));
+  fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+  fs.rmSync(linkPath, { recursive: true, force: true });
+  fs.symlinkSync(
+    target,
+    linkPath,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+}
+
+function writeEffectContractTypeFixtures(workspaceDir: string) {
+  const pluginBffDir = path.join(repoRoot, 'packages/cli/plugin-bff');
+  linkTypecheckPackage(workspaceDir, '@modern-js/plugin-bff', pluginBffDir);
+  linkTypecheckPackage(
+    workspaceDir,
+    '@ultra-workspace/shared-effect-api',
+    path.join(workspaceDir, 'packages/shared-effect-api'),
+  );
+  writeText(
+    workspaceDir,
+    'tsconfig.effect-contracts.json',
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          allowImportingTsExtensions: true,
+          exactOptionalPropertyTypes: true,
+          jsx: 'react-jsx',
+          lib: ['ES2023', 'DOM', 'DOM.Iterable'],
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          noEmit: true,
+          skipLibCheck: true,
+          strict: true,
+          target: 'ES2023',
+        },
+        include: [
+          'packages/shared-effect-api/src/index.ts',
+          'services/service-recommendations-effect/api/effect/index.ts',
+          'apps/shell-super-app/src/effect/recommendations-client.ts',
+          'tests/type-contracts/*.ts',
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  writeText(
+    workspaceDir,
+    'tests/type-contracts/effect-client-positive.ts',
+    `import {
+  makeEffectHttpApiClient,
+  runEffectRequest,
+} from '@modern-js/plugin-bff/effect-client';
+import { recommendationsEffectApi } from '@ultra-workspace/shared-effect-api';
+
+async function verifyClient() {
+  const client = await runEffectRequest(
+    makeEffectHttpApiClient(recommendationsEffectApi, {
+      baseUrl: '/recommendations',
+    }),
+  );
+
+  const list = await runEffectRequest(
+    client.recommendations.list({ query: { limit: 1 } }),
+  );
+  const firstTitle: string = list.items[0]?.title ?? '';
+
+  const item = await runEffectRequest(
+    client.recommendations.get({
+      params: { id: 'starter-recommendations' },
+    }),
+  );
+  const itemId: string = item.id;
+
+  const created = await runEffectRequest(
+    client.recommendations.create({ payload: { title: firstTitle || itemId } }),
+  );
+  const createdTitle: string = created.item.title;
+
+  return createdTitle;
+}
+
+void verifyClient;
+`,
+  );
+
+  writeText(
+    workspaceDir,
+    'tests/type-contracts/effect-client-negative.ts',
+    `import {
+  makeEffectHttpApiClient,
+  runEffectRequest,
+} from '@modern-js/plugin-bff/effect-client';
+import { recommendationsEffectApi } from '@ultra-workspace/shared-effect-api';
+
+async function verifyClientRejections() {
+  const client = await runEffectRequest(
+    makeEffectHttpApiClient(recommendationsEffectApi, {
+      baseUrl: '/recommendations',
+    }),
+  );
+
+  // @ts-expect-error unknown endpoint names are not part of the shared contract.
+  await runEffectRequest(client.recommendations.remove({}));
+
+  // @ts-expect-error get requires route params from the shared contract.
+  await runEffectRequest(client.recommendations.get({}));
+
+  await runEffectRequest(
+    client.recommendations.get({
+      // @ts-expect-error params.id must be a string.
+      params: { id: 123 },
+    }),
+  );
+
+  await runEffectRequest(
+    client.recommendations.list({
+      // @ts-expect-error query.limit must be a number.
+      query: { limit: '10' },
+    }),
+  );
+
+  await runEffectRequest(
+    client.recommendations.create({
+      // @ts-expect-error payload.title must be a string.
+      payload: { title: 123 },
+    }),
+  );
+
+  const created = await runEffectRequest(
+    client.recommendations.create({ payload: { title: 'New item' } }),
+  );
+  // @ts-expect-error created item has no count field in the shared schema.
+  created.item.count;
+}
+
+void verifyClientRejections;
+`,
+  );
+
+  writeText(
+    workspaceDir,
+    'tests/type-contracts/effect-server-negative.ts',
+    `import {
+  Effect,
+  HttpApiBuilder,
+} from '@modern-js/plugin-bff/effect-server';
+import {
+  RecommendationNotFound,
+  recommendationsEffectApi,
+} from '@ultra-workspace/shared-effect-api';
+
+HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
+  handlers
+    .handle('list', () => Effect.succeed({ items: [] }))
+    .handle('get', ({ params }) =>
+      Effect.succeed({ id: params.id, title: 'Starter recommendations' }),
+    )
+    .handle('create', ({ payload }) =>
+      Effect.succeed({
+        item: { id: 'generated-recommendation', title: payload.title },
+      }),
+    )
+    // @ts-expect-error unknown handler names are rejected by the shared contract.
+    .handle('delete', () => Effect.succeed({})),
+);
+
+HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
+  handlers
+    .handle('list', () =>
+      // @ts-expect-error title must be a string in the shared success schema.
+      Effect.succeed({
+        items: [
+          {
+            id: 'starter-recommendations',
+            title: 123,
+          },
+        ],
+      }),
+    )
+    .handle('get', ({ params }) =>
+      params.id === 'starter-recommendations'
+        ? Effect.succeed({ id: params.id, title: 'Starter recommendations' })
+        : Effect.fail(new RecommendationNotFound({ id: params.id })),
+    )
+    .handle('create', ({ payload }) =>
+      Effect.succeed({
+        item: { id: 'generated-recommendation', title: payload.title },
+      }),
+    ),
+);
+
+// @ts-expect-error typed error constructors own their schema and require string ids.
+new RecommendationNotFound({ id: 123 });
+`,
+  );
+}
+
+function runEffectContractTypecheck(workspaceDir: string) {
+  const tsgoBin = path.join(
+    repoRoot,
+    'node_modules/@typescript/native-preview/bin/tsgo.js',
+  );
+  try {
+    execFileSync(
+      process.execPath,
+      [tsgoBin, '--noEmit', '-p', 'tsconfig.effect-contracts.json'],
+      {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          FORCE_COLOR: '0',
+        },
+        stdio: 'pipe',
+      },
+    );
+  } catch (error) {
+    const failure = error as Error & {
+      stderr?: Buffer;
+      stdout?: Buffer;
+    };
+    throw new Error(
+      [failure.message, failure.stdout?.toString(), failure.stderr?.toString()]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
 }
 
 describe('create-ultramodern-workspace', () => {
@@ -384,6 +625,10 @@ describe('create-ultramodern-workspace', () => {
     expect(serviceEntry).toContain('defineEffectBff');
     expect(serviceEntry).toContain('recommendationsEffectApi');
     expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
+    expect(serviceEntry).toContain('new RecommendationNotFound');
+    expect(serviceEntry).toContain(".handle('get'");
+    expect(serviceEntry).toContain(".handle('create'");
+    expect(serviceEntry).not.toContain('_tag');
     expect(serviceEntry).not.toContain('../../shared/effect/api');
     expect(serviceEntry).not.toContain('/shared/effect/api');
     expectNoPath(
@@ -396,8 +641,17 @@ describe('create-ultramodern-workspace', () => {
       'packages/shared-effect-api/src/index.ts',
     );
     expect(sharedEffectApi).toContain('HttpApi.make');
+    expect(sharedEffectApi).toContain('HttpApiSchema');
     expect(sharedEffectApi).toContain('RecommendationsEffectApi');
+    expect(sharedEffectApi).toContain('RecommendationNotFound');
+    expect(sharedEffectApi).toContain('TaggedErrorClass');
     expect(sharedEffectApi).toContain('recommendationsApiContract');
+    expect(sharedEffectApi).toContain('query: {\n          limit:');
+    expect(sharedEffectApi).toContain('params: {\n          id:');
+    expect(sharedEffectApi).toContain(
+      'payload: recommendationsCreatePayloadSchema',
+    );
+    expect(sharedEffectApi).toContain('error: recommendationNotFoundSchema');
 
     const shellEffectClient = readText(
       workspaceDir,
@@ -406,7 +660,18 @@ describe('create-ultramodern-workspace', () => {
     expect(shellEffectClient).toContain('makeEffectHttpApiClient');
     expect(shellEffectClient).toContain('runEffectRequest');
     expect(shellEffectClient).toContain('recommendationsEffectApi');
-    expect(shellEffectClient).toContain('client.recommendations.list({})');
+    expect(shellEffectClient).toContain(
+      'client.recommendations.list({ query: { limit } })',
+    );
+    expect(shellEffectClient).toContain(
+      'client.recommendations.get({ params: { id } })',
+    );
+    expect(shellEffectClient).toContain(
+      'client.recommendations.create({ payload: { title } })',
+    );
+
+    writeEffectContractTypeFixtures(workspaceDir);
+    runEffectContractTypecheck(workspaceDir);
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     expect(topology.sourceFixture).toBe(
@@ -636,6 +901,10 @@ describe('create-ultramodern-workspace', () => {
       'services/service-catalog-api-effect/api/effect/index.ts',
     );
     expect(serviceEntry).toContain('catalogEffectApi');
+    expect(serviceEntry).toContain('new CatalogNotFound');
+    expect(serviceEntry).toContain(".handle('get'");
+    expect(serviceEntry).toContain(".handle('create'");
+    expect(serviceEntry).not.toContain('_tag');
     expect(serviceEntry).toContain(
       "from '@ultra-add-service-workspace/shared-effect-api'",
     );
@@ -653,6 +922,9 @@ describe('create-ultramodern-workspace', () => {
     expect(sharedEffectApi).toContain('recommendationsEffectApi');
     expect(sharedEffectApi).toContain('catalogEffectApi');
     expect(sharedEffectApi).toContain('CatalogEffectApi');
+    expect(sharedEffectApi).toContain('CatalogNotFound');
+    expect(sharedEffectApi).toContain('catalogCreatePayloadSchema');
+    expect(sharedEffectApi).toContain('catalogNotFoundSchema');
     expect(sharedEffectApi).toContain(
       "basePath: '/catalog-api/effect/catalog'",
     );
