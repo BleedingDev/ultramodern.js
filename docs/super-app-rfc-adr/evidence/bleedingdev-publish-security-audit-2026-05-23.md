@@ -60,13 +60,28 @@ Important remaining facts:
    publish workflow itself declares minimal `contents: read` and
    `id-token: write`; changing the repository default could affect older
    workflows that rely on implicit write permissions.
-3. Dependabot alerts became visible after enabling vulnerability alerts. The
-   current open alert summary is one critical, fifteen high, nine medium, and
-   two low alerts.
+3. Dependabot alerts became visible after enabling vulnerability alerts. They
+   were resolved separately in `d480b9ec17`.
 4. Local npm CLI is not authenticated, so npm account profile 2FA and npm token
-   inventory could not be verified from this shell. GitHub/npm publish evidence
-   still confirms that the checked package version was published by trusted
-   publishing rather than a long-lived npm token.
+   inventory were verified through the npm web UI after interactive login.
+
+## npm Account Follow-Up - 2026-05-23
+
+Evidence for bead `modernjs-ov3p`:
+
+1. npm logged-in user observed in the web UI: `pegak`.
+2. Account 2FA status: enabled for authorization and publishing.
+3. Account 2FA factor observed: authenticator app.
+4. Account security keys observed: zero.
+5. Access token inventory initially showed one stale token:
+   `Techsio - MacOS`, created and last used on 2025-11-24, expired on
+   2025-12-01.
+6. The stale expired token was deleted from the npm web UI.
+7. Access token inventory after deletion showed no token rows.
+8. `bleedingdev` npm organization has one member: `pegak`, owner.
+9. `bleedingdev` member 2FA status after verification: enabled 1, disabled 0.
+10. `bleedingdev` organization 2FA enforcement was enabled.
+11. npm UI confirmed: organization now has 2FA enforced.
 
 ## Evidence Commands
 
