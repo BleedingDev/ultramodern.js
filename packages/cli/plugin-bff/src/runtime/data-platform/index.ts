@@ -1,4 +1,6 @@
 // @effect-diagnostics asyncFunction:off globalDate:off globalRandom:off globalTimers:off newPromise:off strictBooleanExpressions:off
+import { trace } from '@opentelemetry/api';
+
 export type DataRequestMode =
   | 'cache-first'
   | 'stale-while-revalidate'
@@ -112,6 +114,11 @@ export interface DataBatchTransportEvent {
   reason?: string;
 }
 
+export type DataBatchTransportTelemetryAttributes = Record<
+  string,
+  string | number | boolean
+>;
+
 export interface DataBatchTransportOptions {
   endpoint?: string;
   fetch?: (
@@ -124,6 +131,37 @@ export interface DataBatchTransportOptions {
   requestTimeoutMs?: number;
   allowedMethods?: string[];
   onEvent?: (event: DataBatchTransportEvent) => void;
+}
+
+export const DATA_BATCH_TRANSPORT_OTEL_EVENT = 'modernjs.data.batch';
+
+export function createDataBatchTransportTelemetryAttributes(
+  event: DataBatchTransportEvent,
+): DataBatchTransportTelemetryAttributes {
+  return {
+    'modernjs.data.batch.type': event.type,
+    'modernjs.data.batch.endpoint': event.endpoint,
+    'modernjs.data.batch.degraded':
+      event.type === 'fallback' || event.type === 'disable',
+    ...(event.batchId ? { 'modernjs.data.batch.id': event.batchId } : {}),
+    ...(typeof event.size === 'number'
+      ? { 'modernjs.data.batch.size': event.size }
+      : {}),
+    ...(event.reason ? { 'modernjs.data.batch.reason': event.reason } : {}),
+  };
+}
+
+export function emitDataBatchTransportEvent(
+  onEvent: ((event: DataBatchTransportEvent) => void) | undefined,
+  event: DataBatchTransportEvent,
+) {
+  onEvent?.(event);
+  trace
+    .getActiveSpan()
+    ?.addEvent(
+      DATA_BATCH_TRANSPORT_OTEL_EVENT,
+      createDataBatchTransportTelemetryAttributes(event),
+    );
 }
 
 export interface SelectionPlanValidationOptions {
@@ -1007,7 +1045,7 @@ export function createDataBatchTransport(
     bucket.bytes = 0;
 
     if (items.length === 1 || disabledEndpoints.has(endpoint)) {
-      onEvent?.({
+      emitDataBatchTransportEvent(onEvent, {
         type: disabledEndpoints.has(endpoint) ? 'fallback' : 'flush',
         endpoint,
         size: items.length,
@@ -1026,7 +1064,7 @@ export function createDataBatchTransport(
       items: items.map(item => item.item),
     };
 
-    onEvent?.({
+    emitDataBatchTransportEvent(onEvent, {
       type: 'flush',
       endpoint,
       batchId,
@@ -1059,7 +1097,7 @@ export function createDataBatchTransport(
         requestInit.signal = controller.signal;
         timeoutHandle = setTimeout(() => {
           controller.abort();
-          onEvent?.({
+          emitDataBatchTransportEvent(onEvent, {
             type: 'fallback',
             endpoint,
             batchId,
@@ -1074,14 +1112,14 @@ export function createDataBatchTransport(
       if (!response.ok) {
         if (response.status === 404 || response.status === 405) {
           disabledEndpoints.add(endpoint);
-          onEvent?.({
+          emitDataBatchTransportEvent(onEvent, {
             type: 'disable',
             endpoint,
             batchId,
             reason: `batch-endpoint-unavailable-${String(response.status)}`,
           });
         } else {
-          onEvent?.({
+          emitDataBatchTransportEvent(onEvent, {
             type: 'fallback',
             endpoint,
             batchId,
@@ -1096,7 +1134,7 @@ export function createDataBatchTransport(
 
       const result = (await response.json()) as unknown;
       if (!isBatchResponsePayload(result)) {
-        onEvent?.({
+        emitDataBatchTransportEvent(onEvent, {
           type: 'fallback',
           endpoint,
           batchId,
@@ -1126,7 +1164,7 @@ export function createDataBatchTransport(
         return parseResponseLikeCreateRequest(reconstructedResponse);
       });
     } catch (error) {
-      onEvent?.({
+      emitDataBatchTransportEvent(onEvent, {
         type: 'fallback',
         endpoint,
         batchId,
@@ -1213,7 +1251,7 @@ export function createDataBatchTransport(
 
       bucket.items.push(queued);
       bucket.bytes += size;
-      onEvent?.({
+      emitDataBatchTransportEvent(onEvent, {
         type: 'enqueue',
         endpoint,
         size: bucket.items.length,

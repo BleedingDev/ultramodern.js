@@ -16,7 +16,11 @@ import {
 import type * as EffectServiceContext from 'effect/Context';
 import { HttpApi } from 'effect/unstable/httpapi';
 import path from 'path';
-import { type EffectContext, runWithEffectContext } from './context';
+import {
+  createEffectOperationContext,
+  type EffectContext,
+  runWithEffectContext,
+} from './context';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
@@ -197,6 +201,12 @@ export class EffectAdapter {
             env: c.env as Record<string, unknown>,
             path: c.req.path,
             method: c.req.method,
+            operationContext: createEffectOperationContext({
+              request: effectRequest,
+              env: c.env as Record<string, unknown>,
+              path: c.req.path,
+              method: c.req.method,
+            }),
           };
           response = await runWithEffectContext(effectContext, () =>
             this.handler!.length > 1

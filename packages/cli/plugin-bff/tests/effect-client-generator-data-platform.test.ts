@@ -91,6 +91,7 @@ module.exports = { api };
   test('declaration includes operation manifest contract', () => {
     const declaration = renderEffectClientDeclaration();
     expect(declaration).toContain('EffectOperationManifest');
+    expect(declaration).toContain('EffectOperationContext');
     expect(declaration).toContain('EffectRequestContext');
     expect(declaration).toContain('createEffectRequestContext');
     expect(declaration).toContain('operationManifest');

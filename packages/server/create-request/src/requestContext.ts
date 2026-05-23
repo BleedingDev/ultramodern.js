@@ -8,10 +8,7 @@ export type RequestContextInput = {
   headers?: Record<string, unknown>;
   locale?: string;
   traceparent?: string;
-  operationContext?: Pick<
-    OperationContext,
-    'traceparent' | 'traceId' | 'spanId'
-  >;
+  operationContext?: OperationContext;
 };
 
 export type RequestContextSnapshot = {
@@ -20,6 +17,7 @@ export type RequestContextSnapshot = {
   traceparent?: string;
   traceId?: string;
   spanId?: string;
+  operationContext?: OperationContext;
 };
 
 const readHeader = (
@@ -66,6 +64,42 @@ function parseTraceparent(traceparent?: string) {
   };
 }
 
+function createOperationContextSnapshot(
+  operationContext: OperationContext | undefined,
+  safeContext: Pick<
+    OperationContext,
+    'locale' | 'traceparent' | 'traceId' | 'spanId'
+  >,
+): OperationContext | undefined {
+  if (!operationContext) {
+    return undefined;
+  }
+
+  const snapshot: OperationContext = {
+    ...operationContext,
+    ...(safeContext.locale || operationContext?.locale
+      ? { locale: safeContext.locale || operationContext?.locale }
+      : {}),
+    ...(safeContext.traceparent || operationContext?.traceparent
+      ? {
+          traceparent: safeContext.traceparent || operationContext?.traceparent,
+        }
+      : {}),
+    ...(safeContext.traceId || operationContext?.traceId
+      ? { traceId: safeContext.traceId || operationContext?.traceId }
+      : {}),
+    ...(safeContext.spanId || operationContext?.spanId
+      ? { spanId: safeContext.spanId || operationContext?.spanId }
+      : {}),
+  };
+
+  return Object.keys(snapshot).some(
+    key => typeof snapshot[key as keyof OperationContext] !== 'undefined',
+  )
+    ? snapshot
+    : undefined;
+}
+
 export function createRequestContextSnapshot(
   input: RequestContextInput = {},
 ): RequestContextSnapshot {
@@ -92,6 +126,20 @@ export function createRequestContextSnapshot(
     headers[BFF_TRACEPARENT_HEADER] = traceparent;
   }
 
+  const operationContext = createOperationContextSnapshot(
+    input.operationContext,
+    {
+      ...(locale ? { locale } : {}),
+      ...(traceparent ? { traceparent } : {}),
+      ...(parsedTraceparent
+        ? {
+            traceId: parsedTraceparent.traceId,
+            spanId: parsedTraceparent.spanId,
+          }
+        : {}),
+    },
+  );
+
   return {
     headers,
     ...(locale ? { locale } : {}),
@@ -102,6 +150,7 @@ export function createRequestContextSnapshot(
           spanId: parsedTraceparent.spanId,
         }
       : {}),
+    ...(operationContext ? { operationContext } : {}),
   };
 }
 

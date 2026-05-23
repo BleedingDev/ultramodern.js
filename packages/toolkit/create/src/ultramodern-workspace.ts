@@ -1595,6 +1595,7 @@ function createEffectSharedApiImports(): string {
   HttpApiSchema,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
+import type { OperationContext } from '@modern-js/plugin-bff/client';
 `;
 }
 
@@ -1661,6 +1662,27 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
     ),
 );
 
+export const ${groupName}OperationContexts = {
+  list: {
+    operationId: '${apiName}:${groupName}:list',
+    routePath: '/effect/${stem}',
+    method: 'GET',
+    source: 'generated-client',
+  },
+  get: {
+    operationId: '${apiName}:${groupName}:get',
+    routePath: '/effect/${stem}/:id',
+    method: 'GET',
+    source: 'generated-client',
+  },
+  create: {
+    operationId: '${apiName}:${groupName}:create',
+    routePath: '/effect/${stem}',
+    method: 'POST',
+    source: 'generated-client',
+  },
+} satisfies Record<string, OperationContext>;
+
 export const ${groupName}ApiContract = {
   basePath: '${servicePrefix}/effect/${stem}',
   serviceId: '${service.id}',
@@ -1688,6 +1710,7 @@ function createEffectServiceEntry(
   Effect,
   HttpApiBuilder,
   Layer,
+  useOperationContext,
 } from '@modern-js/plugin-bff/effect-server';
 import {
   ${apiExport},
@@ -1701,6 +1724,16 @@ const ${groupName}Items = [
   },
 ];
 
+const operationAttributes = () => {
+  const context = useOperationContext();
+  return {
+    'modernjs.operation.method': context.method ?? 'unknown',
+    'modernjs.operation.route': context.routePath ?? 'unknown',
+    'modernjs.operation.source': context.source ?? 'unknown',
+    ...(context.traceId ? { 'modernjs.trace.id': context.traceId } : {}),
+  };
+};
+
 const ${groupName}Layer = HttpApiBuilder.group(
   ${apiExport},
   '${groupName}',
@@ -1712,13 +1745,23 @@ const ${groupName}Layer = HttpApiBuilder.group(
             typeof query.limit === 'number'
               ? ${groupName}Items.slice(0, query.limit)
               : ${groupName}Items,
-        }),
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.list', {
+            attributes: operationAttributes(),
+            kind: 'server',
+          }),
+        ),
       )
       .handle('get', ({ params }) => {
         const item = ${groupName}Items.find(item => item.id === params.id);
-        return item
+        return (item
           ? Effect.succeed(item)
-          : Effect.fail(new ${notFoundErrorExport}({ id: params.id }));
+          : Effect.fail(new ${notFoundErrorExport}({ id: params.id }))).pipe(
+            Effect.withSpan('ultramodern.effect.${groupName}.get', {
+              attributes: operationAttributes(),
+              kind: 'server',
+            }),
+          );
       })
       .handle('create', ({ payload }) =>
         Effect.succeed({
@@ -1729,7 +1772,12 @@ const ${groupName}Layer = HttpApiBuilder.group(
               .replaceAll(/^-|-$/g, '')}\`,
             title: payload.title,
           },
-        }),
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.create', {
+            attributes: operationAttributes(),
+            kind: 'server',
+          }),
+        ),
       ),
 );
 
@@ -1752,35 +1800,74 @@ function createShellEffectClient(scope: string): string {
 import {
   recommendationsApiContract,
   recommendationsEffectApi,
+  recommendationsOperationContexts,
 } from '${packageName(scope, 'shared-effect-api')}';
+import type { OperationContext } from '@modern-js/plugin-bff/client';
+
+export type RecommendationsClientOptions = {
+  baseUrl?: string | URL;
+  locale?: string;
+  operationContext?: OperationContext;
+  traceparent?: string;
+};
 
 export function createRecommendationsClient(
-  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+  options: RecommendationsClientOptions = {},
 ) {
-  return makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl });
+  const requestContext = {
+    ...(options.locale ? { locale: options.locale } : {}),
+    ...(options.operationContext
+      ? { operationContext: options.operationContext }
+      : {}),
+    ...(options.traceparent ? { traceparent: options.traceparent } : {}),
+  };
+
+  return makeEffectHttpApiClient(recommendationsEffectApi, {
+    baseUrl: options.baseUrl ?? recommendationsApiContract.servicePrefix,
+    requestContext,
+  });
 }
 
 export async function listRecommendations(
-  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
-  limit?: number,
+  options: RecommendationsClientOptions & { limit?: number } = {},
 ) {
-  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
-  return runEffectRequest(client.recommendations.list({ query: { limit } }));
+  const client = await runEffectRequest(
+    createRecommendationsClient({
+      ...options,
+      operationContext:
+        options.operationContext ?? recommendationsOperationContexts.list,
+    }),
+  );
+  return runEffectRequest(
+    client.recommendations.list({ query: { limit: options.limit } }),
+  );
 }
 
 export async function getRecommendation(
   id: string,
-  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+  options: RecommendationsClientOptions = {},
 ) {
-  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
+  const client = await runEffectRequest(
+    createRecommendationsClient({
+      ...options,
+      operationContext:
+        options.operationContext ?? recommendationsOperationContexts.get,
+    }),
+  );
   return runEffectRequest(client.recommendations.get({ params: { id } }));
 }
 
 export async function createRecommendation(
   title: string,
-  baseUrl: string | URL = recommendationsApiContract.servicePrefix,
+  options: RecommendationsClientOptions = {},
 ) {
-  const client = await runEffectRequest(createRecommendationsClient(baseUrl));
+  const client = await runEffectRequest(
+    createRecommendationsClient({
+      ...options,
+      operationContext:
+        options.operationContext ?? recommendationsOperationContexts.create,
+    }),
+  );
   return runEffectRequest(
     client.recommendations.create({ payload: { title } }),
   );

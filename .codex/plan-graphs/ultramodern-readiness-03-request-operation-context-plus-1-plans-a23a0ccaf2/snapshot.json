@@ -1,0 +1,173 @@
+{
+  "generated_at": "2026-05-23T09:52:05.932917+00:00",
+  "graph_id": "ultramodern-readiness-03-request-operation-context-plus-1-plans-a23a0ccaf2",
+  "plan_set_hash": "ec6240862a",
+  "selection_hash": "a23a0ccaf2",
+  "plan_count": 2,
+  "edge_count": 1,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-03-request-operation-context.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-04-observability-otel-fallback.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "ultramodern-readiness-03-request-operation-context",
+      "target": "ultramodern-readiness-04-observability-otel-fallback"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-03-request-operation-context.plan.md",
+      "slug": "ultramodern-readiness-03-request-operation-context",
+      "name": "Ultramodern Readiness 03 Request Operation Context",
+      "overview": "Design neutral request and operation context primitives for generated SuperApps so trace, locale, operation id, session claims, and application-defined scope can flow safely across shell, remotes, BFF handlers, and Effect services without implementing app-specific auth or ERP permissions.",
+      "todos": [
+        {
+          "id": "audit-existing-request-context",
+          "content": "Audit existing Modern.js request context utilities, BFF runtime context handling, and generated workspace behavior to identify reusable primitives before adding new surface.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "define-neutral-operation-context",
+          "content": "Define a minimal domain-neutral OperationContext shape covering trace id, operation id, locale, request source, optional session claims, and app-defined scope.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "design-effect-layer-access",
+          "content": "Design how Effect BFF handlers and services access operation context through an Effect service or Layer without passing loose ids through every function.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "define-propagation-rules",
+          "content": "Specify which context fields are server-derived, which may be propagated by clients, and which must never be trusted from arbitrary request body or query parameters.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "plan-context-tests",
+          "content": "Plan tests proving generated handlers receive context, logs/spans include context, and unsafe client-supplied scope does not override server-derived context.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-04-observability-otel-fallback.plan.md",
+      "slug": "ultramodern-readiness-04-observability-otel-fallback",
+      "name": "Ultramodern Readiness 04 Observability OTel Fallback",
+      "overview": "Route generated SuperApp operational signals through the existing logging and OpenTelemetry layer so remote loading, fallback rendering, Effect service calls, schema failures, and degraded states are visible without creating a separate telemetry system.",
+      "todos": [
+        {
+          "id": "audit-existing-otel-logging",
+          "content": "Audit current generated telemetry exporters, logging utilities, Effect OTel dependencies, and fallback signal placeholders.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "define-default-events",
+          "content": "Define a small domain-neutral event set for remote loaded, remote failed, fallback rendered, service request started, service failed, schema decode failed, and degraded mode entered.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "map-events-to-otel",
+          "content": "Map generated events to logs, spans, span attributes, and metrics using existing OTel/logging infrastructure instead of a custom telemetry backend.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "wire-generated-examples",
+          "content": "Plan generated shell, remote, and Effect service examples that emit the default operational signals through the shared layer.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "test-observability-output",
+          "content": "Plan tests or smoke checks that assert fallback and Effect service failures produce observable records with operation context.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-readiness-03-request-operation-context",
+      "plan_name": "Ultramodern Readiness 03 Request Operation Context",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-03-request-operation-context.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "audit-existing-request-context",
+          "content": "Audit existing Modern.js request context utilities, BFF runtime context handling, and generated workspace behavior to identify reusable primitives before adding new surface.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "define-neutral-operation-context",
+          "content": "Define a minimal domain-neutral OperationContext shape covering trace id, operation id, locale, request source, optional session claims, and app-defined scope.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "design-effect-layer-access",
+          "content": "Design how Effect BFF handlers and services access operation context through an Effect service or Layer without passing loose ids through every function.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-readiness-04-observability-otel-fallback",
+      "plan_name": "Ultramodern Readiness 04 Observability OTel Fallback",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-readiness-04-observability-otel-fallback.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["ultramodern-readiness-03-request-operation-context"],
+      "active": [
+        {
+          "id": "audit-existing-otel-logging",
+          "content": "Audit current generated telemetry exporters, logging utilities, Effect OTel dependencies, and fallback signal placeholders.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "define-default-events",
+          "content": "Define a small domain-neutral event set for remote loaded, remote failed, fallback rendered, service request started, service failed, schema decode failed, and degraded mode entered.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "map-events-to-otel",
+          "content": "Map generated events to logs, spans, span attributes, and metrics using existing OTel/logging infrastructure instead of a custom telemetry backend.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "matched-plan-set"
+}

@@ -92,7 +92,16 @@ function linkTypecheckPackage(
 
 function writeEffectContractTypeFixtures(workspaceDir: string) {
   const pluginBffDir = path.join(repoRoot, 'packages/cli/plugin-bff');
+  const createRequestDir = path.join(
+    repoRoot,
+    'packages/server/create-request',
+  );
   linkTypecheckPackage(workspaceDir, '@modern-js/plugin-bff', pluginBffDir);
+  linkTypecheckPackage(
+    workspaceDir,
+    '@modern-js/create-request',
+    createRequestDir,
+  );
   linkTypecheckPackage(
     workspaceDir,
     '@ultra-workspace/shared-effect-api',
@@ -134,12 +143,18 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
-import { recommendationsEffectApi } from '@ultra-workspace/shared-effect-api';
+import {
+  recommendationsEffectApi,
+  recommendationsOperationContexts,
+} from '@ultra-workspace/shared-effect-api';
 
 async function verifyClient() {
   const client = await runEffectRequest(
     makeEffectHttpApiClient(recommendationsEffectApi, {
       baseUrl: '/recommendations',
+      requestContext: {
+        operationContext: recommendationsOperationContexts.list,
+      },
     }),
   );
 
@@ -174,12 +189,18 @@ void verifyClient;
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
-import { recommendationsEffectApi } from '@ultra-workspace/shared-effect-api';
+import {
+  recommendationsEffectApi,
+  recommendationsOperationContexts,
+} from '@ultra-workspace/shared-effect-api';
 
 async function verifyClientRejections() {
   const client = await runEffectRequest(
     makeEffectHttpApiClient(recommendationsEffectApi, {
       baseUrl: '/recommendations',
+      requestContext: {
+        operationContext: recommendationsOperationContexts.list,
+      },
     }),
   );
 
@@ -624,6 +645,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(serviceEntry).toContain('defineEffectBff');
     expect(serviceEntry).toContain('recommendationsEffectApi');
+    expect(serviceEntry).toContain('useOperationContext');
+    expect(serviceEntry).toContain('Effect.withSpan');
+    expect(serviceEntry).toContain('modernjs.operation.route');
     expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
     expect(serviceEntry).toContain('new RecommendationNotFound');
     expect(serviceEntry).toContain(".handle('get'");
@@ -642,10 +666,13 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(sharedEffectApi).toContain('HttpApi.make');
     expect(sharedEffectApi).toContain('HttpApiSchema');
+    expect(sharedEffectApi).toContain('OperationContext');
     expect(sharedEffectApi).toContain('RecommendationsEffectApi');
     expect(sharedEffectApi).toContain('RecommendationNotFound');
     expect(sharedEffectApi).toContain('TaggedErrorClass');
     expect(sharedEffectApi).toContain('recommendationsApiContract');
+    expect(sharedEffectApi).toContain('recommendationsOperationContexts');
+    expect(sharedEffectApi).toContain("source: 'generated-client'");
     expect(sharedEffectApi).toContain('query: {\n          limit:');
     expect(sharedEffectApi).toContain('params: {\n          id:');
     expect(sharedEffectApi).toContain(
@@ -660,8 +687,11 @@ describe('create-ultramodern-workspace', () => {
     expect(shellEffectClient).toContain('makeEffectHttpApiClient');
     expect(shellEffectClient).toContain('runEffectRequest');
     expect(shellEffectClient).toContain('recommendationsEffectApi');
+    expect(shellEffectClient).toContain('recommendationsOperationContexts');
+    expect(shellEffectClient).toContain('const requestContext');
+    expect(shellEffectClient).toContain('operationContext:');
     expect(shellEffectClient).toContain(
-      'client.recommendations.list({ query: { limit } })',
+      'client.recommendations.list({ query: { limit: options.limit } })',
     );
     expect(shellEffectClient).toContain(
       'client.recommendations.get({ params: { id } })',

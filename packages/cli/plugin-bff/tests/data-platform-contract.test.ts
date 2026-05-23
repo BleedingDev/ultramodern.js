@@ -1,10 +1,12 @@
 import {
   buildQueryKey,
   buildScopeKey,
+  createDataBatchTransportTelemetryAttributes,
   createHydrationEnvelope,
   createInvalidationEvent,
   createOperationId,
   createRequestEnvelope,
+  DATA_BATCH_TRANSPORT_OTEL_EVENT,
   deriveChildTraceContext,
   formatTraceparentHeader,
   parseTraceparentHeader,
@@ -16,6 +18,26 @@ import {
 } from '../src/runtime/data-platform';
 
 describe('data-platform architecture contracts', () => {
+  test('maps batch transport events to stable OTel attributes', () => {
+    expect(DATA_BATCH_TRANSPORT_OTEL_EVENT).toBe('modernjs.data.batch');
+    expect(
+      createDataBatchTransportTelemetryAttributes({
+        type: 'fallback',
+        endpoint: 'http://localhost:8080/_data/batch',
+        batchId: 'batch-1',
+        size: 3,
+        reason: 'batch-timeout',
+      }),
+    ).toEqual({
+      'modernjs.data.batch.degraded': true,
+      'modernjs.data.batch.endpoint': 'http://localhost:8080/_data/batch',
+      'modernjs.data.batch.id': 'batch-1',
+      'modernjs.data.batch.reason': 'batch-timeout',
+      'modernjs.data.batch.size': 3,
+      'modernjs.data.batch.type': 'fallback',
+    });
+  });
+
   test('creates deterministic operation IDs and prevents cross-app collisions', () => {
     const hostOperation = {
       appNamespace: 'host-app',

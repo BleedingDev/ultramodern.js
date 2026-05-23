@@ -6,6 +6,7 @@ import { EffectAdapter } from '../src/runtime/effect/adapter';
 import {
   type EffectContext,
   useEffectContext,
+  useOperationContext,
 } from '../src/runtime/effect/context';
 import clientGenerator, {
   type APILoaderOptions,
@@ -149,6 +150,7 @@ describe('plugin-bff regressions', () => {
         context: EffectContext,
       ) => {
         const storedContext = useEffectContext();
+        const operationContext = useOperationContext();
         return Response.json({
           request: {
             auth: request.headers.get('authorization'),
@@ -178,6 +180,7 @@ describe('plugin-bff regressions', () => {
             path: context.path,
             method: context.method,
           },
+          operationContext,
         });
       };
     };
@@ -241,6 +244,22 @@ describe('plugin-bff regressions', () => {
       middleware: {
         path: contextPath,
         method: 'GET',
+      },
+      operationContext: {
+        ...(contextPath !== servicePath
+          ? {
+              attributes: {
+                mountedPath: contextPath,
+              },
+            }
+          : {}),
+        locale: 'cs-CZ, en;q=0.8',
+        method: 'GET',
+        routePath: servicePath,
+        source: 'effect-adapter',
+        traceId: '11111111111111111111111111111111',
+        spanId: '2222222222222222',
+        traceparent: '00-11111111111111111111111111111111-2222222222222222-01',
       },
     });
   });

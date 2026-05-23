@@ -604,10 +604,13 @@ assert(
   'Shell must include typed Effect HttpApi client helper',
 );
 assert(
-  shellEffectClient.includes('client.recommendations.list({ query: { limit } })') &&
+  shellEffectClient.includes('recommendationsOperationContexts') &&
+    shellEffectClient.includes('const requestContext') &&
+    shellEffectClient.includes('operationContext:') &&
+    shellEffectClient.includes('client.recommendations.list({ query: { limit: options.limit } })') &&
     shellEffectClient.includes('client.recommendations.get({ params: { id } })') &&
     shellEffectClient.includes('client.recommendations.create({ payload: { title } })'),
-  'Shell typed Effect client helper must call shared query, params, and payload contracts',
+  'Shell typed Effect client helper must call shared contracts with request context metadata',
 );
 
 const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
@@ -698,6 +701,12 @@ assert(
   'Effect service must use shared recommendations API',
 );
 assert(
+  serviceEntry.includes('useOperationContext') &&
+    serviceEntry.includes('Effect.withSpan') &&
+    serviceEntry.includes('modernjs.operation.route'),
+  'Effect service must expose operation context attributes through Effect spans',
+);
+assert(
   serviceEntry.includes('new RecommendationNotFound'),
   'Effect service must use schema-owned typed errors from shared Effect API package',
 );
@@ -736,6 +745,12 @@ assert(
 assert(
   sharedEffectApi.includes('recommendationsEffectApi'),
   'Canonical shared Effect API package must export recommendationsEffectApi',
+);
+assert(
+  sharedEffectApi.includes('OperationContext') &&
+    sharedEffectApi.includes('recommendationsOperationContexts') &&
+    sharedEffectApi.includes("source: 'generated-client'"),
+  'Canonical shared Effect API package must export neutral generated operation context metadata',
 );
 assert(
   sharedEffectApi.includes('query:') &&

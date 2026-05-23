@@ -173,15 +173,29 @@ export type OperationContractOptions = {
   onViolation?: (violation: OperationContractViolation) => void;
 };
 
+export type OperationContextSource =
+  | 'client'
+  | 'server'
+  | 'generated-client'
+  | 'effect-adapter'
+  | 'data-platform'
+  | 'unknown';
+
 export type OperationContext = {
+  requestId?: string;
   operationId?: string;
   routePath?: string;
   method?: string;
   schemaHash?: string;
   operationVersion?: number;
+  locale?: string;
   traceparent?: string;
   traceId?: string;
   spanId?: string;
+  source?: OperationContextSource;
+  scope?: Record<string, unknown>;
+  sessionClaims?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
 };
 
 export type RequestCreatorOptions<F = typeof fetch> = {

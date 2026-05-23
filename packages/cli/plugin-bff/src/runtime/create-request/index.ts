@@ -7,6 +7,12 @@ import {
   createUploader,
 } from '@modern-js/create-request';
 
+export type {
+  OperationContext,
+  OperationContextSource,
+  RequestContextInput,
+  RequestContextSnapshot,
+} from '@modern-js/create-request';
 export {
   configure,
   createRequest,

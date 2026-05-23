@@ -37,7 +37,13 @@ export { HttpTraceContext } from 'effect/unstable/http';
 export * from 'effect/unstable/httpapi';
 export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
-export { type EffectContext, useEffectContext } from './context';
+export {
+  type CreateEffectOperationContextOptions,
+  createEffectOperationContext,
+  type EffectContext,
+  useEffectContext,
+  useOperationContext,
+} from './context';
 
 export type EffectRuntimeLayer = Layer.Layer<never, unknown, unknown>;
 export type EffectRpcSerialization =

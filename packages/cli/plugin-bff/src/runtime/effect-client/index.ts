@@ -1,11 +1,19 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off newPromise:off strictEffectProvide:off
+import {
+  createRequestContextHeaders,
+  type RequestContextInput,
+} from '@modern-js/create-request';
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Scope from 'effect/Scope';
-import { FetchHttpClient } from 'effect/unstable/http';
+import {
+  FetchHttpClient,
+  HttpClient,
+  HttpClientRequest,
+} from 'effect/unstable/http';
 import {
   HttpApi,
   HttpApiClient,
@@ -39,6 +47,13 @@ export {
 
 export type EffectHttpApiClientOptions = {
   baseUrl?: URL | string;
+  requestContext?: RequestContextInput;
+  transformClient?: (client: HttpClient.HttpClient) => HttpClient.HttpClient;
+  transformResponse?:
+    | ((
+        effect: Effect.Effect<unknown, unknown, unknown>,
+      ) => Effect.Effect<unknown, unknown, unknown>)
+    | undefined;
 };
 
 type Nullish = null | undefined;
@@ -195,8 +210,40 @@ export function makeEffectHttpApiClient<
   ApiId extends string,
   Groups extends HttpApiGroup.Any,
 >(api: HttpApi.HttpApi<ApiId, Groups>, options?: EffectHttpApiClientOptions) {
+  const requestContextHeaders = createRequestContextHeaders(
+    options?.requestContext,
+  );
+  const transformClient = (client: HttpClient.HttpClient) => {
+    const contextClient =
+      Object.keys(requestContextHeaders).length === 0
+        ? client
+        : client.pipe(
+            HttpClient.mapRequest(request => {
+              let nextRequest = request;
+              for (const [header, value] of Object.entries(
+                requestContextHeaders,
+              )) {
+                if (nextRequest.headers[header.toLowerCase()] === undefined) {
+                  nextRequest = HttpClientRequest.setHeader(
+                    nextRequest,
+                    header,
+                    value,
+                  );
+                }
+              }
+              return nextRequest;
+            }),
+          );
+
+    return options?.transformClient
+      ? options.transformClient(contextClient)
+      : contextClient;
+  };
+
   return HttpApiClient.make(api, {
     baseUrl: options?.baseUrl,
+    transformClient,
+    transformResponse: options?.transformResponse,
   }).pipe(Effect.provide(FetchHttpClient.layer));
 }
 

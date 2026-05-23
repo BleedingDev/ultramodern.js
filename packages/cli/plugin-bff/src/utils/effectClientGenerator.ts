@@ -803,9 +803,26 @@ export type EffectOperationManifest = Record<
   string,
   Record<string, EffectOperationDescriptor>
 >;
+export type EffectOperationContext = {
+  requestId?: string;
+  operationId?: string;
+  routePath?: string;
+  method?: string;
+  schemaHash?: string;
+  operationVersion?: number;
+  locale?: string;
+  traceparent?: string;
+  traceId?: string;
+  spanId?: string;
+  source?: string;
+  scope?: Record<string, unknown>;
+  sessionClaims?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
+};
 export type EffectRequestContext = {
   headers?: Record<string, string>;
   locale?: string;
+  operationContext?: EffectOperationContext;
   traceparent?: string;
   traceId?: string;
   spanId?: string;
