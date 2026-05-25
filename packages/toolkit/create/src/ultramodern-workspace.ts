@@ -11,7 +11,7 @@ const workspaceTemplateDir = path.resolve(
 );
 
 const TANSTACK_ROUTER_VERSION = '1.170.6';
-const MODULE_FEDERATION_VERSION = '2.4.0';
+const MODULE_FEDERATION_VERSION = '2.5.0';
 const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';

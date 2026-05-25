@@ -541,7 +541,7 @@ describe('create-ultramodern-workspace', () => {
         '1.170.6',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
-        '2.4.0',
+        '2.5.0',
       );
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
     }
@@ -840,7 +840,7 @@ describe('create-ultramodern-workspace', () => {
       '1.170.6',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
-      '2.4.0',
+      '2.5.0',
     );
     expect(remotePackage.dependencies['zephyr-modernjs-plugin']).toBe('1.1.1');
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
