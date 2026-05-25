@@ -188,7 +188,7 @@
     "@types/ioredis-mock": "^8.2.7",
     "@types/node": "^25.8.0",
     "@types/serialize-javascript": "^5.0.4",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "ioredis-mock": "^8.13.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

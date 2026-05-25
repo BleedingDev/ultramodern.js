@@ -160,7 +160,7 @@
     "@types/node": "^25.8.0",
     "@types/qs": "^6.15.1",
     "@types/type-is": "^1.6.7",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "memfs": "^4.57.2",
     "zod": "^4.4.3"
   },

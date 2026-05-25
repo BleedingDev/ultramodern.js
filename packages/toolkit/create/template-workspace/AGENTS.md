@@ -27,6 +27,9 @@ Use these skills when the task touches the matching subsystem:
 - `rslib-best-practices`: Shared packages, generated libraries, declaration output, and Rslib configuration.
 - `rslib-modern-package`: Package contracts for shared libraries, exports, side effects, dependency placement, README, and release readiness.
 - `rstest-best-practices`: Rstest configuration, test writing, mocking, snapshots, coverage, and CI test behavior.
+- `mf`: Module Federation docs, Modern.js integration, DTS/type checks, shared dependency checks, runtime errors, and observability troubleshooting.
+
+The public `module-federation/agent-skills` repository is installed during `pnpm install` and `pnpm skills:install`. `pnpm skills:check` fails when the required public `mf` skill is missing.
 
 ## Private Skills
 
@@ -58,4 +61,4 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 
 ## Skill Provenance
 
-The vendored Rstack skills and private TechsioCZ skill allowlist are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run `pnpm check`.
+The vendored Rstack skills, public Module Federation skill, and private TechsioCZ skill allowlist are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run `pnpm check`.

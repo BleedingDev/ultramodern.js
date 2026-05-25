@@ -56,7 +56,11 @@ function createRouteStaticData(opts: {
   modernRouteAction?: unknown;
   modernRouteLoader?: unknown;
 }) {
-  const staticData: Record<string, unknown> = {};
+  const staticData: {
+    modernRouteId?: string;
+    modernRouteAction?: unknown;
+    modernRouteLoader?: unknown;
+  } = {};
 
   if (opts.modernRouteId) {
     staticData.modernRouteId = opts.modernRouteId;
@@ -70,7 +74,7 @@ function createRouteStaticData(opts: {
     staticData.modernRouteAction = opts.modernRouteAction;
   }
 
-  return Object.keys(staticData).length > 0 ? staticData : undefined;
+  return staticData;
 }
 
 function modernLoaderToTanstack<TLoader extends (args: any) => any>(

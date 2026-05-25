@@ -18,7 +18,7 @@
     "@types/koa": "3.0.2",
     "@types/node": "^25.8.0",
     "@types/supertest": "^7.2.0",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "supertest": "^7.2.2"
   }
 }

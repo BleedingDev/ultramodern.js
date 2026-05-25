@@ -94,7 +94,7 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.21",
-    "@tanstack/react-router": "1.170.6",
+    "@tanstack/react-router": "1.170.8",
     "@tanstack/router-core": "1.171.4"
   },
   "peerDependencies": {
@@ -114,7 +114,7 @@
     "@types/node": "^25.8.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

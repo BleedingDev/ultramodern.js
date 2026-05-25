@@ -452,22 +452,27 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['skills:install']).toBe(
       'node ./scripts/bootstrap-agent-skills.mjs',
     );
+    expect(rootPackage.scripts.postinstall).toBe(
+      'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
+    );
     expect(
       Object.keys(rootPackage.scripts).every(
         scriptName => !scriptName.startsWith('zephyr:'),
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.7.3',
-      '@typescript/native-preview': '7.0.0-dev.20260518.1',
-      oxlint: '1.65.0',
-      oxfmt: '0.50.0',
+      '@effect/tsgo': '0.11.0',
+      '@typescript/native-preview': '7.0.0-dev.20260525.1',
+      oxlint: '1.66.0',
+      oxfmt: '0.51.0',
       ultracite: '7.7.0',
     });
 
     const agentsInstructions = readText(workspaceDir, 'AGENTS.md');
     expect(agentsInstructions).toContain('UltraModern Agent Contract');
     expect(agentsInstructions).toContain('Required Skill Baseline');
+    expect(agentsInstructions).toContain('module-federation/agent-skills');
+    expect(agentsInstructions).toContain('`mf`');
     expect(agentsInstructions).toContain('TechsioCZ/skills');
 
     const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
@@ -488,6 +493,7 @@ describe('create-ultramodern-workspace', () => {
       'rslib-best-practices',
       'rslib-modern-package',
       'rstest-best-practices',
+      'mf',
     ]);
     expect(
       readText(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md'),
@@ -496,6 +502,20 @@ describe('create-ultramodern-workspace', () => {
       (source: { repository: string }) =>
         source.repository === 'https://github.com/TechsioCZ/skills',
     );
+    const moduleFederationSource = skillsLock.sources.find(
+      (source: { repository: string }) =>
+        source.repository ===
+        'https://github.com/module-federation/agent-skills',
+    );
+    expect(moduleFederationSource).toMatchObject({
+      install: 'clone',
+      commit: '07bb5b6c43ad457609e00c081b72d4c42508ec76',
+    });
+    expect(
+      moduleFederationSource.baseline.map(
+        (skill: { name: string }) => skill.name,
+      ),
+    ).toEqual(['mf']);
     expect(privateSource.install).toBe('clone-if-authorized');
     expect(
       privateSource.baseline.map((skill: { name: string }) => skill.name),
@@ -519,10 +539,11 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.7.3');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.11.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260518.1',
+        '7.0.0-dev.20260525.1',
       );
+      expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
         '^4.3.0',
@@ -538,7 +559,7 @@ describe('create-ultramodern-workspace', () => {
       ).toBe(true);
       expect(packageJson.scripts.typecheck).toContain('effect-tsgo');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.6',
+        '1.170.8',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.5.0',
@@ -578,6 +599,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/module-federation.config.ts',
     );
     expect(shellMfConfig).toContain("name: 'shellSuperApp'");
+    expect(shellMfConfig).toContain('dts: true');
     expect(shellMfConfig).toContain(
       'remoteCommerce@http://localhost:3021/mf-manifest.json',
     );
@@ -593,6 +615,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/module-federation.config.ts',
     );
     expect(commerceMfConfig).toContain("name: 'remoteCommerce'");
+    expect(commerceMfConfig).toContain('dts: true');
     expect(commerceMfConfig).toContain("'./Widget'");
     expect(commerceMfConfig).toContain("'./Route'");
 
@@ -768,6 +791,12 @@ describe('create-ultramodern-workspace', () => {
       'rslib-modern-package',
       'rstest-best-practices',
     ]);
+    expect(manifest.agentSkills.moduleFederationSource).toMatchObject({
+      repository: 'https://github.com/module-federation/agent-skills',
+      commit: '07bb5b6c43ad457609e00c081b72d4c42508ec76',
+      install: 'clone',
+      baseline: ['mf'],
+    });
     expect(manifest.agentSkills.privateSource).toMatchObject({
       repository: 'https://github.com/TechsioCZ/skills',
       install: 'clone-if-authorized',
@@ -839,7 +868,7 @@ describe('create-ultramodern-workspace', () => {
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.6',
+      '1.170.8',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.0',

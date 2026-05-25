@@ -5,7 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  typescript: npm:@typescript/native-preview@7.0.0-dev.20260516.1
   micromatch: ^4.0.8
   read-yaml-file>js-yaml: 3.14.2
   '@remix-run/router': '>=1.23.2'
@@ -57,8 +56,8 @@ importers:
         specifier: ^2.31.0
         version: 2.31.0(@types/node@25.8.0)
       '@effect/tsgo':
-        specifier: 0.7.2
-        version: 0.7.2
+        specifier: 0.11.0
+        version: 0.11.0
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:packages/tsconfig
@@ -75,8 +74,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       check-dependency-version-consistency:
         specifier: 6.0.0
         version: 6.0.0
@@ -127,8 +126,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       prettier:
         specifier: ~3.8.3
         version: 3.8.3
@@ -161,7 +160,7 @@ importers:
         version: 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@rstest/core':
         specifier: 0.10.0
         version: 0.10.0(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
@@ -172,8 +171,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/cli/builder:
     dependencies:
@@ -209,10 +208,10 @@ importers:
         version: 1.0.5(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))
       '@rsbuild/plugin-svgr':
         specifier: 2.0.2
-        version: 2.0.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
+        version: 2.0.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)
       '@rsbuild/plugin-type-check':
         specifier: 1.3.4
-        version: 1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
+        version: 1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)
       '@rsbuild/plugin-typed-css-modules':
         specifier: 1.2.2
         version: 1.2.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))
@@ -288,7 +287,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -299,8 +298,8 @@ importers:
         specifier: ^4.17.24
         version: 4.17.24
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -394,7 +393,7 @@ importers:
         version: 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -408,8 +407,8 @@ importers:
         specifier: ^1.6.7
         version: 1.6.7
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       memfs:
         specifier: ^4.57.2
         version: 4.57.2
@@ -446,7 +445,7 @@ importers:
         version: 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -457,8 +456,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       memfs:
         specifier: ^4.57.2
         version: 4.57.2
@@ -501,7 +500,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -509,8 +508,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -541,7 +540,7 @@ importers:
         version: link:../../runtime/plugin-runtime
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
@@ -552,8 +551,8 @@ importers:
         specifier: ^5.1.36
         version: 5.1.36
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       styled-components:
         specifier: ^6.4.1
         version: 6.4.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -589,8 +588,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       classnames:
         specifier: ^2.5.1
         version: 2.5.1
@@ -660,7 +659,7 @@ importers:
         version: link:../plugin-runtime
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
@@ -668,11 +667,11 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       jest:
         specifier: ^30.4.2
         version: 30.4.2(@types/node@25.8.0)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.28.0))
@@ -684,10 +683,10 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
       ts-jest:
         specifier: ^29.4.9
-        version: 29.4.9(@babel/core@7.29.0)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.0))(esbuild@0.28.0)(jest-util@30.4.1)(jest@30.4.2(@types/node@25.8.0)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.28.0)))
+        version: 29.4.9(@babel/core@7.29.0)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.0))(esbuild@0.28.0)(jest-util@30.4.1)(jest@30.4.2(@types/node@25.8.0)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.28.0)))(typescript@6.0.3)
 
   packages/runtime/plugin-image:
     dependencies:
@@ -709,13 +708,13 @@ importers:
         version: link:../../solutions/app-tools
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -759,8 +758,8 @@ importers:
         specifier: ^11.9.0
         version: 11.9.0
       '@tanstack/react-router':
-        specifier: 1.170.6
-        version: 1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.170.8
+        version: 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/router-core':
         specifier: 1.171.4
         version: 1.171.4
@@ -809,7 +808,7 @@ importers:
         version: 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -832,8 +831,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -859,8 +858,8 @@ importers:
         specifier: ^0.5.21
         version: 0.5.21
       '@tanstack/react-router':
-        specifier: 1.170.6
-        version: 1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.170.8
+        version: 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/router-core':
         specifier: 1.171.4
         version: 1.171.4
@@ -876,7 +875,7 @@ importers:
         version: link:../plugin-runtime
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -899,8 +898,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -928,7 +927,7 @@ importers:
         version: link:../../server/core
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -939,8 +938,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -977,7 +976,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -988,8 +987,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       tsconfig-paths:
         specifier: ^4.2.0
         version: 4.2.0
@@ -1017,13 +1016,13 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/server/core:
     dependencies:
@@ -1069,7 +1068,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1083,8 +1082,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       http-proxy-middleware:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1118,7 +1117,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1129,8 +1128,8 @@ importers:
         specifier: ^6.15.1
         version: 6.15.1
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       nock:
         specifier: ^14.0.15
         version: 14.0.15
@@ -1181,8 +1180,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
@@ -1221,8 +1220,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
@@ -1259,7 +1258,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1270,8 +1269,8 @@ importers:
         specifier: ^0.7.39
         version: 0.7.39
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/server/prod-server:
     dependencies:
@@ -1296,7 +1295,7 @@ importers:
         version: link:../../toolkit/types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1307,8 +1306,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       lint-staged:
         specifier: ~17.0.5
         version: 17.0.5
@@ -1360,7 +1359,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1374,8 +1373,8 @@ importers:
         specifier: ^8.18.1
         version: 8.18.1
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       node-mocks-http:
         specifier: ^1.17.2
         version: 1.17.2(@types/express@5.0.6)(@types/node@25.8.0)
@@ -1406,7 +1405,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1414,8 +1413,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/server/utils:
     dependencies:
@@ -1434,7 +1433,7 @@ importers:
         version: link:../core
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1442,8 +1441,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/solutions/app-tools:
     dependencies:
@@ -1531,7 +1530,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1542,8 +1541,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       tsconfig-paths:
         specifier: ^4.2.0
         version: 4.2.0
@@ -1558,13 +1557,13 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       tsx:
         specifier: ^4.22.0
         version: 4.22.0
@@ -1583,7 +1582,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1591,8 +1590,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/toolkit/plugin:
     dependencies:
@@ -1623,7 +1622,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
@@ -1631,8 +1630,8 @@ importers:
         specifier: ^19.2.15
         version: 19.2.15
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   packages/toolkit/runtime-utils:
     dependencies:
@@ -1660,7 +1659,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1674,8 +1673,8 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       ioredis-mock:
         specifier: ^8.13.1
         version: 8.13.1(@types/ioredis-mock@8.2.7)
@@ -1718,7 +1717,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
@@ -1732,8 +1731,8 @@ importers:
         specifier: ^2.2.4
         version: 2.2.4
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       recursive-readdir:
         specifier: ^2.2.3
         version: 2.2.3
@@ -1782,7 +1781,7 @@ importers:
         version: link:../types
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -1790,8 +1789,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       happy-dom:
         specifier: ^20.8.9
         version: 20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -1807,8 +1806,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   scripts/check-changeset:
     dependencies:
@@ -1860,8 +1859,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       '@vercel/ncc':
         specifier: 0.38.4
         version: 0.38.4
@@ -1880,13 +1879,13 @@ importers:
         version: 6.1.0(rollup@4.60.4)
       '@svgr/core':
         specifier: 8.1.0
-        version: 8.1.0
+        version: 8.1.0(typescript@6.0.3)
       '@svgr/plugin-jsx':
         specifier: 8.1.0
-        version: 8.1.0(@svgr/core@8.1.0)
+        version: 8.1.0(@svgr/core@8.1.0(typescript@6.0.3))
       '@svgr/plugin-svgo':
         specifier: 8.1.0
-        version: 8.1.0(@svgr/core@8.1.0)
+        version: 8.1.0(@svgr/core@8.1.0(typescript@6.0.3))(typescript@6.0.3)
       '@types/debug':
         specifier: 4.1.13
         version: 4.1.13
@@ -2039,7 +2038,7 @@ importers:
         version: 4.60.4
       rollup-plugin-dts:
         specifier: 6.4.1
-        version: 6.4.1(rollup@4.60.4)
+        version: 6.4.1(rollup@4.60.4)(typescript@6.0.3)
       sass:
         specifier: 1.99.0
         version: 1.99.0
@@ -2119,13 +2118,13 @@ importers:
         version: 2.0.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
       '@rslib/core':
         specifier: 0.21.5
-        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)
+        version: 0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   scripts/rstest-config:
     dependencies:
@@ -2136,8 +2135,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       path-serializer:
         specifier: 0.6.0
         version: 0.6.0
@@ -2160,8 +2159,8 @@ importers:
         specifier: ^25.8.0
         version: 25.8.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       cross-spawn:
         specifier: '>=6.0.6'
         version: 7.0.6
@@ -2179,7 +2178,7 @@ importers:
         version: 2.0.1
       puppeteer:
         specifier: ^25.0.2
-        version: 25.0.2(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 25.0.2(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -2206,7 +2205,7 @@ importers:
         version: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       vue:
         specifier: ^3.5.34
-        version: 3.5.34
+        version: 3.5.34(typescript@6.0.3)
     devDependencies:
       '@modern-js/builder':
         specifier: workspace:*
@@ -2242,8 +2241,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       connect:
         specifier: ^3.7.0
         version: 3.7.0
@@ -2294,8 +2293,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/app-document:
     dependencies:
@@ -2328,8 +2327,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/asset-prefix:
     dependencies:
@@ -2378,8 +2377,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/basic-app:
     dependencies:
@@ -2409,8 +2408,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-corss-project/bff-api-app:
     dependencies:
@@ -2461,8 +2460,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-corss-project/bff-api-app/dist-1/client: {}
 
@@ -2515,8 +2514,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-corss-project/bff-indep-client-app:
     dependencies:
@@ -2570,8 +2569,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-effect:
     dependencies:
@@ -2607,8 +2606,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-effect-lambda-only:
     dependencies:
@@ -2644,8 +2643,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/bff-hono:
     dependencies:
@@ -2687,8 +2686,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       tsconfig-paths:
         specifier: 4.2.0
         version: 4.2.0
@@ -2733,8 +2732,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/builder-plugins:
     dependencies:
@@ -2783,8 +2782,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/compatibility:
     dependencies:
@@ -2814,8 +2813,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/copy-assets:
     dependencies:
@@ -2864,8 +2863,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/custom-file-system-entry:
     dependencies:
@@ -2895,8 +2894,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/custom-template:
     dependencies:
@@ -2926,8 +2925,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/deploy-csr:
     dependencies:
@@ -2957,8 +2956,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/deploy-server:
     dependencies:
@@ -3006,8 +3005,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/dev-server:
     dependencies:
@@ -3049,8 +3048,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/disable-html:
     dependencies:
@@ -3080,8 +3079,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/entries:
     dependencies:
@@ -3210,7 +3209,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3219,14 +3218,14 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/app-csr-html-lang:
     dependencies:
@@ -3238,7 +3237,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3247,14 +3246,14 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/app-ssr:
     dependencies:
@@ -3266,7 +3265,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3275,7 +3274,7 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3284,8 +3283,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-ssg
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/app-ssr-html-lang:
     dependencies:
@@ -3297,7 +3296,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3306,14 +3305,14 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/custom-i18n-wrapper:
     dependencies:
@@ -3325,7 +3324,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3334,20 +3333,20 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/mf:
     devDependencies:
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/mf/mf-app-provider:
     dependencies:
@@ -3359,10 +3358,10 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3371,7 +3370,7 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3380,8 +3379,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../../packages/cli/plugin-ssg
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/mf/mf-component-provider:
     dependencies:
@@ -3393,10 +3392,10 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3405,7 +3404,7 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3414,8 +3413,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../../packages/cli/plugin-ssg
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/mf/mf-consumer:
     dependencies:
@@ -3427,13 +3426,13 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.5.0
         version: 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3442,7 +3441,7 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3451,8 +3450,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../../packages/cli/plugin-ssg
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/routes-csr:
     dependencies:
@@ -3464,7 +3463,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3473,14 +3472,14 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/i18n/routes-ssr:
     dependencies:
@@ -3492,7 +3491,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       i18next:
         specifier: 26.2.0
-        version: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3501,7 +3500,7 @@ importers:
         version: 19.2.6(react@19.2.6)
       react-i18next:
         specifier: 17.0.8
-        version: 17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        version: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3510,8 +3509,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-ssg
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/image-component:
     dependencies:
@@ -3547,8 +3546,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/load-config:
     dependencies:
@@ -3639,8 +3638,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/nonce:
     dependencies:
@@ -3670,8 +3669,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/pure-esm-project:
     dependencies:
@@ -3750,8 +3749,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/routes-match:
     dependencies:
@@ -3787,8 +3786,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/routes-tanstack:
     dependencies:
@@ -3821,8 +3820,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/routes-tanstack-create-routes:
     dependencies:
@@ -3855,8 +3854,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/routes-tanstack-mf/mf-host:
     dependencies:
@@ -3868,13 +3867,13 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.5.0
         version: 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@tanstack/react-router':
-        specifier: 1.170.6
-        version: 1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.170.8
+        version: 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3889,8 +3888,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
 
@@ -3906,13 +3908,13 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.5.0
         version: 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@tanstack/react-router':
-        specifier: 1.170.6
-        version: 1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.170.8
+        version: 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3927,8 +3929,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   tests/integration/routes-tanstack-mf/mf-remote-2:
     dependencies:
@@ -3940,13 +3945,13 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.5.0
-        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
+        version: 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.5.0
         version: 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@tanstack/react-router':
-        specifier: 1.170.6
-        version: 1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.170.8
+        version: 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -3961,8 +3966,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
 
@@ -4024,8 +4032,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -4067,8 +4075,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -4116,8 +4124,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -4159,8 +4167,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -4205,8 +4213,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       happy-dom:
         specifier: ^20.8.9
         version: 20.9.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -4248,8 +4256,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       playwright:
         specifier: ^1.60.0
         version: 1.60.0
@@ -4321,8 +4329,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/select-entry/fixtures/select-one-entry:
     dependencies:
@@ -4352,8 +4360,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/server-config:
     dependencies:
@@ -4395,8 +4403,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/server-json-script:
     dependencies:
@@ -4454,8 +4462,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/server-prod:
     dependencies:
@@ -4538,8 +4546,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/source-code-build/common: {}
 
@@ -4552,8 +4560,8 @@ importers:
   tests/integration/source-code-build/utils:
     devDependencies:
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssg:
     devDependencies:
@@ -4679,8 +4687,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/base-async-entry:
     dependencies:
@@ -4707,8 +4715,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/base-async-pre-entry:
     dependencies:
@@ -4735,8 +4743,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/base-json:
     dependencies:
@@ -4763,8 +4771,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/fallback:
     dependencies:
@@ -4794,8 +4802,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/init:
     dependencies:
@@ -4840,8 +4848,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/partial:
     dependencies:
@@ -4868,8 +4876,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/rsc-closing-tags:
     dependencies:
@@ -4899,8 +4907,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/scriptLoading:
     dependencies:
@@ -4945,8 +4953,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/streaming:
     dependencies:
@@ -4973,8 +4981,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/ssr/fixtures/streaming-inline:
     dependencies:
@@ -5001,8 +5009,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/storybook:
     dependencies:
@@ -5048,7 +5056,7 @@ importers:
         version: 10.4.0(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
       '@storybook/react':
         specifier: ^10.4.0
-        version: 10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
+        version: 10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)
       '@types/node':
         specifier: ^25.8.0
         version: 25.8.0
@@ -5059,8 +5067,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
       http-proxy:
         specifier: ^1.18.1
         version: 1.18.1
@@ -5069,10 +5077,10 @@ importers:
         version: 10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
       storybook-addon-modernjs:
         specifier: 3.3.4
-        version: 3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@3.2.1(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)))
+        version: 3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@3.2.1(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3))(typescript@6.0.3)
       storybook-react-rsbuild:
         specifier: 3.3.4
-        version: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(rollup@4.60.4)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
+        version: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(rollup@4.60.4)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)
       tsconfig-paths:
         specifier: 4.2.0
         version: 4.2.0
@@ -5117,8 +5125,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/styled-components/fixtures/string:
     dependencies:
@@ -5148,8 +5156,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/superapp-erp:
     dependencies:
@@ -5188,8 +5196,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/superapp-portfolio:
     dependencies:
@@ -5228,8 +5236,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/tailwindcss:
     dependencies:
@@ -5365,8 +5373,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/transform-import:
     dependencies:
@@ -5396,8 +5404,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
   tests/integration/write-to-dist:
     dependencies:
@@ -5427,8 +5435,8 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260516.1
-        version: 7.0.0-dev.20260516.1
+        specifier: 7.0.0-dev.20260525.1
+        version: 7.0.0-dev.20260525.1
 
 packages:
 
@@ -6010,43 +6018,43 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/tsgo-darwin-arm64@0.7.2':
-    resolution: {integrity: sha512-0cdsRVRarDKk+huPH71M0aDNs6WKTzZL8wMkLBKFLqqW9re4QHcduOc+pF7OSze1u/n+ksdP+h+GM6xP7aF7Bw==}
+  '@effect/tsgo-darwin-arm64@0.11.0':
+    resolution: {integrity: sha512-AGmRJwItGhpKYc14vuMO1WzlXiTJ3IZ+lKAI8Fy5LkrnypMan78/Z3dBoWXw5g3tsYDufuGKNZ1BFlYd43pENQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@effect/tsgo-darwin-x64@0.7.2':
-    resolution: {integrity: sha512-QpwhdZhZ/ZqFDejP9wu5zTm0CYSxsLqbSMUp7YvwBqKHucrM26nJTtn1kRby1+cBtHJHPEd8JyfHAuvTdM4/ZA==}
+  '@effect/tsgo-darwin-x64@0.11.0':
+    resolution: {integrity: sha512-3GdbuU+SNxEVfm4wLTZ79vWxdB6Aqw2WftIyazSFpFVGadXEqAiCS/l6h/GJEvfrel791deq/ObZQG+cYWnT1A==}
     cpu: [x64]
     os: [darwin]
 
-  '@effect/tsgo-linux-arm64@0.7.2':
-    resolution: {integrity: sha512-MB+LHRbPeFo8IvTSmu6GR3isrw5fllRNR/xJccjUgIfRcBet+bCJEhc12mwEAp6c0EizZ/+DMIxaSSrX5VxqyA==}
+  '@effect/tsgo-linux-arm64@0.11.0':
+    resolution: {integrity: sha512-w12xvOPhpAmQJozZZxJO+midg1SvuMp3vqpqbFHYKPFIWOk/CvFkE2+fTRHBK97RuEnyVe/+M+TWIMFhQzJmVw==}
     cpu: [arm64]
     os: [linux]
 
-  '@effect/tsgo-linux-arm@0.7.2':
-    resolution: {integrity: sha512-dmGBTShzcWY945Wu3Xj72Awgj5vgxR13W93PiwcAvYhZeRXWYQIkVlgAFfHQT9YspGC1R9lNnXVDILknN2BEzw==}
+  '@effect/tsgo-linux-arm@0.11.0':
+    resolution: {integrity: sha512-hir8P0pMTuJox0zpLIDKeTHaZZcnFLwS4RaCPx6mXnnW2s/kGYHT1pBRamiusxzvmDMqbwfM7uo6/C67nzx8yA==}
     cpu: [arm]
     os: [linux]
 
-  '@effect/tsgo-linux-x64@0.7.2':
-    resolution: {integrity: sha512-q/JSGD5BA1yd8/k9i94T/osiDGcMal8bvoEfrg4BfNOfPpxbpOg7jfP/MzzarqkYbLfco6+TBZomMpQabE16ZQ==}
+  '@effect/tsgo-linux-x64@0.11.0':
+    resolution: {integrity: sha512-1sqDT+NmwJO2RNkHjxFTk2tSzEGewbQADkEdYbNzorqT0pkGnWgQvOG4c8qjwwW0QmbxCIDMr0crMZzu+IGVsA==}
     cpu: [x64]
     os: [linux]
 
-  '@effect/tsgo-win32-arm64@0.7.2':
-    resolution: {integrity: sha512-pUez9e/OfMSWI7EZuzJG/g+v+Cnz7n3rW4IHlZvSR3saSmN0UVNrRHebwL2fQnKbUk6l5MaZWM9NNS2ysmQYEw==}
+  '@effect/tsgo-win32-arm64@0.11.0':
+    resolution: {integrity: sha512-kN3KNcM2TI/nqq16gYtT4MG8xulASN9RjQwLqKwmkgVwcgCqJJyf9zHNFRTwI6yy9+ozQc9gsMfNos9uDvvg1g==}
     cpu: [arm64]
     os: [win32]
 
-  '@effect/tsgo-win32-x64@0.7.2':
-    resolution: {integrity: sha512-X1VIA/Y2buqKi1se3sgGlUTWFPTXCI0xR7fIOXe1D6FTDFFXWBmWCHvxeDuxWPnSewBVFM0mjOAQSIpTarxdow==}
+  '@effect/tsgo-win32-x64@0.11.0':
+    resolution: {integrity: sha512-1PcFb3WYjmscmZ+rCc54PMSdj1KrfZhbS46mXlaSRpEOsfx7fGoCMd+Kq0rAa4HXPS/AOnULPiZS8YbtG8buWA==}
     cpu: [x64]
     os: [win32]
 
-  '@effect/tsgo@0.7.2':
-    resolution: {integrity: sha512-ZTpfpJvn4IPykmCDsPQiZ4RvhCagQfuYL4zlIk77gSf5AyxmUYjrtDshHB2RK9fnEI8qyQ9abWVmVRkVwnjHyw==}
+  '@effect/tsgo@0.11.0':
+    resolution: {integrity: sha512-I/9Ix0extXmO0Av6NyY/mCTqhyRtIv1XklngUvv4dxy/it1qeFIO9RPkQT0j0qRvMpLY0wG1ZcR2qKPpUcPzHg==}
     hasBin: true
 
   '@emnapi/core@1.10.0':
@@ -7013,9 +7021,12 @@ packages:
     resolution: {integrity: sha512-P91tzwyKSCQ6AwirqvAvTqWqmTY79ndpH0uenejFw+bbLpWrjuY0q+iZUXCV/7CSNmqwH2bkA/ssuyZljmcMVQ==}
     hasBin: true
     peerDependencies:
+      typescript: ^4.9.0 || ^5.0.0
       vue-tsc: '>=1.0.24'
       webpack: ^5.0.0
     peerDependenciesMeta:
+      typescript:
+        optional: true
       vue-tsc:
         optional: true
       webpack:
@@ -7042,11 +7053,14 @@ packages:
       react-dom: '>=17'
       react-router: ^7
       react-router-dom: ^4 || ^5 || ^6 || ^7
+      typescript: ^4.9.0 || ^5.0.0
       vue-tsc: ^1.0.24
     peerDependenciesMeta:
       react-router:
         optional: true
       react-router-dom:
+        optional: true
+      typescript:
         optional: true
       vue-tsc:
         optional: true
@@ -8307,8 +8321,11 @@ packages:
     hasBin: true
     peerDependencies:
       '@microsoft/api-extractor': ^7
+      typescript: ^5 || ^6
     peerDependenciesMeta:
       '@microsoft/api-extractor':
+        optional: true
+      typescript:
         optional: true
 
   '@rspack/binding-darwin-arm64@2.0.3':
@@ -8614,6 +8631,7 @@ packages:
   '@storybook/react-docgen-typescript-plugin@1.0.1':
     resolution: {integrity: sha512-dqbHa+5gaxaklFCuV1WTvljVPTo3QIJgpW4Ln+QeME7osPZUnUhjN2/djvo+sxrWUrTTuqX5jkn291aDngu9Tw==}
     peerDependencies:
+      typescript: '>= 3.x'
       webpack: '>= 4'
 
   '@storybook/react-dom-shim@10.4.0':
@@ -8638,10 +8656,13 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       storybook: ^10.4.0
+      typescript: '>= 4.9.x'
     peerDependenciesMeta:
       '@types/react':
         optional: true
       '@types/react-dom':
+        optional: true
+      typescript:
         optional: true
 
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0':
@@ -8926,8 +8947,8 @@ packages:
     resolution: {integrity: sha512-79pf/RkhteYZTRgcR4F9kbk84P2N8rugQJswxfIqovlbRiT3yI7eBE+5QorIrZaOKktsgzRlXh1l/du/xpl4iA==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/react-router@1.170.6':
-    resolution: {integrity: sha512-tGQkOjcMESBbfw+iz9zE/ivcuw4D2zdhW8PA4wMmpOyA2bLiqpc6bg5MnJPxamdXoO3GZBiHYOOoEwi5qxpPgA==}
+  '@tanstack/react-router@1.170.8':
+    resolution: {integrity: sha512-Qw2ju6jjnIsMpuW+VrnHZWHuugqs592PWsnI56sG28qNhg14CgRLahOcNajfuJR9P4MxKGP94WVzmFKSYUz/ig==}
     engines: {node: '>=20.19'}
     peerDependencies:
       react: '>=18.0.0 || >=19.0.0'
@@ -8941,6 +8962,10 @@ packages:
 
   '@tanstack/router-core@1.171.4':
     resolution: {integrity: sha512-LU9YuVdgaP+h4MEXRvokyjIEelulylgsromHMfYwVfgo1PF9oJP3NHyy7qtjxGLJq6zoZMCfoa1frDJlPo7I8g==}
+    engines: {node: '>=20.19'}
+
+  '@tanstack/router-core@1.171.6':
+    resolution: {integrity: sha512-Ol6DQ+j6rf/rPVELIzo8LHwOQV2KL+zry3b+39kL/GKrt7YId52WJRAFMzuseY4XceSW+PU7sG/Cc1QkwJr0hg==}
     engines: {node: '>=20.19'}
 
   '@tanstack/store@0.9.3':
@@ -9379,50 +9404,50 @@ packages:
   '@types/yargs@17.0.35':
     resolution: {integrity: sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==}
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-RWhsFuzf26MXZOCppITm7Vg3ouR0bxA9O6Q9zRJMk/feyuGUFwO1V9qxX3DgiONatHmHKNR6+sBZNpnSbeCNGA==}
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-x0ClBYc6xQDLXvpRn/zg6SViX/r1F8LXHyfSHmKx4ieiaZiVvGsEww/qzdHind+Y62MIUN3e/XfDFrpRxWDv0g==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-V+8gKoi/pT5y6wsGzhs4MXL3YpPRaOri0U9/5++E9eqJtcbsUFMsEB3cykvBfzfGN7MtJxzNl1PQ8xudoyADeg==}
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-CSHbx6HfM+xXqceGFtG4kcqqoQ5xjT1BHO0bqLfLeQtKlMlze59dIV2DbOb5Aj6wm2ACTKU4K9aurJDdHARx1g==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-aBsfW6gq45WKSvyvnI3hgoW3ARHFHP+/BttGhob9n3wWx7SF7ALJdQ9lb7XKK0OVDyd8o3g3/DgYizc26DlWuw==}
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-0DFKd3EuZ/Z0/mB114mATrlRxQUo7rcpXYgd5CJN7y1dbIgkavbjVamzzJKt3s42tkJGfdys83w6aIHDu6fykw==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [linux]
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-FHVd7C2ogrMRcUj3KWc6R9VYU6x+FUll7I5fvJKHE8e8UtzpmkxmLH18uaOFMwoFQmSMqAZOcnGlgtRDSe/vqw==}
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-hY2EVAaGc1bsaxthJiNUbzn6ESkMSLBiWRCNhQl8XdhDWew8KhKCjw4DHe0lAYSdxLJBe6fCPpcFjDnoSowBxA==}
     engines: {node: '>=16.20.0'}
     cpu: [arm]
     os: [linux]
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-U8CF9xzmNRAq9KfI2DrUlhylBDBoUNN3JK+B8fGoL4yl56/1/OSv/nAc3zQy9o65c7pUtbK5mJ7UsHsEfY/3VA==}
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-GhC0kXeYxn55Rk3klmWET/Y033AHeMzLBMO58yP7R8m5ZdGiBisejDZnvttzczYJtgT42LNOtVmbtsG/+R8XWw==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [linux]
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-hjjyWSDlfUi6Ie9S7Uu+jQxzM0ZwzH8enaZ8uDy3/ntKfCizNHvC4vv1RNbLC6IW28A0LINr/s9ZmWXxYNgVmA==}
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-L2+bsx73FyuEzLNgybtIxhnT9lYYAh9rTRFWZ4wZlJg44DGstjgz4FBKVHBO/cm3Hz7YNWeJESrB9ROUNbffPg==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [win32]
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-Itbj6PB/FHisZuaDYJnmwKgbjd3EWuOyBsVUqakQR+BIEYuNdrmbf6ocxaPO0RZrGMLbrV12AE5/EZC+vqYN/w==}
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-xJCdFz9smVQVpXYW0vZZJsM0GIANPqSt8eMDRYfDY6M/BcXNXYOAt7tsxnSRyYWnFf9Ci7wKNRZaihZrDJ2m6A==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [win32]
 
-  '@typescript/native-preview@7.0.0-dev.20260516.1':
-    resolution: {integrity: sha512-mRzRdR9whPRzkLcGk1+wa15/jlIAFMyYV3X9A5+zHQiPR0ZZl1ywSHNtPa/OZmba3Mzsu9jIIFLmPIsryVt3aQ==}
+  '@typescript/native-preview@7.0.0-dev.20260525.1':
+    resolution: {integrity: sha512-hZ3BSv2Q45UZPC8mi7YIWNRirdT99eipknsgigp7GfczYisSjfn6/XERgUfspHDWI7k4zM/KK4j/peHWtpqcmg==}
     engines: {node: '>=16.20.0'}
     hasBin: true
 
@@ -10431,10 +10456,20 @@ packages:
   cosmiconfig@8.3.6:
     resolution: {integrity: sha512-kcZ6+W5QzcJ3P1Mt+83OUv/oHFqZHIx8DuxG6eZ5RGMERoLqp4BuGjhHLYGK+Kf5XVkQvqBSmAy/nGWN3qDgEA==}
     engines: {node: '>=14'}
+    peerDependencies:
+      typescript: '>=4.9.5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   cosmiconfig@9.0.1:
     resolution: {integrity: sha512-hr4ihw+DBqcvrsEDioRO31Z17x71pUYoNe/4h6Z0wB72p7MU7/9gH8Q3s12NFhHPfYBBOV3qyfUxmr/Yn3shnQ==}
     engines: {node: '>=14'}
+    peerDependencies:
+      typescript: '>=4.9.5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   create-ecdh@4.0.4:
     resolution: {integrity: sha512-mf+TCx8wWc9VpuxfP2ht0iSISLZnt0JgWlrOKZiNqyUZWnjIaCIVNQArMHnCZKfEYRg6IM7A+NeJoN8gf/Ws0A==}
@@ -11853,6 +11888,11 @@ packages:
 
   i18next@26.2.0:
     resolution: {integrity: sha512-zwBHldHdTmwN7r6UNc7lC6GWNN+YYg3DrRSeHR5PRRBf5QnJZcYHrQc0uaU26qZeYxR7iFZD+Y315dPnKP47wA==}
+    peerDependencies:
+      typescript: ^5 || ^6
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   iconv-lite@0.4.24:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
@@ -14192,6 +14232,8 @@ packages:
 
   react-docgen-typescript@2.4.0:
     resolution: {integrity: sha512-ZtAp5XTO5HRzQctjPU0ybY0RRCQO19X/8fxn3w7y2VVTUbGHDKULPTL4ky3vB05euSgG5NpALhEhDPvQ56wvXg==}
+    peerDependencies:
+      typescript: '>= 4.3.x'
 
   react-docgen@8.0.3:
     resolution: {integrity: sha512-aEZ9qP+/M+58x2qgfSFEWH1BxLyHe5+qkLNJOZQb5iGS017jpbRnoKhNRrXPeA6RfBrZO5wZrT9DMC1UqE1f1w==}
@@ -14222,10 +14264,13 @@ packages:
       react: '>= 16.8.0'
       react-dom: '*'
       react-native: '*'
+      typescript: ^5 || ^6
     peerDependenciesMeta:
       react-dom:
         optional: true
       react-native:
+        optional: true
+      typescript:
         optional: true
 
   react-is@16.13.1:
@@ -14524,6 +14569,7 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       rollup: ^3.29.4 || ^4
+      typescript: ^4.5 || ^5.0 || ^6.0
 
   rollup@4.60.4:
     resolution: {integrity: sha512-WHeFSbZYsPu3+bLoNRUuAO+wavNlocOPf3wSHTP7hcFKVnJeWsYlCDbr3mTS14FCizf9ccIxXA8sGL8zKeQN3g==}
@@ -14544,10 +14590,13 @@ packages:
       '@microsoft/api-extractor': ^7
       '@rsbuild/core': ^1.0.0 || ^2.0.0-0
       '@typescript/native-preview': 7.x
+      typescript: ^5 || ^6
     peerDependenciesMeta:
       '@microsoft/api-extractor':
         optional: true
       '@typescript/native-preview':
+        optional: true
+      typescript:
         optional: true
 
   rsbuild-plugin-html-minifier-terser@1.1.3:
@@ -15032,6 +15081,10 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       storybook: ^10.3.5
+      typescript: '>= 4.2.x'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   storybook@10.4.0:
     resolution: {integrity: sha512-zrtctbVa6xEXCXuE3vsiR0At31zLOtzj8QudN/GaBJLZl0Z2DfF1rDPtTxdAbAp11M2J/7JVHaTIQKXauQPbmg==}
@@ -15383,6 +15436,7 @@ packages:
     resolution: {integrity: sha512-89oK/BtApjdid1j9CGjPGiYry+EZBhsnTAM481/8ipgr/y2IOgCbW1HPnan+fs5FnzlpUgf9dWGNZ4Ayw3Bd8A==}
     peerDependencies:
       '@rspack/core': ^1.0.0 || ^2.0.0-0
+      typescript: '>=3.8.0'
     peerDependenciesMeta:
       '@rspack/core':
         optional: true
@@ -15407,6 +15461,7 @@ packages:
       esbuild: '*'
       jest: ^29.0.0 || ^30.0.0
       jest-util: ^29.0.0 || ^30.0.0
+      typescript: '>=4.3 <7'
     peerDependenciesMeta:
       '@babel/core':
         optional: true
@@ -15491,6 +15546,11 @@ packages:
 
   typedarray-to-buffer@3.1.5:
     resolution: {integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==}
+
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   ua-is-frozen@0.1.2:
     resolution: {integrity: sha512-RwKDW2p3iyWn4UbaxpP2+VxwqXh0jpvdxsYpZ5j/MLLiQOfbsV5shpgQiw93+KMYQPcteeMQ289MaAFzs3G9pw==}
@@ -15732,6 +15792,11 @@ packages:
 
   vue@3.5.34:
     resolution: {integrity: sha512-WdLBG9gm02OgJIG9axd5Hpx0TFLdzVgfG2evFFu8Rur5O/IoGc5cMjnjh3tPL6GnRGsYvUhBSKVPYVcxRKpMCA==}
+    peerDependencies:
+      typescript: '*'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   w-json@1.3.10:
     resolution: {integrity: sha512-XadVyw0xE+oZ5FGApXsdswv96rOhStzKqL53uSe5UaTadABGkWIg1+DTx8kiZ/VqTZTBneoL0l65RcPe4W3ecw==}
@@ -16650,36 +16715,36 @@ snapshots:
       '@opentelemetry/sdk-trace-node': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-web': 2.7.1(@opentelemetry/api@1.9.1)
 
-  '@effect/tsgo-darwin-arm64@0.7.2':
+  '@effect/tsgo-darwin-arm64@0.11.0':
     optional: true
 
-  '@effect/tsgo-darwin-x64@0.7.2':
+  '@effect/tsgo-darwin-x64@0.11.0':
     optional: true
 
-  '@effect/tsgo-linux-arm64@0.7.2':
+  '@effect/tsgo-linux-arm64@0.11.0':
     optional: true
 
-  '@effect/tsgo-linux-arm@0.7.2':
+  '@effect/tsgo-linux-arm@0.11.0':
     optional: true
 
-  '@effect/tsgo-linux-x64@0.7.2':
+  '@effect/tsgo-linux-x64@0.11.0':
     optional: true
 
-  '@effect/tsgo-win32-arm64@0.7.2':
+  '@effect/tsgo-win32-arm64@0.11.0':
     optional: true
 
-  '@effect/tsgo-win32-x64@0.7.2':
+  '@effect/tsgo-win32-x64@0.11.0':
     optional: true
 
-  '@effect/tsgo@0.7.2':
+  '@effect/tsgo@0.11.0':
     optionalDependencies:
-      '@effect/tsgo-darwin-arm64': 0.7.2
-      '@effect/tsgo-darwin-x64': 0.7.2
-      '@effect/tsgo-linux-arm': 0.7.2
-      '@effect/tsgo-linux-arm64': 0.7.2
-      '@effect/tsgo-linux-x64': 0.7.2
-      '@effect/tsgo-win32-arm64': 0.7.2
-      '@effect/tsgo-win32-x64': 0.7.2
+      '@effect/tsgo-darwin-arm64': 0.11.0
+      '@effect/tsgo-darwin-x64': 0.11.0
+      '@effect/tsgo-linux-arm': 0.11.0
+      '@effect/tsgo-linux-arm64': 0.11.0
+      '@effect/tsgo-linux-x64': 0.11.0
+      '@effect/tsgo-win32-arm64': 0.11.0
+      '@effect/tsgo-win32-x64': 0.11.0
 
   '@emnapi/core@1.10.0':
     dependencies:
@@ -17779,9 +17844,9 @@ snapshots:
     transitivePeerDependencies:
       - node-fetch
 
-  '@module-federation/cli@2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/cli@2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       commander: 11.1.0
       jiti: 2.4.2
@@ -17792,9 +17857,9 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/cli@2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/cli@2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       commander: 11.1.0
       jiti: 2.4.2
@@ -17805,7 +17870,7 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/dts-plugin@2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.5.0
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
@@ -17815,7 +17880,7 @@ snapshots:
       ansi-colors: 4.1.3
       isomorphic-ws: 5.0.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       node-schedule: 2.1.1
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
       undici: 7.24.7
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
@@ -17823,7 +17888,7 @@ snapshots:
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/dts-plugin@2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.5.0
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
@@ -17833,7 +17898,7 @@ snapshots:
       ansi-colors: 4.1.3
       isomorphic-ws: 5.0.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       node-schedule: 2.1.1
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
       undici: 7.24.7
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
@@ -17841,92 +17906,96 @@ snapshots:
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.5.0
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
-      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/webpack-bundler-runtime': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       schema-utils: 4.3.0
       tapable: 2.3.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
       upath: 2.0.1
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.5.0
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@module-federation/webpack-bundler-runtime': 2.5.0(node-fetch@3.3.0)
       schema-utils: 4.3.0
       tapable: 2.3.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
       upath: 2.0.1
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.5.0
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0)
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
-      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/webpack-bundler-runtime': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       schema-utils: 4.3.0
       tapable: 2.3.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
       upath: 2.0.1
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/enhanced@2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.5.0
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0)
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rspack': 2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@module-federation/webpack-bundler-runtime': 2.5.0(node-fetch@3.3.0)
       schema-utils: 4.3.0
       tapable: 2.3.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
       upath: 2.0.1
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
@@ -17957,9 +18026,9 @@ snapshots:
     transitivePeerDependencies:
       - node-fetch
 
-  '@module-federation/manifest@2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/manifest@2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       find-pkg: 2.0.0
@@ -17970,9 +18039,9 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/manifest@2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/manifest@2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       find-pkg: 2.0.0
@@ -17983,13 +18052,13 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/modern-js-v3@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react': 2.5.0(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@module-federation/rsbuild-plugin': 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rsbuild-plugin': 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@swc/helpers': 0.5.17
@@ -17999,10 +18068,10 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       react-error-boundary: 4.1.2(react@19.2.6)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
     optionalDependencies:
       react-router: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-router-dom: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rsbuild/core'
       - '@rspack/core'
@@ -18010,13 +18079,13 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/modern-js-v3@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react': 2.5.0(node-fetch@3.3.0)(react-dom@19.2.6(react@19.2.6))(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
-      '@module-federation/cli': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@module-federation/rsbuild-plugin': 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/rsbuild-plugin': 2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@swc/helpers': 0.5.17
@@ -18026,10 +18095,10 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       react-error-boundary: 4.1.2(react@19.2.6)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
     optionalDependencies:
       react-router: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-router-dom: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rsbuild/core'
       - '@rspack/core'
@@ -18037,9 +18106,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/node@2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@module-federation/node@2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       encoding: 0.1.13
@@ -18048,12 +18117,13 @@ snapshots:
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
+      - typescript
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/node@2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@module-federation/node@2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       encoding: 0.1.13
@@ -18062,13 +18132,14 @@ snapshots:
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
+      - typescript
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/rsbuild-plugin@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/rsbuild-plugin@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
     optionalDependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)
@@ -18076,14 +18147,15 @@ snapshots:
       - '@rspack/core'
       - bufferutil
       - node-fetch
+      - typescript
       - utf-8-validate
       - vue-tsc
       - webpack
 
-  '@module-federation/rsbuild-plugin@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/rsbuild-plugin@2.5.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@module-federation/enhanced': 2.5.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.43(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
     optionalDependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
@@ -18091,73 +18163,74 @@ snapshots:
       - '@rspack/core'
       - bufferutil
       - node-fetch
+      - typescript
       - utf-8-validate
       - vue-tsc
       - webpack
 
-  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@rspack/core': 2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21)
     optionalDependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@rspack/core': 2.0.3(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.21)
     optionalDependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)':
+  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0)
       '@module-federation/managers': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@2.7.0(encoding@0.1.13))(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@module-federation/sdk': 2.5.0(node-fetch@2.7.0(encoding@0.1.13))
       '@rspack/core': 2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21)
     optionalDependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - bufferutil
       - node-fetch
       - utf-8-validate
 
-  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)':
+  '@module-federation/rspack@2.5.0(patch_hash=9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1)(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/dts-plugin': 2.5.0(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.5.0(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.5.0(@module-federation/runtime-tools@2.5.0)
       '@module-federation/managers': 2.5.0(node-fetch@3.3.0)
-      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(@typescript/native-preview@7.0.0-dev.20260516.1)(bufferutil@4.1.0)(node-fetch@3.3.0)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.5.0(patch_hash=3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7)(bufferutil@4.1.0)(node-fetch@3.3.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.5.0(node-fetch@3.3.0)
       '@module-federation/sdk': 2.5.0(node-fetch@3.3.0)
       '@rspack/core': 2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21)
     optionalDependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - bufferutil
       - node-fetch
@@ -19290,12 +19363,12 @@ snapshots:
     optionalDependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
 
-  '@rsbuild/plugin-svgr@2.0.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))':
+  '@rsbuild/plugin-svgr@2.0.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)':
     dependencies:
       '@rsbuild/plugin-react': 2.0.0(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
-      '@svgr/core': 8.1.0
-      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0)
-      '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0)
+      '@svgr/core': 8.1.0(typescript@6.0.3)
+      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@6.0.3))
+      '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(typescript@6.0.3))(typescript@6.0.3)
       deepmerge: 4.3.1
       loader-utils: 3.3.1
     optionalDependencies:
@@ -19303,17 +19376,19 @@ snapshots:
     transitivePeerDependencies:
       - '@rspack/core'
       - supports-color
+      - typescript
 
-  '@rsbuild/plugin-type-check@1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))':
+  '@rsbuild/plugin-type-check@1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)':
     dependencies:
       deepmerge: 4.3.1
       json5: 2.2.3
       reduce-configs: 1.1.1
-      ts-checker-rspack-plugin: 1.3.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
+      ts-checker-rspack-plugin: 1.3.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)
     optionalDependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
     transitivePeerDependencies:
       - '@rspack/core'
+      - typescript
 
   '@rsbuild/plugin-typed-css-modules@1.2.2(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))':
     optionalDependencies:
@@ -19421,21 +19496,23 @@ snapshots:
       - '@rspack/core'
       - webpack
 
-  '@rslib/core@0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)':
+  '@rslib/core@0.21.5(@module-federation/runtime-tools@2.5.0)(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)':
     dependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
-      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260525.1)(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@module-federation/runtime-tools'
       - '@typescript/native-preview'
       - core-js
 
-  '@rslib/core@0.21.5(@typescript/native-preview@7.0.0-dev.20260516.1)(core-js@3.49.0)':
+  '@rslib/core@0.21.5(@typescript/native-preview@7.0.0-dev.20260525.1)(core-js@3.49.0)(typescript@6.0.3)':
     dependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)
-      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.6(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.6(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260525.1)(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@module-federation/runtime-tools'
       - '@typescript/native-preview'
@@ -19793,16 +19870,16 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  '@storybook/react-docgen-typescript-plugin@1.0.1':
+  '@storybook/react-docgen-typescript-plugin@1.0.1(typescript@6.0.3)':
     dependencies:
       debug: 4.4.3
       endent: 2.1.0
       find-cache-dir: 3.3.2
       flat-cache: 3.2.0
       micromatch: 4.0.8
-      react-docgen-typescript: 2.4.0
+      react-docgen-typescript: 2.4.0(typescript@6.0.3)
       tslib: 2.8.1
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -19815,19 +19892,19 @@ snapshots:
       '@types/react': 19.2.15
       '@types/react-dom': 19.2.3(@types/react@19.2.15)
 
-  '@storybook/react@10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))':
+  '@storybook/react@10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)':
     dependencies:
       '@storybook/global': 5.0.0
       '@storybook/react-dom-shim': 10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
       react: 19.2.6
       react-docgen: 8.0.3
-      react-docgen-typescript: 2.4.0
+      react-docgen-typescript: 2.4.0(typescript@6.0.3)
       react-dom: 19.2.6(react@19.2.6)
       storybook: 10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
     optionalDependencies:
       '@types/react': 19.2.15
       '@types/react-dom': 19.2.3(@types/react@19.2.15)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -19875,37 +19952,40 @@ snapshots:
       '@svgr/babel-plugin-transform-react-native-svg': 8.1.0(@babel/core@7.29.0)
       '@svgr/babel-plugin-transform-svg-component': 8.0.0(@babel/core@7.29.0)
 
-  '@svgr/core@8.1.0':
+  '@svgr/core@8.1.0(typescript@6.0.3)':
     dependencies:
       '@babel/core': 7.29.0
       '@svgr/babel-preset': 8.1.0(@babel/core@7.29.0)
       camelcase: 6.3.0
-      cosmiconfig: 8.3.6
+      cosmiconfig: 8.3.6(typescript@6.0.3)
       snake-case: 3.0.4
     transitivePeerDependencies:
       - supports-color
+      - typescript
 
   '@svgr/hast-util-to-babel-ast@8.0.0':
     dependencies:
       '@babel/types': 7.29.0
       entities: 4.5.0
 
-  '@svgr/plugin-jsx@8.1.0(@svgr/core@8.1.0)':
+  '@svgr/plugin-jsx@8.1.0(@svgr/core@8.1.0(typescript@6.0.3))':
     dependencies:
       '@babel/core': 7.29.0
       '@svgr/babel-preset': 8.1.0(@babel/core@7.29.0)
-      '@svgr/core': 8.1.0
+      '@svgr/core': 8.1.0(typescript@6.0.3)
       '@svgr/hast-util-to-babel-ast': 8.0.0
       svg-parser: 2.0.4
     transitivePeerDependencies:
       - supports-color
 
-  '@svgr/plugin-svgo@8.1.0(@svgr/core@8.1.0)':
+  '@svgr/plugin-svgo@8.1.0(@svgr/core@8.1.0(typescript@6.0.3))(typescript@6.0.3)':
     dependencies:
-      '@svgr/core': 8.1.0
-      cosmiconfig: 8.3.6
+      '@svgr/core': 8.1.0(typescript@6.0.3)
+      cosmiconfig: 8.3.6(typescript@6.0.3)
       deepmerge: 4.3.1
       svgo: 3.3.3
+    transitivePeerDependencies:
+      - typescript
 
   '@swc/core-darwin-arm64@1.15.33':
     optional: true
@@ -20063,11 +20143,11 @@ snapshots:
 
   '@tanstack/history@1.162.0': {}
 
-  '@tanstack/react-router@1.170.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@tanstack/react-router@1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@tanstack/history': 1.162.0
       '@tanstack/react-store': 0.9.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tanstack/router-core': 1.171.4
+      '@tanstack/router-core': 1.171.6
       isbot: 5.1.40
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
@@ -20080,6 +20160,13 @@ snapshots:
       use-sync-external-store: 1.6.0(react@19.2.6)
 
   '@tanstack/router-core@1.171.4':
+    dependencies:
+      '@tanstack/history': 1.162.0
+      cookie-es: 3.1.1
+      seroval: 1.5.4
+      seroval-plugins: 1.5.4(seroval@1.5.4)
+
+  '@tanstack/router-core@1.171.6':
     dependencies:
       '@tanstack/history': 1.162.0
       cookie-es: 3.1.1
@@ -20605,36 +20692,36 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260516.1':
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260525.1':
     optional: true
 
-  '@typescript/native-preview@7.0.0-dev.20260516.1':
+  '@typescript/native-preview@7.0.0-dev.20260525.1':
     optionalDependencies:
-      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260516.1
-      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260516.1
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260525.1
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260525.1
 
   '@ungap/structured-clone@1.3.0': {}
 
@@ -20804,11 +20891,11 @@ snapshots:
       '@vue/shared': 3.5.34
       csstype: 3.2.3
 
-  '@vue/server-renderer@3.5.34(vue@3.5.34)':
+  '@vue/server-renderer@3.5.34(vue@3.5.34(typescript@6.0.3))':
     dependencies:
       '@vue/compiler-ssr': 3.5.34
       '@vue/shared': 3.5.34
-      vue: 3.5.34
+      vue: 3.5.34(typescript@6.0.3)
 
   '@vue/shared@3.5.34': {}
 
@@ -21699,21 +21786,23 @@ snapshots:
       path-type: 4.0.0
       yaml: 2.9.0
 
-  cosmiconfig@8.3.6:
+  cosmiconfig@8.3.6(typescript@6.0.3):
     dependencies:
       import-fresh: 3.3.1
       js-yaml: 4.1.1
       parse-json: 5.2.0
       path-type: 4.0.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+    optionalDependencies:
+      typescript: 6.0.3
 
-  cosmiconfig@9.0.1:
+  cosmiconfig@9.0.1(typescript@6.0.3):
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
       js-yaml: 4.1.1
       parse-json: 5.2.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+    optionalDependencies:
+      typescript: 6.0.3
 
   create-ecdh@4.0.4:
     dependencies:
@@ -23445,9 +23534,9 @@ snapshots:
 
   i18next-http-middleware@3.9.7: {}
 
-  i18next@26.2.0:
-    dependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+  i18next@26.2.0(typescript@6.0.3):
+    optionalDependencies:
+      typescript: 6.0.3
 
   iconv-lite@0.4.24:
     dependencies:
@@ -26315,11 +26404,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  puppeteer@25.0.2(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+  puppeteer@25.0.2(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10):
     dependencies:
       '@puppeteer/browsers': 3.0.2
       chromium-bidi: 16.0.1(devtools-protocol@0.0.1608973)
-      cosmiconfig: 9.0.1
+      cosmiconfig: 9.0.1(typescript@6.0.3)
       devtools-protocol: 0.0.1608973
       puppeteer-core: 25.0.2(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       typed-query-selector: 2.12.2
@@ -26330,6 +26419,7 @@ snapshots:
       - proxy-agent
       - react-native-b4a
       - supports-color
+      - typescript
       - utf-8-validate
 
   pure-rand@7.0.1: {}
@@ -26383,9 +26473,9 @@ snapshots:
     dependencies:
       es6-symbol: 3.1.4
 
-  react-docgen-typescript@2.4.0:
+  react-docgen-typescript@2.4.0(typescript@6.0.3):
     dependencies:
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
 
   react-docgen@8.0.3:
     dependencies:
@@ -26422,16 +26512,16 @@ snapshots:
       react-fast-compare: 3.2.2
       react-side-effect: 2.1.2(react@19.2.6)
 
-  react-i18next@17.0.8(i18next@26.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+  react-i18next@17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3):
     dependencies:
       '@babel/runtime': 7.29.2
       html-parse-stringify: 3.0.1
-      i18next: 26.2.0
+      i18next: 26.2.0(typescript@6.0.3)
       react: 19.2.6
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
       use-sync-external-store: 1.6.0(react@19.2.6)
     optionalDependencies:
       react-dom: 19.2.6(react@19.2.6)
+      typescript: 6.0.3
 
   react-is@16.13.1: {}
 
@@ -26766,14 +26856,14 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rollup-plugin-dts@6.4.1(rollup@4.60.4):
+  rollup-plugin-dts@6.4.1(rollup@4.60.4)(typescript@6.0.3):
     dependencies:
       '@jridgewell/remapping': 2.3.5
       '@jridgewell/sourcemap-codec': 1.5.5
       convert-source-map: 2.0.0
       magic-string: 0.30.21
       rollup: 4.60.4
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     optionalDependencies:
       '@babel/code-frame': 7.29.0
 
@@ -26825,21 +26915,21 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1):
+  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260525.1)(typescript@6.0.3):
     dependencies:
       '@ast-grep/napi': 0.37.0
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
     optionalDependencies:
-      '@typescript/native-preview': 7.0.0-dev.20260516.1
+      '@typescript/native-preview': 7.0.0-dev.20260525.1
+      typescript: 6.0.3
 
-  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.6(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1):
+  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.6(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260525.1)(typescript@6.0.3):
     dependencies:
       '@ast-grep/napi': 0.37.0
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
     optionalDependencies:
-      '@typescript/native-preview': 7.0.0-dev.20260516.1
+      '@typescript/native-preview': 7.0.0-dev.20260525.1
+      typescript: 6.0.3
 
   rsbuild-plugin-html-minifier-terser@1.1.3(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)):
     dependencies:
@@ -27302,20 +27392,21 @@ snapshots:
 
   stdin-discarder@0.3.2: {}
 
-  storybook-addon-modernjs@3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@3.2.1(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))):
+  storybook-addon-modernjs@3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@3.2.1(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3))(typescript@6.0.3):
     dependencies:
       '@modern-js/app-tools': link:packages/solutions/app-tools
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
       find-up: 5.0.0
       rslog: 1.3.2
-      storybook-builder-rsbuild: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
+      storybook-builder-rsbuild: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)
     optionalDependencies:
       '@modern-js/plugin': 3.2.1(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      typescript: 6.0.3
 
-  storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)):
+  storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3):
     dependencies:
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
-      '@rsbuild/plugin-type-check': 1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))
+      '@rsbuild/plugin-type-check': 1.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3)
       '@vitest/mocker': 3.2.4
       browser-assert: 1.2.1
       case-sensitive-paths-webpack-plugin: 2.4.0
@@ -27337,29 +27428,30 @@ snapshots:
     optionalDependencies:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - msw
       - vite
 
-  storybook-react-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(rollup@4.60.4)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)):
+  storybook-react-rsbuild@3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(rollup@4.60.4)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3):
     dependencies:
       '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       '@rsbuild/core': 2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0)
-      '@storybook/react': 10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
-      '@storybook/react-docgen-typescript-plugin': 1.0.1
+      '@storybook/react': 10.4.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)
+      '@storybook/react-docgen-typescript-plugin': 1.0.1(typescript@6.0.3)
       find-up: 5.0.0
       magic-string: 0.30.21
       react: 19.2.6
       react-docgen: 8.0.3
-      react-docgen-typescript: 2.4.0
+      react-docgen-typescript: 2.4.0(typescript@6.0.3)
       react-dom: 19.2.6(react@19.2.6)
       resolve: 1.22.12
       storybook: 10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10)
-      storybook-builder-rsbuild: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260516.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))
+      storybook-builder-rsbuild: 3.3.4(@rsbuild/core@2.0.6(@module-federation/runtime-tools@2.5.0)(core-js@3.49.0))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(storybook@10.4.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@testing-library/dom@10.4.1)(@types/react@19.2.15)(bufferutil@4.1.0)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(utf-8-validate@5.0.10))(typescript@6.0.3)
       tsconfig-paths: 4.2.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+    optionalDependencies:
+      typescript: 6.0.3
     transitivePeerDependencies:
       - '@rspack/core'
       - '@types/react'
@@ -27751,13 +27843,13 @@ snapshots:
 
   trough@2.2.0: {}
 
-  ts-checker-rspack-plugin@1.3.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21)):
+  ts-checker-rspack-plugin@1.3.0(@rspack/core@2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21))(typescript@6.0.3):
     dependencies:
       '@rspack/lite-tapable': 1.1.0
       chokidar: 3.6.0
       memfs: 4.57.2
       picocolors: 1.1.1
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
     optionalDependencies:
       '@rspack/core': 2.0.3(@module-federation/runtime-tools@2.5.0)(@swc/helpers@0.5.21)
 
@@ -27765,7 +27857,7 @@ snapshots:
 
   ts-deepmerge@7.0.3: {}
 
-  ts-jest@29.4.9(@babel/core@7.29.0)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.0))(esbuild@0.28.0)(jest-util@30.4.1)(jest@30.4.2(@types/node@25.8.0)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.28.0))):
+  ts-jest@29.4.9(@babel/core@7.29.0)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.0))(esbuild@0.28.0)(jest-util@30.4.1)(jest@30.4.2(@types/node@25.8.0)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.28.0)))(typescript@6.0.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
@@ -27776,7 +27868,7 @@ snapshots:
       make-error: 1.3.6
       semver: 7.7.4
       type-fest: 4.41.0
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+      typescript: 6.0.3
       yargs-parser: 21.1.1
     optionalDependencies:
       '@babel/core': 7.29.0
@@ -27854,6 +27946,8 @@ snapshots:
   typedarray-to-buffer@3.1.5:
     dependencies:
       is-typedarray: 1.0.0
+
+  typescript@6.0.3: {}
 
   ua-is-frozen@0.1.2: {}
 
@@ -28067,14 +28161,15 @@ snapshots:
 
   void-elements@3.1.0: {}
 
-  vue@3.5.34:
+  vue@3.5.34(typescript@6.0.3):
     dependencies:
       '@vue/compiler-dom': 3.5.34
       '@vue/compiler-sfc': 3.5.34
       '@vue/runtime-dom': 3.5.34
-      '@vue/server-renderer': 3.5.34(vue@3.5.34)
+      '@vue/server-renderer': 3.5.34(vue@3.5.34(typescript@6.0.3))
       '@vue/shared': 3.5.34
-      typescript: '@typescript/native-preview@7.0.0-dev.20260516.1'
+    optionalDependencies:
+      typescript: 6.0.3
 
   w-json@1.3.10: {}
 

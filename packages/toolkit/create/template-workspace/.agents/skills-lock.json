@@ -18,6 +18,20 @@
       "install": "vendored"
     },
     {
+      "id": "module-federation-agent-skills",
+      "visibility": "public",
+      "repository": "https://github.com/module-federation/agent-skills",
+      "commit": "07bb5b6c43ad457609e00c081b72d4c42508ec76",
+      "install": "clone",
+      "baseline": [
+        {
+          "name": "mf",
+          "path": ".agents/skills/mf",
+          "reason": "Module Federation docs, config inspection, type checking, shared dependency checks, and observability troubleshooting"
+        }
+      ]
+    },
+    {
       "id": "techsiocz-private",
       "visibility": "private",
       "repository": "https://github.com/TechsioCZ/skills",
@@ -81,6 +95,11 @@
       "name": "rstest-best-practices",
       "path": ".agents/skills/rstest-best-practices",
       "reason": "Rstest configuration, test writing, mocking, snapshots, coverage, and CI behavior"
+    },
+    {
+      "name": "mf",
+      "path": ".agents/skills/mf",
+      "reason": "Module Federation docs, config inspection, type checking, shared dependency checks, and observability troubleshooting"
     }
   ],
   "excludedByDefault": [

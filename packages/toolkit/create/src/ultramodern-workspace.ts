@@ -10,15 +10,16 @@ const workspaceTemplateDir = path.resolve(
   'template-workspace',
 );
 
-const TANSTACK_ROUTER_VERSION = '1.170.6';
+const TANSTACK_ROUTER_VERSION = '1.170.8';
 const MODULE_FEDERATION_VERSION = '2.5.0';
 const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
-const EFFECT_TSGO_VERSION = '0.7.3';
-const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260518.1';
-const OXLINT_VERSION = '1.65.0';
-const OXFMT_VERSION = '0.50.0';
+const EFFECT_TSGO_VERSION = '0.11.0';
+const TYPESCRIPT_VERSION = '6.0.3';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260525.1';
+const OXLINT_VERSION = '1.66.0';
+const OXFMT_VERSION = '0.51.0';
 const ULTRACITE_VERSION = '7.7.0';
 const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
@@ -26,6 +27,8 @@ const REACT_DOM_VERSION = '^19.2.6';
 const REACT_I18NEXT_VERSION = '17.0.8';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
+const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
+  '07bb5b6c43ad457609e00c081b72d4c42508ec76';
 const baselineAgentSkills = [
   'rsbuild-best-practices',
   'rspack-best-practices',
@@ -35,6 +38,7 @@ const baselineAgentSkills = [
   'rslib-modern-package',
   'rstest-best-practices',
 ];
+const moduleFederationAgentSkills = ['mf'];
 const privateAgentSkills = [
   'plan-graph',
   'dag',
@@ -707,6 +711,7 @@ function appDevDependencies(
     '@types/node': '^20',
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
+    typescript: TYPESCRIPT_VERSION,
   };
 }
 
@@ -758,7 +763,8 @@ function createRootPackageJson(
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mjs --check',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
-      postinstall: 'node ./scripts/setup-agent-reference-repos.mjs',
+      postinstall:
+        'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm skills:check && pnpm ultramodern:check',
     },
@@ -1117,7 +1123,7 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  dts: false,
+  dts: true,
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
   remotes: {
@@ -1141,7 +1147,7 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  dts: false,
+  dts: true,
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
@@ -2141,6 +2147,12 @@ function createTemplateManifest(
         licensePath: '.agents/rstackjs-agent-skills-LICENSE',
       },
       baseline: baselineAgentSkills,
+      moduleFederationSource: {
+        repository: 'https://github.com/module-federation/agent-skills',
+        commit: MODULE_FEDERATION_AGENT_SKILLS_COMMIT,
+        install: 'clone',
+        baseline: moduleFederationAgentSkills,
+      },
       privateSource: {
         repository: 'https://github.com/TechsioCZ/skills',
         install: 'clone-if-authorized',

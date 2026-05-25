@@ -106,7 +106,7 @@ describe('create-bff-runtime', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.6');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.8');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
 

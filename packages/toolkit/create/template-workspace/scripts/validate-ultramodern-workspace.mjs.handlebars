@@ -3,11 +3,12 @@ import path from 'node:path';
 
 const root = process.cwd();
 const packageScope = '{{packageScope}}';
-const tanstackVersion = '1.170.6';
+const tanstackVersion = '1.170.8';
 const tailwindEnabled = '{{tailwindEnabled}}' === 'true';
 const tailwindVersion = '^4.3.0';
 const tailwindPostcssVersion = '^4.3.0';
 const rstackAgentSkillsCommit = '61c948b42512e223bad44b83af4080eba48b2677';
+const moduleFederationAgentSkillsCommit = '07bb5b6c43ad457609e00c081b72d4c42508ec76';
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
@@ -24,6 +25,7 @@ const baselineAgentSkills = [
   'rslib-modern-package',
   'rstest-best-practices',
 ];
+const moduleFederationAgentSkills = ['mf'];
 const privateAgentSkills = ['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugger-mode'];
 
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
@@ -269,7 +271,8 @@ const requiredRootScripts = {
   'lint:fix': 'oxlint . --fix',
   'agents:refs:check': 'node ./scripts/setup-agent-reference-repos.mjs --check',
   'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
-  postinstall: 'node ./scripts/setup-agent-reference-repos.mjs',
+  postinstall:
+    'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
   typecheck: `pnpm -r --filter "@${packageScope}/*" typecheck`,
@@ -361,6 +364,26 @@ for (const skillName of baselineAgentSkills) {
 const privateSource = skillsLock.sources?.find(
   (source) => source.repository === 'https://github.com/TechsioCZ/skills',
 );
+const moduleFederationSource = skillsLock.sources?.find(
+  (source) => source.repository === 'https://github.com/module-federation/agent-skills',
+);
+assert(
+  moduleFederationSource?.install === 'clone' &&
+    moduleFederationSource.commit === moduleFederationAgentSkillsCommit,
+  'Agent skills lock must configure the public Module Federation skill source as a pinned clone',
+);
+for (const skillName of moduleFederationAgentSkills) {
+  assert(
+    skillsLock.baseline?.some((skill) => skill.name === skillName) &&
+      moduleFederationSource.baseline?.some((skill) => skill.name === skillName),
+    `Agent skills lock must require Module Federation skill ${skillName}`,
+  );
+  assert(
+    agentsInstructions.includes(`\`${skillName}\``) &&
+      agentsInstructions.includes('module-federation/agent-skills'),
+    `Root AGENTS.md must document required Module Federation skill ${skillName}`,
+  );
+}
 assert(
   privateSource?.install === 'clone-if-authorized',
   'Agent skills lock must configure TechsioCZ skills as clone-if-authorized',
@@ -417,6 +440,10 @@ for (const packagePath of appPackagePaths) {
     )}`,
   );
   assert(
+    packageJson.devDependencies?.typescript === '6.0.3',
+    `${packagePath} must include latest stable TypeScript for Module Federation DTS generation`,
+  );
+  assert(
     packageJson.dependencies?.[`@${packageScope}/shared-contracts`] === 'workspace:*',
     `${packagePath} must link generated shared contracts through workspace:*`,
   );
@@ -464,6 +491,19 @@ for (const packagePath of appPackagePaths) {
   assert(
     packageJson.modernjs?.preset === 'presetUltramodern',
     `${packagePath} must keep presetUltramodern metadata`,
+  );
+}
+
+for (const federationConfigPath of [
+  'apps/shell-super-app/module-federation.config.ts',
+  'apps/remotes/remote-commerce/module-federation.config.ts',
+  'apps/remotes/remote-identity/module-federation.config.ts',
+  'apps/remotes/remote-design-system/module-federation.config.ts',
+]) {
+  const federationConfig = readText(federationConfigPath);
+  assert(
+    federationConfig.includes('dts: true') && !federationConfig.includes('dts: false'),
+    `${federationConfigPath} must keep Module Federation DTS enabled`,
   );
 }
 
@@ -814,6 +854,19 @@ assert(
 assert(
   baselineAgentSkills.every((skillName) => manifest.agentSkills?.baseline?.includes(skillName)),
   'Template manifest must list every baseline agent skill',
+);
+assert(
+  manifest.agentSkills?.moduleFederationSource?.repository ===
+    'https://github.com/module-federation/agent-skills' &&
+    manifest.agentSkills?.moduleFederationSource?.commit ===
+      moduleFederationAgentSkillsCommit,
+  'Template manifest must retain the Module Federation agent skill source',
+);
+assert(
+  moduleFederationAgentSkills.every((skillName) =>
+    manifest.agentSkills?.moduleFederationSource?.baseline?.includes(skillName),
+  ),
+  'Template manifest must list every Module Federation agent skill entry',
 );
 assert(
   manifest.agentSkills?.privateSource?.repository === 'https://github.com/TechsioCZ/skills',

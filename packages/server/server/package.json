@@ -64,7 +64,7 @@
     "@types/connect-history-api-fallback": "^1.5.4",
     "@types/node": "^25.8.0",
     "@types/ws": "^8.18.1",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "node-mocks-http": "^1.17.2",
     "tsconfig-paths": "4.2.0",
     "websocket": "^1.0.35"

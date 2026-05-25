@@ -18,7 +18,7 @@ export default createModuleFederationConfig({
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
-  dts: false,
+  dts: true,
   filename: 'remoteEntry.js',
   exposes: {
     './Widget': './src/components/Widget.tsx',

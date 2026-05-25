@@ -20,7 +20,7 @@ export default createModuleFederationConfig({
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
-  dts: false,
+  dts: true,
   remotes: {
     remote: `tanstackRemote@http://localhost:${remotePort}/mf-manifest.json`,
     remote2: `tanstackRemote2@http://localhost:${remoteTwoPort}/mf-manifest.json`,

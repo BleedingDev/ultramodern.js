@@ -8,7 +8,7 @@
   "dependencies": {
     "@modern-js/tsconfig": "workspace:*",
     "@types/node": "^25.8.0",
-    "@typescript/native-preview": "7.0.0-dev.20260516.1",
+    "@typescript/native-preview": "7.0.0-dev.20260525.1",
     "path-serializer": "0.6.0"
   }
 }
