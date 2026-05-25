@@ -92,10 +92,13 @@ peerDependencyRules:
     - ioredis
     - webpack
   allowedVersions:
-    '@module-federation/dts-plugin>typescript': '6'
-    '@module-federation/enhanced>typescript': '6'
-    '@module-federation/modern-js-v3>typescript': '6'
-    '@module-federation/rspack>typescript': '6'
+    # Prefer the TS 7 native-preview lane for Module Federation work.
+    # TS 6 remains allowed only where MF tooling still needs the real
+    # `typescript` package for CJS-based DTS generation.
+    '@module-federation/dts-plugin>typescript': '>=6 <8'
+    '@module-federation/enhanced>typescript': '>=6 <8'
+    '@module-federation/modern-js-v3>typescript': '>=6 <8'
+    '@module-federation/rspack>typescript': '>=6 <8'
     '@module-federation/sdk>node-fetch': 3.3.0
     'react-side-effect@2.1.2>react': '19'
 
