@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modernjs.dev/schemas/ultramodern-zephyr-live-evidence.json",
+  "title": "Ultramodern Zephyr Live Evidence Bundle",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "mode",
+    "status",
+    "evidencePath",
+    "schemaPath",
+    "docsEvidence",
+    "safety",
+    "requirements",
+    "commandPlan",
+    "targets",
+    "switchingScenarios",
+    "assertions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "mode": { "enum": ["dry-run", "live"] },
+    "status": { "enum": ["dry-run", "pass", "fail", "blocked"] },
+    "evidencePath": { "type": "string" },
+    "schemaPath": { "type": "string" },
+    "docsEvidence": {
+      "type": "object",
+      "required": [
+        "officialModernJsPlugin",
+        "packageJsonDependencyKey",
+        "runtimeOverrideCapability",
+        "lifecycleCommandPolicy"
+      ]
+    },
+    "safety": {
+      "type": "object",
+      "required": ["optIn", "credentialsRequiredForLive", "secretsRedacted"]
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["blocked", "skipped"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "commandPlan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "role", "cwd", "commands"],
+        "properties": {
+          "target": { "type": "string" },
+          "role": { "enum": ["remote", "shell"] },
+          "cwd": { "type": "string" },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["lifecycle", "command"],
+              "properties": {
+                "lifecycle": { "enum": ["install", "build"] },
+                "command": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "selector",
+          "manifestUrl",
+          "runtimeUrl",
+          "api",
+          "markers"
+        ],
+        "properties": {
+          "id": { "enum": ["remote-v1", "remote-v2", "shell"] },
+          "role": { "enum": ["remote", "shell"] },
+          "appUid": { "type": ["string", "null"] },
+          "packageName": { "type": ["string", "null"] },
+          "selector": {
+            "type": "object",
+            "required": ["value", "kind", "environment"],
+            "properties": {
+              "value": { "type": ["string", "null"] },
+              "kind": { "type": ["string", "null"] },
+              "environment": { "type": ["string", "null"] }
+            }
+          },
+          "manifestUrl": { "type": ["string", "null"] },
+          "runtimeUrl": { "type": ["string", "null"] },
+          "api": {
+            "type": "object",
+            "properties": {
+              "url": { "type": ["string", "null"] }
+            }
+          },
+          "markers": {
+            "type": "object",
+            "properties": {
+              "uiExpected": { "type": ["string", "null"] },
+              "apiExpected": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "switchingScenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "selector",
+          "manifestUrl",
+          "runtimeUrl",
+          "expectedUiMarker",
+          "expectedApiMarker",
+          "assertionRule"
+        ]
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "status"],
+        "properties": {
+          "target": { "type": "string" },
+          "type": { "type": "string" },
+          "status": { "enum": ["pass", "fail", "skipped"] },
+          "url": { "type": "string" },
+          "expectedMarker": { "type": "string" }
+        }
+      }
+    }
+  }
+}
