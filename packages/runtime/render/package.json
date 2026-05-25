@@ -36,7 +36,7 @@
     "@modern-js/server-core": "workspace:*",
     "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "react": "^19.2.6",

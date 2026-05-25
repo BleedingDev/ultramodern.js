@@ -102,7 +102,7 @@
     "@modern-js/tsconfig": "workspace:*",
     "@rstest/core": "0.10.0",
     "@scripts/build": "workspace:*",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@typescript/native-preview": "7.0.0-dev.20260516.1",
     "check-dependency-version-consistency": "6.0.0",

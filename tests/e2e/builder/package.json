@@ -21,7 +21,7 @@
     "@types/connect": "^3.4.38",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25.8.0",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/serve-static": "^2.2.0",
     "@typescript/native-preview": "7.0.0-dev.20260516.1",
