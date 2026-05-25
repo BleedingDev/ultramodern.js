@@ -752,7 +752,7 @@ function createRootPackageJson(
         effectService.packageSuffix,
       )} dev`,
       build:
-        'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
+        'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
       format: 'oxfmt .',
       'format:check': 'oxfmt --check .',
       'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
@@ -794,6 +794,31 @@ function createRootPackageJson(
       ultracite: ULTRACITE_VERSION,
     },
   };
+}
+
+function remoteDependencyAlias(remote: WorkspaceApp): string {
+  return toCamelCase(remote.domain ?? remote.id.replace(/^remote-/, ''));
+}
+
+function zephyrRemoteDependency(scope: string, remote: WorkspaceApp): string {
+  return `${packageName(scope, remote.packageSuffix)}@workspace:*`;
+}
+
+function createZephyrDependencies(
+  scope: string,
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = remoteApps,
+): JsonValue {
+  if (app.kind !== 'shell') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    remotes.map(remote => [
+      remoteDependencyAlias(remote),
+      zephyrRemoteDependency(scope, remote),
+    ]),
+  );
 }
 
 function createTsConfigBase(): JsonValue {
@@ -875,6 +900,7 @@ function createAppPackage(
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
     },
+    'zephyr:dependencies': createZephyrDependencies(scope, app),
     dependencies: appDependencies(scope, packageSource, app),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
@@ -1123,9 +1149,7 @@ function createShellModuleFederationConfig(
 ): string {
   const remoteEntries = remotes
     .map(remote => {
-      const key = toCamelCase(
-        remote.domain ?? remote.id.replace(/^remote-/, ''),
-      );
+      const key = remoteDependencyAlias(remote);
       return `    ${key}:
       process.env['${createRemoteManifestEnv(remote)}'] ??
       '${remote.mfName}@http://localhost:${remote.port}/mf-manifest.json',`;
@@ -2607,6 +2631,23 @@ function addRootDevScript(
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
+function addShellZephyrDependency(
+  workspaceRoot: string,
+  scope: string,
+  remote: WorkspaceApp,
+) {
+  const packagePath = path.join(
+    workspaceRoot,
+    shellApp.directory,
+    'package.json',
+  );
+  const shellPackage = readJsonFile(packagePath);
+  shellPackage['zephyr:dependencies'] ??= {};
+  shellPackage['zephyr:dependencies'][remoteDependencyAlias(remote)] =
+    zephyrRemoteDependency(scope, remote);
+  writeJsonFile(packagePath, shellPackage as JsonValue);
+}
+
 function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
   return {
     id: remote.id,
@@ -2754,6 +2795,7 @@ export function addUltramodernMicroVertical(
     if (!fs.existsSync(shellConfigPath)) {
       throw new Error('Shell Module Federation config was not regenerated');
     }
+    addShellZephyrDependency(options.workspaceRoot, scope, remote);
     addRootDevScript(options.workspaceRoot, scope, remote.packageSuffix, name);
     return;
   }

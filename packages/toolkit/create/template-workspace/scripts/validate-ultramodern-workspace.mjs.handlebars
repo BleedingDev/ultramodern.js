@@ -268,7 +268,8 @@ assert(
 );
 
 const requiredRootScripts = {
-  build: 'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
+  build:
+    'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
   'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
@@ -408,6 +409,12 @@ const appPackagePaths = [
   'apps/remotes/remote-design-system/package.json',
 ];
 
+const expectedZephyrDependencies = {
+  commerce: `@${packageScope}/remote-commerce@workspace:*`,
+  identity: `@${packageScope}/remote-identity@workspace:*`,
+  designSystem: `@${packageScope}/remote-design-system@workspace:*`,
+};
+
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
   const isRemote = packagePath.includes('/remotes/');
@@ -424,6 +431,24 @@ for (const packagePath of appPackagePaths) {
     Object.keys(packageJson.scripts ?? {}).every((scriptName) => !scriptName.startsWith('zephyr:')),
     `${packagePath} must not expose custom zephyr:* lifecycle commands`,
   );
+  assert(
+    packageJson['zephyr:dependencies'] &&
+      typeof packageJson['zephyr:dependencies'] === 'object' &&
+      !Array.isArray(packageJson['zephyr:dependencies']),
+    `${packagePath} must declare zephyr:dependencies for deterministic Zephyr dependency extraction`,
+  );
+  if (isRemote) {
+    assert(
+      Object.keys(packageJson['zephyr:dependencies']).length === 0,
+      `${packagePath} must declare an empty zephyr:dependencies map until it consumes remotes`,
+    );
+  } else {
+    assert(
+      JSON.stringify(packageJson['zephyr:dependencies']) ===
+        JSON.stringify(expectedZephyrDependencies),
+      `${packagePath} must map shell remote aliases to Zephyr workspace remote package dependencies`,
+    );
+  }
   assert(
     packageJson.dependencies?.['@modern-js/plugin-i18n'] ===
       expectedModernDependency('@modern-js/plugin-i18n'),

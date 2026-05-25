@@ -420,6 +420,7 @@ describe('create-ultramodern-workspace', () => {
     }
 
     const rootPackage = readJson(workspaceDir, 'package.json');
+    const packageScope = rootPackage.name;
     expect(rootPackage.name).toBe('ultra-workspace');
     expect(rootPackage.packageManager).toBe('pnpm@11.1.2');
     expect(rootPackage.engines.pnpm).toBe('>=11.0.0');
@@ -445,7 +446,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/assert-mf-types.mjs',
     );
     expect(rootPackage.scripts.build).toBe(
-      'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
+      'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
     );
     expect(rootPackage.scripts.format).toBe('oxfmt .');
     expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
@@ -529,6 +530,11 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-identity/package.json',
       'apps/remotes/remote-design-system/package.json',
     ];
+    const expectedZephyrDependencies = {
+      commerce: `@${packageScope}/remote-commerce@workspace:*`,
+      identity: `@${packageScope}/remote-identity@workspace:*`,
+      designSystem: `@${packageScope}/remote-design-system@workspace:*`,
+    };
 
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
@@ -565,6 +571,9 @@ describe('create-ultramodern-workspace', () => {
           scriptName => !scriptName.startsWith('zephyr:'),
         ),
       ).toBe(true);
+      expect(packageJson['zephyr:dependencies']).toEqual(
+        packagePath.includes('/remotes/') ? {} : expectedZephyrDependencies,
+      );
       expect(packageJson.scripts.typecheck).toContain('effect-tsgo');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
         '1.170.8',
@@ -898,6 +907,15 @@ describe('create-ultramodern-workspace', () => {
     expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
     expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(remotePackage['zephyr:dependencies']).toEqual({});
+
+    const shellPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    expect(shellPackage['zephyr:dependencies']).toMatchObject({
+      catalog: '@ultra-add-remote-workspace/remote-catalog@workspace:*',
+    });
 
     const remoteConfig = readText(
       workspaceDir,
