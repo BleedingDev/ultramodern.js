@@ -55,15 +55,15 @@ Launch all read-only scouts in parallel. Launch only one write-capable lane beca
 
 | Lane | Mode | Dependencies | Ownership | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| A1 React DOM singleton writer | write-capable | none | `ultramodern-react-dom-client-shared-singleton`; owns `ultramodern-workspace.ts`, generated validator, create integration tests for this narrow change only | not launched | Spawn worker |
-| A2 Zephyr profile evidence scout | read-only | none | Zephyr docs, package versions, ADR/test/generator mismatch evidence | not launched | Spawn explorer |
-| A3 Zephyr plugin compatibility spike scout | read-only with temp files only | none | Build/config experiment in temp copy or disposable generated workspace; no repo edits | not launched | Spawn worker or explorer |
-| A4 Split architecture map scout | read-only | none | current remote/service/shared-effect/topology/add-flow/test map | not launched | Spawn explorer |
-| A5 Full-stack package contract scout | read-only | none | contract proposal from local code + Modern.js MF SSR + Effect/BFF constraints | not launched | Spawn explorer |
-| A6 Zephyr switching/API proof scout | read-only | none | Zephyr dependency selectors, environment overrides, machine-readable evidence plan | not launched | Spawn explorer |
-| A7 Zerops Node proof scout | read-only | none | `zerops.yaml`, start command, readiness, artifact rollback, scaling proof design | not launched | Spawn explorer |
-| A8 MF patch upstream gate scout | read-only | none | PR 4755, releases, npm versions, local patch redundancy status | not launched | Spawn explorer |
-| A9 Test command scout | read-only | none | exact focused test/build commands for changed packages and generated workspace | not launched | Spawn explorer |
+| A1 React DOM singleton writer | write-capable local | none | `ultramodern-react-dom-client-shared-singleton`; owns `ultramodern-workspace.ts`, generated validator, create integration tests for this narrow change only | completed locally | Integrate with next gates |
+| A2 Zephyr profile evidence scout | read-only, Curie `019e615b-ef60-7ee2-882d-03f59f42c8ca` | none | Zephyr docs, package versions, ADR/test/generator mismatch evidence | completed | Await A3 before B1 decision |
+| A3 Zephyr plugin compatibility spike scout | read-only with temp files only, Bohr `019e615c-1405-7ad3-b405-e4de5b362789` | none | Build/config experiment in temp copy or disposable generated workspace; no repo edits | completed | Official `zephyr-modernjs-plugin` preserves local MF artifacts; live Zephyr extraction remains a deployment gate |
+| A4 Split architecture map scout | read-only, Hypatia `019e615d-5dad-77f0-b3f3-2656e80dfbb6` | none | current remote/service/shared-effect/topology/add-flow/test map | completed | Use fixture proof for full-stack MF+BFF package pivot |
+| A5 Full-stack package contract scout | read-only, Linnaeus `019e615d-7332-79f3-a9ce-a25c79c674d1` | none | contract proposal from local code + Modern.js MF SSR + Effect/BFF constraints | completed | Use package contract for C lanes |
+| A6 Zephyr switching/API proof scout | read-only, McClintock `019e615d-869b-7033-9df9-3c480de940a1` | none | Zephyr dependency selectors, environment overrides, machine-readable evidence plan | completed | Use `zephyr:dependencies`, `ZE_ENV`, env overrides, topology overlays; no internal API automation |
+| A7 Zerops Node proof scout | read-only, Fermat `019e615d-97d5-7580-b682-280bec6a8f50` | none | `zerops.yaml`, start command, readiness, artifact rollback, scaling proof design | completed | Carry Node deploy artifact/health/start contract into D3 |
+| A8 MF patch upstream gate scout | read-only, Mendel `019e615d-a84e-7bd1-9049-e5cbbfcad9ae` | none | PR 4755, releases, npm versions, local patch redundancy status | completed | Keep local patches until PR 4755 merges and a newer MF release ships |
+| A9 Test command scout | read-only, Chandrasekhar `019e615d-b805-7a73-9bce-a5f6469e238b` | none | exact focused test/build commands for changed packages and generated workspace | completed | Focused create integration and preflight gates are active |
 
 Primary agent local work during Wave 1:
 
@@ -77,8 +77,8 @@ Start after A1 lands and after A2/A3 return.
 
 | Lane | Mode | Dependencies | Ownership | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| B1 Zephyr profile implementation | write-capable | A2, A3, A1 integrated | ADR/generator/validator/tests/docs for selected Zephyr plugin profile | blocked | Spawn worker after A1 integration |
-| B2 Full-stack model design integrator | read-only or local | A4, A5, B1 decision | final implementation contract and phased patch order | blocked | Keep local unless design conflict remains |
+| B1 Zephyr profile implementation | write-capable local | A2, A3, A1 integrated | ADR/generator/validator/tests/docs for selected Zephyr plugin profile | completed | Integrated into generator, validator, tests, and preflight |
+| B2 Full-stack model design integrator | read-only or local | A4, A5, B1 decision | final implementation contract and phased patch order | ready | Start next after checkpoint |
 
 Primary agent should decide the Zephyr profile after A2/A3. Do not let a worker make the architectural choice without local synthesis.
 

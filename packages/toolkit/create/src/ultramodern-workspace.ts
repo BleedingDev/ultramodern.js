@@ -12,7 +12,7 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const MODULE_FEDERATION_VERSION = '2.5.0';
-const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
+const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.11.0';
@@ -712,7 +712,7 @@ function appDevDependencies(
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
     typescript: TYPESCRIPT_VERSION,
-    'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
+    'zephyr-modernjs-plugin': ZEPHYR_MODERNJS_PLUGIN_VERSION,
   };
 }
 
@@ -1005,7 +1005,7 @@ import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools'
 import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
+import { withZephyr } from 'zephyr-modernjs-plugin';
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
@@ -1021,20 +1021,6 @@ if (isProductionBuild && !hasConfiguredSiteUrl) {
 }
 
 const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\${port}\`;
-
-const zephyrRspackPlugin = () => ({
-  name: 'ultramodern-zephyr-rspack-plugin',
-  pre: ['@modern-js/plugin-module-federation-config'],
-  setup(api: {
-    modifyRspackConfig: (
-      handler: (config: unknown) => unknown | Promise<unknown>,
-    ) => void;
-  }) {
-    api.modifyRspackConfig(async (config) =>
-      withZephyrRspack()(config as never),
-    );
-  },
-});
 
 export default defineConfig(
   presetUltramodern(
@@ -1063,7 +1049,7 @@ export default defineConfig(
         }),
         tanstackRouterPlugin(),
         moduleFederationPlugin(),
-        zephyrRspackPlugin(),
+        withZephyr(),
       ],
       server: {
         port,
@@ -1114,6 +1100,11 @@ function createSharedModuleFederationConfig(): string {
       treeShaking: false,
     },
     'react-dom': {
+      requiredVersion: reactDomVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    'react-dom/client': {
       requiredVersion: reactDomVersion,
       singleton: true,
       treeShaking: false,

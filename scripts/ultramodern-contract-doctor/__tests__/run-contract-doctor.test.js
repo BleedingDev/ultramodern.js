@@ -84,17 +84,23 @@ function createWorkspace() {
   });
   writeText(
     root,
-    'services/service-recommendations-effect/shared/effect/api.ts',
-    'export const api = {};\n',
-  );
-  writeText(
-    root,
     'services/service-recommendations-effect/api/effect/index.ts',
     'defineEffectBff({});\n',
   );
   writeJson(root, 'packages/shared-contracts/package.json', {
     name: '@test/shared-contracts',
   });
+  writeJson(root, 'packages/shared-effect-api/package.json', {
+    name: '@test/shared-effect-api',
+    dependencies: {
+      '@modern-js/plugin-bff': 'workspace:*',
+    },
+  });
+  writeText(
+    root,
+    'packages/shared-effect-api/src/index.ts',
+    'export const api = {};\n',
+  );
   return root;
 }
 

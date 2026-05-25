@@ -4,19 +4,19 @@ overview: Add react-dom/client to every generated Ultramodern Module Federation 
 todos:
   - id: verify-upstream-react-dom-client-risk
     content: "Confirm the current upstream issue, reproduction shape, and recommended workaround through the GitHub API for module-federation/core issue 4727."
-    status: pending
+    status: completed
   - id: inspect-generated-shared-config
     content: "Inspect createSharedModuleFederationConfig and generated shell/remote module-federation.config.ts files to confirm react-dom is shared but react-dom/client is missing."
-    status: pending
+    status: completed
   - id: update-shared-config-generator
     content: "Add react-dom/client as an explicit singleton with the same requiredVersion and treeShaking policy as react-dom in the Ultramodern shared config generator."
-    status: pending
+    status: completed
   - id: update-generator-tests-and-validator
     content: "Update create-ultramodern-workspace tests and the generated validator to assert react-dom/client is present for both shell and remote Module Federation configs."
-    status: pending
+    status: completed
   - id: run-focused-quality-gates
     content: "Run the focused create-ultramodern-workspace integration test plus any generated workspace validation needed to prove the shared config output is stable."
-    status: pending
+    status: completed
 isProject: true
 ---
 

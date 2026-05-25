@@ -4,22 +4,22 @@ overview: Resolve the mismatch between the written Ultramodern Zephyr profile an
 todos:
   - id: collect-official-zephyr-plugin-evidence
     content: "Re-read Zephyr Modern.js and Rspack documentation plus package latest data for zephyr-modernjs-plugin and zephyr-rspack-plugin."
-    status: pending
+    status: completed
   - id: inspect-current-generator-and-adr
     content: "Compare ADR-0012, generated modern.config.ts content, generated validator assertions, and integration tests for plugin package and ordering expectations."
-    status: pending
+    status: completed
   - id: run-minimal-plugin-compatibility-spike
     content: "Generate or use a minimal Ultramodern shell plus remote and build once with the current Rspack wrapper and once with the official Modern.js plugin path, preserving Module Federation manifest output."
-    status: pending
+    status: completed
   - id: choose-profile-contract
     content: "Record the decision in code and docs: either switch generator and validator to zephyr-modernjs-plugin or update ADR and validator to define the Rspack wrapper as the intentional MF profile."
-    status: pending
+    status: completed
   - id: update-tests-and-profile-docs
     content: "Update integration tests, generated validator text, README or ADR references, and any docs that claim a different Zephyr plugin path."
-    status: pending
+    status: completed
   - id: run-zephyr-profile-quality-gates
     content: "Run focused generator tests and generated workspace validation proving Modern.js lifecycle scripts remain vanilla and Zephyr config matches the selected profile."
-    status: pending
+    status: completed
 isProject: true
 ---
 

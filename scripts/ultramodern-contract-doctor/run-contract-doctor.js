@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const EXPECTED_TANSTACK_ROUTER = '1.170.1';
+const EXPECTED_TANSTACK_ROUTER = '1.170.8';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const MODERN_PACKAGES = [
   '@modern-js/app-tools',
@@ -491,9 +491,13 @@ function checkEffectService(workspace) {
   const config = serviceRoot
     ? path.join(serviceRoot, 'modern.config.ts')
     : null;
-  const sharedApi = serviceRoot
+  const serviceLocalSharedApi = serviceRoot
     ? path.join(serviceRoot, 'shared/effect/api.ts')
     : null;
+  const canonicalSharedApi = path.join(
+    workspace,
+    'packages/shared-effect-api/src/index.ts',
+  );
   const entry = serviceRoot
     ? path.join(serviceRoot, 'api/effect/index.ts')
     : null;
@@ -535,13 +539,23 @@ function checkEffectService(workspace) {
         suggestion: 'Configure the service BFF runtimeFramework as effect.',
       },
     ),
-    createCheck('effect-shared-api', Boolean(sharedApi && exists(sharedApi)), {
-      file: sharedApi
-        ? relative(workspace, sharedApi)
-        : 'topology/ownership.json',
-      message: 'Effect service exposes shared API metadata.',
-      suggestion: 'Keep shared/effect/api.ts in the generated Effect service.',
-    }),
+    createCheck(
+      'effect-shared-api',
+      exists(canonicalSharedApi) && !exists(serviceLocalSharedApi),
+      {
+        file: relative(workspace, canonicalSharedApi),
+        message: 'Effect service uses the canonical shared Effect API package.',
+        expected:
+          'packages/shared-effect-api/src/index.ts exists and service-local shared/effect/api.ts is absent',
+        actual: exists(canonicalSharedApi)
+          ? exists(serviceLocalSharedApi)
+            ? 'service-local duplicate exists'
+            : 'canonical shared API present'
+          : 'canonical shared API missing',
+        suggestion:
+          'Keep packages/shared-effect-api/src/index.ts as the source of truth and do not generate service-local shared/effect/api.ts.',
+      },
+    ),
     createCheck(
       'effect-entry',
       Boolean(
@@ -598,7 +612,6 @@ function checkSharedPackageBoundaries(workspace) {
     };
     const forbidden = [
       '@module-federation/modern-js-v3',
-      '@modern-js/plugin-bff',
       '@modern-js/plugin-tanstack',
     ].filter(dep => deps[dep]);
     return createCheck(

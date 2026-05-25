@@ -553,7 +553,12 @@ describe('create-ultramodern-workspace', () => {
         '7.0.0-dev.20260525.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
-      expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
+      expect(packageJson.devDependencies['zephyr-modernjs-plugin']).toBe(
+        '1.1.1',
+      );
+      expect(
+        packageJson.devDependencies['zephyr-rspack-plugin'],
+      ).toBeUndefined();
       expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
         '^4.3.0',
@@ -617,6 +622,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(shellMfConfig).toContain("name: 'shellSuperApp'");
     expect(shellMfConfig).toContain('displayErrorInTerminal: true');
+    expect(shellMfConfig).toContain("'react-dom/client'");
     expect(shellMfConfig).toContain(
       "compilerInstance: '--package typescript -- tsc'",
     );
@@ -636,6 +642,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(commerceMfConfig).toContain("name: 'remoteCommerce'");
     expect(commerceMfConfig).toContain('displayErrorInTerminal: true');
+    expect(commerceMfConfig).toContain("'react-dom/client'");
     expect(commerceMfConfig).toContain(
       "compilerInstance: '--package typescript -- tsc'",
     );
@@ -647,6 +654,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-design-system/module-federation.config.ts',
     );
     expect(designMfConfig).toContain("name: 'remoteDesignSystem'");
+    expect(designMfConfig).toContain("'react-dom/client'");
     expect(designMfConfig).toContain("'./Button'");
     expect(designMfConfig).toContain("'./tokens'");
 
@@ -905,7 +913,12 @@ describe('create-ultramodern-workspace', () => {
       '2.5.0',
     );
     expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
-    expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
+    expect(remotePackage.devDependencies['zephyr-modernjs-plugin']).toBe(
+      '1.1.1',
+    );
+    expect(
+      remotePackage.devDependencies['zephyr-rspack-plugin'],
+    ).toBeUndefined();
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(remotePackage['zephyr:dependencies']).toEqual({});
 
@@ -923,9 +936,10 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(remoteConfig).toContain('tanstackRouterPlugin()');
     expect(remoteConfig).toContain('moduleFederationPlugin()');
-    expect(remoteConfig).toContain("from 'zephyr-rspack-plugin'");
-    expect(remoteConfig).toContain('zephyrRspackPlugin()');
-    expect(remoteConfig).toContain('withZephyrRspack()');
+    expect(remoteConfig).toContain("from 'zephyr-modernjs-plugin'");
+    expect(remoteConfig).toContain('withZephyr(),');
+    expect(remoteConfig).not.toContain('zephyrRspackPlugin()');
+    expect(remoteConfig).not.toContain('withZephyrRspack()');
 
     const shellMfConfig = readText(
       workspaceDir,

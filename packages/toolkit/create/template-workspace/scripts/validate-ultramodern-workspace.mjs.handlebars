@@ -486,8 +486,12 @@ for (const packagePath of appPackagePaths) {
     `${packagePath} must include TypeScript 7 native preview for mandatory native typechecking`,
   );
   assert(
-    packageJson.devDependencies?.['zephyr-rspack-plugin'] === '1.1.1',
-    `${packagePath} must install the Zephyr Rspack plugin`,
+    packageJson.devDependencies?.['zephyr-modernjs-plugin'] === '1.1.1',
+    `${packagePath} must install the official Zephyr Modern.js plugin`,
+  );
+  assert(
+    packageJson.devDependencies?.['zephyr-rspack-plugin'] === undefined,
+    `${packagePath} must not install the raw Zephyr Rspack plugin directly`,
   );
   assert(
     packageJson.dependencies?.[`@${packageScope}/shared-contracts`] === 'workspace:*',
@@ -620,11 +624,11 @@ for (const configPath of [
     `${configPath} must use streaming Module Federation SSR`,
   );
   assert(
-    config.includes("from 'zephyr-rspack-plugin'") &&
-      config.includes('zephyrRspackPlugin()') &&
-      config.includes('withZephyrRspack()') &&
-      config.includes("pre: ['@modern-js/plugin-module-federation-config']"),
-    `${configPath} must enable Zephyr through the Rspack plugin`,
+    config.includes("from 'zephyr-modernjs-plugin'") &&
+      config.includes('withZephyr(),') &&
+      !config.includes('zephyrRspackPlugin()') &&
+      !config.includes('withZephyrRspack()'),
+    `${configPath} must enable Zephyr through the official Modern.js plugin`,
   );
   assert(
     config.includes("bundler: 'rspack'"),
@@ -669,6 +673,10 @@ for (const routePath of [
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');
 assert(shellMf.includes("name: 'shellSuperApp'"), 'Shell MF config must name the shell');
 assert(
+  shellMf.includes("'react-dom/client'"),
+  'Shell MF config must share react-dom/client explicitly',
+);
+assert(
   shellMf.includes('remoteCommerce@http://localhost:3021/mf-manifest.json'),
   'Shell must reference commerce remote',
 );
@@ -711,10 +719,18 @@ assert(
 
 const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
 assert(commerceMf.includes("name: 'remoteCommerce'"), 'Commerce remote MF name is missing');
+assert(
+  commerceMf.includes("'react-dom/client'"),
+  'Commerce remote MF config must share react-dom/client explicitly',
+);
 assert(commerceMf.includes("'./Widget'"), 'Commerce remote must expose a widget');
 
 const designMf = readText('apps/remotes/remote-design-system/module-federation.config.ts');
 assert(designMf.includes("name: 'remoteDesignSystem'"), 'Design-system remote MF name is missing');
+assert(
+  designMf.includes("'react-dom/client'"),
+  'Design-system remote MF config must share react-dom/client explicitly',
+);
 assert(designMf.includes("'./Button'"), 'Design-system remote must expose Button');
 assert(designMf.includes("'./tokens'"), 'Design-system remote must expose tokens');
 
