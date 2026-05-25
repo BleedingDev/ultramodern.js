@@ -16,7 +16,7 @@
     "@vercel/ncc": "0.38.4",
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
-    "postcss": "^8.5.14"
+    "postcss": "^8.5.15"
   },
   "devDependencies": {
     "@rollup/plugin-json": "6.1.0",
