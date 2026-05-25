@@ -20,7 +20,7 @@ export default defineConfig({
   server: {
     port: hostPort,
     ssr: {
-      mode: 'string',
+      mode: 'stream',
       moduleFederationAppSSR: true,
     },
   },

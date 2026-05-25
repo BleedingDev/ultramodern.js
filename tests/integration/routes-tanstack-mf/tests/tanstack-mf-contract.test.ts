@@ -227,7 +227,7 @@ describe('tanstack + module federation contracts', () => {
           );
           expect(remoteLoader).toContain("mode === 'version-skew'");
           for (const config of [hostConfig, remoteConfig, remoteTwoConfig]) {
-            expect(config).toContain("mode: 'string'");
+            expect(config).toContain("mode: 'stream'");
             expect(config).toContain('moduleFederationAppSSR: true');
           }
           expect(hostConfig).toContain('splitRouteChunks: false');

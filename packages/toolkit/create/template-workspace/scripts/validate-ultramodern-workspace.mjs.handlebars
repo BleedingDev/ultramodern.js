@@ -526,6 +526,11 @@ for (const configPath of [
     `${configPath} must enable Module Federation`,
   );
   assert(
+    config.includes("mode: 'stream'") &&
+      config.includes('moduleFederationAppSSR: true'),
+    `${configPath} must use streaming Module Federation SSR`,
+  );
+  assert(
     config.includes("from 'zephyr-modernjs-plugin'"),
     `${configPath} must import the official Zephyr Modern.js plugin`,
   );

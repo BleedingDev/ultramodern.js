@@ -1016,7 +1016,7 @@ export default defineConfig(
       server: {
         port,
         ssr: {
-          mode: 'string',
+          mode: 'stream',
           moduleFederationAppSSR: true,
         },
       },

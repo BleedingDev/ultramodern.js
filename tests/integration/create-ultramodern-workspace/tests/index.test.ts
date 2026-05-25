@@ -570,6 +570,8 @@ describe('create-ultramodern-workspace', () => {
     expect(shellConfig).toContain('presetUltramodern(');
     expect(shellConfig).toContain('tanstackRouterPlugin()');
     expect(shellConfig).toContain('moduleFederationPlugin()');
+    expect(shellConfig).toContain("mode: 'stream'");
+    expect(shellConfig).toContain('moduleFederationAppSSR: true');
 
     const shellMfConfig = readText(
       workspaceDir,
