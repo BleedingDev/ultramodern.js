@@ -17,6 +17,24 @@ const DEPRECATED_TANSTACK_MARKERS = [
   'tanstackSsrScript',
   'tanstackMatchedModernRouteIds',
 ];
+const FULL_STACK_VERTICALS = [
+  {
+    id: 'remote-commerce',
+    domain: 'commerce',
+    stem: 'recommendations',
+    group: 'recommendations',
+    path: 'apps/remotes/remote-commerce',
+    apiPrefix: '/commerce-api',
+  },
+  {
+    id: 'remote-identity',
+    domain: 'identity',
+    stem: 'identity',
+    group: 'identity',
+    path: 'apps/remotes/remote-identity',
+    apiPrefix: '/identity-api',
+  },
+];
 
 function readText(filePath) {
   return fs.readFileSync(filePath, 'utf-8');
@@ -267,7 +285,7 @@ function checkTopology(workspace) {
     ];
   }
   const topology = readJson(file);
-  return [
+  const checks = [
     createCheck('topology-preset', topology.preset === 'presetUltramodern', {
       file: relative(workspace, file),
       path: 'preset',
@@ -304,17 +322,61 @@ function checkTopology(workspace) {
       },
     ),
     createCheck(
-      'topology-effect-service',
-      (topology.effectServices || []).length > 0,
+      'topology-no-default-effect-service-split',
+      !(topology.effectServices || []).some(
+        service => service.id === 'service-recommendations-effect',
+      ),
       {
         file: relative(workspace, file),
         path: 'effectServices',
-        message: 'Topology declares at least one Effect service.',
+        message:
+          'Default vertical-owned APIs are not split into topology.effectServices.',
+        expected: 'no service-recommendations-effect entry',
+        actual: (topology.effectServices || []).map(service => service.id),
         suggestion:
-          'Add an Effect service boundary to topology.effectServices.',
+          'Move default vertical API metadata onto the vertical remote topology entry.',
       },
     ),
   ];
+  for (const vertical of FULL_STACK_VERTICALS) {
+    const entry = (topology.remotes || []).find(
+      remote => remote.id === vertical.id,
+    );
+    checks.push(
+      createCheck(
+        `topology-full-stack-${vertical.id}`,
+        Boolean(
+          entry?.kind === 'vertical' &&
+            entry?.moduleFederation?.manifestUrl &&
+            entry?.api?.effect?.runtime === 'effect' &&
+            entry?.api?.effect?.bff?.prefix === vertical.apiPrefix &&
+            entry?.api?.effect?.contract?.export === './shared/effect/api' &&
+            entry?.api?.effect?.client?.export === './effect/client',
+        ),
+        {
+          file: relative(workspace, file),
+          path: 'remotes',
+          message: `${vertical.id} topology entry owns both Module Federation and Effect API metadata.`,
+          expected: {
+            kind: 'vertical',
+            moduleFederation: { manifestUrl: '<mf-manifest>' },
+            api: {
+              effect: {
+                runtime: 'effect',
+                bff: { prefix: vertical.apiPrefix },
+                contract: { export: './shared/effect/api' },
+                client: { export: './effect/client' },
+              },
+            },
+          },
+          actual: entry,
+          suggestion:
+            'Represent full-stack verticals as one remote entry with api metadata, not as a remote plus service pair.',
+        },
+      ),
+    );
+  }
+  return checks;
 }
 
 function checkOwnership(workspace) {
@@ -466,12 +528,7 @@ function checkAppPackages(workspace) {
   return checks;
 }
 
-function checkEffectService(workspace) {
-  const topologyFile = path.join(workspace, 'topology/reference-topology.json');
-  if (!exists(topologyFile)) {
-    return [];
-  }
-  const topology = readJson(topologyFile);
+function checkFullStackVerticals(workspace) {
   const ownershipFile = path.join(workspace, 'topology/ownership.json');
   const ownership = exists(ownershipFile)
     ? readJson(ownershipFile)
@@ -479,96 +536,135 @@ function checkEffectService(workspace) {
   const ownersById = new Map(
     (ownership.owners || []).map(owner => [owner.id, owner]),
   );
-  const service = (topology.effectServices || [])[0];
-  if (!service) {
-    return [];
-  }
-  const owner = ownersById.get(service.id);
-  const serviceRoot = owner?.path ? path.join(workspace, owner.path) : null;
-  const packageFile = serviceRoot
-    ? path.join(serviceRoot, 'package.json')
-    : null;
-  const config = serviceRoot
-    ? path.join(serviceRoot, 'modern.config.ts')
-    : null;
-  const serviceLocalSharedApi = serviceRoot
-    ? path.join(serviceRoot, 'shared/effect/api.ts')
-    : null;
-  const canonicalSharedApi = path.join(
-    workspace,
-    'packages/shared-effect-api/src/index.ts',
-  );
-  const entry = serviceRoot
-    ? path.join(serviceRoot, 'api/effect/index.ts')
-    : null;
   const packageSource = readPackageSource(workspace);
-  const pkg = packageFile && exists(packageFile) ? readJson(packageFile) : {};
-  return [
+  const checks = [
     createCheck(
-      'effect-service-plugin-bff-source',
-      pkg.devDependencies?.['@modern-js/plugin-bff'] ===
-        expectedModernDependency(packageSource, '@modern-js/plugin-bff'),
+      'no-default-recommendations-service-package',
+      !exists(path.join(workspace, 'services/service-recommendations-effect')),
       {
-        file: packageFile
-          ? relative(workspace, packageFile)
-          : 'topology/ownership.json',
-        path: 'devDependencies.@modern-js/plugin-bff',
+        file: 'services/service-recommendations-effect',
         message:
-          'Effect service uses @modern-js/plugin-bff from the configured package source.',
-        expected: expectedModernDependency(
-          packageSource,
-          '@modern-js/plugin-bff',
-        ),
-        actual: pkg.devDependencies?.['@modern-js/plugin-bff'],
+          'Default recommendations API is not generated as a service-only package.',
+        expected: 'path absent',
+        actual: exists(
+          path.join(workspace, 'services/service-recommendations-effect'),
+        )
+          ? 'present'
+          : 'absent',
         suggestion:
-          'Use the configured UltraModern package source for @modern-js/plugin-bff.',
-      },
-    ),
-    createCheck(
-      'effect-service-config',
-      Boolean(
-        config &&
-          exists(config) &&
-          readText(config).includes("runtimeFramework: 'effect'"),
-      ),
-      {
-        file: config ? relative(workspace, config) : 'topology/ownership.json',
-        message: 'Effect service config uses the Effect runtime framework.',
-        expected: "runtimeFramework: 'effect'",
-        actual: config && exists(config) ? 'present' : 'missing',
-        suggestion: 'Configure the service BFF runtimeFramework as effect.',
-      },
-    ),
-    createCheck(
-      'effect-shared-api',
-      exists(canonicalSharedApi) && !exists(serviceLocalSharedApi),
-      {
-        file: relative(workspace, canonicalSharedApi),
-        message: 'Effect service uses the canonical shared Effect API package.',
-        expected:
-          'packages/shared-effect-api/src/index.ts exists and service-local shared/effect/api.ts is absent',
-        actual: exists(canonicalSharedApi)
-          ? exists(serviceLocalSharedApi)
-            ? 'service-local duplicate exists'
-            : 'canonical shared API present'
-          : 'canonical shared API missing',
-        suggestion:
-          'Keep packages/shared-effect-api/src/index.ts as the source of truth and do not generate service-local shared/effect/api.ts.',
-      },
-    ),
-    createCheck(
-      'effect-entry',
-      Boolean(
-        entry && exists(entry) && readText(entry).includes('defineEffectBff'),
-      ),
-      {
-        file: entry ? relative(workspace, entry) : 'topology/ownership.json',
-        message: 'Effect service entry uses defineEffectBff.',
-        expected: 'defineEffectBff',
-        suggestion: 'Implement the service with defineEffectBff.',
+          'Generate default vertical-owned APIs inside apps/remotes/remote-commerce or remote-identity.',
       },
     ),
   ];
+
+  for (const vertical of FULL_STACK_VERTICALS) {
+    const owner = ownersById.get(vertical.id);
+    const verticalRoot = owner?.path
+      ? path.join(workspace, owner.path)
+      : path.join(workspace, vertical.path);
+    const packageFile = path.join(verticalRoot, 'package.json');
+    const config = path.join(verticalRoot, 'modern.config.ts');
+    const mfConfig = path.join(verticalRoot, 'module-federation.config.ts');
+    const entry = path.join(verticalRoot, 'api/effect/index.ts');
+    const contract = path.join(verticalRoot, 'shared/effect/api.ts');
+    const client = path.join(
+      verticalRoot,
+      `src/effect/${vertical.stem}-client.ts`,
+    );
+    const pkg = exists(packageFile) ? readJson(packageFile) : {};
+    const mfSource = exists(mfConfig) ? readText(mfConfig) : '';
+    const configSource = exists(config) ? readText(config) : '';
+    const entrySource = exists(entry) ? readText(entry) : '';
+    const contractSource = exists(contract) ? readText(contract) : '';
+    const clientSource = exists(client) ? readText(client) : '';
+    checks.push(
+      createCheck(
+        `full-stack-plugin-bff-${vertical.id}`,
+        pkg.dependencies?.['@modern-js/plugin-bff'] ===
+          expectedModernDependency(packageSource, '@modern-js/plugin-bff'),
+        {
+          file: relative(workspace, packageFile),
+          path: 'dependencies.@modern-js/plugin-bff',
+          message: `${vertical.id} depends on @modern-js/plugin-bff from the configured package source.`,
+          expected: expectedModernDependency(
+            packageSource,
+            '@modern-js/plugin-bff',
+          ),
+          actual: pkg.dependencies?.['@modern-js/plugin-bff'],
+          suggestion:
+            'Full-stack vertical remotes must install @modern-js/plugin-bff.',
+        },
+      ),
+      createCheck(
+        `full-stack-config-${vertical.id}`,
+        configSource.includes('moduleFederationPlugin()') &&
+          configSource.includes('bffPlugin()') &&
+          configSource.includes("runtimeFramework: 'effect'") &&
+          configSource.includes(`prefix: '${vertical.apiPrefix}'`) &&
+          configSource.includes('moduleFederationAppSSR: true') &&
+          configSource.includes('withZephyr(),') &&
+          configSource.includes("outputStructure: 'flat'"),
+        {
+          file: relative(workspace, config),
+          message: `${vertical.id} Modern config composes MF, Zephyr, stream SSR, flat output, and Effect BFF.`,
+          expected:
+            'moduleFederationPlugin(), bffPlugin(), runtimeFramework effect, Zephyr, stream SSR, flat output',
+          suggestion:
+            'Configure the vertical Modern app as both a Module Federation remote and Effect BFF host.',
+        },
+      ),
+      createCheck(
+        `full-stack-mf-browser-safe-${vertical.id}`,
+        mfSource.includes("'./Widget'") &&
+          mfSource.includes("'./Route'") &&
+          !mfSource.includes("'./api'") &&
+          !mfSource.includes("'./effect'") &&
+          !mfSource.includes("'./client'") &&
+          !mfSource.includes("'./contract'") &&
+          mfSource.includes('displayErrorInTerminal: true') &&
+          mfSource.includes("'--package typescript -- tsc'"),
+        {
+          file: relative(workspace, mfConfig),
+          message: `${vertical.id} exposes only browser-safe Route/Widget MF modules and keeps DTS checks enabled.`,
+          expected:
+            "exposes './Route' and './Widget' only; DTS displayErrorInTerminal and compilerInstance configured",
+          suggestion:
+            'Keep server handlers and Effect client/contract modules out of browser MF exposes.',
+        },
+      ),
+      createCheck(
+        `full-stack-effect-contract-${vertical.id}`,
+        contractSource.includes('HttpApi.make') &&
+          contractSource.includes(`${vertical.group}EffectApi`) &&
+          contractSource.includes(`${vertical.group}ApiContract`) &&
+          clientSource.includes('makeEffectHttpApiClient') &&
+          clientSource.includes(`${vertical.group}EffectApi`),
+        {
+          file: relative(workspace, contract),
+          message: `${vertical.id} owns its Effect contract and typed client surface.`,
+          expected: `${relative(workspace, contract)} and ${relative(workspace, client)}`,
+          suggestion:
+            'Generate vertical contract/client files inside the vertical package.',
+        },
+      ),
+      createCheck(
+        `full-stack-effect-entry-${vertical.id}`,
+        entrySource.includes('defineEffectBff') &&
+          entrySource.includes(`${vertical.group}EffectApi`) &&
+          entrySource.includes('Effect.withSpan') &&
+          !entrySource.includes('shared-effect-api'),
+        {
+          file: relative(workspace, entry),
+          message: `${vertical.id} implements its Effect BFF inside the vertical package.`,
+          expected: 'defineEffectBff using the vertical-owned Effect API',
+          suggestion:
+            'Move default vertical handlers from services/* into apps/remotes/<vertical>/api/effect.',
+        },
+      ),
+    );
+  }
+
+  return checks;
 }
 
 function checkDeprecatedMarkers(workspace) {
@@ -639,7 +735,7 @@ function runUltramodernContractDoctor(options = {}) {
     ...checkTopology(workspace),
     ...checkOwnership(workspace),
     ...checkAppPackages(workspace),
-    ...checkEffectService(workspace),
+    ...checkFullStackVerticals(workspace),
     ...checkDeprecatedMarkers(workspace),
     ...checkSharedPackageBoundaries(workspace),
   ];

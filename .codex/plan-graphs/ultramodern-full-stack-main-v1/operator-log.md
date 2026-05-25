@@ -96,6 +96,32 @@ Start after B1 lands and the package contract is fixed. These lanes can be paral
 
 If C2/C3/C4 all need the same function body in `ultramodern-workspace.ts`, collapse them into one owner and use scouts for review only.
 
+### Wave 3 Active Relaunch: Full-Stack Generator And Parallel Readiness
+
+Started after the React DOM singleton and Zephyr profile lanes landed in commit `b3dd9ac352`.
+
+| Lane | Mode | Dependencies | Ownership | Status | Next action |
+| --- | --- | --- | --- | --- | --- |
+| FS-C1 Generator owner, Bernoulli `019e6179-7383-7af0-b0e0-6c882311accb` | write-capable | discovery/contract complete | `packages/toolkit/create/src/ultramodern-workspace.ts`; plan statuses for generator/model/topology/add-flow todos only | completed | Landed full-stack vertical generator model/files/topology/add-flow |
+| FS-C5 Tests/validator/docs owner, Ptolemy `019e6179-a1be-7550-8adc-f556f4069f0c` | write-capable | target contract fixed; generator may still be in flight | create integration test, generated validator, contract doctor, generated README | completed | Landed full-stack tests, validator, contract doctor, README |
+| FS-D1 Version proof designer, Halley `019e6179-c559-7450-b551-2d7753fa5274` | read-only | full-stack implementation not landed | proof matrix, local simulation design, Zephyr/Zerops evidence shape | completed | Feed into next version-switching implementation graph |
+| FS-MF-GATE Patch gate, Planck `019e6179-de7f-7900-9691-3171f7de7ab2` | read-only | upstream release availability | PR 4755/release/npm status; local patch removal gate | completed-blocked | PR 4755 still unreleased; keep patches |
+| FS-ZE-LIVE Zephyr live evidence, Volta `019e6179-f68b-77f2-b8f3-ed6945c80af1` | read-only | official plugin landed; live credentials not used | opt-in Zephyr proof workflow and evidence bundle | completed | Feed into next live Zephyr proof lane |
+| FS-ADD-FLOW Add-flow scout, Bacon `019e617a-0dee-7930-88a9-6311ac1693fd` | read-only | none | add-flow case matrix and generated-file expectations | completed | Full-stack remote add-flow covered; explicit service flow preserved |
+| FS-CTX-OTEL Context/telemetry scout, Descartes `019e617a-251d-7c11-9573-8571c55ff763` | read-only | none | OperationContext and default OTel/fallback event design | completed | Feed into version-switching/runtime proof |
+| FS-SUPPLY Supply-chain scout, Euler `019e617a-425c-7c32-b35b-68888d2c3e61` | read-only | add-flow hardening later | package/publication surface and trusted publishing blockers | completed | Feed into publish readiness follow-up |
+
+### Wave 3 Completion
+
+Full-stack generator lane completed and verified from the parent workspace:
+
+- focused create-ultramodern-workspace Rstest: pass
+- contract doctor, local control-plane, and preflight unit tests: pass
+- generated workspace validator: pass
+- contract doctor against generated workspace: pass
+- Biome check on changed files: pass
+- `@modern-js/create` build/DTS gate: pass
+
 ### Wave 4: Proof And Deployment Evidence
 
 Start after full-stack generator gates pass.

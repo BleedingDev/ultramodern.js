@@ -7,18 +7,20 @@ UltraModern.js 3.0 SuperApp surface and scaffolds the canonical Micro Vertical
 starter topology:
 
 - `apps/shell-super-app` owns shell route assembly and remote manifest wiring.
-- `apps/remotes/remote-commerce` owns the commerce vertical remote.
-- `apps/remotes/remote-identity` owns the identity vertical remote.
+- `apps/remotes/remote-commerce` owns the commerce vertical remote, its
+  browser-safe Module Federation exposes, and its Effect BFF/API surface.
+- `apps/remotes/remote-identity` owns the identity vertical remote, its
+  browser-safe Module Federation exposes, and its Effect BFF/API surface.
 - `apps/remotes/remote-design-system` owns the horizontal design-system remote.
-- `services/service-recommendations-effect` owns the Effect BFF service.
 - `packages/shared-*` provide placeholders for cross-workspace contracts.
 
-Effect service contracts live in `packages/shared-effect-api`. The generated
-service imports the same `HttpApi` contract as callers, implements it through
-`HttpApiBuilder`, and uses schema-owned `TaggedErrorClass` errors for declared
-error channels. The shell helper in
-`apps/shell-super-app/src/effect/recommendations-client.ts` calls the typed
-client directly through `makeEffectHttpApiClient`.
+Default vertical APIs are owned by the vertical package, not by `services/*`.
+Each full-stack vertical keeps its `api/effect/index.ts` handlers next to its
+`shared/effect/api.ts` contract and `src/effect/*-client.ts` typed client
+surface. The Module Federation config exposes only browser-safe Route and
+Widget modules; server handlers and Effect client/contract modules stay out of
+browser remotes. `services/*` is reserved for explicit external service
+packages.
 
 Run the scaffold validator before adding business code:
 

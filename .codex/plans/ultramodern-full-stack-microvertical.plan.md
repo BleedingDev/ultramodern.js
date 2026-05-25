@@ -4,28 +4,28 @@ overview: Pivot Ultramodern generated verticals from split FE remote plus separa
 todos:
   - id: map-current-split-architecture
     content: "Map the current generated remote app, Effect service, shared-effect-api package, topology, add-flow, tests, README, and validator paths that encode split vertical behavior."
-    status: pending
+    status: completed
   - id: define-full-stack-package-contract
     content: "Define the generated package contract for a vertical package including FE exposes, api/effect handlers, vertical-owned contract/client exports, BFF config, MF config, Zephyr dependency map, scripts, ports, and topology entry."
-    status: pending
+    status: completed
   - id: refactor-generator-model
     content: "Refactor ultramodern-workspace.ts data structures so verticals can carry frontend, server, Effect API, and Zephyr metadata in one WorkspaceApp-like model without losing shell and design-system semantics."
-    status: pending
+    status: completed
   - id: generate-full-stack-package-files
     content: "Generate api/effect, src client helpers, vertical contract files, package.json dependencies, modern.config.ts plugins, module-federation.config.ts exposes, route/widget files, and dev/build scripts inside each vertical package."
-    status: pending
+    status: completed
   - id: migrate-topology-and-overlays
     content: "Update reference topology and development overlays so vertical entries advertise both MF manifest metadata and owned BFF/API prefixes instead of separate effectServices for vertical-owned APIs."
-    status: pending
+    status: completed
   - id: update-add-microvertical-flow
     content: "Change add-ultramodern microvertical creation so vertical is the default full-stack package path and service-only creation is either removed or explicitly renamed external-service."
-    status: pending
+    status: completed
   - id: update-docs-validator-and-tests
     content: "Update generated README, workspace validator, integration tests, and docs so they require one-package vertical behavior and reject accidental services/* default vertical scaffolding."
-    status: pending
+    status: completed
   - id: run-full-stack-generator-gates
     content: "Run focused create-ultramodern-workspace tests, generated workspace validation, typecheck, build, and assert-mf-types for shell plus vertical packages."
-    status: pending
+    status: completed
 isProject: true
 ---
 

@@ -87,6 +87,7 @@ function createProcessDescriptor(input) {
   return {
     id: input.id,
     role: input.role,
+    capabilities: input.capabilities || [],
     package: input.package,
     cwd,
     command,
@@ -138,7 +139,8 @@ function applyOverlay(processes, overlay) {
     }
     if (
       overlay === 'service-unavailable' &&
-      process.role === 'effect-service'
+      (process.role === 'effect-service' ||
+        process.capabilities.includes('effect-bff'))
     ) {
       next.env.ULTRAMODERN_SERVICE_UNAVAILABLE = '1';
       next.readiness.status = 'disabled-by-overlay';
@@ -190,6 +192,9 @@ function createLocalControlPlanePlan(options = {}) {
           remote.kind === 'horizontal-design-system'
             ? 'design-system-remote'
             : 'remote',
+        capabilities: remote.api?.effect
+          ? ['module-federation', 'effect-bff']
+          : ['module-federation'],
         package: remote.package,
         path: owner?.path,
         command: remoteOverlay.command,
@@ -210,6 +215,7 @@ function createLocalControlPlanePlan(options = {}) {
       createProcessDescriptor({
         id: service.id,
         role: 'effect-service',
+        capabilities: ['effect-bff'],
         package: service.package,
         path: owner?.path,
         command: serviceOverlay.command,

@@ -32,11 +32,39 @@ function createWorkspace() {
     preset: 'presetUltramodern',
     shell: { id: 'shell-super-app' },
     remotes: [
-      { id: 'remote-commerce', kind: 'vertical' },
-      { id: 'remote-identity', kind: 'vertical' },
+      {
+        id: 'remote-commerce',
+        kind: 'vertical',
+        moduleFederation: {
+          manifestUrl: 'http://localhost:3021/mf-manifest.json',
+        },
+        api: {
+          effect: {
+            runtime: 'effect',
+            bff: { prefix: '/commerce-api' },
+            contract: { export: './shared/effect/api' },
+            client: { export: './effect/client' },
+          },
+        },
+      },
+      {
+        id: 'remote-identity',
+        kind: 'vertical',
+        moduleFederation: {
+          manifestUrl: 'http://localhost:3022/mf-manifest.json',
+        },
+        api: {
+          effect: {
+            runtime: 'effect',
+            bff: { prefix: '/identity-api' },
+            contract: { export: './shared/effect/api' },
+            client: { export: './effect/client' },
+          },
+        },
+      },
       { id: 'remote-design-system', kind: 'horizontal-design-system' },
     ],
-    effectServices: [{ id: 'service-recommendations-effect' }],
+    effectServices: [],
   });
   writeJson(root, 'topology/ownership.json', {
     owners: [
@@ -47,16 +75,10 @@ function createWorkspace() {
         id: 'remote-design-system',
         path: 'apps/remotes/remote-design-system',
       },
-      {
-        id: 'service-recommendations-effect',
-        path: 'services/service-recommendations-effect',
-      },
     ],
   });
   for (const appPath of [
     'apps/shell-super-app',
-    'apps/remotes/remote-commerce',
-    'apps/remotes/remote-identity',
     'apps/remotes/remote-design-system',
   ]) {
     writeJson(root, `${appPath}/package.json`, {
@@ -72,29 +94,74 @@ function createWorkspace() {
     });
     writeText(root, `${appPath}/src/routes/page.tsx`, 'export default null;\n');
   }
-  writeText(
-    root,
-    'services/service-recommendations-effect/modern.config.ts',
-    "runtimeFramework: 'effect'\n",
-  );
-  writeJson(root, 'services/service-recommendations-effect/package.json', {
-    devDependencies: {
-      '@modern-js/plugin-bff': 'workspace:*',
+  for (const vertical of [
+    {
+      id: 'remote-commerce',
+      stem: 'recommendations',
+      group: 'recommendations',
+      path: 'apps/remotes/remote-commerce',
+      prefix: '/commerce-api',
     },
-  });
-  writeText(
-    root,
-    'services/service-recommendations-effect/api/effect/index.ts',
-    'defineEffectBff({});\n',
-  );
+    {
+      id: 'remote-identity',
+      stem: 'identity',
+      group: 'identity',
+      path: 'apps/remotes/remote-identity',
+      prefix: '/identity-api',
+    },
+  ]) {
+    writeJson(root, `${vertical.path}/package.json`, {
+      dependencies: {
+        '@modern-js/plugin-bff': 'workspace:*',
+        '@modern-js/plugin-i18n': 'workspace:*',
+        '@modern-js/plugin-tanstack': 'workspace:*',
+        '@modern-js/runtime': 'workspace:*',
+        '@tanstack/react-router': EXPECTED_TANSTACK_ROUTER,
+      },
+      devDependencies: {
+        '@modern-js/app-tools': 'workspace:*',
+      },
+      exports: {
+        './effect/client': `./src/effect/${vertical.stem}-client.ts`,
+        './shared/effect/api': './shared/effect/api.ts',
+      },
+    });
+    writeText(
+      root,
+      `${vertical.path}/src/routes/page.tsx`,
+      'export default null;\n',
+    );
+    writeText(
+      root,
+      `${vertical.path}/modern.config.ts`,
+      `moduleFederationPlugin(); bffPlugin(); runtimeFramework: 'effect'; prefix: '${vertical.prefix}'; moduleFederationAppSSR: true; withZephyr(), outputStructure: 'flat';\n`,
+    );
+    writeText(
+      root,
+      `${vertical.path}/module-federation.config.ts`,
+      "displayErrorInTerminal: true; compilerInstance: '--package typescript -- tsc'; './Route'; './Widget';\n",
+    );
+    writeText(
+      root,
+      `${vertical.path}/shared/effect/api.ts`,
+      `HttpApi.make('${vertical.group}'); export const ${vertical.group}EffectApi = {}; export const ${vertical.group}ApiContract = {}; export const ${vertical.group}OperationContexts = {};\n`,
+    );
+    writeText(
+      root,
+      `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
+      `makeEffectHttpApiClient(${vertical.group}EffectApi); export const client = ${vertical.group}EffectApi;\n`,
+    );
+    writeText(
+      root,
+      `${vertical.path}/api/effect/index.ts`,
+      `defineEffectBff({ api: ${vertical.group}EffectApi }); Effect.withSpan('span');\n`,
+    );
+  }
   writeJson(root, 'packages/shared-contracts/package.json', {
     name: '@test/shared-contracts',
   });
   writeJson(root, 'packages/shared-effect-api/package.json', {
     name: '@test/shared-effect-api',
-    dependencies: {
-      '@modern-js/plugin-bff': 'workspace:*',
-    },
   });
   writeText(
     root,
@@ -150,6 +217,74 @@ test('reports stale TanStack versions and deprecated generated imports', () => {
   }
 });
 
+test('rejects split default vertical services and unsafe remote exposes', () => {
+  const root = createWorkspace();
+  try {
+    writeJson(root, 'topology/reference-topology.json', {
+      preset: 'presetUltramodern',
+      shell: { id: 'shell-super-app' },
+      remotes: [
+        {
+          id: 'remote-commerce',
+          kind: 'vertical',
+          moduleFederation: {
+            manifestUrl: 'http://localhost:3021/mf-manifest.json',
+          },
+        },
+        {
+          id: 'remote-identity',
+          kind: 'vertical',
+          moduleFederation: {
+            manifestUrl: 'http://localhost:3022/mf-manifest.json',
+          },
+          api: {
+            effect: {
+              runtime: 'effect',
+              bff: { prefix: '/identity-api' },
+              contract: { export: './shared/effect/api' },
+              client: { export: './effect/client' },
+            },
+          },
+        },
+        { id: 'remote-design-system', kind: 'horizontal-design-system' },
+      ],
+      effectServices: [{ id: 'service-recommendations-effect' }],
+    });
+    writeText(
+      root,
+      'apps/remotes/remote-commerce/module-federation.config.ts',
+      "displayErrorInTerminal: true; compilerInstance: '--package typescript -- tsc'; './Route'; './Widget'; './api';\n",
+    );
+    writeJson(root, 'services/service-recommendations-effect/package.json', {});
+
+    const result = runUltramodernContractDoctor({ workspace: root });
+    assert.equal(result.status, 'fail');
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'topology-no-default-effect-service-split' &&
+          check.status === 'fail',
+      ),
+    );
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'topology-full-stack-remote-commerce' &&
+          check.status === 'fail',
+      ),
+    );
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'full-stack-mf-browser-safe-remote-commerce' &&
+          check.status === 'fail',
+      ),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('accepts an install-backed UltraModern package source strategy', () => {
   const root = createWorkspace();
   try {
@@ -186,8 +321,12 @@ test('accepts an install-backed UltraModern package source strategy', () => {
       'apps/remotes/remote-identity',
       'apps/remotes/remote-design-system',
     ]) {
+      const isFullStackVertical =
+        appPath === 'apps/remotes/remote-commerce' ||
+        appPath === 'apps/remotes/remote-identity';
       writeJson(root, `${appPath}/package.json`, {
         dependencies: {
+          ...(isFullStackVertical ? { '@modern-js/plugin-bff': '3.2.0' } : {}),
           '@modern-js/plugin-i18n': '3.2.0',
           '@modern-js/plugin-tanstack': '3.2.0',
           '@modern-js/runtime': '3.2.0',
@@ -198,11 +337,6 @@ test('accepts an install-backed UltraModern package source strategy', () => {
         },
       });
     }
-    writeJson(root, 'services/service-recommendations-effect/package.json', {
-      devDependencies: {
-        '@modern-js/plugin-bff': '3.2.0',
-      },
-    });
 
     const result = runUltramodernContractDoctor({ workspace: root });
     assert.equal(result.status, 'pass');

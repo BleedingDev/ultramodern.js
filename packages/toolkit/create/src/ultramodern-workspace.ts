@@ -75,8 +75,15 @@ type WorkspaceApp = {
   port: number;
   mfName: string;
   exposes?: Record<string, string>;
+  effectApi?: WorkspaceEffectApi;
   remoteRefs?: string[];
   ownership: Ownership;
+};
+
+type WorkspaceEffectApi = {
+  stem: string;
+  prefix: string;
+  consumedBy: string[];
 };
 
 export type MicroVerticalKind =
@@ -174,6 +181,11 @@ const remoteApps: WorkspaceApp[] = [
       './Route': './src/remote-entry.tsx',
       './Widget': './src/components/commerce-widget.tsx',
     },
+    effectApi: {
+      stem: 'recommendations',
+      prefix: '/commerce-api',
+      consumedBy: [shellApp.id, 'remote-commerce'],
+    },
     ownership: {
       team: 'commerce-experience',
       slack: '#commerce-experience',
@@ -203,6 +215,11 @@ const remoteApps: WorkspaceApp[] = [
     exposes: {
       './Route': './src/remote-entry.tsx',
       './Widget': './src/components/identity-widget.tsx',
+    },
+    effectApi: {
+      stem: 'identity',
+      prefix: '/identity-api',
+      consumedBy: [shellApp.id, 'remote-identity'],
     },
     ownership: {
       team: 'identity-platform',
@@ -412,6 +429,15 @@ function createRemoteDescriptor(
       './Route': './src/remote-entry.tsx',
       './Widget': `./src/components/${domain}-widget.tsx`,
     },
+    ...(kind === 'remote'
+      ? {
+          effectApi: {
+            stem: domain,
+            prefix: `/${domain}-api`,
+            consumedBy: [shellApp.id, id],
+          },
+        }
+      : {}),
     ownership: createNeutralOwnership(id),
   };
 }
@@ -434,6 +460,33 @@ function createServiceDescriptor(name: string, port: number) {
 function serviceApiPrefix(service: { id: string }): string {
   const name = service.id.replace(/^service-/, '').replace(/-effect$/, '');
   return name.endsWith('-api') ? `/${name}` : `/${name}-api`;
+}
+
+function appHasEffectApi(app: WorkspaceApp): app is WorkspaceApp & {
+  effectApi: WorkspaceEffectApi;
+} {
+  return app.effectApi !== undefined;
+}
+
+function effectApiPrefix(target: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  return target.effectApi?.prefix ?? serviceApiPrefix(target);
+}
+
+function effectApiStem(target: { id: string; effectApi?: WorkspaceEffectApi }) {
+  return (
+    target.effectApi?.stem ??
+    target.id
+      .replace(/^service-/, '')
+      .replace(/-effect$/, '')
+      .replace(/-api$/, '')
+  );
+}
+
+function verticalEffectApps(remotes: WorkspaceApp[] = remoteApps) {
+  return remotes.filter(appHasEffectApi);
 }
 
 function createSharedPackageDescriptor(name: string) {
@@ -683,8 +736,17 @@ function appDependencies(
       '@modern-js/plugin-bff',
       packageSource,
     );
-    dependencies[packageName(scope, 'shared-effect-api')] =
-      WORKSPACE_PACKAGE_VERSION;
+    for (const remote of verticalEffectApps()) {
+      dependencies[packageName(scope, remote.packageSuffix)] =
+        WORKSPACE_PACKAGE_VERSION;
+    }
+  }
+
+  if (appHasEffectApi(app)) {
+    dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
+      '@modern-js/plugin-bff',
+      packageSource,
+    );
   }
 
   return dependencies;
@@ -746,10 +808,6 @@ function createRootPackageJson(
       'dev:design-system': `pnpm --filter ${packageName(
         scope,
         'remote-design-system',
-      )} dev`,
-      'dev:recommendations': `pnpm --filter ${packageName(
-        scope,
-        effectService.packageSuffix,
       )} dev`,
       build:
         'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
@@ -882,7 +940,7 @@ function createAppPackage(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
 ): JsonValue {
-  return {
+  const packageJson: Record<string, JsonValue> = {
     private: true,
     name: packageName(scope, app.packageSuffix),
     version: '0.1.0',
@@ -899,11 +957,21 @@ function createAppPackage(
       role: app.kind === 'shell' ? 'shell' : 'module-federation-remote',
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
+      ...(appHasEffectApi(app) ? { apiRuntime: 'effect-bff' } : {}),
     },
     'zephyr:dependencies': createZephyrDependencies(scope, app),
     dependencies: appDependencies(scope, packageSource, app),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
+
+  if (appHasEffectApi(app)) {
+    packageJson.exports = {
+      './effect/client': `./src/effect/${app.effectApi.stem}-client.ts`,
+      './shared/effect/api': './shared/effect/api.ts',
+    };
+  }
+
+  return packageJson;
 }
 
 function createServicePackage(
@@ -1000,9 +1068,26 @@ function createSharedPackage(
 }
 
 function createAppModernConfig(app: WorkspaceApp): string {
+  const bffImport = appHasEffectApi(app)
+    ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
+    : '';
+  const bffConfig = appHasEffectApi(app)
+    ? `      bff: {
+        effect: {
+          openapi: {
+            path: '/openapi.json',
+          },
+        },
+        prefix: '${effectApiPrefix(app)}',
+        runtimeFramework: 'effect',
+      },
+`
+    : '';
+  const bffPluginEntry = appHasEffectApi(app) ? '        bffPlugin(),\n' : '';
+
   return `// @effect-diagnostics processEnv:off
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
-import { i18nPlugin } from '@modern-js/plugin-i18n';
+${bffImport}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr } from 'zephyr-modernjs-plugin';
@@ -1025,7 +1110,7 @@ const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\$
 export default defineConfig(
   presetUltramodern(
     {
-      output: {
+${bffConfig}      output: {
         disableTsChecker: true,
         distPath: {
           html: './',
@@ -1048,7 +1133,7 @@ export default defineConfig(
           },
         }),
         tanstackRouterPlugin(),
-        moduleFederationPlugin(),
+${bffPluginEntry}        moduleFederationPlugin(),
         withZephyr(),
       ],
       server: {
@@ -1598,43 +1683,52 @@ function createCzechTranslations(app: WorkspaceApp): JsonValue {
   };
 }
 
-function serviceContractStem(service = effectService) {
-  return service.id
-    .replace(/^service-/, '')
-    .replace(/-effect$/, '')
-    .replace(/-api$/, '');
+function serviceEffectApiExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toCamelCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectApiExport(service = effectService) {
-  return `${toCamelCase(serviceContractStem(service))}EffectApi`;
+function serviceEffectGroupName(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return toCamelCase(effectApiStem(service));
 }
 
-function serviceEffectGroupName(service = effectService) {
-  return toCamelCase(serviceContractStem(service));
+function serviceEffectApiName(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toPascalCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectApiName(service = effectService) {
-  return `${toPascalCase(serviceContractStem(service))}EffectApi`;
+function serviceEffectSchemaExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toCamelCase(effectApiStem(service))}ItemSchema`;
 }
 
-function serviceEffectSchemaExport(service = effectService) {
-  return `${toCamelCase(serviceContractStem(service))}ItemSchema`;
-}
-
-function serviceEffectErrorStem(service = effectService) {
-  const stem = serviceContractStem(service);
+function serviceEffectErrorStem(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  const stem = effectApiStem(service);
   return stem === 'recommendations' ? 'recommendation' : stem;
 }
 
-function serviceEffectCreatePayloadSchemaExport(service = effectService) {
-  return `${toCamelCase(serviceContractStem(service))}CreatePayloadSchema`;
+function serviceEffectCreatePayloadSchemaExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toCamelCase(effectApiStem(service))}CreatePayloadSchema`;
 }
 
-function serviceEffectNotFoundErrorExport(service = effectService) {
+function serviceEffectNotFoundErrorExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
   return `${toPascalCase(serviceEffectErrorStem(service))}NotFound`;
 }
 
-function serviceEffectNotFoundSchemaExport(service = effectService) {
+function serviceEffectNotFoundSchemaExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
   return `${toCamelCase(serviceEffectErrorStem(service))}NotFoundSchema`;
 }
 
@@ -1649,7 +1743,9 @@ function createEffectSharedApiImports(): string {
 `;
 }
 
-function createEffectSharedApiContract(service = effectService): string {
+function createEffectSharedApiContract(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+): string {
   const schemaExport = serviceEffectSchemaExport(service);
   const createPayloadSchemaExport =
     serviceEffectCreatePayloadSchemaExport(service);
@@ -1658,8 +1754,8 @@ function createEffectSharedApiContract(service = effectService): string {
   const apiExport = serviceEffectApiExport(service);
   const apiName = serviceEffectApiName(service);
   const groupName = serviceEffectGroupName(service);
-  const stem = serviceContractStem(service);
-  const servicePrefix = serviceApiPrefix(service);
+  const stem = effectApiStem(service);
+  const servicePrefix = effectApiPrefix(service);
 
   return `export const ${schemaExport} = Schema.Struct({
   id: Schema.String,
@@ -1743,25 +1839,36 @@ export const ${groupName}OperationContexts = {
 
 export const ${groupName}ApiContract = {
   basePath: '${servicePrefix}/effect/${stem}',
-  serviceId: '${service.id}',
+  ownerId: '${service.id}',
   servicePrefix: '${servicePrefix}',
 } as const;
 `;
 }
 
-function createEffectSharedApi(service = effectService): string {
-  return `${createEffectSharedApiImports()}
+function createEffectSharedApi(service?: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}): string {
+  if (service) {
+    return `${createEffectSharedApiImports()}
 ${createEffectSharedApiContract(service)}`;
+  }
+
+  return `export const sharedEffectApiPackage = {
+  scope: 'external-effect-service-contracts',
+} as const;
+`;
 }
 
 function createEffectServiceEntry(
   scope: string,
-  service = effectService,
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+  contractImportPath = packageName(scope, 'shared-effect-api'),
 ): string {
   const apiExport = serviceEffectApiExport(service);
   const groupName = serviceEffectGroupName(service);
   const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
-  const stem = serviceContractStem(service);
+  const stem = effectApiStem(service);
 
   return `import {
   defineEffectBff,
@@ -1775,7 +1882,7 @@ import {
   ${groupName}OperationContexts,
   ${notFoundErrorExport},
   type OperationContext,
-} from '${packageName(scope, 'shared-effect-api')}';
+} from '${contractImportPath}';
 
 const ${groupName}Items = [
   {
@@ -1855,77 +1962,102 @@ export default defineEffectBff({
 `;
 }
 
-function createShellEffectClient(scope: string): string {
+function createEffectClient(
+  service: { id: string; effectApi?: WorkspaceEffectApi },
+  contractImportPath: string,
+): string {
+  const apiExport = serviceEffectApiExport(service);
+  const contractExport = serviceEffectGroupName(service);
+  const stem = effectApiStem(service);
+  const groupName = serviceEffectGroupName(service);
+  const singular = serviceEffectErrorStem(service);
+  const clientOptionsName = `${toPascalCase(stem)}ClientOptions`;
+  const createClientName = `create${toPascalCase(stem)}Client`;
+  const listName = `list${toPascalCase(stem)}`;
+  const getName = `get${toPascalCase(singular)}`;
+  const createName = `create${toPascalCase(singular)}`;
+
   return `import {
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
 import {
-  recommendationsApiContract,
-  recommendationsEffectApi,
-  recommendationsOperationContexts,
+  ${contractExport}ApiContract,
+  ${apiExport},
+  ${groupName}OperationContexts,
   type OperationContext,
-} from '${packageName(scope, 'shared-effect-api')}';
+} from '${contractImportPath}';
 
-export type RecommendationsClientOptions = {
+export type ${clientOptionsName} = {
   baseUrl?: string | URL;
   locale?: string;
   operationContext?: OperationContext;
   traceparent?: string;
 };
 
-export function createRecommendationsClient(
-  options: RecommendationsClientOptions = {},
+export function ${createClientName}(
+  options: ${clientOptionsName} = {},
 ) {
-  return makeEffectHttpApiClient(recommendationsEffectApi, {
-    baseUrl: options.baseUrl ?? recommendationsApiContract.servicePrefix,
+  return makeEffectHttpApiClient(${apiExport}, {
+    baseUrl: options.baseUrl ?? ${contractExport}ApiContract.servicePrefix,
   });
 }
 
-export async function listRecommendations(
-  options: RecommendationsClientOptions & { limit?: number } = {},
+export async function ${listName}(
+  options: ${clientOptionsName} & { limit?: number } = {},
 ) {
   const client = await runEffectRequest(
-    createRecommendationsClient({
+    ${createClientName}({
       ...options,
       operationContext:
-        options.operationContext ?? recommendationsOperationContexts.list,
+        options.operationContext ?? ${groupName}OperationContexts.list,
     }),
   );
   return runEffectRequest(
-    client.recommendations.list({ query: { limit: options.limit } }),
+    client.${groupName}.list({ query: { limit: options.limit } }),
   );
 }
 
-export async function getRecommendation(
+export async function ${getName}(
   id: string,
-  options: RecommendationsClientOptions = {},
+  options: ${clientOptionsName} = {},
 ) {
   const client = await runEffectRequest(
-    createRecommendationsClient({
+    ${createClientName}({
       ...options,
       operationContext:
-        options.operationContext ?? recommendationsOperationContexts.get,
+        options.operationContext ?? ${groupName}OperationContexts.get,
     }),
   );
-  return runEffectRequest(client.recommendations.get({ params: { id } }));
+  return runEffectRequest(client.${groupName}.get({ params: { id } }));
 }
 
-export async function createRecommendation(
+export async function ${createName}(
   title: string,
-  options: RecommendationsClientOptions = {},
+  options: ${clientOptionsName} = {},
 ) {
   const client = await runEffectRequest(
-    createRecommendationsClient({
+    ${createClientName}({
       ...options,
       operationContext:
-        options.operationContext ?? recommendationsOperationContexts.create,
+        options.operationContext ?? ${groupName}OperationContexts.create,
     }),
   );
   return runEffectRequest(
-    client.recommendations.create({ payload: { title } }),
+    client.${groupName}.create({ payload: { title } }),
   );
 }
+`;
+}
+
+function createShellEffectClient(scope: string): string {
+  return `export {
+  createRecommendation,
+  createRecommendationsClient,
+  getRecommendation,
+  listRecommendations,
+  type RecommendationsClientOptions,
+} from '${packageName(scope, 'remote-commerce')}/effect/client';
 `;
 }
 
@@ -1935,6 +2067,33 @@ function toPascalCase(value: string): string {
     .filter(Boolean)
     .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join('');
+}
+
+function effectApiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
+  if (!appHasEffectApi(app)) {
+    return undefined;
+  }
+
+  return {
+    effect: {
+      runtime: 'effect',
+      bff: {
+        prefix: app.effectApi.prefix,
+        openapi: '/openapi.json',
+      },
+      contract: {
+        export: './shared/effect/api',
+        path: `${app.directory}/shared/effect/api.ts`,
+      },
+      client: {
+        export: './effect/client',
+        path: `${app.directory}/src/effect/${app.effectApi.stem}-client.ts`,
+      },
+      serverEntry: `${app.directory}/api/effect/index.ts`,
+      basePath: `${app.effectApi.prefix}/effect/${app.effectApi.stem}`,
+      consumedBy: app.effectApi.consumedBy,
+    },
+  };
 }
 
 function createTopology(scope: string): JsonValue {
@@ -1978,22 +2137,12 @@ function createTopology(scope: string): JsonValue {
         fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
+      ...(effectApiTopologyMetadata(remote)
+        ? { api: effectApiTopologyMetadata(remote) }
+        : {}),
       ownership: remote.ownership,
     })),
-    effectServices: [
-      {
-        id: effectService.id,
-        kind: 'effect-service',
-        runtime: 'effect',
-        package: packageName(scope, effectService.packageSuffix),
-        consumedBy: [shellApp.id, 'remote-commerce'],
-        bff: {
-          prefix: '/recommendations-api',
-          openapi: '/openapi.json',
-        },
-        ownership: effectService.ownership,
-      },
-    ],
+    effectServices: [],
     sharedPackages: sharedPackages.map(sharedPackage => ({
       id: sharedPackage.id,
       package: packageName(scope, sharedPackage.id),
@@ -2014,12 +2163,6 @@ function createOwnership(scope: string): JsonValue {
     owners: [
       shellApp,
       ...remoteApps,
-      {
-        id: effectService.id,
-        packageSuffix: effectService.packageSuffix,
-        directory: effectService.directory,
-        ownership: effectService.ownership,
-      },
       ...sharedPackages.map(sharedPackage => ({
         id: sharedPackage.id,
         packageSuffix: sharedPackage.id,
@@ -2054,9 +2197,7 @@ function createDevelopmentOverlay(): JsonValue {
     environment: 'development',
     preset: 'presetUltramodern',
     ports: Object.fromEntries(
-      [shellApp, ...remoteApps]
-        .map(app => [app.id, app.port])
-        .concat([[effectService.id, effectService.port]]),
+      [shellApp, ...remoteApps].map(app => [app.id, app.port]),
     ),
     manifests: Object.fromEntries(
       remoteApps.map(remote => [
@@ -2064,9 +2205,12 @@ function createDevelopmentOverlay(): JsonValue {
         `http://localhost:${remote.port}/mf-manifest.json`,
       ]),
     ),
-    services: {
-      [effectService.id]: `http://localhost:${effectService.port}/recommendations-api`,
-    },
+    apis: Object.fromEntries(
+      verticalEffectApps().map(app => [
+        app.id,
+        `http://localhost:${app.port}${effectApiPrefix(app)}`,
+      ]),
+    ),
   };
 }
 
@@ -2248,7 +2392,7 @@ function writeApp(
   writeJson(
     targetDir,
     `${app.directory}/tsconfig.json`,
-    createPackageTsConfig(app.directory),
+    createPackageTsConfig(app.directory, appHasEffectApi(app)),
   );
   writeFile(
     targetDir,
@@ -2315,6 +2459,24 @@ function writeApp(
       targetDir,
       `${app.directory}/src/effect/recommendations-client.ts`,
       createShellEffectClient(scope),
+    );
+  }
+
+  if (appHasEffectApi(app)) {
+    writeFile(
+      targetDir,
+      `${app.directory}/shared/effect/api.ts`,
+      createEffectSharedApi(app),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/api/effect/index.ts`,
+      createEffectServiceEntry(scope, app, '../../shared/effect/api'),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/effect/${app.effectApi.stem}-client.ts`,
+      createEffectClient(app, '../../shared/effect/api'),
     );
   }
 
@@ -2514,9 +2676,14 @@ function appendEffectSharedApiContract(
   if (current.includes(`export const ${apiExport} =`)) {
     return;
   }
+  const contentWithImports = current.includes(
+    '@modern-js/plugin-bff/effect-client',
+  )
+    ? current.trimEnd()
+    : `${createEffectSharedApiImports()}\n${current.trimEnd()}`;
   fs.writeFileSync(
     filePath,
-    `${current.trimEnd()}\n\n${createEffectSharedApiContract(service)}`,
+    `${contentWithImports}\n\n${createEffectSharedApiContract(service)}`,
     'utf-8',
   );
 }
@@ -2639,6 +2806,27 @@ function addShellZephyrDependency(
   writeJsonFile(packagePath, shellPackage as JsonValue);
 }
 
+function addShellWorkspaceDependency(
+  workspaceRoot: string,
+  scope: string,
+  remote: WorkspaceApp,
+) {
+  if (!appHasEffectApi(remote)) {
+    return;
+  }
+
+  const packagePath = path.join(
+    workspaceRoot,
+    shellApp.directory,
+    'package.json',
+  );
+  const shellPackage = readJsonFile(packagePath);
+  shellPackage.dependencies ??= {};
+  shellPackage.dependencies[packageName(scope, remote.packageSuffix)] =
+    WORKSPACE_PACKAGE_VERSION;
+  writeJsonFile(packagePath, shellPackage as JsonValue);
+}
+
 function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
   return {
     id: remote.id,
@@ -2654,6 +2842,9 @@ function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
       fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
+    ...(effectApiTopologyMetadata(remote)
+      ? { api: effectApiTopologyMetadata(remote) }
+      : {}),
     ownership: remote.ownership,
   };
 }
@@ -2679,18 +2870,39 @@ function remotesFromTopology(
   topology: Record<string, any>,
   ports: Record<string, unknown>,
 ) {
-  return (topology.remotes ?? []).map((remote: any) => ({
-    id: remote.id,
-    directory: '',
-    packageSuffix: remote.package?.split('/').at(-1) ?? remote.id,
-    displayName: remote.id,
-    kind: remote.kind ?? 'vertical',
-    domain: remote.domain ?? String(remote.id).replace(/^remote-/, ''),
-    portEnv: '',
-    port: typeof ports[remote.id] === 'number' ? ports[remote.id] : 0,
-    mfName: remote.moduleFederation?.name ?? `remote${toPascalCase(remote.id)}`,
-    ownership: remote.ownership ?? createNeutralOwnership(remote.id),
-  })) as WorkspaceApp[];
+  return (topology.remotes ?? []).map((remote: any) => {
+    const effectApi = remote.api?.effect
+      ? ({
+          stem:
+            typeof remote.api.effect.basePath === 'string'
+              ? (remote.api.effect.basePath.split('/').filter(Boolean).at(-1) ??
+                remote.domain ??
+                String(remote.id).replace(/^remote-/, ''))
+              : (remote.domain ?? String(remote.id).replace(/^remote-/, '')),
+          prefix:
+            remote.api.effect.bff?.prefix ??
+            `/${remote.domain ?? String(remote.id).replace(/^remote-/, '')}-api`,
+          consumedBy: Array.isArray(remote.api.effect.consumedBy)
+            ? remote.api.effect.consumedBy
+            : [shellApp.id, remote.id],
+        } satisfies WorkspaceEffectApi)
+      : undefined;
+
+    return {
+      id: remote.id,
+      directory: '',
+      packageSuffix: remote.package?.split('/').at(-1) ?? remote.id,
+      displayName: remote.id,
+      kind: remote.kind ?? 'vertical',
+      domain: remote.domain ?? String(remote.id).replace(/^remote-/, ''),
+      portEnv: '',
+      port: typeof ports[remote.id] === 'number' ? ports[remote.id] : 0,
+      mfName:
+        remote.moduleFederation?.name ?? `remote${toPascalCase(remote.id)}`,
+      ...(effectApi ? { effectApi } : {}),
+      ownership: remote.ownership ?? createNeutralOwnership(remote.id),
+    };
+  }) as WorkspaceApp[];
 }
 
 export function addUltramodernMicroVertical(
@@ -2769,6 +2981,11 @@ export function addUltramodernMicroVertical(
     overlay.manifests ??= {};
     overlay.manifests[remote.id] =
       `http://localhost:${remote.port}/mf-manifest.json`;
+    if (appHasEffectApi(remote)) {
+      overlay.apis ??= {};
+      overlay.apis[remote.id] =
+        `http://localhost:${remote.port}${effectApiPrefix(remote)}`;
+    }
     writeJsonFile(topologyPath, topology as JsonValue);
     writeJsonFile(ownershipPath, ownership as JsonValue);
     writeJsonFile(overlayPath, overlay as JsonValue);
@@ -2787,6 +3004,7 @@ export function addUltramodernMicroVertical(
       throw new Error('Shell Module Federation config was not regenerated');
     }
     addShellZephyrDependency(options.workspaceRoot, scope, remote);
+    addShellWorkspaceDependency(options.workspaceRoot, scope, remote);
     addRootDevScript(options.workspaceRoot, scope, remote.packageSuffix, name);
     return;
   }
@@ -2928,7 +3146,6 @@ export function generateUltramodernWorkspace(
   for (const remote of remoteApps) {
     writeApp(options.targetDir, scope, remote, packageSource, enableTailwind);
   }
-  writeEffectService(options.targetDir, scope, packageSource, enableTailwind);
   writeSharedPackages(options.targetDir, scope, packageSource);
 }
 

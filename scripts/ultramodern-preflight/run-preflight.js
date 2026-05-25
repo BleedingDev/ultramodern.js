@@ -144,6 +144,9 @@ function createSmokeChecks(doctor, controlPlane) {
   const processRoles = new Set(
     (controlPlane.processes || []).map(process => process.role),
   );
+  const fullStackVerticals = (controlPlane.processes || []).filter(process =>
+    process.capabilities?.includes('effect-bff'),
+  );
   const plannedCount = controlPlane.summary?.planned || 0;
   const totalCount = controlPlane.summary?.total || 0;
   const checks = [
@@ -154,10 +157,10 @@ function createSmokeChecks(doctor, controlPlane) {
     },
     {
       id: 'control-plane-process-count',
-      status: totalCount >= 5 && plannedCount >= 5 ? 'pass' : 'fail',
+      status: totalCount >= 4 && plannedCount >= 4 ? 'pass' : 'fail',
       message:
-        'Local control-plane plan includes shell, two remotes, design-system remote, and Effect service.',
-      expected: 'at least 5 planned processes',
+        'Local control-plane plan includes shell, full-stack remotes, and design-system remote.',
+      expected: 'at least 4 planned processes',
       actual: `${plannedCount}/${totalCount}`,
     },
     {
@@ -166,11 +169,15 @@ function createSmokeChecks(doctor, controlPlane) {
         processRoles.has('shell') &&
         processRoles.has('remote') &&
         processRoles.has('design-system-remote') &&
-        processRoles.has('effect-service')
+        fullStackVerticals.length >= 2
           ? 'pass'
           : 'fail',
-      message: 'Local control-plane plan covers all UltraModern runtime roles.',
-      actual: Array.from(processRoles).sort(),
+      message:
+        'Local control-plane plan covers shell, MF remotes, design system, and full-stack Effect BFF capabilities.',
+      actual: {
+        roles: Array.from(processRoles).sort(),
+        fullStackVerticals: fullStackVerticals.map(process => process.id),
+      },
     },
   ];
   return checks;

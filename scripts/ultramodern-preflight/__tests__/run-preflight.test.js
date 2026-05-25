@@ -20,8 +20,8 @@ test('generates and validates an UltraModern workspace end to end', () => {
     assert.equal(result.mode, 'dry-run');
     assert.equal(result.generated, true);
     assert.equal(result.doctor.status, 'pass');
-    assert.equal(result.controlPlane.summary.total, 5);
-    assert.equal(result.controlPlane.summary.planned, 5);
+    assert.equal(result.controlPlane.summary.total, 4);
+    assert.equal(result.controlPlane.summary.planned, 4);
     assert.deepEqual(
       result.smokeChecks.map(check => [check.id, check.status]),
       [
@@ -48,10 +48,16 @@ test('can produce overlay evidence without launching processes', () => {
 
     assert.equal(result.status, 'fail');
     assert.equal(result.controlPlane.overlay, 'service-unavailable');
-    assert.equal(result.controlPlane.summary.disabled, 1);
+    assert.equal(result.controlPlane.summary.disabled, 2);
     assert.equal(
       result.controlPlane.processes.find(
-        process => process.id === 'service-recommendations-effect',
+        process => process.id === 'remote-commerce',
+      ).readiness.status,
+      'disabled-by-overlay',
+    );
+    assert.equal(
+      result.controlPlane.processes.find(
+        process => process.id === 'remote-identity',
       ).readiness.status,
       'disabled-by-overlay',
     );

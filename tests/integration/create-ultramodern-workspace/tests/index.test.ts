@@ -77,6 +77,31 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
 }
 
+const fullStackVerticals = [
+  {
+    id: 'remote-commerce',
+    domain: 'commerce',
+    stem: 'recommendations',
+    group: 'recommendations',
+    notFound: 'RecommendationNotFound',
+    path: 'apps/remotes/remote-commerce',
+    mfName: 'remoteCommerce',
+    apiPrefix: '/commerce-api',
+  },
+  {
+    id: 'remote-identity',
+    domain: 'identity',
+    stem: 'identity',
+    group: 'identity',
+    notFound: 'IdentityNotFound',
+    path: 'apps/remotes/remote-identity',
+    mfName: 'remoteIdentity',
+    apiPrefix: '/identity-api',
+  },
+] as const;
+
+const designSystemRemotePath = 'apps/remotes/remote-design-system';
+
 function linkTypecheckPackage(
   workspaceDir: string,
   name: string,
@@ -106,8 +131,8 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
   );
   linkTypecheckPackage(
     workspaceDir,
-    '@ultra-workspace/shared-effect-api',
-    path.join(workspaceDir, 'packages/shared-effect-api'),
+    '@ultra-workspace/remote-commerce',
+    path.join(workspaceDir, 'apps/remotes/remote-commerce'),
   );
   writeText(
     workspaceDir,
@@ -127,9 +152,9 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
           target: 'ES2023',
         },
         include: [
-          'packages/shared-effect-api/src/index.ts',
-          'services/service-recommendations-effect/api/effect/index.ts',
-          'apps/shell-super-app/src/effect/recommendations-client.ts',
+          'apps/remotes/remote-commerce/shared/effect/api.ts',
+          'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
+          'apps/remotes/remote-commerce/api/effect/index.ts',
           'tests/type-contracts/*.ts',
         ],
       },
@@ -147,13 +172,14 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
 } from '@modern-js/plugin-bff/effect-client';
 import {
   recommendationsEffectApi,
-} from '@ultra-workspace/shared-effect-api';
+} from '@ultra-workspace/remote-commerce/shared/effect/api';
+import {
+  createRecommendationsClient,
+} from '@ultra-workspace/remote-commerce/effect/client';
 
 async function verifyClient() {
   const client = await runEffectRequest(
-    makeEffectHttpApiClient(recommendationsEffectApi, {
-      baseUrl: '/recommendations',
-    }),
+    makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl: '/commerce-api' }),
   );
 
   const list = await runEffectRequest(
@@ -172,8 +198,15 @@ async function verifyClient() {
     client.recommendations.create({ payload: { title: firstTitle || itemId } }),
   );
   const createdTitle: string = created.item.title;
+  const packageClient = await runEffectRequest(
+    createRecommendationsClient({ baseUrl: '/commerce-api' }),
+  );
+  const packageList = await runEffectRequest(
+    packageClient.recommendations.list({ query: { limit: 1 } }),
+  );
+  const packageTitle: string = packageList.items[0]?.title ?? '';
 
-  return createdTitle;
+  return createdTitle || packageTitle;
 }
 
 void verifyClient;
@@ -189,19 +222,17 @@ void verifyClient;
 } from '@modern-js/plugin-bff/effect-client';
 import {
   recommendationsEffectApi,
-} from '@ultra-workspace/shared-effect-api';
+} from '@ultra-workspace/remote-commerce/shared/effect/api';
 
 async function verifyClientRejections() {
   const client = await runEffectRequest(
-    makeEffectHttpApiClient(recommendationsEffectApi, {
-      baseUrl: '/recommendations',
-    }),
+    makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl: '/commerce-api' }),
   );
 
-  // @ts-expect-error unknown endpoint names are not part of the shared contract.
+  // @ts-expect-error unknown endpoint names are not part of the vertical contract.
   await runEffectRequest(client.recommendations.remove({}));
 
-  // @ts-expect-error get requires route params from the shared contract.
+  // @ts-expect-error get requires route params from the vertical contract.
   await runEffectRequest(client.recommendations.get({}));
 
   await runEffectRequest(
@@ -228,7 +259,7 @@ async function verifyClientRejections() {
   const created = await runEffectRequest(
     client.recommendations.create({ payload: { title: 'New item' } }),
   );
-  // @ts-expect-error created item has no count field in the shared schema.
+  // @ts-expect-error created item has no count field in the vertical schema.
   created.item.count;
 }
 
@@ -246,7 +277,7 @@ void verifyClientRejections;
 import {
   RecommendationNotFound,
   recommendationsEffectApi,
-} from '@ultra-workspace/shared-effect-api';
+} from '@ultra-workspace/remote-commerce/shared/effect/api';
 
 HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
   handlers
@@ -259,7 +290,7 @@ HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
         item: { id: 'generated-recommendation', title: payload.title },
       }),
     )
-    // @ts-expect-error unknown handler names are rejected by the shared contract.
+    // @ts-expect-error unknown handler names are rejected by the vertical contract.
     .handle('delete', () => Effect.succeed({})),
 );
 
@@ -378,12 +409,14 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
       'apps/shell-super-app/src/routes/index.css',
-      'apps/shell-super-app/src/effect/recommendations-client.ts',
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
       'apps/remotes/remote-commerce/module-federation.config.ts',
       'apps/remotes/remote-commerce/postcss.config.mjs',
       'apps/remotes/remote-commerce/tailwind.config.ts',
+      'apps/remotes/remote-commerce/api/effect/index.ts',
+      'apps/remotes/remote-commerce/shared/effect/api.ts',
+      'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
       'apps/remotes/remote-commerce/src/routes/index.css',
       'apps/remotes/remote-commerce/src/components/commerce-widget.tsx',
       'apps/remotes/remote-identity/package.json',
@@ -391,6 +424,9 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-identity/module-federation.config.ts',
       'apps/remotes/remote-identity/postcss.config.mjs',
       'apps/remotes/remote-identity/tailwind.config.ts',
+      'apps/remotes/remote-identity/api/effect/index.ts',
+      'apps/remotes/remote-identity/shared/effect/api.ts',
+      'apps/remotes/remote-identity/src/effect/identity-client.ts',
       'apps/remotes/remote-identity/src/routes/index.css',
       'apps/remotes/remote-identity/src/components/identity-widget.tsx',
       'apps/remotes/remote-design-system/package.json',
@@ -401,14 +437,6 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-design-system/src/routes/index.css',
       'apps/remotes/remote-design-system/src/components/button.tsx',
       'apps/remotes/remote-design-system/src/tokens.ts',
-      'services/service-recommendations-effect/package.json',
-      'services/service-recommendations-effect/modern.config.ts',
-      'services/service-recommendations-effect/postcss.config.mjs',
-      'services/service-recommendations-effect/tailwind.config.ts',
-      'services/service-recommendations-effect/api/effect/index.ts',
-      'services/service-recommendations-effect/src/routes/index.css',
-      'services/service-recommendations-effect/src/routes/layout.tsx',
-      'services/service-recommendations-effect/src/routes/page.tsx',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-effect-api/src/index.ts',
@@ -418,6 +446,7 @@ describe('create-ultramodern-workspace', () => {
         expectNoHandlebarsArtifacts(readText(workspaceDir, relativePath));
       }
     }
+    expectNoPath(workspaceDir, 'services/service-recommendations-effect');
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     const packageScope = rootPackage.name;
@@ -528,7 +557,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/package.json',
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-identity/package.json',
-      'apps/remotes/remote-design-system/package.json',
+      `${designSystemRemotePath}/package.json`,
     ];
     const expectedZephyrDependencies = {
       commerce: `@${packageScope}/remote-commerce@workspace:*`,
@@ -586,6 +615,24 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.5.0',
       );
+      const fullStackVertical = fullStackVerticals.find(
+        vertical => `${vertical.path}/package.json` === packagePath,
+      );
+      if (fullStackVertical) {
+        expect(packageJson.dependencies['@modern-js/plugin-bff']).toBe(
+          'workspace:*',
+        );
+        expect(packageJson.exports).toMatchObject({
+          './effect/client': `./src/effect/${fullStackVertical.stem}-client.ts`,
+          './shared/effect/api': './shared/effect/api.ts',
+        });
+      } else if (packagePath.includes('/remote-design-system/')) {
+        expect(
+          packageJson.dependencies['@modern-js/plugin-bff'],
+        ).toBeUndefined();
+        expect(packageJson.exports?.['./effect/client']).toBeUndefined();
+        expect(packageJson.exports?.['./shared/effect/api']).toBeUndefined();
+      }
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
     }
 
@@ -658,111 +705,83 @@ describe('create-ultramodern-workspace', () => {
     expect(designMfConfig).toContain("'./Button'");
     expect(designMfConfig).toContain("'./tokens'");
 
-    const servicePackage = readJson(
-      workspaceDir,
-      'services/service-recommendations-effect/package.json',
-    );
-    expect(servicePackage.devDependencies['@modern-js/plugin-bff']).toBe(
-      'workspace:*',
-    );
-    expect(servicePackage.dependencies['@modern-js/runtime']).toBe(
-      'workspace:*',
-    );
-    expect(servicePackage.devDependencies.typescript).toBe('6.0.3');
-    expect(servicePackage.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(servicePackage.devDependencies['@tailwindcss/postcss']).toBe(
-      '^4.3.0',
-    );
-    expect(servicePackage.devDependencies.postcss).toBe('^8.5.6');
-    expect(servicePackage.modernjs.role).toBe('effect-service');
-
-    expect(
-      readText(
+    for (const vertical of fullStackVerticals) {
+      const verticalConfig = readText(
         workspaceDir,
-        'services/service-recommendations-effect/src/routes/layout.tsx',
-      ),
-    ).toContain('data-app-id="service-recommendations-effect"');
-    expect(
-      readText(
-        workspaceDir,
-        'services/service-recommendations-effect/src/routes/index.css',
-      ),
-    ).toContain("@import 'tailwindcss';");
-    expect(
-      readText(
-        workspaceDir,
-        'services/service-recommendations-effect/postcss.config.mjs',
-      ),
-    ).toContain("'@tailwindcss/postcss'");
+        `${vertical.path}/modern.config.ts`,
+      );
+      expect(verticalConfig).toContain('moduleFederationPlugin()');
+      expect(verticalConfig).toContain('bffPlugin()');
+      expect(verticalConfig).toContain("runtimeFramework: 'effect'");
+      expect(verticalConfig).toContain(`prefix: '${vertical.apiPrefix}'`);
+      expect(verticalConfig).toContain("mode: 'stream'");
+      expect(verticalConfig).toContain('moduleFederationAppSSR: true');
+      expect(verticalConfig).toContain('withZephyr(),');
+      expect(verticalConfig).toContain("html: './'");
+      expect(verticalConfig).toContain("outputStructure: 'flat'");
 
-    const serviceConfig = readText(
-      workspaceDir,
-      'services/service-recommendations-effect/modern.config.ts',
-    );
-    expect(serviceConfig).toContain("runtimeFramework: 'effect'");
-    expect(serviceConfig).toContain('bffPlugin()');
+      const verticalMfConfig = readText(
+        workspaceDir,
+        `${vertical.path}/module-federation.config.ts`,
+      );
+      expect(verticalMfConfig).toContain(`name: '${vertical.mfName}'`);
+      expect(verticalMfConfig).toContain('displayErrorInTerminal: true');
+      expect(verticalMfConfig).toContain(
+        "compilerInstance: '--package typescript -- tsc'",
+      );
+      expect(verticalMfConfig).toContain("'./Widget'");
+      expect(verticalMfConfig).toContain("'./Route'");
+      expect(verticalMfConfig).not.toContain("'./api'");
+      expect(verticalMfConfig).not.toContain("'./effect'");
+      expect(verticalMfConfig).not.toContain("'./client'");
+      expect(verticalMfConfig).not.toContain("'./contract'");
 
-    const serviceEntry = readText(
-      workspaceDir,
-      'services/service-recommendations-effect/api/effect/index.ts',
-    );
-    expect(serviceEntry).toContain('defineEffectBff');
-    expect(serviceEntry).toContain('recommendationsEffectApi');
-    expect(serviceEntry).toContain('useEffectContext');
-    expect(serviceEntry).toContain('Effect.withSpan');
-    expect(serviceEntry).toContain('modernjs.operation.route');
-    expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
-    expect(serviceEntry).toContain('new RecommendationNotFound');
-    expect(serviceEntry).toContain(".handle('get'");
-    expect(serviceEntry).toContain(".handle('create'");
-    expect(serviceEntry).not.toContain('_tag');
-    expect(serviceEntry).not.toContain('../../shared/effect/api');
-    expect(serviceEntry).not.toContain('/shared/effect/api');
-    expectNoPath(
-      workspaceDir,
-      'services/service-recommendations-effect/shared/effect/api.ts',
-    );
+      const contractSource = readText(
+        workspaceDir,
+        `${vertical.path}/shared/effect/api.ts`,
+      );
+      expect(contractSource).toContain('HttpApi.make');
+      expect(contractSource).toContain('HttpApiSchema');
+      expect(contractSource).toContain('OperationContext');
+      expect(contractSource).toContain('TaggedErrorClass');
+      expect(contractSource).toContain(`${vertical.group}EffectApi`);
+      expect(contractSource).toContain(`${vertical.group}ApiContract`);
+      expect(contractSource).toContain(`${vertical.group}OperationContexts`);
+      expect(contractSource).toContain(`basePath: '${vertical.apiPrefix}`);
+      expect(contractSource).toContain("source: 'generated-client'");
+
+      const clientSource = readText(
+        workspaceDir,
+        `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
+      );
+      expect(clientSource).toContain('makeEffectHttpApiClient');
+      expect(clientSource).toContain('runEffectRequest');
+      expect(clientSource).toContain(`${vertical.group}EffectApi`);
+      expect(clientSource).toContain(`${vertical.group}OperationContexts`);
+
+      const apiEntry = readText(
+        workspaceDir,
+        `${vertical.path}/api/effect/index.ts`,
+      );
+      expect(apiEntry).toContain('defineEffectBff');
+      expect(apiEntry).toContain(`${vertical.group}EffectApi`);
+      expect(apiEntry).toContain('useEffectContext');
+      expect(apiEntry).toContain('Effect.withSpan');
+      expect(apiEntry).toContain('modernjs.operation.route');
+      expect(apiEntry).toContain(".handle('get'");
+      expect(apiEntry).toContain(".handle('create'");
+      expect(apiEntry).not.toContain('_tag');
+      expect(apiEntry).not.toContain('shared-effect-api');
+      expect(apiEntry).toContain("from '../../shared/effect/api'");
+    }
 
     const sharedEffectApi = readText(
       workspaceDir,
       'packages/shared-effect-api/src/index.ts',
     );
-    expect(sharedEffectApi).toContain('HttpApi.make');
-    expect(sharedEffectApi).toContain('HttpApiSchema');
-    expect(sharedEffectApi).toContain('OperationContext');
-    expect(sharedEffectApi).toContain('export type OperationContext');
-    expect(sharedEffectApi).toContain('RecommendationsEffectApi');
-    expect(sharedEffectApi).toContain('RecommendationNotFound');
-    expect(sharedEffectApi).toContain('TaggedErrorClass');
-    expect(sharedEffectApi).toContain('recommendationsApiContract');
-    expect(sharedEffectApi).toContain('recommendationsOperationContexts');
-    expect(sharedEffectApi).toContain("source: 'generated-client'");
-    expect(sharedEffectApi).toContain('query: {\n          limit:');
-    expect(sharedEffectApi).toContain('params: {\n          id:');
-    expect(sharedEffectApi).toContain(
-      'payload: recommendationsCreatePayloadSchema',
-    );
-    expect(sharedEffectApi).toContain('error: recommendationNotFoundSchema');
-
-    const shellEffectClient = readText(
-      workspaceDir,
-      'apps/shell-super-app/src/effect/recommendations-client.ts',
-    );
-    expect(shellEffectClient).toContain('makeEffectHttpApiClient');
-    expect(shellEffectClient).toContain('runEffectRequest');
-    expect(shellEffectClient).toContain('recommendationsEffectApi');
-    expect(shellEffectClient).toContain('recommendationsOperationContexts');
-    expect(shellEffectClient).toContain('operationContext?: OperationContext');
-    expect(shellEffectClient).toContain('type OperationContext');
-    expect(shellEffectClient).toContain(
-      'client.recommendations.list({ query: { limit: options.limit } })',
-    );
-    expect(shellEffectClient).toContain(
-      'client.recommendations.get({ params: { id } })',
-    );
-    expect(shellEffectClient).toContain(
-      'client.recommendations.create({ payload: { title } })',
-    );
+    expect(sharedEffectApi).not.toContain('recommendationsEffectApi');
+    expect(sharedEffectApi).not.toContain('commerceEffectApi');
+    expect(sharedEffectApi).not.toContain('identityEffectApi');
 
     writeEffectContractTypeFixtures(workspaceDir);
     runEffectContractTypecheck(workspaceDir);
@@ -778,12 +797,39 @@ describe('create-ultramodern-workspace', () => {
       'remote-design-system',
     ]);
     expect(topology.remotes).toHaveLength(3);
+    for (const vertical of fullStackVerticals) {
+      const topologyEntry = topology.remotes.find(
+        (remote: { id: string }) => remote.id === vertical.id,
+      );
+      expect(topologyEntry.kind).toBe('vertical');
+      expect(topologyEntry.moduleFederation.manifestUrl).toContain(
+        '/mf-manifest.json',
+      );
+      expect(topologyEntry.api).toMatchObject({
+        effect: {
+          runtime: 'effect',
+          bff: {
+            prefix: vertical.apiPrefix,
+            openapi: '/openapi.json',
+          },
+          contract: {
+            export: './shared/effect/api',
+            path: `${vertical.path}/shared/effect/api.ts`,
+          },
+          client: {
+            export: './effect/client',
+            path: `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
+          },
+          serverEntry: `${vertical.path}/api/effect/index.ts`,
+        },
+      });
+    }
     expect(
       topology.remotes.find(
         (remote: { id: string }) => remote.id === 'remote-design-system',
       ).kind,
     ).toBe('horizontal-design-system');
-    expect(topology.effectServices[0].runtime).toBe('effect');
+    expect(topology.effectServices ?? []).toEqual([]);
     expect(topology.sharedPackages).toHaveLength(3);
 
     const ownership = readJson(workspaceDir, 'topology/ownership.json');
@@ -793,11 +839,12 @@ describe('create-ultramodern-workspace', () => {
       ).ownership.team,
     ).toBe('commerce-experience');
     expect(
-      ownership.owners.find(
-        (owner: { id: string }) =>
-          owner.id === 'service-recommendations-effect',
-      ).package,
-    ).toBe('@ultra-workspace/service-recommendations-effect');
+      ownership.owners.some(
+        (owner: { id: string; path: string }) =>
+          owner.id === 'service-recommendations-effect' ||
+          owner.path === 'services/service-recommendations-effect',
+      ),
+    ).toBe(false);
 
     const manifest = readJson(
       workspaceDir,
@@ -871,7 +918,7 @@ describe('create-ultramodern-workspace', () => {
     );
   });
 
-  test('adds a remote MicroVertical to an existing workspace', () => {
+  test('adds a full-stack remote MicroVertical to an existing workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-add-remote-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
@@ -887,6 +934,9 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-catalog/package.json',
       'apps/remotes/remote-catalog/modern.config.ts',
       'apps/remotes/remote-catalog/module-federation.config.ts',
+      'apps/remotes/remote-catalog/api/effect/index.ts',
+      'apps/remotes/remote-catalog/shared/effect/api.ts',
+      'apps/remotes/remote-catalog/src/effect/catalog-client.ts',
       'apps/remotes/remote-catalog/src/routes/[lang]/page.tsx',
       'apps/remotes/remote-catalog/src/routes/index.css',
       'apps/remotes/remote-catalog/src/remote-entry.tsx',
@@ -921,6 +971,14 @@ describe('create-ultramodern-workspace', () => {
     ).toBeUndefined();
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(remotePackage['zephyr:dependencies']).toEqual({});
+    expect(remotePackage.dependencies['@modern-js/plugin-bff']).toBe(
+      'workspace:*',
+    );
+    expect(remotePackage.exports).toMatchObject({
+      './effect/client': './src/effect/catalog-client.ts',
+      './shared/effect/api': './shared/effect/api.ts',
+    });
+    expectNoPath(workspaceDir, 'services/service-catalog-effect');
 
     const shellPackage = readJson(
       workspaceDir,
@@ -936,6 +994,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(remoteConfig).toContain('tanstackRouterPlugin()');
     expect(remoteConfig).toContain('moduleFederationPlugin()');
+    expect(remoteConfig).toContain('bffPlugin()');
+    expect(remoteConfig).toContain("runtimeFramework: 'effect'");
+    expect(remoteConfig).toContain("prefix: '/catalog-api'");
     expect(remoteConfig).toContain("from 'zephyr-modernjs-plugin'");
     expect(remoteConfig).toContain('withZephyr(),');
     expect(remoteConfig).not.toContain('zephyrRspackPlugin()');
@@ -954,8 +1015,35 @@ describe('create-ultramodern-workspace', () => {
     expect(
       topology.remotes.find(
         (remote: { id: string }) => remote.id === 'remote-catalog',
-      ).moduleFederation.manifestUrl,
-    ).toBe('http://localhost:3031/mf-manifest.json');
+      ),
+    ).toMatchObject({
+      api: {
+        effect: {
+          runtime: 'effect',
+          bff: {
+            prefix: '/catalog-api',
+            openapi: '/openapi.json',
+          },
+          contract: {
+            export: './shared/effect/api',
+            path: 'apps/remotes/remote-catalog/shared/effect/api.ts',
+          },
+          client: {
+            export: './effect/client',
+            path: 'apps/remotes/remote-catalog/src/effect/catalog-client.ts',
+          },
+          serverEntry: 'apps/remotes/remote-catalog/api/effect/index.ts',
+        },
+      },
+      moduleFederation: {
+        manifestUrl: 'http://localhost:3031/mf-manifest.json',
+      },
+    });
+    expect(
+      topology.effectServices?.some(
+        (service: { id: string }) => service.id === 'service-catalog-effect',
+      ),
+    ).toBe(false);
 
     const ownership = readJson(workspaceDir, 'topology/ownership.json');
     expect(
@@ -972,9 +1060,13 @@ describe('create-ultramodern-workspace', () => {
     expect(overlay.manifests['remote-catalog']).toBe(
       'http://localhost:3031/mf-manifest.json',
     );
+    expect(overlay.apis['remote-catalog']).toBe(
+      'http://localhost:3031/catalog-api',
+    );
+    expect(overlay.services?.['service-catalog-effect']).toBeUndefined();
   });
 
-  test('adds an Effect service MicroVertical to an existing workspace', () => {
+  test('adds an explicit external Effect service to an existing workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-add-service-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
@@ -1037,7 +1129,6 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'packages/shared-effect-api/src/index.ts',
     );
-    expect(sharedEffectApi).toContain('recommendationsEffectApi');
     expect(sharedEffectApi).toContain('catalogEffectApi');
     expect(sharedEffectApi).toContain('CatalogEffectApi');
     expect(sharedEffectApi).toContain('CatalogNotFound');
@@ -1114,7 +1205,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(
       shellPackage.dependencies['@ultra-install-workspace/shared-effect-api'],
-    ).toBe('workspace:*');
+    ).toBeUndefined();
     expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
       '3.2.0-ultramodern.0',
     );
@@ -1127,16 +1218,25 @@ describe('create-ultramodern-workspace', () => {
       ],
     ).toBe('workspace:*');
 
-    const servicePackage = readJson(
+    for (const vertical of ['remote-commerce', 'remote-identity']) {
+      const verticalPackage = readJson(
+        workspaceDir,
+        `apps/remotes/${vertical}/package.json`,
+      );
+      expect(verticalPackage.dependencies['@modern-js/plugin-bff']).toBe(
+        '3.2.0-ultramodern.0',
+      );
+      expect(
+        verticalPackage.dependencies[
+          '@ultra-install-workspace/shared-effect-api'
+        ],
+      ).toBeUndefined();
+    }
+
+    expectNoPath(
       workspaceDir,
       'services/service-recommendations-effect/package.json',
     );
-    expect(servicePackage.devDependencies['@modern-js/plugin-bff']).toBe(
-      '3.2.0-ultramodern.0',
-    );
-    expect(
-      servicePackage.dependencies['@ultra-install-workspace/shared-effect-api'],
-    ).toBe('workspace:*');
 
     const sharedEffectPackage = readJson(
       workspaceDir,

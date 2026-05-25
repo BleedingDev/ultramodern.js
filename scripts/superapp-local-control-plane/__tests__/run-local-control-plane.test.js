@@ -210,6 +210,35 @@ test('applies rehearsal overlays without launching processes', () => {
   }
 });
 
+test('applies service-unavailable overlay to full-stack vertical BFF remotes', () => {
+  const root = createWorkspace();
+  try {
+    const topologyPath = path.join(root, 'topology/reference-topology.json');
+    const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
+    topology.remotes[0].api = { effect: { runtime: 'effect' } };
+    topology.effectServices = [];
+    writeJson(root, 'topology/reference-topology.json', topology);
+
+    const serviceUnavailable = createLocalControlPlanePlan({
+      workspace: root,
+      overlay: 'service-unavailable',
+    });
+
+    const commerce = serviceUnavailable.processes.find(
+      process => process.id === 'remote-commerce',
+    );
+    assert.deepEqual(commerce.capabilities, [
+      'module-federation',
+      'effect-bff',
+    ]);
+    assert.equal(commerce.readiness.status, 'disabled-by-overlay');
+    assert.equal(commerce.env.ULTRAMODERN_SERVICE_UNAVAILABLE, '1');
+    assert.equal(serviceUnavailable.summary.disabled, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('live mode launches spawn-safe process descriptors, probes readiness, captures logs, and tears down', async () => {
   const root = createWorkspace();
   try {

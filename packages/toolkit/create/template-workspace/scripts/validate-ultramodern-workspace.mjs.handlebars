@@ -27,6 +27,27 @@ const baselineAgentSkills = [
 ];
 const moduleFederationAgentSkills = ['mf'];
 const privateAgentSkills = ['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugger-mode'];
+const fullStackVerticals = [
+  {
+    id: 'remote-commerce',
+    domain: 'commerce',
+    stem: 'recommendations',
+    group: 'recommendations',
+    path: 'apps/remotes/remote-commerce',
+    mfName: 'remoteCommerce',
+    apiPrefix: '/commerce-api',
+  },
+  {
+    id: 'remote-identity',
+    domain: 'identity',
+    stem: 'identity',
+    group: 'identity',
+    path: 'apps/remotes/remote-identity',
+    mfName: 'remoteIdentity',
+    apiPrefix: '/identity-api',
+  },
+];
+const designSystemRemotePath = 'apps/remotes/remote-design-system';
 
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
@@ -88,6 +109,9 @@ const requiredPaths = [
   'apps/remotes/remote-commerce/config/public/locales/cs/translation.json',
   'apps/remotes/remote-commerce/modern.config.ts',
   'apps/remotes/remote-commerce/module-federation.config.ts',
+  'apps/remotes/remote-commerce/api/effect/index.ts',
+  'apps/remotes/remote-commerce/shared/effect/api.ts',
+  'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
   'apps/remotes/remote-commerce/src/modern-app-env.d.ts',
   'apps/remotes/remote-commerce/src/modern.runtime.ts',
   'apps/remotes/remote-commerce/src/routes/index.css',
@@ -97,6 +121,9 @@ const requiredPaths = [
   'apps/remotes/remote-identity/config/public/locales/cs/translation.json',
   'apps/remotes/remote-identity/modern.config.ts',
   'apps/remotes/remote-identity/module-federation.config.ts',
+  'apps/remotes/remote-identity/api/effect/index.ts',
+  'apps/remotes/remote-identity/shared/effect/api.ts',
+  'apps/remotes/remote-identity/src/effect/identity-client.ts',
   'apps/remotes/remote-identity/src/modern-app-env.d.ts',
   'apps/remotes/remote-identity/src/modern.runtime.ts',
   'apps/remotes/remote-identity/src/routes/index.css',
@@ -110,12 +137,6 @@ const requiredPaths = [
   'apps/remotes/remote-design-system/src/modern.runtime.ts',
   'apps/remotes/remote-design-system/src/routes/index.css',
   'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
-  'services/service-recommendations-effect/package.json',
-  'services/service-recommendations-effect/modern.config.ts',
-  'services/service-recommendations-effect/api/effect/index.ts',
-  'services/service-recommendations-effect/src/routes/index.css',
-  'services/service-recommendations-effect/src/routes/layout.tsx',
-  'services/service-recommendations-effect/src/routes/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-effect-api/src/index.ts',
@@ -131,14 +152,14 @@ if (tailwindEnabled) {
     'apps/remotes/remote-identity/tailwind.config.ts',
     'apps/remotes/remote-design-system/postcss.config.mjs',
     'apps/remotes/remote-design-system/tailwind.config.ts',
-    'services/service-recommendations-effect/postcss.config.mjs',
-    'services/service-recommendations-effect/tailwind.config.ts',
   );
 }
 
 for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
 }
+
+assertNotExists('services/service-recommendations-effect');
 
 for (const appDirectory of [
   'apps/shell-super-app',
@@ -406,7 +427,7 @@ const appPackagePaths = [
   'apps/shell-super-app/package.json',
   'apps/remotes/remote-commerce/package.json',
   'apps/remotes/remote-identity/package.json',
-  'apps/remotes/remote-design-system/package.json',
+  `${designSystemRemotePath}/package.json`,
 ];
 
 const expectedZephyrDependencies = {
@@ -418,6 +439,9 @@ const expectedZephyrDependencies = {
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
   const isRemote = packagePath.includes('/remotes/');
+  const fullStackVertical = fullStackVerticals.find(
+    (vertical) => `${vertical.path}/package.json` === packagePath,
+  );
   assert(packageJson.scripts?.dev === 'modern dev', `${packagePath} must use vanilla modern dev`);
   assert(
     packageJson.scripts?.build ===
@@ -518,6 +542,31 @@ for (const packagePath of appPackagePaths) {
     packageJson.dependencies?.['@module-federation/modern-js-v3'] === '2.5.0',
     `${packagePath} must include the Module Federation plugin`,
   );
+  if (fullStackVertical) {
+    assert(
+      packageJson.dependencies?.['@modern-js/plugin-bff'] ===
+        expectedModernDependency('@modern-js/plugin-bff'),
+      `${packagePath} must use @modern-js/plugin-bff through ${expectedModernDependency(
+        '@modern-js/plugin-bff',
+      )}`,
+    );
+    assert(
+      packageJson.exports?.['./effect/client'] ===
+        `./src/effect/${fullStackVertical.stem}-client.ts` &&
+        packageJson.exports?.['./shared/effect/api'] === './shared/effect/api.ts',
+      `${packagePath} must expose its vertical-owned Effect client and contract surface`,
+    );
+  }
+  if (packagePath === `${designSystemRemotePath}/package.json`) {
+    assert(
+      !packageJson.dependencies?.['@modern-js/plugin-bff'],
+      'Design-system remote must remain FE-only and must not depend on @modern-js/plugin-bff',
+    );
+    assert(
+      !packageJson.exports?.['./effect/client'] && !packageJson.exports?.['./shared/effect/api'],
+      'Design-system remote must not expose Effect client or contract exports',
+    );
+  }
   if (tailwindEnabled) {
     assert(
       packageJson.devDependencies?.tailwindcss === tailwindVersion,
@@ -698,32 +747,80 @@ assert(
   )}`,
 );
 assert(
-  shellPackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
-  'Shell must link generated shared Effect API through workspace:*',
+  !shellPackage.dependencies?.[`@${packageScope}/shared-effect-api`],
+  'Shell must not depend on shared-effect-api for default vertical-owned APIs',
 );
 
-const shellEffectClient = readText('apps/shell-super-app/src/effect/recommendations-client.ts');
-assert(
-  shellEffectClient.includes('makeEffectHttpApiClient'),
-  'Shell must include typed Effect HttpApi client helper',
-);
-assert(
-  shellEffectClient.includes('recommendationsOperationContexts') &&
-    shellEffectClient.includes('operationContext?: OperationContext') &&
-    shellEffectClient.includes('type OperationContext') &&
-    shellEffectClient.includes('client.recommendations.list({ query: { limit: options.limit } })') &&
-    shellEffectClient.includes('client.recommendations.get({ params: { id } })') &&
-    shellEffectClient.includes('client.recommendations.create({ payload: { title } })'),
-  'Shell typed Effect client helper must call shared contracts with request context metadata',
-);
+for (const vertical of fullStackVerticals) {
+  const mfConfig = readText(`${vertical.path}/module-federation.config.ts`);
+  assert(mfConfig.includes(`name: '${vertical.mfName}'`), `${vertical.id} MF name is missing`);
+  assert(
+    mfConfig.includes("'react-dom/client'"),
+    `${vertical.id} MF config must share react-dom/client explicitly`,
+  );
+  assert(
+    mfConfig.includes("'./Widget'") && mfConfig.includes("'./Route'"),
+    `${vertical.id} must expose only browser-safe Route and Widget modules`,
+  );
+  for (const forbiddenExpose of ["'./api'", "'./effect'", "'./client'", "'./contract'"]) {
+    assert(
+      !mfConfig.includes(forbiddenExpose),
+      `${vertical.id} MF config must not expose server or Effect client modules`,
+    );
+  }
 
-const commerceMf = readText('apps/remotes/remote-commerce/module-federation.config.ts');
-assert(commerceMf.includes("name: 'remoteCommerce'"), 'Commerce remote MF name is missing');
-assert(
-  commerceMf.includes("'react-dom/client'"),
-  'Commerce remote MF config must share react-dom/client explicitly',
-);
-assert(commerceMf.includes("'./Widget'"), 'Commerce remote must expose a widget');
+  const modernConfig = readText(`${vertical.path}/modern.config.ts`);
+  assert(
+    modernConfig.includes('moduleFederationPlugin()') &&
+      modernConfig.includes('bffPlugin()') &&
+      modernConfig.includes("runtimeFramework: 'effect'") &&
+      modernConfig.includes(`prefix: '${vertical.apiPrefix}'`) &&
+      modernConfig.includes("mode: 'stream'") &&
+      modernConfig.includes('moduleFederationAppSSR: true') &&
+      modernConfig.includes('withZephyr(),') &&
+      modernConfig.includes("html: './'") &&
+      modernConfig.includes("outputStructure: 'flat'"),
+    `${vertical.path}/modern.config.ts must compose Module Federation, Zephyr, stream SSR, flat output, and Effect BFF`,
+  );
+
+  const contractSource = readText(`${vertical.path}/shared/effect/api.ts`);
+  assert(
+    contractSource.includes('HttpApi.make') &&
+      contractSource.includes('HttpApiSchema') &&
+      contractSource.includes('TaggedErrorClass') &&
+      contractSource.includes('OperationContext') &&
+      contractSource.includes(`${vertical.group}EffectApi`) &&
+      contractSource.includes(`${vertical.group}ApiContract`) &&
+      contractSource.includes(`${vertical.group}OperationContexts`) &&
+      contractSource.includes(`basePath: '${vertical.apiPrefix}`) &&
+      contractSource.includes("source: 'generated-client'"),
+    `${vertical.path} must own its Effect contract surface`,
+  );
+
+  const clientSource = readText(`${vertical.path}/src/effect/${vertical.stem}-client.ts`);
+  assert(
+    clientSource.includes('makeEffectHttpApiClient') &&
+      clientSource.includes('runEffectRequest') &&
+      clientSource.includes(`${vertical.group}EffectApi`) &&
+      clientSource.includes(`${vertical.group}OperationContexts`),
+    `${vertical.path} must own its typed Effect client surface`,
+  );
+
+  const apiEntry = readText(`${vertical.path}/api/effect/index.ts`);
+  assert(
+    apiEntry.includes('defineEffectBff') &&
+      apiEntry.includes(`${vertical.group}EffectApi`) &&
+      apiEntry.includes('useEffectContext') &&
+      apiEntry.includes('Effect.withSpan') &&
+      apiEntry.includes('modernjs.operation.route') &&
+      apiEntry.includes(".handle('get'") &&
+      apiEntry.includes(".handle('create'") &&
+      !apiEntry.includes('_tag') &&
+      !apiEntry.includes('shared-effect-api') &&
+      apiEntry.includes("from '../../shared/effect/api'"),
+    `${vertical.path}/api/effect/index.ts must implement its vertical-owned Effect BFF without shared vertical API imports`,
+  );
+}
 
 const designMf = readText('apps/remotes/remote-design-system/module-federation.config.ts');
 assert(designMf.includes("name: 'remoteDesignSystem'"), 'Design-system remote MF name is missing');
@@ -733,153 +830,12 @@ assert(
 );
 assert(designMf.includes("'./Button'"), 'Design-system remote must expose Button');
 assert(designMf.includes("'./tokens'"), 'Design-system remote must expose tokens');
-
-const servicePackage = readJson('services/service-recommendations-effect/package.json');
-assert(
-  servicePackage.dependencies?.['@modern-js/runtime'] ===
-    expectedModernDependency('@modern-js/runtime'),
-  `Effect service must use @modern-js/runtime through ${expectedModernDependency(
-    '@modern-js/runtime',
-  )}`,
-);
-assert(
-  servicePackage.devDependencies?.['@modern-js/app-tools'] ===
-    expectedModernDependency('@modern-js/app-tools'),
-  `Effect service must use @modern-js/app-tools through ${expectedModernDependency(
-    '@modern-js/app-tools',
-  )}`,
-);
-assert(
-  servicePackage.devDependencies?.['@modern-js/plugin-bff'] ===
-    expectedModernDependency('@modern-js/plugin-bff'),
-  `Effect service must use @modern-js/plugin-bff through ${expectedModernDependency(
-    '@modern-js/plugin-bff',
-  )}`,
-);
-assert(
-  servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
-  'Effect service must link generated shared Effect API through workspace:*',
-);
-assert(
-  servicePackage.devDependencies?.typescript === '6.0.3',
-  'Effect service must include stable TypeScript for Modern build peer resolution',
-);
-if (tailwindEnabled) {
-  assert(
-    servicePackage.devDependencies?.tailwindcss === tailwindVersion,
-    'Effect service must include Tailwind CSS',
-  );
-  assert(
-    servicePackage.devDependencies?.['@tailwindcss/postcss'] === tailwindPostcssVersion,
-    'Effect service must include @tailwindcss/postcss',
-  );
-  assert(
-    servicePackage.devDependencies?.postcss === '^8.5.6',
-    'Effect service must include PostCSS for Tailwind CSS',
-  );
-  assert(
-    readText('services/service-recommendations-effect/src/routes/index.css').includes(
-      "@import 'tailwindcss';",
-    ),
-    'Effect service must import Tailwind CSS by default',
-  );
-} else {
-  assert(!servicePackage.devDependencies?.tailwindcss, 'Effect service must not include Tailwind CSS');
-  assert(
-    !servicePackage.devDependencies?.['@tailwindcss/postcss'],
-    'Effect service must not include @tailwindcss/postcss',
-  );
-  assert(
-    !readText('services/service-recommendations-effect/src/routes/index.css').includes(
-      "@import 'tailwindcss';",
-    ),
-    'Effect service must omit Tailwind CSS import when Tailwind is disabled',
-  );
-}
-
-const serviceConfig = readText('services/service-recommendations-effect/modern.config.ts');
-assert(
-  serviceConfig.includes("runtimeFramework: 'effect'"),
-  'Effect service must use Effect runtime',
-);
-assert(serviceConfig.includes('bffPlugin()'), 'Effect service must enable bffPlugin');
-
-const serviceRoute = readText('services/service-recommendations-effect/src/routes/page.tsx');
-assert(serviceRoute.includes("import './index.css';"), 'Effect service must import route CSS');
-const serviceLayout = readText('services/service-recommendations-effect/src/routes/layout.tsx');
-assert(
-  serviceLayout.includes('data-app-id="service-recommendations-effect"'),
-  'Effect service must include a Modern root layout so service builds pass',
-);
-
-const serviceEntry = readText('services/service-recommendations-effect/api/effect/index.ts');
-assert(
-  serviceEntry.includes('defineEffectBff'),
-  'Effect service must expose defineEffectBff placeholder',
-);
-assert(
-  serviceEntry.includes('recommendationsEffectApi'),
-  'Effect service must use shared recommendations API',
-);
-assert(
-  serviceEntry.includes('useEffectContext') &&
-    serviceEntry.includes('Effect.withSpan') &&
-    serviceEntry.includes('modernjs.operation.route'),
-  'Effect service must expose operation context attributes through Effect spans',
-);
-assert(
-  serviceEntry.includes('new RecommendationNotFound'),
-  'Effect service must use schema-owned typed errors from shared Effect API package',
-);
-assert(
-  serviceEntry.includes(".handle('get'") && serviceEntry.includes(".handle('create'"),
-  'Effect service must implement params and payload endpoints from the shared contract',
-);
-assert(
-  !serviceEntry.includes('_tag'),
-  'Effect service must not manually construct tagged error object literals',
-);
-assert(
-  serviceEntry.includes(`from '@${packageScope}/shared-effect-api'`),
-  'Effect service must import canonical shared Effect API package',
-);
-assert(
-  !serviceEntry.includes('../../shared/effect/api'),
-  'Effect service must not import service-local Effect API as source of truth',
-);
-assert(
-  !serviceEntry.includes('/shared/effect/api'),
-  'Effect service must not import any service-local Effect API file',
-);
-assertNotExists('services/service-recommendations-effect/shared/effect/api.ts');
 const sharedEffectApi = readText('packages/shared-effect-api/src/index.ts');
 assert(
-  sharedEffectApi.includes('HttpApi.make'),
-  'Canonical shared Effect API package must define HttpApi',
-);
-assert(
-  sharedEffectApi.includes('HttpApiSchema') &&
-    sharedEffectApi.includes('TaggedErrorClass') &&
-    sharedEffectApi.includes('RecommendationNotFound'),
-  'Canonical shared Effect API package must define schema-owned typed errors',
-);
-assert(
-  sharedEffectApi.includes('recommendationsEffectApi'),
-  'Canonical shared Effect API package must export recommendationsEffectApi',
-);
-assert(
-  sharedEffectApi.includes('OperationContext') &&
-    sharedEffectApi.includes('recommendationsOperationContexts') &&
-    sharedEffectApi.includes('export type OperationContext') &&
-    sharedEffectApi.includes("source: 'generated-client'"),
-  'Canonical shared Effect API package must export neutral generated operation context metadata',
-);
-assert(
-  sharedEffectApi.includes('query:') &&
-    sharedEffectApi.includes('params:') &&
-    sharedEffectApi.includes('payload:') &&
-    sharedEffectApi.includes('error:'),
-  'Canonical shared Effect API package must exercise query, params, payload, and error contracts',
+  !sharedEffectApi.includes('recommendationsEffectApi') &&
+    !sharedEffectApi.includes('commerceEffectApi') &&
+    !sharedEffectApi.includes('identityEffectApi'),
+  'Shared Effect API package must not own default vertical API contracts',
 );
 
 const topology = readJson('topology/reference-topology.json');
@@ -887,6 +843,20 @@ assert(topology.preset === 'presetUltramodern', 'Topology must reference presetU
 assert(topology.shell?.id === 'shell-super-app', 'Topology shell id is incorrect');
 assert(topology.shell?.remoteRefs?.length === 3, 'Topology shell must reference three remotes');
 assert(topology.remotes?.length === 3, 'Topology must contain three remotes');
+for (const vertical of fullStackVerticals) {
+  const topologyEntry = topology.remotes.find((remote) => remote.id === vertical.id);
+  assert(topologyEntry?.kind === 'vertical', `${vertical.id} must be a vertical topology entry`);
+  assert(
+    topologyEntry?.moduleFederation?.manifestUrl?.includes('/mf-manifest.json') &&
+      topologyEntry?.api?.effect?.runtime === 'effect' &&
+      topologyEntry?.api?.effect?.bff?.prefix === vertical.apiPrefix &&
+      topologyEntry?.api?.effect?.bff?.openapi === '/openapi.json' &&
+      topologyEntry?.api?.effect?.contract?.export === './shared/effect/api' &&
+      topologyEntry?.api?.effect?.client?.export === './effect/client' &&
+      topologyEntry?.api?.effect?.serverEntry === `${vertical.path}/api/effect/index.ts`,
+    `${vertical.id} topology entry must include both Module Federation and Effect API metadata`,
+  );
+}
 assert(
   topology.remotes.some(
     (remote) => remote.id === 'remote-design-system' && remote.kind === 'horizontal-design-system',
@@ -894,8 +864,8 @@ assert(
   'Topology must contain the horizontal design-system remote',
 );
 assert(
-  topology.effectServices?.[0]?.runtime === 'effect',
-  'Topology must contain an Effect service',
+  (topology.effectServices ?? []).length === 0,
+  'Default vertical-owned APIs must not be generated as topology.effectServices',
 );
 assert(topology.sharedPackages?.length === 3, 'Topology must contain shared package placeholders');
 
@@ -907,12 +877,12 @@ assert(
   'Ownership metadata must retain commerce owner',
 );
 assert(
-  ownership.owners?.some(
+  !ownership.owners?.some(
     (owner) =>
-      owner.id === 'service-recommendations-effect' &&
-      owner.package === `@${packageScope}/service-recommendations-effect`,
+      owner.id === 'service-recommendations-effect' ||
+      owner.path === 'services/service-recommendations-effect',
   ),
-  'Ownership metadata must retain Effect service owner',
+  'Ownership metadata must not retain the old default recommendations service owner',
 );
 
 const manifest = readJson('.modernjs/ultramodern-workspace-template-manifest.json');
