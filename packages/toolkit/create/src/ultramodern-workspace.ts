@@ -12,7 +12,7 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const MODULE_FEDERATION_VERSION = '2.5.0';
-const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
+const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.11.0';
@@ -669,7 +669,7 @@ function appDependencies(
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
-    'zephyr-modernjs-plugin': ZEPHYR_MODERNJS_PLUGIN_VERSION,
+    'node-fetch': '^3.3.2',
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
     i18next: I18NEXT_VERSION,
@@ -712,6 +712,7 @@ function appDevDependencies(
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
     typescript: TYPESCRIPT_VERSION,
+    'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
   };
 }
 
@@ -750,7 +751,8 @@ function createRootPackageJson(
         scope,
         effectService.packageSuffix,
       )} dev`,
-      build: 'pnpm -r --filter ./apps/** --filter ./services/** build',
+      build:
+        'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
       format: 'oxfmt .',
       'format:check': 'oxfmt --check .',
       'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
@@ -762,6 +764,7 @@ function createRootPackageJson(
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mjs --check',
+      'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       postinstall:
         'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
@@ -860,7 +863,9 @@ function createAppPackage(
     version: '0.1.0',
     scripts: {
       dev: 'modern dev',
-      build: 'modern build',
+      build: app.exposes
+        ? `modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
+        : 'modern build',
       serve: 'modern serve',
       typecheck: effectTsgoTypecheckCommand,
     },
@@ -927,6 +932,7 @@ function createServicePackage(
       '@types/node': '^20',
       '@types/react': '^19.1.8',
       '@types/react-dom': '^19.1.6',
+      typescript: TYPESCRIPT_VERSION,
     },
   };
 }
@@ -973,7 +979,7 @@ import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools'
 import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr } from 'zephyr-modernjs-plugin';
+import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
@@ -989,6 +995,20 @@ if (isProductionBuild && !hasConfiguredSiteUrl) {
 }
 
 const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\${port}\`;
+
+const zephyrRspackPlugin = () => ({
+  name: 'ultramodern-zephyr-rspack-plugin',
+  pre: ['@modern-js/plugin-module-federation-config'],
+  setup(api: {
+    modifyRspackConfig: (
+      handler: (config: unknown) => unknown | Promise<unknown>,
+    ) => void;
+  }) {
+    api.modifyRspackConfig(async (config) =>
+      withZephyrRspack()(config as never),
+    );
+  },
+});
 
 export default defineConfig(
   presetUltramodern(
@@ -1017,7 +1037,7 @@ export default defineConfig(
         }),
         tanstackRouterPlugin(),
         moduleFederationPlugin(),
-        withZephyr(),
+        zephyrRspackPlugin(),
       ],
       server: {
         port,
@@ -1123,7 +1143,12 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  dts: true,
+  dts: {
+    displayErrorInTerminal: true,
+    generateTypes: {
+      compilerInstance: '--package typescript -- tsc',
+    },
+  },
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
   remotes: {
@@ -1147,7 +1172,12 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 export default createModuleFederationConfig({
-  dts: true,
+  dts: {
+    displayErrorInTerminal: true,
+    generateTypes: {
+      compilerInstance: '--package typescript -- tsc',
+    },
+  },
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
@@ -1601,7 +1631,6 @@ function createEffectSharedApiImports(): string {
   HttpApiSchema,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
-import type { OperationContext } from '@modern-js/plugin-bff/client';
 `;
 }
 
@@ -1636,6 +1665,14 @@ export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundEr
 export const ${notFoundSchemaExport} = ${notFoundErrorExport}.pipe(
   HttpApiSchema.status(404),
 );
+
+export type OperationContext = {
+  operationId: string;
+  routePath: string;
+  method: string;
+  source: string;
+  traceId?: string;
+};
 
 export const ${apiExport} = HttpApi.make('${apiName}').add(
   HttpApiGroup.make('${groupName}')
@@ -1716,11 +1753,13 @@ function createEffectServiceEntry(
   Effect,
   HttpApiBuilder,
   Layer,
-  useOperationContext,
+  useEffectContext,
 } from '@modern-js/plugin-bff/effect-server';
 import {
   ${apiExport},
+  ${groupName}OperationContexts,
   ${notFoundErrorExport},
+  type OperationContext,
 } from '${packageName(scope, 'shared-effect-api')}';
 
 const ${groupName}Items = [
@@ -1730,13 +1769,16 @@ const ${groupName}Items = [
   },
 ];
 
-const operationAttributes = () => {
-  const context = useOperationContext();
+const operationAttributes = (operationContext: OperationContext) => {
+  const context = useEffectContext();
   return {
-    'modernjs.operation.method': context.method ?? 'unknown',
-    'modernjs.operation.route': context.routePath ?? 'unknown',
-    'modernjs.operation.source': context.source ?? 'unknown',
-    ...(context.traceId ? { 'modernjs.trace.id': context.traceId } : {}),
+    'modernjs.operation.id': operationContext.operationId,
+    'modernjs.operation.method': operationContext.method,
+    'modernjs.operation.route': operationContext.routePath,
+    'modernjs.operation.source': operationContext.source,
+    'modernjs.request.method': context.method,
+    'modernjs.request.path': context.path,
+    ...(operationContext.traceId ? { 'modernjs.trace.id': operationContext.traceId } : {}),
   };
 };
 
@@ -1753,7 +1795,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
               : ${groupName}Items,
         }).pipe(
           Effect.withSpan('ultramodern.effect.${groupName}.list', {
-            attributes: operationAttributes(),
+            attributes: operationAttributes(${groupName}OperationContexts.list),
             kind: 'server',
           }),
         ),
@@ -1764,7 +1806,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
           ? Effect.succeed(item)
           : Effect.fail(new ${notFoundErrorExport}({ id: params.id }))).pipe(
             Effect.withSpan('ultramodern.effect.${groupName}.get', {
-              attributes: operationAttributes(),
+              attributes: operationAttributes(${groupName}OperationContexts.get),
               kind: 'server',
             }),
           );
@@ -1780,7 +1822,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
           },
         }).pipe(
           Effect.withSpan('ultramodern.effect.${groupName}.create', {
-            attributes: operationAttributes(),
+            attributes: operationAttributes(${groupName}OperationContexts.create),
             kind: 'server',
           }),
         ),
@@ -1807,8 +1849,8 @@ import {
   recommendationsApiContract,
   recommendationsEffectApi,
   recommendationsOperationContexts,
+  type OperationContext,
 } from '${packageName(scope, 'shared-effect-api')}';
-import type { OperationContext } from '@modern-js/plugin-bff/client';
 
 export type RecommendationsClientOptions = {
   baseUrl?: string | URL;
@@ -1820,17 +1862,8 @@ export type RecommendationsClientOptions = {
 export function createRecommendationsClient(
   options: RecommendationsClientOptions = {},
 ) {
-  const requestContext = {
-    ...(options.locale ? { locale: options.locale } : {}),
-    ...(options.operationContext
-      ? { operationContext: options.operationContext }
-      : {}),
-    ...(options.traceparent ? { traceparent: options.traceparent } : {}),
-  };
-
   return makeEffectHttpApiClient(recommendationsEffectApi, {
     baseUrl: options.baseUrl ?? recommendationsApiContract.servicePrefix,
-    requestContext,
   });
 }
 
@@ -2318,6 +2351,11 @@ function writeEffectService(
     targetDir,
     `${service.directory}/src/modern-app-env.d.ts`,
     "/// <reference types='@modern-js/app-tools/types' />\n",
+  );
+  writeFile(
+    targetDir,
+    `${service.directory}/src/routes/layout.tsx`,
+    createLayout(service.id),
   );
   writeFile(
     targetDir,

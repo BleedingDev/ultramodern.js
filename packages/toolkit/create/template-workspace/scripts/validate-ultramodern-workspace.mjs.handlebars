@@ -70,6 +70,7 @@ const requiredPaths = [
   'topology/local-overlays/development.json',
   '.modernjs/ultramodern-workspace-template-manifest.json',
   '.modernjs/ultramodern-package-source.json',
+  'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
   'scripts/setup-agent-reference-repos.mjs',
   'scripts/check-i18n-strings.mjs',
@@ -113,6 +114,7 @@ const requiredPaths = [
   'services/service-recommendations-effect/modern.config.ts',
   'services/service-recommendations-effect/api/effect/index.ts',
   'services/service-recommendations-effect/src/routes/index.css',
+  'services/service-recommendations-effect/src/routes/layout.tsx',
   'services/service-recommendations-effect/src/routes/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
@@ -189,6 +191,8 @@ for (const requiredSnippet of [
   'pmOnFail: error',
   'verifyDepsBeforeRun: error',
   'strictDepBuilds: true',
+  "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
+  "overrides:\n  node-fetch: '^3.3.2'",
   "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
 ]) {
   assert(
@@ -205,7 +209,7 @@ for (const requiredSnippet of [
   'pull_request:',
   'persist-credentials: false',
   'pnpm install --frozen-lockfile',
-  'pnpm -r --filter "./apps/**" run build',
+  'pnpm build',
   'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
   'timeout-minutes:',
   'egress-policy: audit',
@@ -264,6 +268,7 @@ assert(
 );
 
 const requiredRootScripts = {
+  build: 'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
   'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
@@ -276,6 +281,7 @@ const requiredRootScripts = {
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
   typecheck: `pnpm -r --filter "@${packageScope}/*" typecheck`,
+  'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
   'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
 };
 for (const [scriptName, scriptCommand] of Object.entries(requiredRootScripts)) {
@@ -404,8 +410,15 @@ const appPackagePaths = [
 
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
+  const isRemote = packagePath.includes('/remotes/');
   assert(packageJson.scripts?.dev === 'modern dev', `${packagePath} must use vanilla modern dev`);
-  assert(packageJson.scripts?.build === 'modern build', `${packagePath} must use vanilla modern build`);
+  assert(
+    packageJson.scripts?.build ===
+      (isRemote
+        ? 'modern build && node ../../../scripts/assert-mf-types.mjs'
+        : 'modern build'),
+    `${packagePath} must enforce Module Federation DTS on remote builds`,
+  );
   assert(packageJson.scripts?.serve === 'modern serve', `${packagePath} must use vanilla modern serve`);
   assert(
     Object.keys(packageJson.scripts ?? {}).every((scriptName) => !scriptName.startsWith('zephyr:')),
@@ -441,7 +454,15 @@ for (const packagePath of appPackagePaths) {
   );
   assert(
     packageJson.devDependencies?.typescript === '6.0.3',
-    `${packagePath} must include latest stable TypeScript for Module Federation DTS generation`,
+    `${packagePath} must include TypeScript 6 only as the stable JS TypeScript package for Module Federation DTS generation`,
+  );
+  assert(
+    packageJson.devDependencies?.['@typescript/native-preview'] === '7.0.0-dev.20260525.1',
+    `${packagePath} must include TypeScript 7 native preview for mandatory native typechecking`,
+  );
+  assert(
+    packageJson.devDependencies?.['zephyr-rspack-plugin'] === '1.1.1',
+    `${packagePath} must install the Zephyr Rspack plugin`,
   );
   assert(
     packageJson.dependencies?.[`@${packageScope}/shared-contracts`] === 'workspace:*',
@@ -453,6 +474,10 @@ for (const packagePath of appPackagePaths) {
   );
   assert(packageJson.dependencies?.i18next === '26.2.0', `${packagePath} must include i18next`);
   assert(
+    packageJson.dependencies?.['node-fetch'] === '^3.3.2',
+    `${packagePath} must satisfy the Module Federation SDK node-fetch peer`,
+  );
+  assert(
     packageJson.dependencies?.['react-i18next'] === '17.0.8',
     `${packagePath} must include react-i18next`,
   );
@@ -463,10 +488,6 @@ for (const packagePath of appPackagePaths) {
   assert(
     packageJson.dependencies?.['@module-federation/modern-js-v3'] === '2.5.0',
     `${packagePath} must include the Module Federation plugin`,
-  );
-  assert(
-    packageJson.dependencies?.['zephyr-modernjs-plugin'] === '1.1.1',
-    `${packagePath} must include the official Zephyr Modern.js plugin`,
   );
   if (tailwindEnabled) {
     assert(
@@ -502,8 +523,11 @@ for (const federationConfigPath of [
 ]) {
   const federationConfig = readText(federationConfigPath);
   assert(
-    federationConfig.includes('dts: true') && !federationConfig.includes('dts: false'),
-    `${federationConfigPath} must keep Module Federation DTS enabled`,
+    federationConfig.includes('compilerInstance:') &&
+      federationConfig.includes("'--package typescript -- tsc'") &&
+      federationConfig.includes('displayErrorInTerminal: true') &&
+      !federationConfig.includes('dts: false'),
+    `${federationConfigPath} must keep strict Module Federation DTS enabled`,
   );
 }
 
@@ -571,10 +595,12 @@ for (const configPath of [
     `${configPath} must use streaming Module Federation SSR`,
   );
   assert(
-    config.includes("from 'zephyr-modernjs-plugin'"),
-    `${configPath} must import the official Zephyr Modern.js plugin`,
+    config.includes("from 'zephyr-rspack-plugin'") &&
+      config.includes('zephyrRspackPlugin()') &&
+      config.includes('withZephyrRspack()') &&
+      config.includes("pre: ['@modern-js/plugin-module-federation-config']"),
+    `${configPath} must enable Zephyr through the Rspack plugin`,
   );
-  assert(config.includes('withZephyr()'), `${configPath} must enable Zephyr through plugins`);
   assert(
     config.includes("bundler: 'rspack'"),
     `${configPath} must keep appTools on the rspack bundler for Zephyr`,
@@ -650,8 +676,8 @@ assert(
 );
 assert(
   shellEffectClient.includes('recommendationsOperationContexts') &&
-    shellEffectClient.includes('const requestContext') &&
-    shellEffectClient.includes('operationContext:') &&
+    shellEffectClient.includes('operationContext?: OperationContext') &&
+    shellEffectClient.includes('type OperationContext') &&
     shellEffectClient.includes('client.recommendations.list({ query: { limit: options.limit } })') &&
     shellEffectClient.includes('client.recommendations.get({ params: { id } })') &&
     shellEffectClient.includes('client.recommendations.create({ payload: { title } })'),
@@ -692,6 +718,10 @@ assert(
 assert(
   servicePackage.dependencies?.[`@${packageScope}/shared-effect-api`] === 'workspace:*',
   'Effect service must link generated shared Effect API through workspace:*',
+);
+assert(
+  servicePackage.devDependencies?.typescript === '6.0.3',
+  'Effect service must include stable TypeScript for Modern build peer resolution',
 );
 if (tailwindEnabled) {
   assert(
@@ -735,6 +765,11 @@ assert(serviceConfig.includes('bffPlugin()'), 'Effect service must enable bffPlu
 
 const serviceRoute = readText('services/service-recommendations-effect/src/routes/page.tsx');
 assert(serviceRoute.includes("import './index.css';"), 'Effect service must import route CSS');
+const serviceLayout = readText('services/service-recommendations-effect/src/routes/layout.tsx');
+assert(
+  serviceLayout.includes('data-app-id="service-recommendations-effect"'),
+  'Effect service must include a Modern root layout so service builds pass',
+);
 
 const serviceEntry = readText('services/service-recommendations-effect/api/effect/index.ts');
 assert(
@@ -746,7 +781,7 @@ assert(
   'Effect service must use shared recommendations API',
 );
 assert(
-  serviceEntry.includes('useOperationContext') &&
+  serviceEntry.includes('useEffectContext') &&
     serviceEntry.includes('Effect.withSpan') &&
     serviceEntry.includes('modernjs.operation.route'),
   'Effect service must expose operation context attributes through Effect spans',
@@ -794,6 +829,7 @@ assert(
 assert(
   sharedEffectApi.includes('OperationContext') &&
     sharedEffectApi.includes('recommendationsOperationContexts') &&
+    sharedEffectApi.includes('export type OperationContext') &&
     sharedEffectApi.includes("source: 'generated-client'"),
   'Canonical shared Effect API package must export neutral generated operation context metadata',
 );

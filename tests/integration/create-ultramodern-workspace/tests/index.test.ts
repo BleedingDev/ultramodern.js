@@ -61,6 +61,8 @@ function expectPnpm11Policy(workspaceDir: string) {
     'minimumReleaseAgeStrict: true',
     'minimumReleaseAgeIgnoreMissingTime: false',
     "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+    "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
+    "overrides:\n  node-fetch: '^3.3.2'",
     'trustPolicy: no-downgrade',
     'trustPolicyIgnoreAfter: 1440',
     'blockExoticSubdeps: true',
@@ -145,16 +147,12 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
 } from '@modern-js/plugin-bff/effect-client';
 import {
   recommendationsEffectApi,
-  recommendationsOperationContexts,
 } from '@ultra-workspace/shared-effect-api';
 
 async function verifyClient() {
   const client = await runEffectRequest(
     makeEffectHttpApiClient(recommendationsEffectApi, {
       baseUrl: '/recommendations',
-      requestContext: {
-        operationContext: recommendationsOperationContexts.list,
-      },
     }),
   );
 
@@ -191,16 +189,12 @@ void verifyClient;
 } from '@modern-js/plugin-bff/effect-client';
 import {
   recommendationsEffectApi,
-  recommendationsOperationContexts,
 } from '@ultra-workspace/shared-effect-api';
 
 async function verifyClientRejections() {
   const client = await runEffectRequest(
     makeEffectHttpApiClient(recommendationsEffectApi, {
       baseUrl: '/recommendations',
-      requestContext: {
-        operationContext: recommendationsOperationContexts.list,
-      },
     }),
   );
 
@@ -370,6 +364,7 @@ describe('create-ultramodern-workspace', () => {
       '.agents/skills/rslib-best-practices/SKILL.md',
       '.agents/skills/rslib-modern-package/SKILL.md',
       '.agents/skills/rstest-best-practices/SKILL.md',
+      'scripts/assert-mf-types.mjs',
       'scripts/validate-ultramodern-workspace.mjs',
       'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
@@ -412,6 +407,7 @@ describe('create-ultramodern-workspace', () => {
       'services/service-recommendations-effect/tailwind.config.ts',
       'services/service-recommendations-effect/api/effect/index.ts',
       'services/service-recommendations-effect/src/routes/index.css',
+      'services/service-recommendations-effect/src/routes/layout.tsx',
       'services/service-recommendations-effect/src/routes/page.tsx',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
@@ -444,6 +440,12 @@ describe('create-ultramodern-workspace', () => {
     });
     expect(rootPackage.scripts['ultramodern:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
+    );
+    expect(rootPackage.scripts['ultramodern:assert-mf-types']).toBe(
+      'node ./scripts/assert-mf-types.mjs',
+    );
+    expect(rootPackage.scripts.build).toBe(
+      'pnpm -r --filter "./apps/**" run build && pnpm ultramodern:assert-mf-types',
     );
     expect(rootPackage.scripts.format).toBe('oxfmt .');
     expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
@@ -536,6 +538,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.dependencies['@modern-js/runtime']).toBe(
         'workspace:*',
       );
+      expect(packageJson.dependencies['node-fetch']).toBe('^3.3.2');
       expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
       );
@@ -544,13 +547,18 @@ describe('create-ultramodern-workspace', () => {
         '7.0.0-dev.20260525.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
+      expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
       expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
         '^4.3.0',
       );
       expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
       expect(packageJson.scripts.dev).toBe('modern dev');
-      expect(packageJson.scripts.build).toBe('modern build');
+      expect(packageJson.scripts.build).toBe(
+        packagePath.includes('/remotes/')
+          ? 'modern build && node ../../../scripts/assert-mf-types.mjs'
+          : 'modern build',
+      );
       expect(packageJson.scripts.serve).toBe('modern serve');
       expect(
         Object.keys(packageJson.scripts).every(
@@ -599,7 +607,10 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/module-federation.config.ts',
     );
     expect(shellMfConfig).toContain("name: 'shellSuperApp'");
-    expect(shellMfConfig).toContain('dts: true');
+    expect(shellMfConfig).toContain('displayErrorInTerminal: true');
+    expect(shellMfConfig).toContain(
+      "compilerInstance: '--package typescript -- tsc'",
+    );
     expect(shellMfConfig).toContain(
       'remoteCommerce@http://localhost:3021/mf-manifest.json',
     );
@@ -615,7 +626,10 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/module-federation.config.ts',
     );
     expect(commerceMfConfig).toContain("name: 'remoteCommerce'");
-    expect(commerceMfConfig).toContain('dts: true');
+    expect(commerceMfConfig).toContain('displayErrorInTerminal: true');
+    expect(commerceMfConfig).toContain(
+      "compilerInstance: '--package typescript -- tsc'",
+    );
     expect(commerceMfConfig).toContain("'./Widget'");
     expect(commerceMfConfig).toContain("'./Route'");
 
@@ -637,6 +651,7 @@ describe('create-ultramodern-workspace', () => {
     expect(servicePackage.dependencies['@modern-js/runtime']).toBe(
       'workspace:*',
     );
+    expect(servicePackage.devDependencies.typescript).toBe('6.0.3');
     expect(servicePackage.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(servicePackage.devDependencies['@tailwindcss/postcss']).toBe(
       '^4.3.0',
@@ -644,6 +659,12 @@ describe('create-ultramodern-workspace', () => {
     expect(servicePackage.devDependencies.postcss).toBe('^8.5.6');
     expect(servicePackage.modernjs.role).toBe('effect-service');
 
+    expect(
+      readText(
+        workspaceDir,
+        'services/service-recommendations-effect/src/routes/layout.tsx',
+      ),
+    ).toContain('data-app-id="service-recommendations-effect"');
     expect(
       readText(
         workspaceDir,
@@ -670,7 +691,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(serviceEntry).toContain('defineEffectBff');
     expect(serviceEntry).toContain('recommendationsEffectApi');
-    expect(serviceEntry).toContain('useOperationContext');
+    expect(serviceEntry).toContain('useEffectContext');
     expect(serviceEntry).toContain('Effect.withSpan');
     expect(serviceEntry).toContain('modernjs.operation.route');
     expect(serviceEntry).toContain("from '@ultra-workspace/shared-effect-api'");
@@ -692,6 +713,7 @@ describe('create-ultramodern-workspace', () => {
     expect(sharedEffectApi).toContain('HttpApi.make');
     expect(sharedEffectApi).toContain('HttpApiSchema');
     expect(sharedEffectApi).toContain('OperationContext');
+    expect(sharedEffectApi).toContain('export type OperationContext');
     expect(sharedEffectApi).toContain('RecommendationsEffectApi');
     expect(sharedEffectApi).toContain('RecommendationNotFound');
     expect(sharedEffectApi).toContain('TaggedErrorClass');
@@ -713,8 +735,8 @@ describe('create-ultramodern-workspace', () => {
     expect(shellEffectClient).toContain('runEffectRequest');
     expect(shellEffectClient).toContain('recommendationsEffectApi');
     expect(shellEffectClient).toContain('recommendationsOperationContexts');
-    expect(shellEffectClient).toContain('const requestContext');
-    expect(shellEffectClient).toContain('operationContext:');
+    expect(shellEffectClient).toContain('operationContext?: OperationContext');
+    expect(shellEffectClient).toContain('type OperationContext');
     expect(shellEffectClient).toContain(
       'client.recommendations.list({ query: { limit: options.limit } })',
     );
@@ -864,7 +886,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(remotePackage.scripts).toMatchObject({
       dev: 'modern dev',
-      build: 'modern build',
+      build: 'modern build && node ../../../scripts/assert-mf-types.mjs',
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
@@ -873,7 +895,8 @@ describe('create-ultramodern-workspace', () => {
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.0',
     );
-    expect(remotePackage.dependencies['zephyr-modernjs-plugin']).toBe('1.1.1');
+    expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
+    expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
 
     const remoteConfig = readText(
@@ -882,7 +905,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(remoteConfig).toContain('tanstackRouterPlugin()');
     expect(remoteConfig).toContain('moduleFederationPlugin()');
-    expect(remoteConfig).toContain('withZephyr()');
+    expect(remoteConfig).toContain("from 'zephyr-rspack-plugin'");
+    expect(remoteConfig).toContain('zephyrRspackPlugin()');
+    expect(remoteConfig).toContain('withZephyrRspack()');
 
     const shellMfConfig = readText(
       workspaceDir,
