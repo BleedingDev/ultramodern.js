@@ -1,0 +1,368 @@
+{
+  "generated_at": "2026-05-25T22:46:33.977914+00:00",
+  "graph_id": "ultramodern-full-stack-main-v1",
+  "plan_set_hash": "45d00fbac5",
+  "selection_hash": "d21fa81898",
+  "plan_count": 4,
+  "edge_count": 3,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-microvertical.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-version-switching-proof.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-react-dom-client-shared-singleton.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-zephyr-profile-alignment.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "ultramodern-react-dom-client-shared-singleton",
+      "target": "ultramodern-full-stack-microvertical"
+    },
+    {
+      "source": "ultramodern-zephyr-profile-alignment",
+      "target": "ultramodern-full-stack-microvertical"
+    },
+    {
+      "source": "ultramodern-full-stack-microvertical",
+      "target": "ultramodern-full-stack-version-switching-proof"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-microvertical.plan.md",
+      "slug": "ultramodern-full-stack-microvertical",
+      "name": "Ultramodern Full Stack MicroVertical",
+      "overview": "Pivot Ultramodern generated verticals from split FE remote plus separate services into one package that owns Module Federation exposes, Effect/BFF handlers, vertical contracts, Zephyr dependencies, build scripts, and topology as a single version boundary.",
+      "todos": [
+        {
+          "id": "map-current-split-architecture",
+          "content": "Map the current generated remote app, Effect service, shared-effect-api package, topology, add-flow, tests, README, and validator paths that encode split vertical behavior.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "define-full-stack-package-contract",
+          "content": "Define the generated package contract for a vertical package including FE exposes, api/effect handlers, vertical-owned contract/client exports, BFF config, MF config, Zephyr dependency map, scripts, ports, and topology entry.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "refactor-generator-model",
+          "content": "Refactor ultramodern-workspace.ts data structures so verticals can carry frontend, server, Effect API, and Zephyr metadata in one WorkspaceApp-like model without losing shell and design-system semantics.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "generate-full-stack-package-files",
+          "content": "Generate api/effect, src client helpers, vertical contract files, package.json dependencies, modern.config.ts plugins, module-federation.config.ts exposes, route/widget files, and dev/build scripts inside each vertical package.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "migrate-topology-and-overlays",
+          "content": "Update reference topology and development overlays so vertical entries advertise both MF manifest metadata and owned BFF/API prefixes instead of separate effectServices for vertical-owned APIs.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "update-add-microvertical-flow",
+          "content": "Change add-ultramodern microvertical creation so vertical is the default full-stack package path and service-only creation is either removed or explicitly renamed external-service.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "update-docs-validator-and-tests",
+          "content": "Update generated README, workspace validator, integration tests, and docs so they require one-package vertical behavior and reject accidental services/* default vertical scaffolding.",
+          "status": "pending",
+          "ordinal": 7
+        },
+        {
+          "id": "run-full-stack-generator-gates",
+          "content": "Run focused create-ultramodern-workspace tests, generated workspace validation, typecheck, build, and assert-mf-types for shell plus vertical packages.",
+          "status": "pending",
+          "ordinal": 8
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-version-switching-proof.plan.md",
+      "slug": "ultramodern-full-stack-version-switching-proof",
+      "name": "Ultramodern Full Stack Version Switching Proof",
+      "overview": "Prove with live or tightly simulated evidence that changing a full-stack micro-vertical version or environment switches its UI and owned Effect/BFF behavior together on Zephyr, then define the later Zerops long-running Node deployment proof.",
+      "todos": [
+        {
+          "id": "define-proof-matrix",
+          "content": "Define the exact version-switching matrix for v1 and v2 vertical packages, covering UI marker, Effect/BFF response marker, MF manifest URL, Zephyr dependency selector, and environment override behavior.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "build-local-simulation-first",
+          "content": "Create a local deterministic proof using generated workspaces or fixtures where shell switches between two vertical manifests and verifies both UI and API behavior move together.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "capture-zephyr-live-build-evidence",
+          "content": "Run the authenticated Zephyr proof with shell plus full-stack vertical v1 and v2, capturing build logs, application UIDs, version IDs, environment labels, manifests, and deployment URLs.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "verify-runtime-switching",
+          "content": "Use browser or HTTP assertions to verify the host environment loads the selected vertical UI and calls the matching owned Effect/BFF endpoint for each selected version.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "document-switching-operations",
+          "content": "Document how to switch versions through zephyr:dependencies selectors, environment overrides, Zephyr dashboard/API, and any CLI path that Zephyr supports.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "define-zerops-node-proof",
+          "content": "Add a Zerops proof design for a long-running Node deployment of the same full-stack vertical package using zerops.yaml, start command, readiness check, artifact rollback, and scaling semantics.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "archive-evidence-and-add-regression-hook",
+          "content": "Store sanitized evidence and add an opt-in regression command or CI job that can rerun local simulation and live Zephyr proof when credentials are present.",
+          "status": "pending",
+          "ordinal": 7
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-react-dom-client-shared-singleton.plan.md",
+      "slug": "ultramodern-react-dom-client-shared-singleton",
+      "name": "Ultramodern React DOM Client Shared Singleton",
+      "overview": "Add react-dom/client to every generated Ultramodern Module Federation shared config so React 19 app-level remotes cannot bypass the react-dom singleton through subpath imports.",
+      "todos": [
+        {
+          "id": "verify-upstream-react-dom-client-risk",
+          "content": "Confirm the current upstream issue, reproduction shape, and recommended workaround through the GitHub API for module-federation/core issue 4727.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "inspect-generated-shared-config",
+          "content": "Inspect createSharedModuleFederationConfig and generated shell/remote module-federation.config.ts files to confirm react-dom is shared but react-dom/client is missing.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-shared-config-generator",
+          "content": "Add react-dom/client as an explicit singleton with the same requiredVersion and treeShaking policy as react-dom in the Ultramodern shared config generator.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "update-generator-tests-and-validator",
+          "content": "Update create-ultramodern-workspace tests and the generated validator to assert react-dom/client is present for both shell and remote Module Federation configs.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "run-focused-quality-gates",
+          "content": "Run the focused create-ultramodern-workspace integration test plus any generated workspace validation needed to prove the shared config output is stable.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-zephyr-profile-alignment.plan.md",
+      "slug": "ultramodern-zephyr-profile-alignment",
+      "name": "Ultramodern Zephyr Profile Alignment",
+      "overview": "Resolve the mismatch between the written Ultramodern Zephyr profile and the generated implementation by deciding whether Modern.js apps should use zephyr-modernjs-plugin directly or keep the current zephyr-rspack-plugin wrapper for Module Federation ordering.",
+      "todos": [
+        {
+          "id": "collect-official-zephyr-plugin-evidence",
+          "content": "Re-read Zephyr Modern.js and Rspack documentation plus package latest data for zephyr-modernjs-plugin and zephyr-rspack-plugin.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "inspect-current-generator-and-adr",
+          "content": "Compare ADR-0012, generated modern.config.ts content, generated validator assertions, and integration tests for plugin package and ordering expectations.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "run-minimal-plugin-compatibility-spike",
+          "content": "Generate or use a minimal Ultramodern shell plus remote and build once with the current Rspack wrapper and once with the official Modern.js plugin path, preserving Module Federation manifest output.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "choose-profile-contract",
+          "content": "Record the decision in code and docs: either switch generator and validator to zephyr-modernjs-plugin or update ADR and validator to define the Rspack wrapper as the intentional MF profile.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "update-tests-and-profile-docs",
+          "content": "Update integration tests, generated validator text, README or ADR references, and any docs that claim a different Zephyr plugin path.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "run-zephyr-profile-quality-gates",
+          "content": "Run focused generator tests and generated workspace validation proving Modern.js lifecycle scripts remain vanilla and Zephyr config matches the selected profile.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-react-dom-client-shared-singleton",
+      "plan_name": "Ultramodern React DOM Client Shared Singleton",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-react-dom-client-shared-singleton.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "verify-upstream-react-dom-client-risk",
+          "content": "Confirm the current upstream issue, reproduction shape, and recommended workaround through the GitHub API for module-federation/core issue 4727.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "inspect-generated-shared-config",
+          "content": "Inspect createSharedModuleFederationConfig and generated shell/remote module-federation.config.ts files to confirm react-dom is shared but react-dom/client is missing.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-shared-config-generator",
+          "content": "Add react-dom/client as an explicit singleton with the same requiredVersion and treeShaking policy as react-dom in the Ultramodern shared config generator.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "ultramodern-zephyr-profile-alignment",
+      "plan_name": "Ultramodern Zephyr Profile Alignment",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-zephyr-profile-alignment.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "collect-official-zephyr-plugin-evidence",
+          "content": "Re-read Zephyr Modern.js and Rspack documentation plus package latest data for zephyr-modernjs-plugin and zephyr-rspack-plugin.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "inspect-current-generator-and-adr",
+          "content": "Compare ADR-0012, generated modern.config.ts content, generated validator assertions, and integration tests for plugin package and ordering expectations.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "run-minimal-plugin-compatibility-spike",
+          "content": "Generate or use a minimal Ultramodern shell plus remote and build once with the current Rspack wrapper and once with the official Modern.js plugin path, preserving Module Federation manifest output.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-full-stack-microvertical",
+      "plan_name": "Ultramodern Full Stack MicroVertical",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-microvertical.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "ultramodern-react-dom-client-shared-singleton",
+        "ultramodern-zephyr-profile-alignment"
+      ],
+      "active": [
+        {
+          "id": "map-current-split-architecture",
+          "content": "Map the current generated remote app, Effect service, shared-effect-api package, topology, add-flow, tests, README, and validator paths that encode split vertical behavior.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "define-full-stack-package-contract",
+          "content": "Define the generated package contract for a vertical package including FE exposes, api/effect handlers, vertical-owned contract/client exports, BFF config, MF config, Zephyr dependency map, scripts, ports, and topology entry.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "refactor-generator-model",
+          "content": "Refactor ultramodern-workspace.ts data structures so verticals can carry frontend, server, Effect API, and Zephyr metadata in one WorkspaceApp-like model without losing shell and design-system semantics.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 8
+    },
+    {
+      "plan_slug": "ultramodern-full-stack-version-switching-proof",
+      "plan_name": "Ultramodern Full Stack Version Switching Proof",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-full-stack-version-switching-proof.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["ultramodern-full-stack-microvertical"],
+      "active": [
+        {
+          "id": "define-proof-matrix",
+          "content": "Define the exact version-switching matrix for v1 and v2 vertical packages, covering UI marker, Effect/BFF response marker, MF manifest URL, Zephyr dependency selector, and environment override behavior.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "build-local-simulation-first",
+          "content": "Create a local deterministic proof using generated workspaces or fixtures where shell switches between two vertical manifests and verifies both UI and API behavior move together.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "capture-zephyr-live-build-evidence",
+          "content": "Run the authenticated Zephyr proof with shell plus full-stack vertical v1 and v2, capturing build logs, application UIDs, version IDs, environment labels, manifests, and deployment URLs.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 7
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}

@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-05-25T22:46:37.605373+00:00",
+  "graph_id": "ultramodern-mf-patch-removal-v1",
+  "plan_set_hash": "fd11fb529a",
+  "selection_hash": "e5f9029ddf",
+  "plan_count": 1,
+  "edge_count": 0,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-module-federation-patch-removal.plan.md"
+  ],
+  "edges": [],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-module-federation-patch-removal.plan.md",
+      "slug": "ultramodern-module-federation-patch-removal",
+      "name": "Ultramodern Module Federation Patch Removal",
+      "overview": "Remove local Module Federation manifest and rspack patches once upstream lazy DTS loading is merged and released in a consumable Module Federation version, while preserving mandatory DTS in Ultramodern generated workspaces.",
+      "todos": [
+        {
+          "id": "poll-upstream-pr-and-release",
+          "content": "Check module-federation/core PR 4755 state, merged_at, release tags, and NPM package versions to confirm the lazy DTS loading fix is available upstream.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "compare-local-patches-to-upstream",
+          "content": "Compare patches/@module-federation__manifest@2.5.0.patch and patches/@module-federation__rspack@2.5.0.patch against the released upstream package code to confirm both changes are redundant.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-module-federation-dependencies",
+          "content": "Update @module-federation packages to the first released version containing PR 4755 and regenerate the pnpm lockfile without the local patch hashes.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "remove-patch-configuration",
+          "content": "Remove patchedDependencies entries from pnpm-workspace.yaml and delete the obsolete patch files.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "run-mf-dts-regression-gates",
+          "content": "Run Module Federation DTS, Ultramodern generator, and generated workspace build/type assertion gates to prove mandatory DTS still works without local patches.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "update-bead-and-doc-context",
+          "content": "Close or update the upstream-patch Beads with the exact upstream release, commit or PR, package versions, and validation commands.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-module-federation-patch-removal",
+      "plan_name": "Ultramodern Module Federation Patch Removal",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-module-federation-patch-removal.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "poll-upstream-pr-and-release",
+          "content": "Check module-federation/core PR 4755 state, merged_at, release tags, and NPM package versions to confirm the lazy DTS loading fix is available upstream.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "compare-local-patches-to-upstream",
+          "content": "Compare patches/@module-federation__manifest@2.5.0.patch and patches/@module-federation__rspack@2.5.0.patch against the released upstream package code to confirm both changes are redundant.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-module-federation-dependencies",
+          "content": "Update @module-federation packages to the first released version containing PR 4755 and regenerate the pnpm lockfile without the local patch hashes.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
