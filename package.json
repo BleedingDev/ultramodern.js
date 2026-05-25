@@ -100,7 +100,7 @@
     "@changesets/cli": "^2.31.0",
     "@effect/tsgo": "0.11.0",
     "@modern-js/tsconfig": "workspace:*",
-    "@rstest/core": "0.10.0",
+    "@rstest/core": "0.10.2",
     "@scripts/build": "workspace:*",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
@@ -109,7 +109,7 @@
     "cross-env": "^10.1.0",
     "husky": "^9.1.7",
     "lint-staged": "~17.0.5",
-    "nx": "^22.7.2",
+    "nx": "^22.7.3",
     "rimraf": "^6.1.3"
   }
 }

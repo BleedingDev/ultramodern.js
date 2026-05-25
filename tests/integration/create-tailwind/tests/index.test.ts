@@ -70,8 +70,8 @@ function expectSingleAppContract(appDir: string) {
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
-  expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.0');
-  expect(packageJson.devDependencies['happy-dom']).toBe('^20.8.9');
+  expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.2');
+  expect(packageJson.devDependencies['happy-dom']).toBe('^20.9.0');
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {

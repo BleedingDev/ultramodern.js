@@ -4,7 +4,7 @@
   "version": "2.66.0",
   "dependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.8.0",
+    "@types/node": "^25.9.1",
     "axios": "^1.16.1"
   }
 }

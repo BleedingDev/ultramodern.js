@@ -92,10 +92,10 @@ peerDependencyRules:
     - ioredis
     - webpack
   allowedVersions:
-    '@module-federation/dts-plugin>typescript': '7'
-    '@module-federation/enhanced>typescript': '7'
-    '@module-federation/modern-js-v3>typescript': '7'
-    '@module-federation/rspack>typescript': '7'
+    '@module-federation/dts-plugin>typescript': '6'
+    '@module-federation/enhanced>typescript': '6'
+    '@module-federation/modern-js-v3>typescript': '6'
+    '@module-federation/rspack>typescript': '6'
     '@module-federation/sdk>node-fetch': 3.3.0
     'react-side-effect@2.1.2>react': '19'
 

@@ -19,13 +19,13 @@
     "@modern-js/adapter-rstest": "workspace:*",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
-    "@rstest/core": "0.10.0",
+    "@rstest/core": "0.10.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^25.8.0",
+    "@types/node": "^25.9.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@typescript/native-preview": "7.0.0-dev.20260525.1",
-    "happy-dom": "^20.8.9"
+    "happy-dom": "^20.9.0"
   }
 }

@@ -14,7 +14,7 @@
     "@rsbuild/plugin-babel": "1.1.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "styled-components": "^6.4.1",
+    "styled-components": "^6.4.2",
     "tailwindcss": "^4.3.0",
     "twin.macro": "^3.4.1"
   },
