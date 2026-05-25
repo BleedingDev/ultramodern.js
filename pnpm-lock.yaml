@@ -646,8 +646,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       i18next-http-middleware:
-        specifier: ^3.9.6
-        version: 3.9.6
+        specifier: ^3.9.7
+        version: 3.9.7
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -11848,8 +11848,8 @@ packages:
     resolution: {integrity: sha512-EgSjO3Q1G6f2Q5oy7u9mmxuesE0oSfzAD97NFBjC8EmkK4guBSYLljM0Fng3DarMWIIkU70jfo4+mUzmyVISTA==}
     engines: {node: '>=18'}
 
-  i18next-http-middleware@3.9.6:
-    resolution: {integrity: sha512-zKOft9iNCbOM4cWxThpq9gikpCuftCFh9s7V+vXPoB0+AJw13mXZe/O2VCfZO0AKNHplFTDYkJASoK+J3iWFeQ==}
+  i18next-http-middleware@3.9.7:
+    resolution: {integrity: sha512-k4Aa39thnQXGox5ZeKvlOwbDsFz+iGxtPJITWm6xmmErNZOeGMXIoH9XwK3ITUq7lqHaywnIH9gLwOraU4jJvQ==}
 
   i18next@26.2.0:
     resolution: {integrity: sha512-zwBHldHdTmwN7r6UNc7lC6GWNN+YYg3DrRSeHR5PRRBf5QnJZcYHrQc0uaU26qZeYxR7iFZD+Y315dPnKP47wA==}
@@ -23442,7 +23442,7 @@ snapshots:
 
   i18next-http-backend@4.0.0: {}
 
-  i18next-http-middleware@3.9.6: {}
+  i18next-http-middleware@3.9.7: {}
 
   i18next@26.2.0:
     dependencies:

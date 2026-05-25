@@ -96,7 +96,7 @@
     "i18next-chained-backend": "^5.0.4",
     "i18next-fs-backend": "^2.6.5",
     "i18next-http-backend": "^4.0.0",
-    "i18next-http-middleware": "^3.9.6"
+    "i18next-http-middleware": "^3.9.7"
   },
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.2.0",
