@@ -787,7 +787,7 @@ function createRootPackageJson(
     name: scope,
     version: '0.1.0',
     type: 'module',
-    packageManager: 'pnpm@11.1.2',
+    packageManager: 'pnpm@11.3.0',
     scripts: {
       dev: `pnpm --parallel --filter ${packageName(
         scope,
@@ -831,7 +831,7 @@ function createRootPackageJson(
     },
     engines: {
       node: '>=20',
-      pnpm: '>=11.0.0',
+      pnpm: '>=11.3.0 <11.4.0',
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
     modernjs: {

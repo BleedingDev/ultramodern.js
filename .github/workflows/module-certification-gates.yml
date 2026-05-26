@@ -55,8 +55,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Pnpm
-        run: corepack enable
+      - name: Setup mise
+        uses: jdx/mise-action@v3
+        with:
+          install: true
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4

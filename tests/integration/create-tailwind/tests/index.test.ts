@@ -62,8 +62,9 @@ function expectSingleAppContract(appDir: string) {
     fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
   );
   expect(packageJson.private).toBe(true);
-  expect(packageJson.packageManager).toBe('pnpm@11.1.2');
-  expect(packageJson.engines.pnpm).toBe('>=11.0.0');
+  expect(packageJson.packageManager).toBe('pnpm@11.3.0');
+  expect(packageJson.engines.pnpm).toBe('>=11.3.0 <11.4.0');
+  expect(fs.existsSync(path.join(appDir, '.mise.toml'))).toBe(true);
   expect(packageJson.pnpm).toBeUndefined();
   expect(packageJson.scripts.test).toBe('rstest run');
   expect(packageJson.scripts['ultramodern:check']).toContain('pnpm test');

@@ -28,8 +28,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Pnpm
-        run: npm i -g --force corepack && corepack enable
+      - name: Setup mise
+        uses: jdx/mise-action@v3
+        with:
+          install: true
 
       - name: Check skip CI
         run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"

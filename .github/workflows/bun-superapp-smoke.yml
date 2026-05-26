@@ -41,8 +41,10 @@ jobs:
         with:
           bun-version: 1.3.9
 
-      - name: Install Pnpm
-        run: corepack enable
+      - name: Setup mise
+        uses: jdx/mise-action@v3
+        with:
+          install: true
 
       - name: Setup Node.js 18
         uses: actions/setup-node@v4

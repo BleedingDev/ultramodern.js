@@ -38,10 +38,11 @@ zerops:
       base: nodejs@22
       buildCommands:
         - |
-          corepack enable
-          pnpm install --frozen-lockfile
-          pnpm --filter @acme/shell-super-app build
-          pnpm --filter @acme/shell-super-app deploy --prod .zerops/runtime/shell-super-app
+          curl https://mise.run | sh
+          ~/.local/bin/mise install
+          ~/.local/bin/mise exec -- pnpm install --frozen-lockfile
+          ~/.local/bin/mise exec -- pnpm --filter @acme/shell-super-app build
+          ~/.local/bin/mise exec -- pnpm --filter @acme/shell-super-app deploy --prod .zerops/runtime/shell-super-app
           cp topology/zephyr-version-boundary.json .zerops/runtime/shell-super-app/topology.json
       deployFiles:
         - .zerops/runtime/shell-super-app
@@ -69,10 +70,11 @@ zerops:
       base: nodejs@22
       buildCommands:
         - |
-          corepack enable
-          pnpm install --frozen-lockfile
-          pnpm --filter @acme/remote-commerce build
-          pnpm --filter @acme/remote-commerce deploy --prod .zerops/runtime/remote-commerce
+          curl https://mise.run | sh
+          ~/.local/bin/mise install
+          ~/.local/bin/mise exec -- pnpm install --frozen-lockfile
+          ~/.local/bin/mise exec -- pnpm --filter @acme/remote-commerce build
+          ~/.local/bin/mise exec -- pnpm --filter @acme/remote-commerce deploy --prod .zerops/runtime/remote-commerce
           cp topology/zephyr-version-boundary.json .zerops/runtime/remote-commerce/version-boundary.json
       deployFiles:
         - .zerops/runtime/remote-commerce

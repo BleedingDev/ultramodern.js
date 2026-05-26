@@ -390,6 +390,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
         '.browserslistrc',
         '.github/**',
         '.gitignore',
+        '.mise.toml',
         '.modernjs/**',
         '.nvmrc',
         'AGENTS.md',

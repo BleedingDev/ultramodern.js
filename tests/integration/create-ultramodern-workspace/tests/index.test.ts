@@ -451,8 +451,9 @@ describe('create-ultramodern-workspace', () => {
     const rootPackage = readJson(workspaceDir, 'package.json');
     const packageScope = rootPackage.name;
     expect(rootPackage.name).toBe('ultra-workspace');
-    expect(rootPackage.packageManager).toBe('pnpm@11.1.2');
-    expect(rootPackage.engines.pnpm).toBe('>=11.0.0');
+    expect(rootPackage.packageManager).toBe('pnpm@11.3.0');
+    expect(rootPackage.engines.pnpm).toBe('>=11.3.0 <11.4.0');
+    expectPath(workspaceDir, '.mise.toml');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
       'apps/remotes/*',

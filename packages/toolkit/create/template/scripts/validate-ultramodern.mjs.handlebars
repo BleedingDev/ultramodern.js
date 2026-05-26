@@ -69,6 +69,7 @@ const requiredPaths = [
   'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
 {{/unless}}
+  '.mise.toml',
   '.modernjs/ultramodern-package-source.json',
   'pnpm-workspace.yaml',
   'rstest.config.mts',
@@ -305,13 +306,13 @@ if (packageJson.private !== true) {
   process.exit(1);
 }
 
-if (packageJson.packageManager !== 'pnpm@11.1.2') {
-  console.error('Generated app package must pin pnpm@11.1.2');
+if (packageJson.packageManager !== 'pnpm@11.3.0') {
+  console.error('Generated app package must pin pnpm@11.3.0');
   process.exit(1);
 }
 
-if (packageJson.engines?.pnpm !== '>=11.0.0') {
-  console.error('Generated app package must require pnpm >=11.0.0');
+if (packageJson.engines?.pnpm !== '>=11.3.0 <11.4.0') {
+  console.error('Generated app package must require pnpm >=11.3.0 <11.4.0');
   process.exit(1);
 }
 

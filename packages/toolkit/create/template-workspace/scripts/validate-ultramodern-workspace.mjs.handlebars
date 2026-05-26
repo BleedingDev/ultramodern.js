@@ -197,8 +197,11 @@ const expectedModernDependency = (packageName) => {
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
-assert(rootPackage.packageManager === 'pnpm@11.1.2', 'Root must pin pnpm 11.1.2');
-assert(rootPackage.engines?.pnpm === '>=11.0.0', 'Root must require pnpm >=11');
+assert(rootPackage.packageManager === 'pnpm@11.3.0', 'Root must pin pnpm 11.3.0');
+assert(
+  rootPackage.engines?.pnpm === '>=11.3.0 <11.4.0',
+  'Root must require pnpm >=11.3.0 <11.4.0',
+);
 for (const requiredSnippet of [
   'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
   'minimumReleaseAge: 1440',

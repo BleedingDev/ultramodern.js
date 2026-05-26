@@ -28,8 +28,10 @@ jobs:
             nx-${{ github.ref_name }}-
             nx-
 
-      - name: Install Pnpm
-        run: npm i -g --force corepack && corepack enable
+      - name: Setup mise
+        uses: jdx/mise-action@v3
+        with:
+          install: true
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
