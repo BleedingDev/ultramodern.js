@@ -4,22 +4,22 @@ overview: Prove with live or tightly simulated evidence that changing a full-sta
 todos:
   - id: define-proof-matrix
     content: "Define the exact version-switching matrix for v1 and v2 vertical packages, covering UI marker, Effect/BFF response marker, MF manifest URL, Zephyr dependency selector, and environment override behavior."
-    status: pending
+    status: completed
   - id: build-local-simulation-first
     content: "Create a local deterministic proof using generated workspaces or fixtures where shell switches between two vertical manifests and verifies both UI and API behavior move together."
-    status: pending
+    status: completed
   - id: capture-zephyr-live-build-evidence
     content: "Run the authenticated Zephyr proof with shell plus full-stack vertical v1 and v2, capturing build logs, application UIDs, version IDs, environment labels, manifests, and deployment URLs."
     status: pending
   - id: verify-runtime-switching
     content: "Use browser or HTTP assertions to verify the host environment loads the selected vertical UI and calls the matching owned Effect/BFF endpoint for each selected version."
-    status: pending
+    status: completed
   - id: document-switching-operations
     content: "Document how to switch versions through zephyr:dependencies selectors, environment overrides, Zephyr dashboard/API, and any CLI path that Zephyr supports."
-    status: pending
+    status: completed
   - id: define-zerops-node-proof
     content: "Add a Zerops proof design for a long-running Node deployment of the same full-stack vertical package using zerops.yaml, start command, readiness check, artifact rollback, and scaling semantics."
-    status: pending
+    status: completed
   - id: archive-evidence-and-add-regression-hook
     content: "Store sanitized evidence and add an opt-in regression command or CI job that can rerun local simulation and live Zephyr proof when credentials are present."
     status: pending

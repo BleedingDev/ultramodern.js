@@ -133,6 +133,24 @@ Start after full-stack generator gates pass.
 | D3 Zerops proof artifact | write-capable docs/config | D1, A7 | `zerops.yaml` proof design or example, Node start/readiness/rollback docs | blocked | Spawn worker |
 | D4 Final verifier | verification-only | D1-D3 | independent graph-level gate review and residual risk report | blocked | Spawn verifier |
 
+### Wave 4 Active Execution
+
+Started after full-stack generator commit `b7e8edc72b`; artifact commits landed on `bleedingdev/main-ultramodern`.
+
+| Lane | Mode | Agent | Ownership | Status | Result |
+| --- | --- | --- | --- | --- | --- |
+| D1 Local v1/v2 switching fixture | write-capable | Maxwell `019e618d-d37a-7691-b490-d34fa1836e48` | `scripts/ultramodern-version-switching/**` | completed | Added deterministic matrix CLI, local HTTP proof, skew failure, and archive output in commit `fbd6bd780a` |
+| D2 Zephyr live evidence harness | write-capable | Arendt `019e618d-d456-7ee1-8022-873deea8faaf` | `scripts/ultramodern-zephyr-live-evidence/**` | completed-blocked-live | Added opt-in dry-run/live harness, schema, README, redaction, and command plan in commit `0522941533`; authenticated live capture remains blocked on Zephyr config/credentials |
+| D3 Zerops proof artifact | write-capable | Beauvoir `019e618d-d55d-7311-b4d4-c641b025c55d` | `docs/super-app-rfc-adr/ZEROPS-0001-ultramodern-full-stack-node-proof.md` | completed | Added Zerops long-running Node proof design in commit `a978b0768b` |
+
+Parent verification after pulling all Wave 4 commits:
+
+- `node --test scripts/ultramodern-version-switching/__tests__/run-version-switching-proof.test.js scripts/ultramodern-zephyr-live-evidence/__tests__/run-zephyr-live-evidence.test.js`: pass
+- `pnpm exec biome check scripts/ultramodern-version-switching scripts/ultramodern-zephyr-live-evidence`: pass
+- `node scripts/ultramodern-version-switching/run-version-switching-proof.js --case matrix`: pass
+- `node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js --dry-run --out /tmp/modernjs-zephyr-evidence-smoke.json`: dry-run pass
+- `node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js --live --out /tmp/modernjs-zephyr-live-blocked.json`: blocked as expected without `ZE_ENV`, Zephyr token/user, app UIDs, selectors, manifest/runtime URLs, and API assertion URLs
+
 ## Node Prompts
 
 ### A1 React DOM Singleton Writer
