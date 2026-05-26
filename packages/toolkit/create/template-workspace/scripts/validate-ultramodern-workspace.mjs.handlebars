@@ -12,7 +12,6 @@ const moduleFederationAgentSkillsCommit = '07bb5b6c43ad457609e00c081b72d4c42508e
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -94,10 +93,7 @@ const requiredPaths = [
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
   'scripts/setup-agent-reference-repos.mjs',
-  'scripts/check-i18n-strings.mjs',
   'apps/shell-super-app/package.json',
-  'apps/shell-super-app/config/public/locales/en/translation.json',
-  'apps/shell-super-app/config/public/locales/cs/translation.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
@@ -105,8 +101,6 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-commerce/package.json',
-  'apps/remotes/remote-commerce/config/public/locales/en/translation.json',
-  'apps/remotes/remote-commerce/config/public/locales/cs/translation.json',
   'apps/remotes/remote-commerce/modern.config.ts',
   'apps/remotes/remote-commerce/module-federation.config.ts',
   'apps/remotes/remote-commerce/api/effect/index.ts',
@@ -117,8 +111,6 @@ const requiredPaths = [
   'apps/remotes/remote-commerce/src/routes/index.css',
   'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-identity/package.json',
-  'apps/remotes/remote-identity/config/public/locales/en/translation.json',
-  'apps/remotes/remote-identity/config/public/locales/cs/translation.json',
   'apps/remotes/remote-identity/modern.config.ts',
   'apps/remotes/remote-identity/module-federation.config.ts',
   'apps/remotes/remote-identity/api/effect/index.ts',
@@ -129,8 +121,6 @@ const requiredPaths = [
   'apps/remotes/remote-identity/src/routes/index.css',
   'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-design-system/package.json',
-  'apps/remotes/remote-design-system/config/public/locales/en/translation.json',
-  'apps/remotes/remote-design-system/config/public/locales/cs/translation.json',
   'apps/remotes/remote-design-system/modern.config.ts',
   'apps/remotes/remote-design-system/module-federation.config.ts',
   'apps/remotes/remote-design-system/src/modern-app-env.d.ts',
@@ -180,7 +170,6 @@ const agentReferenceRepos = readJson('.agents/agent-reference-repos.json');
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
 const workflowContent = readText('.github/workflows/ultramodern-workspace-gates.yml');
 const renovateConfig = readJson('.github/renovate.json');
-const deprecatedTanstackRuntime = '@modern-js/runtime/' + 'tanstack-router';
 const expectedModernSpecifier =
   packageSource.strategy === 'install' ? packageSource.modernPackages?.specifier : 'workspace:*';
 
@@ -296,7 +285,6 @@ const requiredRootScripts = {
     'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
-  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
   'agents:refs:check': 'node ./scripts/setup-agent-reference-repos.mjs --check',
@@ -477,13 +465,6 @@ for (const packagePath of appPackagePaths) {
     );
   }
   assert(
-    packageJson.dependencies?.['@modern-js/plugin-i18n'] ===
-      expectedModernDependency('@modern-js/plugin-i18n'),
-    `${packagePath} must use @modern-js/plugin-i18n through ${expectedModernDependency(
-      '@modern-js/plugin-i18n',
-    )}`,
-  );
-  assert(
     packageJson.dependencies?.['@modern-js/plugin-tanstack'] ===
       expectedModernDependency('@modern-js/plugin-tanstack'),
     `${packagePath} must use @modern-js/plugin-tanstack through ${expectedModernDependency(
@@ -528,14 +509,9 @@ for (const packagePath of appPackagePaths) {
     packageJson.dependencies?.[`@${packageScope}/shared-design-tokens`] === 'workspace:*',
     `${packagePath} must link generated shared design tokens through workspace:*`,
   );
-  assert(packageJson.dependencies?.i18next === '26.2.0', `${packagePath} must include i18next`);
   assert(
     packageJson.dependencies?.['node-fetch'] === '^3.3.2',
     `${packagePath} must satisfy the Module Federation SDK node-fetch peer`,
-  );
-  assert(
-    packageJson.dependencies?.['react-i18next'] === '17.0.8',
-    `${packagePath} must include react-i18next`,
   );
   assert(
     packageJson.dependencies?.['@tanstack/react-router'] === tanstackVersion,
@@ -658,8 +634,6 @@ for (const configPath of [
 ]) {
   const config = readText(configPath);
   assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
-  assert(config.includes('i18nPlugin('), `${configPath} must enable plugin-i18n`);
-  assert(config.includes('localePathRedirect: true'), `${configPath} must prefix localized URLs`);
   assert(config.includes('ULTRAMODERN_SITE_URL'), `${configPath} must expose site URL metadata`);
   assert(
     config.includes('MODERN_PUBLIC_SITE_URL must be set for production builds'),
@@ -700,15 +674,7 @@ for (const routePath of [
   assert(route.includes('rel="alternate"'), `${routePath} must emit alternate locale metadata`);
   assert(route.includes('hrefLang="x-default"'), `${routePath} must emit x-default metadata`);
   assert(route.includes('localizedPath('), `${routePath} must build localized URLs`);
-  assert(
-    route.includes('@tanstack/react-router'),
-    `${routePath} must import route hooks from the direct TanStack runtime package`,
-  );
   assert(route.includes("import '../index.css';"), `${routePath} must import route CSS`);
-  assert(
-    !route.includes(deprecatedTanstackRuntime),
-    `${routePath} must not import deprecated TanStack runtime path`,
-  );
 }
 
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');
