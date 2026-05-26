@@ -21,6 +21,7 @@ const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260525.1';
 const OXLINT_VERSION = '1.66.0';
 const OXFMT_VERSION = '0.51.0';
 const ULTRACITE_VERSION = '7.7.0';
+const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
@@ -49,6 +50,7 @@ const effectTsgoTypecheckCommand =
 const modernPackageNames = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -708,6 +710,10 @@ function appDependencies(
       '@modern-js/plugin-tanstack',
       packageSource,
     ),
+    '@modern-js/plugin-i18n': modernPackageSpecifier(
+      '@modern-js/plugin-i18n',
+      packageSource,
+    ),
     '@modern-js/runtime': modernPackageSpecifier(
       '@modern-js/runtime',
       packageSource,
@@ -715,6 +721,7 @@ function appDependencies(
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
+    i18next: I18NEXT_VERSION,
     'node-fetch': '^3.3.2',
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
@@ -1076,8 +1083,13 @@ function createAppModernConfig(app: WorkspaceApp): string {
     : '';
   const bffPluginEntry = appHasEffectApi(app) ? '        bffPlugin(),\n' : '';
   return `// @effect-diagnostics processEnv:off
-import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
-${bffImport}import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
+import {
+  appTools,
+  defineConfig,
+  presetUltramodern,
+} from '@modern-js/app-tools';
+${bffImport}import { i18nPlugin } from '@modern-js/plugin-i18n';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 
@@ -1100,7 +1112,8 @@ const zephyrRspackPlugin = () => ({
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
 const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
-const hasConfiguredSiteUrl = typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
+const hasConfiguredSiteUrl =
+  typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
 const isProductionBuild =
   process.env['NODE_ENV'] === 'production' || process.argv.includes('build');
 
@@ -1110,7 +1123,9 @@ if (isProductionBuild && !hasConfiguredSiteUrl) {
   );
 }
 
-const siteUrl = hasConfiguredSiteUrl ? configuredSiteUrl : \`http://localhost:\${port}\`;
+const siteUrl = hasConfiguredSiteUrl
+  ? configuredSiteUrl
+  : \`http://localhost:\${port}\`;
 
 export default defineConfig(
   presetUltramodern(
@@ -1129,11 +1144,34 @@ ${bffConfig}      output: {
       plugins: [
         appTools(),
         tanstackRouterPlugin(),
+        i18nPlugin({
+          backend: {
+            enabled: true,
+          },
+          reactI18next: false,
+          localeDetection: {
+            fallbackLanguage: 'en',
+            languages: ['en', 'cs'],
+            localePathRedirect: true,
+            ignoreRedirectRoutes: [
+              '/@mf-types',
+              '/bundles',
+              '${effectApiPrefix(app)}',
+              '/locales',
+              '/mf-manifest.json',
+              '/mf-stats.json',
+              '/remoteEntry.js',
+              '/static',
+              '/zephyr-manifest.json',
+            ],
+          },
+        }),
 ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
       ],
       server: {
         port,
+        publicDir: './locales',
         ssr: {
           mode: 'stream',
           moduleFederationAppSSR: true,
@@ -1326,8 +1364,23 @@ export default defineConfig(
 
 function createAppRuntimeConfig(): string {
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
+import { createInstance } from 'i18next';
+
+const i18nInstance = createInstance();
 
 export default defineRuntimeConfig({
+  i18n: {
+    i18nInstance,
+    initOptions: {
+      defaultNS: 'translation',
+      fallbackLng: 'en',
+      interpolation: {
+        escapeValue: false,
+      },
+      ns: ['translation'],
+      supportedLngs: ['en', 'cs'],
+    },
+  },
   router: {
     framework: 'tanstack',
   },
@@ -1405,7 +1458,7 @@ const LocalizedHead = () => {
   return (
     <>
       <link rel="canonical" href={absoluteUrl(canonicalPath)} />
-      {supportedLanguages.map((code) => (
+      {supportedLanguages.map(code => (
         <link
           href={absoluteUrl(localizedPath(code))}
           hrefLang={code}
@@ -1425,36 +1478,37 @@ const LocalizedHead = () => {
 }
 
 function createShellPage(): string {
-  return `import '../index.css';
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import '../index.css';
 
-const languageOptions = [
-  { code: 'en', href: '/en', label: 'English' },
-  { code: 'cs', href: '/cs', label: 'Cestina' },
-] as const;
+const languageCodes = ['en', 'cs'] as const;
 
-const remotes = [
-  'Commerce Remote',
-  'Identity Remote',
-  'Design System Remote',
-];
+const remoteKeys = ['commerce', 'identity', 'designSystem'] as const;
 
 ${createLocalizedHeadComponent()}
 export default function ShellHome() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+
   return (
     <main>
       <LocalizedHead />
-      <nav aria-label="Language">
-        {languageOptions.map((option) => (
-          <a href={option.href} key={option.code}>
-            {option.label}
+      <nav aria-label={t('shell.language.switcher')}>
+        {languageCodes.map(code => (
+          <a
+            aria-current={language === code ? 'page' : undefined}
+            href={\`/\${code}\`}
+            key={code}
+          >
+            {t(\`shell.language.\${code}\`)}
           </a>
         ))}
       </nav>
-      <h1>UltraModern SuperApp Shell</h1>
+      <h1>{t('shell.title')}</h1>
       <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <ul>
-        {remotes.map((remote) => (
-          <li key={remote}>{remote}</li>
+        {remoteKeys.map(remote => (
+          <li key={remote}>{t(\`shell.remotes.\${remote}\`)}</li>
         ))}
       </ul>
     </main>
@@ -1465,10 +1519,11 @@ export default function ShellHome() {
 
 function createRemotePage(app: WorkspaceApp): string {
   const effectBffImport = appHasEffectApi(app)
-    ? `import effectBff from '../../../api/effect/index';
+    ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useEffect, useState } from 'react';
+import effectBff from '../../../api/effect/index';
 `
-    : '';
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\n";
   const effectBffState = appHasEffectApi(app)
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
@@ -1494,13 +1549,24 @@ import { useEffect, useState } from 'react';
 
 ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
-${effectBffState}
-
-  return (
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+${effectBffState}  return (
     <main>
       <LocalizedHead />
-      <h1>${app.displayName}</h1>
-      <p data-mf-role="${app.kind}">${app.domain ?? app.kind}</p>
+      <nav aria-label={t('${app.domain}.language.switcher')}>
+        {supportedLanguages.map(code => (
+          <a
+            aria-current={language === code ? 'page' : undefined}
+            href={\`/\${code}\`}
+            key={code}
+          >
+            {t(\`${app.domain}.language.\${code}\`)}
+          </a>
+        ))}
+      </nav>
+      <h1>{t('${app.domain}.title')}</h1>
+      <p data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
 ${effectBffMarkup}    </main>
   );
 }
@@ -1542,6 +1608,63 @@ function createRemoteWidget(app: WorkspaceApp): string {
   );
 }
 `;
+}
+
+function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
+  const czechLabels: Record<string, { role: string; title: string }> = {
+    commerce: {
+      role: 'obchod',
+      title: 'Obchodni remote',
+    },
+    'design-system': {
+      role: 'design system',
+      title: 'Design system remote',
+    },
+    identity: {
+      role: 'identita',
+      title: 'Identitni remote',
+    },
+  };
+
+  if (app.kind === 'shell') {
+    return {
+      shell: {
+        language: {
+          cs: language === 'en' ? 'Czech' : 'Cestina',
+          en: language === 'en' ? 'English' : 'Anglictina',
+          switcher: language === 'en' ? 'Language' : 'Jazyk',
+        },
+        remotes: {
+          commerce: language === 'en' ? 'Commerce Remote' : 'Obchodni remote',
+          designSystem:
+            language === 'en' ? 'Design System Remote' : 'Design system remote',
+          identity: language === 'en' ? 'Identity Remote' : 'Identitni remote',
+        },
+        title:
+          language === 'en'
+            ? 'UltraModern SuperApp Shell'
+            : 'UltraModern SuperApp shell',
+      },
+    };
+  }
+
+  const domain = app.domain ?? app.id;
+  const czechLabel = czechLabels[domain] ?? {
+    role: domain,
+    title: `${app.displayName} CZ`,
+  };
+
+  return {
+    [domain]: {
+      language: {
+        cs: language === 'en' ? 'Czech' : 'Cestina',
+        en: language === 'en' ? 'English' : 'Anglictina',
+        switcher: language === 'en' ? 'Language' : 'Jazyk',
+      },
+      role: language === 'en' ? (app.domain ?? app.kind) : czechLabel.role,
+      title: language === 'en' ? app.displayName : czechLabel.title,
+    },
+  };
 }
 
 function createDesignButton(): string {
@@ -2306,6 +2429,16 @@ function writeApp(
     targetDir,
     `${app.directory}/src/modern.runtime.ts`,
     createAppRuntimeConfig(),
+  );
+  writeJson(
+    targetDir,
+    `${app.directory}/locales/en/translation.json`,
+    createAppLocaleMessages(app, 'en'),
+  );
+  writeJson(
+    targetDir,
+    `${app.directory}/locales/cs/translation.json`,
+    createAppLocaleMessages(app, 'cs'),
   );
   writeFile(
     targetDir,

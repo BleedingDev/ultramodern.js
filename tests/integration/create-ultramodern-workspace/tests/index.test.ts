@@ -408,6 +408,8 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/module-federation.config.ts',
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
+      'apps/shell-super-app/locales/en/translation.json',
+      'apps/shell-super-app/locales/cs/translation.json',
       'apps/shell-super-app/src/routes/index.css',
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
@@ -417,6 +419,8 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/api/effect/index.ts',
       'apps/remotes/remote-commerce/shared/effect/api.ts',
       'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
+      'apps/remotes/remote-commerce/locales/en/translation.json',
+      'apps/remotes/remote-commerce/locales/cs/translation.json',
       'apps/remotes/remote-commerce/src/routes/index.css',
       'apps/remotes/remote-commerce/src/components/commerce-widget.tsx',
       'apps/remotes/remote-identity/package.json',
@@ -427,6 +431,8 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-identity/api/effect/index.ts',
       'apps/remotes/remote-identity/shared/effect/api.ts',
       'apps/remotes/remote-identity/src/effect/identity-client.ts',
+      'apps/remotes/remote-identity/locales/en/translation.json',
+      'apps/remotes/remote-identity/locales/cs/translation.json',
       'apps/remotes/remote-identity/src/routes/index.css',
       'apps/remotes/remote-identity/src/components/identity-widget.tsx',
       'apps/remotes/remote-design-system/package.json',
@@ -434,6 +440,8 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-design-system/module-federation.config.ts',
       'apps/remotes/remote-design-system/postcss.config.mjs',
       'apps/remotes/remote-design-system/tailwind.config.ts',
+      'apps/remotes/remote-design-system/locales/en/translation.json',
+      'apps/remotes/remote-design-system/locales/cs/translation.json',
       'apps/remotes/remote-design-system/src/routes/index.css',
       'apps/remotes/remote-design-system/src/components/button.tsx',
       'apps/remotes/remote-design-system/src/tokens.ts',
@@ -571,9 +579,14 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
         'workspace:*',
       );
+      expect(packageJson.dependencies['@modern-js/plugin-i18n']).toBe(
+        'workspace:*',
+      );
       expect(packageJson.dependencies['@modern-js/runtime']).toBe(
         'workspace:*',
       );
+      expect(packageJson.dependencies.i18next).toBe('26.2.0');
+      expect(packageJson.dependencies['react-i18next']).toBeUndefined();
       expect(packageJson.dependencies['node-fetch']).toBe('^3.3.2');
       expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
@@ -935,6 +948,8 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-catalog/api/effect/index.ts',
       'apps/remotes/remote-catalog/shared/effect/api.ts',
       'apps/remotes/remote-catalog/src/effect/catalog-client.ts',
+      'apps/remotes/remote-catalog/locales/en/translation.json',
+      'apps/remotes/remote-catalog/locales/cs/translation.json',
       'apps/remotes/remote-catalog/src/routes/[lang]/page.tsx',
       'apps/remotes/remote-catalog/src/routes/index.css',
       'apps/remotes/remote-catalog/src/remote-entry.tsx',
@@ -960,6 +975,11 @@ describe('create-ultramodern-workspace', () => {
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.0',
     );
+    expect(remotePackage.dependencies['@modern-js/plugin-i18n']).toBe(
+      'workspace:*',
+    );
+    expect(remotePackage.dependencies.i18next).toBe('26.2.0');
+    expect(remotePackage.dependencies['react-i18next']).toBeUndefined();
     expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
     expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
     expect(
@@ -1265,6 +1285,7 @@ describe('create-ultramodern-workspace', () => {
     expect(packageSource.modernPackages.aliases).toMatchObject({
       '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
       '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
+      '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
       '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
       '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
     });
@@ -1275,6 +1296,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(shellPackage.dependencies['@modern-js/plugin-tanstack']).toBe(
       'npm:@bleedingdev/modern-js-plugin-tanstack@3.2.0-ultramodern.0',
+    );
+    expect(shellPackage.dependencies['@modern-js/plugin-i18n']).toBe(
+      'npm:@bleedingdev/modern-js-plugin-i18n@3.2.0-ultramodern.0',
     );
     expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
       'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.0',

@@ -12,6 +12,7 @@ const moduleFederationAgentSkillsCommit = '07bb5b6c43ad457609e00c081b72d4c42508e
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
 ];
@@ -98,6 +99,8 @@ const requiredPaths = [
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
+  'apps/shell-super-app/locales/en/translation.json',
+  'apps/shell-super-app/locales/cs/translation.json',
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-commerce/package.json',
@@ -108,6 +111,8 @@ const requiredPaths = [
   'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
   'apps/remotes/remote-commerce/src/modern-app-env.d.ts',
   'apps/remotes/remote-commerce/src/modern.runtime.ts',
+  'apps/remotes/remote-commerce/locales/en/translation.json',
+  'apps/remotes/remote-commerce/locales/cs/translation.json',
   'apps/remotes/remote-commerce/src/routes/index.css',
   'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-identity/package.json',
@@ -118,6 +123,8 @@ const requiredPaths = [
   'apps/remotes/remote-identity/src/effect/identity-client.ts',
   'apps/remotes/remote-identity/src/modern-app-env.d.ts',
   'apps/remotes/remote-identity/src/modern.runtime.ts',
+  'apps/remotes/remote-identity/locales/en/translation.json',
+  'apps/remotes/remote-identity/locales/cs/translation.json',
   'apps/remotes/remote-identity/src/routes/index.css',
   'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-design-system/package.json',
@@ -125,6 +132,8 @@ const requiredPaths = [
   'apps/remotes/remote-design-system/module-federation.config.ts',
   'apps/remotes/remote-design-system/src/modern-app-env.d.ts',
   'apps/remotes/remote-design-system/src/modern.runtime.ts',
+  'apps/remotes/remote-design-system/locales/en/translation.json',
+  'apps/remotes/remote-design-system/locales/cs/translation.json',
   'apps/remotes/remote-design-system/src/routes/index.css',
   'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
   'packages/shared-contracts/src/index.ts',
@@ -472,6 +481,13 @@ for (const packagePath of appPackagePaths) {
     )}`,
   );
   assert(
+    packageJson.dependencies?.['@modern-js/plugin-i18n'] ===
+      expectedModernDependency('@modern-js/plugin-i18n'),
+    `${packagePath} must use @modern-js/plugin-i18n through ${expectedModernDependency(
+      '@modern-js/plugin-i18n',
+    )}`,
+  );
+  assert(
     packageJson.dependencies?.['@modern-js/runtime'] ===
       expectedModernDependency('@modern-js/runtime'),
     `${packagePath} must use @modern-js/runtime through ${expectedModernDependency(
@@ -516,6 +532,14 @@ for (const packagePath of appPackagePaths) {
   assert(
     packageJson.dependencies?.['@tanstack/react-router'] === tanstackVersion,
     `${packagePath} must use @tanstack/react-router ${tanstackVersion}`,
+  );
+  assert(
+    packageJson.dependencies?.i18next === '26.2.0',
+    `${packagePath} must include i18next for mandatory native Modern.js i18n`,
+  );
+  assert(
+    !packageJson.dependencies?.['react-i18next'],
+    `${packagePath} must use native @modern-js/plugin-i18n hooks instead of react-i18next in the TanStack MF starter`,
   );
   assert(
     packageJson.dependencies?.['@module-federation/modern-js-v3'] === '2.5.0',
@@ -640,6 +664,15 @@ for (const configPath of [
     `${configPath} must require MODERN_PUBLIC_SITE_URL for production builds`,
   );
   assert(config.includes('tanstackRouterPlugin()'), `${configPath} must enable plugin-tanstack`);
+  assert(config.includes('i18nPlugin('), `${configPath} must enable native Modern.js i18n`);
+  assert(
+    config.includes('reactI18next: false'),
+    `${configPath} must use the native Modern.js i18n provider without optional react-i18next probing`,
+  );
+  assert(
+    config.includes("publicDir: './locales'"),
+    `${configPath} must expose app-owned locale JSON through Modern.js publicDir`,
+  );
   assert(
     config.includes('moduleFederationPlugin()'),
     `${configPath} must enable Module Federation`,

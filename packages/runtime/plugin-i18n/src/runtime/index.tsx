@@ -54,6 +54,7 @@ export interface I18nPluginOptions {
   changeLanguage?: (lang: string) => void;
   initOptions?: I18nInitOptions;
   htmlLangAttr?: boolean;
+  reactI18next?: boolean;
   [key: string]: any;
 }
 
@@ -72,6 +73,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
       localeDetection,
       backend,
       htmlLangAttr = false,
+      reactI18next = true,
     } = options;
     const {
       localePathRedirect = false,
@@ -90,8 +92,10 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
       const { i18n: otherConfig } = api.getRuntimeConfig();
       const { initOptions: otherInitOptions } = otherConfig || {};
       const userInitOptions = merge(otherInitOptions || {}, initOptions || {});
-      const initReactI18next = await getInitReactI18next();
-      I18nextProvider = await getI18nextProvider();
+      const initReactI18next = reactI18next
+        ? await getInitReactI18next()
+        : null;
+      I18nextProvider = reactI18next ? await getI18nextProvider() : null;
       if (initReactI18next) {
         i18nInstance.use(initReactI18next);
       }
