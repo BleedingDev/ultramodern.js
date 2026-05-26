@@ -28,7 +28,7 @@
     "docsEvidence": {
       "type": "object",
       "required": [
-        "officialModernJsPlugin",
+        "zephyrRspackPlugin",
         "packageJsonDependencyKey",
         "runtimeOverrideCapability",
         "lifecycleCommandPolicy"

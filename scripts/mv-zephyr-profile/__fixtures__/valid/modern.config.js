@@ -1,5 +1,12 @@
 const { appTools, defineConfig } = require('@modern-js/app-tools');
-const { withZephyr } = require('zephyr-modernjs-plugin');
+const { withZephyr } = require('zephyr-rspack-plugin');
+
+const zephyrRspackPlugin = () => ({
+  name: 'zephyr-rspack-bridge',
+  setup(api) {
+    api.modifyRspackConfig(config => withZephyr()(config));
+  },
+});
 
 module.exports = defineConfig({
   output: {
@@ -13,10 +20,5 @@ module.exports = defineConfig({
   source: {
     mainEntryName: 'index',
   },
-  plugins: [
-    appTools({
-      bundler: 'rspack',
-    }),
-    withZephyr(),
-  ],
+  plugins: [appTools(), zephyrRspackPlugin()],
 });

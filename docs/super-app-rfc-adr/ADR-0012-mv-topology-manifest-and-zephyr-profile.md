@@ -91,9 +91,11 @@ This profile describes a vanilla Modern.js application delivered through Zephyr 
 
 ### 4.1 `withZephyr` placement
 
-`withZephyr()` must be registered through the official `zephyr-modernjs-plugin` package in the exported Modern.js `plugins` array, alongside `appTools({ bundler: 'rspack' })`.
+`withZephyr()` must come from `zephyr-rspack-plugin` and be applied inside a small Modern.js plugin that calls `api.modifyRspackConfig`, alongside `appTools()`.
 
-The profile records this as `modern-config-plugins-array` so validators can reject private wrapper shapes and keep UltraModern workspaces close to vanilla Modern.js + Zephyr integration.
+This profile originally required `zephyr-modernjs-plugin`, but live Modern.js evidence showed that wrapper checking `api.getAppContext().bundlerType` did not attach in the generated Rspack app because `bundlerType` was undefined. The direct Rspack plugin path matches Zephyr's public Rspack API and produced authenticated Zephyr deployments for both client and server builds.
+
+The profile records this as `modern-config-rspack-bridge-plugin` so validators can reject private runtime boot hacks while still using Zephyr's public Rspack plugin.
 
 ### 4.2 Output constraints
 
@@ -171,7 +173,7 @@ Future validation should check:
 
 1. schema validity for topology manifests.
 2. no shell source hardcoded remote or service URLs under the Zephyr profile.
-3. `withZephyr()` comes from `zephyr-modernjs-plugin` and is registered in the Modern.js `plugins` array.
+3. `withZephyr()` comes from `zephyr-rspack-plugin` and is applied through a Modern.js `modifyRspackConfig` bridge plugin.
 4. MF outputs are preserved.
 5. remote trust metadata is complete.
 6. revoked artifacts are not selectable.

@@ -6,7 +6,8 @@ URLs, runtime URLs, UI/API markers, and assertion results in a JSON bundle.
 
 The harness uses the current public-docs assumptions gathered for the proof:
 
-- The official Modern.js plugin package is `zephyr-modernjs-plugin`.
+- Zephyr deployment uses `zephyr-rspack-plugin` through the generated Modern.js
+  Rspack config bridge.
 - Remote dependencies are configured with the `package.json`
   `zephyr:dependencies` key.
 - Zephyr environment overrides can select remote versions, tags, or

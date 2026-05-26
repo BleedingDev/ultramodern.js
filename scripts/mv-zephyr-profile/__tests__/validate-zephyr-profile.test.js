@@ -23,7 +23,7 @@ const readFixture = relativePath =>
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
-test('validateWithZephyrPlacement accepts official Modern.js plugins array shape', () => {
+test('validateWithZephyrPlacement accepts the Zephyr Rspack bridge shape', () => {
   const violations = validateWithZephyrPlacement({
     configPath: 'modern.config.js',
     content: readFixture('valid/modern.config.js'),
@@ -48,15 +48,20 @@ test('validateWithZephyrPlacement rejects Zephyr config wrapper shape', () => {
   );
 });
 
-test('validateWithZephyrPlacement rejects non-official Modern.js Zephyr package', () => {
+test('validateWithZephyrPlacement rejects inactive Modern.js Zephyr packages', () => {
   const violations = validateWithZephyrPlacement({
     configPath: 'modern.config.js',
     content: `
       const { appTools, defineConfig } = require('@modern-js/app-tools');
-      const { withZephyr } = require('@modern-js/plugin-zephyr');
+      const { withZephyr } = require('zephyr-modernjs-plugin');
 
+      const zephyrRspackPlugin = () => ({
+        setup(api) {
+          api.modifyRspackConfig(config => withZephyr()(config));
+        },
+      });
       module.exports = defineConfig({
-        plugins: [appTools({ bundler: 'rspack' }), withZephyr()],
+        plugins: [appTools(), zephyrRspackPlugin()],
         output: { distPath: { html: './' } },
         html: { outputStructure: 'flat' },
         source: { mainEntryName: 'index' },
@@ -68,7 +73,7 @@ test('validateWithZephyrPlacement rejects non-official Modern.js Zephyr package'
     violations.some(
       violation =>
         violation.rule === 'with-zephyr-package' &&
-        /official|not the official/.test(violation.message),
+        /zephyr-rspack-plugin|wrapper/.test(violation.message),
     ),
     true,
   );
@@ -79,11 +84,11 @@ test('validateWithZephyrPlacement rejects withZephyr outside plugins array', () 
     configPath: 'modern.config.js',
     content: `
       const { appTools, defineConfig } = require('@modern-js/app-tools');
-      const { withZephyr } = require('zephyr-modernjs-plugin');
+      const { withZephyr } = require('zephyr-rspack-plugin');
 
       const zephyr = withZephyr();
       module.exports = defineConfig({
-        plugins: [appTools({ bundler: 'rspack' })],
+        plugins: [appTools()],
         output: { distPath: { html: './' } },
         html: { outputStructure: 'flat' },
         source: { mainEntryName: 'index' },

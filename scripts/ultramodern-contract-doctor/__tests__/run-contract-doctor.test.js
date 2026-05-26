@@ -90,6 +90,7 @@ function createWorkspace() {
       },
       devDependencies: {
         '@modern-js/app-tools': 'workspace:*',
+        'zephyr-rspack-plugin': '1.1.1',
       },
     });
     writeText(root, `${appPath}/src/routes/page.tsx`, 'export default null;\n');
@@ -120,6 +121,7 @@ function createWorkspace() {
       },
       devDependencies: {
         '@modern-js/app-tools': 'workspace:*',
+        'zephyr-rspack-plugin': '1.1.1',
       },
       exports: {
         './effect/client': `./src/effect/${vertical.stem}-client.ts`,
@@ -134,7 +136,7 @@ function createWorkspace() {
     writeText(
       root,
       `${vertical.path}/modern.config.ts`,
-      `moduleFederationPlugin(); bffPlugin(); runtimeFramework: 'effect'; prefix: '${vertical.prefix}'; moduleFederationAppSSR: true; withZephyr(), outputStructure: 'flat';\n`,
+      `moduleFederationPlugin(); bffPlugin(); runtimeFramework: 'effect'; prefix: '${vertical.prefix}'; moduleFederationAppSSR: true; outputStructure: 'flat';\n`,
     );
     writeText(
       root,
@@ -334,6 +336,7 @@ test('accepts an install-backed UltraModern package source strategy', () => {
         },
         devDependencies: {
           '@modern-js/app-tools': '3.2.0',
+          ...(isFullStackVertical ? { 'zephyr-rspack-plugin': '1.1.1' } : {}),
         },
       });
     }

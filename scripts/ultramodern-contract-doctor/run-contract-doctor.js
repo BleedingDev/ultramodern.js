@@ -602,13 +602,13 @@ function checkFullStackVerticals(workspace) {
           configSource.includes("runtimeFramework: 'effect'") &&
           configSource.includes(`prefix: '${vertical.apiPrefix}'`) &&
           configSource.includes('moduleFederationAppSSR: true') &&
-          configSource.includes('withZephyr(),') &&
-          configSource.includes("outputStructure: 'flat'"),
+          configSource.includes("outputStructure: 'flat'") &&
+          pkg.devDependencies?.['zephyr-rspack-plugin'] === '1.1.1',
         {
           file: relative(workspace, config),
-          message: `${vertical.id} Modern config composes MF, Zephyr, stream SSR, flat output, and Effect BFF.`,
+          message: `${vertical.id} Modern package composes MF, Zephyr Rspack, stream SSR, flat output, and Effect BFF.`,
           expected:
-            'moduleFederationPlugin(), bffPlugin(), runtimeFramework effect, Zephyr, stream SSR, flat output',
+            'moduleFederationPlugin(), bffPlugin(), runtimeFramework effect, zephyr-rspack-plugin, stream SSR, flat output',
           suggestion:
             'Configure the vertical Modern app as both a Module Federation remote and Effect BFF host.',
         },

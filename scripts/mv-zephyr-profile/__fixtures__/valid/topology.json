@@ -10,7 +10,7 @@
     "channel": "preview",
     "owner": "mv-platform",
     "constraints": {
-      "withZephyrPlacement": "modern-config-plugins-array",
+      "withZephyrPlacement": "modern-config-rspack-bridge-plugin",
       "output": {
         "noRuntimePublicPathMutation": true,
         "preserveMfManifest": true,

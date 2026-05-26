@@ -557,7 +557,7 @@ async function createEvidenceBundle(options = {}) {
     evidencePath: outputPath,
     schemaPath: SCHEMA_PATH,
     docsEvidence: {
-      officialModernJsPlugin: 'zephyr-modernjs-plugin',
+      zephyrRspackPlugin: 'zephyr-rspack-plugin',
       packageJsonDependencyKey: 'zephyr:dependencies',
       runtimeOverrideCapability:
         'Zephyr environment overrides can select remote versions, tags, or environments at runtime without rebuilding the host.',

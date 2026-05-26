@@ -185,7 +185,7 @@
           "properties": {
             "withZephyrPlacement": {
               "type": "string",
-              "enum": ["modern-config-plugins-array"]
+              "enum": ["modern-config-rspack-bridge-plugin"]
             },
             "output": {
               "type": "object",

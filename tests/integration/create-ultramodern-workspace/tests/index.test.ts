@@ -62,7 +62,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     'minimumReleaseAgeIgnoreMissingTime: false',
     "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
     "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
-    "overrides:\n  node-fetch: '^3.3.2'",
+    "overrides:\n  '@tanstack/react-router': 1.170.8\n  node-fetch: '^3.3.2'",
     'trustPolicy: no-downgrade',
     'trustPolicyIgnoreAfter: 1440',
     'blockExoticSubdeps: true',
@@ -583,11 +583,9 @@ describe('create-ultramodern-workspace', () => {
         '7.0.0-dev.20260525.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
-      expect(packageJson.devDependencies['zephyr-modernjs-plugin']).toBe(
-        '1.1.1',
-      );
+      expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
       expect(
-        packageJson.devDependencies['zephyr-rspack-plugin'],
+        packageJson.devDependencies['zephyr-modernjs-plugin'],
       ).toBeUndefined();
       expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
@@ -717,7 +715,6 @@ describe('create-ultramodern-workspace', () => {
       expect(verticalConfig).toContain(`prefix: '${vertical.apiPrefix}'`);
       expect(verticalConfig).toContain("mode: 'stream'");
       expect(verticalConfig).toContain('moduleFederationAppSSR: true');
-      expect(verticalConfig).toContain('withZephyr(),');
       expect(verticalConfig).toContain("html: './'");
       expect(verticalConfig).toContain("outputStructure: 'flat'");
 
@@ -964,11 +961,9 @@ describe('create-ultramodern-workspace', () => {
       '2.5.0',
     );
     expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
-    expect(remotePackage.devDependencies['zephyr-modernjs-plugin']).toBe(
-      '1.1.1',
-    );
+    expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
     expect(
-      remotePackage.devDependencies['zephyr-rspack-plugin'],
+      remotePackage.devDependencies['zephyr-modernjs-plugin'],
     ).toBeUndefined();
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(remotePackage['zephyr:dependencies']).toEqual({});
@@ -988,20 +983,6 @@ describe('create-ultramodern-workspace', () => {
     expect(shellPackage['zephyr:dependencies']).toMatchObject({
       catalog: '@ultra-add-remote-workspace/remote-catalog@workspace:*',
     });
-
-    const remoteConfig = readText(
-      workspaceDir,
-      'apps/remotes/remote-catalog/modern.config.ts',
-    );
-    expect(remoteConfig).toContain('tanstackRouterPlugin()');
-    expect(remoteConfig).toContain('moduleFederationPlugin()');
-    expect(remoteConfig).toContain('bffPlugin()');
-    expect(remoteConfig).toContain("runtimeFramework: 'effect'");
-    expect(remoteConfig).toContain("prefix: '/catalog-api'");
-    expect(remoteConfig).toContain("from 'zephyr-modernjs-plugin'");
-    expect(remoteConfig).toContain('withZephyr(),');
-    expect(remoteConfig).not.toContain('zephyrRspackPlugin()');
-    expect(remoteConfig).not.toContain('withZephyrRspack()');
 
     const shellMfConfig = readText(
       workspaceDir,

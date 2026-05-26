@@ -80,25 +80,25 @@ const validateWithZephyrPlacement = ({ configPath, content }) => {
   const source = stripComments(content);
 
   const officialPackagePattern =
-    /(?:\bfrom\s+['"]zephyr-modernjs-plugin['"]|\brequire\s*\(\s*['"]zephyr-modernjs-plugin['"]\s*\))/;
+    /(?:\bfrom\s+['"]zephyr-rspack-plugin['"]|\brequire\s*\(\s*['"]zephyr-rspack-plugin['"]\s*\))/;
   if (!officialPackagePattern.test(source)) {
     addViolation(
       violations,
       'with-zephyr-package',
-      '`withZephyr` must come from the official zephyr-modernjs-plugin package.',
+      '`withZephyr` must come from the Zephyr Rspack plugin package.',
       { file: configPath },
     );
   }
 
   if (
-    /(?:\bfrom\s+['"]@modern-js\/plugin-zephyr['"]|\brequire\s*\(\s*['"]@modern-js\/plugin-zephyr['"]\s*\))/.test(
+    /(?:\bfrom\s+['"](?:@modern-js\/plugin-zephyr|zephyr-modernjs-plugin)['"]|\brequire\s*\(\s*['"](?:@modern-js\/plugin-zephyr|zephyr-modernjs-plugin)['"]\s*\))/.test(
       source,
     )
   ) {
     addViolation(
       violations,
       'with-zephyr-package',
-      '`@modern-js/plugin-zephyr` is not the official Zephyr Modern.js package for this profile.',
+      'Use zephyr-rspack-plugin for this profile; the Modern.js wrapper did not attach in live Rspack evidence.',
       { file: configPath },
     );
   }
@@ -107,7 +107,7 @@ const validateWithZephyrPlacement = ({ configPath, content }) => {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr()` must be registered in the Modern.js plugins array.',
+      '`withZephyr()` must be applied through a Modern.js Rspack config bridge.',
       { file: configPath },
     );
     return violations;
@@ -119,7 +119,7 @@ const validateWithZephyrPlacement = ({ configPath, content }) => {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr()` must be a Modern.js plugin entry, not an exported config wrapper.',
+      '`withZephyr()` must be applied through modifyRspackConfig, not as an exported config wrapper.',
       { file: configPath },
     );
   }
@@ -135,24 +135,11 @@ const validateWithZephyrPlacement = ({ configPath, content }) => {
     );
   }
 
-  const pluginsArrayPattern =
-    /\bplugins\s*:\s*\[[\s\S]*?\bwithZephyr\s*\(\s*\)/;
-  if (!pluginsArrayPattern.test(source)) {
+  if (!/\bmodifyRspackConfig\s*\(/.test(source)) {
     addViolation(
       violations,
       'with-zephyr-placement',
-      '`withZephyr()` must appear in the exported Modern.js `plugins` array.',
-      { file: configPath },
-    );
-  }
-
-  if (
-    !/\bappTools\s*\(\s*\{[\s\S]*?\bbundler\s*:\s*['"]rspack['"]/.test(source)
-  ) {
-    addViolation(
-      violations,
-      'modernjs-zephyr-config',
-      '`appTools` must use the rspack bundler for the Zephyr Modern.js profile.',
+      '`withZephyr()` must be applied inside `api.modifyRspackConfig`.',
       { file: configPath },
     );
   }
@@ -327,11 +314,13 @@ const validateProfileConstraints = topologyManifest => {
     );
     return violations;
   }
-  if (constraints.withZephyrPlacement !== 'modern-config-plugins-array') {
+  if (
+    constraints.withZephyrPlacement !== 'modern-config-rspack-bridge-plugin'
+  ) {
     addViolation(
       violations,
       'profile-constraint',
-      'profile.constraints.withZephyrPlacement must be modern-config-plugins-array.',
+      'profile.constraints.withZephyrPlacement must be modern-config-rspack-bridge-plugin.',
     );
   }
 

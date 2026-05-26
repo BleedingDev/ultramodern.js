@@ -12,7 +12,7 @@ const workspaceTemplateDir = path.resolve(
 
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const MODULE_FEDERATION_VERSION = '2.5.0';
-const ZEPHYR_MODERNJS_PLUGIN_VERSION = '1.1.1';
+const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.11.0';
@@ -774,7 +774,7 @@ function appDevDependencies(
     '@types/react': '^19.1.8',
     '@types/react-dom': '^19.1.6',
     typescript: TYPESCRIPT_VERSION,
-    'zephyr-modernjs-plugin': ZEPHYR_MODERNJS_PLUGIN_VERSION,
+    'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
   };
 }
 
@@ -1084,13 +1084,42 @@ function createAppModernConfig(app: WorkspaceApp): string {
 `
     : '';
   const bffPluginEntry = appHasEffectApi(app) ? '        bffPlugin(),\n' : '';
+  const ignoreRedirectRoutes = [
+    '/@mf-types',
+    '/bundles',
+    '/locales',
+    '/mf-manifest.json',
+    '/remoteEntry.js',
+    '/static',
+    '/zephyr-manifest.json',
+    ...(appHasEffectApi(app) ? [effectApiPrefix(app)] : []),
+  ];
+  const i18nIgnoreRedirectRoutes = `[
+${ignoreRedirectRoutes.map(route => `              '${route}',`).join('\n')}
+            ]`;
 
   return `// @effect-diagnostics processEnv:off
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 ${bffImport}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr } from 'zephyr-modernjs-plugin';
+import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
+
+type ZephyrRspackConfig = Parameters<ReturnType<typeof withZephyrRspack>>[0];
+
+const zephyrRspackPlugin = () => ({
+  name: 'ultramodern-zephyr-rspack-plugin',
+  pre: ['@modern-js/plugin-module-federation-config'],
+  setup(api: {
+    modifyRspackConfig: (
+      handler: (
+        config: ZephyrRspackConfig,
+      ) => ZephyrRspackConfig | Promise<ZephyrRspackConfig>,
+    ) => void;
+  }) {
+    api.modifyRspackConfig(config => withZephyrRspack()(config));
+  },
+});
 
 const appId = '${app.id}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
@@ -1122,19 +1151,18 @@ ${bffConfig}      output: {
         outputStructure: 'flat',
       },
       plugins: [
-        appTools({
-          bundler: 'rspack',
-        }),
+        appTools(),
         i18nPlugin({
           localeDetection: {
             fallbackLanguage: 'en',
             languages: ['en', 'cs'],
             localePathRedirect: true,
+            ignoreRedirectRoutes: ${i18nIgnoreRedirectRoutes},
           },
         }),
         tanstackRouterPlugin(),
 ${bffPluginEntry}        moduleFederationPlugin(),
-        withZephyr(),
+        zephyrRspackPlugin(),
       ],
       server: {
         port,
@@ -1340,6 +1368,9 @@ export default defineRuntimeConfig({
   i18n: {
     i18nInstance,
     initOptions: {
+      backend: {
+        loadPath: '/locales/{{lng}}/{{ns}}.json',
+      },
       defaultNS: 'translation',
       fallbackLng: 'en',
       interpolation: {
@@ -1482,7 +1513,7 @@ const LocalizedHead = () => {
 function createShellPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useLocation } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import '../index.css';
 
@@ -1528,33 +1559,64 @@ export default function ShellHome() {
 }
 
 function createRemotePage(app: WorkspaceApp): string {
+  const effectBffImport = appHasEffectApi(app)
+    ? `import effectBff from '../../../api/effect/index';
+import { useEffect, useState } from 'react';
+`
+    : '';
+  const effectBffState = appHasEffectApi(app)
+    ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
+
+  useEffect(() => {
+    void effectBff.client.${serviceEffectGroupName(app)}
+      .list({ query: { limit: 1 } })
+      .then(data => {
+        setEffectApiStatus(data.items[0]?.title ?? 'empty');
+      })
+      .catch(() => {
+        setEffectApiStatus('unavailable');
+      });
+  }, []);
+
+`
+    : '';
+  const effectBffMarkup = appHasEffectApi(app)
+    ? `      <p data-testid="effect-bff-status">{effectApiStatus}</p>
+`
+    : '';
+
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useTranslation } from 'react-i18next';
+import { useLocation } from '@tanstack/react-router';
+${effectBffImport}import { useTranslation } from 'react-i18next';
 import '../index.css';
 
 ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { t } = useTranslation();
+${effectBffState}
 
   return (
     <main>
       <LocalizedHead />
       <h1>{t('remote.title')}</h1>
       <p data-mf-role="${app.kind}">{t('remote.domain')}</p>
-    </main>
+${effectBffMarkup}    </main>
   );
 }
 `;
 }
 
 function createLayout(appId: string): string {
-  return `import type { ReactNode } from 'react';
+  return `import { Outlet } from '@tanstack/react-router';
 import './index.css';
 
-export default function Layout({ children }: { children: ReactNode }) {
-  return <div data-app-id="${appId}">{children}</div>;
+export default function Layout() {
+  return (
+    <div data-app-id="${appId}">
+      <Outlet />
+    </div>
+  );
 }
 `;
 }
@@ -1900,7 +1962,9 @@ const operationAttributes = (operationContext: OperationContext) => {
     'modernjs.operation.source': operationContext.source,
     'modernjs.request.method': context.method,
     'modernjs.request.path': context.path,
-    ...(operationContext.traceId ? { 'modernjs.trace.id': operationContext.traceId } : {}),
+    ...(typeof operationContext.traceId === 'string'
+      ? { 'modernjs.trace.id': operationContext.traceId }
+      : {}),
   };
 };
 
@@ -1924,7 +1988,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
       )
       .handle('get', ({ params }) => {
         const item = ${groupName}Items.find(item => item.id === params.id);
-        return (item
+        return (item !== undefined
           ? Effect.succeed(item)
           : Effect.fail(new ${notFoundErrorExport}({ id: params.id }))).pipe(
             Effect.withSpan('ultramodern.effect.${groupName}.get', {
@@ -2003,48 +2067,51 @@ export function ${createClientName}(
   });
 }
 
-export async function ${listName}(
+export function ${listName}(
   options: ${clientOptionsName} & { limit?: number } = {},
 ) {
-  const client = await runEffectRequest(
+  return runEffectRequest(
     ${createClientName}({
       ...options,
       operationContext:
         options.operationContext ?? ${groupName}OperationContexts.list,
     }),
-  );
-  return runEffectRequest(
-    client.${groupName}.list({ query: { limit: options.limit } }),
+  ).then(client =>
+    runEffectRequest(
+      client.${groupName}.list({ query: { limit: options.limit } }),
+    ),
   );
 }
 
-export async function ${getName}(
+export function ${getName}(
   id: string,
   options: ${clientOptionsName} = {},
 ) {
-  const client = await runEffectRequest(
+  return runEffectRequest(
     ${createClientName}({
       ...options,
       operationContext:
         options.operationContext ?? ${groupName}OperationContexts.get,
     }),
+  ).then(client =>
+    runEffectRequest(client.${groupName}.get({ params: { id } })),
   );
-  return runEffectRequest(client.${groupName}.get({ params: { id } }));
 }
 
-export async function ${createName}(
+export function ${createName}(
   title: string,
   options: ${clientOptionsName} = {},
 ) {
-  const client = await runEffectRequest(
+  return runEffectRequest(
     ${createClientName}({
       ...options,
       operationContext:
         options.operationContext ?? ${groupName}OperationContexts.create,
     }),
-  );
-  return runEffectRequest(
-    client.${groupName}.create({ payload: { title } }),
+  ).then(client =>
+    runEffectRequest(
+      client.${groupName}.create({ payload: { title } }),
+    ),
   );
 }
 `;

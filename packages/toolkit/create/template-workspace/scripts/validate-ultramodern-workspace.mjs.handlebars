@@ -216,7 +216,7 @@ for (const requiredSnippet of [
   'verifyDepsBeforeRun: error',
   'strictDepBuilds: true',
   "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
-  "overrides:\n  node-fetch: '^3.3.2'",
+  "overrides:\n  '@tanstack/react-router': 1.170.8\n  node-fetch: '^3.3.2'",
   "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
 ]) {
   assert(
@@ -513,12 +513,12 @@ for (const packagePath of appPackagePaths) {
     `${packagePath} must include TypeScript 7 native preview for mandatory native typechecking`,
   );
   assert(
-    packageJson.devDependencies?.['zephyr-modernjs-plugin'] === '1.1.1',
-    `${packagePath} must install the official Zephyr Modern.js plugin`,
+    packageJson.devDependencies?.['zephyr-rspack-plugin'] === '1.1.1',
+    `${packagePath} must install the Zephyr Rspack plugin used by the Modern.js bridge`,
   );
   assert(
-    packageJson.devDependencies?.['zephyr-rspack-plugin'] === undefined,
-    `${packagePath} must not install the raw Zephyr Rspack plugin directly`,
+    packageJson.devDependencies?.['zephyr-modernjs-plugin'] === undefined,
+    `${packagePath} must not install the inactive Zephyr Modern.js wrapper`,
   );
   assert(
     packageJson.dependencies?.[`@${packageScope}/shared-contracts`] === 'workspace:*',
@@ -676,17 +676,6 @@ for (const configPath of [
     `${configPath} must use streaming Module Federation SSR`,
   );
   assert(
-    config.includes("from 'zephyr-modernjs-plugin'") &&
-      config.includes('withZephyr(),') &&
-      !config.includes('zephyrRspackPlugin()') &&
-      !config.includes('withZephyrRspack()'),
-    `${configPath} must enable Zephyr through the official Modern.js plugin`,
-  );
-  assert(
-    config.includes("bundler: 'rspack'"),
-    `${configPath} must keep appTools on the rspack bundler for Zephyr`,
-  );
-  assert(
     config.includes("html: './'"),
     `${configPath} must keep Modern.js output.distPath.html compatible with Zephyr`,
   );
@@ -712,8 +701,8 @@ for (const routePath of [
   assert(route.includes('hrefLang="x-default"'), `${routePath} must emit x-default metadata`);
   assert(route.includes('localizedPath('), `${routePath} must build localized URLs`);
   assert(
-    route.includes('@modern-js/plugin-tanstack/runtime'),
-    `${routePath} must import TanStack runtime from @modern-js/plugin-tanstack/runtime`,
+    route.includes('@tanstack/react-router'),
+    `${routePath} must import route hooks from the direct TanStack runtime package`,
   );
   assert(route.includes("import '../index.css';"), `${routePath} must import route CSS`);
   assert(
@@ -780,10 +769,9 @@ for (const vertical of fullStackVerticals) {
       modernConfig.includes(`prefix: '${vertical.apiPrefix}'`) &&
       modernConfig.includes("mode: 'stream'") &&
       modernConfig.includes('moduleFederationAppSSR: true') &&
-      modernConfig.includes('withZephyr(),') &&
       modernConfig.includes("html: './'") &&
       modernConfig.includes("outputStructure: 'flat'"),
-    `${vertical.path}/modern.config.ts must compose Module Federation, Zephyr, stream SSR, flat output, and Effect BFF`,
+    `${vertical.path}/modern.config.ts must compose Module Federation, stream SSR, flat output, and Effect BFF`,
   );
 
   const contractSource = readText(`${vertical.path}/shared/effect/api.ts`);

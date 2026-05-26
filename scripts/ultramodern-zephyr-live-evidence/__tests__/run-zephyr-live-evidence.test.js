@@ -134,8 +134,8 @@ test('happy dry-run writes a machine-readable evidence bundle', async () => {
     assert.equal(writtenBundle.schemaVersion, 1);
     assert.equal(writtenBundle.evidencePath, outputPath);
     assert.equal(
-      writtenBundle.docsEvidence.officialModernJsPlugin,
-      'zephyr-modernjs-plugin',
+      writtenBundle.docsEvidence.zephyrRspackPlugin,
+      'zephyr-rspack-plugin',
     );
     assert.equal(
       writtenBundle.docsEvidence.packageJsonDependencyKey,
