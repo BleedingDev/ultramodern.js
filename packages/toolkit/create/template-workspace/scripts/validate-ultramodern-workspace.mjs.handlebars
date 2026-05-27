@@ -211,10 +211,10 @@ const expectedModernDependency = (packageName) => {
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
-assert(rootPackage.packageManager === 'pnpm@11.3.0', 'Root must pin pnpm 11.3.0');
+assert(rootPackage.packageManager === 'pnpm@11.4.0', 'Root must pin pnpm 11.4.0');
 assert(
-  rootPackage.engines?.pnpm === '>=11.3.0 <11.4.0',
-  'Root must require pnpm >=11.3.0 <11.4.0',
+  rootPackage.engines?.pnpm === '>=11.4.0 <11.5.0',
+  'Root must require pnpm >=11.4.0 <11.5.0',
 );
 assert(
   JSON.stringify(readPnpmConfig('packages')) ===
@@ -797,7 +797,7 @@ assert(
 );
 assert(
   generatedContract.packageManager?.manager === 'pnpm' &&
-    generatedContract.packageManager?.version === '11.3.0' &&
+    generatedContract.packageManager?.version === '11.4.0' &&
     generatedContract.packageManager?.toolchain === 'mise' &&
     generatedContract.packageManager?.corepack === false,
   'Generated contract must declare the pnpm 11/mise toolchain policy',

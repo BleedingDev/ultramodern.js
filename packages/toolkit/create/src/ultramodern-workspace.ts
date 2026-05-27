@@ -789,7 +789,7 @@ function createRootPackageJson(
     name: scope,
     version: '0.1.0',
     type: 'module',
-    packageManager: 'pnpm@11.3.0',
+    packageManager: 'pnpm@11.4.0',
     scripts: {
       dev: `pnpm --parallel --filter ${packageName(
         scope,
@@ -834,7 +834,7 @@ function createRootPackageJson(
     },
     engines: {
       node: '>=20',
-      pnpm: '>=11.3.0 <11.4.0',
+      pnpm: '>=11.4.0 <11.5.0',
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
     modernjs: {
@@ -2570,7 +2570,7 @@ function createGeneratedContract(
     packageManager: {
       source: 'package.json',
       manager: 'pnpm',
-      version: '11.3.0',
+      version: '11.4.0',
       toolchain: 'mise',
       corepack: false,
     },
