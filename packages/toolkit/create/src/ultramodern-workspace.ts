@@ -1150,6 +1150,12 @@ ${bffConfig}      output: {
         polyfill: 'off',
         splitRouteChunks: false,
       },
+      performance: {
+        rsdoctor: {
+          enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',
+          disableClientServer: true,
+        },
+      },
       html: {
         outputStructure: 'flat',
       },
@@ -1181,6 +1187,16 @@ ${bffConfig}      output: {
 ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
       ],
+      tools: {
+        bundlerChain: chain => {
+          chain.ignoreWarnings([
+            {
+              message: /the request of a dependency is an expression/u,
+              module: /modern-js-plugin-i18n/u,
+            },
+          ]);
+        },
+      },
       deploy: {
         target: 'cloudflare',
         worker: {
@@ -2414,6 +2430,12 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
       },
       polyfill: 'off',
       splitRouteChunks: false,
+    },
+    performance: {
+      rsdoctor: {
+        enabledByEnv: 'ULTRAMODERN_RSDOCTOR=true',
+        disableClientServer: true,
+      },
     },
     html: {
       outputStructure: 'flat',

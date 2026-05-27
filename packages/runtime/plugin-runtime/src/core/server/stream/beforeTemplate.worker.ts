@@ -72,7 +72,7 @@ export async function buildShellBeforeTemplate(
         referenceCssAssets?: string[];
       };
 
-      let matchedRouteManifests: RouteManifest[] | undefined;
+      let matchedRouteManifests: RouteManifest[] = [];
 
       const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext);
 
@@ -86,39 +86,39 @@ export async function buildShellBeforeTemplate(
           routerContext.location,
           routerContext.basename,
         );
-        matchedRouteManifests = matches
-          ?.map((match, index) => {
-            if (!index) {
-              return;
-            }
+        matchedRouteManifests =
+          matches
+            ?.map((match, index) => {
+              if (!index) {
+                return;
+              }
 
-            const routeId = match.route.id;
-            if (routeId) {
-              return routeAssets[routeId] as RouteManifest | undefined;
-            }
-          })
-          .filter(Boolean) as RouteManifest[];
-      } else {
-        return '';
+              const routeId = match.route.id;
+              if (routeId) {
+                return routeAssets[routeId] as RouteManifest | undefined;
+              }
+            })
+            .filter(Boolean) ?? [];
       }
 
       const asyncEntry = routeAssets[`async-${entryName}`] as
         | RouteManifest
         | undefined;
       if (asyncEntry) {
-        matchedRouteManifests?.push(asyncEntry);
+        matchedRouteManifests.push(asyncEntry);
       }
 
-      const cssChunks: string[] = matchedRouteManifests
-        ? matchedRouteManifests.reduce((chunks, routeManifest) => {
-            const { referenceCssAssets = [] } = routeManifest;
-            const _cssChunks = referenceCssAssets.filter(
-              (asset?: string) =>
-                asset?.endsWith('.css') && !template.includes(asset),
-            );
-            return [...chunks, ..._cssChunks];
-          }, [] as string[])
-        : [];
+      const cssChunks = matchedRouteManifests.reduce(
+        (chunks, routeManifest) => {
+          const { referenceCssAssets = [] } = routeManifest;
+          const _cssChunks = referenceCssAssets.filter(
+            (asset?: string) =>
+              asset?.endsWith('.css') && !template.includes(asset),
+          );
+          return [...chunks, ..._cssChunks];
+        },
+        [] as string[],
+      );
 
       const { inlineStyles } = config;
 
