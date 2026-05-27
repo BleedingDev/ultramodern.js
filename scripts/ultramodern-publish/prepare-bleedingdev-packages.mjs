@@ -711,7 +711,9 @@ function main() {
     }
     const publishedName = publishPackage(packageDir, options);
     console.log(`Published ${publishedName}@${options.version}`);
-    verifyRegistryPackage(publishedName, options.version);
+    if (!options.dryRun) {
+      verifyRegistryPackage(publishedName, options.version);
+    }
   }
 }
 

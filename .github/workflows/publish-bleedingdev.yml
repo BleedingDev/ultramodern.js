@@ -109,7 +109,7 @@ jobs:
           node -e "const { execFileSync } = require('node:child_process'); const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (version[0] < 11 || (version[0] === 11 && version[1] < 5) || (version[0] === 11 && version[1] === 5 && version[2] < 1)) throw new Error('npm trusted publishing requires npm 11.5.1 or newer');"
 
       - name: Build Packages
-        run: pnpm run prepare-build
+        run: pnpm ultramodern:build-bleedingdev-publish
 
       - name: Resolve package selection
         id: package-selection
