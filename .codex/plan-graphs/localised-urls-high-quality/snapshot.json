@@ -1,0 +1,472 @@
+{
+  "generated_at": "2026-05-27T11:19:43.632890+00:00",
+  "graph_id": "localised-urls-high-quality",
+  "plan_set_hash": "a0598138a4",
+  "selection_hash": "d10bb7c7ee",
+  "plan_count": 5,
+  "edge_count": 6,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-01-router-adapter.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-02-api-prefix-skip.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-03-react-router-e2e.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-04-tanstack-e2e.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-05-quality-docs.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "localised-urls-01-router-adapter",
+      "target": "localised-urls-03-react-router-e2e"
+    },
+    {
+      "source": "localised-urls-02-api-prefix-skip",
+      "target": "localised-urls-03-react-router-e2e"
+    },
+    {
+      "source": "localised-urls-01-router-adapter",
+      "target": "localised-urls-04-tanstack-e2e"
+    },
+    {
+      "source": "localised-urls-02-api-prefix-skip",
+      "target": "localised-urls-04-tanstack-e2e"
+    },
+    {
+      "source": "localised-urls-03-react-router-e2e",
+      "target": "localised-urls-05-quality-docs"
+    },
+    {
+      "source": "localised-urls-04-tanstack-e2e",
+      "target": "localised-urls-05-quality-docs"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-01-router-adapter.plan.md",
+      "slug": "localised-urls-01-router-adapter",
+      "name": "Localised Urls 01 Router Adapter",
+      "overview": "Replace React Router-shaped i18n navigation assumptions with a small normalized adapter that supports TanStack Router first while preserving existing React Router and no-router behavior.",
+      "todos": [
+        {
+          "id": "characterize-current-router-assumptions",
+          "content": "Add focused characterization coverage for current i18n runtime navigation assumptions: React Router changeLanguage, client redirect fallback, and I18nLink href generation.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "design-normalized-i18n-navigation-contract",
+          "content": "Introduce an i18n-owned navigation contract with normalized location, navigate(href, { replace }), optional Link, and framework metadata; keep it internal to @modern-js/plugin-i18n.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "implement-tanstack-adapter-path",
+          "content": "Use Modern runtime context routerFramework/routerRuntime/context.router to adapt TanStack useLocation/useRouter/useNavigate to the normalized i18n navigation contract without importing @modern-js/plugin-tanstack into plugin-i18n.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "preserve-react-router-adapter-path",
+          "content": "Preserve existing React Router behavior through the current @modern-js/runtime/router hooks, including manual BrowserRouter fixtures that are not managed by Modern's internal router runtime.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "migrate-i18n-runtime-call-sites",
+          "content": "Move useModernI18n changeLanguage, useClientSideRedirect, useLanguageSync, and I18nLink onto the normalized adapter; remove broad catch-all masking that hides real router failures.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "verify-router-adapter",
+          "content": "Run plugin-i18n typecheck and focused runtime tests proving TanStack navigation uses navigate({ to, replace }) while React Router still uses navigate(href, { replace }).",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-02-api-prefix-skip.plan.md",
+      "slug": "localised-urls-02-api-prefix-skip",
+      "name": "Localised Urls 02 Api Prefix Skip",
+      "overview": "Ensure i18n locale redirects and language detection never intercept BFF/API prefixes, including root page routes mounted at /* before post-order Effect or Hono BFF handlers.",
+      "todos": [
+        {
+          "id": "characterize-api-prefix-bug",
+          "content": "Add a focused server-level characterization that a root page route with localePathRedirect would currently redirect /bff-api/* before BFF handlers can run.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "collect-api-prefixes",
+          "content": "Compute segment-safe API prefixes in i18n server prepare from server routes where route.isApi is true and from normalized bff.prefix as a fallback.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "skip-language-detector-for-api",
+          "content": "Apply the API-prefix skip before Hono languageDetector in i18n-language-detector middleware.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "skip-i18n-redirect-for-api",
+          "content": "Apply the same API-prefix skip before static checks, ignoreRedirectRoutes, missing-prefix redirects, and localised URL canonical redirects in i18n-server-middleware.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "prove-segment-safe-matching",
+          "content": "Test exact/prefix matching so /bff-api and /bff-api/ping are skipped but /bff-api-v2 is not skipped by a /bff-api prefix.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "verify-api-prefix-skip",
+          "content": "Run plugin-i18n server/unit checks and at least one integration path showing /bff-api/* returns API output rather than a locale redirect.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-03-react-router-e2e.plan.md",
+      "slug": "localised-urls-03-react-router-e2e",
+      "name": "Localised Urls 03 React Router E2e",
+      "overview": "Add focused React Router integration coverage for localisedUrls so SSR redirects, canonicalization, dynamic paths, language switching, and API prefix safety are proven end to end.",
+      "todos": [
+        {
+          "id": "create-react-router-localised-fixture",
+          "content": "Create a focused tests/integration/i18n/routes-localised-urls fixture based on routes-ssr instead of mutating broad existing prefix-only fixtures.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "configure-complete-localised-map",
+          "content": "Configure languages ['en', 'cs'], fallbackLanguage 'en', localePathRedirect true, and complete localisedUrls entries for /about, /products, and /products/:slug.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-react-router-pages",
+          "content": "Add pages/loaders that render current language, localized static route content, dynamic product slug content, and controls using useModernI18n/I18nLink.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "cover-server-redirects-and-canonicalization",
+          "content": "Test /about redirects to /en/about for English detection, Czech detection redirects to /cs/o-nas, and /cs/about canonicalizes to /cs/o-nas.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "cover-client-language-switching",
+          "content": "Hydrate an English product page, switch to Czech, and assert URL becomes /cs/produkty/<slug> without losing rendered data.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "cover-api-prefix-safety",
+          "content": "Include a small BFF endpoint or fetch check proving /bff-api is not redirected when i18n root middleware is active.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "verify-react-router-e2e",
+          "content": "Run the new React Router localisedUrls integration suite plus existing routes-ssr/routes-csr i18n suites as regression coverage.",
+          "status": "pending",
+          "ordinal": 7
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-04-tanstack-e2e.plan.md",
+      "slug": "localised-urls-04-tanstack-e2e",
+      "name": "Localised Urls 04 Tanstack E2e",
+      "overview": "Add TanStack-priority integration coverage proving localisedUrls route generation, SSR, client navigation, I18nLink/changeLanguage behavior, and type generation all work with localized path aliases.",
+      "todos": [
+        {
+          "id": "create-tanstack-localised-fixture",
+          "content": "Create a focused tests/integration/i18n/routes-tanstack-localised fixture based on the routes-tanstack build/serve/typecheck pattern.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "configure-tanstack-and-i18n",
+          "content": "Configure appTools, tanstackRouterPlugin, i18nPlugin, SSR string mode, localePathRedirect true, and a complete English/Czech localisedUrls map.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-tanstack-localised-routes",
+          "content": "Build a [lang] route tree with localized aliases for static, dynamic, and optional params, using TanStack Link/navigation from @modern-js/plugin-tanstack/runtime.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "cover-tanstack-build-and-types",
+          "content": "Run modernBuild and TS-Go typecheck to prove generated TanStack route types accept the localized route set.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "cover-tanstack-ssr",
+          "content": "Fetch /cs/produkty/bota and assert TanStack SSR bootstrap plus localized loader/page data are present.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "cover-tanstack-client-navigation",
+          "content": "Use Puppeteer to navigate from /en/products/shoe through language switching and/or I18nLink to /cs/produkty/shoe, asserting URL and data without reload regressions.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "cover-tanstack-api-prefix-safety",
+          "content": "If the fixture includes BFF, assert /bff-api/* is not locale-redirected under TanStack SSR.",
+          "status": "pending",
+          "ordinal": 7
+        },
+        {
+          "id": "verify-tanstack-e2e",
+          "content": "Run the new TanStack localisedUrls integration suite plus existing routes-tanstack tests as regression coverage.",
+          "status": "pending",
+          "ordinal": 8
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-05-quality-docs.plan.md",
+      "slug": "localised-urls-05-quality-docs",
+      "name": "Localised Urls 05 Quality Docs",
+      "overview": "Finish the localisedUrls work with contract tests, documentation updates, broad regression checks, and review gates that prevent React Router-only or API-localizing regressions from returning.",
+      "todos": [
+        {
+          "id": "add-contract-regression-tests",
+          "content": "Add or update focused contract tests so plugin-i18n fails if TanStack navigation uses React Router signatures or if API prefixes are not skipped segment-safely.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "update-docs-for-router-and-api-behavior",
+          "content": "Update i18n routing docs to state TanStack and React Router support, strict localisedUrls defaults, and automatic API/BFF prefix exclusion.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "run-focused-quality-gates",
+          "content": "Run plugin-i18n unit tests, typecheck, build, biome for touched files, React Router localised E2E, TanStack localised E2E, and relevant existing i18n/TanStack/BFF suites.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "audit-for-react-router-only-assumptions",
+          "content": "Search plugin-i18n runtime for @modern-js/runtime/router imports and positional navigate assumptions; verify only intentional React Router adapter code remains.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "audit-for-api-localisation-regressions",
+          "content": "Search server/i18n changes and tests to verify BFF/API prefixes are excluded by default and not only through user ignoreRedirectRoutes.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "prepare-final-handoff",
+          "content": "Summarize implementation, test evidence, residual risks, and exact commands; close related Beads only when all gates pass.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "localised-urls-01-router-adapter",
+      "plan_name": "Localised Urls 01 Router Adapter",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-01-router-adapter.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "characterize-current-router-assumptions",
+          "content": "Add focused characterization coverage for current i18n runtime navigation assumptions: React Router changeLanguage, client redirect fallback, and I18nLink href generation.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "design-normalized-i18n-navigation-contract",
+          "content": "Introduce an i18n-owned navigation contract with normalized location, navigate(href, { replace }), optional Link, and framework metadata; keep it internal to @modern-js/plugin-i18n.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "implement-tanstack-adapter-path",
+          "content": "Use Modern runtime context routerFramework/routerRuntime/context.router to adapt TanStack useLocation/useRouter/useNavigate to the normalized i18n navigation contract without importing @modern-js/plugin-tanstack into plugin-i18n.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "localised-urls-02-api-prefix-skip",
+      "plan_name": "Localised Urls 02 Api Prefix Skip",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-02-api-prefix-skip.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "characterize-api-prefix-bug",
+          "content": "Add a focused server-level characterization that a root page route with localePathRedirect would currently redirect /bff-api/* before BFF handlers can run.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "collect-api-prefixes",
+          "content": "Compute segment-safe API prefixes in i18n server prepare from server routes where route.isApi is true and from normalized bff.prefix as a fallback.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "skip-language-detector-for-api",
+          "content": "Apply the API-prefix skip before Hono languageDetector in i18n-language-detector middleware.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "localised-urls-03-react-router-e2e",
+      "plan_name": "Localised Urls 03 React Router E2e",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-03-react-router-e2e.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "localised-urls-01-router-adapter",
+        "localised-urls-02-api-prefix-skip"
+      ],
+      "active": [
+        {
+          "id": "create-react-router-localised-fixture",
+          "content": "Create a focused tests/integration/i18n/routes-localised-urls fixture based on routes-ssr instead of mutating broad existing prefix-only fixtures.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "configure-complete-localised-map",
+          "content": "Configure languages ['en', 'cs'], fallbackLanguage 'en', localePathRedirect true, and complete localisedUrls entries for /about, /products, and /products/:slug.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-react-router-pages",
+          "content": "Add pages/loaders that render current language, localized static route content, dynamic product slug content, and controls using useModernI18n/I18nLink.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 7
+    },
+    {
+      "plan_slug": "localised-urls-04-tanstack-e2e",
+      "plan_name": "Localised Urls 04 Tanstack E2e",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-04-tanstack-e2e.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "localised-urls-01-router-adapter",
+        "localised-urls-02-api-prefix-skip"
+      ],
+      "active": [
+        {
+          "id": "create-tanstack-localised-fixture",
+          "content": "Create a focused tests/integration/i18n/routes-tanstack-localised fixture based on the routes-tanstack build/serve/typecheck pattern.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "configure-tanstack-and-i18n",
+          "content": "Configure appTools, tanstackRouterPlugin, i18nPlugin, SSR string mode, localePathRedirect true, and a complete English/Czech localisedUrls map.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-tanstack-localised-routes",
+          "content": "Build a [lang] route tree with localized aliases for static, dynamic, and optional params, using TanStack Link/navigation from @modern-js/plugin-tanstack/runtime.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 8
+    },
+    {
+      "plan_slug": "localised-urls-05-quality-docs",
+      "plan_name": "Localised Urls 05 Quality Docs",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/localised-urls-05-quality-docs.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "localised-urls-03-react-router-e2e",
+        "localised-urls-04-tanstack-e2e"
+      ],
+      "active": [
+        {
+          "id": "add-contract-regression-tests",
+          "content": "Add or update focused contract tests so plugin-i18n fails if TanStack navigation uses React Router signatures or if API prefixes are not skipped segment-safely.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "update-docs-for-router-and-api-behavior",
+          "content": "Update i18n routing docs to state TanStack and React Router support, strict localisedUrls defaults, and automatic API/BFF prefix exclusion.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "run-focused-quality-gates",
+          "content": "Run plugin-i18n unit tests, typecheck, build, biome for touched files, React Router localised E2E, TanStack localised E2E, and relevant existing i18n/TanStack/BFF suites.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
