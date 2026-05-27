@@ -1194,6 +1194,11 @@ ${bffPluginEntry}        moduleFederationPlugin(),
               message: /the request of a dependency is an expression/u,
               module: /modern-js-plugin-i18n/u,
             },
+            {
+              message:
+                /Autoprefixer target browsers do not need any prefixes/u,
+              module: /\.css$/u,
+            },
           ]);
         },
       },
