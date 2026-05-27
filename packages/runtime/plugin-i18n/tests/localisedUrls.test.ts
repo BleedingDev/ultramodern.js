@@ -104,4 +104,25 @@ describe('localisedUrls', () => {
       }),
     ).toBe('/products/cervena-bota');
   });
+
+  test('resolves optional route params', () => {
+    const localisedUrls = {
+      '/products/:slug?': {
+        en: '/products/:slug?',
+        cs: '/produkty/:slug?',
+      },
+    };
+
+    expect(
+      resolveLocalisedPath('/products', 'cs', ['en', 'cs'], localisedUrls),
+    ).toBe('/produkty');
+    expect(
+      resolveLocalisedPath(
+        '/produkty/cervena-bota',
+        'en',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/products/cervena-bota');
+  });
 });

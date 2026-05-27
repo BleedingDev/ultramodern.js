@@ -261,16 +261,7 @@ const buildLocalizedUrl = (
       )
     : pathWithoutLanguage;
   const resolvedSegments = resolvedPath.split('/').filter(Boolean);
-
-  if (segments.length > 0 && languages.includes(segments[0])) {
-    // Replace existing language prefix
-    segments.splice(0, segments.length, language, ...resolvedSegments);
-  } else {
-    // If path doesn't start with language, add language prefix
-    segments.splice(0, segments.length, language, ...resolvedSegments);
-  }
-
-  const newPathname = `/${segments.join('/')}`;
+  const newPathname = `/${[language, ...resolvedSegments].join('/')}`;
   // Handle root path case to avoid double slashes like //en
   const suffix = `${url.search}${url.hash}`;
   const localizedUrl =

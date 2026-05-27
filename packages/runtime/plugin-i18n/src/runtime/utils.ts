@@ -74,13 +74,7 @@ export const buildLocalizedUrl = (
     : pathWithoutLanguage;
   const resolvedSegments = resolvedPath.split('/').filter(Boolean);
 
-  if (segments.length > 0 && languages.includes(segments[0])) {
-    // Replace existing language prefix
-    return `/${[language, ...resolvedSegments].join('/')}`;
-  } else {
-    // Add language prefix
-    return `/${[language, ...resolvedSegments].join('/')}`;
-  }
+  return `/${[language, ...resolvedSegments].join('/')}`;
 };
 
 export const detectLanguageFromPath = (

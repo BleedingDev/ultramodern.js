@@ -122,13 +122,8 @@ const getLocalisedRoutePaths = (
   canonicalPath: string,
   parentLocalisedPaths: Record<string, string>,
   languages: string[],
-  localisedUrls: LocalisedUrlsMap,
+  entry: LocalisedUrlPathMap,
 ): string[] => {
-  const entry = ensureLocalisedUrlsForPath(
-    canonicalPath,
-    languages,
-    localisedUrls,
-  );
   const paths = languages.map(language => {
     const fullPath = normalisePathPattern(entry[language]);
     const parentPath = normalisePathPattern(
@@ -159,13 +154,12 @@ const transformLocalisedRoute = (
   localisedUrls: LocalisedUrlsMap,
 ): (NestedRouteForCli | PageRoute)[] => {
   const canonicalPath = joinPath(parentCanonicalPath, route.path);
-  const routeLocalisedPaths = isLocalisableRoutePath(route.path)
+  const localisedUrlEntry = isLocalisableRoutePath(route.path)
+    ? ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls)
+    : undefined;
+  const routeLocalisedPaths = localisedUrlEntry
     ? languages.reduce<Record<string, string>>((acc, language) => {
-        acc[language] = normalisePathPattern(
-          ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls)[
-            language
-          ],
-        );
+        acc[language] = normalisePathPattern(localisedUrlEntry[language]);
         return acc;
       }, {})
     : parentLocalisedPaths;
@@ -188,7 +182,7 @@ const transformLocalisedRoute = (
     ...(children ? { children } : {}),
   } as NestedRouteForCli | PageRoute;
 
-  if (!isLocalisableRoutePath(route.path)) {
+  if (!localisedUrlEntry) {
     return [baseRoute];
   }
 
@@ -196,7 +190,7 @@ const transformLocalisedRoute = (
     canonicalPath,
     parentLocalisedPaths,
     languages,
-    localisedUrls,
+    localisedUrlEntry,
   ).map((localisedPath, index) =>
     cloneRouteWithLocalisedPath(baseRoute, localisedPath, index),
   );
@@ -265,26 +259,32 @@ export const applyLocalisedUrlsToRoutes = (
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const getParamName = (segment: string): string =>
+  segment.slice(1).replace(/\?$/, '');
+
 const compilePathPattern = (pattern: string) => {
   const names: string[] = [];
   const segments = normalisePathPattern(pattern).split('/').filter(Boolean);
   const source = segments
     .map(segment => {
       if (segment.startsWith(':')) {
-        names.push(segment.slice(1));
-        return '([^/]+)';
+        names.push(getParamName(segment));
+        const paramPattern = '([^/]+)';
+        return segment.endsWith('?')
+          ? `(?:/${paramPattern})?`
+          : `/${paramPattern}`;
       }
       if (segment === '*') {
         names.push('*');
-        return '(.*)';
+        return '/(.*)';
       }
-      return escapeRegExp(segment);
+      return `/${escapeRegExp(segment)}`;
     })
-    .join('/');
+    .join('');
 
   return {
     names,
-    regexp: new RegExp(`^/${source}$`),
+    regexp: new RegExp(`^${source || '/'}$`),
   };
 };
 
@@ -312,7 +312,8 @@ const buildPathFromPattern = (
   const path = segments
     .map(segment => {
       if (segment.startsWith(':')) {
-        return encodeURIComponent(params[segment.slice(1)] || '');
+        const param = params[getParamName(segment)];
+        return param ? encodeURIComponent(param) : '';
       }
       if (segment === '*') {
         return params['*'] || '';
