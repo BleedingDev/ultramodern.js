@@ -15,9 +15,12 @@ title: API 参考
 | `language` | `string` | 当前语言代码 |
 | `changeLanguage` | `(lang: string) => Promise<void>` | 切换语言 |
 | `supportedLanguages` | `string[]` | 支持的语言列表（来自 `localeDetection.languages`） |
+| `localisedUrls` | `boolean \| Record<string, Record<string, string>>` | 来自 `localeDetection.localisedUrls` 的本地化 URL 映射 |
 | `isLanguageSupported` | `(lang: string) => boolean` | 检查语言是否在支持列表中 |
 | `isResourcesReady` | `boolean` | 当前语言的翻译资源是否已加载完成 |
 | `i18nInstance` | `I18nInstance` | i18next 实例（用于高级场景） |
+
+启用 `localePathRedirect` 且省略 `localisedUrls` 时，Modern.js 会将本地化 URL 路径视为已启用。除非设置 `localisedUrls: false`，否则路由生成仍要求每个可本地化路径都为所有已配置语言提供路径。
 
 ### 基本用法
 
@@ -91,7 +94,7 @@ function MyComponent() {
 | `children` | `React.ReactNode` | 是 | 链接内容 |
 | `replace` | `boolean` | 否 | 使用 `history.replace` 而非 `push` |
 | `state` | `any` | 否 | 传递给目标路由的状态 |
-| 其他 Link props | — | 否 | 继承自 `@modern-js/runtime/router` 的 `Link` 组件 |
+| 其他 Link props | — | 否 | 有可用路由时会传递给当前路由的 Link 组件 |
 
 ### 用法
 

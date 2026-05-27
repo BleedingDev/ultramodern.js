@@ -173,8 +173,7 @@ async function createI18nextInstance(): Promise<I18nInstance | null> {
 
 async function tryImportReactI18next(): Promise<ReactI18nextModule | null> {
   try {
-    const reactI18next = await import('react-i18next');
-    return reactI18next;
+    return require('react-i18next') as ReactI18nextModule;
   } catch (error) {
     return null;
   }

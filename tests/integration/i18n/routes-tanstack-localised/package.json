@@ -1,0 +1,27 @@
+{
+  "private": true,
+  "name": "i18n-routes-tanstack-localised",
+  "version": "2.66.0",
+  "scripts": {
+    "dev": "modern dev",
+    "build": "modern build",
+    "serve": "modern serve"
+  },
+  "dependencies": {
+    "@modern-js/plugin-bff": "workspace:*",
+    "@modern-js/plugin-i18n": "workspace:*",
+    "@modern-js/plugin-tanstack": "workspace:*",
+    "@modern-js/runtime": "workspace:*",
+    "i18next": "26.2.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@modern-js/app-tools": "workspace:*",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "7.0.0-dev.20260526.1"
+  }
+}

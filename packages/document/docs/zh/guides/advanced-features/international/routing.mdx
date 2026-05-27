@@ -32,7 +32,48 @@ i18nPlugin({
 | `/en/about` | 正常访问，语言为 `en` |
 | `/zh/about` | 正常访问，语言为 `zh` |
 
-某些路径（如 API 路由、静态资源）不需要语言前缀，可以通过 `ignoreRedirectRoutes` 跳过重定向，详见[语言检测 → ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes)。
+API 和 BFF 前缀会自动跳过，因此服务端 API 路由不需要语言前缀，也不需要配置 `localisedUrls`。如果还有其他业务路径不应该重定向，可以使用 `ignoreRedirectRoutes`，详见[语言检测 → ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes)。
+
+## 本地化 URL 路径
+
+启用 `localePathRedirect` 后，`localisedUrls` 默认启用。每个可本地化的路由路径都必须为所有已配置语言提供 URL。如果向 `languages` 中新增语言，Modern.js 会在路由生成阶段失败，直到每个 `localisedUrls` 条目都补齐该语言。
+
+`localisedUrls` 同时适用于 React Router 和 TanStack Router 项目的约定式路由。不要为 API 路由、BFF 前缀或配置的 `bff.prefix` 添加本地化 URL 条目；这些路径会自动排除在语言重定向之外。
+
+```ts
+// modern.config.ts
+i18nPlugin({
+  localeDetection: {
+    localePathRedirect: true,
+    languages: ['en', 'cs'],
+    fallbackLanguage: 'en',
+    localisedUrls: {
+      '/terms-of-service': {
+        en: '/terms-of-service',
+        cs: '/podminky-pouzivani',
+      },
+      '/products': {
+        en: '/products',
+        cs: '/produkty',
+      },
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+    },
+  },
+});
+```
+
+**效果：**
+
+| 访问路径 | 结果 |
+| --- | --- |
+| `/terms-of-service` | 重定向到 `/en/terms-of-service` |
+| `/cs/terms-of-service` | 重定向到 `/cs/podminky-pouzivani` |
+| `/cs/podminky-pouzivani` | 正常访问，语言为 `cs` |
+
+只有在希望保留语言前缀、但不翻译路径片段时，才设置 `localisedUrls: false`。
 
 ## 路由配置
 
@@ -131,4 +172,4 @@ function Navigation() {
 <I18nLink to="/en/about">关于</I18nLink>
 ```
 
-`I18nLink` 继承自 `@modern-js/runtime/router` 的 `Link` 组件，支持 `replace`、`state`、`className` 等所有标准 Link props，完整 Props 类型见 [API 参考](./api.md#i18nlink-组件)。
+`I18nLink` 会使用当前启用的 Modern.js 路由。在 React Router 项目中渲染 React Router 的 `Link`；在 TanStack Router 项目中通过 TanStack Router 导航。完整 Props 类型见 [API 参考](./api.md#i18nlink-组件)。

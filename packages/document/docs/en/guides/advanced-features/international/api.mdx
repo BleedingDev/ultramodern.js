@@ -20,6 +20,8 @@ title: API Reference
 | `isResourcesReady` | `boolean` | Whether translation resources for the current language have finished loading |
 | `i18nInstance` | `I18nInstance` | i18next instance for advanced scenarios |
 
+When `localePathRedirect` is enabled and `localisedUrls` is omitted, Modern.js treats localised URL paths as enabled. Route generation still requires every localisable path to define every configured language unless you set `localisedUrls: false`.
+
 ### Basic Usage
 
 ```tsx
@@ -92,7 +94,7 @@ A route link component with a locale prefix.
 | `children` | `React.ReactNode` | Yes | Link content |
 | `replace` | `boolean` | No | Uses `history.replace` instead of `push` |
 | `state` | `any` | No | State passed to the target route |
-| Other Link props | - | No | Inherited from the `Link` component in `@modern-js/runtime/router` |
+| Other Link props | - | No | Passed to the active router link when a router is available |
 
 ### Usage
 

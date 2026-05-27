@@ -1,12 +1,12 @@
-import { Link, useInRouterContext, useParams } from '@modern-js/runtime/router';
 import type React from 'react';
 import { useModernI18n } from './context';
+import { useI18nRouterAdapter } from './routerAdapter';
 import { buildLocalizedUrl } from './utils';
 
 export interface I18nLinkProps {
   to: string;
   children: React.ReactNode;
-  [key: string]: any; // Allow other props to be passed through
+  [key: string]: any;
 }
 
 /**
@@ -24,22 +24,12 @@ export interface I18nLinkProps {
  * <I18nLink to="/">Home</I18nLink>
  * ```
  */
-// Use static imports to avoid breaking router tree-shaking. Detect router context via useInRouterContext.
-const useRouterHooks = () => {
-  const inRouter = useInRouterContext();
-  return {
-    Link: inRouter ? Link : null,
-    params: inRouter ? useParams() : ({} as any),
-    hasRouter: inRouter,
-  };
-};
-
 export const I18nLink: React.FC<I18nLinkProps> = ({
   to,
   children,
   ...props
 }) => {
-  const { Link, params, hasRouter } = useRouterHooks();
+  const { Link, params, hasRouter } = useI18nRouterAdapter();
   const { language, supportedLanguages, localisedUrls } = useModernI18n();
 
   // Get the current language from context (which reflects the actual current language)
@@ -62,7 +52,6 @@ export const I18nLink: React.FC<I18nLinkProps> = ({
     );
   }
 
-  // If router is not available, render as a regular anchor tag
   if (!hasRouter || !Link) {
     return (
       <a href={localizedTo} {...props}>

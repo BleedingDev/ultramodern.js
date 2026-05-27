@@ -1,4 +1,4 @@
-import Backend from 'i18next-http-backend';
+import Backend from 'i18next-http-backend/cjs';
 import type { ExtendedBackendOptions } from '../../../shared/type';
 import type { I18nInstance } from '../instance';
 import { useI18nextBackendCommon } from './middleware.common';

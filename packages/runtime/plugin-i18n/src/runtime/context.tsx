@@ -1,16 +1,22 @@
 import { isBrowser } from '@modern-js/runtime';
 import type { FC, ReactNode } from 'react';
-import { createContext, useCallback, useContext, useMemo } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from 'react';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import type { I18nInstance } from './i18n';
 import type { SdkBackend } from './i18n/backend/sdk-backend';
 import { cacheUserLanguage } from './i18n/detection';
+import { useI18nRouterAdapter } from './routerAdapter';
 import {
   buildLocalizedUrl,
   detectLanguageFromPath,
   getEntryPath,
   shouldIgnoreRedirect,
-  useRouterHooks,
 } from './utils';
 
 export interface ModernI18nContextValue {
@@ -84,12 +90,36 @@ export const useModernI18n = (): UseModernI18nReturn => {
     updateLanguage,
   } = context;
 
-  // Get router hooks safely
-  const { navigate, location, hasRouter } = useRouterHooks();
+  const { navigate, location, hasRouter } = useI18nRouterAdapter();
 
-  // Get current language from context (which reflects the actual current language)
-  // URL params might be stale after language changes, so we prioritize the context language
-  const currentLanguage = contextLanguage;
+  const pathLanguage = useMemo(() => {
+    if (!localePathRedirect || !location?.pathname) {
+      return undefined;
+    }
+    const detected = detectLanguageFromPath(
+      location.pathname,
+      languages || [],
+      localePathRedirect,
+    );
+    return detected.detected ? detected.language : undefined;
+  }, [languages, localePathRedirect, location?.pathname]);
+
+  const currentLanguage = pathLanguage || contextLanguage;
+
+  useEffect(() => {
+    if (!pathLanguage || pathLanguage === contextLanguage) {
+      return;
+    }
+
+    updateLanguage?.(pathLanguage);
+    i18nInstance?.setLang?.(pathLanguage);
+    void i18nInstance?.changeLanguage?.(pathLanguage);
+
+    if (isBrowser()) {
+      const detectionOptions = i18nInstance.options?.detection;
+      cacheUserLanguage(i18nInstance, pathLanguage, detectionOptions);
+    }
+  }, [contextLanguage, i18nInstance, pathLanguage, updateLanguage]);
 
   /**
    * Changes the current language and updates the URL accordingly.

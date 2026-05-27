@@ -41,6 +41,7 @@ import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { Link } from './prefetchLink';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
 import type { RouterConfig } from './types';
@@ -184,6 +185,7 @@ export const tanstackRouterPlugin = (
         }
 
         context.router = {
+          Link,
           useMatches,
           useLocation,
           useNavigate,

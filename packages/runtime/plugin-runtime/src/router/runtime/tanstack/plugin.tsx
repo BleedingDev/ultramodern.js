@@ -40,6 +40,7 @@ import {
 import type { RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
+import { Link } from './prefetchLink';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
 
@@ -160,6 +161,7 @@ export const tanstackRouterPlugin = (
         }
 
         context.router = {
+          Link,
           useMatches,
           useLocation,
           useNavigate,

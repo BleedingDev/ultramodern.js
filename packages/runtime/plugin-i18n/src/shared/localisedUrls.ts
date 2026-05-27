@@ -29,6 +29,40 @@ const normaliseRoutePath = (path: string): string => {
   return normalized === '/' ? '' : normalized.slice(1);
 };
 
+const getLocaleParamSegment = (segment: string): string | null => {
+  if (!segment.startsWith(':')) {
+    return null;
+  }
+
+  const paramName = segment.slice(1).replace(/\?$/, '');
+  return LOCALE_PARAM_NAMES.has(paramName) ? segment : null;
+};
+
+const splitPathSegments = (path?: string): string[] => {
+  if (!path) {
+    return [];
+  }
+
+  return normalisePathPattern(path).split('/').filter(Boolean);
+};
+
+const stripLeadingLocaleParam = (path?: string): string | undefined => {
+  const segments = splitPathSegments(path);
+  const leadingLocaleParam = getLocaleParamSegment(segments[0] || '');
+
+  if (!leadingLocaleParam) {
+    return path;
+  }
+
+  const remainingPath = segments.slice(1).join('/');
+  return remainingPath ? `/${remainingPath}` : undefined;
+};
+
+const getLeadingLocaleParam = (path?: string): string | null => {
+  const segments = splitPathSegments(path);
+  return getLocaleParamSegment(segments[0] || '');
+};
+
 export const resolveLocalisedUrlsConfig = (
   option: LocalisedUrlsOption | undefined,
 ): ResolvedLocalisedUrlsConfig => {
@@ -44,24 +78,22 @@ export const resolveLocalisedUrlsConfig = (
 };
 
 const isLocaleParamPath = (path?: string): boolean => {
-  if (!path) {
-    return false;
-  }
-
-  const normalized = path.replace(/^\//, '');
-  if (!normalized.startsWith(':')) {
-    return false;
-  }
-
-  return LOCALE_PARAM_NAMES.has(normalized.slice(1));
+  const segments = splitPathSegments(path);
+  return segments.length === 1 && Boolean(getLocaleParamSegment(segments[0]));
 };
 
 const isLocalisableRoutePath = (path?: string): path is string => {
-  if (!path || path === '/' || path === '*') {
+  const pathWithoutLocale = stripLeadingLocaleParam(path);
+
+  if (
+    !pathWithoutLocale ||
+    pathWithoutLocale === '/' ||
+    pathWithoutLocale === '*'
+  ) {
     return false;
   }
 
-  return !isLocaleParamPath(path);
+  return true;
 };
 
 const joinPath = (parentPath: string, routePath?: string): string => {
@@ -69,7 +101,7 @@ const joinPath = (parentPath: string, routePath?: string): string => {
     return parentPath;
   }
 
-  const segment = normaliseRoutePath(routePath);
+  const segment = normaliseRoutePath(stripLeadingLocaleParam(routePath) || '');
   return normalisePathPattern(`${parentPath}/${segment}`);
 };
 
@@ -220,14 +252,18 @@ const cloneRouteWithLocalisedPath = (
   path: string,
   index: number,
 ): NestedRouteForCli | PageRoute => {
+  const leadingLocaleParam = getLeadingLocaleParam(route.path);
+  const localisedPath = leadingLocaleParam
+    ? normaliseRoutePath(`${leadingLocaleParam}/${path}`)
+    : path;
   const routeWithPath = {
     ...route,
-    path,
+    path: localisedPath,
   } as NestedRouteForCli | PageRoute;
 
   return index === 0
     ? routeWithPath
-    : suffixRouteIds(routeWithPath, legalRouteIdPart(path));
+    : suffixRouteIds(routeWithPath, legalRouteIdPart(localisedPath));
 };
 
 export const applyLocalisedUrlsToRoutes = (

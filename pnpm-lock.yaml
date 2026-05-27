@@ -3484,6 +3484,34 @@ importers:
         specifier: 7.0.0-dev.20260526.1
         version: 7.0.0-dev.20260526.1
 
+  tests/integration/i18n/routes-localised-urls:
+    dependencies:
+      '@modern-js/plugin-bff':
+        specifier: workspace:*
+        version: link:../../../../packages/cli/plugin-bff
+      '@modern-js/plugin-i18n':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-i18n
+      '@modern-js/runtime':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-runtime
+      i18next:
+        specifier: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+    devDependencies:
+      '@modern-js/app-tools':
+        specifier: workspace:*
+        version: link:../../../../packages/solutions/app-tools
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260526.1
+        version: 7.0.0-dev.20260526.1
+
   tests/integration/i18n/routes-ssr:
     dependencies:
       '@modern-js/plugin-i18n':
@@ -3511,6 +3539,49 @@ importers:
       '@modern-js/plugin-ssg':
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-ssg
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260526.1
+        version: 7.0.0-dev.20260526.1
+
+  tests/integration/i18n/routes-tanstack-localised:
+    dependencies:
+      '@modern-js/plugin-bff':
+        specifier: workspace:*
+        version: link:../../../../packages/cli/plugin-bff
+      '@modern-js/plugin-i18n':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-i18n
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-tanstack
+      '@modern-js/runtime':
+        specifier: workspace:*
+        version: link:../../../../packages/runtime/plugin-runtime
+      i18next:
+        specifier: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+    devDependencies:
+      '@modern-js/app-tools':
+        specifier: workspace:*
+        version: link:../../../../packages/solutions/app-tools
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      '@types/react':
+        specifier: ^19.2.15
+        version: 19.2.15
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.15)
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260526.1
         version: 7.0.0-dev.20260526.1

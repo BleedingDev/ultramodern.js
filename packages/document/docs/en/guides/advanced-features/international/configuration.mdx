@@ -49,6 +49,7 @@ export default defineConfig({
 | `languages` | `string[]` | `[]` | Supported language list |
 | `fallbackLanguage` | `string` | `''` | Fallback language when detection fails |
 | `localePathRedirect` | `boolean` | `false` | Handles URL locale prefix recognition, redirects, and switching. See [Routing Integration](./routing.md#enable-locale-path-prefixes) |
+| `localisedUrls` | `boolean \| Record<string, Record<string, string>>` | `true` when `localePathRedirect` is enabled | Localised route path map. Every localisable route must define every configured language. Set `false` to keep locale prefixes without translating path segments. |
 | `i18nextDetector` | `boolean` | `false` | Enables the i18next detector (Cookie / Header, etc.) |
 | `detection` | `LanguageDetectorOptions` | - | Detailed i18next detector configuration. See [Locale Detection](./locale-detection.md) |
 | `ignoreRedirectRoutes` | `string[] \| Function` | - | Routes that skip redirects. See [Locale Detection](./locale-detection.md#ignoreredirectroutes) |

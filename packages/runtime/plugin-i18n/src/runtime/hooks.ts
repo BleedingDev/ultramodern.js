@@ -10,13 +10,13 @@ import {
   type I18nSdkResourcesLoadedEventDetail,
 } from './i18n/backend/sdk-event';
 import { cacheUserLanguage } from './i18n/detection';
+import { useI18nRouterAdapter } from './routerAdapter';
 import {
   buildLocalizedUrl,
   detectLanguageFromPath,
   getEntryPath,
   getPathname,
   shouldIgnoreRedirect,
-  useRouterHooks,
 } from './utils';
 
 interface RuntimeContextWithI18n extends TRuntimeContext {
@@ -168,8 +168,7 @@ export function useClientSideRedirect(
   localisedUrls?: LocalisedUrlsOption,
 ) {
   const hasRedirectedRef = useRef(false);
-  // Get router hooks safely
-  const { navigate, location, hasRouter } = useRouterHooks();
+  const { navigate, location, hasRouter } = useI18nRouterAdapter();
 
   useEffect(() => {
     if (process.env.MODERN_TARGET !== 'browser') {

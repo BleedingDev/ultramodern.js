@@ -32,11 +32,13 @@ i18nPlugin({
 | `/en/about` | Visits normally, language is `en` |
 | `/zh/about` | Visits normally, language is `zh` |
 
-Some paths, such as API routes and static assets, do not need locale prefixes. Use `ignoreRedirectRoutes` to skip redirects. See [Locale Detection -> ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes).
+API and BFF prefixes are skipped automatically, so server API routes do not need locale prefixes or `localisedUrls` entries. For additional application paths that should not redirect, use `ignoreRedirectRoutes`. See [Locale Detection -> ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes).
 
 ## Localised URL Paths
 
 When `localePathRedirect` is enabled, `localisedUrls` is enabled by default. This means every localisable route path must define a URL for every configured language. If you add a new language to `languages`, Modern.js will fail route generation until each localised URL entry includes that language too.
+
+`localisedUrls` applies to file-system routes generated for both React Router and TanStack Router projects. Do not configure localised URL entries for API routes, BFF prefixes, or configured `bff.prefix` values; those paths are excluded from locale redirects automatically.
 
 ```ts
 // modern.config.ts
@@ -170,4 +172,4 @@ function Navigation() {
 <I18nLink to="/en/about">About</I18nLink>
 ```
 
-`I18nLink` extends the `Link` component from `@modern-js/runtime/router` and supports all standard Link props such as `replace`, `state`, and `className`. For the full Props type, see [API Reference](./api.md#i18nlink-component).
+`I18nLink` uses the active Modern.js router. In React Router projects it renders the React Router `Link`; in TanStack Router projects it navigates through TanStack Router. For the full Props type, see [API Reference](./api.md#i18nlink-component).

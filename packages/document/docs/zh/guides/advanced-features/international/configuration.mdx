@@ -48,6 +48,7 @@ export default defineConfig({
 | `languages` | `string[]` | `[]` | 支持的语言列表 |
 | `fallbackLanguage` | `string` | `''` | 语言检测失败时的兜底语言 |
 | `localePathRedirect` | `boolean` | `false` | 接管 URL 语言前缀的识别、重定向和切换，详见[路由集成](./routing.md#启用语言路径前缀) |
+| `localisedUrls` | `boolean \| Record<string, Record<string, string>>` | 启用 `localePathRedirect` 时为 `true` | 本地化路由路径映射。每个可本地化路由都必须为所有已配置语言提供路径。设置为 `false` 时只保留语言前缀，不翻译路径片段。 |
 | `i18nextDetector` | `boolean` | `false` | 启用 i18next 检测器（Cookie / Header 等） |
 | `detection` | `LanguageDetectorOptions` | — | i18next 检测器详细配置，见[语言检测](./locale-detection.md) |
 | `ignoreRedirectRoutes` | `string[] \| Function` | — | 跳过重定向的路由，见[语言检测](./locale-detection.md#ignoreredirectroutes) |

@@ -182,6 +182,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   const statements: string[] = [];
 
   const loaderImportMap = new Map<string, string>();
+  const usedRouteVarNames = new Set<string>();
   let loaderIndex = 0;
   let routeIndex = 0;
 
@@ -242,10 +243,20 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     return { loaderName: importName, actionName };
   };
 
+  const reserveRouteVarName = (preferred: string) => {
+    let candidate = preferred;
+    let suffix = 1;
+    while (usedRouteVarNames.has(candidate)) {
+      candidate = `${preferred}_${suffix++}`;
+    }
+    usedRouteVarNames.add(candidate);
+    return candidate;
+  };
+
   const createRouteVarName = (route: NestedRouteForCli | PageRoute) => {
     const id = (route as any).id as string | undefined;
     const base = id ? makeLegalIdentifier(id) : `r_${routeIndex++}`;
-    return `route_${base}`;
+    return reserveRouteVarName(`route_${base}`);
   };
 
   const buildRoute = async (opts: {
@@ -296,18 +307,27 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       routeOpts.push(staticDataSnippet);
     }
 
-    statements.push(
-      `const ${varName} = createRoute({\n  ${routeOpts.join('\n  ')}\n});`,
-    );
-
     const children = (route as any).children as
       | Array<NestedRouteForCli | PageRoute>
       | undefined;
+    const hasChildren = Boolean(children && children.length > 0);
+    const routeCtorVarName = hasChildren
+      ? reserveRouteVarName(`${varName}__base`)
+      : varName;
+
+    statements.push(
+      `const ${routeCtorVarName} = createRoute({\n  ${routeOpts.join('\n  ')}\n});`,
+    );
+
     if (children && children.length > 0) {
       const childVars = await Promise.all(
-        children.map(child => buildRoute({ parentVar: varName, route: child })),
+        children.map(child =>
+          buildRoute({ parentVar: routeCtorVarName, route: child }),
+        ),
       );
-      statements.push(`${varName}.addChildren([${childVars.join(', ')}]);`);
+      statements.push(
+        `const ${varName} = ${routeCtorVarName}.addChildren([${childVars.join(', ')}]);`,
+      );
     }
 
     return varName;

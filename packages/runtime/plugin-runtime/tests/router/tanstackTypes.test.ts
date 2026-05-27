@@ -60,4 +60,64 @@ describe('tanstack router type generation', () => {
       'return Object.keys(staticData).length > 0 ? staticData : undefined;',
     );
   });
+
+  test('preserves typed child trees for localized nested route aliases', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+      appContext: {
+        srcDirectory,
+        internalSrcAlias: '@/_',
+      } as any,
+      entryName: 'index',
+      routes: [
+        {
+          type: 'nested',
+          id: 'layout',
+          isRoot: true,
+          children: [
+            {
+              type: 'nested',
+              id: '(lang)/layout',
+              path: ':lang',
+              children: [
+                {
+                  type: 'nested',
+                  id: '(lang)/products/(slug)/page',
+                  path: 'products/:slug',
+                },
+                {
+                  type: 'nested',
+                  id: '(lang)/products/(slug)/page__localised_produkty_slug',
+                  path: 'produkty/:slug',
+                },
+                {
+                  type: 'nested',
+                  id: '(lang)/optional/(slug$)/page__localised_volitelne_slug',
+                  path: 'volitelne/:slug?',
+                },
+              ],
+            },
+          ],
+        },
+      ] as any,
+    });
+
+    expect(routerGenTs).toContain(
+      'const route__lang__layout__base = createRoute({',
+    );
+    expect(routerGenTs).toContain(
+      'getParentRoute: () => route__lang__layout__base,',
+    );
+    expect(routerGenTs).toContain('path: "produkty/$slug",');
+    expect(routerGenTs).toContain('path: "volitelne/{-$slug}",');
+    expect(routerGenTs).toContain(
+      'const route__lang__layout = route__lang__layout__base.addChildren([route__lang__products__slug__page, route__lang__products__slug__page__localised_produkty_slug, route__lang__optional__slug$__page__localised_volitelne_slug]);',
+    );
+    expect(routerGenTs).toContain(
+      'export const routeTree = rootRoute.addChildren([route__lang__layout]);',
+    );
+    expect(routerGenTs).not.toContain('route__lang__layout.addChildren([');
+  });
 });
