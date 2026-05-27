@@ -1188,16 +1188,14 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
       ],
       tools: {
+        autoprefixer: {
+          overrideBrowserslist: ['defaults'],
+        },
         bundlerChain: chain => {
           chain.ignoreWarnings([
             {
               message: /the request of a dependency is an expression/u,
               module: /modern-js-plugin-i18n/u,
-            },
-            {
-              message:
-                /Autoprefixer target browsers do not need any prefixes/u,
-              module: /\.css$/u,
             },
           ]);
         },
