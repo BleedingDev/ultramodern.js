@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-27T11:09:54.268Z",
+  "status": "blocked",
+  "reason": "zephyr-serves-mf-assets-but-not-effect-bff-and-cloudflare-is-not-authenticated",
+  "zephyr": {
+    "authCachePresent": true,
+    "publicAssetProbe": "mf manifests and HTML are reachable from cached Zephyr deployments; Effect BFF paths return the static HTML snapshot, not API JSON."
+  },
+  "cloudflare": {
+    "wranglerVersionChecked": "4.95.0",
+    "authenticated": false,
+    "whoamiResult": "You are not authenticated. Please run `wrangler login`."
+  },
+  "evidenceFiles": {
+    "localMatrix": ".codex/reports/cloudflare-ssr/version-switching-local-matrix-20260527.json",
+    "liveInputPlan": ".codex/reports/cloudflare-ssr/zephyr-live-input-plan-20260527.json"
+  },
+  "probes": [
+    {
+      "target": "zephyr-remote-commerce-cloudflare-validation-1165",
+      "role": "remote-commerce",
+      "snapshot": "1165",
+      "url": "https://syreanis-gmail-com-1165-ultra-workspace-remote-co-14a312945-ze.zephyrcloud.app/mf-manifest.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyClass": "json",
+      "sample": "{\n  \"id\": \"remoteCommerce\",\n  \"name\": \"remoteCommerce\",\n  \"metaData\": {\n    \"name\": \"remoteCommerce\",\n    \"type\": \"app\",\n    \"buildInfo\": {\n      \"buildVersion\""
+    },
+    {
+      "target": "zephyr-remote-commerce-cloudflare-validation-1165",
+      "role": "remote-commerce",
+      "snapshot": "1165",
+      "url": "https://syreanis-gmail-com-1165-ultra-workspace-remote-co-14a312945-ze.zephyrcloud.app/en",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    },
+    {
+      "target": "zephyr-remote-commerce-cloudflare-validation-1165",
+      "role": "remote-commerce",
+      "snapshot": "1165",
+      "url": "https://syreanis-gmail-com-1165-ultra-workspace-remote-co-14a312945-ze.zephyrcloud.app/commerce-api/effect/recommendations",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    },
+    {
+      "target": "zephyr-remote-commerce-proof-871",
+      "role": "remote-commerce",
+      "snapshot": "871",
+      "url": "https://syreanis-gmail-com-871-workspace-remote-commerce--bd30a794b-ze.zephyrcloud.app/mf-manifest.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyClass": "json",
+      "sample": "{\n  \"id\": \"remoteCommerce\",\n  \"name\": \"remoteCommerce\",\n  \"metaData\": {\n    \"name\": \"remoteCommerce\",\n    \"type\": \"app\",\n    \"buildInfo\": {\n      \"buildVersion\""
+    },
+    {
+      "target": "zephyr-remote-commerce-proof-871",
+      "role": "remote-commerce",
+      "snapshot": "871",
+      "url": "https://syreanis-gmail-com-871-workspace-remote-commerce--bd30a794b-ze.zephyrcloud.app/en",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    },
+    {
+      "target": "zephyr-remote-commerce-proof-871",
+      "role": "remote-commerce",
+      "snapshot": "871",
+      "url": "https://syreanis-gmail-com-871-workspace-remote-commerce--bd30a794b-ze.zephyrcloud.app/commerce-api/effect/recommendations",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    },
+    {
+      "target": "zephyr-shell-followup-863",
+      "role": "shell",
+      "snapshot": "863",
+      "url": "https://syreanis-gmail-com-863-ultramodern-zephyr-smoke-f-174d0f186-ze.zephyrcloud.app/mf-manifest.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyClass": "json",
+      "sample": "{\n  \"id\": \"shellSuperApp\",\n  \"name\": \"shellSuperApp\",\n  \"metaData\": {\n    \"name\": \"shellSuperApp\",\n    \"type\": \"app\",\n    \"buildInfo\": {\n      \"buildVersion\": \""
+    },
+    {
+      "target": "zephyr-shell-followup-863",
+      "role": "shell",
+      "snapshot": "863",
+      "url": "https://syreanis-gmail-com-863-ultramodern-zephyr-smoke-f-174d0f186-ze.zephyrcloud.app/en",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    },
+    {
+      "target": "zephyr-shell-followup-863",
+      "role": "shell",
+      "snapshot": "863",
+      "url": "https://syreanis-gmail-com-863-ultramodern-zephyr-smoke-f-174d0f186-ze.zephyrcloud.app/commerce-api/effect/recommendations",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyClass": "html-shell-snapshot",
+      "sample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-s"
+    }
+  ]
+}

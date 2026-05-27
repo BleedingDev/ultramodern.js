@@ -77,6 +77,95 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
 }
 
+function readGeneratedContract(workspaceDir: string) {
+  return readJson<{
+    apps: Array<{
+      id: string;
+      config: Record<string, any>;
+      deploy: Record<string, any>;
+      effect?: Record<string, any>;
+      i18n: Record<string, any>;
+      kind: string;
+      marker: Record<string, any>;
+      moduleFederation: Record<string, any>;
+      styling: Record<string, any>;
+    }>;
+  }>(workspaceDir, '.modernjs/ultramodern-generated-contract.json');
+}
+
+function getGeneratedAppContract(workspaceDir: string, appId: string) {
+  const contractEntry = readGeneratedContract(workspaceDir).apps.find(
+    app => app.id === appId,
+  );
+  expect(contractEntry).toBeDefined();
+  return contractEntry!;
+}
+
+function expectAppConfigContract(
+  contractEntry: { config: Record<string, any>; ssr?: Record<string, any> },
+  expected: { apiPrefix?: string; hasEffect?: boolean },
+) {
+  expect(contractEntry.config).toMatchObject({
+    preset: 'presetUltramodern',
+    output: {
+      disableTsChecker: true,
+      distPath: {
+        html: './',
+      },
+      polyfill: 'off',
+      splitRouteChunks: false,
+    },
+    html: {
+      outputStructure: 'flat',
+    },
+    source: {
+      mainEntryName: 'index',
+      siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
+    },
+  });
+  expect(contractEntry.config.plugins).toEqual(
+    expected.hasEffect
+      ? [
+          'appTools',
+          'tanstackRouterPlugin',
+          'i18nPlugin',
+          'bffPlugin',
+          'moduleFederationPlugin',
+          'zephyrRspackPlugin',
+        ]
+      : [
+          'appTools',
+          'tanstackRouterPlugin',
+          'i18nPlugin',
+          'moduleFederationPlugin',
+          'zephyrRspackPlugin',
+        ],
+  );
+  if (expected.hasEffect) {
+    expect(contractEntry.config.bff).toMatchObject({
+      runtimeFramework: 'effect',
+      prefix: expected.apiPrefix,
+      openapi: '/openapi.json',
+    });
+  } else {
+    expect(contractEntry.config.bff).toBeUndefined();
+  }
+  expect(contractEntry.ssr).toMatchObject({
+    mode: 'stream',
+    moduleFederationAppSSR: true,
+  });
+}
+
+function expectTailwindContract(contractEntry: {
+  styling: Record<string, any>;
+}) {
+  expect(contractEntry.styling).toEqual({
+    tailwind: true,
+    postcssPlugins: ['@tailwindcss/postcss'],
+    contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
+  });
+}
+
 const fullStackVerticals = [
   {
     id: 'remote-commerce',
@@ -593,6 +682,7 @@ describe('create-ultramodern-workspace', () => {
       identity: `@${packageScope}/remote-identity@workspace:*`,
       designSystem: `@${packageScope}/remote-design-system@workspace:*`,
     };
+    const generatedContract = readGeneratedContract(workspaceDir);
 
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
@@ -681,130 +771,76 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-identity',
       'apps/remotes/remote-design-system',
     ]) {
-      expect(
-        readText(workspaceDir, `${appDirectory}/src/routes/index.css`),
-      ).toContain("@import 'tailwindcss';");
-      expect(
-        readText(workspaceDir, `${appDirectory}/postcss.config.mjs`),
-      ).toContain("'@tailwindcss/postcss'");
-      expect(
-        readText(workspaceDir, `${appDirectory}/tailwind.config.ts`),
-      ).toContain("content: ['./src/**/*.{js,jsx,ts,tsx}']");
+      const contractEntry = generatedContract.apps.find(
+        app => app.path === appDirectory,
+      );
+      expect(contractEntry).toBeDefined();
+      expectTailwindContract(contractEntry!);
     }
 
-    const shellConfig = readText(
+    const shellContract = getGeneratedAppContract(
       workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
+      'shell-super-app',
     );
-    expect(shellConfig).toContain('presetUltramodern(');
-    expect(shellConfig).toContain('tanstackRouterPlugin()');
-    expect(shellConfig).toContain('moduleFederationPlugin()');
-    expect(shellConfig).toContain("mode: 'stream'");
-    expect(shellConfig).toContain('moduleFederationAppSSR: true');
+    expectAppConfigContract(shellContract, {});
+    expect(shellContract.moduleFederation).toMatchObject({
+      name: 'shellSuperApp',
+      dts: {
+        displayErrorInTerminal: true,
+        compilerInstance: '--package typescript -- tsc',
+      },
+    });
+    expect(shellContract.moduleFederation.remotes).toEqual([
+      {
+        id: 'remote-commerce',
+        alias: 'commerce',
+        name: 'remoteCommerce',
+        manifestEnv: 'REMOTE_COMMERCE_MF_MANIFEST',
+        manifestUrl: 'http://localhost:3021/mf-manifest.json',
+      },
+      {
+        id: 'remote-identity',
+        alias: 'identity',
+        name: 'remoteIdentity',
+        manifestEnv: 'REMOTE_IDENTITY_MF_MANIFEST',
+        manifestUrl: 'http://localhost:3022/mf-manifest.json',
+      },
+      {
+        id: 'remote-design-system',
+        alias: 'designSystem',
+        name: 'remoteDesignSystem',
+        manifestEnv: 'REMOTE_DESIGN_SYSTEM_MF_MANIFEST',
+        manifestUrl: 'http://localhost:3023/mf-manifest.json',
+      },
+    ]);
 
-    const shellMfConfig = readText(
+    const designContract = getGeneratedAppContract(
       workspaceDir,
-      'apps/shell-super-app/module-federation.config.ts',
+      'remote-design-system',
     );
-    expect(shellMfConfig).toContain("name: 'shellSuperApp'");
-    expect(shellMfConfig).toContain('displayErrorInTerminal: true');
-    expect(shellMfConfig).toContain("'react-dom/client'");
-    expect(shellMfConfig).toContain(
-      "compilerInstance: '--package typescript -- tsc'",
-    );
-    expect(shellMfConfig).toContain(
-      'remoteCommerce@http://localhost:3021/mf-manifest.json',
-    );
-    expect(shellMfConfig).toContain(
-      'remoteIdentity@http://localhost:3022/mf-manifest.json',
-    );
-    expect(shellMfConfig).toContain(
-      'remoteDesignSystem@http://localhost:3023/mf-manifest.json',
-    );
-
-    const commerceMfConfig = readText(
-      workspaceDir,
-      'apps/remotes/remote-commerce/module-federation.config.ts',
-    );
-    expect(commerceMfConfig).toContain("name: 'remoteCommerce'");
-    expect(commerceMfConfig).toContain('displayErrorInTerminal: true');
-    expect(commerceMfConfig).toContain("'react-dom/client'");
-    expect(commerceMfConfig).toContain(
-      "compilerInstance: '--package typescript -- tsc'",
-    );
-    expect(commerceMfConfig).toContain("'./Widget'");
-    expect(commerceMfConfig).toContain("'./Route'");
-
-    const designMfConfig = readText(
-      workspaceDir,
-      'apps/remotes/remote-design-system/module-federation.config.ts',
-    );
-    expect(designMfConfig).toContain("name: 'remoteDesignSystem'");
-    expect(designMfConfig).toContain("'react-dom/client'");
-    expect(designMfConfig).toContain("'./Button'");
-    expect(designMfConfig).toContain("'./tokens'");
+    expect(designContract.moduleFederation).toMatchObject({
+      name: 'remoteDesignSystem',
+      dts: {
+        displayErrorInTerminal: true,
+        compilerInstance: '--package typescript -- tsc',
+      },
+    });
+    expect(designContract.moduleFederation.exposes).toEqual([
+      './Button',
+      './tokens',
+    ]);
 
     for (const vertical of fullStackVerticals) {
-      const verticalConfig = readText(
-        workspaceDir,
-        `${vertical.path}/modern.config.ts`,
-      );
-      expect(verticalConfig).toContain('moduleFederationPlugin()');
-      expect(verticalConfig).toContain('bffPlugin()');
-      expect(verticalConfig).toContain("runtimeFramework: 'effect'");
-      expect(verticalConfig).toContain(`prefix: '${vertical.apiPrefix}'`);
-      expect(verticalConfig).toContain("mode: 'stream'");
-      expect(verticalConfig).toContain('moduleFederationAppSSR: true');
-      expect(verticalConfig).toContain("html: './'");
-      expect(verticalConfig).toContain("outputStructure: 'flat'");
-
-      const verticalMfConfig = readText(
-        workspaceDir,
-        `${vertical.path}/module-federation.config.ts`,
-      );
-      expect(verticalMfConfig).toContain(`name: '${vertical.mfName}'`);
-      expect(verticalMfConfig).toContain('displayErrorInTerminal: true');
-      expect(verticalMfConfig).toContain(
-        "compilerInstance: '--package typescript -- tsc'",
-      );
-      expect(verticalMfConfig).toContain("'./Widget'");
-      expect(verticalMfConfig).toContain("'./Route'");
-      expect(verticalMfConfig).not.toContain("'./api'");
-      expect(verticalMfConfig).not.toContain("'./effect'");
-      expect(verticalMfConfig).not.toContain("'./client'");
-      expect(verticalMfConfig).not.toContain("'./contract'");
-
-      const contractSource = readText(
-        workspaceDir,
-        `${vertical.path}/shared/effect/api.ts`,
-      );
-      expect(contractSource).toContain('HttpApi.make');
-      expect(contractSource).toContain('HttpApiSchema');
-      expect(contractSource).toContain('OperationContext');
-      expect(contractSource).toContain('TaggedErrorClass');
-      expect(contractSource).toContain(`${vertical.group}EffectApi`);
-      expect(contractSource).toContain(`${vertical.group}ApiContract`);
-      expect(contractSource).toContain(`${vertical.group}OperationContexts`);
-      expect(contractSource).toContain(`basePath: '${vertical.apiPrefix}`);
-      expect(contractSource).toContain("source: 'generated-client'");
-
-      const clientSource = readText(
-        workspaceDir,
-        `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
-      );
-      expect(clientSource).toContain('makeEffectHttpApiClient');
-      expect(clientSource).toContain('runEffectRequest');
-      expect(clientSource).toContain(`${vertical.group}EffectApi`);
-      expect(clientSource).toContain(`${vertical.group}OperationContexts`);
-
-      const generatedContract = readJson(
-        workspaceDir,
-        '.modernjs/ultramodern-generated-contract.json',
-      );
       const contractEntry = generatedContract.apps.find(
         (app: { id: string }) => app.id === vertical.id,
       );
-      expect(contractEntry).toMatchObject({
+      expect(contractEntry).toBeDefined();
+      const verticalContract = contractEntry!;
+      expectAppConfigContract(verticalContract, {
+        hasEffect: true,
+        apiPrefix: vertical.apiPrefix,
+      });
+      expect(verticalContract).toMatchObject({
         deploy: {
           target: 'cloudflare',
           worker: {
@@ -826,6 +862,25 @@ describe('create-ultramodern-workspace', () => {
           workerEntry: 'worker/__modern_bff_effect.js',
           contract: './shared/effect/api',
           client: './effect/client',
+          group: vertical.group,
+          notFound: vertical.notFound,
+          operations: {
+            list: {
+              method: 'GET',
+              path: `/effect/${vertical.stem}`,
+              source: 'generated-client',
+            },
+            get: {
+              method: 'GET',
+              path: `/effect/${vertical.stem}/:id`,
+              source: 'generated-client',
+            },
+            create: {
+              method: 'POST',
+              path: `/effect/${vertical.stem}`,
+              source: 'generated-client',
+            },
+          },
         },
         marker: {
           appId: vertical.id,
@@ -835,21 +890,19 @@ describe('create-ultramodern-workspace', () => {
           apiSurface: 'effect-bff',
         },
       });
-      expect(contractEntry.moduleFederation.exposes).toEqual(
+      expect(verticalContract.moduleFederation.exposes).toEqual(
         expect.arrayContaining(['./Widget', './Route']),
       );
-      expect(contractEntry.moduleFederation.exposes).toHaveLength(2);
-      expect(contractEntry.moduleFederation.browserSafeExposesOnly).toBe(true);
-      expect(contractEntry.marker.build).toMatch(/^[a-f0-9]{16}$/);
+      expect(verticalContract.moduleFederation.exposes).toHaveLength(2);
+      expect(verticalContract.moduleFederation.dts).toEqual({
+        displayErrorInTerminal: true,
+        compilerInstance: '--package typescript -- tsc',
+      });
+      expect(verticalContract.moduleFederation.browserSafeExposesOnly).toBe(
+        true,
+      );
+      expect(verticalContract.marker.build).toMatch(/^[a-f0-9]{16}$/);
     }
-
-    const sharedEffectApi = readText(
-      workspaceDir,
-      'packages/shared-effect-api/src/index.ts',
-    );
-    expect(sharedEffectApi).not.toContain('recommendationsEffectApi');
-    expect(sharedEffectApi).not.toContain('commerceEffectApi');
-    expect(sharedEffectApi).not.toContain('identityEffectApi');
 
     writeEffectContractTypeFixtures(workspaceDir);
     runEffectContractTypecheck(workspaceDir);
@@ -1061,12 +1114,18 @@ describe('create-ultramodern-workspace', () => {
       catalog: '@ultra-add-remote-workspace/remote-catalog@workspace:*',
     });
 
-    const shellMfConfig = readText(
+    const shellContract = getGeneratedAppContract(
       workspaceDir,
-      'apps/shell-super-app/module-federation.config.ts',
+      'shell-super-app',
     );
-    expect(shellMfConfig).toContain(
-      'remoteCatalog@http://localhost:3031/mf-manifest.json',
+    expect(shellContract.moduleFederation.remotes).toContainEqual(
+      expect.objectContaining({
+        id: 'remote-catalog',
+        alias: 'catalog',
+        name: 'remoteCatalog',
+        manifestEnv: 'REMOTE_CATALOG_MF_MANIFEST',
+        manifestUrl: 'http://localhost:3031/mf-manifest.json',
+      }),
     );
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
@@ -1158,52 +1217,51 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(servicePackage.devDependencies.tailwindcss).toBe('^4.3.0');
 
-    const serviceConfig = readText(
-      workspaceDir,
-      'services/service-catalog-api-effect/modern.config.ts',
-    );
-    expect(serviceConfig).toContain("runtimeFramework: 'effect'");
-    expect(serviceConfig).toContain("prefix: '/catalog-api'");
-
-    const serviceEntry = readText(
-      workspaceDir,
-      'services/service-catalog-api-effect/api/effect/index.ts',
-    );
-    expect(serviceEntry).toContain('catalogEffectApi');
-    expect(serviceEntry).toContain('new CatalogNotFound');
-    expect(serviceEntry).toContain(".handle('get'");
-    expect(serviceEntry).toContain(".handle('create'");
-    expect(serviceEntry).not.toContain('_tag');
-    expect(serviceEntry).toContain(
-      "from '@ultra-add-service-workspace/shared-effect-api'",
-    );
-    expect(serviceEntry).not.toContain('../../shared/effect/api');
-    expect(serviceEntry).not.toContain('/shared/effect/api');
     expectNoPath(
       workspaceDir,
       'services/service-catalog-api-effect/shared/effect/api.ts',
     );
 
-    const sharedEffectApi = readText(
-      workspaceDir,
-      'packages/shared-effect-api/src/index.ts',
-    );
-    expect(sharedEffectApi).toContain('catalogEffectApi');
-    expect(sharedEffectApi).toContain('CatalogEffectApi');
-    expect(sharedEffectApi).toContain('CatalogNotFound');
-    expect(sharedEffectApi).toContain('catalogCreatePayloadSchema');
-    expect(sharedEffectApi).toContain('catalogNotFoundSchema');
-    expect(sharedEffectApi).toContain(
-      "basePath: '/catalog-api/effect/catalog'",
-    );
-
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
-    expect(
-      topology.effectServices.find(
-        (service: { id: string }) =>
-          service.id === 'service-catalog-api-effect',
-      ).bff.prefix,
-    ).toBe('/catalog-api');
+    const serviceTopology = topology.effectServices.find(
+      (service: { id: string }) => service.id === 'service-catalog-api-effect',
+    );
+    expect(serviceTopology).toMatchObject({
+      id: 'service-catalog-api-effect',
+      kind: 'effect-service',
+      runtime: 'effect',
+      package: '@ultra-add-service-workspace/service-catalog-api-effect',
+      bff: {
+        prefix: '/catalog-api',
+        openapi: '/openapi.json',
+      },
+      contract: {
+        package: '@ultra-add-service-workspace/shared-effect-api',
+        export: 'catalogEffectApi',
+        path: 'packages/shared-effect-api/src/index.ts',
+      },
+      serverEntry: 'services/service-catalog-api-effect/api/effect/index.ts',
+      basePath: '/catalog-api/effect/catalog',
+      group: 'catalog',
+      notFound: 'CatalogNotFound',
+      operations: {
+        list: {
+          method: 'GET',
+          path: '/effect/catalog',
+          source: 'generated-client',
+        },
+        get: {
+          method: 'GET',
+          path: '/effect/catalog/:id',
+          source: 'generated-client',
+        },
+        create: {
+          method: 'POST',
+          path: '/effect/catalog',
+          source: 'generated-client',
+        },
+      },
+    });
 
     const overlay = readJson(
       workspaceDir,

@@ -2368,15 +2368,101 @@ function createPackageSourceMetadata(
   };
 }
 
+function createEffectOperationContract(target: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}): JsonValue {
+  const stem = effectApiStem(target);
+  return {
+    group: serviceEffectGroupName(target),
+    notFound: serviceEffectNotFoundErrorExport(target),
+    operations: {
+      list: {
+        method: 'GET',
+        path: `/effect/${stem}`,
+        source: 'generated-client',
+      },
+      get: {
+        method: 'GET',
+        path: `/effect/${stem}/:id`,
+        source: 'generated-client',
+      },
+      create: {
+        method: 'POST',
+        path: `/effect/${stem}`,
+        source: 'generated-client',
+      },
+    },
+  };
+}
+
+function createAppConfigContract(app: WorkspaceApp): JsonValue {
+  return {
+    preset: 'presetUltramodern',
+    plugins: [
+      'appTools',
+      'tanstackRouterPlugin',
+      'i18nPlugin',
+      ...(appHasEffectApi(app) ? ['bffPlugin'] : []),
+      'moduleFederationPlugin',
+      'zephyrRspackPlugin',
+    ],
+    output: {
+      disableTsChecker: true,
+      distPath: {
+        html: './',
+      },
+      polyfill: 'off',
+      splitRouteChunks: false,
+    },
+    html: {
+      outputStructure: 'flat',
+    },
+    source: {
+      mainEntryName: 'index',
+      siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
+    },
+    ...(appHasEffectApi(app)
+      ? {
+          bff: {
+            runtimeFramework: 'effect',
+            prefix: app.effectApi.prefix,
+            openapi: '/openapi.json',
+          },
+        }
+      : {}),
+  };
+}
+
+function createStylingContract(enableTailwind: boolean): JsonValue {
+  return {
+    tailwind: enableTailwind,
+    ...(enableTailwind
+      ? {
+          postcssPlugins: ['@tailwindcss/postcss'],
+          contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
+        }
+      : {}),
+  };
+}
+
 function createAppGeneratedContract(
   scope: string,
   app: WorkspaceApp,
+  apps: WorkspaceApp[],
+  enableTailwind: boolean,
 ): JsonValue {
+  const remoteAppsForShell = apps.filter(
+    candidate => candidate.kind !== 'shell' && candidate.mfName,
+  );
+
   return {
     id: app.id,
     package: packageName(scope, app.packageSuffix),
     path: app.directory,
     kind: app.kind,
+    config: createAppConfigContract(app),
+    styling: createStylingContract(enableTailwind),
     deploy: {
       target: 'cloudflare',
       worker: {
@@ -2401,6 +2487,17 @@ function createAppGeneratedContract(
     },
     moduleFederation: {
       name: app.mfName,
+      ...(app.kind === 'shell'
+        ? {
+            remotes: remoteAppsForShell.map(remote => ({
+              id: remote.id,
+              alias: remoteDependencyAlias(remote),
+              name: remote.mfName,
+              manifestEnv: createRemoteManifestEnv(remote),
+              manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+            })),
+          }
+        : {}),
       exposes: Object.keys(app.exposes ?? {}),
       dts: {
         displayErrorInTerminal: true,
@@ -2428,6 +2525,7 @@ function createAppGeneratedContract(
             workerEntry: 'worker/__modern_bff_effect.js',
             contract: './shared/effect/api',
             client: './effect/client',
+            ...createEffectOperationContract(app),
           },
         }
       : {}),
@@ -2437,6 +2535,7 @@ function createAppGeneratedContract(
 function createGeneratedContract(
   scope: string,
   apps: WorkspaceApp[] = [shellApp, ...remoteApps],
+  enableTailwind = true,
 ): JsonValue {
   return {
     schemaVersion: 1,
@@ -2458,7 +2557,9 @@ function createGeneratedContract(
       zephyrAgent: ZEPHYR_AGENT_VERSION,
       wrangler: WRANGLER_VERSION,
     },
-    apps: apps.map(app => createAppGeneratedContract(scope, app)),
+    apps: apps.map(app =>
+      createAppGeneratedContract(scope, app, apps, enableTailwind),
+    ),
   };
 }
 
@@ -3205,10 +3306,11 @@ export function addUltramodernMicroVertical(
     writeJsonFile(overlayPath, overlay as JsonValue);
     writeJsonFile(
       path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
-      createGeneratedContract(scope, [
-        shellApp,
-        ...remotesFromTopology(topology, overlay.ports),
-      ]),
+      createGeneratedContract(
+        scope,
+        [shellApp, ...remotesFromTopology(topology, overlay.ports)],
+        enableTailwind,
+      ),
     );
     const shellConfigPath = path.join(
       options.workspaceRoot,
@@ -3259,6 +3361,14 @@ export function addUltramodernMicroVertical(
         prefix: serviceApiPrefix(service),
         openapi: '/openapi.json',
       },
+      contract: {
+        package: packageName(scope, 'shared-effect-api'),
+        export: serviceEffectApiExport(service),
+        path: 'packages/shared-effect-api/src/index.ts',
+      },
+      serverEntry: `${service.directory}/api/effect/index.ts`,
+      basePath: `${serviceApiPrefix(service)}/effect/${effectApiStem(service)}`,
+      ...createEffectOperationContract(service),
       ownership: service.ownership,
     });
     ownership.owners ??= [];
@@ -3365,7 +3475,7 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     GENERATED_CONTRACT_PATH,
-    createGeneratedContract(scope),
+    createGeneratedContract(scope, [shellApp, ...remoteApps], enableTailwind),
   );
 
   writeApp(options.targetDir, scope, shellApp, packageSource, enableTailwind);

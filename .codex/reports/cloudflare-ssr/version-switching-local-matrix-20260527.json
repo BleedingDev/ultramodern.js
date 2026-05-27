@@ -1,0 +1,342 @@
+{
+  "schemaVersion": 1,
+  "proof": "ultramodern-full-stack-version-switching",
+  "status": "pass",
+  "archivedAt": "2026-05-27T11:08:44.632Z",
+  "summary": {
+    "selectors": 5,
+    "passed": 5,
+    "failed": 0,
+    "expectedSkewFailures": 1
+  },
+  "scenarios": [
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "workspace-v1",
+      "selector": "workspace",
+      "selectedVersion": "v1",
+      "selectedMfManifestUrl": "http://127.0.0.1:58672/commerce/v1/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58672/api/commerce/v1",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "workspace:*",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": null
+      },
+      "uiMarker": "commerce-ui-version:v1",
+      "apiMarker": "commerce-api-version:v1",
+      "status": "pass",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v1",
+          "actual": "commerce-ui-version:v1",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v1",
+          "actual": "commerce-api-version:v1",
+          "status": "pass"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v1",
+          "actual": "v1",
+          "status": "pass"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v1",
+        "name": "commerce",
+        "version": "1.0.0",
+        "remoteEntry": "http://127.0.0.1:58672/commerce/v1/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v1",
+          "apiMarker": "commerce-api-version:v1"
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "latest-tag-v2",
+      "selector": "latest",
+      "selectedVersion": "v2",
+      "selectedMfManifestUrl": "http://127.0.0.1:58675/commerce/v2/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58675/api/commerce/v2",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "@latest",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": null
+      },
+      "uiMarker": "commerce-ui-version:v2",
+      "apiMarker": "commerce-api-version:v2",
+      "status": "pass",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v2",
+          "actual": "commerce-ui-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v2",
+          "actual": "commerce-api-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v2",
+          "actual": "v2",
+          "status": "pass"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v2",
+        "name": "commerce",
+        "version": "2.0.0",
+        "remoteEntry": "http://127.0.0.1:58675/commerce/v2/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v2",
+          "apiMarker": "commerce-api-version:v2"
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "exact-v1",
+      "selector": "exact",
+      "selectedVersion": "v1",
+      "selectedMfManifestUrl": "http://127.0.0.1:58678/commerce/v1/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58678/api/commerce/v1",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "@1.0.0",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": null
+      },
+      "uiMarker": "commerce-ui-version:v1",
+      "apiMarker": "commerce-api-version:v1",
+      "status": "pass",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v1",
+          "actual": "commerce-ui-version:v1",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v1",
+          "actual": "commerce-api-version:v1",
+          "status": "pass"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v1",
+          "actual": "v1",
+          "status": "pass"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v1",
+        "name": "commerce",
+        "version": "1.0.0",
+        "remoteEntry": "http://127.0.0.1:58678/commerce/v1/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v1",
+          "apiMarker": "commerce-api-version:v1"
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "exact-v2",
+      "selector": "exact",
+      "selectedVersion": "v2",
+      "selectedMfManifestUrl": "http://127.0.0.1:58681/commerce/v2/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58681/api/commerce/v2",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "@2.0.0",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": null
+      },
+      "uiMarker": "commerce-ui-version:v2",
+      "apiMarker": "commerce-api-version:v2",
+      "status": "pass",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v2",
+          "actual": "commerce-ui-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v2",
+          "actual": "commerce-api-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v2",
+          "actual": "v2",
+          "status": "pass"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v2",
+        "name": "commerce",
+        "version": "2.0.0",
+        "remoteEntry": "http://127.0.0.1:58681/commerce/v2/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v2",
+          "apiMarker": "commerce-api-version:v2"
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "environment-override-staging",
+      "selector": "environment",
+      "selectedVersion": "v2",
+      "selectedMfManifestUrl": "http://127.0.0.1:58684/commerce/v2/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58684/api/commerce/v2",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "workspace:*",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": {
+          "kind": "environment",
+          "environment": "staging",
+          "source": "environment-default",
+          "selector": "@2.0.0",
+          "variable": "ULTRAMODERN_COMMERCE_VERTICAL_VERSION",
+          "semantics": "An environment override replaces the resolved remote dependency selector at runtime without rebuilding the host."
+        }
+      },
+      "uiMarker": "commerce-ui-version:v2",
+      "apiMarker": "commerce-api-version:v2",
+      "status": "pass",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v2",
+          "actual": "commerce-ui-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v2",
+          "actual": "commerce-api-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v2",
+          "actual": "v2",
+          "status": "pass"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v2",
+        "name": "commerce",
+        "version": "2.0.0",
+        "remoteEntry": "http://127.0.0.1:58684/commerce/v2/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v2",
+          "apiMarker": "commerce-api-version:v2"
+        }
+      }
+    }
+  ],
+  "negativeControls": [
+    {
+      "schemaVersion": 1,
+      "proof": "ultramodern-full-stack-version-switching",
+      "scenario": "skew-ui-v2-api-v1",
+      "selector": "exact",
+      "selectedVersion": "v2",
+      "selectedMfManifestUrl": "http://127.0.0.1:58687/commerce/v2/mf-manifest.json",
+      "apiBaseUrl": "http://127.0.0.1:58687/api/commerce/v1",
+      "zephyrDependency": {
+        "dependency": {
+          "packageName": "@modern-js-ultramodern/commerce-vertical",
+          "remoteAlias": "commerce",
+          "selector": "@2.0.0",
+          "localAlias": "commerce: @modern-js-ultramodern/commerce-vertical",
+          "semantics": "Zephyr resolves one commerce vertical artifact, and the shell consumes that artifact for both the MF manifest and owned API base."
+        },
+        "override": null
+      },
+      "uiMarker": "commerce-ui-version:v2",
+      "apiMarker": "commerce-api-version:v1",
+      "status": "fail",
+      "reason": "full-stack-version-mismatch",
+      "assertions": [
+        {
+          "id": "ui-marker",
+          "expected": "commerce-ui-version:v2",
+          "actual": "commerce-ui-version:v2",
+          "status": "pass"
+        },
+        {
+          "id": "api-marker",
+          "expected": "commerce-api-version:v2",
+          "actual": "commerce-api-version:v1",
+          "status": "fail"
+        },
+        {
+          "id": "full-stack-version-lockstep",
+          "expected": "v2",
+          "actual": "v1",
+          "status": "fail"
+        }
+      ],
+      "manifest": {
+        "id": "commerce-v2",
+        "name": "commerce",
+        "version": "2.0.0",
+        "remoteEntry": "http://127.0.0.1:58687/commerce/v2/remoteEntry.js",
+        "metadata": {
+          "fullStackVertical": true,
+          "uiMarker": "commerce-ui-version:v2",
+          "apiMarker": "commerce-api-version:v2"
+        }
+      }
+    }
+  ]
+}

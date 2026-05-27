@@ -1,0 +1,420 @@
+{
+  "generated_at": "2026-05-27T11:11:00.656269+00:00",
+  "graph_id": "open-beads-completion-20260527",
+  "plan_set_hash": "8338a17b65",
+  "selection_hash": "5e1b99462e",
+  "plan_count": 5,
+  "edge_count": 6,
+  "plans_root": ".codex/plans",
+  "selected_globs": ["open-beads-*.plan.md"],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-00-intake-and-gates.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-01-source-test-cleanup.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-02-zephyr-version-switching.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-03-mf-patch-removal.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-04-session-closeout.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "open-beads-00-intake-and-gates",
+      "target": "open-beads-01-source-test-cleanup"
+    },
+    {
+      "source": "open-beads-00-intake-and-gates",
+      "target": "open-beads-02-zephyr-version-switching"
+    },
+    {
+      "source": "open-beads-00-intake-and-gates",
+      "target": "open-beads-03-mf-patch-removal"
+    },
+    {
+      "source": "open-beads-01-source-test-cleanup",
+      "target": "open-beads-04-session-closeout"
+    },
+    {
+      "source": "open-beads-02-zephyr-version-switching",
+      "target": "open-beads-04-session-closeout"
+    },
+    {
+      "source": "open-beads-03-mf-patch-removal",
+      "target": "open-beads-04-session-closeout"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-00-intake-and-gates.plan.md",
+      "slug": "open-beads-00-intake-and-gates",
+      "name": "Open Beads 00 Intake And Gates",
+      "overview": "Reconfirm the current Beads state, repo baseline, external blockers, and execution inputs before finishing the remaining open/in-progress work.",
+      "todos": [
+        {
+          "id": "refresh-beads-state",
+          "content": "Run bd list/show for modernjs-fjk5, modernjs-hjgv, and modernjs-8qw9; record which work is actionable, blocked, or dependent on live credentials/platform state.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "verify-clean-baseline",
+          "content": "Verify the current branch, pushed commit state, and working tree before starting new edits so follow-up work does not mix with unrelated changes.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "verify-mf-upstream-release",
+          "content": "Check module-federation/core PR 4755 and current npm releases for @module-federation/manifest, @module-federation/rspack, and @module-federation/modern-js-v3; decide whether modernjs-8qw9 is now actionable or still externally blocked.",
+          "status": "completed",
+          "ordinal": 3
+        },
+        {
+          "id": "verify-zephyr-live-inputs",
+          "content": "Confirm local Zephyr auth/token state and identify the generated workspace, app names, environment selector, and evidence output paths for the live v1/v2 full-stack switching proof.",
+          "status": "completed",
+          "ordinal": 4
+        },
+        {
+          "id": "lock-execution-constraints",
+          "content": "Write the execution constraints into the operator log: no source-content tests, mandatory DTS, mandatory i18n, one-package micro-vertical FE+SSR+BFF ownership, no corepack, and push-to-bleedingdev completion.",
+          "status": "completed",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-01-source-test-cleanup.plan.md",
+      "slug": "open-beads-01-source-test-cleanup",
+      "name": "Open Beads 01 Source Test Cleanup",
+      "overview": "Finish modernjs-fjk5 by replacing remaining UltraModern source-content assertions with structured generated metadata, config, build-output, and runtime behavior checks.",
+      "todos": [
+        {
+          "id": "audit-current-source-assertions",
+          "content": "Inventory remaining source-content assertions in create-ultramodern-workspace tests and related validators; classify each by behavior it intends to prove.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "add-structured-readers",
+          "content": "Add or reuse structured readers for package.json, pnpm-workspace.yaml, topology JSON, generated contract JSON, Module Federation config shape, and generated Modern config where practical.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "refactor-generator-tests",
+          "content": "Replace source-text assertions in the canonical UltraModern generator test with structured assertions and existing typecheck/build/runtime gates, preserving coverage for i18n, MF SSR, DTS, Effect BFF, Zephyr, Cloudflare, and package-manager policy.",
+          "status": "completed",
+          "ordinal": 3
+        },
+        {
+          "id": "update-validator-with-behavioral-contracts",
+          "content": "Update generated validator or contract-doctor checks that still inspect source text so they assert structured artifacts, generated contract metadata, or build/runtime outputs instead.",
+          "status": "completed",
+          "ordinal": 4
+        },
+        {
+          "id": "run-cleanup-gates",
+          "content": "Run the focused create-ultramodern-workspace tests, generated validator, typecheck gate, and formatting/lint checks needed to prove the replacement tests are equivalent or stronger.",
+          "status": "completed",
+          "ordinal": 5
+        },
+        {
+          "id": "close-source-test-bead",
+          "content": "Update and close modernjs-fjk5 only after the source-content assertion audit is clean or remaining exceptions are documented as non-source behavioral checks.",
+          "status": "completed",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-02-zephyr-version-switching.plan.md",
+      "slug": "open-beads-02-zephyr-version-switching",
+      "name": "Open Beads 02 Zephyr Version Switching",
+      "overview": "Finish the actionable part of modernjs-hjgv by proving live Zephyr full-stack micro-vertical version/environment switching where UI and Effect BFF markers move together.",
+      "todos": [
+        {
+          "id": "prepare-live-fixture",
+          "content": "Create or reuse a generated UltraModern workspace fixture that can produce remote-commerce v1 and v2 with different UI and Effect BFF markers while keeping one package boundary.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "build-and-upload-v1",
+          "content": "Build and upload/deploy remote-commerce v1 through the Cloudflare/Zephyr path; capture Zephyr URLs, snapshot IDs if available, MF manifest URL, BFF endpoint URL, and marker JSON.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "build-and-upload-v2",
+          "content": "Build and upload/deploy remote-commerce v2 with changed UI and Effect BFF markers; capture the same evidence as v1.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "configure-shell-selection",
+          "content": "Deploy or configure the shell to select v1 and v2 through Zephyr-supported dependency, version, tag, exact selector, environment override, GUI, extension, or documented operational path.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "assert-live-lockstep",
+          "content": "For each selected version/environment, assert shell-rendered UI marker and fetched Effect BFF marker match the same vertical build identity; include a negative skew check if the platform allows controlled mismatch.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "archive-live-evidence",
+          "content": "Write sanitized live evidence under .codex/reports/cloudflare-ssr or .modern/zephyr-live, including commands, URLs, HTTP responses, marker comparisons, and any screenshots/logs needed.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "update-zerops-next-step",
+          "content": "Document the remaining Zerops long-running Node proof separately if Zephyr/Cloudflare live switching is complete but Zerops integration is not yet available.",
+          "status": "pending",
+          "ordinal": 7
+        },
+        {
+          "id": "close-or-split-version-switching-bead",
+          "content": "Close modernjs-hjgv only if both Zephyr live switching and required Zerops scope are done; otherwise split the Zerops remainder into a new bead and close the Zephyr part with evidence.",
+          "status": "pending",
+          "ordinal": 8
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-03-mf-patch-removal.plan.md",
+      "slug": "open-beads-03-mf-patch-removal",
+      "name": "Open Beads 03 Module Federation Patch Removal",
+      "overview": "Finish modernjs-8qw9 if the upstream Module Federation DTS fix is now released; otherwise refresh the blocker with current GitHub/npm evidence.",
+      "todos": [
+        {
+          "id": "verify-pr-4755-state",
+          "content": "Check module-federation/core PR 4755 status, merge commit, and whether a release includes the lazy DTS import fix.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "verify-npm-release-state",
+          "content": "Check current npm versions and tarball contents for @module-federation/manifest, @module-federation/rspack, @module-federation/modern-js-v3, and related runtime packages.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "remove-patches-if-consumable",
+          "content": "If a fixed release is consumable, update Module Federation packages, remove patchedDependencies and patch files, regenerate pnpm-lock.yaml, and keep DTS enabled.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "prove-dts-without-patches",
+          "content": "Run Module Federation DTS/build tests and UltraModern generated build/type gates to prove the local patches are no longer needed.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "refresh-blocker-if-not-consumable",
+          "content": "If no fixed release is available, update modernjs-8qw9 notes with exact PR/release/npm evidence and leave local patches in place.",
+          "status": "completed",
+          "ordinal": 5
+        },
+        {
+          "id": "close-mf-patch-bead",
+          "content": "Close modernjs-8qw9 only after patches are removed and DTS gates pass; otherwise keep it open with a fresh external blocker note.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-04-session-closeout.plan.md",
+      "slug": "open-beads-04-session-closeout",
+      "name": "Open Beads 04 Session Closeout",
+      "overview": "Integrate results from the open-bead completion lanes, run quality gates, update Beads, commit, and push to bleedingdev.",
+      "todos": [
+        {
+          "id": "integrate-lane-results",
+          "content": "Review the outputs from source-test cleanup, Zephyr version switching, and MF patch removal/blocker lanes; resolve conflicts and ensure the repo has one coherent final state.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "run-final-quality-gates",
+          "content": "Run the focused test/build/lint gates required by changed files, including create-workspace, Cloudflare SSR validation, MF/DTS gates when touched, Biome, and git diff checks.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-beads-final",
+          "content": "Close completed beads, update blocked beads with fresh evidence, and create any new follow-up beads for unavoidable external work.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "commit-and-push",
+          "content": "Commit all completed work, run git pull --rebase, bd dolt push, git push to bleedingdev, and verify git status is up to date.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "handoff-final-state",
+          "content": "Report completed beads, remaining blockers, evidence paths, graph ID, commit SHA, and verification commands.",
+          "status": "pending",
+          "ordinal": 5
+        }
+      ],
+      "is_project": true,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "open-beads-02-zephyr-version-switching",
+      "plan_name": "Open Beads 02 Zephyr Version Switching",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-02-zephyr-version-switching.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "prepare-live-fixture",
+          "content": "Create or reuse a generated UltraModern workspace fixture that can produce remote-commerce v1 and v2 with different UI and Effect BFF markers while keeping one package boundary.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "build-and-upload-v1",
+          "content": "Build and upload/deploy remote-commerce v1 through the Cloudflare/Zephyr path; capture Zephyr URLs, snapshot IDs if available, MF manifest URL, BFF endpoint URL, and marker JSON.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "build-and-upload-v2",
+          "content": "Build and upload/deploy remote-commerce v2 with changed UI and Effect BFF markers; capture the same evidence as v1.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "configure-shell-selection",
+          "content": "Deploy or configure the shell to select v1 and v2 through Zephyr-supported dependency, version, tag, exact selector, environment override, GUI, extension, or documented operational path.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 0,
+      "total": 8
+    },
+    {
+      "plan_slug": "open-beads-03-mf-patch-removal",
+      "plan_name": "Open Beads 03 Module Federation Patch Removal",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-03-mf-patch-removal.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "remove-patches-if-consumable",
+          "content": "If a fixed release is consumable, update Module Federation packages, remove patchedDependencies and patch files, regenerate pnpm-lock.yaml, and keep DTS enabled.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "prove-dts-without-patches",
+          "content": "Run Module Federation DTS/build tests and UltraModern generated build/type gates to prove the local patches are no longer needed.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "close-mf-patch-bead",
+          "content": "Close modernjs-8qw9 only after patches are removed and DTS gates pass; otherwise keep it open with a fresh external blocker note.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "completed": 3,
+      "total": 6
+    },
+    {
+      "plan_slug": "open-beads-04-session-closeout",
+      "plan_name": "Open Beads 04 Session Closeout",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-04-session-closeout.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "open-beads-02-zephyr-version-switching",
+        "open-beads-03-mf-patch-removal"
+      ],
+      "active": [
+        {
+          "id": "integrate-lane-results",
+          "content": "Review the outputs from source-test cleanup, Zephyr version switching, and MF patch removal/blocker lanes; resolve conflicts and ensure the repo has one coherent final state.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "run-final-quality-gates",
+          "content": "Run the focused test/build/lint gates required by changed files, including create-workspace, Cloudflare SSR validation, MF/DTS gates when touched, Biome, and git diff checks.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "update-beads-final",
+          "content": "Close completed beads, update blocked beads with fresh evidence, and create any new follow-up beads for unavoidable external work.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "commit-and-push",
+          "content": "Commit all completed work, run git pull --rebase, bd dolt push, git push to bleedingdev, and verify git status is up to date.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 0,
+      "total": 5
+    },
+    {
+      "plan_slug": "open-beads-00-intake-and-gates",
+      "plan_name": "Open Beads 00 Intake And Gates",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-00-intake-and-gates.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
+    },
+    {
+      "plan_slug": "open-beads-01-source-test-cleanup",
+      "plan_name": "Open Beads 01 Source Test Cleanup",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/open-beads-01-source-test-cleanup.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
+      "total": 6
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}

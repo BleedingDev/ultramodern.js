@@ -42,8 +42,15 @@ function createWorkspace() {
           effect: {
             runtime: 'effect',
             bff: { prefix: '/commerce-api' },
-            contract: { export: './shared/effect/api' },
-            client: { export: './effect/client' },
+            contract: {
+              export: './shared/effect/api',
+              path: 'apps/remotes/remote-commerce/shared/effect/api.ts',
+            },
+            client: {
+              export: './effect/client',
+              path: 'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
+            },
+            serverEntry: 'apps/remotes/remote-commerce/api/effect/index.ts',
           },
         },
       },
@@ -57,8 +64,15 @@ function createWorkspace() {
           effect: {
             runtime: 'effect',
             bff: { prefix: '/identity-api' },
-            contract: { export: './shared/effect/api' },
-            client: { export: './effect/client' },
+            contract: {
+              export: './shared/effect/api',
+              path: 'apps/remotes/remote-identity/shared/effect/api.ts',
+            },
+            client: {
+              export: './effect/client',
+              path: 'apps/remotes/remote-identity/src/effect/identity-client.ts',
+            },
+            serverEntry: 'apps/remotes/remote-identity/api/effect/index.ts',
           },
         },
       },
@@ -170,6 +184,84 @@ function createWorkspace() {
     'packages/shared-effect-api/src/index.ts',
     'export const api = {};\n',
   );
+  writeJson(root, '.modernjs/ultramodern-generated-contract.json', {
+    apps: [
+      {
+        id: 'remote-commerce',
+        config: {
+          preset: 'presetUltramodern',
+          plugins: [
+            'appTools',
+            'tanstackRouterPlugin',
+            'i18nPlugin',
+            'bffPlugin',
+            'moduleFederationPlugin',
+            'zephyrRspackPlugin',
+          ],
+          bff: {
+            runtimeFramework: 'effect',
+            prefix: '/commerce-api',
+          },
+          html: { outputStructure: 'flat' },
+        },
+        ssr: { moduleFederationAppSSR: true },
+        moduleFederation: {
+          exposes: ['./Widget', './Route'],
+          dts: {
+            displayErrorInTerminal: true,
+            compilerInstance: '--package typescript -- tsc',
+          },
+        },
+        effect: {
+          runtime: 'effect',
+          contract: './shared/effect/api',
+          client: './effect/client',
+          group: 'recommendations',
+          workerEntry: 'worker/__modern_bff_effect.js',
+          operations: {
+            list: { source: 'generated-client' },
+          },
+        },
+      },
+      {
+        id: 'remote-identity',
+        config: {
+          preset: 'presetUltramodern',
+          plugins: [
+            'appTools',
+            'tanstackRouterPlugin',
+            'i18nPlugin',
+            'bffPlugin',
+            'moduleFederationPlugin',
+            'zephyrRspackPlugin',
+          ],
+          bff: {
+            runtimeFramework: 'effect',
+            prefix: '/identity-api',
+          },
+          html: { outputStructure: 'flat' },
+        },
+        ssr: { moduleFederationAppSSR: true },
+        moduleFederation: {
+          exposes: ['./Widget', './Route'],
+          dts: {
+            displayErrorInTerminal: true,
+            compilerInstance: '--package typescript -- tsc',
+          },
+        },
+        effect: {
+          runtime: 'effect',
+          contract: './shared/effect/api',
+          client: './effect/client',
+          group: 'identity',
+          workerEntry: 'worker/__modern_bff_effect.js',
+          operations: {
+            list: { source: 'generated-client' },
+          },
+        },
+      },
+    ],
+  });
   return root;
 }
 
@@ -256,6 +348,20 @@ test('rejects split default vertical services and unsafe remote exposes', () => 
       root,
       'apps/remotes/remote-commerce/module-federation.config.ts',
       "displayErrorInTerminal: true; compilerInstance: '--package typescript -- tsc'; './Route'; './Widget'; './api';\n",
+    );
+    const generatedContract = JSON.parse(
+      fs.readFileSync(
+        path.join(root, '.modernjs/ultramodern-generated-contract.json'),
+        'utf8',
+      ),
+    );
+    generatedContract.apps.find(
+      app => app.id === 'remote-commerce',
+    ).moduleFederation.exposes = ['./Widget', './Route', './api'];
+    writeJson(
+      root,
+      '.modernjs/ultramodern-generated-contract.json',
+      generatedContract,
     );
     writeJson(root, 'services/service-recommendations-effect/package.json', {});
 

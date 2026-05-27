@@ -1,0 +1,359 @@
+{
+  "$schema": "./evidence-bundle.schema.json",
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-27T11:08:44.508Z",
+  "mode": "dry-run",
+  "status": "dry-run",
+  "evidencePath": "/Users/satan/side/experiments/modernjs/.codex/reports/cloudflare-ssr/zephyr-live-input-plan-20260527.json",
+  "schemaPath": "/Users/satan/side/experiments/modernjs/scripts/ultramodern-zephyr-live-evidence/evidence-bundle.schema.json",
+  "docsEvidence": {
+    "zephyrRspackPlugin": "zephyr-rspack-plugin",
+    "packageJsonDependencyKey": "zephyr:dependencies",
+    "runtimeOverrideCapability": "Zephyr environment overrides can select remote versions, tags, or environments at runtime without rebuilding the host.",
+    "lifecycleCommandPolicy": "Use normal Modern.js lifecycle commands such as pnpm install and pnpm build; this harness does not invent zephyr:* lifecycle commands."
+  },
+  "safety": {
+    "optIn": true,
+    "credentialsRequiredForLive": true,
+    "secretsRedacted": true
+  },
+  "configuration": {
+    "credentialPresence": {
+      "hasServerToken": false,
+      "hasSecretToken": false,
+      "hasAnyToken": false,
+      "hasUserEmail": false
+    },
+    "redactedConfig": {},
+    "redactedEnv": {}
+  },
+  "requirements": [
+    {
+      "id": "zephyr-environment-selector",
+      "status": "skipped",
+      "message": "ZE_ENV or config.zephyr.environment is required to name the Zephyr environment selector.",
+      "env": ["ZE_ENV"],
+      "config": ["zephyr.environment"]
+    },
+    {
+      "id": "zephyr-token",
+      "status": "skipped",
+      "message": "Live Zephyr evidence requires ZE_SERVER_TOKEN or ZE_SECRET_TOKEN.",
+      "envAnyOf": ["ZE_SERVER_TOKEN", "ZE_SECRET_TOKEN"],
+      "configAnyOf": ["credentials.serverToken", "credentials.secretToken"]
+    },
+    {
+      "id": "zephyr-user-email",
+      "status": "skipped",
+      "message": "Live Zephyr evidence requires ZE_USER_EMAIL or credentials.userEmail.",
+      "env": ["ZE_USER_EMAIL"],
+      "config": ["credentials.userEmail"]
+    },
+    {
+      "id": "remote-v1-appUid",
+      "status": "skipped",
+      "message": "remote-v1 is missing appUid; provide remote-v1 config or REMOTE_V1 environment variables.",
+      "target": "remote-v1",
+      "field": "appUid"
+    },
+    {
+      "id": "remote-v1-selector",
+      "status": "skipped",
+      "message": "remote-v1 is missing selector; provide remote-v1 config or REMOTE_V1 environment variables.",
+      "target": "remote-v1",
+      "field": "selector"
+    },
+    {
+      "id": "remote-v1-manifestUrl",
+      "status": "skipped",
+      "message": "remote-v1 is missing manifestUrl; provide remote-v1 config or REMOTE_V1 environment variables.",
+      "target": "remote-v1",
+      "field": "manifestUrl"
+    },
+    {
+      "id": "remote-v1-runtimeUrl",
+      "status": "skipped",
+      "message": "remote-v1 is missing runtimeUrl; provide remote-v1 config or REMOTE_V1 environment variables.",
+      "target": "remote-v1",
+      "field": "runtimeUrl"
+    },
+    {
+      "id": "remote-v1-api-url",
+      "status": "skipped",
+      "message": "remote-v1 is missing an API assertion URL for marker commerce-api-version:v1.",
+      "target": "remote-v1",
+      "field": "api.url"
+    },
+    {
+      "id": "remote-v2-appUid",
+      "status": "skipped",
+      "message": "remote-v2 is missing appUid; provide remote-v2 config or REMOTE_V2 environment variables.",
+      "target": "remote-v2",
+      "field": "appUid"
+    },
+    {
+      "id": "remote-v2-selector",
+      "status": "skipped",
+      "message": "remote-v2 is missing selector; provide remote-v2 config or REMOTE_V2 environment variables.",
+      "target": "remote-v2",
+      "field": "selector"
+    },
+    {
+      "id": "remote-v2-manifestUrl",
+      "status": "skipped",
+      "message": "remote-v2 is missing manifestUrl; provide remote-v2 config or REMOTE_V2 environment variables.",
+      "target": "remote-v2",
+      "field": "manifestUrl"
+    },
+    {
+      "id": "remote-v2-runtimeUrl",
+      "status": "skipped",
+      "message": "remote-v2 is missing runtimeUrl; provide remote-v2 config or REMOTE_V2 environment variables.",
+      "target": "remote-v2",
+      "field": "runtimeUrl"
+    },
+    {
+      "id": "remote-v2-api-url",
+      "status": "skipped",
+      "message": "remote-v2 is missing an API assertion URL for marker commerce-api-version:v2.",
+      "target": "remote-v2",
+      "field": "api.url"
+    },
+    {
+      "id": "shell-appUid",
+      "status": "skipped",
+      "message": "shell is missing appUid; provide shell config or SHELL environment variables.",
+      "target": "shell",
+      "field": "appUid"
+    },
+    {
+      "id": "shell-selector",
+      "status": "skipped",
+      "message": "shell is missing selector; provide shell config or SHELL environment variables.",
+      "target": "shell",
+      "field": "selector"
+    },
+    {
+      "id": "shell-manifestUrl",
+      "status": "skipped",
+      "message": "shell is missing manifestUrl; provide shell config or SHELL environment variables.",
+      "target": "shell",
+      "field": "manifestUrl"
+    },
+    {
+      "id": "shell-runtimeUrl",
+      "status": "skipped",
+      "message": "shell is missing runtimeUrl; provide shell config or SHELL environment variables.",
+      "target": "shell",
+      "field": "runtimeUrl"
+    }
+  ],
+  "commandPlan": [
+    {
+      "target": "remote-v1",
+      "role": "remote",
+      "cwd": "<generated-workspace>/apps/remotes/remote-commerce-v1",
+      "commands": [
+        {
+          "lifecycle": "install",
+          "command": "pnpm --dir \"<generated-workspace>\" install"
+        },
+        {
+          "lifecycle": "build",
+          "command": "pnpm --dir \"<generated-workspace>/apps/remotes/remote-commerce-v1\" build"
+        }
+      ]
+    },
+    {
+      "target": "remote-v2",
+      "role": "remote",
+      "cwd": "<generated-workspace>/apps/remotes/remote-commerce-v2",
+      "commands": [
+        {
+          "lifecycle": "install",
+          "command": "pnpm --dir \"<generated-workspace>\" install"
+        },
+        {
+          "lifecycle": "build",
+          "command": "pnpm --dir \"<generated-workspace>/apps/remotes/remote-commerce-v2\" build"
+        }
+      ]
+    },
+    {
+      "target": "shell",
+      "role": "shell",
+      "cwd": "<generated-workspace>/apps/shell-super-app",
+      "commands": [
+        {
+          "lifecycle": "install",
+          "command": "pnpm --dir \"<generated-workspace>\" install"
+        },
+        {
+          "lifecycle": "build",
+          "command": "pnpm --dir \"<generated-workspace>/apps/shell-super-app\" build"
+        }
+      ]
+    }
+  ],
+  "zephyrDependencies": {
+    "packageJsonKey": "zephyr:dependencies",
+    "selectorExamples": ["workspace:*", "@latest", "@1.2.3"],
+    "environmentOverrides": "Use Zephyr environment overrides to select remote versions, tags, or environments at runtime."
+  },
+  "targets": [
+    {
+      "id": "remote-v1",
+      "role": "remote",
+      "appUid": null,
+      "packageName": null,
+      "workspacePath": "apps/remotes/remote-commerce-v1",
+      "selector": {
+        "value": null,
+        "kind": null,
+        "environment": null
+      },
+      "manifestUrl": null,
+      "runtimeUrl": null,
+      "api": {
+        "url": null
+      },
+      "markers": {
+        "uiExpected": "commerce-ui-version:v1",
+        "apiExpected": "commerce-api-version:v1"
+      },
+      "buildLogPath": null
+    },
+    {
+      "id": "remote-v2",
+      "role": "remote",
+      "appUid": null,
+      "packageName": null,
+      "workspacePath": "apps/remotes/remote-commerce-v2",
+      "selector": {
+        "value": null,
+        "kind": null,
+        "environment": null
+      },
+      "manifestUrl": null,
+      "runtimeUrl": null,
+      "api": {
+        "url": null
+      },
+      "markers": {
+        "uiExpected": "commerce-ui-version:v2",
+        "apiExpected": "commerce-api-version:v2"
+      },
+      "buildLogPath": null
+    },
+    {
+      "id": "shell",
+      "role": "shell",
+      "appUid": null,
+      "packageName": null,
+      "workspacePath": "apps/shell-super-app",
+      "selector": {
+        "value": null,
+        "kind": null,
+        "environment": null
+      },
+      "manifestUrl": null,
+      "runtimeUrl": null,
+      "api": {
+        "url": null
+      },
+      "markers": {
+        "uiExpected": null,
+        "apiExpected": null
+      },
+      "buildLogPath": null
+    }
+  ],
+  "switchingScenarios": [
+    {
+      "id": "shell-selects-remote-v1",
+      "shellAppUid": null,
+      "remoteAppUid": null,
+      "selector": {
+        "value": null,
+        "kind": null,
+        "environment": null
+      },
+      "manifestUrl": null,
+      "runtimeUrl": null,
+      "expectedUiMarker": "commerce-ui-version:v1",
+      "expectedApiMarker": "commerce-api-version:v1",
+      "assertionRule": "The shell pass requires UI and API markers from the same selected remote version."
+    },
+    {
+      "id": "shell-selects-remote-v2",
+      "shellAppUid": null,
+      "remoteAppUid": null,
+      "selector": {
+        "value": null,
+        "kind": null,
+        "environment": null
+      },
+      "manifestUrl": null,
+      "runtimeUrl": null,
+      "expectedUiMarker": "commerce-ui-version:v2",
+      "expectedApiMarker": "commerce-api-version:v2",
+      "assertionRule": "The shell pass requires UI and API markers from the same selected remote version."
+    }
+  ],
+  "assertions": [
+    {
+      "target": "remote-v1",
+      "type": "manifest-url",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch Zephyr URLs"
+    },
+    {
+      "target": "remote-v1",
+      "type": "ui-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch runtime HTML"
+    },
+    {
+      "target": "remote-v1",
+      "type": "api-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch API responses"
+    },
+    {
+      "target": "remote-v2",
+      "type": "manifest-url",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch Zephyr URLs"
+    },
+    {
+      "target": "remote-v2",
+      "type": "ui-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch runtime HTML"
+    },
+    {
+      "target": "remote-v2",
+      "type": "api-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch API responses"
+    },
+    {
+      "target": "shell",
+      "type": "manifest-url",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch Zephyr URLs"
+    },
+    {
+      "target": "shell",
+      "type": "ui-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch runtime HTML"
+    },
+    {
+      "target": "shell",
+      "type": "api-marker",
+      "status": "skipped",
+      "reason": "dry-run mode does not fetch API responses"
+    }
+  ]
+}

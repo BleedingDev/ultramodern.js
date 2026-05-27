@@ -153,6 +153,17 @@ function expectedModernDependency(packageSource, packageName) {
   return typeof alias === 'string' ? `npm:${alias}@${specifier}` : specifier;
 }
 
+function readGeneratedContract(workspace) {
+  const file = path.join(
+    workspace,
+    '.modernjs/ultramodern-generated-contract.json',
+  );
+  if (!exists(file)) {
+    return { apps: [], file: undefined };
+  }
+  return { ...readJson(file), file: relative(workspace, file) };
+}
+
 function checkPackageSource(workspace) {
   const rootPackageFile = path.join(workspace, 'package.json');
   const rootPackage = exists(rootPackageFile) ? readJson(rootPackageFile) : {};
@@ -533,6 +544,15 @@ function checkFullStackVerticals(workspace) {
   const ownership = exists(ownershipFile)
     ? readJson(ownershipFile)
     : { owners: [] };
+  const topologyFile = path.join(workspace, 'topology/reference-topology.json');
+  const topology = exists(topologyFile) ? readJson(topologyFile) : {};
+  const generatedContract = readGeneratedContract(workspace);
+  const generatedAppsById = new Map(
+    (generatedContract.apps || []).map(app => [app.id, app]),
+  );
+  const topologyRemotesById = new Map(
+    (topology.remotes || []).map(remote => [remote.id, remote]),
+  );
   const ownersById = new Map(
     (ownership.owners || []).map(owner => [owner.id, owner]),
   );
@@ -563,20 +583,17 @@ function checkFullStackVerticals(workspace) {
       ? path.join(workspace, owner.path)
       : path.join(workspace, vertical.path);
     const packageFile = path.join(verticalRoot, 'package.json');
-    const config = path.join(verticalRoot, 'modern.config.ts');
-    const mfConfig = path.join(verticalRoot, 'module-federation.config.ts');
-    const entry = path.join(verticalRoot, 'api/effect/index.ts');
-    const contract = path.join(verticalRoot, 'shared/effect/api.ts');
-    const client = path.join(
-      verticalRoot,
-      `src/effect/${vertical.stem}-client.ts`,
-    );
     const pkg = exists(packageFile) ? readJson(packageFile) : {};
-    const mfSource = exists(mfConfig) ? readText(mfConfig) : '';
-    const configSource = exists(config) ? readText(config) : '';
-    const entrySource = exists(entry) ? readText(entry) : '';
-    const contractSource = exists(contract) ? readText(contract) : '';
-    const clientSource = exists(client) ? readText(client) : '';
+    const contractEntry = generatedAppsById.get(vertical.id) || {};
+    const topologyEntry = topologyRemotesById.get(vertical.id) || {};
+    const mfExposes = contractEntry.moduleFederation?.exposes || [];
+    const unsafeExposes = [
+      './api',
+      './effect',
+      './client',
+      './contract',
+    ].filter(expose => mfExposes.includes(expose));
+    const configPlugins = contractEntry.config?.plugins || [];
     checks.push(
       createCheck(
         `full-stack-plugin-bff-${vertical.id}`,
@@ -597,66 +614,97 @@ function checkFullStackVerticals(workspace) {
       ),
       createCheck(
         `full-stack-config-${vertical.id}`,
-        configSource.includes('moduleFederationPlugin()') &&
-          configSource.includes('bffPlugin()') &&
-          configSource.includes("runtimeFramework: 'effect'") &&
-          configSource.includes(`prefix: '${vertical.apiPrefix}'`) &&
-          configSource.includes('moduleFederationAppSSR: true') &&
-          configSource.includes("outputStructure: 'flat'") &&
+        contractEntry.config?.preset === 'presetUltramodern' &&
+          configPlugins.includes('moduleFederationPlugin') &&
+          configPlugins.includes('bffPlugin') &&
+          configPlugins.includes('zephyrRspackPlugin') &&
+          contractEntry.config?.bff?.runtimeFramework === 'effect' &&
+          contractEntry.config?.bff?.prefix === vertical.apiPrefix &&
+          contractEntry.ssr?.moduleFederationAppSSR === true &&
+          contractEntry.config?.html?.outputStructure === 'flat' &&
           pkg.devDependencies?.['zephyr-rspack-plugin'] === '1.1.1',
         {
-          file: relative(workspace, config),
+          file:
+            generatedContract.file ||
+            '.modernjs/ultramodern-generated-contract.json',
           message: `${vertical.id} Modern package composes MF, Zephyr Rspack, stream SSR, flat output, and Effect BFF.`,
           expected:
-            'moduleFederationPlugin(), bffPlugin(), runtimeFramework effect, zephyr-rspack-plugin, stream SSR, flat output',
+            'generated contract config with moduleFederationPlugin, bffPlugin, zephyrRspackPlugin, runtimeFramework effect, stream SSR, flat output',
+          actual: contractEntry.config,
           suggestion:
             'Configure the vertical Modern app as both a Module Federation remote and Effect BFF host.',
         },
       ),
       createCheck(
         `full-stack-mf-browser-safe-${vertical.id}`,
-        mfSource.includes("'./Widget'") &&
-          mfSource.includes("'./Route'") &&
-          !mfSource.includes("'./api'") &&
-          !mfSource.includes("'./effect'") &&
-          !mfSource.includes("'./client'") &&
-          !mfSource.includes("'./contract'") &&
-          mfSource.includes('displayErrorInTerminal: true') &&
-          mfSource.includes("'--package typescript -- tsc'"),
+        mfExposes.includes('./Widget') &&
+          mfExposes.includes('./Route') &&
+          mfExposes.length === 2 &&
+          unsafeExposes.length === 0 &&
+          contractEntry.moduleFederation?.dts?.displayErrorInTerminal ===
+            true &&
+          contractEntry.moduleFederation?.dts?.compilerInstance ===
+            '--package typescript -- tsc',
         {
-          file: relative(workspace, mfConfig),
+          file:
+            generatedContract.file ||
+            '.modernjs/ultramodern-generated-contract.json',
           message: `${vertical.id} exposes only browser-safe Route/Widget MF modules and keeps DTS checks enabled.`,
           expected:
-            "exposes './Route' and './Widget' only; DTS displayErrorInTerminal and compilerInstance configured",
+            "generated contract exposes './Route' and './Widget' only; DTS displayErrorInTerminal and compilerInstance configured",
+          actual: {
+            exposes: mfExposes,
+            unsafeExposes,
+            dts: contractEntry.moduleFederation?.dts,
+          },
           suggestion:
             'Keep server handlers and Effect client/contract modules out of browser MF exposes.',
         },
       ),
       createCheck(
         `full-stack-effect-contract-${vertical.id}`,
-        contractSource.includes('HttpApi.make') &&
-          contractSource.includes(`${vertical.group}EffectApi`) &&
-          contractSource.includes(`${vertical.group}ApiContract`) &&
-          clientSource.includes('makeEffectHttpApiClient') &&
-          clientSource.includes(`${vertical.group}EffectApi`),
+        contractEntry.effect?.runtime === 'effect' &&
+          contractEntry.effect?.contract === './shared/effect/api' &&
+          contractEntry.effect?.client === './effect/client' &&
+          contractEntry.effect?.group === vertical.group &&
+          contractEntry.effect?.operations?.list?.source ===
+            'generated-client' &&
+          topologyEntry.api?.effect?.contract?.path ===
+            `${vertical.path}/shared/effect/api.ts` &&
+          topologyEntry.api?.effect?.client?.path ===
+            `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
         {
-          file: relative(workspace, contract),
+          file:
+            generatedContract.file ||
+            '.modernjs/ultramodern-generated-contract.json',
           message: `${vertical.id} owns its Effect contract and typed client surface.`,
-          expected: `${relative(workspace, contract)} and ${relative(workspace, client)}`,
+          expected:
+            'generated contract and topology point to vertical-owned contract/client paths and generated-client operations',
+          actual: {
+            effect: contractEntry.effect,
+            topologyEffect: topologyEntry.api?.effect,
+          },
           suggestion:
             'Generate vertical contract/client files inside the vertical package.',
         },
       ),
       createCheck(
         `full-stack-effect-entry-${vertical.id}`,
-        entrySource.includes('defineEffectBff') &&
-          entrySource.includes(`${vertical.group}EffectApi`) &&
-          entrySource.includes('Effect.withSpan') &&
-          !entrySource.includes('shared-effect-api'),
+        contractEntry.effect?.workerEntry === 'worker/__modern_bff_effect.js' &&
+          topologyEntry.api?.effect?.serverEntry ===
+            `${vertical.path}/api/effect/index.ts` &&
+          !String(topologyEntry.api?.effect?.serverEntry || '').startsWith(
+            'services/',
+          ),
         {
-          file: relative(workspace, entry),
+          file: 'topology/reference-topology.json',
           message: `${vertical.id} implements its Effect BFF inside the vertical package.`,
-          expected: 'defineEffectBff using the vertical-owned Effect API',
+          expected:
+            'topology serverEntry inside apps/remotes/<vertical>/api/effect with Cloudflare worker entry in generated contract',
+          actual: {
+            workerEntry: contractEntry.effect?.workerEntry,
+            serverEntry: topologyEntry.api?.effect?.serverEntry,
+          },
           suggestion:
             'Move default vertical handlers from services/* into apps/remotes/<vertical>/api/effect.',
         },
