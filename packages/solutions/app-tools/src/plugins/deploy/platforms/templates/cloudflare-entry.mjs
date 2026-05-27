@@ -29,8 +29,56 @@ async function fetchAssetByPath(pathname, request, env) {
   return fetchAsset(new Request(url, request), env);
 }
 
+async function fetchAssetByPathFollowingRedirects(
+  pathname,
+  request,
+  env,
+  visited = new Set(),
+) {
+  const normalizedPathname = pathname.startsWith('/')
+    ? pathname
+    : `/${pathname}`;
+
+  if (visited.has(normalizedPathname)) {
+    return null;
+  }
+
+  visited.add(normalizedPathname);
+
+  const response = await fetchAssetByPath(normalizedPathname, request, env);
+
+  if (
+    response &&
+    response.status >= 300 &&
+    response.status < 400 &&
+    response.headers.has('location')
+  ) {
+    const location = response.headers.get('location');
+
+    if (location) {
+      const nextUrl = new URL(location, request.url);
+      const currentUrl = new URL(request.url);
+
+      if (nextUrl.origin === currentUrl.origin) {
+        return fetchAssetByPathFollowingRedirects(
+          nextUrl.pathname,
+          request,
+          env,
+          visited,
+        );
+      }
+    }
+  }
+
+  return response;
+}
+
 async function readAssetText(pathname, request, env) {
-  const response = await fetchAssetByPath(pathname, request, env);
+  const response = await fetchAssetByPathFollowingRedirects(
+    pathname,
+    request,
+    env,
+  );
 
   if (!response || !response.ok) {
     return undefined;

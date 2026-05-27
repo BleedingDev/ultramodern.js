@@ -416,6 +416,56 @@ describe('cloudflare deploy preset', () => {
     });
   });
 
+  it('follows same-origin asset redirects when reading SSR templates', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const publicDirectory = path.join(outputDirectory, 'public');
+    const assetBinding = createAssetBinding(publicDirectory);
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard/settings'),
+      {
+        ASSETS: {
+          fetch: async (request: Request) => {
+            const { pathname } = new URL(request.url);
+
+            if (pathname === '/html/main/index.html') {
+              return new Response(null, {
+                status: 307,
+                headers: {
+                  location: '/html/main/',
+                },
+              });
+            }
+
+            if (pathname === '/html/main/') {
+              return new Response('<!doctype html><html>main</html>', {
+                status: 200,
+                headers: {
+                  'content-type': 'text/html; charset=utf-8',
+                },
+              });
+            }
+
+            return assetBinding.fetch(request);
+          },
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      pathname: '/dashboard/settings',
+      entryName: 'main',
+      htmlTemplate: '<!doctype html><html>main</html>',
+      routeAssetKeys: ['main'],
+      loadableName: 'loadable-fixture',
+    });
+  });
+
   it('falls back to route.bundle modules when route.worker has no request handler export', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
