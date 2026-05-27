@@ -171,9 +171,15 @@ async function createI18nextInstance(): Promise<I18nInstance | null> {
   }
 }
 
+function getOptionalReactI18nextPackageName(): string {
+  return ['react', 'i18next'].join('-');
+}
+
 async function tryImportReactI18next(): Promise<ReactI18nextModule | null> {
   try {
-    return require('react-i18next') as ReactI18nextModule;
+    return (await import(
+      getOptionalReactI18nextPackageName()
+    )) as ReactI18nextModule;
   } catch (error) {
     return null;
   }

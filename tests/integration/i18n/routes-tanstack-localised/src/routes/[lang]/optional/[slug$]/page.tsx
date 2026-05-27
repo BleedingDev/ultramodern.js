@@ -1,13 +1,8 @@
-import { useMatches } from '@modern-js/plugin-tanstack/runtime';
-import type { OptionalData } from './page.data';
-
-const useCurrentLoaderData = <T,>() => {
-  const matches = useMatches() as Array<{ loaderData?: unknown }>;
-  return matches[matches.length - 1]?.loaderData as T;
-};
+import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 
 export default function OptionalPage() {
-  const data = useCurrentLoaderData<OptionalData>();
+  const match = useMatch({ from: '/$lang/volitelne/{-$slug}' });
+  const data = match.loaderData!;
 
   return (
     <div id="optional">
