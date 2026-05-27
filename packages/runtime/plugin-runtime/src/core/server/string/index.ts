@@ -53,6 +53,7 @@ export const renderString: RenderString = async (
       stats: loadableStats,
       nonce: config.nonce,
       routeManifest,
+      runtimeContext,
       template: htmlTemplate,
       entryName,
       chunkSet,

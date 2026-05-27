@@ -1,6 +1,8 @@
 // @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { type Chunk, ChunkExtractor } from '@loadable/server';
 import type { ReactElement } from 'react';
+import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
+import type { TInternalRuntimeContext } from '../../context';
 import { attributesToString, checkIsNode } from '../utils';
 import type { ChunkSet, Collector } from './types';
 
@@ -56,6 +58,7 @@ export interface LoadableCollectorOptions {
   nonce?: string;
   stats?: Record<string, any>;
   routeManifest?: Record<string, any>;
+  runtimeContext: TInternalRuntimeContext;
   template: string;
   entryName: string;
   chunkSet: ChunkSet;
@@ -82,6 +85,24 @@ export class LoadableCollector implements Collector {
   private get existsAssets(): string[] | undefined {
     const { routeManifest, entryName } = this.options;
     return routeManifest?.routeAssets?.[entryName]?.assets;
+  }
+
+  private getMatchedRouteChunks() {
+    const { routeManifest, runtimeContext } = this.options;
+    const routeAssets = routeManifest?.routeAssets;
+    if (!routeAssets) {
+      return [];
+    }
+
+    const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
+    return matchedRouteIds.flatMap(routeId => {
+      const routeAsset = routeAssets[routeId];
+      return (routeAsset?.assets ?? []).map((asset: string) => ({
+        filename: asset.replace(/^\//, ''),
+        path: asset,
+        url: asset,
+      }));
+    });
   }
 
   collect(comopnent: ReactElement): ReactElement {
@@ -116,7 +137,8 @@ export class LoadableCollector implements Collector {
 
     const chunks = ([] as Chunk[])
       .concat(asyncChunks)
-      .concat(extractor.getChunkAssets(extractor.chunks));
+      .concat(extractor.getChunkAssets(extractor.chunks))
+      .concat(this.getMatchedRouteChunks());
     const scriptChunks = generateChunks(chunks, 'js');
     const styleChunks = generateChunks(chunks, 'css');
 

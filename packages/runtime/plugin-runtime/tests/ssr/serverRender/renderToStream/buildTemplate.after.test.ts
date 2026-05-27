@@ -119,4 +119,123 @@ describe('SSRDataCollector (stream parity)', () => {
     expect(html).toContain('window.__STREAM_ROUTER_A__ = true;');
     expect(html).toContain('window.__STREAM_ROUTER_B__ = true;');
   });
+
+  it('should omit nonce attributes from injected async scripts when nonce is absent', async () => {
+    const html = await buildShellAfterTemplate('<!--<?- chunksMap.js ?>-->', {
+      entryName: 'main',
+      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/'),
+      runtimeContext: {
+        routeManifest: {
+          routeAssets: {
+            'async-main': {
+              assets: ['/assets/main.js'],
+            },
+          },
+        },
+        initialData: {},
+        __i18nData__: {},
+        ssrContext: {
+          request: {
+            params: {},
+            query: {},
+            pathname: '/',
+            host: 'localhost',
+            url: 'http://localhost/',
+            headers: {},
+          },
+          reporter: { sessionId: 'session-1' },
+        },
+      } as any,
+      ssrConfig: {} as any,
+      config: {} as any,
+    });
+
+    expect(html).toContain('<script src=/assets/main.js></script>');
+    expect(html).not.toContain('nonce=');
+  });
+
+  it('should include nonce attributes in injected async scripts when nonce is present', async () => {
+    const html = await buildShellAfterTemplate('<!--<?- chunksMap.js ?>-->', {
+      entryName: 'main',
+      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/'),
+      runtimeContext: {
+        routeManifest: {
+          routeAssets: {
+            'async-main': {
+              assets: ['/assets/main.js'],
+            },
+          },
+        },
+        initialData: {},
+        __i18nData__: {},
+        ssrContext: {
+          request: {
+            params: {},
+            query: {},
+            pathname: '/',
+            host: 'localhost',
+            url: 'http://localhost/',
+            headers: {},
+          },
+          reporter: { sessionId: 'session-1' },
+        },
+      } as any,
+      ssrConfig: {} as any,
+      config: {
+        nonce: 'nonce-value',
+      } as any,
+    });
+
+    expect(html).toContain(
+      '<script src=/assets/main.js nonce="nonce-value"></script>',
+    );
+  });
+
+  it('should inject matched route scripts before hydration', async () => {
+    const html = await buildShellAfterTemplate('<!--<?- chunksMap.js ?>-->', {
+      entryName: 'main',
+      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/products/shoe'),
+      runtimeContext: {
+        routerServerSnapshot: {
+          matchedRouteIds: ['layout', 'products/$slug'],
+        },
+        routeManifest: {
+          routeAssets: {
+            layout: {
+              assets: ['/assets/layout.js'],
+            },
+            'products/$slug': {
+              assets: ['/assets/product.js', '/assets/product.css'],
+            },
+            'async-main': {
+              assets: ['/assets/main.js'],
+            },
+          },
+        },
+        initialData: {},
+        __i18nData__: {},
+        ssrContext: {
+          request: {
+            params: {},
+            query: {},
+            pathname: '/products/shoe',
+            host: 'localhost',
+            url: 'http://localhost/products/shoe',
+            headers: {},
+          },
+          reporter: { sessionId: 'session-1' },
+        },
+      } as any,
+      ssrConfig: {} as any,
+      config: {} as any,
+    });
+
+    expect(html).toContain('<script src=/assets/layout.js></script>');
+    expect(html).toContain('<script src=/assets/product.js></script>');
+    expect(html).toContain('<script src=/assets/main.js></script>');
+    expect(html).not.toContain('/assets/product.css');
+  });
 });

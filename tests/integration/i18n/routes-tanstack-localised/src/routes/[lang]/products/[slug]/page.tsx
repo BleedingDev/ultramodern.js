@@ -1,13 +1,22 @@
-import { useMatches } from '@modern-js/plugin-tanstack/runtime';
+import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import type { ProductData } from './page.data';
 
-const useCurrentLoaderData = <T,>() => {
-  const matches = useMatches() as Array<{ loaderData?: unknown }>;
-  return matches[matches.length - 1]?.loaderData as T;
+const useProductLoaderData = () => {
+  const canonicalMatch = useMatch({
+    from: '/$lang/products/$slug',
+    shouldThrow: false,
+  });
+  const localisedMatch = useMatch({
+    from: '/$lang/produkty/$slug',
+    shouldThrow: false,
+  });
+
+  return (canonicalMatch?.loaderData ||
+    localisedMatch?.loaderData) as ProductData;
 };
 
 export default function ProductPage() {
-  const data = useCurrentLoaderData<ProductData>();
+  const data = useProductLoaderData();
 
   return (
     <main>

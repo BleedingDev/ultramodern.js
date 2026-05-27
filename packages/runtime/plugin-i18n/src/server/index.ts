@@ -490,33 +490,15 @@ export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
               const localisedUrlsConfig =
                 resolveLocalisedUrlsConfig(localisedUrls);
               if (localisedUrlsConfig.enabled) {
-                const basePath = originUrlPath.replace('/*', '');
-                const remainingPath = pathname.startsWith(basePath)
-                  ? pathname.slice(basePath.length)
-                  : pathname;
-                const pathWithoutLanguage = remainingPath
-                  .split('/')
-                  .filter(Boolean)
-                  .slice(1)
-                  .join('/');
-                const canonicalLocalizedPath = resolveLocalisedPath(
-                  `/${pathWithoutLanguage}`,
+                const expectedUrl = buildLocalizedUrl(
+                  c.req,
+                  originUrlPath,
                   language,
                   languages,
-                  localisedUrlsConfig.map,
+                  localisedUrls,
                 );
-                const expectedPathname =
-                  basePath === '/'
-                    ? `/${language}${canonicalLocalizedPath === '/' ? '' : canonicalLocalizedPath}`
-                    : `${basePath}/${language}${
-                        canonicalLocalizedPath === '/'
-                          ? ''
-                          : canonicalLocalizedPath
-                      }`;
-                if (expectedPathname !== pathname) {
-                  return c.redirect(
-                    `${expectedPathname}${url.search}${url.hash}`,
-                  );
+                if (expectedUrl !== `${pathname}${url.search}${url.hash}`) {
+                  return c.redirect(expectedUrl);
                 }
               }
               await next();

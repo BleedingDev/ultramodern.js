@@ -2,7 +2,10 @@
 import { serializeJson } from '@modern-js/runtime-utils/node';
 import type { HeadersData } from '@modern-js/runtime-utils/universal/request';
 import type { IncomingHttpHeaders } from 'http';
-import { getRouterHydrationScripts } from '../../../router/runtime/lifecycle';
+import {
+  getRouterHydrationScripts,
+  getRouterMatchedRouteIds,
+} from '../../../router/runtime/lifecycle';
 import { type RenderLevel, SSR_DATA_JSON_ID } from '../../constants';
 import type { TInternalRuntimeContext } from '../../context';
 import type { SSRContainer } from '../../types';
@@ -44,18 +47,25 @@ export function buildShellAfterTemplate(
     if (!routeManifest) return template;
     const { routeAssets } = routeManifest;
     if (!routeAssets) return template;
-    const asyncEntry = routeAssets[`async-${entryName}`];
-    if (asyncEntry) {
-      const { assets } = asyncEntry;
-      const jsChunkStr = assets
-        ?.filter((asset: string) => asset.endsWith('.js'))
-        ?.map((asset: string) => {
-          return `<script src=${asset} nonce="${nonce}"></script>`;
-        })
-        .join(' ');
-      if (jsChunkStr) {
-        return safeReplace(template, '<!--<?- chunksMap.js ?>-->', jsChunkStr);
-      }
+    const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
+    const assetEntries = [
+      ...matchedRouteIds.map(routeId => routeAssets[routeId]),
+      routeAssets[`async-${entryName}`],
+    ].filter(Boolean);
+    const jsAssets = Array.from(
+      new Set(
+        assetEntries.flatMap(entry =>
+          (entry.assets ?? []).filter((asset: string) => asset.endsWith('.js')),
+        ),
+      ),
+    );
+    const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
+    const jsChunkStr = jsAssets
+      .filter(asset => !template.includes(asset))
+      .map(asset => `<script src=${asset}${nonceAttr}></script>`)
+      .join(' ');
+    if (jsChunkStr) {
+      return safeReplace(template, '<!--<?- chunksMap.js ?>-->', jsChunkStr);
     }
     return template;
   }
