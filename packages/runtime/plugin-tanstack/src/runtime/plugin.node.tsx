@@ -26,7 +26,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { attachRouterServerSsrUtils } from '@tanstack/react-router/ssr/server';
+import { attachRouterServerSsrUtils } from '@tanstack/router-core/ssr/server';
 import type React from 'react';
 import { Suspense, useContext } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
@@ -119,6 +119,17 @@ type PreloadableRouteComponent = {
   preload?: (props?: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
+type ReactLazyRouteComponent = {
+  _init?: (payload: unknown) => unknown;
+  _payload?: unknown;
+};
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return Boolean(
+    value && typeof (value as PromiseLike<unknown>).then === 'function',
+  );
+}
+
 type TanstackRouterWithServerSsr = AnyRouter & {
   resolveRedirect?: (redirect: Response) => Response;
   routesById?: Record<string, RouterRouteWithOptions>;
@@ -149,7 +160,37 @@ function isPreloadableRouteComponent(
   );
 }
 
+function isReactLazyRouteComponent(
+  component: unknown,
+): component is ReactLazyRouteComponent {
+  return (
+    Boolean(component) &&
+    typeof component === 'object' &&
+    typeof (component as ReactLazyRouteComponent)._init === 'function' &&
+    '_payload' in component
+  );
+}
+
+async function preloadReactLazyRouteComponent(
+  component: ReactLazyRouteComponent,
+) {
+  try {
+    component._init?.(component._payload);
+  } catch (thrown) {
+    if (!isPromiseLike(thrown)) {
+      throw thrown;
+    }
+    await thrown;
+    component._init?.(component._payload);
+  }
+}
+
 async function preloadRouteComponent(component: unknown) {
+  if (isReactLazyRouteComponent(component)) {
+    await preloadReactLazyRouteComponent(component);
+    return;
+  }
+
   if (!isPreloadableRouteComponent(component)) {
     return;
   }

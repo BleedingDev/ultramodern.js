@@ -1,8 +1,9 @@
 // @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
 // 用于 react-helmet 正则替换
-import { EOL } from 'os';
 import type { HelmetData } from 'react-helmet';
 import { safeReplace } from './utils';
+
+const EOL = '\n';
 
 const RE_HTML_ATTR = /<html[^>]*>/;
 const RE_BODY_ATTR = /<body[^>]*>/;

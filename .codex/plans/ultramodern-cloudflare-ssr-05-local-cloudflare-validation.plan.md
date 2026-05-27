@@ -4,25 +4,25 @@ overview: Prove the generated full-stack micro-vertical works in local Worker pr
 todos:
   - id: create-generated-fixture
     content: "Generate or reuse the smallest UltraModern workspace with shell, one full-stack remote, TanStack routes, mandatory i18n, MF SSR, and Effect BFF enabled."
-    status: pending
+    status: completed
   - id: build-worker-output
     content: "Build the remote and shell with the Cloudflare deploy target and verify the output includes Worker entry, public assets, locale assets, route metadata, MF manifest, and server render bundles."
-    status: pending
+    status: completed
   - id: run-wrangler-preview
     content: "Run Wrangler or Miniflare local preview for the Worker output without corepack and capture startup logs, compatibility flags, asset binding behavior, and local URL."
-    status: pending
+    status: completed
   - id: assert-translated-ssr
     content: "Assert /en and /cs SSR responses contain localized content, correct canonical/hreflang behavior where generated, and no hydration-breaking asset path errors."
-    status: pending
+    status: completed
   - id: assert-mf-and-assets
     content: "Assert /mf-manifest.json, JS/CSS assets, route assets, and /locales/* resolve with expected content types and cache-safe behavior."
-    status: pending
+    status: completed
   - id: assert-effect-bff
     content: "Assert the package-owned Effect endpoint returns JSON with the expected version/build marker and that SSR UI marker and BFF marker match the same generated vertical artifact."
-    status: pending
+    status: completed
   - id: add-regression-command
     content: "Add a repeatable local regression command or test harness that runs the build/preview/assertion sequence without requiring Zephyr credentials."
-    status: pending
+    status: completed
 isProject: true
 ---
 

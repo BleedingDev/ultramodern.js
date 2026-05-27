@@ -40,5 +40,13 @@ export default defineConfig({
         },
       },
     },
+    {
+      ...sharedConfig,
+      source: {
+        entry: {
+          rscWorker: './src/rsc.worker.ts',
+        },
+      },
+    },
   ],
 });

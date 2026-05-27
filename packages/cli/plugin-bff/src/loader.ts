@@ -33,6 +33,26 @@ export type APILoaderOptions = {
   };
 };
 
+async function transformEffectRuntimeSource(source: string, filename: string) {
+  const swc = await import('@swc/core');
+  const result = await swc.transform(source, {
+    filename,
+    sourceMaps: false,
+    jsc: {
+      parser: {
+        syntax: 'typescript',
+        tsx: filename.endsWith('.tsx') || filename.endsWith('.jsx'),
+      },
+      target: 'es2022',
+    },
+    module: {
+      type: 'es6',
+    },
+  });
+
+  return result.code;
+}
+
 async function loader(
   this: Rspack.LoaderContext<APILoaderOptions>,
   source: string,
@@ -51,6 +71,17 @@ async function loader(
     apiDir: draftOptions.apiDir,
     effectEntry: draftOptions.effectEntry,
   });
+
+  if (
+    draftOptions.bffRuntimeFramework === 'effect' &&
+    effectEntryFile &&
+    path.resolve(effectEntryFile) === path.resolve(resourcePath) &&
+    this.resourceQuery.includes('modern-bff-runtime')
+  ) {
+    const code = await transformEffectRuntimeSource(source, resourcePath);
+    callback(undefined, code);
+    return;
+  }
 
   if (
     draftOptions.bffRuntimeFramework === 'effect' &&

@@ -15,7 +15,9 @@ function convertPath(path: string | undefined): string | undefined {
   }
   // If it's an absolute path (starts with /), convert to relative path
   if (path.startsWith('/')) {
-    return `${window.__assetPrefix__ || ''}${path}`;
+    return typeof window === 'undefined'
+      ? path
+      : `${window.__assetPrefix__ || ''}${path}`;
   }
   return path;
 }

@@ -4,22 +4,22 @@ overview: Update UltraModern workspace generation so full-stack remotes opt into
 todos:
   - id: update-generator-dependencies
     content: "Update generated workspace dependencies and version constants for the Cloudflare/Zephyr SSR path, including zephyr-agent if needed, current zephyr-rspack-plugin, wrangler, and any Worker preview dependency; keep TypeScript 6/7 native-preview expectations explicit."
-    status: pending
+    status: completed
   - id: generate-worker-config
     content: "Generate Modern config for full-stack verticals that enables stream SSR, moduleFederationAppSSR, deploy.worker.ssr, Effect BFF runtime, flat output, mandatory i18n, and Cloudflare-compatible output without custom runtime boot hacks."
-    status: pending
+    status: completed
   - id: generate-version-markers
     content: "Generate deterministic UI and Effect BFF version/build markers so runtime tests can prove selected UI and selected API behavior come from the same vertical artifact."
-    status: pending
+    status: completed
   - id: generate-package-scripts
     content: "Add only necessary package scripts for build, preview, and opt-in Zephyr SSR evidence while avoiding duplicated package-manager sources of truth and avoiding corepack."
-    status: pending
+    status: completed
   - id: update-doctor-and-validator
     content: "Update contract doctor and generator integration tests to assert structured package metadata, generated config outputs, build artifacts, HTTP behavior, and absence of source-content-only checks."
     status: pending
   - id: preserve-vanilla-modernjs-profile
     content: "Update ADR and generator guidance so Cloudflare/Zephyr SSR is an official deploy profile on top of Modern.js primitives, not a private boot-time mutation layer."
-    status: pending
+    status: completed
 isProject: true
 ---
 

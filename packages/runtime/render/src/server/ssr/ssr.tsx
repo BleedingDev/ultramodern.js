@@ -62,9 +62,13 @@ export const renderSSRStream = async (
   }
 
   try {
+    const rscRuntime =
+      process.env.MODERN_SSR_ENV === 'edge'
+        ? import('@modern-js/render/rsc-worker')
+        : import('@modern-js/render/rsc');
     const [{ renderRsc }, { createFromReadableStream }, { injectRSCPayload }] =
       await Promise.all([
-        import('@modern-js/render/rsc'),
+        rscRuntime,
         import('react-server-dom-rspack/client.edge'),
         import('../../rsc-html-stream/server'),
       ]);

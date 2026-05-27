@@ -14,6 +14,10 @@ minimumReleaseAgeExclude:
   - '@effect/tsgo-*'
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
+  - '@cloudflare/*'
+  - miniflare
+  - workerd
+  - wrangler
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 1440
 blockExoticSubdeps: true

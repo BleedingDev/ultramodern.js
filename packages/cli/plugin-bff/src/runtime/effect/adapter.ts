@@ -13,20 +13,17 @@ import {
   isProd,
   logger,
 } from '@modern-js/utils';
-import type * as EffectServiceContext from 'effect/Context';
-import { HttpApi } from 'effect/unstable/httpapi';
 import path from 'path';
 import {
   createEffectOperationContext,
   type EffectContext,
   runWithEffectContext,
 } from './context';
-import type {
-  EffectBffOpenApiConfig,
-  EffectDataPlatformValidationOptions,
-  EffectRuntimeLayer,
-} from './index';
-import { createHttpApiHandler } from './index';
+import {
+  type EffectApiModule,
+  type EffectBffRequestHandler,
+  resolveEffectBffModuleHandler,
+} from './module';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 
@@ -50,31 +47,7 @@ type ContextWithJson = Context & {
   json?: (data: unknown, status?: number, headers?: HeadersInit) => Response;
 };
 
-type RequestHandler = (
-  request: Request,
-  context?: EffectServiceContext.Context<never> | EffectContext,
-) => Promise<Response> | Response;
-
-type EffectApiModule = {
-  api?: unknown;
-  layer?: unknown;
-  handler?: RequestHandler;
-  createHandler?: EffectHandlerFactory;
-  default?: unknown;
-};
-
-type EffectHandlerFactory = (options?: {
-  openapi?: EffectBffOpenApiConfig;
-  dataPlatform?: EffectDataPlatformValidationOptions;
-}) => {
-  handler: RequestHandler;
-  dispose: () => Promise<void>;
-};
-
-type LoadedHandler = {
-  handler: RequestHandler;
-  dispose?: () => Promise<void>;
-};
+type RequestHandler = EffectBffRequestHandler;
 
 function normalizePrefix(prefix: string) {
   if (prefix === '/') {
@@ -105,44 +78,8 @@ function createRequestForMountedPrefix(req: Request, prefix: string) {
   return new Request(url, req);
 }
 
-function isRequestHandler(value: unknown): value is RequestHandler {
-  return typeof value === 'function';
-}
-
 function maybeResponse(value: unknown): value is Response {
   return value instanceof Response;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function includesRuntimeExports(value: Record<string, unknown>) {
-  return (
-    'api' in value ||
-    'layer' in value ||
-    'createHandler' in value ||
-    'handler' in value
-  );
-}
-
-function isHttpApiWithProps(value: unknown): value is HttpApi.AnyWithProps {
-  return (
-    HttpApi.isHttpApi(value) &&
-    isRecord(value) &&
-    typeof value.identifier === 'string' &&
-    isRecord(value.groups)
-  );
-}
-
-function isEffectApiDefinition(module: EffectApiModule): module is {
-  api: HttpApi.AnyWithProps;
-  layer: EffectRuntimeLayer;
-  handler?: RequestHandler;
-  createHandler?: EffectHandlerFactory;
-  default?: unknown;
-} {
-  return isHttpApiWithProps(module.api) && module.layer !== undefined;
 }
 
 export class EffectAdapter {
@@ -265,98 +202,14 @@ export class EffectAdapter {
     return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
   }
 
-  private async loadEffectHandlerFromModule(
-    mod: EffectApiModule,
-  ): Promise<LoadedHandler | null> {
-    let normalizedModule = mod;
-    const mergeRuntimeExports = (value: unknown) => {
-      if (!isRecord(value) || !includesRuntimeExports(value)) {
-        return;
-      }
-      normalizedModule = {
-        ...normalizedModule,
-        ...value,
-      };
-    };
-
-    if (isRequestHandler(normalizedModule.handler)) {
-      return {
-        handler: normalizedModule.handler,
-      };
-    }
-
-    const entry = normalizedModule.default;
-    if (isRequestHandler(entry)) {
-      return {
-        handler: entry,
-      };
-    }
-
-    if (typeof entry === 'function' && entry.length === 0) {
-      const out = await entry();
-      if (isRequestHandler(out)) {
-        return {
-          handler: out,
-        };
-      }
-      mergeRuntimeExports(out);
-    }
-
-    if (isRecord(entry)) {
-      normalizedModule = {
-        ...normalizedModule,
-        ...entry,
-      };
-    }
-
-    if (isRecord(entry) && 'handler' in entry) {
-      const maybeHandler = entry.handler;
-      if (isRequestHandler(maybeHandler)) {
-        normalizedModule = {
-          ...normalizedModule,
-          handler: maybeHandler,
-        };
-      }
-    }
-
-    if (isRequestHandler(normalizedModule.handler)) {
-      return {
-        handler: normalizedModule.handler,
-      };
-    }
-
-    if (typeof normalizedModule.createHandler === 'function') {
-      const webHandler = normalizedModule.createHandler({
-        openapi: this.api.getServerConfig()?.bff?.effect?.openapi,
-        dataPlatform: this.api.getServerConfig()?.bff?.effect?.dataPlatform,
-      });
-      return {
-        handler: async request => webHandler.handler(request),
-        dispose: async () => {
-          await webHandler.dispose();
-        },
-      };
-    }
-
-    if (isEffectApiDefinition(normalizedModule)) {
-      logger.warn(
-        '[BFF][Effect] Detected { api, layer } export without createHandler. Prefer `defineEffectBff(...)` from @modern-js/plugin-bff/server to avoid module instance mismatch.',
-      );
-      const webHandler = createHttpApiHandler({
-        api: normalizedModule.api,
-        layer: normalizedModule.layer,
-        openapi: this.api.getServerConfig()?.bff?.effect?.openapi,
-        dataPlatform: this.api.getServerConfig()?.bff?.effect?.dataPlatform,
-      });
-      return {
-        handler: async request => webHandler.handler(request),
-        dispose: async () => {
-          await webHandler.dispose();
-        },
-      };
-    }
-
-    return null;
+  private async loadEffectHandlerFromModule(mod: EffectApiModule) {
+    return resolveEffectBffModuleHandler(mod, {
+      openapi: this.api.getServerConfig()?.bff?.effect?.openapi,
+      dataPlatform: this.api.getServerConfig()?.bff?.effect?.dataPlatform,
+      onWarning: message => {
+        logger.warn(message);
+      },
+    });
   }
 
   private async reloadHandler() {

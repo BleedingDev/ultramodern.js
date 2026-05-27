@@ -38,7 +38,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260525.1",
+    "@typescript/native-preview": "7.0.0-dev.20260526.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-server-dom-rspack": "0.0.2"
@@ -57,6 +57,10 @@
       "types": "./dist/types/server/rsc/index.d.ts",
       "default": "./dist/esm/rsc.mjs"
     },
+    "./rsc-worker": {
+      "types": "./dist/types/rsc.worker.d.ts",
+      "default": "./dist/esm/rscWorker.mjs"
+    },
     "./client": {
       "types": "./dist/types/client/index.d.ts",
       "default": "./dist/esm/client.mjs"
@@ -69,6 +73,9 @@
       ],
       "rsc": [
         "./dist/types/server/rsc/index.d.ts"
+      ],
+      "rsc-worker": [
+        "./dist/types/rsc.worker.d.ts"
       ],
       "client": [
         "./dist/types/client/index.d.ts"

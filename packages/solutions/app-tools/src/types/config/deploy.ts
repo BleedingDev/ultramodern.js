@@ -27,7 +27,20 @@ export interface MicroFrontend {
   attestation?: string;
 }
 
+export type DeployTarget =
+  | 'node'
+  | 'vercel'
+  | 'netlify'
+  | 'ghPages'
+  | 'cloudflare';
+
 export interface DeployUserConfig {
+  /**
+   * Selects the deploy output preset.
+   * `MODERNJS_DEPLOY` still overrides provider auto-detection when set.
+   * @default node
+   */
+  target?: DeployTarget;
   /**
    * Used to configure micro-frontend sub-application information.
    * @default false

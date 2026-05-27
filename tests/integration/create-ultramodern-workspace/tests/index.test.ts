@@ -60,7 +60,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     'minimumReleaseAge: 1440',
     'minimumReleaseAgeStrict: true',
     'minimumReleaseAgeIgnoreMissingTime: false',
-    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
+    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'\n  - '@cloudflare/*'\n  - miniflare\n  - workerd\n  - wrangler",
     "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
     "overrides:\n  '@tanstack/react-router': 1.170.8\n  node-fetch: '^3.3.2'",
     'trustPolicy: no-downgrade',
@@ -273,21 +273,30 @@ void verifyClientRejections;
     `import {
   Effect,
   HttpApiBuilder,
-} from '@modern-js/plugin-bff/effect-server';
+} from '@modern-js/plugin-bff/effect-edge';
 import {
   RecommendationNotFound,
   recommendationsEffectApi,
 } from '@ultra-workspace/remote-commerce/shared/effect/api';
 
+const marker = {
+  appId: 'remote-commerce',
+  packageName: '@ultra-workspace/remote-commerce',
+  version: '0.1.0',
+  build: 'type-contract-marker',
+  deployProfile: 'cloudflare-ssr-mf-effect-v1',
+  surface: 'effect-bff',
+};
+
 HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
   handlers
-    .handle('list', () => Effect.succeed({ items: [] }))
+    .handle('list', () => Effect.succeed({ items: [{ id: 'starter-recommendations', marker, title: 'Starter recommendations' }] }))
     .handle('get', ({ params }) =>
-      Effect.succeed({ id: params.id, title: 'Starter recommendations' }),
+      Effect.succeed({ id: params.id, marker, title: 'Starter recommendations' }),
     )
     .handle('create', ({ payload }) =>
       Effect.succeed({
-        item: { id: 'generated-recommendation', title: payload.title },
+        item: { id: 'generated-recommendation', marker, title: payload.title },
       }),
     )
     // @ts-expect-error unknown handler names are rejected by the vertical contract.
@@ -302,6 +311,7 @@ HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
         items: [
           {
             id: 'starter-recommendations',
+            marker,
             title: 123,
           },
         ],
@@ -309,12 +319,12 @@ HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
     )
     .handle('get', ({ params }) =>
       params.id === 'starter-recommendations'
-        ? Effect.succeed({ id: params.id, title: 'Starter recommendations' })
+        ? Effect.succeed({ id: params.id, marker, title: 'Starter recommendations' })
         : Effect.fail(new RecommendationNotFound({ id: params.id })),
     )
     .handle('create', ({ payload }) =>
       Effect.succeed({
-        item: { id: 'generated-recommendation', title: payload.title },
+        item: { id: 'generated-recommendation', marker, title: payload.title },
       }),
     ),
 );
@@ -400,12 +410,14 @@ describe('create-ultramodern-workspace', () => {
       'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern-generated-contract.json',
       'topology/reference-topology.json',
       'topology/ownership.json',
       'topology/local-overlays/development.json',
       'apps/shell-super-app/package.json',
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
+      'apps/shell-super-app/src/ultramodern-build.ts',
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
       'apps/shell-super-app/locales/en/translation.json',
@@ -414,6 +426,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-commerce/package.json',
       'apps/remotes/remote-commerce/modern.config.ts',
       'apps/remotes/remote-commerce/module-federation.config.ts',
+      'apps/remotes/remote-commerce/src/ultramodern-build.ts',
       'apps/remotes/remote-commerce/postcss.config.mjs',
       'apps/remotes/remote-commerce/tailwind.config.ts',
       'apps/remotes/remote-commerce/api/effect/index.ts',
@@ -426,6 +439,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-identity/package.json',
       'apps/remotes/remote-identity/modern.config.ts',
       'apps/remotes/remote-identity/module-federation.config.ts',
+      'apps/remotes/remote-identity/src/ultramodern-build.ts',
       'apps/remotes/remote-identity/postcss.config.mjs',
       'apps/remotes/remote-identity/tailwind.config.ts',
       'apps/remotes/remote-identity/api/effect/index.ts',
@@ -438,6 +452,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-design-system/package.json',
       'apps/remotes/remote-design-system/modern.config.ts',
       'apps/remotes/remote-design-system/module-federation.config.ts',
+      'apps/remotes/remote-design-system/src/ultramodern-build.ts',
       'apps/remotes/remote-design-system/postcss.config.mjs',
       'apps/remotes/remote-design-system/tailwind.config.ts',
       'apps/remotes/remote-design-system/locales/en/translation.json',
@@ -486,6 +501,9 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts.build).toBe(
       'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
     );
+    expect(rootPackage.scripts['cloudflare:build']).toBe(
+      'pnpm -r --filter "./apps/remotes/**" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
+    );
     expect(rootPackage.scripts.format).toBe('oxfmt .');
     expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
     expect(rootPackage.scripts.lint).toBe('oxlint .');
@@ -503,10 +521,12 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.11.0',
-      '@typescript/native-preview': '7.0.0-dev.20260525.1',
+      '@typescript/native-preview': '7.0.0-dev.20260526.1',
       oxlint: '1.66.0',
       oxfmt: '0.51.0',
       ultracite: '7.7.0',
+      wrangler: '4.95.0',
+      'zephyr-agent': '1.1.1',
     });
 
     const agentsInstructions = readText(workspaceDir, 'AGENTS.md');
@@ -593,10 +613,11 @@ describe('create-ultramodern-workspace', () => {
       );
       expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.11.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260525.1',
+        '7.0.0-dev.20260526.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
+      expect(packageJson.devDependencies.wrangler).toBe('4.95.0');
       expect(
         packageJson.devDependencies['zephyr-modernjs-plugin'],
       ).toBeUndefined();
@@ -610,6 +631,12 @@ describe('create-ultramodern-workspace', () => {
         packagePath.includes('/remotes/')
           ? 'modern build && node ../../../scripts/assert-mf-types.mjs'
           : 'modern build',
+      );
+      expect(packageJson.scripts['cloudflare:build']).toBe(
+        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy',
+      );
+      expect(packageJson.scripts['cloudflare:preview']).toBe(
+        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy && wrangler dev --config .output/wrangler.json',
       );
       expect(packageJson.scripts.serve).toBe('modern serve');
       expect(
@@ -770,20 +797,50 @@ describe('create-ultramodern-workspace', () => {
       expect(clientSource).toContain(`${vertical.group}EffectApi`);
       expect(clientSource).toContain(`${vertical.group}OperationContexts`);
 
-      const apiEntry = readText(
+      const generatedContract = readJson(
         workspaceDir,
-        `${vertical.path}/api/effect/index.ts`,
+        '.modernjs/ultramodern-generated-contract.json',
       );
-      expect(apiEntry).toContain('defineEffectBff');
-      expect(apiEntry).toContain(`${vertical.group}EffectApi`);
-      expect(apiEntry).toContain('useEffectContext');
-      expect(apiEntry).toContain('Effect.withSpan');
-      expect(apiEntry).toContain('modernjs.operation.route');
-      expect(apiEntry).toContain(".handle('get'");
-      expect(apiEntry).toContain(".handle('create'");
-      expect(apiEntry).not.toContain('_tag');
-      expect(apiEntry).not.toContain('shared-effect-api');
-      expect(apiEntry).toContain("from '../../shared/effect/api'");
+      const contractEntry = generatedContract.apps.find(
+        (app: { id: string }) => app.id === vertical.id,
+      );
+      expect(contractEntry).toMatchObject({
+        deploy: {
+          target: 'cloudflare',
+          worker: {
+            ssr: true,
+          },
+          output: {
+            flat: true,
+            htmlDistPath: './',
+          },
+        },
+        ssr: {
+          mode: 'stream',
+          moduleFederationAppSSR: true,
+        },
+        effect: {
+          runtime: 'effect',
+          import: '@modern-js/plugin-bff/effect-edge',
+          prefix: vertical.apiPrefix,
+          workerEntry: 'worker/__modern_bff_effect.js',
+          contract: './shared/effect/api',
+          client: './effect/client',
+        },
+        marker: {
+          appId: vertical.id,
+          version: '0.1.0',
+          deployProfile: 'cloudflare-ssr-mf-effect-v1',
+          uiSurface: 'ui',
+          apiSurface: 'effect-bff',
+        },
+      });
+      expect(contractEntry.moduleFederation.exposes).toEqual(
+        expect.arrayContaining(['./Widget', './Route']),
+      );
+      expect(contractEntry.moduleFederation.exposes).toHaveLength(2);
+      expect(contractEntry.moduleFederation.browserSafeExposesOnly).toBe(true);
+      expect(contractEntry.marker.build).toMatch(/^[a-f0-9]{16}$/);
     }
 
     const sharedEffectApi = readText(

@@ -63,7 +63,7 @@
     "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260525.1"
+    "@typescript/native-preview": "7.0.0-dev.20260526.1"
   },
   "sideEffects": false,
   "publishConfig": {

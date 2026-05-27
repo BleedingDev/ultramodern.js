@@ -1,0 +1,454 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-27T02:23:47.511Z",
+  "status": "pass",
+  "rootDir": "/tmp/ultramodern-cloudflare-final-real-JLjVXI/ultra-workspace/apps/remotes/remote-commerce",
+  "outputDir": "/tmp/ultramodern-cloudflare-final-real-JLjVXI/ultra-workspace/apps/remotes/remote-commerce/.output",
+  "publicDir": "/tmp/ultramodern-cloudflare-final-real-JLjVXI/ultra-workspace/apps/remotes/remote-commerce/.output/public",
+  "wrangler": {
+    "main": "server/index.mjs",
+    "compatibilityDate": "2026-05-27",
+    "assets": {
+      "directory": "./public",
+      "binding": "ASSETS"
+    }
+  },
+  "manifest": {
+    "version": 1,
+    "runtime": {
+      "type": "cloudflare-module-worker",
+      "entry": "server/index.mjs",
+      "fetchExport": true,
+      "nodeListen": false
+    },
+    "assets": {
+      "binding": "ASSETS",
+      "directory": "./public"
+    },
+    "routeSpec": {
+      "file": "server/route.json",
+      "routes": [
+        {
+          "urlPath": "/",
+          "entryName": "index",
+          "entryPath": "index.html",
+          "isSSR": true,
+          "worker": "worker/index.js",
+          "bundle": "bundles/index.js",
+          "workerExists": true,
+          "bundleExists": true
+        },
+        {
+          "urlPath": "/commerce-api",
+          "entryPath": "",
+          "isSSR": false,
+          "workerExists": false,
+          "bundleExists": false
+        }
+      ]
+    },
+    "workerBundles": {
+      "directory": "worker",
+      "format": "esm",
+      "importableFromModuleWorker": true,
+      "requestHandlerExport": "requestHandler"
+    },
+    "resources": {
+      "loadableStats": "loadable-stats.json",
+      "routeManifest": "routes-manifest.json"
+    },
+    "bff": {
+      "runtimeFramework": "effect",
+      "prefix": "/commerce-api",
+      "worker": "worker/__modern_bff_effect.js"
+    }
+  },
+  "files": {
+    "public": [
+      ".rsdoctor/chunkGraph/0",
+      ".rsdoctor/configs/0",
+      ".rsdoctor/envinfo/0",
+      ".rsdoctor/errors/0",
+      ".rsdoctor/loader/0",
+      ".rsdoctor/manifest.json",
+      ".rsdoctor/moduleCodeMap/0",
+      ".rsdoctor/moduleGraph/0",
+      ".rsdoctor/otherReports/0",
+      ".rsdoctor/packageGraph/0",
+      ".rsdoctor/plugin/0",
+      ".rsdoctor/resolver/0",
+      ".rsdoctor/summary/0",
+      "@mf-types.d.ts",
+      "@mf-types.zip",
+      "@mf-types/Route.d.ts",
+      "@mf-types/Widget.d.ts",
+      "@mf-types/compiled-types/src/components/commerce-widget.d.ts",
+      "@mf-types/compiled-types/src/remote-entry.d.ts",
+      "index.html",
+      "locales/cs/translation.json",
+      "locales/en/translation.json",
+      "mf-manifest.json",
+      "mf-stats.json",
+      "modern.config.json",
+      "nestedRoutes.json",
+      "remoteEntry.js",
+      "remoteEntry.js.br",
+      "remoteEntry.js.gz",
+      "remoteEntry.js.map",
+      "remoteEntry.js.map.br",
+      "remoteEntry.js.map.gz",
+      "routes-manifest.json",
+      "static/css/async/async-index.233e1f0ba9.css",
+      "static/js/async/101.cbfb5bf603.js",
+      "static/js/async/101.cbfb5bf603.js.br",
+      "static/js/async/101.cbfb5bf603.js.gz",
+      "static/js/async/101.cbfb5bf603.js.map",
+      "static/js/async/101.cbfb5bf603.js.map.br",
+      "static/js/async/101.cbfb5bf603.js.map.gz",
+      "static/js/async/156.0958ddc8e6.js",
+      "static/js/async/156.0958ddc8e6.js.LICENSE.txt",
+      "static/js/async/156.0958ddc8e6.js.br",
+      "static/js/async/156.0958ddc8e6.js.gz",
+      "static/js/async/156.0958ddc8e6.js.map",
+      "static/js/async/156.0958ddc8e6.js.map.br",
+      "static/js/async/156.0958ddc8e6.js.map.gz",
+      "static/js/async/188.7a504f8218.js",
+      "static/js/async/188.7a504f8218.js.LICENSE.txt",
+      "static/js/async/188.7a504f8218.js.br",
+      "static/js/async/188.7a504f8218.js.gz",
+      "static/js/async/188.7a504f8218.js.map",
+      "static/js/async/188.7a504f8218.js.map.br",
+      "static/js/async/188.7a504f8218.js.map.gz",
+      "static/js/async/210.b0dff8450d.js",
+      "static/js/async/210.b0dff8450d.js.map",
+      "static/js/async/243.fc34389db7.js",
+      "static/js/async/243.fc34389db7.js.LICENSE.txt",
+      "static/js/async/243.fc34389db7.js.br",
+      "static/js/async/243.fc34389db7.js.gz",
+      "static/js/async/243.fc34389db7.js.map",
+      "static/js/async/243.fc34389db7.js.map.br",
+      "static/js/async/243.fc34389db7.js.map.gz",
+      "static/js/async/25.3b4acd2c40.js",
+      "static/js/async/25.3b4acd2c40.js.br",
+      "static/js/async/25.3b4acd2c40.js.gz",
+      "static/js/async/25.3b4acd2c40.js.map",
+      "static/js/async/25.3b4acd2c40.js.map.br",
+      "static/js/async/25.3b4acd2c40.js.map.gz",
+      "static/js/async/267.6edc27a481.js",
+      "static/js/async/267.6edc27a481.js.LICENSE.txt",
+      "static/js/async/267.6edc27a481.js.map",
+      "static/js/async/267.6edc27a481.js.map.br",
+      "static/js/async/267.6edc27a481.js.map.gz",
+      "static/js/async/438.ef6e829bb8.js",
+      "static/js/async/438.ef6e829bb8.js.map",
+      "static/js/async/438.ef6e829bb8.js.map.br",
+      "static/js/async/438.ef6e829bb8.js.map.gz",
+      "static/js/async/56.eae288ef60.js",
+      "static/js/async/56.eae288ef60.js.br",
+      "static/js/async/56.eae288ef60.js.gz",
+      "static/js/async/56.eae288ef60.js.map",
+      "static/js/async/56.eae288ef60.js.map.br",
+      "static/js/async/56.eae288ef60.js.map.gz",
+      "static/js/async/571.7e7a1bd8e9.js",
+      "static/js/async/571.7e7a1bd8e9.js.LICENSE.txt",
+      "static/js/async/571.7e7a1bd8e9.js.br",
+      "static/js/async/571.7e7a1bd8e9.js.gz",
+      "static/js/async/571.7e7a1bd8e9.js.map",
+      "static/js/async/571.7e7a1bd8e9.js.map.br",
+      "static/js/async/571.7e7a1bd8e9.js.map.gz",
+      "static/js/async/648.c3494be5a5.js",
+      "static/js/async/648.c3494be5a5.js.LICENSE.txt",
+      "static/js/async/648.c3494be5a5.js.map",
+      "static/js/async/648.c3494be5a5.js.map.br",
+      "static/js/async/648.c3494be5a5.js.map.gz",
+      "static/js/async/709.998f89c633.js",
+      "static/js/async/709.998f89c633.js.LICENSE.txt",
+      "static/js/async/709.998f89c633.js.map",
+      "static/js/async/709.998f89c633.js.map.br",
+      "static/js/async/709.998f89c633.js.map.gz",
+      "static/js/async/776.fa4172a055.js",
+      "static/js/async/776.fa4172a055.js.LICENSE.txt",
+      "static/js/async/776.fa4172a055.js.map",
+      "static/js/async/776.fa4172a055.js.map.br",
+      "static/js/async/776.fa4172a055.js.map.gz",
+      "static/js/async/829.f2d7bc7e5d.js",
+      "static/js/async/829.f2d7bc7e5d.js.map",
+      "static/js/async/__federation_expose_Route.74a2a47e8a.js",
+      "static/js/async/__federation_expose_Route.74a2a47e8a.js.LICENSE.txt",
+      "static/js/async/__federation_expose_Route.74a2a47e8a.js.map",
+      "static/js/async/__federation_expose_Widget.fbf66dd3fe.js",
+      "static/js/async/__federation_expose_Widget.fbf66dd3fe.js.LICENSE.txt",
+      "static/js/async/__federation_expose_Widget.fbf66dd3fe.js.map",
+      "static/js/async/async-index.e74a4a5352.js",
+      "static/js/async/async-index.e74a4a5352.js.br",
+      "static/js/async/async-index.e74a4a5352.js.gz",
+      "static/js/async/async-index.e74a4a5352.js.map",
+      "static/js/async/async-index.e74a4a5352.js.map.br",
+      "static/js/async/async-index.e74a4a5352.js.map.gz",
+      "static/js/async/lib-router.0884c0bb77.js",
+      "static/js/async/lib-router.0884c0bb77.js.LICENSE.txt",
+      "static/js/async/lib-router.0884c0bb77.js.br",
+      "static/js/async/lib-router.0884c0bb77.js.gz",
+      "static/js/async/lib-router.0884c0bb77.js.map",
+      "static/js/async/lib-router.0884c0bb77.js.map.br",
+      "static/js/async/lib-router.0884c0bb77.js.map.gz",
+      "static/js/index.b08fb41a39.js",
+      "static/js/index.b08fb41a39.js.br",
+      "static/js/index.b08fb41a39.js.gz",
+      "static/js/index.b08fb41a39.js.map",
+      "static/js/index.b08fb41a39.js.map.br",
+      "static/js/index.b08fb41a39.js.map.gz",
+      "zephyr-manifest.json"
+    ],
+    "server": ["index.mjs", "modern-worker-manifest.json", "route.json"],
+    "worker": [
+      "101.js",
+      "180.js",
+      "25.js",
+      "467.js",
+      "571.js",
+      "590.js",
+      "837.js",
+      "886.js",
+      "924.js",
+      "953.js",
+      "__modern_bff_effect.js",
+      "index.js"
+    ]
+  },
+  "routes": {
+    "en": "/en",
+    "cs": "/cs",
+    "locale": "/locales/en/translation.json",
+    "mfManifest": "/mf-manifest.json",
+    "bff": "/commerce-api/effect/recommendations"
+  },
+  "responses": {
+    "en": {
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyLength": 2971,
+      "bodySample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-scale=1,maximum-scale=1,user-scalable=no\"><meta http-equiv=\"x-ua-compatible\" content=\"ie=edge\"><meta name=\"renderer\" content=\"webkit\"><meta name=\"layoutmode\" content=\"standard\"><meta name=\"imagemode\" content=\"force\"><meta name=\"wap-font-scale\" content=\"no\"><meta name=\"format-detection\" content=\"telephone=no\"><script src=\"/static/js/index.b"
+    },
+    "cs": {
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bodyLength": 2971,
+      "bodySample": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover,minimum-scale=1,maximum-scale=1,user-scalable=no\"><meta http-equiv=\"x-ua-compatible\" content=\"ie=edge\"><meta name=\"renderer\" content=\"webkit\"><meta name=\"layoutmode\" content=\"standard\"><meta name=\"imagemode\" content=\"force\"><meta name=\"wap-font-scale\" content=\"no\"><meta name=\"format-detection\" content=\"telephone=no\"><script src=\"/static/js/index.b"
+    },
+    "locale": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyLength": 177,
+      "bodySample": "{\n  \"commerce\": {\n    \"language\": {\n      \"cs\": \"Czech\",\n      \"en\": \"English\",\n      \"switcher\": \"Language\"\n    },\n    \"role\": \"commerce\",\n    \"title\": \"Commerce Remote\"\n  }\n}\n",
+      "json": {
+        "commerce": {
+          "language": {
+            "cs": "Czech",
+            "en": "English",
+            "switcher": "Language"
+          },
+          "role": "commerce",
+          "title": "Commerce Remote"
+        }
+      }
+    },
+    "mfManifest": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyLength": 3570,
+      "bodySample": "{\n  \"id\": \"remoteCommerce\",\n  \"name\": \"remoteCommerce\",\n  \"metaData\": {\n    \"name\": \"remoteCommerce\",\n    \"type\": \"app\",\n    \"buildInfo\": {\n      \"buildVersion\": \"0.1.0\",\n      \"buildName\": \"@ultra-workspace/remote-commerce\"\n    },\n    \"remoteEntry\": {\n      \"name\": \"remoteEntry.js\",\n      \"path\": \"\",\n      \"type\": \"global\"\n    },\n    \"types\": {\n      \"path\": \"\",\n      \"name\": \"\",\n      \"zip\": \"@mf-types.zip\",\n      \"api\": \"@mf-types.d.ts\"\n    },\n    \"globalName\": \"remoteCommerce\",\n    \"pluginVe",
+      "json": {
+        "id": "remoteCommerce",
+        "name": "remoteCommerce",
+        "metaData": {
+          "name": "remoteCommerce",
+          "type": "app",
+          "buildInfo": {
+            "buildVersion": "0.1.0",
+            "buildName": "@ultra-workspace/remote-commerce"
+          },
+          "remoteEntry": {
+            "name": "remoteEntry.js",
+            "path": "",
+            "type": "global"
+          },
+          "types": {
+            "path": "",
+            "name": "",
+            "zip": "@mf-types.zip",
+            "api": "@mf-types.d.ts"
+          },
+          "globalName": "remoteCommerce",
+          "pluginVersion": "2.5.0",
+          "publicPath": "/"
+        },
+        "shared": [
+          {
+            "id": "remoteCommerce:@modern-js/runtime",
+            "name": "@modern-js/runtime",
+            "version": "3.2.1",
+            "singleton": true,
+            "requiredVersion": "3.2.1",
+            "assets": {
+              "js": {
+                "async": [],
+                "sync": [
+                  "static/js/async/210.b0dff8450d.js",
+                  "static/js/async/829.f2d7bc7e5d.js"
+                ]
+              },
+              "css": {
+                "async": [],
+                "sync": []
+              }
+            },
+            "fallback": ""
+          },
+          {
+            "id": "remoteCommerce:@tanstack/react-router",
+            "name": "@tanstack/react-router",
+            "version": "1.170.8",
+            "singleton": true,
+            "requiredVersion": "1.170.8",
+            "assets": {
+              "js": {
+                "async": [],
+                "sync": ["static/js/async/56.eae288ef60.js"]
+              },
+              "css": {
+                "async": [],
+                "sync": []
+              }
+            },
+            "fallback": ""
+          },
+          {
+            "id": "remoteCommerce:react-dom/client",
+            "name": "react-dom/client",
+            "version": "19.2.6",
+            "singleton": true,
+            "requiredVersion": "19.2.6",
+            "assets": {
+              "js": {
+                "async": [],
+                "sync": ["static/js/async/188.7a504f8218.js"]
+              },
+              "css": {
+                "async": [],
+                "sync": []
+              }
+            },
+            "fallback": ""
+          },
+          {
+            "id": "remoteCommerce:react-dom",
+            "name": "react-dom",
+            "version": "19.2.6",
+            "singleton": true,
+            "requiredVersion": "19.2.6",
+            "assets": {
+              "js": {
+                "async": [],
+                "sync": [
+                  "static/js/async/267.6edc27a481.js",
+                  "static/js/async/648.c3494be5a5.js"
+                ]
+              },
+              "css": {
+                "async": [],
+                "sync": []
+              }
+            },
+            "fallback": ""
+          },
+          {
+            "id": "remoteCommerce:react",
+            "name": "react",
+            "version": "19.2.6",
+            "singleton": true,
+            "requiredVersion": "19.2.6",
+            "assets": {
+              "js": {
+                "async": [],
+                "sync": [
+                  "static/js/async/709.998f89c633.js",
+                  "static/js/async/776.fa4172a055.js"
+                ]
+              },
+              "css": {
+                "async": [],
+                "sync": []
+              }
+            },
+            "fallback": ""
+          }
+        ],
+        "remotes": [],
+        "exposes": [
+          {
+            "id": "remoteCommerce:Route",
+            "name": "Route",
+            "assets": {
+              "js": {
+                "sync": [
+                  "static/js/async/__federation_expose_Route.74a2a47e8a.js"
+                ],
+                "async": []
+              },
+              "css": {
+                "sync": [],
+                "async": []
+              }
+            },
+            "path": "./Route"
+          },
+          {
+            "id": "remoteCommerce:Widget",
+            "name": "Widget",
+            "assets": {
+              "js": {
+                "sync": [
+                  "static/js/async/__federation_expose_Widget.fbf66dd3fe.js"
+                ],
+                "async": []
+              },
+              "css": {
+                "sync": [],
+                "async": []
+              }
+            },
+            "path": "./Widget"
+          }
+        ]
+      }
+    },
+    "bff": {
+      "status": 200,
+      "contentType": "application/json",
+      "bodyLength": 294,
+      "bodySample": "{\"items\":[{\"id\":\"starter-recommendations\",\"marker\":{\"appId\":\"remote-commerce\",\"packageName\":\"@ultra-workspace/remote-commerce\",\"version\":\"0.1.0\",\"build\":\"2b942bd0e2eda948\",\"deployProfile\":\"cloudflare-ssr-mf-effect-v1\",\"surface\":\"effect-bff\"},\"title\":\"Wire a real recommendations source here\"}]}",
+      "json": {
+        "items": [
+          {
+            "id": "starter-recommendations",
+            "marker": {
+              "appId": "remote-commerce",
+              "packageName": "@ultra-workspace/remote-commerce",
+              "version": "0.1.0",
+              "build": "2b942bd0e2eda948",
+              "deployProfile": "cloudflare-ssr-mf-effect-v1",
+              "surface": "effect-bff"
+            },
+            "title": "Wire a real recommendations source here"
+          }
+        ]
+      }
+    }
+  },
+  "markers": {
+    "uiBuildMarker": "2b942bd0e2eda948",
+    "bffBuildMarker": "2b942bd0e2eda948",
+    "match": true
+  }
+}

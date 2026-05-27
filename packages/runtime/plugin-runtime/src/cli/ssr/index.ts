@@ -266,6 +266,8 @@ const ssrBuilderPlugin = (
       const hasModuleFederationRuntimeMarker =
         hasServerRendering && shouldUseModuleFederationNodeOutput(config);
       const hasExplicitMfSsrFlag = isModuleFederationAppSSREnabled(userConfig);
+      const isCloudflareWorkerSSR =
+        name === 'workerSSR' && userConfig.deploy?.target === 'cloudflare';
       const requireExplicitMfSsrFlag =
         process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT === 'true';
 
@@ -285,7 +287,7 @@ const ssrBuilderPlugin = (
         console.warn(warningMessage);
       }
       const isModuleFederationAppSSR =
-        hasServerRendering && hasExplicitMfSsrFlag;
+        hasServerRendering && hasExplicitMfSsrFlag && !isCloudflareWorkerSSR;
       const useModuleFederationNodeOutput =
         hasServerRendering &&
         isModuleFederationAppSSR &&
@@ -321,7 +323,11 @@ const ssrBuilderPlugin = (
 
       const outputConfig = {
         module:
-          isServerEnvironment && !useModuleFederationNodeOutput && outputModule,
+          isServerEnvironment &&
+          !useModuleFederationNodeOutput &&
+          (outputModule ||
+            (name === 'workerSSR' &&
+              userConfig.deploy?.target === 'cloudflare')),
       };
 
       const useLoadableComponents =

@@ -4,19 +4,19 @@ overview: Lock the codebase, Zephyr, Cloudflare, TanStack Start, and package-ver
 todos:
   - id: verify-current-package-apis
     content: "Reconfirm current public package/API baselines before implementation: zephyr-agent, zephyr-rspack-plugin, vite-plugin-tanstack-start-zephyr, @cloudflare/vite-plugin, wrangler, @tanstack/react-start, @module-federation/modern-js-v3, TypeScript, and @typescript/native-preview."
-    status: pending
+    status: completed
   - id: map-modern-worker-ssr-internals
     content: "Trace Modern.js worker SSR internals and record exact files/functions for deploy.worker.ssr, workerSSR environment generation, MODERN_SSR_ENV=edge, server render bundle exports, route.json worker metadata, and stream rendering."
-    status: pending
+    status: completed
   - id: map-effect-bff-edge-contract
     content: "Trace Effect BFF runtime to prove which pieces already accept Web Request/Response and which pieces are tied to Modern's Node production server or Hono middleware context."
-    status: pending
+    status: completed
   - id: map-zephyr-ssr-snapshot-contract
     content: "Record the Zephyr SSR snapshot contract from zephyr-agent 1.1.1 and vite-plugin-tanstack-start-zephyr: outputDir, publicDir, entrypoint candidates, snapshotType=ssr, and deployment URL callback behavior."
-    status: pending
+    status: completed
   - id: define-non-negotiable-acceptance
     content: "Publish the non-negotiable acceptance matrix: translated SSR routes, locale assets, MF manifest, remote UI marker, Effect BFF marker, version/environment selector evidence, Wrangler preview, and Zephyr SSR snapshot evidence."
-    status: pending
+    status: completed
 isProject: true
 ---
 

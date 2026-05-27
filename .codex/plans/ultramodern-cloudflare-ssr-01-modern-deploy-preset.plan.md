@@ -4,22 +4,22 @@ overview: Add a first-class Modern.js Cloudflare Worker deploy target that emits
 todos:
   - id: design-cloudflare-deploy-config
     content: "Add and type a Cloudflare deploy target without weakening existing node/vercel/netlify behavior; decide whether the public selector is MODERNJS_DEPLOY=cloudflare, deploy.provider=cloudflare, or both, and document precedence."
-    status: pending
+    status: completed
   - id: emit-worker-output-shape
     content: "Implement a deploy preset that writes a Cloudflare/Zephyr-compatible output shape, including .output/server/index.mjs or .output/server/index.js, public/client assets, route metadata, server bundles, and sourcemap filtering."
-    status: pending
+    status: completed
   - id: generate-worker-fetch-entry
     content: "Create a Worker entry template that exports fetch(request, env, ctx), loads Modern route metadata and server manifest data, dispatches SSR routes to render bundle requestHandler exports, and avoids createProdServer().listen()."
-    status: pending
+    status: completed
   - id: add-wrangler-output
     content: "Generate or document a wrangler.jsonc shape for the output, with main pointing at the Worker entry, assets bound to the public output directory, compatibility_date, nodejs_compat when required, and environment-variable handling."
-    status: pending
+    status: completed
   - id: preserve-existing-deploy-tests
     content: "Add unit and integration coverage for the new preset while proving node, vercel, netlify, ghPages, and existing workerSSR builder behavior remain unchanged."
-    status: pending
+    status: completed
   - id: validate-local-worker-entry
     content: "Run a generated fixture build and verify the emitted Worker entry imports successfully in a Worker-like runtime without Node listen/server dependencies."
-    status: pending
+    status: completed
 isProject: true
 ---
 

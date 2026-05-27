@@ -22,7 +22,7 @@
     "@modern-js/utils": "workspace:*",
     "@swc/core": "1.15.40",
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260525.1",
+    "@typescript/native-preview": "7.0.0-dev.20260526.1",
     "cross-spawn": "^7.0.6",
     "enhanced-resolve": "5.22.0",
     "fs-extra": "^11.3.5",

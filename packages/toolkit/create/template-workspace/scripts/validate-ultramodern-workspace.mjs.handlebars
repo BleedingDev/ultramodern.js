@@ -91,6 +91,7 @@ const requiredPaths = [
   'topology/local-overlays/development.json',
   '.modernjs/ultramodern-workspace-template-manifest.json',
   '.modernjs/ultramodern-package-source.json',
+  '.modernjs/ultramodern-generated-contract.json',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
   'scripts/setup-agent-reference-repos.mjs',
@@ -506,7 +507,7 @@ for (const packagePath of appPackagePaths) {
     `${packagePath} must include TypeScript 6 only as the stable JS TypeScript package for Module Federation DTS generation`,
   );
   assert(
-    packageJson.devDependencies?.['@typescript/native-preview'] === '7.0.0-dev.20260525.1',
+    packageJson.devDependencies?.['@typescript/native-preview'] === '7.0.0-dev.20260526.1',
     `${packagePath} must include TypeScript 7 native preview for mandatory native typechecking`,
   );
   assert(
@@ -742,73 +743,44 @@ assert(
   'Shell must not depend on shared-effect-api for default vertical-owned APIs',
 );
 
+const generatedContract = readJson('.modernjs/ultramodern-generated-contract.json');
+assert(
+  generatedContract.profile === 'cloudflare-ssr-mf-effect-v1',
+  'Generated contract must select the Cloudflare SSR MF Effect profile',
+);
+assert(
+  generatedContract.packageManager?.manager === 'pnpm' &&
+    generatedContract.packageManager?.version === '11.3.0' &&
+    generatedContract.packageManager?.toolchain === 'mise' &&
+    generatedContract.packageManager?.corepack === false,
+  'Generated contract must declare the pnpm 11/mise toolchain policy',
+);
+
 for (const vertical of fullStackVerticals) {
-  const mfConfig = readText(`${vertical.path}/module-federation.config.ts`);
-  assert(mfConfig.includes(`name: '${vertical.mfName}'`), `${vertical.id} MF name is missing`);
+  const contractEntry = generatedContract.apps?.find((app) => app.id === vertical.id);
   assert(
-    mfConfig.includes("'react-dom/client'"),
-    `${vertical.id} MF config must share react-dom/client explicitly`,
-  );
-  assert(
-    mfConfig.includes("'./Widget'") && mfConfig.includes("'./Route'"),
-    `${vertical.id} must expose only browser-safe Route and Widget modules`,
-  );
-  for (const forbiddenExpose of ["'./api'", "'./effect'", "'./client'", "'./contract'"]) {
-    assert(
-      !mfConfig.includes(forbiddenExpose),
-      `${vertical.id} MF config must not expose server or Effect client modules`,
-    );
-  }
-
-  const modernConfig = readText(`${vertical.path}/modern.config.ts`);
-  assert(
-    modernConfig.includes('moduleFederationPlugin()') &&
-      modernConfig.includes('bffPlugin()') &&
-      modernConfig.includes("runtimeFramework: 'effect'") &&
-      modernConfig.includes(`prefix: '${vertical.apiPrefix}'`) &&
-      modernConfig.includes("mode: 'stream'") &&
-      modernConfig.includes('moduleFederationAppSSR: true') &&
-      modernConfig.includes("html: './'") &&
-      modernConfig.includes("outputStructure: 'flat'"),
-    `${vertical.path}/modern.config.ts must compose Module Federation, stream SSR, flat output, and Effect BFF`,
-  );
-
-  const contractSource = readText(`${vertical.path}/shared/effect/api.ts`);
-  assert(
-    contractSource.includes('HttpApi.make') &&
-      contractSource.includes('HttpApiSchema') &&
-      contractSource.includes('TaggedErrorClass') &&
-      contractSource.includes('OperationContext') &&
-      contractSource.includes(`${vertical.group}EffectApi`) &&
-      contractSource.includes(`${vertical.group}ApiContract`) &&
-      contractSource.includes(`${vertical.group}OperationContexts`) &&
-      contractSource.includes(`basePath: '${vertical.apiPrefix}`) &&
-      contractSource.includes("source: 'generated-client'"),
-    `${vertical.path} must own its Effect contract surface`,
-  );
-
-  const clientSource = readText(`${vertical.path}/src/effect/${vertical.stem}-client.ts`);
-  assert(
-    clientSource.includes('makeEffectHttpApiClient') &&
-      clientSource.includes('runEffectRequest') &&
-      clientSource.includes(`${vertical.group}EffectApi`) &&
-      clientSource.includes(`${vertical.group}OperationContexts`),
-    `${vertical.path} must own its typed Effect client surface`,
-  );
-
-  const apiEntry = readText(`${vertical.path}/api/effect/index.ts`);
-  assert(
-    apiEntry.includes('defineEffectBff') &&
-      apiEntry.includes(`${vertical.group}EffectApi`) &&
-      apiEntry.includes('useEffectContext') &&
-      apiEntry.includes('Effect.withSpan') &&
-      apiEntry.includes('modernjs.operation.route') &&
-      apiEntry.includes(".handle('get'") &&
-      apiEntry.includes(".handle('create'") &&
-      !apiEntry.includes('_tag') &&
-      !apiEntry.includes('shared-effect-api') &&
-      apiEntry.includes("from '../../shared/effect/api'"),
-    `${vertical.path}/api/effect/index.ts must implement its vertical-owned Effect BFF without shared vertical API imports`,
+    contractEntry?.deploy?.target === 'cloudflare' &&
+      contractEntry?.deploy?.worker?.ssr === true &&
+      contractEntry?.deploy?.output?.flat === true &&
+      contractEntry?.deploy?.output?.htmlDistPath === './' &&
+      contractEntry?.ssr?.mode === 'stream' &&
+      contractEntry?.ssr?.moduleFederationAppSSR === true &&
+      contractEntry?.i18n?.plugin === '@modern-js/plugin-i18n' &&
+      contractEntry?.i18n?.languages?.includes('en') &&
+      contractEntry?.i18n?.languages?.includes('cs') &&
+      contractEntry?.moduleFederation?.name === vertical.mfName &&
+      contractEntry?.moduleFederation?.exposes?.includes('./Widget') &&
+      contractEntry?.moduleFederation?.exposes?.includes('./Route') &&
+      contractEntry?.moduleFederation?.browserSafeExposesOnly === true &&
+      contractEntry?.effect?.runtime === 'effect' &&
+      contractEntry?.effect?.import === '@modern-js/plugin-bff/effect-edge' &&
+      contractEntry?.effect?.prefix === vertical.apiPrefix &&
+      contractEntry?.effect?.workerEntry === 'worker/__modern_bff_effect.js' &&
+      contractEntry?.marker?.appId === vertical.id &&
+      contractEntry?.marker?.deployProfile === 'cloudflare-ssr-mf-effect-v1' &&
+      contractEntry?.marker?.uiSurface === 'ui' &&
+      contractEntry?.marker?.apiSurface === 'effect-bff',
+    `${vertical.id} generated contract must describe Cloudflare SSR, MF, i18n, Effect BFF, and marker metadata`,
   );
 }
 

@@ -13,11 +13,13 @@ const workspaceTemplateDir = path.resolve(
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const MODULE_FEDERATION_VERSION = '2.5.0';
 const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
+const ZEPHYR_AGENT_VERSION = '1.1.1';
+const WRANGLER_VERSION = '4.95.0';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.11.0';
 const TYPESCRIPT_VERSION = '6.0.3';
-const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260525.1';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260526.1';
 const OXLINT_VERSION = '1.66.0';
 const OXFMT_VERSION = '0.51.0';
 const ULTRACITE_VERSION = '7.7.0';
@@ -25,6 +27,7 @@ const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
+const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
 const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
   '07bb5b6c43ad457609e00c081b72d4c42508ec76';
@@ -773,6 +776,7 @@ function appDevDependencies(
     '@types/react-dom': '^19.1.6',
     typescript: TYPESCRIPT_VERSION,
     'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
+    wrangler: WRANGLER_VERSION,
   };
 }
 
@@ -814,6 +818,8 @@ function createRootPackageJson(
       lint: 'oxlint .',
       'lint:fix': 'oxlint . --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
+      'cloudflare:build':
+        'pnpm -r --filter "./apps/remotes/**" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
@@ -847,6 +853,8 @@ function createRootPackageJson(
       oxlint: OXLINT_VERSION,
       oxfmt: OXFMT_VERSION,
       ultracite: ULTRACITE_VERSION,
+      wrangler: WRANGLER_VERSION,
+      'zephyr-agent': ZEPHYR_AGENT_VERSION,
     },
   };
 }
@@ -947,6 +955,10 @@ function createAppPackage(
       build: app.exposes
         ? `modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
         : 'modern build',
+      'cloudflare:build':
+        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy',
+      'cloudflare:preview':
+        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy && wrangler dev --config .output/wrangler.json',
       serve: 'modern serve',
       typecheck: effectTsgoTypecheckCommand,
     },
@@ -1169,6 +1181,12 @@ ${bffConfig}      output: {
 ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
       ],
+      deploy: {
+        target: 'cloudflare',
+        worker: {
+          ssr: true,
+        },
+      },
       server: {
         port,
         publicDir: './locales',
@@ -1287,6 +1305,41 @@ ${createSharedModuleFederationConfig()},
 `;
 }
 
+function createBuildMarker(
+  scope: string,
+  app: { id: string; packageSuffix: string },
+) {
+  return crypto
+    .createHash('sha256')
+    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function createUltramodernBuildModule(
+  scope: string,
+  app: { id: string; packageSuffix: string },
+): string {
+  return `export const ultramodernVerticalIdentity = {
+  appId: '${app.id}',
+  packageName: '${packageName(scope, app.packageSuffix)}',
+  version: '0.1.0',
+  build: '${createBuildMarker(scope, app)}',
+  deployProfile: 'cloudflare-ssr-mf-effect-v1',
+} as const;
+
+export const ultramodernUiMarker = {
+  ...ultramodernVerticalIdentity,
+  surface: 'ui',
+} as const;
+
+export const ultramodernApiMarker = {
+  ...ultramodernVerticalIdentity,
+  surface: 'effect-bff',
+} as const;
+`;
+}
+
 function createRemoteModuleFederationConfig(app: WorkspaceApp): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   return `// @effect-diagnostics nodeBuiltinImport:off
@@ -1362,7 +1415,16 @@ export default defineConfig(
 `;
 }
 
-function createAppRuntimeConfig(): string {
+function createAppRuntimeConfig(app: WorkspaceApp): string {
+  const resources = {
+    cs: {
+      translation: createAppLocaleMessages(app, 'cs'),
+    },
+    en: {
+      translation: createAppLocaleMessages(app, 'en'),
+    },
+  };
+
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
 import { createInstance } from 'i18next';
 
@@ -1378,6 +1440,9 @@ export default defineRuntimeConfig({
         escapeValue: false,
       },
       ns: ['translation'],
+      resources: ${JSON.stringify(resources, null, 8)
+        .split('\n')
+        .join('\n      ')},
       supportedLngs: ['en', 'cs'],
     },
   },
@@ -1479,6 +1544,7 @@ const LocalizedHead = () => {
 
 function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { ultramodernUiMarker } from '../../ultramodern-build';
 import '../index.css';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -1506,6 +1572,9 @@ export default function ShellHome() {
       </nav>
       <h1>{t('shell.title')}</h1>
       <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
+      <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+        {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
+      </p>
       <ul>
         {remoteKeys.map(remote => (
           <li key={remote}>{t(\`shell.remotes.\${remote}\`)}</li>
@@ -1521,15 +1590,25 @@ function createRemotePage(app: WorkspaceApp): string {
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useEffect, useState } from 'react';
-import effectBff from '../../../api/effect/index';
+import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\n";
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
   const effectBffState = appHasEffectApi(app)
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
   useEffect(() => {
-    void effectBff.client.${serviceEffectGroupName(app)}
-      .list({ query: { limit: 1 } })
+    void fetch('${effectApiPrefix(app)}/effect/${effectApiStem(app)}?limit=1', {
+      headers: {
+        accept: 'application/json',
+      },
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(\`Effect BFF request failed: \${response.status}\`);
+        }
+
+        return response.json() as Promise<{ items?: Array<{ title?: string }> }>;
+      })
       .then(data => {
         setEffectApiStatus(data.items[0]?.title ?? 'empty');
       })
@@ -1567,6 +1646,9 @@ ${effectBffState}  return (
       </nav>
       <h1>{t('${app.domain}.title')}</h1>
       <p data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
+      <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+        {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
+      </p>
 ${effectBffMarkup}    </main>
   );
 }
@@ -1775,6 +1857,14 @@ function createEffectSharedApiContract(
 
   return `export const ${schemaExport} = Schema.Struct({
   id: Schema.String,
+  marker: Schema.Struct({
+    appId: Schema.String,
+    packageName: Schema.String,
+    version: Schema.String,
+    build: Schema.String,
+    deployProfile: Schema.String,
+    surface: Schema.String,
+  }),
   title: Schema.String,
 });
 
@@ -1891,8 +1981,8 @@ function createEffectServiceEntry(
   Effect,
   HttpApiBuilder,
   Layer,
-  useEffectContext,
-} from '@modern-js/plugin-bff/effect-server';
+} from '@modern-js/plugin-bff/effect-edge';
+import { ultramodernApiMarker } from '../../src/ultramodern-build';
 import {
   ${apiExport},
   ${groupName}OperationContexts,
@@ -1903,19 +1993,17 @@ import {
 const ${groupName}Items = [
   {
     id: 'starter-${stem}',
+    marker: ultramodernApiMarker,
     title: 'Wire a real ${stem} source here',
   },
 ];
 
 const operationAttributes = (operationContext: OperationContext) => {
-  const context = useEffectContext();
   return {
     'modernjs.operation.id': operationContext.operationId,
     'modernjs.operation.method': operationContext.method,
     'modernjs.operation.route': operationContext.routePath,
     'modernjs.operation.source': operationContext.source,
-    'modernjs.request.method': context.method,
-    'modernjs.request.path': context.path,
     ...(typeof operationContext.traceId === 'string'
       ? { 'modernjs.trace.id': operationContext.traceId }
       : {}),
@@ -1958,6 +2046,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
               .toLowerCase()
               .replaceAll(/[^a-z0-9]+/g, '-')
               .replaceAll(/^-|-$/g, '')}\`,
+            marker: ultramodernApiMarker,
             title: payload.title,
           },
         }).pipe(
@@ -2279,6 +2368,100 @@ function createPackageSourceMetadata(
   };
 }
 
+function createAppGeneratedContract(
+  scope: string,
+  app: WorkspaceApp,
+): JsonValue {
+  return {
+    id: app.id,
+    package: packageName(scope, app.packageSuffix),
+    path: app.directory,
+    kind: app.kind,
+    deploy: {
+      target: 'cloudflare',
+      worker: {
+        ssr: true,
+      },
+      output: {
+        flat: true,
+        htmlDistPath: './',
+      },
+    },
+    ssr: {
+      mode: 'stream',
+      moduleFederationAppSSR: true,
+    },
+    i18n: {
+      plugin: '@modern-js/plugin-i18n',
+      backend: true,
+      reactI18next: false,
+      languages: ['en', 'cs'],
+      fallbackLanguage: 'en',
+      publicDir: './locales',
+    },
+    moduleFederation: {
+      name: app.mfName,
+      exposes: Object.keys(app.exposes ?? {}),
+      dts: {
+        displayErrorInTerminal: true,
+        compilerInstance: '--package typescript -- tsc',
+      },
+      browserSafeExposesOnly: true,
+      zephyrRspackPlugin: ZEPHYR_RSPACK_PLUGIN_VERSION,
+    },
+    marker: {
+      appId: app.id,
+      packageName: packageName(scope, app.packageSuffix),
+      version: '0.1.0',
+      build: createBuildMarker(scope, app),
+      deployProfile: 'cloudflare-ssr-mf-effect-v1',
+      uiSurface: 'ui',
+      ...(appHasEffectApi(app) ? { apiSurface: 'effect-bff' } : {}),
+    },
+    ...(appHasEffectApi(app)
+      ? {
+          effect: {
+            runtime: 'effect',
+            import: '@modern-js/plugin-bff/effect-edge',
+            prefix: app.effectApi.prefix,
+            openapi: '/openapi.json',
+            workerEntry: 'worker/__modern_bff_effect.js',
+            contract: './shared/effect/api',
+            client: './effect/client',
+          },
+        }
+      : {}),
+  };
+}
+
+function createGeneratedContract(
+  scope: string,
+  apps: WorkspaceApp[] = [shellApp, ...remoteApps],
+): JsonValue {
+  return {
+    schemaVersion: 1,
+    profile: 'cloudflare-ssr-mf-effect-v1',
+    packageManager: {
+      source: 'package.json',
+      manager: 'pnpm',
+      version: '11.3.0',
+      toolchain: 'mise',
+      corepack: false,
+    },
+    versions: {
+      typescript: TYPESCRIPT_VERSION,
+      typescriptNativePreview: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      moduleFederation: MODULE_FEDERATION_VERSION,
+      tanstackRouter: TANSTACK_ROUTER_VERSION,
+      i18next: I18NEXT_VERSION,
+      zephyrRspackPlugin: ZEPHYR_RSPACK_PLUGIN_VERSION,
+      zephyrAgent: ZEPHYR_AGENT_VERSION,
+      wrangler: WRANGLER_VERSION,
+    },
+    apps: apps.map(app => createAppGeneratedContract(scope, app)),
+  };
+}
+
 function createTemplateManifest(
   modernVersion: string,
   packageSource: ResolvedPackageSource,
@@ -2422,13 +2605,18 @@ function writeApp(
   );
   writeFile(
     targetDir,
+    `${app.directory}/src/ultramodern-build.ts`,
+    createUltramodernBuildModule(scope, app),
+  );
+  writeFile(
+    targetDir,
     `${app.directory}/modern.config.ts`,
     createAppModernConfig(app),
   );
   writeFile(
     targetDir,
     `${app.directory}/src/modern.runtime.ts`,
-    createAppRuntimeConfig(),
+    createAppRuntimeConfig(app),
   );
   writeJson(
     targetDir,
@@ -2549,6 +2737,11 @@ function writeEffectService(
     targetDir,
     `${service.directory}/src/modern-app-env.d.ts`,
     "/// <reference types='@modern-js/app-tools/types' />\n",
+  );
+  writeFile(
+    targetDir,
+    `${service.directory}/src/ultramodern-build.ts`,
+    createUltramodernBuildModule(scope, service),
   );
   writeFile(
     targetDir,
@@ -3010,6 +3203,13 @@ export function addUltramodernMicroVertical(
     writeJsonFile(topologyPath, topology as JsonValue);
     writeJsonFile(ownershipPath, ownership as JsonValue);
     writeJsonFile(overlayPath, overlay as JsonValue);
+    writeJsonFile(
+      path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
+      createGeneratedContract(scope, [
+        shellApp,
+        ...remotesFromTopology(topology, overlay.ports),
+      ]),
+    );
     const shellConfigPath = path.join(
       options.workspaceRoot,
       `${shellApp.directory}/module-federation.config.ts`,
@@ -3161,6 +3361,11 @@ export function generateUltramodernWorkspace(
     options.targetDir,
     '.modernjs/ultramodern-package-source.json',
     createPackageSourceMetadata(scope, packageSource),
+  );
+  writeJson(
+    options.targetDir,
+    GENERATED_CONTRACT_PATH,
+    createGeneratedContract(scope),
   );
 
   writeApp(options.targetDir, scope, shellApp, packageSource, enableTailwind);

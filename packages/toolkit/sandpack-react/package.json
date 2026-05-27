@@ -55,7 +55,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/recursive-readdir": "^2.2.4",
-    "@typescript/native-preview": "7.0.0-dev.20260525.1",
+    "@typescript/native-preview": "7.0.0-dev.20260526.1",
     "recursive-readdir": "^2.2.3"
   },
   "sideEffects": false,

@@ -12,6 +12,7 @@ import {
   notFound,
   redirect,
 } from '@tanstack/react-router';
+import { createElement, type ElementType } from 'react';
 import { DefaultNotFound } from './DefaultNotFound';
 import {
   isTanstackRscPayloadNavigationEnabled,
@@ -118,6 +119,15 @@ type ModernDeferredDataLike = {
   __modern_deferred?: unknown;
   data?: unknown;
 };
+type ModernRouteModule = {
+  Component?: unknown;
+  default?: unknown;
+};
+type PreloadableComponent = {
+  (props: Record<string, unknown>): ReturnType<typeof createElement>;
+  load?: () => Promise<unknown>;
+  preload?: () => Promise<unknown>;
+};
 type RouteTreeOptions = {
   rscPayloadRouter?: boolean;
 };
@@ -217,6 +227,72 @@ function normalizeModernLoaderResponse(result: unknown): unknown {
   }
 
   return normalizeModernLoaderResult(result);
+}
+
+function pickRouteModuleComponent(
+  routeModule: unknown,
+): ElementType<Record<string, unknown>> | undefined {
+  if (
+    typeof routeModule === 'function' ||
+    (routeModule &&
+      typeof routeModule === 'object' &&
+      '$$typeof' in routeModule)
+  ) {
+    return routeModule as ElementType<Record<string, unknown>>;
+  }
+
+  if (!routeModule || typeof routeModule !== 'object') {
+    return undefined;
+  }
+
+  const module = routeModule as ModernRouteModule;
+  const component = module.default || module.Component;
+  if (
+    typeof component === 'function' ||
+    (component && typeof component === 'object' && '$$typeof' in component)
+  ) {
+    return component as ElementType<Record<string, unknown>>;
+  }
+
+  return undefined;
+}
+
+function createServerLazyImportComponent(
+  lazyImport: () => unknown,
+  fallbackComponent?: unknown,
+): PreloadableComponent | unknown {
+  if (typeof document !== 'undefined') {
+    return fallbackComponent;
+  }
+
+  let resolvedComponent: ElementType<Record<string, unknown>> | undefined;
+  let pendingLoad: Promise<unknown> | undefined;
+
+  const load = async () => {
+    if (resolvedComponent) {
+      return resolvedComponent;
+    }
+
+    const routeModule = await lazyImport();
+    const component = pickRouteModuleComponent(routeModule);
+    if (component) {
+      resolvedComponent = component;
+    }
+    return resolvedComponent;
+  };
+
+  const Component: PreloadableComponent = props => {
+    if (resolvedComponent) {
+      return createElement(resolvedComponent, props);
+    }
+
+    pendingLoad ||= load();
+    throw pendingLoad;
+  };
+  Component.load = load;
+  Component.preload = load;
+
+  return Component;
 }
 
 function isAbsoluteUrl(value: string) {
@@ -519,6 +595,18 @@ function wrapRouteObjectLoader(
 
 function toRouteComponent(routeObject: RouteObject): unknown {
   const route = routeObject as ModernRouteObject;
+  const lazyImport =
+    typeof route.lazyImport === 'function' ? route.lazyImport : undefined;
+  const fallbackComponent = route.Component
+    ? route.Component
+    : route.element
+      ? () => route.element
+      : undefined;
+
+  if (lazyImport && fallbackComponent) {
+    return createServerLazyImportComponent(lazyImport, fallbackComponent);
+  }
+
   if (route.Component) {
     return route.Component;
   }
@@ -527,6 +615,15 @@ function toRouteComponent(routeObject: RouteObject): unknown {
     return () => element;
   }
   return undefined;
+}
+
+function toModernRouteComponent(route: ModernGeneratedRoute): unknown {
+  const component = route.component || undefined;
+  if (typeof route.lazyImport === 'function' && component) {
+    return createServerLazyImportComponent(route.lazyImport, component);
+  }
+
+  return component;
 }
 
 function toErrorComponent(routeObject: RouteObject): unknown {
@@ -702,7 +799,7 @@ function createRouteFromModernRoute(opts: {
 
   const pendingComponent = route.loading || route.pendingComponent;
   const errorComponent = route.error || route.errorComponent;
-  const component = route.component;
+  const component = toModernRouteComponent(route);
   const modernLoader = route.loader;
   const modernAction = route.action;
   const modernShouldRevalidate = route.shouldRevalidate;
@@ -788,7 +885,9 @@ export function createRouteTreeFromModernRoutes(
       (r as ModernGeneratedRoute).isRoot,
   ) as ModernGeneratedRoute | undefined;
 
-  const rootComponent = rootModern?.component;
+  const rootComponent = rootModern
+    ? toModernRouteComponent(rootModern)
+    : undefined;
   const pendingComponent = rootModern?.loading;
   const errorComponent = rootModern?.error;
   const rootLoader = rootModern?.loader;

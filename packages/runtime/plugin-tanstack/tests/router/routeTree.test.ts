@@ -1,7 +1,10 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute } from '@modern-js/types';
 import { createMemoryHistory } from '@tanstack/history';
-import { createRouter } from '@tanstack/react-router';
+import { createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
+import type { ComponentType } from 'react';
+import { createElement, lazy } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
@@ -23,6 +26,7 @@ type TestRouteObject = RouteObject & {
   hasLoader?: boolean;
   inValidSSRRoute?: boolean;
   isClientComponent?: boolean;
+  lazyImport?: () => Promise<{ default: ComponentType }>;
 };
 
 type TestNestedRoute = NestedRoute & {
@@ -232,6 +236,73 @@ describe('tanstack route tree from RouteObject[]', () => {
     );
     expect(filesMatch?.loaderData).toEqual({ value: 'a/b/c' });
     expect(splatParamValue).toBe('a/b/c');
+  });
+
+  test('preloads lazy Modern route components for server rendering', async () => {
+    const LazyRouteComponent = () =>
+      createElement('main', null, 'Lazy route ready');
+    const lazyImport = rstest.fn(async () => ({
+      default: LazyRouteComponent,
+    }));
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'lazy',
+            path: 'lazy',
+            Component: lazy(lazyImport),
+            lazyImport,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/lazy');
+    const lazyRoute = getLooseRoute(router, '/lazy');
+    const component = lazyRoute.options.component as ComponentType & {
+      preload?: () => Promise<unknown>;
+    };
+
+    await component.preload?.();
+
+    expect(renderToStaticMarkup(createElement(component))).toContain(
+      'Lazy route ready',
+    );
+    expect(lazyImport).toHaveBeenCalled();
+  });
+
+  test('renders preloaded lazy child routes through TanStack router SSR', async () => {
+    const LazyRouteComponent = () =>
+      createElement('main', null, 'Lazy child route ready');
+    const lazyImport = rstest.fn(async () => ({
+      default: LazyRouteComponent,
+    }));
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => createElement('section', null, createElement(Outlet)),
+        children: [
+          {
+            id: 'lazy',
+            path: 'lazy',
+            Component: lazy(lazyImport),
+            lazyImport,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/lazy');
+
+    expect(
+      renderToStaticMarkup(createElement(RouterProvider, { router } as never)),
+    ).toContain('Lazy child route ready');
   });
 
   test('preserves route handle and maps shouldRevalidate to shouldReload', async () => {

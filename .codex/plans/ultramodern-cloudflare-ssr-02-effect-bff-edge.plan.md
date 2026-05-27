@@ -4,22 +4,22 @@ overview: Make package-owned Effect BFF routes run inside the same Cloudflare Wo
 todos:
   - id: classify-current-bff-runtime
     content: "Classify every Effect BFF runtime dependency as Worker-safe, Node-only, or unknown, including adapter setup, api/effect/index resolution, OpenAPI generation, context/layer creation, data platform support, and middleware mounting."
-    status: pending
+    status: completed
   - id: design-worker-bff-dispatch
     content: "Design a Worker-safe dispatcher for configured bff.prefix paths that invokes the existing Effect handler contract with Web Request/Response and does not require Node req/res or Fastify listen."
-    status: pending
+    status: completed
   - id: implement-direct-effect-handler-path
     content: "Implement or expose a direct Effect BFF handler path that the Worker deploy entry can call for api/effect/index or configured bff.effect.entry exports."
-    status: pending
+    status: completed
   - id: preserve-node-bff-path
     content: "Keep the existing Modern production server BFF mounting behavior intact for Node and future Zerops deployments."
-    status: pending
+    status: completed
   - id: add-bff-worker-tests
     content: "Add tests proving Worker dispatch for /commerce-api/effect/recommendations or an equivalent generated fixture returns JSON, proper status, headers, and package/version marker data."
-    status: pending
+    status: completed
   - id: validate-error-and-not-found-semantics
     content: "Verify Effect BFF errors, unsupported routes, method handling, and OpenAPI/static endpoints behave consistently between Node serve and Worker preview."
-    status: pending
+    status: completed
 isProject: true
 ---
 
