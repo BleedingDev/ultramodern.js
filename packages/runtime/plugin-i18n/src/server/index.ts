@@ -8,6 +8,10 @@ import {
   mergeDetectionOptions,
 } from '../runtime/i18n/detection/config.js';
 import type { LanguageDetectorOptions } from '../runtime/i18n/instance';
+import {
+  resolveLocalisedPath,
+  resolveLocalisedUrlsConfig,
+} from '../shared/localisedUrls.js';
 import type { LocaleDetectionOptions } from '../shared/type';
 import { getLocaleDetectionOptions } from '../shared/utils.js';
 
@@ -231,6 +235,7 @@ const buildLocalizedUrl = (
   urlPath: string,
   language: string,
   languages: string[],
+  localisedUrls?: LocaleDetectionOptions['localisedUrls'],
 ): string => {
   const url = new URL(req.url);
   const pathname = url.pathname;
@@ -242,13 +247,27 @@ const buildLocalizedUrl = (
     : pathname;
 
   const segments = remainingPath.split('/').filter(Boolean);
+  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
+  const pathWithoutLanguage =
+    segments.length > 0 && languages.includes(segments[0])
+      ? `/${segments.slice(1).join('/')}`
+      : remainingPath;
+  const resolvedPath = localisedUrlsConfig.enabled
+    ? resolveLocalisedPath(
+        pathWithoutLanguage,
+        language,
+        languages,
+        localisedUrlsConfig.map,
+      )
+    : pathWithoutLanguage;
+  const resolvedSegments = resolvedPath.split('/').filter(Boolean);
 
   if (segments.length > 0 && languages.includes(segments[0])) {
     // Replace existing language prefix
-    segments[0] = language;
+    segments.splice(0, segments.length, language, ...resolvedSegments);
   } else {
     // If path doesn't start with language, add language prefix
-    segments.unshift(language);
+    segments.splice(0, segments.length, language, ...resolvedSegments);
   }
 
   const newPathname = `/${segments.join('/')}`;
@@ -292,6 +311,7 @@ export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
           fallbackLanguage = 'en',
           detection,
           ignoreRedirectRoutes,
+          localisedUrls,
         } = getLocaleDetectionOptions(entryName, options.localeDetection);
         const staticRoutePrefixes = options.staticRoutePrefixes;
         const originUrlPath = route.urlPath;
@@ -391,8 +411,41 @@ export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
                   originUrlPath,
                   targetLanguage,
                   languages,
+                  localisedUrls,
                 );
                 return c.redirect(localizedUrl);
+              }
+              const localisedUrlsConfig =
+                resolveLocalisedUrlsConfig(localisedUrls);
+              if (localisedUrlsConfig.enabled) {
+                const basePath = originUrlPath.replace('/*', '');
+                const remainingPath = pathname.startsWith(basePath)
+                  ? pathname.slice(basePath.length)
+                  : pathname;
+                const pathWithoutLanguage = remainingPath
+                  .split('/')
+                  .filter(Boolean)
+                  .slice(1)
+                  .join('/');
+                const canonicalLocalizedPath = resolveLocalisedPath(
+                  `/${pathWithoutLanguage}`,
+                  language,
+                  languages,
+                  localisedUrlsConfig.map,
+                );
+                const expectedPathname =
+                  basePath === '/'
+                    ? `/${language}${canonicalLocalizedPath === '/' ? '' : canonicalLocalizedPath}`
+                    : `${basePath}/${language}${
+                        canonicalLocalizedPath === '/'
+                          ? ''
+                          : canonicalLocalizedPath
+                      }`;
+                if (expectedPathname !== pathname) {
+                  return c.redirect(
+                    `${expectedPathname}${url.search}${url.hash}`,
+                  );
+                }
               }
               await next();
             },

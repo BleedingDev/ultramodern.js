@@ -2,6 +2,7 @@ import type { TRuntimeContext } from '@modern-js/runtime';
 import { isBrowser } from '@modern-js/runtime';
 import type React from 'react';
 import { useEffect, useRef } from 'react';
+import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import type { I18nInstance } from './i18n';
 import {
   getI18nSdkBackendId,
@@ -41,6 +42,7 @@ export function createContextValue(
   languages: string[],
   localePathRedirect: boolean,
   ignoreRedirectRoutes: string[] | ((pathname: string) => boolean) | undefined,
+  localisedUrls: LocalisedUrlsOption | undefined,
   setLang: (lang: string) => void,
 ) {
   const instance = i18nInstance || createMinimalI18nInstance(lang);
@@ -51,6 +53,7 @@ export function createContextValue(
     languages,
     localePathRedirect,
     ignoreRedirectRoutes,
+    localisedUrls,
     updateLanguage: setLang,
   };
 }
@@ -162,6 +165,7 @@ export function useClientSideRedirect(
   languages: string[],
   fallbackLanguage: string,
   ignoreRedirectRoutes?: string[] | ((pathname: string) => boolean),
+  localisedUrls?: LocalisedUrlsOption,
 ) {
   const hasRedirectedRef = useRef(false);
   // Get router hooks safely
@@ -220,7 +224,12 @@ export function useClientSideRedirect(
     const targetLanguage =
       i18nInstance.language || fallbackLanguage || languages[0] || 'en';
 
-    const newPath = buildLocalizedUrl(relativePath, targetLanguage, languages);
+    const newPath = buildLocalizedUrl(
+      relativePath,
+      targetLanguage,
+      languages,
+      localisedUrls,
+    );
     const newUrl = entryPath + newPath + currentSearch + currentHash;
 
     if (newUrl !== currentPathname + currentSearch + currentHash) {
@@ -244,6 +253,7 @@ export function useClientSideRedirect(
     languages,
     fallbackLanguage,
     ignoreRedirectRoutes,
+    localisedUrls,
   ]);
 }
 

@@ -40,14 +40,19 @@ export const I18nLink: React.FC<I18nLinkProps> = ({
   ...props
 }) => {
   const { Link, params, hasRouter } = useRouterHooks();
-  const { language, supportedLanguages } = useModernI18n();
+  const { language, supportedLanguages, localisedUrls } = useModernI18n();
 
   // Get the current language from context (which reflects the actual current language)
   // URL params might be stale after language changes, so we prioritize the context language
   const currentLang = language;
 
   // Build the localized URL by adding language prefix
-  const localizedTo = buildLocalizedUrl(to, currentLang, supportedLanguages);
+  const localizedTo = buildLocalizedUrl(
+    to,
+    currentLang,
+    supportedLanguages,
+    localisedUrls,
+  );
 
   // In development mode, warn if used outside of :lang route context
   if (process.env.NODE_ENV === 'development' && hasRouter && !params.lang) {

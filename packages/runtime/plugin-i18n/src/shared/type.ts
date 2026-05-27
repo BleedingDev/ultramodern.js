@@ -2,6 +2,7 @@ import type {
   LanguageDetectorOptions,
   Resources,
 } from '../runtime/i18n/instance';
+import type { LocalisedUrlsOption } from './localisedUrls';
 
 export interface BaseLocaleDetectionOptions {
   localePathRedirect?: boolean;
@@ -10,6 +11,17 @@ export interface BaseLocaleDetectionOptions {
   fallbackLanguage?: string;
   detection?: LanguageDetectorOptions;
   ignoreRedirectRoutes?: string[] | ((pathname: string) => boolean);
+  /**
+   * Enables localised pathnames in addition to the locale prefix.
+   *
+   * - `false`: keep only locale-prefix behavior (`/en/about`).
+   * - object: map canonical route paths to every configured language.
+   *
+   * Defaults to `true` when `localePathRedirect` is enabled, so route
+   * generation validates that every localisable route path has entries for all
+   * configured languages.
+   */
+  localisedUrls?: LocalisedUrlsOption;
 }
 
 export interface LocaleDetectionOptions extends BaseLocaleDetectionOptions {

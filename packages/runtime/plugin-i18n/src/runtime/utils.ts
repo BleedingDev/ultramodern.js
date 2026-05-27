@@ -3,6 +3,11 @@ import {
   getGlobalBasename,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
+import type { LocalisedUrlsMap } from '../shared/localisedUrls';
+import {
+  resolveLocalisedPath,
+  resolveLocalisedUrlsConfig,
+} from '../shared/localisedUrls';
 
 export const getPathname = (context: TInternalRuntimeContext): string => {
   if (isBrowser()) {
@@ -51,18 +56,31 @@ export const buildLocalizedUrl = (
   pathname: string,
   language: string,
   languages: string[],
+  localisedUrls?: boolean | LocalisedUrlsMap,
 ): string => {
   const segments = pathname.split('/').filter(Boolean);
+  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
+  const pathWithoutLanguage =
+    segments.length > 0 && languages.includes(segments[0])
+      ? `/${segments.slice(1).join('/')}`
+      : pathname;
+  const resolvedPath = localisedUrlsConfig.enabled
+    ? resolveLocalisedPath(
+        pathWithoutLanguage,
+        language,
+        languages,
+        localisedUrlsConfig.map,
+      )
+    : pathWithoutLanguage;
+  const resolvedSegments = resolvedPath.split('/').filter(Boolean);
 
   if (segments.length > 0 && languages.includes(segments[0])) {
     // Replace existing language prefix
-    segments[0] = language;
+    return `/${[language, ...resolvedSegments].join('/')}`;
   } else {
     // Add language prefix
-    segments.unshift(language);
+    return `/${[language, ...resolvedSegments].join('/')}`;
   }
-
-  return `/${segments.join('/')}`;
 };
 
 export const detectLanguageFromPath = (

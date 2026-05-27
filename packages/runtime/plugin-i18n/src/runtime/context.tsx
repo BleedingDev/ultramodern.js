@@ -1,6 +1,7 @@
 import { isBrowser } from '@modern-js/runtime';
 import type { FC, ReactNode } from 'react';
 import { createContext, useCallback, useContext, useMemo } from 'react';
+import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import type { I18nInstance } from './i18n';
 import type { SdkBackend } from './i18n/backend/sdk-backend';
 import { cacheUserLanguage } from './i18n/detection';
@@ -20,6 +21,7 @@ export interface ModernI18nContextValue {
   languages?: string[];
   localePathRedirect?: boolean;
   ignoreRedirectRoutes?: string[] | ((pathname: string) => boolean);
+  localisedUrls?: LocalisedUrlsOption;
   // Callback to update language in context
   updateLanguage?: (newLang: string) => void;
 }
@@ -47,6 +49,7 @@ export interface UseModernI18nReturn {
   changeLanguage: (newLang: string) => Promise<void>;
   i18nInstance: I18nInstance;
   supportedLanguages: string[];
+  localisedUrls?: LocalisedUrlsOption;
   isLanguageSupported: (lang: string) => boolean;
   // Indicates if translation resources for current language are ready to use
   isResourcesReady: boolean;
@@ -77,6 +80,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
     languages,
     localePathRedirect,
     ignoreRedirectRoutes,
+    localisedUrls,
     updateLanguage,
   } = context;
 
@@ -147,6 +151,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
               relativePath,
               newLang,
               languages || [],
+              localisedUrls,
             );
             const newUrl =
               entryPath + newPath + location.search + location.hash;
@@ -181,6 +186,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
               relativePath,
               newLang,
               languages || [],
+              localisedUrls,
             );
             const newUrl =
               entryPath +
@@ -206,6 +212,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
       updateLanguage,
       localePathRedirect,
       ignoreRedirectRoutes,
+      localisedUrls,
       languages,
       hasRouter,
       navigate,
@@ -275,6 +282,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
     changeLanguage,
     i18nInstance,
     supportedLanguages: languages || [],
+    localisedUrls,
     isLanguageSupported,
     isResourcesReady,
   };

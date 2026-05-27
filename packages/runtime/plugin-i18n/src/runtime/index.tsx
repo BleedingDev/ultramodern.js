@@ -82,6 +82,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
       fallbackLanguage = 'en',
       detection,
       ignoreRedirectRoutes,
+      localisedUrls,
     } = localeDetection || {};
     const { enabled: backendEnabled = false } = backend || {};
     let latestI18nInstance: I18nInstance | undefined;
@@ -231,6 +232,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
           languages,
           fallbackLanguage,
           ignoreRedirectRoutes,
+          localisedUrls,
         );
 
         const contextValue = useMemo(
@@ -242,6 +244,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
               languages,
               localePathRedirect,
               ignoreRedirectRoutes,
+              localisedUrls,
               setLang,
             ),
           [
@@ -251,6 +254,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
             languages,
             localePathRedirect,
             ignoreRedirectRoutes,
+            localisedUrls,
             forceUpdate,
           ],
         );

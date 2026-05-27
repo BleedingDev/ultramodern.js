@@ -15,6 +15,7 @@ export default defineConfig({
         localePathRedirect: true,
         languages: ['zh', 'en'],
         fallbackLanguage: 'en',
+        localisedUrls: false,
       },
       backend: {
         enabled: true,

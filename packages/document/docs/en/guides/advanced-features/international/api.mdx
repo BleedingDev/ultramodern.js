@@ -15,6 +15,7 @@ title: API Reference
 | `language` | `string` | Current language code |
 | `changeLanguage` | `(lang: string) => Promise<void>` | Switches language |
 | `supportedLanguages` | `string[]` | Supported language list, from `localeDetection.languages` |
+| `localisedUrls` | `boolean \| Record<string, Record<string, string>>` | Localised URL mapping from `localeDetection.localisedUrls` |
 | `isLanguageSupported` | `(lang: string) => boolean` | Checks whether a language is in the supported list |
 | `isResourcesReady` | `boolean` | Whether translation resources for the current language have finished loading |
 | `i18nInstance` | `I18nInstance` | i18next instance for advanced scenarios |

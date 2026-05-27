@@ -1,8 +1,16 @@
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import { getPublicDirRoutePrefixes } from '@modern-js/server-core';
-import type { Entrypoint } from '@modern-js/types';
+import type {
+  Entrypoint,
+  NestedRouteForCli,
+  PageRoute,
+} from '@modern-js/types';
 import fs from 'fs';
 import path from 'path';
+import {
+  applyLocalisedUrlsToRoutes,
+  resolveLocalisedUrlsConfig,
+} from '../shared/localisedUrls';
 import type { BackendOptions, LocaleDetectionOptions } from '../shared/type';
 import { getBackendOptions, getLocaleDetectionOptions } from '../shared/utils';
 
@@ -200,6 +208,40 @@ export const i18nPlugin = (
       return {
         entrypoint,
         plugins,
+      };
+    });
+
+    api.modifyFileSystemRoutes(({ entrypoint, routes }) => {
+      if (!localeDetection) {
+        return { entrypoint, routes };
+      }
+
+      const localeDetectionOptions = getLocaleDetectionOptions(
+        entrypoint.entryName,
+        localeDetection,
+      );
+      const {
+        localePathRedirect,
+        languages = [],
+        localisedUrls,
+      } = localeDetectionOptions;
+
+      if (!localePathRedirect || languages.length === 0) {
+        return { entrypoint, routes };
+      }
+
+      const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
+      if (!localisedUrlsConfig.enabled) {
+        return { entrypoint, routes };
+      }
+
+      return {
+        entrypoint,
+        routes: applyLocalisedUrlsToRoutes(
+          routes as (NestedRouteForCli | PageRoute)[],
+          languages,
+          localisedUrlsConfig.map,
+        ),
       };
     });
 

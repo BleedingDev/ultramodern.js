@@ -21,6 +21,7 @@ export default defineConfig({
         localePathRedirect: true,
         languages: ['zh', 'en'],
         fallbackLanguage: 'en',
+        localisedUrls: false,
       },
     }),
     ssgPlugin(),

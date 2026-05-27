@@ -34,6 +34,45 @@ i18nPlugin({
 
 Some paths, such as API routes and static assets, do not need locale prefixes. Use `ignoreRedirectRoutes` to skip redirects. See [Locale Detection -> ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes).
 
+## Localised URL Paths
+
+When `localePathRedirect` is enabled, `localisedUrls` is enabled by default. This means every localisable route path must define a URL for every configured language. If you add a new language to `languages`, Modern.js will fail route generation until each localised URL entry includes that language too.
+
+```ts
+// modern.config.ts
+i18nPlugin({
+  localeDetection: {
+    localePathRedirect: true,
+    languages: ['en', 'cs'],
+    fallbackLanguage: 'en',
+    localisedUrls: {
+      '/terms-of-service': {
+        en: '/terms-of-service',
+        cs: '/podminky-pouzivani',
+      },
+      '/products': {
+        en: '/products',
+        cs: '/produkty',
+      },
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+    },
+  },
+});
+```
+
+**Result:**
+
+| Visited path | Result |
+| --- | --- |
+| `/terms-of-service` | Redirects to `/en/terms-of-service` |
+| `/cs/terms-of-service` | Redirects to `/cs/podminky-pouzivani` |
+| `/cs/podminky-pouzivani` | Visits normally, language is `cs` |
+
+Set `localisedUrls: false` only when you want locale prefixes without translated path segments.
+
 ## Route Configuration
 
 After enabling `localePathRedirect`, add a `[lang]` dynamic parameter in routes to receive the locale prefix.
