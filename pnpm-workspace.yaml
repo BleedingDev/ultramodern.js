@@ -38,21 +38,7 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   utf-8-validate: true
-
-onlyBuiltDependencies:
-  - '@biomejs/biome'
-  - '@parcel/watcher'
-  - '@swc/core'
-  - bufferutil
-  - core-js
-  - es5-ext
-  - esbuild
-  - msgpackr-extract
-  - nx
-  - puppeteer
-  - sharp
-  - unrs-resolver
-  - utf-8-validate
+  workerd: true
 
 patchedDependencies:
   '@module-federation/manifest@2.5.0': patches/@module-federation__manifest@2.5.0.patch

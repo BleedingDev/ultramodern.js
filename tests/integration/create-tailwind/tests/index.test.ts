@@ -33,28 +33,56 @@ function readGeneratedPage(appDir: string) {
   );
 }
 
-function expectPnpm11Policy(projectDir: string) {
-  const pnpmWorkspace = fs.readFileSync(
-    path.join(projectDir, 'pnpm-workspace.yaml'),
-    'utf-8',
-  );
-  for (const requiredSnippet of [
-    'minimumReleaseAge: 1440',
-    'minimumReleaseAgeStrict: true',
-    'minimumReleaseAgeIgnoreMissingTime: false',
-    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
-    'trustPolicy: no-downgrade',
-    'trustPolicyIgnoreAfter: 1440',
-    'blockExoticSubdeps: true',
-    'engineStrict: true',
-    'pmOnFail: error',
-    'verifyDepsBeforeRun: error',
-    'strictDepBuilds: true',
-    "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
-  ]) {
-    expect(pnpmWorkspace).toContain(requiredSnippet);
+function readPnpmConfig<T = any>(
+  projectDir: string,
+  key: string,
+): T | undefined {
+  const env = { ...process.env };
+  for (const envKey of Object.keys(env)) {
+    if (/^(?:npm|pnpm)_config_/i.test(envKey)) {
+      delete env[envKey];
+    }
   }
-  expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
+  const output = execFileSync('pnpm', ['config', 'get', key, '--json'], {
+    cwd: projectDir,
+    env,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  return output ? JSON.parse(output) : undefined;
+}
+
+function expectPnpm11Policy(projectDir: string) {
+  expect(readPnpmConfig(projectDir, 'minimumReleaseAge')).toBe(1440);
+  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeStrict')).toBe(true);
+  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeIgnoreMissingTime')).toBe(
+    false,
+  );
+  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
+    '@modern-js/*',
+    '@bleedingdev/*',
+    '@effect/tsgo',
+    '@effect/tsgo-*',
+    '@typescript/native-preview',
+    '@typescript/native-preview-*',
+  ]);
+  expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
+  expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
+  expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);
+  expect(readPnpmConfig(projectDir, 'engineStrict')).toBe(true);
+  expect(readPnpmConfig(projectDir, 'pmOnFail')).toBe('error');
+  expect(readPnpmConfig(projectDir, 'verifyDepsBeforeRun')).toBe('error');
+  expect(readPnpmConfig(projectDir, 'strictDepBuilds')).toBe(true);
+  expect(readPnpmConfig(projectDir, 'allowBuilds')).toEqual({
+    '@swc/core': true,
+    'core-js': true,
+    esbuild: true,
+    'msgpackr-extract': true,
+    sharp: true,
+    'simple-git-hooks': true,
+    workerd: true,
+  });
+  expect(readPnpmConfig(projectDir, 'onlyBuiltDependencies')).toBeUndefined();
 }
 
 function expectSingleAppContract(appDir: string) {

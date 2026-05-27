@@ -40,4 +40,6 @@ allowBuilds:
   core-js: true
   esbuild: true
   msgpackr-extract: true
+  sharp: true
   simple-git-hooks: true
+  workerd: true

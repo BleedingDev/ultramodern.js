@@ -161,6 +161,7 @@ describe('create builder Options', () => {
       const deletedPlugins = new Set<string>();
       const chain = {
         merge: rstest.fn(),
+        externalsPresets: rstest.fn(),
         plugins: {
           delete: (name: string) => {
             deletedPlugins.add(name);
@@ -191,8 +192,18 @@ describe('create builder Options', () => {
           outputModule: true,
         },
       });
+      expect(chain.externalsPresets).toHaveBeenCalledWith({ node: true });
       expect(chain.target).toHaveBeenCalledWith('webworker');
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
+      expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(
+        /runtime[/\\]plugin-runtime[/\\]dist[/\\]esm[/\\]rsc[/\\]server\.worker\.mjs$/,
+      );
+      expect(aliases.get('react-server-dom-rspack/server.node$')).toBe(
+        'react-server-dom-rspack/server.edge',
+      );
+      expect(aliases.get('react-server-dom-rspack/client.node$')).toBe(
+        'react-server-dom-rspack/client.edge',
+      );
       expect(aliases.get('react$')).toMatch(/react[/\\]index\.js$/);
       expect(aliases.get('react/jsx-runtime$')).toMatch(
         /react[/\\]jsx-runtime\.js$/,

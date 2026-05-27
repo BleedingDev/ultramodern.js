@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -7,6 +8,21 @@ const packageSourcePath = path.resolve(
   process.cwd(),
   '.modernjs/ultramodern-package-source.json',
 );
+const readPnpmConfig = (key) => {
+  const env = { ...process.env };
+  for (const envKey of Object.keys(env)) {
+    if (/^(?:npm|pnpm)_config_/i.test(envKey)) {
+      delete env[envKey];
+    }
+  }
+  const output = execFileSync('pnpm', ['config', 'get', key, '--json'], {
+    cwd: process.cwd(),
+    env,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  return output ? JSON.parse(output) : undefined;
+};
 const isSubproject = {{isSubproject}};
 const enableTailwind = {{enableTailwind}};
 
@@ -249,10 +265,6 @@ if (manifestErrors.length > 0) {
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
-const pnpmWorkspace = fs.readFileSync(
-  path.resolve(process.cwd(), 'pnpm-workspace.yaml'),
-  'utf-8',
-);
 const packageSource = JSON.parse(fs.readFileSync(packageSourcePath, 'utf-8'));
 const unresolvedTemplateMarker = String.fromCodePoint(123, 123);
 if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
@@ -321,28 +333,66 @@ if (packageJson.pnpm !== undefined) {
   process.exit(1);
 }
 
-for (const requiredSnippet of [
-  'minimumReleaseAge: 1440',
-  'minimumReleaseAgeStrict: true',
-  'minimumReleaseAgeIgnoreMissingTime: false',
-  "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
-  'trustPolicy: no-downgrade',
-  'trustPolicyIgnoreAfter: 1440',
-  'blockExoticSubdeps: true',
-  'engineStrict: true',
-  'pmOnFail: error',
-  'verifyDepsBeforeRun: error',
-  'strictDepBuilds: true',
-  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
+if (readPnpmConfig('minimumReleaseAge') !== 1440) {
+  console.error('pnpm minimumReleaseAge must be 1440');
+  process.exit(1);
+}
+if (readPnpmConfig('minimumReleaseAgeStrict') !== true) {
+  console.error('pnpm minimumReleaseAgeStrict must be true');
+  process.exit(1);
+}
+if (readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') !== false) {
+  console.error('pnpm minimumReleaseAgeIgnoreMissingTime must be false');
+  process.exit(1);
+}
+if (
+  JSON.stringify(readPnpmConfig('minimumReleaseAgeExclude')) !==
+  JSON.stringify([
+    '@modern-js/*',
+    '@bleedingdev/*',
+    '@effect/tsgo',
+    '@effect/tsgo-*',
+    '@typescript/native-preview',
+    '@typescript/native-preview-*',
+  ])
+) {
+  console.error('pnpm minimumReleaseAgeExclude must retain framework exceptions');
+  process.exit(1);
+}
+if (readPnpmConfig('trustPolicy') !== 'no-downgrade') {
+  console.error('pnpm trustPolicy must be no-downgrade');
+  process.exit(1);
+}
+for (const [key, expected] of [
+  ['trustPolicyIgnoreAfter', 1440],
+  ['blockExoticSubdeps', true],
+  ['engineStrict', true],
+  ['pmOnFail', 'error'],
+  ['verifyDepsBeforeRun', 'error'],
+  ['strictDepBuilds', true],
 ]) {
-  if (!pnpmWorkspace.includes(requiredSnippet)) {
-    console.error(`pnpm-workspace.yaml must retain ${requiredSnippet.split('\n')[0]}`);
+  if (readPnpmConfig(key) !== expected) {
+    console.error(`pnpm ${key} must be ${String(expected)}`);
     process.exit(1);
   }
 }
-
-if (pnpmWorkspace.includes('onlyBuiltDependencies')) {
-  console.error('pnpm-workspace.yaml must use pnpm 11 allowBuilds instead of onlyBuiltDependencies');
+if (
+  JSON.stringify(readPnpmConfig('allowBuilds')) !==
+  JSON.stringify({
+    '@swc/core': true,
+    'core-js': true,
+    esbuild: true,
+    'msgpackr-extract': true,
+    sharp: true,
+    'simple-git-hooks': true,
+    workerd: true,
+  })
+) {
+  console.error('pnpm allowBuilds must approve only the generated app build dependencies');
+  process.exit(1);
+}
+if (readPnpmConfig('onlyBuiltDependencies') !== undefined) {
+  console.error('pnpm onlyBuiltDependencies must not be set');
   process.exit(1);
 }
 

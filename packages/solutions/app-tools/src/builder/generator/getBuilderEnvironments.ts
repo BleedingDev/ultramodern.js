@@ -230,9 +230,14 @@ export function getBuilderEnvironments(
                     outputModule: true,
                   },
                 });
+                chain.externalsPresets({ node: true });
                 chain.target('webworker');
                 chain.plugins.delete('plugin-module-federation');
                 if (tanstackRouterSsrServerFile) {
+                  chain.resolve.alias.set(
+                    '@tanstack/router-core/ssr/server$',
+                    tanstackRouterSsrServerFile,
+                  );
                   chain.resolve.alias.set(
                     '@tanstack/router-core/ssr/server',
                     tanstackRouterSsrServerFile,
@@ -240,13 +245,25 @@ export function getBuilderEnvironments(
                 }
                 if (runtimeRscWorkerFile) {
                   chain.resolve.alias.set(
+                    '@modern-js/runtime/rsc/server$',
+                    runtimeRscWorkerFile,
+                  );
+                  chain.resolve.alias.set(
                     '@modern-js/runtime/rsc/server',
                     runtimeRscWorkerFile,
                   );
                 }
                 if (renderRscWorkerFile) {
                   chain.resolve.alias.set(
+                    '@modern-js/render/rsc$',
+                    renderRscWorkerFile,
+                  );
+                  chain.resolve.alias.set(
                     '@modern-js/render/rsc',
+                    renderRscWorkerFile,
+                  );
+                  chain.resolve.alias.set(
+                    '@modern-js/render/rsc-worker$',
                     renderRscWorkerFile,
                   );
                 }
@@ -272,8 +289,16 @@ export function getBuilderEnvironments(
                   reactDomServerEdgeFile,
                 );
                 chain.resolve.alias.set(
+                  'react-server-dom-rspack/server.node$',
+                  'react-server-dom-rspack/server.edge',
+                );
+                chain.resolve.alias.set(
                   'react-server-dom-rspack/server.node',
                   'react-server-dom-rspack/server.edge',
+                );
+                chain.resolve.alias.set(
+                  'react-server-dom-rspack/client.node$',
+                  'react-server-dom-rspack/client.edge',
                 );
                 chain.resolve.alias.set(
                   'react-server-dom-rspack/client.node',

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -51,6 +52,21 @@ const designSystemRemotePath = 'apps/remotes/remote-design-system';
 
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
+const readPnpmConfig = (key) => {
+  const env = { ...process.env };
+  for (const envKey of Object.keys(env)) {
+    if (/^(?:npm|pnpm)_config_/i.test(envKey)) {
+      delete env[envKey];
+    }
+  }
+  const output = execFileSync('pnpm', ['config', 'get', key, '--json'], {
+    cwd: root,
+    env,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  return output ? JSON.parse(output) : undefined;
+};
 const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
@@ -177,7 +193,6 @@ const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const skillsLock = readJson('.agents/skills-lock.json');
 const agentReferenceRepos = readJson('.agents/agent-reference-repos.json');
-const pnpmWorkspace = readText('pnpm-workspace.yaml');
 const workflowContent = readText('.github/workflows/ultramodern-workspace-gates.yml');
 const renovateConfig = readJson('.github/renovate.json');
 const expectedModernSpecifier =
@@ -201,32 +216,64 @@ assert(
   rootPackage.engines?.pnpm === '>=11.3.0 <11.4.0',
   'Root must require pnpm >=11.3.0 <11.4.0',
 );
-for (const requiredSnippet of [
-  'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
-  'minimumReleaseAge: 1440',
-  'minimumReleaseAgeStrict: true',
-  'minimumReleaseAgeIgnoreMissingTime: false',
-  "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'",
-  'trustPolicy: no-downgrade',
-  'trustPolicyIgnoreAfter: 1440',
-  'blockExoticSubdeps: true',
-  'engineStrict: true',
-  'pmOnFail: error',
-  'verifyDepsBeforeRun: error',
-  'strictDepBuilds: true',
-  "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
-  "overrides:\n  '@tanstack/react-router': 1.170.8\n  node-fetch: '^3.3.2'",
-  "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
-]) {
-  assert(
-    pnpmWorkspace.includes(requiredSnippet),
-    `pnpm-workspace.yaml must retain ${requiredSnippet.split('\n')[0]}`,
-  );
-}
 assert(
-  !pnpmWorkspace.includes('onlyBuiltDependencies'),
-  'pnpm-workspace.yaml must use pnpm 11 allowBuilds instead of onlyBuiltDependencies',
+  JSON.stringify(readPnpmConfig('packages')) ===
+    JSON.stringify(['apps/*', 'apps/remotes/*', 'services/*', 'packages/*']),
+  'pnpm-workspace.yaml must retain workspace package globs',
 );
+assert(readPnpmConfig('minimumReleaseAge') === 1440, 'pnpm minimumReleaseAge must be 1440');
+assert(readPnpmConfig('minimumReleaseAgeStrict') === true, 'pnpm minimumReleaseAgeStrict must be true');
+assert(
+  readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') === false,
+  'pnpm minimumReleaseAgeIgnoreMissingTime must be false',
+);
+assert(
+  JSON.stringify(readPnpmConfig('minimumReleaseAgeExclude')) ===
+    JSON.stringify([
+      '@modern-js/*',
+      '@bleedingdev/*',
+      '@effect/tsgo',
+      '@effect/tsgo-*',
+      '@typescript/native-preview',
+      '@typescript/native-preview-*',
+      '@cloudflare/*',
+      'miniflare',
+      'workerd',
+      'wrangler',
+    ]),
+  'pnpm minimumReleaseAgeExclude must retain framework and Cloudflare exceptions',
+);
+assert(readPnpmConfig('trustPolicy') === 'no-downgrade', 'pnpm trustPolicy must be no-downgrade');
+assert(readPnpmConfig('trustPolicyIgnoreAfter') === 1440, 'pnpm trustPolicyIgnoreAfter must be 1440');
+assert(readPnpmConfig('blockExoticSubdeps') === true, 'pnpm blockExoticSubdeps must be true');
+assert(readPnpmConfig('engineStrict') === true, 'pnpm engineStrict must be true');
+assert(readPnpmConfig('pmOnFail') === 'error', 'pnpm pmOnFail must be error');
+assert(readPnpmConfig('verifyDepsBeforeRun') === 'error', 'pnpm verifyDepsBeforeRun must be error');
+assert(readPnpmConfig('strictDepBuilds') === true, 'pnpm strictDepBuilds must be true');
+assert(
+  JSON.stringify(readPnpmConfig('peerDependencyRules')) ===
+    JSON.stringify({ allowedVersions: { react: '>=19.0.0', typescript: '>=6.0.0' } }),
+  'pnpm peerDependencyRules must allow React 19 and TypeScript 6+',
+);
+assert(
+  JSON.stringify(readPnpmConfig('overrides')) ===
+    JSON.stringify({ '@tanstack/react-router': '1.170.8', 'node-fetch': '^3.3.2' }),
+  'pnpm overrides must pin generated router and node-fetch policy',
+);
+assert(
+  JSON.stringify(readPnpmConfig('allowBuilds')) ===
+    JSON.stringify({
+      '@swc/core': true,
+      'core-js': true,
+      esbuild: true,
+      'msgpackr-extract': true,
+      sharp: true,
+      'simple-git-hooks': true,
+      workerd: true,
+    }),
+  'pnpm allowBuilds must approve only the generated workspace build dependencies',
+);
+assert(readPnpmConfig('onlyBuiltDependencies') === undefined, 'pnpm onlyBuiltDependencies must not be set');
 for (const requiredSnippet of [
   'permissions:\n  contents: read',
   'pull_request:',

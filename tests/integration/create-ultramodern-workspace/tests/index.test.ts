@@ -36,6 +36,22 @@ function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
 }
 
+function readPnpmConfig<T = any>(root: string, key: string): T | undefined {
+  const env = { ...process.env };
+  for (const envKey of Object.keys(env)) {
+    if (/^(?:npm|pnpm)_config_/i.test(envKey)) {
+      delete env[envKey];
+    }
+  }
+  const output = execFileSync('pnpm', ['config', 'get', key, '--json'], {
+    cwd: root,
+    env,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  return output ? JSON.parse(output) : undefined;
+}
+
 function writeText(root: string, relativePath: string, content: string) {
   const filePath = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -55,26 +71,56 @@ function expectNoPath(root: string, relativePath: string) {
 }
 
 function expectPnpm11Policy(workspaceDir: string) {
-  const pnpmWorkspace = readText(workspaceDir, 'pnpm-workspace.yaml');
-  for (const requiredSnippet of [
-    'minimumReleaseAge: 1440',
-    'minimumReleaseAgeStrict: true',
-    'minimumReleaseAgeIgnoreMissingTime: false',
-    "minimumReleaseAgeExclude:\n  - '@modern-js/*'\n  - '@bleedingdev/*'\n  - '@effect/tsgo'\n  - '@effect/tsgo-*'\n  - '@typescript/native-preview'\n  - '@typescript/native-preview-*'\n  - '@cloudflare/*'\n  - miniflare\n  - workerd\n  - wrangler",
-    "peerDependencyRules:\n  allowedVersions:\n    react: '>=19.0.0'\n    typescript: '>=6.0.0'",
-    "overrides:\n  '@tanstack/react-router': 1.170.8\n  node-fetch: '^3.3.2'",
-    'trustPolicy: no-downgrade',
-    'trustPolicyIgnoreAfter: 1440',
-    'blockExoticSubdeps: true',
-    'engineStrict: true',
-    'pmOnFail: error',
-    'verifyDepsBeforeRun: error',
-    'strictDepBuilds: true',
-    "allowBuilds:\n  '@swc/core': true\n  core-js: true\n  esbuild: true\n  msgpackr-extract: true\n  simple-git-hooks: true",
-  ]) {
-    expect(pnpmWorkspace).toContain(requiredSnippet);
-  }
-  expect(pnpmWorkspace).not.toContain('onlyBuiltDependencies');
+  expect(readPnpmConfig(workspaceDir, 'packages')).toEqual([
+    'apps/*',
+    'apps/remotes/*',
+    'services/*',
+    'packages/*',
+  ]);
+  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAge')).toBe(1440);
+  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeStrict')).toBe(true);
+  expect(
+    readPnpmConfig(workspaceDir, 'minimumReleaseAgeIgnoreMissingTime'),
+  ).toBe(false);
+  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeExclude')).toEqual([
+    '@modern-js/*',
+    '@bleedingdev/*',
+    '@effect/tsgo',
+    '@effect/tsgo-*',
+    '@typescript/native-preview',
+    '@typescript/native-preview-*',
+    '@cloudflare/*',
+    'miniflare',
+    'workerd',
+    'wrangler',
+  ]);
+  expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
+    allowedVersions: {
+      react: '>=19.0.0',
+      typescript: '>=6.0.0',
+    },
+  });
+  expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
+    '@tanstack/react-router': '1.170.8',
+    'node-fetch': '^3.3.2',
+  });
+  expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
+  expect(readPnpmConfig(workspaceDir, 'trustPolicyIgnoreAfter')).toBe(1440);
+  expect(readPnpmConfig(workspaceDir, 'blockExoticSubdeps')).toBe(true);
+  expect(readPnpmConfig(workspaceDir, 'engineStrict')).toBe(true);
+  expect(readPnpmConfig(workspaceDir, 'pmOnFail')).toBe('error');
+  expect(readPnpmConfig(workspaceDir, 'verifyDepsBeforeRun')).toBe('error');
+  expect(readPnpmConfig(workspaceDir, 'strictDepBuilds')).toBe(true);
+  expect(readPnpmConfig(workspaceDir, 'allowBuilds')).toEqual({
+    '@swc/core': true,
+    'core-js': true,
+    esbuild: true,
+    'msgpackr-extract': true,
+    sharp: true,
+    'simple-git-hooks': true,
+    workerd: true,
+  });
+  expect(readPnpmConfig(workspaceDir, 'onlyBuiltDependencies')).toBeUndefined();
 }
 
 function readGeneratedContract(workspaceDir: string) {
