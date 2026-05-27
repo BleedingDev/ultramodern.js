@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-05-27T20:38:00Z",
+  "source": {
+    "repository": "BleedingDev/ultramodern.js",
+    "branch": "main-ultramodern",
+    "commit": "9c7900ddf82173169eea1c3f5a99c3ec50a64353"
+  },
+  "publish": {
+    "version": "3.2.0-ultramodern.24",
+    "tag": "ultramodern-canary",
+    "workflowRun": "https://github.com/BleedingDev/ultramodern.js/actions/runs/26536246716",
+    "status": "success"
+  },
+  "workspace": {
+    "path": "/tmp/ultramodern-cf-live-24-qZR4SW/ultra-workspace",
+    "packageSource": "install",
+    "packageScope": "bleedingdev",
+    "packageVersion": "3.2.0-ultramodern.24",
+    "pnpmVersion": "11.3.0",
+    "wranglerVersion": "4.95.0",
+    "typescript": "6.0.3",
+    "typescriptNativePreview": "7.0.0-dev.20260526.1"
+  },
+  "cloudflare": {
+    "workerName": "ultramodern-remote-commerce-live-20260527-v24",
+    "url": "https://ultramodern-remote-commerce-live-20260527-v24.edution.workers.dev",
+    "versionId": "85fa2124-fcd6-4f00-93c9-6141d363beb9",
+    "status": "deployed"
+  },
+  "checks": [
+    {
+      "name": "fresh install",
+      "status": "pass",
+      "evidence": "pnpm install completed; sharp@0.34.5 install check ran successfully; wrangler whoami returned syreanis@gmail.com"
+    },
+    {
+      "name": "workspace contract",
+      "status": "pass",
+      "evidence": "pnpm ultramodern:check -> UltraModern workspace scaffold validated"
+    },
+    {
+      "name": "cloudflare build",
+      "status": "pass",
+      "evidence": "MODERN_PUBLIC_SITE_URL=https://ultramodern-remote-commerce-live-20260527-v24.edution.workers.dev pnpm --filter @ultra-workspace/remote-commerce run cloudflare:build"
+    },
+    {
+      "name": "cloudflare deploy",
+      "status": "pass",
+      "evidence": "pnpm exec wrangler deploy --config .output/wrangler.json --name ultramodern-remote-commerce-live-20260527-v24"
+    },
+    {
+      "name": "localized SSR HTML",
+      "status": "pass",
+      "evidence": "/en and /cs returned HTTP 200 full documents with <!doctype html>, script tags, localized copy, data-app-id=remote-commerce, and remote-commerce:0.1.0 build marker"
+    },
+    {
+      "name": "Effect BFF",
+      "status": "pass",
+      "evidence": "/commerce-api/effect/recommendations?limit=1 returned HTTP 200 application/json with starter-recommendations and build marker 2b942bd0e2eda948"
+    },
+    {
+      "name": "MF manifest",
+      "status": "pass",
+      "evidence": "/mf-manifest.json returned remoteCommerce with Route and Widget exposes, five shared entries, and metadata.types zip/api entries"
+    },
+    {
+      "name": "MF DTS artifacts",
+      "status": "pass",
+      "evidence": "/@mf-types.zip followed Cloudflare's @ path redirect and contained Widget.d.ts, Route.d.ts, compiled-types/src/remote-entry.d.ts, and compiled-types/src/components/commerce-widget.d.ts"
+    },
+    {
+      "name": "browser hydration",
+      "status": "pass",
+      "evidence": "agent-browser loaded /en, scripts/CSS returned HTTP 200, client fetched /commerce-api/effect/recommendations?limit=1, effect-bff-status changed from pending to Wire a real recommendations source here, and console/page errors were empty"
+    },
+    {
+      "name": "localized browser route",
+      "status": "pass",
+      "evidence": "agent-browser loaded /cs with Anglictina/Cestina, Obchodni remote, obchod, remote-commerce:0.1.0, hydrated BFF status, and no page errors"
+    }
+  ],
+  "warnings": [
+    "Zephyr accepts the temp workspace build but warns that production Zephyr deployments require a real git repository, remote origin, and commit.",
+    "Module Federation/Rsdoctor duplicate chunk and ESM-resolved-to-CJS warnings remain non-blocking in this build.",
+    "The optional react-i18next provider probe in @bleedingdev/modern-js-plugin-i18n still emits a critical dependency warning because it intentionally uses a dynamic optional import.",
+    "Autoprefixer reports that the selected browser targets do not need prefixes.",
+    "GitHub Actions warns that pinned JavaScript actions currently run on Node.js 20 and should move to Node.js 24-compatible action runtimes."
+  ],
+  "result": "pass"
+}
