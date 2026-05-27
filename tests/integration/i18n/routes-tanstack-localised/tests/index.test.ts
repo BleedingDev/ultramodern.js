@@ -45,6 +45,23 @@ describe('i18n TanStack localisedUrls', () => {
   let page: Page;
   const errors: string[] = [];
 
+  async function createTrackedPage() {
+    const trackedPage = await browser.newPage();
+    await trackedPage.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+    trackedPage.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text());
+      }
+    });
+    trackedPage.on('pageerror', error => {
+      errors.push((error as Error).message);
+    });
+    await clearI18nTestState(trackedPage);
+    return trackedPage;
+  }
+
   beforeAll(
     async () => {
       await modernBuild(appDir);
@@ -53,22 +70,19 @@ describe('i18n TanStack localisedUrls', () => {
       app = await modernServe(appDir, appPort);
 
       browser = await puppeteer.launch(launchOptions as any);
-      page = await browser.newPage();
-      await page.setExtraHTTPHeaders({
-        'Accept-Language': 'en-US,en;q=0.9',
-      });
-      page.on('console', msg => {
-        if (msg.type() === 'error') {
-          errors.push(msg.text());
-        }
-      });
     },
     1000 * 60 * 5,
   );
 
   beforeEach(async () => {
     errors.length = 0;
-    await clearI18nTestState(page);
+    page = await createTrackedPage();
+  });
+
+  afterEach(async () => {
+    if (page) {
+      await page.close();
+    }
   });
 
   afterAll(async () => {
@@ -189,12 +203,19 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/volitelne`, {
       waitUntil: ['networkidle0'],
     });
+    await waitForHydration(page, '#optional');
     const emptyOptional = await page.$eval('#optional', el => el.textContent);
     expect(emptyOptional).toBe('optional:cs:none');
+    expect(errors).toEqual([]);
+
+    await page.close();
+    errors.length = 0;
+    page = await createTrackedPage();
 
     await page.goto(`http://localhost:${appPort}/cs/volitelne/lehke`, {
       waitUntil: ['networkidle0'],
     });
+    await waitForHydration(page, '#optional');
     const optionalWithSlug = await page.$eval(
       '#optional',
       el => el.textContent,

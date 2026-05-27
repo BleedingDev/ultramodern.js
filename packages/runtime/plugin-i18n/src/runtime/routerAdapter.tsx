@@ -5,12 +5,12 @@ import {
   type TRuntimeContext,
 } from '@modern-js/runtime/context';
 import {
+  Link as ReactRouterLink,
   useInRouterContext,
   useLocation as useReactRouterLocation,
   useNavigate as useReactRouterNavigate,
   useParams as useReactRouterParams,
 } from '@modern-js/runtime/router';
-import { Link as ReactRouterLink } from '@modern-js/runtime-utils/router';
 import type React from 'react';
 import { useCallback, useContext, useEffect, useState } from 'react';
 
