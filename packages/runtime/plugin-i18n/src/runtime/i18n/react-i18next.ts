@@ -1,4 +1,11 @@
+import type React from 'react';
+
 type ReactI18nextModule = typeof import('react-i18next');
+
+interface ReactI18nextIntegration {
+  I18nextProvider: React.ComponentType<any> | null;
+  initReactI18next: any | null;
+}
 
 function getOptionalReactI18nextPackageName(): string {
   return ['react', 'i18next'].join('-');
@@ -14,7 +21,7 @@ async function tryImportReactI18next(): Promise<ReactI18nextModule | null> {
   }
 }
 
-export async function getReactI18nextIntegration() {
+export async function getReactI18nextIntegration(): Promise<ReactI18nextIntegration> {
   const reactI18nextModule = await tryImportReactI18next();
 
   return {
