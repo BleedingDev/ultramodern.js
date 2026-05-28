@@ -23,7 +23,7 @@ pnpm --filter "./apps/remotes/**" run cloudflare:build
 pnpm --filter "./apps/remotes/remote-commerce" run cloudflare:preview
 ```
 
-No corepack source of truth is generated. The workspace pins `packageManager: pnpm@11.4.0`, writes `.mise.toml` with pnpm `11.4.0`, and records the toolchain policy as mise in `.modernjs/ultramodern-generated-contract.json`.
+The workspace pins `packageManager: pnpm@11.4.0`, writes `.mise.toml` with pnpm `11.4.0`, and records mise as the toolchain in `.modernjs/ultramodern-generated-contract.json`.
 
 ## Worker Output Contract
 

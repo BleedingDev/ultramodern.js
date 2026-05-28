@@ -793,8 +793,7 @@ assert(
 assert(
   generatedContract.packageManager?.manager === 'pnpm' &&
     generatedContract.packageManager?.version === expectedPnpmVersion &&
-    generatedContract.packageManager?.toolchain === 'mise' &&
-    generatedContract.packageManager?.corepack === false,
+    generatedContract.packageManager?.toolchain === 'mise',
   'Generated contract must declare the pnpm 11/mise toolchain policy',
 );
 

@@ -3381,7 +3381,6 @@ function createGeneratedContract(
       manager: 'pnpm',
       version: PNPM_VERSION,
       toolchain: 'mise',
-      corepack: false,
     },
     versions: {
       typescript: TYPESCRIPT_VERSION,
