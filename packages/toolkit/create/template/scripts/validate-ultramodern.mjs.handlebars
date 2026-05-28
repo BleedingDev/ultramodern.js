@@ -25,6 +25,19 @@ const readPnpmConfig = (key) => {
 };
 const isSubproject = {{isSubproject}};
 const enableTailwind = {{enableTailwind}};
+const expectedPnpmVersion = '{{pnpmVersion}}';
+const activePnpmVersion = execFileSync('pnpm', ['--version'], {
+  cwd: process.cwd(),
+  encoding: 'utf-8',
+  stdio: ['ignore', 'pipe', 'pipe'],
+}).trim();
+
+if (activePnpmVersion !== expectedPnpmVersion) {
+  console.error(
+    `Generated app requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun through mise exec -- pnpm ...`,
+  );
+  process.exit(1);
+}
 
 if (!fs.existsSync(configPath)) {
   console.error('modern.config.ts not found');
@@ -138,7 +151,10 @@ for (const requiredSnippet of [
   'permissions:\n  contents: read',
   'pull_request:',
   'persist-credentials: false',
-  'pnpm install --frozen-lockfile',
+  'jdx/mise-action',
+  'mise exec -- pnpm install --frozen-lockfile',
+  'mise exec -- pnpm run ultramodern:check',
+  'mise exec -- pnpm run build',
   'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
   'timeout-minutes:',
   'egress-policy: audit',
@@ -272,13 +288,19 @@ if (packageJson.private !== true) {
   process.exit(1);
 }
 
-if (packageJson.packageManager !== 'pnpm@11.4.0') {
-  console.error('Generated app package must pin pnpm@11.4.0');
+const miseConfig = fs.readFileSync(path.resolve(process.cwd(), '.mise.toml'), 'utf-8');
+if (!miseConfig.includes(`pnpm = "${expectedPnpmVersion}"`)) {
+  console.error(`Generated app must pin pnpm ${expectedPnpmVersion} in .mise.toml`);
   process.exit(1);
 }
 
-if (packageJson.engines?.pnpm !== '>=11.4.0 <11.5.0') {
-  console.error('Generated app package must require pnpm >=11.4.0 <11.5.0');
+if (packageJson.packageManager !== `pnpm@${expectedPnpmVersion}`) {
+  console.error(`Generated app package must pin pnpm@${expectedPnpmVersion}`);
+  process.exit(1);
+}
+
+if (packageJson.engines?.pnpm !== `>=${expectedPnpmVersion} <11.5.0`) {
+  console.error(`Generated app package must require pnpm >=${expectedPnpmVersion} <11.5.0`);
   process.exit(1);
 }
 

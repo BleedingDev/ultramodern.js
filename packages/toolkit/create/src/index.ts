@@ -129,6 +129,7 @@ const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
+const PNPM_VERSION = '11.4.0';
 const requiredDeniedPaths = [
   '.git/**',
   '.npmrc',
@@ -444,9 +445,10 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
         'template-manifest-retained',
       ],
       expectedCommands: [
-        'pnpm install',
-        'pnpm test',
-        'pnpm run ultramodern:check',
+        'mise install',
+        'mise exec -- pnpm install',
+        'mise exec -- pnpm test',
+        'mise exec -- pnpm run ultramodern:check',
       ],
     },
   };
@@ -1192,7 +1194,8 @@ async function main() {
     const reset = '\x1b[0m';
 
     console.log(`${i18n.t(localeKeys.message.success)}\n`);
-    console.log(`${dim}   pnpm ultramodern:check${reset}\n`);
+    console.log(`${dim}   mise install${reset}`);
+    console.log(`${dim}   mise exec -- pnpm ultramodern:check${reset}\n`);
     return;
   }
 
@@ -1229,8 +1232,9 @@ async function main() {
         `${dim}   ${i18n.t(localeKeys.message.step1, { projectName })}${reset}`,
       );
     }
+    console.log(`${dim}   mise install${reset}`);
     console.log(`${dim}   ${i18n.t(localeKeys.message.step2)}${reset}`);
-    console.log(`${dim}   pnpm ultramodern:check${reset}`);
+    console.log(`${dim}   mise exec -- pnpm ultramodern:check${reset}`);
     console.log(`${dim}   ${i18n.t(localeKeys.message.step3)}${reset}\n`);
     return;
   }
@@ -1292,6 +1296,7 @@ async function main() {
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
     tailwindVersion: TAILWIND_VERSION,
     tailwindPostcssVersion: TAILWIND_POSTCSS_VERSION,
+    pnpmVersion: PNPM_VERSION,
     isSubproject,
     routerFramework,
     bffRuntime,
@@ -1374,6 +1379,7 @@ function copyTemplate(
     tanstackRouterVersion: string;
     tailwindVersion: string;
     tailwindPostcssVersion: string;
+    pnpmVersion: string;
     isSubproject: boolean;
     routerFramework: RouterFramework;
     bffRuntime: BffRuntime;
@@ -1440,6 +1446,7 @@ function copyTemplate(
             tanstackRouterVersion: options.tanstackRouterVersion,
             tailwindVersion: options.tailwindVersion,
             tailwindPostcssVersion: options.tailwindPostcssVersion,
+            pnpmVersion: options.pnpmVersion,
             isSubproject: options.isSubproject,
             isTanstackRouter: options.routerFramework === 'tanstack',
             enableBff: options.bffRuntime !== 'none',

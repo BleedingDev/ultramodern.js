@@ -19,13 +19,14 @@ const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.11.0';
 const TYPESCRIPT_VERSION = '6.0.3';
-const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260526.1';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260527.2';
 const OXLINT_VERSION = '1.66.0';
 const OXFMT_VERSION = '0.51.0';
 const ULTRACITE_VERSION = '7.7.0';
 const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
+const PNPM_VERSION = '11.4.0';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
@@ -789,7 +790,7 @@ function createRootPackageJson(
     name: scope,
     version: '0.1.0',
     type: 'module',
-    packageManager: 'pnpm@11.4.0',
+    packageManager: `pnpm@${PNPM_VERSION}`,
     scripts: {
       dev: `pnpm --parallel --filter ${packageName(
         scope,
@@ -834,7 +835,7 @@ function createRootPackageJson(
     },
     engines: {
       node: '>=20',
-      pnpm: '>=11.4.0 <11.5.0',
+      pnpm: `>=${PNPM_VERSION} <11.5.0`,
     },
     workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
     modernjs: {
@@ -1475,8 +1476,9 @@ export default defineRuntimeConfig({
 function createAppStyles(enableTailwind: boolean): string {
   return `${enableTailwind ? "@import 'tailwindcss';\n\n" : ''}:root {
   color: #10231c;
-  background: #f6f8f7;
+  background: #f1eadc;
   font-family:
+    Geist,
     Inter,
     ui-sans-serif,
     system-ui,
@@ -1503,6 +1505,288 @@ nav {
 
 a {
   color: #166b4b;
+}
+
+.commerce-shell {
+  background: #f1eadc;
+  color: #0b0a08;
+  min-height: 100vh;
+  padding: 1.5rem clamp(1rem, 4vw, 3rem) 4rem;
+}
+
+.commerce-header,
+.commerce-footer {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0.625rem 1.875rem rgba(25, 20, 12, 0.08);
+  display: flex;
+  gap: 1.25rem;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 88rem;
+  padding: 1.25rem 1.75rem;
+}
+
+.commerce-logo {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.commerce-nav,
+.commerce-actions,
+.commerce-language {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.commerce-nav {
+  margin: 0;
+}
+
+.commerce-pill,
+.commerce-button,
+.commerce-link-button,
+.commerce-cart-button,
+.commerce-quantity-button {
+  align-items: center;
+  border-radius: 999px;
+  border: 0.0625rem solid rgba(23, 23, 23, 0.14);
+  box-shadow: 0 0.25rem 0.75rem rgba(20, 17, 10, 0.08);
+  color: #14120d;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 750;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.65rem 1.05rem;
+  text-decoration: none;
+}
+
+.commerce-button {
+  background: #00624b;
+  border-color: #00624b;
+  color: #ffffff;
+}
+
+.commerce-link-button,
+.commerce-pill,
+.commerce-cart-button,
+.commerce-quantity-button {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.commerce-page {
+  margin: 3rem auto 0;
+  max-width: 88rem;
+}
+
+.commerce-product {
+  align-items: center;
+  display: grid;
+  gap: clamp(2rem, 5vw, 4rem);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.95fr);
+}
+
+.commerce-product-media {
+  aspect-ratio: 1 / 0.92;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(135deg, #97c66d 0 20%, #6f9748 20% 34%, #d6c15d 34% 36%, #6a8f3e 36% 46%, #315824 46% 64%, #8bb85e 64% 100%);
+  border: 1.25rem solid #ffe987;
+  border-radius: 1.6rem;
+  box-shadow: inset 0 -7rem 8rem rgba(58, 77, 35, 0.22);
+  overflow: hidden;
+}
+
+.commerce-product-media::after {
+  background:
+    radial-gradient(circle at 27% 76%, #1e2422 0 5%, transparent 5.4%),
+    radial-gradient(circle at 55% 76%, #1e2422 0 6%, transparent 6.4%),
+    linear-gradient(0deg, #004b7b 0 100%);
+  border-radius: 1.2rem;
+  content: "";
+  display: block;
+  height: 19%;
+  margin: 58% auto 0;
+  width: 42%;
+}
+
+.commerce-eyebrow {
+  color: #00624b;
+  font-size: 0.85rem;
+  font-weight: 850;
+  letter-spacing: 0.16rem;
+  text-transform: uppercase;
+}
+
+.commerce-title {
+  font-size: clamp(2.5rem, 6vw, 4.8rem);
+  line-height: 0.95;
+  margin: 0.65rem 0 1.4rem;
+}
+
+.commerce-lede {
+  color: #555149;
+  font-size: 1.2rem;
+  line-height: 1.65;
+  max-width: 42rem;
+}
+
+.commerce-facts {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 2rem 0;
+}
+
+.commerce-fact,
+.commerce-card,
+.commerce-cart-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 1rem;
+  box-shadow: 0 0.5rem 1.25rem rgba(25, 20, 12, 0.08);
+  padding: 1.25rem;
+}
+
+.commerce-fact span,
+.commerce-card span {
+  color: #767067;
+  display: block;
+  font-weight: 750;
+  margin-bottom: 0.45rem;
+}
+
+.commerce-fact strong {
+  font-size: 1.1rem;
+}
+
+.commerce-checkout {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.commerce-section-title {
+  font-size: 1.8rem;
+  margin: 4.5rem 0 1.5rem;
+}
+
+.commerce-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.commerce-card strong {
+  display: block;
+  font-size: 1.45rem;
+}
+
+.commerce-cart-panel {
+  margin-top: 2rem;
+}
+
+.commerce-cart-line {
+  align-items: center;
+  border-top: 0.0625rem solid rgba(23, 23, 23, 0.12);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 1rem 0;
+}
+
+.commerce-cart-line:first-of-type {
+  border-top: 0;
+}
+
+.commerce-quantity {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.commerce-quantity-button {
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0.25rem;
+}
+
+.commerce-boundary-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 0.8rem;
+  bottom: 1.5rem;
+  box-shadow: 0 0.75rem 2rem rgba(18, 15, 10, 0.14);
+  display: flex;
+  gap: 0.65rem;
+  left: 1.5rem;
+  padding: 0.8rem 1rem;
+  position: fixed;
+  z-index: 80;
+}
+
+.commerce-boundary-toggle input {
+  accent-color: #00624b;
+  height: 1rem;
+  width: 1rem;
+}
+
+.boundary-overlay {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 70;
+}
+
+.boundary-overlay__box {
+  border: 0.0625rem solid var(--boundary-color);
+  border-radius: 0.55rem;
+  box-shadow:
+    0 0 0 0.0625rem rgba(255, 255, 255, 0.72),
+    0 0.35rem 1.25rem color-mix(in srgb, var(--boundary-color) 20%, transparent);
+  position: fixed;
+}
+
+.boundary-overlay__label {
+  background: color-mix(in srgb, var(--boundary-color) 88%, white);
+  border-radius: 999px;
+  color: #0b0a08;
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 0.3rem 0.55rem;
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+  white-space: nowrap;
+}
+
+.boundary-overlay__box[data-label-placement="above"] .boundary-overlay__label {
+  bottom: calc(100% + 0.25rem);
+  top: auto;
+}
+
+@media (max-width: 860px) {
+  .commerce-header,
+  .commerce-footer,
+  .commerce-product,
+  .commerce-grid,
+  .commerce-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .commerce-header,
+  .commerce-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .commerce-product-media {
+    min-height: 20rem;
+  }
 }
 `;
 }
@@ -1605,6 +1889,10 @@ export default function ShellHome() {
 }
 
 function createRemotePage(app: WorkspaceApp): string {
+  if (app.id === 'remote-commerce') {
+    return createCommerceRemotePage(app);
+  }
+
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useEffect, useState } from 'react';
@@ -1672,6 +1960,400 @@ ${effectBffMarkup}    </main>
 `;
 }
 
+function createCommerceRemotePage(app: WorkspaceApp): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { ultramodernUiMarker } from '../../ultramodern-build';
+
+const languageCodes = ['en', 'cs'] as const;
+
+const boundaryDefinitions = [
+  {
+    color: '#ff5a57',
+    id: 'explore',
+    labelKey: 'commerce.boundaries.explore',
+  },
+  {
+    color: '#24d671',
+    id: 'decide',
+    labelKey: 'commerce.boundaries.decide',
+  },
+  {
+    color: '#f4d044',
+    id: 'checkout',
+    labelKey: 'commerce.boundaries.checkout',
+  },
+] as const;
+
+type BoundaryId = (typeof boundaryDefinitions)[number]['id'];
+type BoundaryDefinition = (typeof boundaryDefinitions)[number];
+
+const boundaryMetadata: Record<BoundaryId, BoundaryDefinition> = {
+  checkout: boundaryDefinitions[2],
+  decide: boundaryDefinitions[1],
+  explore: boundaryDefinitions[0],
+};
+
+const products = [
+  {
+    id: 'field-loader-112',
+    titleKey: 'commerce.products.fieldLoader.title',
+    descriptionKey: 'commerce.products.fieldLoader.description',
+    priceKey: 'commerce.products.fieldLoader.price',
+    powerKey: 'commerce.products.fieldLoader.power',
+    availabilityKey: 'commerce.products.fieldLoader.availability',
+  },
+  {
+    id: 'orchard-tractor',
+    titleKey: 'commerce.products.orchard.title',
+    badgeKey: 'commerce.products.orchard.badge',
+  },
+  {
+    id: 'autonomy-kit',
+    titleKey: 'commerce.products.autonomy.title',
+    badgeKey: 'commerce.products.autonomy.badge',
+  },
+] as const;
+
+type ProductId = (typeof products)[number]['id'];
+type CartState = Partial<Record<ProductId, number>>;
+
+type BoundaryLabels = Record<BoundaryId, string>;
+type BoundaryBox = {
+  color: string;
+  height: number;
+  id: BoundaryId;
+  label: string;
+  labelPlacement: 'above' | 'inside';
+  left: number;
+  top: number;
+  width: number;
+};
+
+const featuredProduct = products[0];
+const recommendations = [products[1], products[2]] as const;
+
+${createLocalizedHeadComponent()}
+const isBoundaryId = (value: string): value is BoundaryId =>
+  Object.prototype.hasOwnProperty.call(boundaryMetadata, value);
+
+function collectBoundaryBoxes(labels: BoundaryLabels): BoundaryBox[] {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>('[data-boundary], [data-boundary-page]'),
+  )
+    .map(element => {
+      const id = element.dataset.boundary ?? element.dataset.boundaryPage;
+
+      if (id === undefined || !isBoundaryId(id)) {
+        return undefined;
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      if (rect.width <= 0 || rect.height <= 0) {
+        return undefined;
+      }
+
+      return {
+        color: boundaryMetadata[id].color,
+        height: rect.height,
+        id,
+        label: labels[id],
+        labelPlacement: rect.top > 28 ? 'above' : 'inside',
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+      };
+    })
+    .filter((box): box is BoundaryBox => box !== undefined);
+}
+
+function BoundaryOverlay({
+  labels,
+  visible,
+}: {
+  labels: BoundaryLabels;
+  visible: boolean;
+}) {
+  const [boxes, setBoxes] = useState<BoundaryBox[]>([]);
+
+  useEffect(() => {
+    if (!visible) {
+      setBoxes([]);
+      return;
+    }
+
+    let animationFrame = 0;
+    const update = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        setBoxes(collectBoundaryBoxes(labels));
+      });
+    };
+    const observer = new ResizeObserver(update);
+
+    observer.observe(document.body);
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [labels, visible]);
+
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <div aria-hidden="true" className="boundary-overlay">
+      {boxes.map((box, index) => (
+        <div
+          className="boundary-overlay__box"
+          data-boundary-id={box.id}
+          data-label-placement={box.labelPlacement}
+          key={\`\${box.id}-\${index}\`}
+          style={{
+            '--boundary-color': box.color,
+            height: box.height,
+            left: box.left,
+            top: box.top,
+            width: box.width,
+          } as CSSProperties}
+        >
+          <span className="boundary-overlay__label">{box.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function ${toPascalCase(app.id)}Home() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const [cart, setCart] = useState<CartState>({});
+  const [showBoundaries, setShowBoundaries] = useState(false);
+  const [effectApiStatus, setEffectApiStatus] = useState('pending');
+  const boundaryLabels = {
+    checkout: t('commerce.boundaries.checkout'),
+    decide: t('commerce.boundaries.decide'),
+    explore: t('commerce.boundaries.explore'),
+  } satisfies BoundaryLabels;
+  const cartLines = products
+    .map(product => ({
+      product,
+      quantity: cart[product.id] ?? 0,
+    }))
+    .filter(line => line.quantity > 0);
+  const cartCount = cartLines.reduce((total, line) => total + line.quantity, 0);
+
+  useEffect(() => {
+    void fetch('${effectApiPrefix(app)}/effect/${effectApiStem(app)}?limit=1', {
+      headers: {
+        accept: 'application/json',
+      },
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(\`Effect BFF request failed: \${response.status}\`);
+        }
+
+        return response.json() as Promise<{ items?: Array<{ title?: string }> }>;
+      })
+      .then(data => {
+        setEffectApiStatus(data.items[0]?.title ?? 'empty');
+      })
+      .catch(() => {
+        setEffectApiStatus('unavailable');
+      });
+  }, []);
+
+  const addToCart = (id: ProductId) => {
+    setCart(current => ({
+      ...current,
+      [id]: (current[id] ?? 0) + 1,
+    }));
+  };
+
+  const reduceQuantity = (id: ProductId) => {
+    setCart(current => {
+      const quantity = current[id] ?? 0;
+      const next = { ...current };
+
+      if (quantity <= 1) {
+        delete next[id];
+      } else {
+        next[id] = quantity - 1;
+      }
+
+      return next;
+    });
+  };
+
+  const removeFromCart = (id: ProductId) => {
+    setCart(current => {
+      const next = { ...current };
+
+      delete next[id];
+      return next;
+    });
+  };
+
+  return (
+    <main className="commerce-shell">
+      <LocalizedHead />
+      <BoundaryOverlay labels={boundaryLabels} visible={showBoundaries} />
+      <header className="commerce-header" data-boundary="explore">
+        <strong className="commerce-logo">{t('commerce.brand')}</strong>
+        <nav aria-label={t('commerce.navigation.primary')} className="commerce-nav">
+          <a className="commerce-pill" href="#machines">
+            {t('commerce.navigation.machines')}
+          </a>
+          <a className="commerce-pill" href="#checkout">
+            {t('commerce.navigation.checkout')}
+          </a>
+        </nav>
+        <div className="commerce-actions">
+          <a className="commerce-cart-button" data-boundary="checkout" href="#cart">
+            {t('commerce.cart.button', { count: cartCount })}
+          </a>
+          <nav aria-label={t('commerce.language.switcher')} className="commerce-language">
+            {languageCodes.map(code => (
+              <a
+                aria-current={language === code ? 'page' : undefined}
+                className="commerce-pill"
+                href={\`/\${code}\`}
+                key={code}
+              >
+                {t(\`commerce.language.\${code}\`)}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <div className="commerce-page">
+        <section className="commerce-product" data-boundary-page="decide" id="machines">
+          <div
+            aria-label={t('commerce.products.fieldLoader.imageAlt')}
+            className="commerce-product-media"
+            role="img"
+          />
+          <div>
+            <p className="commerce-eyebrow">{t('commerce.detail.eyebrow')}</p>
+            <h1 className="commerce-title">{t(featuredProduct.titleKey)}</h1>
+            <p className="commerce-lede">{t(featuredProduct.descriptionKey)}</p>
+            <div className="commerce-facts">
+              <div className="commerce-fact">
+                <span>{t('commerce.detail.price')}</span>
+                <strong>{t(featuredProduct.priceKey)}</strong>
+              </div>
+              <div className="commerce-fact">
+                <span>{t('commerce.detail.power')}</span>
+                <strong>{t(featuredProduct.powerKey)}</strong>
+              </div>
+              <div className="commerce-fact">
+                <span>{t('commerce.detail.availability')}</span>
+                <strong>{t(featuredProduct.availabilityKey)}</strong>
+              </div>
+            </div>
+            <div className="commerce-checkout" data-boundary="checkout" id="checkout">
+              <button
+                className="commerce-button"
+                onClick={() => addToCart(featuredProduct.id)}
+                type="button"
+              >
+                {t('commerce.cart.add')}
+              </button>
+              <a className="commerce-link-button" href="#cart">
+                {t('commerce.cart.view')}
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section data-boundary="explore">
+          <h2 className="commerce-section-title">{t('commerce.recommendations.title')}</h2>
+          <div className="commerce-grid">
+            {recommendations.map(product => (
+              <article className="commerce-card" key={product.id}>
+                <span>{t(product.badgeKey)}</span>
+                <strong>{t(product.titleKey)}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="commerce-cart-panel" data-boundary="checkout" id="cart">
+          <h2>{t('commerce.cart.title')}</h2>
+          {cartLines.length === 0 ? (
+            <p>{t('commerce.cart.empty')}</p>
+          ) : (
+            cartLines.map(line => (
+              <div className="commerce-cart-line" key={line.product.id}>
+                <strong>{t(line.product.titleKey)}</strong>
+                <div className="commerce-quantity">
+                  <button
+                    aria-label={t('commerce.cart.decrease', {
+                      name: t(line.product.titleKey),
+                    })}
+                    className="commerce-quantity-button"
+                    onClick={() => reduceQuantity(line.product.id)}
+                    type="button"
+                  >
+                    -
+                  </button>
+                  <span>{line.quantity}</span>
+                  <button
+                    aria-label={t('commerce.cart.increase', {
+                      name: t(line.product.titleKey),
+                    })}
+                    className="commerce-quantity-button"
+                    onClick={() => addToCart(line.product.id)}
+                    type="button"
+                  >
+                    +
+                  </button>
+                  <button
+                    className="commerce-link-button"
+                    onClick={() => removeFromCart(line.product.id)}
+                    type="button"
+                  >
+                    {t('commerce.cart.remove')}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
+
+      <footer className="commerce-footer" data-boundary="explore">
+        <span>{t('commerce.footer.stack')}</span>
+        <span data-testid="effect-bff-status">{effectApiStatus}</span>
+        <span data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+          {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
+        </span>
+      </footer>
+
+      <label className="commerce-boundary-toggle">
+        <input
+          checked={showBoundaries}
+          onChange={event => setShowBoundaries(event.currentTarget.checked)}
+          type="checkbox"
+        />
+        {t('commerce.boundaries.toggle')}
+      </label>
+    </main>
+  );
+}
+`;
+}
+
 function createLayout(appId: string): string {
   return `import { Outlet } from '@modern-js/plugin-tanstack/runtime';
 import './index.css';
@@ -1713,7 +2395,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   const czechLabels: Record<string, { role: string; title: string }> = {
     commerce: {
       role: 'obchod',
-      title: 'Obchodni remote',
+      title: 'Obchodní remote',
     },
     'design-system': {
       role: 'design system',
@@ -1721,7 +2403,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
     },
     identity: {
       role: 'identita',
-      title: 'Identitni remote',
+      title: 'Identitní remote',
     },
   };
 
@@ -1729,15 +2411,15 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
     return {
       shell: {
         language: {
-          cs: language === 'en' ? 'Czech' : 'Cestina',
-          en: language === 'en' ? 'English' : 'Anglictina',
+          cs: language === 'en' ? 'Czech' : 'Čeština',
+          en: language === 'en' ? 'English' : 'Angličtina',
           switcher: language === 'en' ? 'Language' : 'Jazyk',
         },
         remotes: {
-          commerce: language === 'en' ? 'Commerce Remote' : 'Obchodni remote',
+          commerce: language === 'en' ? 'Commerce Remote' : 'Obchodní remote',
           designSystem:
             language === 'en' ? 'Design System Remote' : 'Design system remote',
-          identity: language === 'en' ? 'Identity Remote' : 'Identitni remote',
+          identity: language === 'en' ? 'Identity Remote' : 'Identitní remote',
         },
         title:
           language === 'en'
@@ -1753,11 +2435,110 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
     title: `${app.displayName} CZ`,
   };
 
+  if (domain === 'commerce') {
+    return {
+      commerce: {
+        boundaries: {
+          checkout: language === 'en' ? 'checkout' : 'pokladna',
+          decide: language === 'en' ? 'decide' : 'rozhodování',
+          explore: language === 'en' ? 'explore' : 'procházení',
+          toggle:
+            language === 'en'
+              ? 'show team boundaries'
+              : 'zobrazit hranice týmů',
+        },
+        brand: 'Acre & Iron',
+        cart: {
+          add: language === 'en' ? 'Add to cart' : 'Přidat do košíku',
+          button:
+            language === 'en' ? 'Your cart ({{count}})' : 'Košík ({{count}})',
+          decrease:
+            language === 'en'
+              ? 'Decrease {{name}} quantity'
+              : 'Snížit množství položky {{name}}',
+          empty:
+            language === 'en' ? 'Your cart is empty.' : 'Košík je prázdný.',
+          increase:
+            language === 'en'
+              ? 'Increase {{name}} quantity'
+              : 'Zvýšit množství položky {{name}}',
+          remove: language === 'en' ? 'Remove' : 'Odebrat',
+          title: language === 'en' ? 'Cart' : 'Košík',
+          view: language === 'en' ? 'View cart' : 'Zobrazit košík',
+        },
+        detail: {
+          availability: language === 'en' ? 'Availability' : 'Dostupnost',
+          eyebrow: language === 'en' ? 'Machine detail' : 'Detail stroje',
+          power: language === 'en' ? 'Power' : 'Výkon',
+          price: language === 'en' ? 'Price' : 'Cena',
+        },
+        footer: {
+          stack:
+            language === 'en'
+              ? 'SPA, SSR-ready Module Federation, React, Effect BFF'
+              : 'SPA, SSR-ready Module Federation, React, Effect BFF',
+        },
+        language: {
+          cs: language === 'en' ? 'Czech' : 'Čeština',
+          en: language === 'en' ? 'English' : 'Angličtina',
+          switcher: language === 'en' ? 'Language' : 'Jazyk',
+        },
+        navigation: {
+          checkout: language === 'en' ? 'Checkout' : 'Pokladna',
+          machines: language === 'en' ? 'Machines' : 'Stroje',
+          primary:
+            language === 'en'
+              ? 'Primary commerce navigation'
+              : 'Hlavní navigace obchodu',
+        },
+        products: {
+          autonomy: {
+            badge: language === 'en' ? 'AI-first option' : 'AI varianta',
+            title:
+              language === 'en'
+                ? 'Autonomy Retrofit Kit'
+                : 'Sada pro autonomní řízení',
+          },
+          fieldLoader: {
+            availability: language === 'en' ? 'In stock' : 'Skladem',
+            description:
+              language === 'en'
+                ? 'A loader-ready tractor for feed, hay, gravel, and winter road work.'
+                : 'Traktor připravený na nakladač pro krmivo, seno, štěrk i zimní údržbu cest.',
+            imageAlt:
+              language === 'en'
+                ? 'Field Loader 112 tractor working on a bright farm lane'
+                : 'Traktor Field Loader 112 pracuje na světlé polní cestě',
+            power: '112 hp',
+            price: 'EUR 42,500',
+            title: 'Field Loader 112',
+          },
+          orchard: {
+            badge:
+              language === 'en'
+                ? 'Best for tight rows'
+                : 'Nejlepší do úzkých řádků',
+            title:
+              language === 'en'
+                ? 'Narrow Orchard Tractor'
+                : 'Úzký sadový traktor',
+          },
+        },
+        recommendations: {
+          title:
+            language === 'en' ? 'Compare alternatives' : 'Porovnat alternativy',
+        },
+        role: language === 'en' ? 'commerce' : 'obchod',
+        title: language === 'en' ? app.displayName : czechLabel.title,
+      },
+    };
+  }
+
   return {
     [domain]: {
       language: {
-        cs: language === 'en' ? 'Czech' : 'Cestina',
-        en: language === 'en' ? 'English' : 'Anglictina',
+        cs: language === 'en' ? 'Czech' : 'Čeština',
+        en: language === 'en' ? 'English' : 'Angličtina',
         switcher: language === 'en' ? 'Language' : 'Jazyk',
       },
       role: language === 'en' ? (app.domain ?? app.kind) : czechLabel.role,
@@ -2278,7 +3059,7 @@ function createTopology(scope: string): JsonValue {
     })),
     validation: {
       script: 'scripts/validate-ultramodern-workspace.mjs',
-      commands: ['pnpm ultramodern:check'],
+      commands: ['mise exec -- pnpm ultramodern:check'],
     },
   };
 }
@@ -2538,6 +3319,38 @@ function createAppGeneratedContract(
       uiSurface: 'ui',
       ...(appHasEffectApi(app) ? { apiSurface: 'effect-bff' } : {}),
     },
+    ...(app.domain === 'commerce'
+      ? {
+          boundaryVisualization: {
+            mode: 'overlay',
+            layoutAffecting: false,
+            toggle: 'user-controlled',
+            boundaries: [
+              {
+                id: 'explore',
+                labelKey: 'commerce.boundaries.explore',
+                owner: 'team-explore',
+                color: '#ff5a57',
+                owns: ['header', 'footer', 'recommendations', 'catalog'],
+              },
+              {
+                id: 'decide',
+                labelKey: 'commerce.boundaries.decide',
+                owner: 'team-decide',
+                color: '#24d671',
+                owns: ['product-detail', 'variant-selection'],
+              },
+              {
+                id: 'checkout',
+                labelKey: 'commerce.boundaries.checkout',
+                owner: 'team-checkout',
+                color: '#f4d044',
+                owns: ['add-to-cart', 'cart-link', 'cart-lines'],
+              },
+            ],
+          },
+        }
+      : {}),
     ...(appHasEffectApi(app)
       ? {
           effect: {
@@ -2566,7 +3379,7 @@ function createGeneratedContract(
     packageManager: {
       source: 'package.json',
       manager: 'pnpm',
-      version: '11.4.0',
+      version: PNPM_VERSION,
       toolchain: 'mise',
       corepack: false,
     },
@@ -2627,6 +3440,7 @@ function createTemplateManifest(
         '.agents/**',
         '.github/**',
         '.gitignore',
+        '.mise.toml',
         '.modernjs/**',
         'AGENTS.md',
         'README.md',
@@ -2700,7 +3514,11 @@ function createTemplateManifest(
         'pnpm-11-policy-enforced',
         'template-manifest-retained',
       ],
-      expectedCommands: ['pnpm install', 'pnpm run ultramodern:check'],
+      expectedCommands: [
+        'mise install',
+        'mise exec -- pnpm install',
+        'mise exec -- pnpm run ultramodern:check',
+      ],
     },
   };
 }
@@ -3459,6 +4277,7 @@ export function generateUltramodernWorkspace(
   copyRootTemplate(options.targetDir, {
     packageName: options.packageName,
     packageScope: scope,
+    pnpmVersion: PNPM_VERSION,
     tailwindEnabled: String(enableTailwind),
   });
 

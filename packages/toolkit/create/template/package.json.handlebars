@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.4.0",
+  "packageManager": "pnpm@{{pnpmVersion}}",
   "scripts": {
     "reset": "npx rimraf node_modules ./**/node_modules",
     "dev": "modern dev",
@@ -48,7 +48,7 @@
     "@types/node": "^20",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@typescript/native-preview": "7.0.0-dev.20260526.1",
+    "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "happy-dom": "^20.9.0",
 {{#unless isSubproject}}
     "lint-staged": "~17.0.5",
@@ -71,6 +71,6 @@
   }{{/unless}},
   "engines": {
     "node": ">=20",
-    "pnpm": ">=11.4.0 <11.5.0"
+    "pnpm": ">={{pnpmVersion}} <11.5.0"
   }
 }

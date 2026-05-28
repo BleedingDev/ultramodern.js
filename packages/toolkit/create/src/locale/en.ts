@@ -17,8 +17,8 @@ export const EN_LOCALE = {
     success: '✨ Created successfully!',
     nextSteps: '📋 Next steps:',
     step1: 'cd {projectName}',
-    step2: 'pnpm install',
-    step3: 'pnpm dev',
+    step2: 'mise exec -- pnpm install',
+    step3: 'mise exec -- pnpm dev',
   },
   help: {
     title: '🚀 Modern.js Project Creator',

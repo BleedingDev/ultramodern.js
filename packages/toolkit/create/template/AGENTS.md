@@ -8,7 +8,7 @@ This project is generated for Codex-first UltraModern.js work.
 - `pnpm format` runs oxfmt.
 - `pnpm typecheck` runs effect-tsgo as the TypeScript checker.
 - `pnpm i18n:check` rejects hardcoded user-visible JSX text.
-- `pnpm ultramodern:check` verifies the generated contract.
+- `mise exec -- pnpm ultramodern:check` verifies the generated contract.
 
 ## Internationalization
 

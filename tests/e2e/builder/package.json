@@ -24,7 +24,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/serve-static": "^2.2.0",
-    "@typescript/native-preview": "7.0.0-dev.20260526.1",
+    "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "connect": "^3.7.0",
     "serve-static": "^2.2.1",
     "tailwindcss": "^4.3.0"

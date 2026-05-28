@@ -656,7 +656,7 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.11.0',
-      '@typescript/native-preview': '7.0.0-dev.20260526.1',
+      '@typescript/native-preview': '7.0.0-dev.20260527.2',
       oxlint: '1.66.0',
       oxfmt: '0.51.0',
       ultracite: '7.7.0',
@@ -749,7 +749,7 @@ describe('create-ultramodern-workspace', () => {
       );
       expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.11.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260526.1',
+        '7.0.0-dev.20260527.2',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
@@ -1021,12 +1021,14 @@ describe('create-ultramodern-workspace', () => {
       'modernjs-ultramodern-superapp-workspace',
     );
     expect(manifest.template.compatibilityLane).toBe('ultramodern-mv');
-    expect(manifest.validation.expectedCommands).toContain('pnpm install');
+    expect(manifest.validation.expectedCommands).toContain(
+      'mise exec -- pnpm install',
+    );
     expect(manifest.validation.expectedCommands).not.toContain(
       'pnpm install --ignore-scripts',
     );
     expect(manifest.validation.expectedCommands).toContain(
-      'pnpm run ultramodern:check',
+      'mise exec -- pnpm run ultramodern:check',
     );
     expect(manifest.validation.postMaterializationValidation).toContain(
       'pnpm-11-policy-enforced',

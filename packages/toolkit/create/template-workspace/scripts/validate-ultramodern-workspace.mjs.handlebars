@@ -8,6 +8,7 @@ const tanstackVersion = '1.170.8';
 const tailwindEnabled = '{{tailwindEnabled}}' === 'true';
 const tailwindVersion = '^4.3.0';
 const tailwindPostcssVersion = '^4.3.0';
+const expectedPnpmVersion = '{{pnpmVersion}}';
 const rstackAgentSkillsCommit = '61c948b42512e223bad44b83af4080eba48b2677';
 const moduleFederationAgentSkillsCommit = '07bb5b6c43ad457609e00c081b72d4c42508ec76';
 const modernPackages = [
@@ -52,6 +53,11 @@ const designSystemRemotePath = 'apps/remotes/remote-design-system';
 
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
+const activePnpmVersion = execFileSync('pnpm', ['--version'], {
+  cwd: root,
+  encoding: 'utf-8',
+  stdio: ['ignore', 'pipe', 'pipe'],
+}).trim();
 const readPnpmConfig = (key) => {
   const env = { ...process.env };
   for (const envKey of Object.keys(env)) {
@@ -78,6 +84,11 @@ const assertExists = (relativePath) => {
 const assertNotExists = (relativePath) => {
   assert(!fs.existsSync(path.join(root, relativePath)), `Unexpected ${relativePath}`);
 };
+
+assert(
+  activePnpmVersion === expectedPnpmVersion,
+  `Generated workspace requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun through mise exec -- pnpm ...`,
+);
 
 const requiredPaths = [
   'AGENTS.md',
@@ -215,10 +226,18 @@ const expectedModernDependency = (packageName) => {
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
-assert(rootPackage.packageManager === 'pnpm@11.4.0', 'Root must pin pnpm 11.4.0');
+const miseConfig = readText('.mise.toml');
 assert(
-  rootPackage.engines?.pnpm === '>=11.4.0 <11.5.0',
-  'Root must require pnpm >=11.4.0 <11.5.0',
+  miseConfig.includes(`pnpm = "${expectedPnpmVersion}"`),
+  `Root must pin pnpm ${expectedPnpmVersion} in .mise.toml`,
+);
+assert(
+  rootPackage.packageManager === `pnpm@${expectedPnpmVersion}`,
+  `Root must pin pnpm ${expectedPnpmVersion}`,
+);
+assert(
+  rootPackage.engines?.pnpm === `>=${expectedPnpmVersion} <11.5.0`,
+  `Root must require pnpm >=${expectedPnpmVersion} <11.5.0`,
 );
 assert(
   JSON.stringify(readPnpmConfig('packages')) ===
@@ -282,8 +301,10 @@ for (const requiredSnippet of [
   'permissions:\n  contents: read',
   'pull_request:',
   'persist-credentials: false',
-  'pnpm install --frozen-lockfile',
-  'pnpm build',
+  'jdx/mise-action',
+  'mise exec -- pnpm install --frozen-lockfile',
+  'mise exec -- pnpm run ultramodern:check',
+  'mise exec -- pnpm build',
   'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
   'timeout-minutes:',
   'egress-policy: audit',
@@ -558,7 +579,7 @@ for (const packagePath of appPackagePaths) {
     `${packagePath} must include TypeScript 6 only as the stable JS TypeScript package for Module Federation DTS generation`,
   );
   assert(
-    packageJson.devDependencies?.['@typescript/native-preview'] === '7.0.0-dev.20260526.1',
+    packageJson.devDependencies?.['@typescript/native-preview'] === '7.0.0-dev.20260527.2',
     `${packagePath} must include TypeScript 7 native preview for mandatory native typechecking`,
   );
   assert(
@@ -771,7 +792,7 @@ assert(
 );
 assert(
   generatedContract.packageManager?.manager === 'pnpm' &&
-    generatedContract.packageManager?.version === '11.4.0' &&
+    generatedContract.packageManager?.version === expectedPnpmVersion &&
     generatedContract.packageManager?.toolchain === 'mise' &&
     generatedContract.packageManager?.corepack === false,
   'Generated contract must declare the pnpm 11/mise toolchain policy',
@@ -909,7 +930,7 @@ assert(
   'Template manifest must list every private agent skill allowlist entry',
 );
 assert(
-  manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),
+  manifest.validation?.expectedCommands?.includes('mise exec -- pnpm run ultramodern:check'),
   'Template manifest must document the validation command',
 );
 assert(

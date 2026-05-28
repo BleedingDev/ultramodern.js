@@ -16,8 +16,8 @@ export const ZH_LOCALE = {
     success: '✨ 创建成功！',
     nextSteps: '📋 下一步：',
     step1: 'cd {projectName}',
-    step2: 'pnpm install',
-    step3: 'pnpm dev',
+    step2: 'mise exec -- pnpm install',
+    step3: 'mise exec -- pnpm dev',
   },
   help: {
     title: '🚀 Modern.js 项目创建工具',
