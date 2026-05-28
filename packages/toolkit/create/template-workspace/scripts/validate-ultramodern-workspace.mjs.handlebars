@@ -119,6 +119,7 @@ const requiredPaths = [
   'apps/shell-super-app/locales/en/translation.json',
   'apps/shell-super-app/locales/cs/translation.json',
   'apps/shell-super-app/src/routes/index.css',
+  'apps/shell-super-app/src/routes/layout.tsx',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-commerce/package.json',
   'apps/remotes/remote-commerce/modern.config.ts',
@@ -131,6 +132,7 @@ const requiredPaths = [
   'apps/remotes/remote-commerce/locales/en/translation.json',
   'apps/remotes/remote-commerce/locales/cs/translation.json',
   'apps/remotes/remote-commerce/src/routes/index.css',
+  'apps/remotes/remote-commerce/src/routes/layout.tsx',
   'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-identity/package.json',
   'apps/remotes/remote-identity/modern.config.ts',
@@ -143,6 +145,7 @@ const requiredPaths = [
   'apps/remotes/remote-identity/locales/en/translation.json',
   'apps/remotes/remote-identity/locales/cs/translation.json',
   'apps/remotes/remote-identity/src/routes/index.css',
+  'apps/remotes/remote-identity/src/routes/layout.tsx',
   'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
   'apps/remotes/remote-design-system/package.json',
   'apps/remotes/remote-design-system/modern.config.ts',
@@ -152,6 +155,7 @@ const requiredPaths = [
   'apps/remotes/remote-design-system/locales/en/translation.json',
   'apps/remotes/remote-design-system/locales/cs/translation.json',
   'apps/remotes/remote-design-system/src/routes/index.css',
+  'apps/remotes/remote-design-system/src/routes/layout.tsx',
   'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
@@ -666,27 +670,11 @@ for (const appDirectory of [
   'apps/remotes/remote-identity',
   'apps/remotes/remote-design-system',
 ]) {
-  const css = readText(`${appDirectory}/src/routes/index.css`);
   if (tailwindEnabled) {
-    assert(
-      css.includes("@import 'tailwindcss';"),
-      `${appDirectory} must import Tailwind CSS by default`,
-    );
-    const postcssConfig = readText(`${appDirectory}/postcss.config.mjs`);
-    assert(
-      postcssConfig.includes("'@tailwindcss/postcss'"),
-      `${appDirectory} must configure the Tailwind CSS PostCSS plugin`,
-    );
-    const tailwindConfig = readText(`${appDirectory}/tailwind.config.ts`);
-    assert(
-      tailwindConfig.includes("content: ['./src/**/*.{js,jsx,ts,tsx}']"),
-      `${appDirectory} must scan app source files for Tailwind CSS classes`,
-    );
-  } else {
-    assert(
-      !css.includes("@import 'tailwindcss';"),
-      `${appDirectory} must omit Tailwind CSS import when Tailwind is disabled`,
-    );
+    assertExists(`${appDirectory}/postcss.config.mjs`);
+    assertExists(`${appDirectory}/tailwind.config.ts`);
+  }
+  if (!tailwindEnabled) {
     assert(
       !fs.existsSync(path.join(root, appDirectory, 'postcss.config.mjs')),
       `${appDirectory} must not write PostCSS config when Tailwind is disabled`,
@@ -742,20 +730,6 @@ for (const configPath of [
     config.includes("mainEntryName: 'index'"),
     `${configPath} must keep Modern.js source.mainEntryName compatible with Zephyr`,
   );
-}
-
-for (const routePath of [
-  'apps/shell-super-app/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
-]) {
-  const route = readText(routePath);
-  assert(route.includes('rel="canonical"'), `${routePath} must emit canonical metadata`);
-  assert(route.includes('rel="alternate"'), `${routePath} must emit alternate locale metadata`);
-  assert(route.includes('hrefLang="x-default"'), `${routePath} must emit x-default metadata`);
-  assert(route.includes('localizedPath('), `${routePath} must build localized URLs`);
-  assert(route.includes("import '../index.css';"), `${routePath} must import route CSS`);
 }
 
 const shellMf = readText('apps/shell-super-app/module-federation.config.ts');

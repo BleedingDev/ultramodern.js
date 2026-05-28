@@ -1564,7 +1564,6 @@ const LocalizedHead = () => {
 function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { ultramodernUiMarker } from '../../ultramodern-build';
-import '../index.css';
 
 const languageCodes = ['en', 'cs'] as const;
 
@@ -1643,8 +1642,7 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 `
     : '';
 
-  return `${effectBffImport}import '../index.css';
-
+  return `${effectBffImport}
 ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
@@ -2877,9 +2875,7 @@ function writeEffectService(
   writeFile(
     targetDir,
     `${service.directory}/src/routes/page.tsx`,
-    `import './index.css';
-
-export default function ${toPascalCase(service.id)}Home() {
+    `export default function ${toPascalCase(service.id)}Home() {
   return <main>${service.id} Effect service</main>;
 }
 `,

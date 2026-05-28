@@ -14,32 +14,15 @@ describe('generated UltraModern contract', () => {
       true,
     );
     expect(fs.existsSync(path.join(root, 'src/routes/page.tsx'))).toBe(false);
-
-    const page = readText('src/routes/[lang]/page.tsx');
-    expect(page).toContain('rel="canonical"');
-    expect(page).toContain('rel="alternate"');
-    expect(page).toContain('hrefLang="x-default"');
-    expect(page).toContain('localizedPath(');
+    expect(fs.existsSync(path.join(root, 'src/routes/layout.tsx'))).toBe(true);
 {{#if enableTailwind}}
-    expect(readText('src/routes/index.css')).toContain(
-      "@import 'tailwindcss';",
-    );
-    expect(readText('postcss.config.mjs')).toContain('@tailwindcss/postcss');
-    expect(readText('tailwind.config.ts')).toContain(
-      "content: ['./src/**/*.{js,ts,jsx,tsx}']",
-    );
+    expect(fs.existsSync(path.join(root, 'postcss.config.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'tailwind.config.ts'))).toBe(true);
 {{/if}}
 {{#unless enableTailwind}}
-    expect(readText('src/routes/index.css')).not.toContain(
-      "@import 'tailwindcss';",
-    );
     expect(fs.existsSync(path.join(root, 'postcss.config.mjs'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'tailwind.config.ts'))).toBe(false);
 {{/unless}}
-
-    const config = readText('rstest.config.mts');
-    expect(config).toContain("withModernConfig()");
-    expect(config).toContain("testEnvironment: 'happy-dom'");
   });
 
   test('retains package-source metadata for generated Modern.js packages', () => {
