@@ -192,7 +192,7 @@ describe('create builder Options', () => {
           outputModule: true,
         },
       });
-      expect(chain.externalsPresets).toHaveBeenCalledWith({ node: true });
+      expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).toHaveBeenCalledWith('webworker');
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
       expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(

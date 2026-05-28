@@ -53,14 +53,9 @@ const createWorkerManifest = async (
         entryPath: route.entryPath,
         isSSR: Boolean(route.isSSR),
         worker,
-        bundle: typeof route.bundle === 'string' ? route.bundle : undefined,
         workerExists: worker
           ? await fse.pathExists(path.join(outputDirectory, worker))
           : false,
-        bundleExists:
-          typeof route.bundle === 'string'
-            ? await fse.pathExists(path.join(outputDirectory, route.bundle))
-            : false,
       };
     }),
   );
@@ -117,10 +112,6 @@ const createWorkerModuleLoaders = (manifest: any) => {
     if (route.worker && route.workerExists) {
       const importPath = `../${String(route.worker).replace(/^\/+/u, '')}`;
       imports.set(route.worker, `() => import(${JSON.stringify(importPath)})`);
-    }
-    if (route.bundle && route.bundleExists) {
-      const importPath = `../${String(route.bundle).replace(/^\/+/u, '')}`;
-      imports.set(route.bundle, `() => import(${JSON.stringify(importPath)})`);
     }
   }
 
@@ -220,23 +211,6 @@ export const createCloudflarePreset: CreatePreset = ({
           {
             filter: src =>
               shouldCopyToWorkerBundle(src, workerBundleSourceDirectory),
-          },
-        );
-      }
-
-      const serverBundleSourceDirectory = path.join(
-        distDirectory,
-        SERVER_BUNDLE_DIRECTORY,
-      );
-      if (await fse.pathExists(serverBundleSourceDirectory)) {
-        await fse.copy(
-          serverBundleSourceDirectory,
-          path.join(outputDirectory, SERVER_BUNDLE_DIRECTORY),
-        );
-        await fse.writeJSON(
-          path.join(outputDirectory, SERVER_BUNDLE_DIRECTORY, 'package.json'),
-          {
-            type: 'commonjs',
           },
         );
       }

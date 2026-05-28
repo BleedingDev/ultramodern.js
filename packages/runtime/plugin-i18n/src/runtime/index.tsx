@@ -29,11 +29,7 @@ import {
   mergeDetectionOptions,
 } from './i18n/detection';
 import { useI18nextLanguageDetector } from './i18n/detection/middleware';
-import {
-  getI18nextInstanceForProvider,
-  getI18nextProvider,
-  getInitReactI18next,
-} from './i18n/instance';
+import { getI18nextInstanceForProvider } from './i18n/instance';
 import {
   changeI18nLanguage,
   ensureLanguageMatch,
@@ -88,17 +84,25 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
     let latestI18nInstance: I18nInstance | undefined;
     let I18nextProvider: React.FunctionComponent<any> | null;
 
+    const loadReactI18nextIntegration = async () => {
+      if (!reactI18next) {
+        return null;
+      }
+      const { getReactI18nextIntegration } = await import(
+        './i18n/react-i18next'
+      );
+      return getReactI18nextIntegration();
+    };
+
     api.onBeforeRender(async context => {
       let i18nInstance = await getI18nInstance(userI18nInstance);
       const { i18n: otherConfig } = api.getRuntimeConfig();
       const { initOptions: otherInitOptions } = otherConfig || {};
       const userInitOptions = merge(otherInitOptions || {}, initOptions || {});
-      const initReactI18next = reactI18next
-        ? await getInitReactI18next()
-        : null;
-      I18nextProvider = reactI18next ? await getI18nextProvider() : null;
-      if (initReactI18next) {
-        i18nInstance.use(initReactI18next);
+      const reactI18nextIntegration = await loadReactI18nextIntegration();
+      I18nextProvider = reactI18nextIntegration?.I18nextProvider ?? null;
+      if (reactI18nextIntegration?.initReactI18next) {
+        i18nInstance.use(reactI18nextIntegration.initReactI18next);
       }
 
       const pathname = getPathname(context);

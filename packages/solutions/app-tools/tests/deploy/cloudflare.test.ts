@@ -283,12 +283,7 @@ describe('cloudflare deploy preset', () => {
     ).rejects.toThrow();
     await expect(
       fs.access(path.join(outputDirectory, 'bundles/main.js')),
-    ).resolves.toBeUndefined();
-    await expect(
-      fs
-        .readFile(path.join(outputDirectory, 'bundles/package.json'), 'utf-8')
-        .then(JSON.parse),
-    ).resolves.toEqual({ type: 'commonjs' });
+    ).rejects.toThrow();
     await expect(
       fs.access(path.join(publicDirectory, 'bundles/main.js')),
     ).rejects.toThrow();
@@ -325,9 +320,7 @@ describe('cloudflare deploy preset', () => {
         urlPath: '/dashboard',
         entryName: 'main',
         worker: 'worker/main.js',
-        bundle: 'bundles/main.js',
         workerExists: true,
-        bundleExists: true,
       }),
     );
     expect(workerManifest.resources).toEqual({
@@ -466,7 +459,7 @@ describe('cloudflare deploy preset', () => {
     });
   });
 
-  it('falls back to route.bundle modules when route.worker has no request handler export', async () => {
+  it('fails clearly instead of importing Node route.bundle modules', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
     const worker = (
@@ -480,13 +473,13 @@ describe('cloudflare deploy preset', () => {
       },
     );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      pathname: '/fallback/settings',
-      source: 'bundle-fallback',
-      entryName: 'fallback',
-      htmlTemplate: '<!doctype html><html>fallback</html>',
-    });
+    expect(response.status).toBe(500);
+    expect(response.headers.get('x-modern-js-route-worker')).toBe(
+      'worker/empty.js',
+    );
+    await expect(response.text()).resolves.toContain(
+      'Worker bundle has no fetch or requestHandler export',
+    );
   });
 
   it('dispatches promised default request handlers from Modern server bundles', async () => {

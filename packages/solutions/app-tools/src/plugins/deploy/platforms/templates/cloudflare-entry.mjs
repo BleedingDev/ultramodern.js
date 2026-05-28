@@ -243,60 +243,56 @@ async function getRequestHandler(workerModule) {
 }
 
 async function dispatchRouteWorker(route, request, env, ctx) {
-  const candidatePaths = [route.worker, route.bundle].filter(Boolean);
-  let missingPath;
-
-  for (const candidatePath of candidatePaths) {
-    const workerModule = await loadWorkerModule(candidatePath);
-
-    if (!workerModule) {
-      missingPath = candidatePath;
-      continue;
-    }
-
-    const fetchHandler = getFetchHandler(workerModule);
-
-    if (fetchHandler) {
-      return fetchHandler(request, env, ctx);
-    }
-
-    const requestHandler = await getRequestHandler(workerModule);
-
-    if (typeof requestHandler === 'function') {
-      const requestHandlerOptions = await getRequestHandlerOptions(
-        route,
-        request,
-        env,
-      );
-
-      return requestHandler(request, requestHandlerOptions);
-    }
-  }
-
-  if (missingPath) {
-    return new Response(`Worker bundle not found: ${missingPath}`, {
+  const workerPath = route.worker;
+  if (!workerPath) {
+    return new Response('Worker bundle not configured for SSR route', {
       status: 500,
       headers: {
         'content-type': 'text/plain; charset=utf-8',
-        'x-modern-js-route-worker': missingPath,
       },
     });
   }
 
-  if (candidatePaths.length > 0) {
-    return new Response(
-      `Worker bundle has no fetch or requestHandler export: ${candidatePaths.join(', ')}`,
-      {
-        status: 500,
-        headers: {
-          'content-type': 'text/plain; charset=utf-8',
-          'x-modern-js-route-worker': candidatePaths.join(', '),
-        },
+  const workerModule = await loadWorkerModule(workerPath);
+
+  if (!workerModule) {
+    return new Response(`Worker bundle not found: ${workerPath}`, {
+      status: 500,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'x-modern-js-route-worker': workerPath,
       },
-    );
+    });
   }
 
-  return new Response('Route has no worker bundle', { status: 500 });
+  const fetchHandler = getFetchHandler(workerModule);
+
+  if (fetchHandler) {
+    return fetchHandler(request, env, ctx);
+  }
+
+  const requestHandler = await getRequestHandler(workerModule);
+
+  if (typeof requestHandler === 'function') {
+    const requestHandlerOptions = await getRequestHandlerOptions(
+      route,
+      request,
+      env,
+    );
+
+    return requestHandler(request, requestHandlerOptions);
+  }
+
+  return new Response(
+    `Worker bundle has no fetch or requestHandler export: ${workerPath}`,
+    {
+      status: 500,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'x-modern-js-route-worker': workerPath,
+      },
+    },
+  );
 }
 
 function matchesPrefix(pathname, prefix) {

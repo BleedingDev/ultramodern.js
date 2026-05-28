@@ -1165,7 +1165,7 @@ ${bffConfig}      output: {
         tanstackRouterPlugin(),
         i18nPlugin({
           backend: {
-            enabled: true,
+            enabled: false,
           },
           reactI18next: false,
           localeDetection: {
@@ -3283,7 +3283,7 @@ function createAppGeneratedContract(
     },
     i18n: {
       plugin: '@modern-js/plugin-i18n',
-      backend: true,
+      backend: false,
       reactI18next: false,
       languages: ['en', 'cs'],
       fallbackLanguage: 'en',

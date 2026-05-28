@@ -230,7 +230,6 @@ export function getBuilderEnvironments(
                     outputModule: true,
                   },
                 });
-                chain.externalsPresets({ node: true });
                 chain.target('webworker');
                 chain.plugins.delete('plugin-module-federation');
                 if (tanstackRouterSsrServerFile) {

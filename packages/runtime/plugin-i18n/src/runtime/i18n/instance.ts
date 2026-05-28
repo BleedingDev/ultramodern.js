@@ -1,9 +1,5 @@
 import type { BaseBackendOptions } from '../../shared/type';
 
-type ReactI18nextModule = typeof import('react-i18next');
-type InitReactI18next = ReactI18nextModule['initReactI18next'];
-type I18nextProviderComponent = ReactI18nextModule['I18nextProvider'];
-
 export interface I18nResourceStore {
   data?: {
     [language: string]: {
@@ -171,20 +167,6 @@ async function createI18nextInstance(): Promise<I18nInstance | null> {
   }
 }
 
-function getOptionalReactI18nextPackageName(): string {
-  return ['react', 'i18next'].join('-');
-}
-
-async function tryImportReactI18next(): Promise<ReactI18nextModule | null> {
-  try {
-    return (await import(
-      getOptionalReactI18nextPackageName()
-    )) as ReactI18nextModule;
-  } catch (error) {
-    return null;
-  }
-}
-
 export function getI18nextInstanceForProvider(
   instance: I18nInstance | any,
 ): any {
@@ -217,20 +199,4 @@ export async function getI18nInstance(
   }
 
   throw new Error('No i18n instance found');
-}
-
-export async function getInitReactI18next(): Promise<InitReactI18next | null> {
-  const reactI18nextModule = await tryImportReactI18next();
-  if (reactI18nextModule) {
-    return reactI18nextModule.initReactI18next;
-  }
-  return null;
-}
-
-export async function getI18nextProvider(): Promise<I18nextProviderComponent | null> {
-  const reactI18nextModule = await tryImportReactI18next();
-  if (reactI18nextModule) {
-    return reactI18nextModule.I18nextProvider;
-  }
-  return null;
 }
