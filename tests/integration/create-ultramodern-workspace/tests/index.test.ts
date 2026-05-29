@@ -214,28 +214,36 @@ function expectTailwindContract(contractEntry: {
 
 const fullStackVerticals = [
   {
-    id: 'remote-commerce',
-    domain: 'commerce',
-    stem: 'recommendations',
-    group: 'recommendations',
-    notFound: 'RecommendationNotFound',
-    path: 'apps/remotes/remote-commerce',
-    mfName: 'remoteCommerce',
-    apiPrefix: '/commerce-api',
+    id: 'remote-explore',
+    domain: 'explore',
+    stem: 'explore',
+    group: 'explore',
+    notFound: 'ExploreNotFound',
+    path: 'apps/remotes/remote-explore',
+    mfName: 'remoteExplore',
+    apiPrefix: '/explore-api',
   },
   {
-    id: 'remote-identity',
-    domain: 'identity',
-    stem: 'identity',
-    group: 'identity',
-    notFound: 'IdentityNotFound',
-    path: 'apps/remotes/remote-identity',
-    mfName: 'remoteIdentity',
-    apiPrefix: '/identity-api',
+    id: 'remote-decide',
+    domain: 'decide',
+    stem: 'decide',
+    group: 'decide',
+    notFound: 'DecideNotFound',
+    path: 'apps/remotes/remote-decide',
+    mfName: 'remoteDecide',
+    apiPrefix: '/decide-api',
+  },
+  {
+    id: 'remote-checkout',
+    domain: 'checkout',
+    stem: 'checkout',
+    group: 'checkout',
+    notFound: 'CheckoutNotFound',
+    path: 'apps/remotes/remote-checkout',
+    mfName: 'remoteCheckout',
+    apiPrefix: '/checkout-api',
   },
 ] as const;
-
-const designSystemRemotePath = 'apps/remotes/remote-design-system';
 
 function linkTypecheckPackage(
   workspaceDir: string,
@@ -266,8 +274,8 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
   );
   linkTypecheckPackage(
     workspaceDir,
-    '@ultra-workspace/remote-commerce',
-    path.join(workspaceDir, 'apps/remotes/remote-commerce'),
+    '@ultra-workspace/remote-explore',
+    path.join(workspaceDir, 'apps/remotes/remote-explore'),
   );
   writeText(
     workspaceDir,
@@ -287,9 +295,9 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
           target: 'ES2023',
         },
         include: [
-          'apps/remotes/remote-commerce/shared/effect/api.ts',
-          'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
-          'apps/remotes/remote-commerce/api/effect/index.ts',
+          'apps/remotes/remote-explore/shared/effect/api.ts',
+          'apps/remotes/remote-explore/src/effect/explore-client.ts',
+          'apps/remotes/remote-explore/api/effect/index.ts',
           'tests/type-contracts/*.ts',
         ],
       },
@@ -306,38 +314,38 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
 import {
-  recommendationsEffectApi,
-} from '@ultra-workspace/remote-commerce/shared/effect/api';
+  exploreEffectApi,
+} from '@ultra-workspace/remote-explore/shared/effect/api';
 import {
-  createRecommendationsClient,
-} from '@ultra-workspace/remote-commerce/effect/client';
+  createExploreClient,
+} from '@ultra-workspace/remote-explore/effect/client';
 
 async function verifyClient() {
   const client = await runEffectRequest(
-    makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl: '/commerce-api' }),
+    makeEffectHttpApiClient(exploreEffectApi, { baseUrl: '/explore-api' }),
   );
 
   const list = await runEffectRequest(
-    client.recommendations.list({ query: { limit: 1 } }),
+    client.explore.list({ query: { limit: 1 } }),
   );
   const firstTitle: string = list.items[0]?.title ?? '';
 
   const item = await runEffectRequest(
-    client.recommendations.get({
-      params: { id: 'starter-recommendations' },
+    client.explore.get({
+      params: { id: 'starter-explore' },
     }),
   );
   const itemId: string = item.id;
 
   const created = await runEffectRequest(
-    client.recommendations.create({ payload: { title: firstTitle || itemId } }),
+    client.explore.create({ payload: { title: firstTitle || itemId } }),
   );
   const createdTitle: string = created.item.title;
   const packageClient = await runEffectRequest(
-    createRecommendationsClient({ baseUrl: '/commerce-api' }),
+    createExploreClient({ baseUrl: '/explore-api' }),
   );
   const packageList = await runEffectRequest(
-    packageClient.recommendations.list({ query: { limit: 1 } }),
+    packageClient.explore.list({ query: { limit: 1 } }),
   );
   const packageTitle: string = packageList.items[0]?.title ?? '';
 
@@ -356,43 +364,43 @@ void verifyClient;
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
 import {
-  recommendationsEffectApi,
-} from '@ultra-workspace/remote-commerce/shared/effect/api';
+  exploreEffectApi,
+} from '@ultra-workspace/remote-explore/shared/effect/api';
 
 async function verifyClientRejections() {
   const client = await runEffectRequest(
-    makeEffectHttpApiClient(recommendationsEffectApi, { baseUrl: '/commerce-api' }),
+    makeEffectHttpApiClient(exploreEffectApi, { baseUrl: '/explore-api' }),
   );
 
   // @ts-expect-error unknown endpoint names are not part of the vertical contract.
-  await runEffectRequest(client.recommendations.remove({}));
+  await runEffectRequest(client.explore.remove({}));
 
   // @ts-expect-error get requires route params from the vertical contract.
-  await runEffectRequest(client.recommendations.get({}));
+  await runEffectRequest(client.explore.get({}));
 
   await runEffectRequest(
-    client.recommendations.get({
+    client.explore.get({
       // @ts-expect-error params.id must be a string.
       params: { id: 123 },
     }),
   );
 
   await runEffectRequest(
-    client.recommendations.list({
+    client.explore.list({
       // @ts-expect-error query.limit must be a number.
       query: { limit: '10' },
     }),
   );
 
   await runEffectRequest(
-    client.recommendations.create({
+    client.explore.create({
       // @ts-expect-error payload.title must be a string.
       payload: { title: 123 },
     }),
   );
 
   const created = await runEffectRequest(
-    client.recommendations.create({ payload: { title: 'New item' } }),
+    client.explore.create({ payload: { title: 'New item' } }),
   );
   // @ts-expect-error created item has no count field in the vertical schema.
   created.item.count;
@@ -410,42 +418,42 @@ void verifyClientRejections;
   HttpApiBuilder,
 } from '@modern-js/plugin-bff/effect-edge';
 import {
-  RecommendationNotFound,
-  recommendationsEffectApi,
-} from '@ultra-workspace/remote-commerce/shared/effect/api';
+  ExploreNotFound,
+  exploreEffectApi,
+} from '@ultra-workspace/remote-explore/shared/effect/api';
 
 const marker = {
-  appId: 'remote-commerce',
-  packageName: '@ultra-workspace/remote-commerce',
+  appId: 'remote-explore',
+  packageName: '@ultra-workspace/remote-explore',
   version: '0.1.0',
   build: 'type-contract-marker',
   deployProfile: 'cloudflare-ssr-mf-effect-v1',
   surface: 'effect-bff',
 };
 
-HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
+HttpApiBuilder.group(exploreEffectApi, 'explore', handlers =>
   handlers
-    .handle('list', () => Effect.succeed({ items: [{ id: 'starter-recommendations', marker, title: 'Starter recommendations' }] }))
+    .handle('list', () => Effect.succeed({ items: [{ id: 'starter-explore', marker, title: 'Starter explore' }] }))
     .handle('get', ({ params }) =>
-      Effect.succeed({ id: params.id, marker, title: 'Starter recommendations' }),
+      Effect.succeed({ id: params.id, marker, title: 'Starter explore' }),
     )
     .handle('create', ({ payload }) =>
       Effect.succeed({
-        item: { id: 'generated-recommendation', marker, title: payload.title },
+        item: { id: 'generated-explore', marker, title: payload.title },
       }),
     )
     // @ts-expect-error unknown handler names are rejected by the vertical contract.
     .handle('delete', () => Effect.succeed({})),
 );
 
-HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
+HttpApiBuilder.group(exploreEffectApi, 'explore', handlers =>
   handlers
     .handle('list', () =>
       // @ts-expect-error title must be a string in the shared success schema.
       Effect.succeed({
         items: [
           {
-            id: 'starter-recommendations',
+            id: 'starter-explore',
             marker,
             title: 123,
           },
@@ -453,19 +461,19 @@ HttpApiBuilder.group(recommendationsEffectApi, 'recommendations', handlers =>
       }),
     )
     .handle('get', ({ params }) =>
-      params.id === 'starter-recommendations'
-        ? Effect.succeed({ id: params.id, marker, title: 'Starter recommendations' })
-        : Effect.fail(new RecommendationNotFound({ id: params.id })),
+      params.id === 'starter-explore'
+        ? Effect.succeed({ id: params.id, marker, title: 'Starter explore' })
+        : Effect.fail(new ExploreNotFound({ id: params.id })),
     )
     .handle('create', ({ payload }) =>
       Effect.succeed({
-        item: { id: 'generated-recommendation', marker, title: payload.title },
+        item: { id: 'generated-explore', marker, title: payload.title },
       }),
     ),
 );
 
 // @ts-expect-error typed error constructors own their schema and require string ids.
-new RecommendationNotFound({ id: 123 });
+new ExploreNotFound({ id: 123 });
 `,
   );
 }
@@ -558,43 +566,45 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/locales/en/translation.json',
       'apps/shell-super-app/locales/cs/translation.json',
       'apps/shell-super-app/src/routes/index.css',
-      'apps/remotes/remote-commerce/package.json',
-      'apps/remotes/remote-commerce/modern.config.ts',
-      'apps/remotes/remote-commerce/module-federation.config.ts',
-      'apps/remotes/remote-commerce/src/ultramodern-build.ts',
-      'apps/remotes/remote-commerce/postcss.config.mjs',
-      'apps/remotes/remote-commerce/tailwind.config.ts',
-      'apps/remotes/remote-commerce/api/effect/index.ts',
-      'apps/remotes/remote-commerce/shared/effect/api.ts',
-      'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
-      'apps/remotes/remote-commerce/locales/en/translation.json',
-      'apps/remotes/remote-commerce/locales/cs/translation.json',
-      'apps/remotes/remote-commerce/src/routes/index.css',
-      'apps/remotes/remote-commerce/src/components/commerce-widget.tsx',
-      'apps/remotes/remote-identity/package.json',
-      'apps/remotes/remote-identity/modern.config.ts',
-      'apps/remotes/remote-identity/module-federation.config.ts',
-      'apps/remotes/remote-identity/src/ultramodern-build.ts',
-      'apps/remotes/remote-identity/postcss.config.mjs',
-      'apps/remotes/remote-identity/tailwind.config.ts',
-      'apps/remotes/remote-identity/api/effect/index.ts',
-      'apps/remotes/remote-identity/shared/effect/api.ts',
-      'apps/remotes/remote-identity/src/effect/identity-client.ts',
-      'apps/remotes/remote-identity/locales/en/translation.json',
-      'apps/remotes/remote-identity/locales/cs/translation.json',
-      'apps/remotes/remote-identity/src/routes/index.css',
-      'apps/remotes/remote-identity/src/components/identity-widget.tsx',
-      'apps/remotes/remote-design-system/package.json',
-      'apps/remotes/remote-design-system/modern.config.ts',
-      'apps/remotes/remote-design-system/module-federation.config.ts',
-      'apps/remotes/remote-design-system/src/ultramodern-build.ts',
-      'apps/remotes/remote-design-system/postcss.config.mjs',
-      'apps/remotes/remote-design-system/tailwind.config.ts',
-      'apps/remotes/remote-design-system/locales/en/translation.json',
-      'apps/remotes/remote-design-system/locales/cs/translation.json',
-      'apps/remotes/remote-design-system/src/routes/index.css',
-      'apps/remotes/remote-design-system/src/components/button.tsx',
-      'apps/remotes/remote-design-system/src/tokens.ts',
+      'apps/remotes/remote-explore/package.json',
+      'apps/remotes/remote-explore/modern.config.ts',
+      'apps/remotes/remote-explore/module-federation.config.ts',
+      'apps/remotes/remote-explore/src/ultramodern-build.ts',
+      'apps/remotes/remote-explore/postcss.config.mjs',
+      'apps/remotes/remote-explore/tailwind.config.ts',
+      'apps/remotes/remote-explore/api/effect/index.ts',
+      'apps/remotes/remote-explore/shared/effect/api.ts',
+      'apps/remotes/remote-explore/src/effect/explore-client.ts',
+      'apps/remotes/remote-explore/locales/en/translation.json',
+      'apps/remotes/remote-explore/locales/cs/translation.json',
+      'apps/remotes/remote-explore/src/routes/index.css',
+      'apps/remotes/remote-explore/src/components/explore-widget.tsx',
+      'apps/remotes/remote-decide/package.json',
+      'apps/remotes/remote-decide/modern.config.ts',
+      'apps/remotes/remote-decide/module-federation.config.ts',
+      'apps/remotes/remote-decide/src/ultramodern-build.ts',
+      'apps/remotes/remote-decide/postcss.config.mjs',
+      'apps/remotes/remote-decide/tailwind.config.ts',
+      'apps/remotes/remote-decide/api/effect/index.ts',
+      'apps/remotes/remote-decide/shared/effect/api.ts',
+      'apps/remotes/remote-decide/src/effect/decide-client.ts',
+      'apps/remotes/remote-decide/locales/en/translation.json',
+      'apps/remotes/remote-decide/locales/cs/translation.json',
+      'apps/remotes/remote-decide/src/routes/index.css',
+      'apps/remotes/remote-decide/src/components/decide-widget.tsx',
+      'apps/remotes/remote-checkout/package.json',
+      'apps/remotes/remote-checkout/modern.config.ts',
+      'apps/remotes/remote-checkout/module-federation.config.ts',
+      'apps/remotes/remote-checkout/src/ultramodern-build.ts',
+      'apps/remotes/remote-checkout/postcss.config.mjs',
+      'apps/remotes/remote-checkout/tailwind.config.ts',
+      'apps/remotes/remote-checkout/api/effect/index.ts',
+      'apps/remotes/remote-checkout/shared/effect/api.ts',
+      'apps/remotes/remote-checkout/src/effect/checkout-client.ts',
+      'apps/remotes/remote-checkout/locales/en/translation.json',
+      'apps/remotes/remote-checkout/locales/cs/translation.json',
+      'apps/remotes/remote-checkout/src/routes/index.css',
+      'apps/remotes/remote-checkout/src/components/checkout-widget.tsx',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-effect-api/src/index.ts',
@@ -605,6 +615,9 @@ describe('create-ultramodern-workspace', () => {
       }
     }
     expectNoPath(workspaceDir, 'services/service-recommendations-effect');
+    expectNoPath(workspaceDir, 'apps/remotes/remote-commerce');
+    expectNoPath(workspaceDir, 'apps/remotes/remote-identity');
+    expectNoPath(workspaceDir, 'apps/remotes/remote-design-system');
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     const packageScope = rootPackage.name;
@@ -719,16 +732,22 @@ describe('create-ultramodern-workspace', () => {
 
     const appPackagePaths = [
       'apps/shell-super-app/package.json',
-      'apps/remotes/remote-commerce/package.json',
-      'apps/remotes/remote-identity/package.json',
-      `${designSystemRemotePath}/package.json`,
+      'apps/remotes/remote-explore/package.json',
+      'apps/remotes/remote-decide/package.json',
+      'apps/remotes/remote-checkout/package.json',
     ];
     const expectedZephyrDependencies = {
-      commerce: `@${packageScope}/remote-commerce@workspace:*`,
-      identity: `@${packageScope}/remote-identity@workspace:*`,
-      designSystem: `@${packageScope}/remote-design-system@workspace:*`,
+      checkout: `@${packageScope}/remote-checkout@workspace:*`,
+      decide: `@${packageScope}/remote-decide@workspace:*`,
+      explore: `@${packageScope}/remote-explore@workspace:*`,
     };
     const generatedContract = readGeneratedContract(workspaceDir);
+    expect(generatedContract.apps.map(app => app.id)).toEqual([
+      'shell-super-app',
+      'remote-explore',
+      'remote-decide',
+      'remote-checkout',
+    ]);
 
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
@@ -801,21 +820,15 @@ describe('create-ultramodern-workspace', () => {
           './effect/client': `./src/effect/${fullStackVertical.stem}-client.ts`,
           './shared/effect/api': './shared/effect/api.ts',
         });
-      } else if (packagePath.includes('/remote-design-system/')) {
-        expect(
-          packageJson.dependencies['@modern-js/plugin-bff'],
-        ).toBeUndefined();
-        expect(packageJson.exports?.['./effect/client']).toBeUndefined();
-        expect(packageJson.exports?.['./shared/effect/api']).toBeUndefined();
       }
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
     }
 
     for (const appDirectory of [
       'apps/shell-super-app',
-      'apps/remotes/remote-commerce',
-      'apps/remotes/remote-identity',
-      'apps/remotes/remote-design-system',
+      'apps/remotes/remote-explore',
+      'apps/remotes/remote-decide',
+      'apps/remotes/remote-checkout',
     ]) {
       const contractEntry = generatedContract.apps.find(
         app => app.path === appDirectory,
@@ -838,42 +851,26 @@ describe('create-ultramodern-workspace', () => {
     });
     expect(shellContract.moduleFederation.remotes).toEqual([
       {
-        id: 'remote-commerce',
-        alias: 'commerce',
-        name: 'remoteCommerce',
-        manifestEnv: 'REMOTE_COMMERCE_MF_MANIFEST',
+        id: 'remote-explore',
+        alias: 'explore',
+        name: 'remoteExplore',
+        manifestEnv: 'REMOTE_EXPLORE_MF_MANIFEST',
         manifestUrl: 'http://localhost:3021/mf-manifest.json',
       },
       {
-        id: 'remote-identity',
-        alias: 'identity',
-        name: 'remoteIdentity',
-        manifestEnv: 'REMOTE_IDENTITY_MF_MANIFEST',
+        id: 'remote-decide',
+        alias: 'decide',
+        name: 'remoteDecide',
+        manifestEnv: 'REMOTE_DECIDE_MF_MANIFEST',
         manifestUrl: 'http://localhost:3022/mf-manifest.json',
       },
       {
-        id: 'remote-design-system',
-        alias: 'designSystem',
-        name: 'remoteDesignSystem',
-        manifestEnv: 'REMOTE_DESIGN_SYSTEM_MF_MANIFEST',
+        id: 'remote-checkout',
+        alias: 'checkout',
+        name: 'remoteCheckout',
+        manifestEnv: 'REMOTE_CHECKOUT_MF_MANIFEST',
         manifestUrl: 'http://localhost:3023/mf-manifest.json',
       },
-    ]);
-
-    const designContract = getGeneratedAppContract(
-      workspaceDir,
-      'remote-design-system',
-    );
-    expect(designContract.moduleFederation).toMatchObject({
-      name: 'remoteDesignSystem',
-      dts: {
-        displayErrorInTerminal: true,
-        compilerInstance: '--package typescript -- tsc',
-      },
-    });
-    expect(designContract.moduleFederation.exposes).toEqual([
-      './Button',
-      './tokens',
     ]);
 
     for (const vertical of fullStackVerticals) {
@@ -959,9 +956,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(topology.preset).toBe('presetUltramodern');
     expect(topology.shell.remoteRefs).toEqual([
-      'remote-commerce',
-      'remote-identity',
-      'remote-design-system',
+      'remote-explore',
+      'remote-decide',
+      'remote-checkout',
     ]);
     expect(topology.remotes).toHaveLength(3);
     for (const vertical of fullStackVerticals) {
@@ -992,19 +989,19 @@ describe('create-ultramodern-workspace', () => {
       });
     }
     expect(
-      topology.remotes.find(
-        (remote: { id: string }) => remote.id === 'remote-design-system',
-      ).kind,
-    ).toBe('horizontal-design-system');
+      topology.remotes.every(
+        (remote: { kind: string }) => remote.kind === 'vertical',
+      ),
+    ).toBe(true);
     expect(topology.effectServices ?? []).toEqual([]);
     expect(topology.sharedPackages).toHaveLength(3);
 
     const ownership = readJson(workspaceDir, 'topology/ownership.json');
     expect(
       ownership.owners.find(
-        (owner: { id: string }) => owner.id === 'remote-commerce',
+        (owner: { id: string }) => owner.id === 'remote-explore',
       ).ownership.team,
-    ).toBe('commerce-experience');
+    ).toBe('tractor-explore');
     expect(
       ownership.owners.some(
         (owner: { id: string; path: string }) =>
@@ -1383,7 +1380,11 @@ describe('create-ultramodern-workspace', () => {
       ],
     ).toBe('workspace:*');
 
-    for (const vertical of ['remote-commerce', 'remote-identity']) {
+    for (const vertical of [
+      'remote-explore',
+      'remote-decide',
+      'remote-checkout',
+    ]) {
       const verticalPackage = readJson(
         workspaceDir,
         `apps/remotes/${vertical}/package.json`,
