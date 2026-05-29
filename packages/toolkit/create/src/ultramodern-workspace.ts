@@ -4833,7 +4833,7 @@ function createTemplateManifest(
         'provenance-present',
       ],
       materializationValidation: [
-        'path-boundary-allowlist',
+        'path-boundary-policy',
         'path-boundary-denylist',
         'no-path-traversal',
         'no-absolute-paths',
@@ -5652,22 +5652,12 @@ function writeApp(
     if (route.canonicalPath === '/' || app.kind === 'shell') {
       continue;
     }
-    const routePaths = new Set([
-      route.canonicalPath,
-      ...Object.values(route.localisedPaths),
-    ]);
 
-    for (const routePath of routePaths) {
-      if (routePath === '/') {
-        continue;
-      }
-
-      writeFile(
-        targetDir,
-        createRoutePageFilePath(app, routePath),
-        createRouteAliasPage(routePath),
-      );
-    }
+    writeFile(
+      targetDir,
+      createRoutePageFilePath(app, route.canonicalPath),
+      createRouteAliasPage(route.canonicalPath),
+    );
   }
 
   if (app.kind === 'shell') {
@@ -5688,27 +5678,12 @@ function writeApp(
     );
     writeFile(
       targetDir,
-      `${app.directory}/src/routes/[lang]/traktory/page.tsx`,
-      createShellTractorsPage(),
-    );
-    writeFile(
-      targetDir,
       `${app.directory}/src/routes/[lang]/tractors/[slug]/page.tsx`,
       createShellProductPage(),
     );
     writeFile(
       targetDir,
-      `${app.directory}/src/routes/[lang]/traktory/[slug]/page.tsx`,
-      createShellProductPage(),
-    );
-    writeFile(
-      targetDir,
       `${app.directory}/src/routes/[lang]/cart/page.tsx`,
-      createShellCartPage(),
-    );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/[lang]/kosik/page.tsx`,
       createShellCartPage(),
     );
   }

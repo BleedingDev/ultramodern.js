@@ -36,7 +36,7 @@ ScriptedAlchemy/TechsioCZ skills are private and are cloned only when the curren
 pnpm skills:install
 ```
 
-The installer copies only the allowlisted private skills from `.agents/skills-lock.json`: `plan-graph`, `dag`, `subagent-graph`, `helm`, and `debugger-mode`.
+The installer copies only the pinned private skills from `.agents/skills-lock.json`: `plan-graph`, `dag`, `subagent-graph`, `helm`, and `debugger-mode`.
 
 ## Agent Reference Repositories
 
@@ -58,4 +58,4 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 
 ## Skill Provenance
 
-The vendored Rstack skills, public Module Federation skill, and private TechsioCZ skill allowlist are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run `pnpm check`.
+The vendored Rstack skills, public Module Federation skill, and private TechsioCZ skill set are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run `pnpm check`.

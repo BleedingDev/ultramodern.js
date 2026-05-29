@@ -4,22 +4,7 @@ packages:
   - services/*
   - packages/*
 
-minimumReleaseAge: 1440
-minimumReleaseAgeStrict: true
-minimumReleaseAgeIgnoreMissingTime: false
-minimumReleaseAgeExclude:
-  - '@modern-js/*'
-  - '@bleedingdev/*'
-  - '@effect/tsgo'
-  - '@effect/tsgo-*'
-  - '@typescript/native-preview'
-  - '@typescript/native-preview-*'
-  - '@cloudflare/*'
-  - miniflare
-  - workerd
-  - wrangler
-trustPolicy: no-downgrade
-trustPolicyIgnoreAfter: 1440
+minimumReleaseAge: 0
 blockExoticSubdeps: true
 engineStrict: true
 pmOnFail: error

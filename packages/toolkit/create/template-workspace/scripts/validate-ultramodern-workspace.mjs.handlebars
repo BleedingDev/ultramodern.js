@@ -244,30 +244,18 @@ assert(
     JSON.stringify(['apps/*', 'apps/remotes/*', 'services/*', 'packages/*']),
   'pnpm-workspace.yaml must retain workspace package globs',
 );
-assert(readPnpmConfig('minimumReleaseAge') === 1440, 'pnpm minimumReleaseAge must be 1440');
-assert(readPnpmConfig('minimumReleaseAgeStrict') === true, 'pnpm minimumReleaseAgeStrict must be true');
+assert(readPnpmConfig('minimumReleaseAge') === 0, 'pnpm minimumReleaseAge must be 0');
+assert(readPnpmConfig('minimumReleaseAgeStrict') === undefined, 'pnpm minimumReleaseAgeStrict must stay unset');
 assert(
-  readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') === false,
-  'pnpm minimumReleaseAgeIgnoreMissingTime must be false',
+  readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') === undefined,
+  'pnpm minimumReleaseAgeIgnoreMissingTime must stay unset',
 );
 assert(
-  JSON.stringify(readPnpmConfig('minimumReleaseAgeExclude')) ===
-    JSON.stringify([
-      '@modern-js/*',
-      '@bleedingdev/*',
-      '@effect/tsgo',
-      '@effect/tsgo-*',
-      '@typescript/native-preview',
-      '@typescript/native-preview-*',
-      '@cloudflare/*',
-      'miniflare',
-      'workerd',
-      'wrangler',
-    ]),
-  'pnpm minimumReleaseAgeExclude must retain framework and Cloudflare exceptions',
+  readPnpmConfig('minimumReleaseAgeExclude') === undefined,
+  'pnpm minimumReleaseAgeExclude must stay unset',
 );
-assert(readPnpmConfig('trustPolicy') === 'no-downgrade', 'pnpm trustPolicy must be no-downgrade');
-assert(readPnpmConfig('trustPolicyIgnoreAfter') === 1440, 'pnpm trustPolicyIgnoreAfter must be 1440');
+assert(readPnpmConfig('trustPolicy') === undefined, 'pnpm trustPolicy must stay unset');
+assert(readPnpmConfig('trustPolicyIgnoreAfter') === undefined, 'pnpm trustPolicyIgnoreAfter must stay unset');
 assert(readPnpmConfig('blockExoticSubdeps') === true, 'pnpm blockExoticSubdeps must be true');
 assert(readPnpmConfig('engineStrict') === true, 'pnpm engineStrict must be true');
 assert(readPnpmConfig('pmOnFail') === 'error', 'pnpm pmOnFail must be error');
@@ -492,7 +480,7 @@ assert(
 for (const skillName of privateAgentSkills) {
   assert(
     privateSource.baseline?.some((skill) => skill.name === skillName),
-    `Agent skills lock must allowlist private skill ${skillName}`,
+    `Agent skills lock must pin private skill ${skillName}`,
   );
 }
 
@@ -926,7 +914,7 @@ assert(
   privateAgentSkills.every((skillName) =>
     manifest.agentSkills?.privateSource?.baseline?.includes(skillName),
   ),
-  'Template manifest must list every private agent skill allowlist entry',
+  'Template manifest must list every pinned private agent skill entry',
 );
 assert(
   manifest.validation?.expectedCommands?.includes('mise exec -- pnpm run ultramodern:check'),

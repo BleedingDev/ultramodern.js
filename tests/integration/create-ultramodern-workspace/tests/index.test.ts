@@ -73,23 +73,16 @@ function expectPnpm11Policy(workspaceDir: string) {
     'services/*',
     'packages/*',
   ]);
-  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAge')).toBe(1440);
-  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeStrict')).toBe(true);
+  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAge')).toBe(0);
+  expect(
+    readPnpmConfig(workspaceDir, 'minimumReleaseAgeStrict'),
+  ).toBeUndefined();
   expect(
     readPnpmConfig(workspaceDir, 'minimumReleaseAgeIgnoreMissingTime'),
-  ).toBe(false);
-  expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeExclude')).toEqual([
-    '@modern-js/*',
-    '@bleedingdev/*',
-    '@effect/tsgo',
-    '@effect/tsgo-*',
-    '@typescript/native-preview',
-    '@typescript/native-preview-*',
-    '@cloudflare/*',
-    'miniflare',
-    'workerd',
-    'wrangler',
-  ]);
+  ).toBeUndefined();
+  expect(
+    readPnpmConfig(workspaceDir, 'minimumReleaseAgeExclude'),
+  ).toBeUndefined();
   expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
     allowedVersions: {
       react: '>=19.0.0',
@@ -100,8 +93,10 @@ function expectPnpm11Policy(workspaceDir: string) {
     '@tanstack/react-router': '1.170.8',
     'node-fetch': '^3.3.2',
   });
-  expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
-  expect(readPnpmConfig(workspaceDir, 'trustPolicyIgnoreAfter')).toBe(1440);
+  expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBeUndefined();
+  expect(
+    readPnpmConfig(workspaceDir, 'trustPolicyIgnoreAfter'),
+  ).toBeUndefined();
   expect(readPnpmConfig(workspaceDir, 'blockExoticSubdeps')).toBe(true);
   expect(readPnpmConfig(workspaceDir, 'engineStrict')).toBe(true);
   expect(readPnpmConfig(workspaceDir, 'pmOnFail')).toBe('error');
