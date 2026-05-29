@@ -1765,9 +1765,15 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
 
 function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
   return Object.fromEntries(
-    createRouteOwnedI18nPaths(app)
-      .filter(route => route.canonicalPath !== '/')
-      .map(route => [route.canonicalPath, route.localisedPaths]),
+    createRouteOwnedI18nPaths(app).flatMap(route => {
+      if (route.canonicalPath === '/') {
+        return [];
+      }
+
+      return Array.from(
+        new Set([route.canonicalPath, ...Object.values(route.localisedPaths)]),
+      ).map(pathname => [pathname, route.localisedPaths] as const);
+    }),
   );
 }
 
