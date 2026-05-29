@@ -234,6 +234,7 @@ describe('cloudflare deploy preset', () => {
     expect(wranglerConfig.assets).toEqual({
       directory: './public',
       binding: 'ASSETS',
+      run_worker_first: true,
     });
     expect(wranglerConfig.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
@@ -329,6 +330,7 @@ describe('cloudflare deploy preset', () => {
     expect(workerManifest.assets).toEqual({
       directory: './public',
       binding: 'ASSETS',
+      runWorkerFirst: true,
     });
     expect(workerManifest.routeSpec.file).toBe('server/route.json');
     expect(workerManifest.routeSpec.routes).toContainEqual(

@@ -87,6 +87,7 @@ const createWorkerManifest = async (
     assets: {
       binding: ASSETS_BINDING,
       directory: `./${PUBLIC_ASSETS_DIRECTORY}`,
+      runWorkerFirst: true,
     },
     routeSpec: {
       file: ROUTE_SPEC_OUTPUT,
@@ -235,6 +236,7 @@ export const createCloudflarePreset: CreatePreset = ({
           assets: {
             directory: `./${PUBLIC_ASSETS_DIRECTORY}`,
             binding: ASSETS_BINDING,
+            run_worker_first: true,
           },
         },
         {
