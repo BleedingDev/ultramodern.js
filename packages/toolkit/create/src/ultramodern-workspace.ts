@@ -3101,7 +3101,6 @@ export default function BoundaryOverlay() {
 
     const mutationObserver = new MutationObserver(readBoxes);
     mutationObserver.observe(document.body, {
-      attributes: true,
       childList: true,
       subtree: true,
     });
