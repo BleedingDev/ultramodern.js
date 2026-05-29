@@ -1279,6 +1279,19 @@ describe('create-ultramodern-workspace', () => {
         'apps/remotes/remote-explore/locales/cs/explore.json',
       ).explore.routes.storePicker,
     ).toBe('Výběr prodejce');
+    expect(
+      readText(workspaceDir, 'apps/shell-super-app/src/routes/shell-frame.tsx'),
+    ).toContain(
+      'flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between',
+    );
+    expect(
+      readText(
+        workspaceDir,
+        'apps/remotes/remote-explore/src/components/header.tsx',
+      ),
+    ).toContain(
+      'flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1',
+    );
 
     for (const vertical of fullStackVerticals) {
       const contractEntry = generatedContract.apps.find(

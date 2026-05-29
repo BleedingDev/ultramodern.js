@@ -2604,9 +2604,9 @@ export default function ShellFrame({ children, showCart = true }: ShellFrameProp
   return (
     <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12">
       <BoundaryOverlay />
-      <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6">
+      <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <Header />
-        <div className="ml-auto flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
           <label className="sr-only" htmlFor="ultramodern-language">
             {t('shell.language.switcher')}
           </label>
@@ -3020,7 +3020,7 @@ export default function Header() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <header className="flex min-w-0 flex-1 flex-wrap items-center gap-x-8 gap-y-2" data-mf-boundary="explore">
+    <header className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1" data-mf-boundary="explore">
       <a className="whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline" href={\`/\${language}\`}>Acre & Iron</a>
       <nav aria-label={t('explore.header.navigation')} className="flex items-center gap-5">
         <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
