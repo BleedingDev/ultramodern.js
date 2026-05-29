@@ -1000,7 +1000,7 @@ describe('create-ultramodern-workspace', () => {
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.11.0',
+      '@effect/tsgo': '0.13.0',
       '@typescript/native-preview': '7.0.0-dev.20260527.2',
       oxlint: '1.66.0',
       oxfmt: '0.51.0',
@@ -1095,7 +1095,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
         'workspace:*',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.11.0');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.13.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
         '7.0.0-dev.20260527.2',
       );
