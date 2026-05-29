@@ -366,7 +366,35 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
     expect(await response.text()).toBe('app();');
+  });
+
+  it('answers Cloudflare CORS preflight requests for federated assets', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/mf-manifest.json', {
+        headers: {
+          origin: 'https://shell.example.com',
+          'access-control-request-method': 'GET',
+        },
+        method: 'OPTIONS',
+      }),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('access-control-allow-methods')).toContain(
+      'GET',
+    );
   });
 
   it('uses route metadata for non-worker HTML fallback after asset miss', async () => {
@@ -560,6 +588,7 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
     await expect(response.json()).resolves.toEqual({
       pathname: '/effect/recommendations',
       originalPath: '/commerce-api/effect/recommendations',

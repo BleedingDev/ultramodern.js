@@ -2,9 +2,41 @@ const ASSETS_BINDING = 'ASSETS';
 const MODERN_WORKER_MANIFEST = p_workerManifest;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
+const CORS_HEADERS = {
+  'access-control-allow-headers': '*',
+  'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+  'access-control-allow-origin': '*',
+};
 
 globalThis.__dirname ??= '/';
 globalThis.__filename ??= '/index.js';
+
+function withCorsHeaders(response) {
+  const headers = new Headers(response.headers);
+
+  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+    if (!headers.has(name)) {
+      headers.set(name, value);
+    }
+  }
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+function createCorsPreflightResponse(request) {
+  if (request.method !== 'OPTIONS') {
+    return null;
+  }
+
+  return new Response(null, {
+    headers: CORS_HEADERS,
+    status: 204,
+  });
+}
 
 async function fetchAsset(request, env) {
   const assets = env?.[ASSETS_BINDING];
@@ -19,7 +51,7 @@ async function fetchAsset(request, env) {
     return null;
   }
 
-  return response;
+  return withCorsHeaders(response);
 }
 
 async function fetchAssetByPath(pathname, request, env) {
@@ -401,6 +433,12 @@ async function dispatchBffRequest(request, env) {
 
 export default {
   async fetch(request, env, ctx) {
+    const corsPreflightResponse = createCorsPreflightResponse(request);
+
+    if (corsPreflightResponse) {
+      return corsPreflightResponse;
+    }
+
     const assetResponse = await fetchAsset(request, env);
 
     if (assetResponse) {
@@ -410,13 +448,15 @@ export default {
     const bffResponse = await dispatchBffRequest(request, env);
 
     if (bffResponse) {
-      return bffResponse;
+      return withCorsHeaders(bffResponse);
     }
 
     const route = findRoute(request);
 
     if (route?.worker) {
-      return dispatchRouteWorker(route, request, env, ctx);
+      return withCorsHeaders(
+        await dispatchRouteWorker(route, request, env, ctx),
+      );
     }
 
     const htmlResponse = await fetchRouteHtml(route, request, env);
@@ -425,6 +465,6 @@ export default {
       return htmlResponse;
     }
 
-    return new Response('Not found', { status: 404 });
+    return withCorsHeaders(new Response('Not found', { status: 404 }));
   },
 };

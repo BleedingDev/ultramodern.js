@@ -5315,6 +5315,7 @@ async function fetchText(url) {
   return {
     ok: response.ok,
     status: response.status,
+    accessControlAllowOrigin: response.headers.get('access-control-allow-origin'),
     contentType: response.headers.get('content-type'),
     body: await response.text(),
   };
@@ -5423,6 +5424,16 @@ async function validateApp(app, publicUrl) {
     manifest.ok,
     \`\${app.id} MF manifest returned HTTP \${manifest.status}\`,
   );
+  evidence.assertions.push({
+    type: 'mf-manifest-cors',
+    route: manifestRoute,
+    actual: manifest.accessControlAllowOrigin,
+    status: manifest.accessControlAllowOrigin === '*' ? 'pass' : 'fail',
+  });
+  assert(
+    manifest.accessControlAllowOrigin === '*',
+    \`\${app.id} MF manifest is missing Cloudflare CORS headers\`,
+  );
 
   const localeRoute = routes.locale ?? \`/locales/en/\${app.i18n?.namespace}.json\`;
   const locale = await fetchText(joinUrl(publicUrl, localeRoute));
@@ -5440,6 +5451,16 @@ async function validateApp(app, publicUrl) {
     statusCode: locale.status,
   });
   assert(locale.ok, \`\${app.id} locale JSON returned HTTP \${locale.status}\`);
+  evidence.assertions.push({
+    type: 'i18n-cors',
+    route: localeRoute,
+    actual: locale.accessControlAllowOrigin,
+    status: locale.accessControlAllowOrigin === '*' ? 'pass' : 'fail',
+  });
+  assert(
+    locale.accessControlAllowOrigin === '*',
+    \`\${app.id} locale JSON is missing Cloudflare CORS headers\`,
+  );
   assert(
     localeJson && Object.hasOwn(localeJson, app.i18n?.namespace),
     \`\${app.id} locale JSON is missing namespace \${app.i18n?.namespace}\`,
