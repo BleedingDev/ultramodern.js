@@ -44,9 +44,10 @@ Before changing runtime, routing, or service shape, the owning team records thes
 | Topology IDs | Shell, remote, and service IDs that will remain stable after extraction. |
 | Owners | Vertical owner, platform owner, service owner, design-system owner when applicable. |
 | Rollback controls | Kill switch, LKG candidate, CSR or maintenance fallback, and revocation path. |
-| Evidence gap | The first missing artifact compared with the Wave 3 `remote-commerce` evidence package. |
+| Evidence gap | The first missing artifact compared with the Tractor Explore/Decide/Checkout target gates. |
 
-The baseline evidence package is:
+Legacy `remote-commerce` evidence remains useful for evidence shape only. It is
+not the final Tractor architecture:
 
 1. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollout-evidence.md`
 2. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/extraction-evidence.md`
@@ -57,6 +58,37 @@ The baseline evidence package is:
 7. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/review-evidence.md`
 
 ## 4. Phased Migration Path
+
+### Tractor Target Split
+
+Existing one-remote commerce demos or applications should migrate toward the
+Tractor split only when ownership is clear:
+
+| Existing surface | Target owner | Notes |
+| --- | --- | --- |
+| Catalog landing, recommendations, navigation/header/footer, dealer or store picker | Explore vertical | Owns `/tractors`, `/stores`, Explore MF exposes, and `/explore-api/effect/explore/*`. |
+| Product detail, comparison, configuration, option selection | Decide vertical | Owns `/tractors/:slug`, product/configuration operations, and `/decide-api/effect/decide/*`. |
+| Cart, add-to-cart, checkout, order confirmation | Checkout vertical | Owns `/cart`, `/checkout`, `/checkout/thank-you/:orderId?`, cart/order operations, and `/checkout-api/effect/checkout/*`. |
+| Shared design tokens and primitive styling values | Shared design tokens package | Owns `./tokens.css`; do not move feature composites here. |
+| Cross-cutting orchestration, topology, fallback policy | Shell | Owns assembly only; it should not take over vertical route-local behavior. |
+
+Preserve one-package ownership while splitting. A vertical package owns its UI,
+Effect BFF contract, generated client, route-owned `localisedUrls`, dynamic
+locale JSON, vertical CSS layer, MF manifest, Cloudflare Worker output, and
+build marker. Do not split the default vertical-owned API into a separate
+service unless the operation has a real cross-vertical owner and propagation
+contract.
+
+Before extracting a slice, answer:
+
+1. Can one team own the route, API, translations, CSS, fallback, and incident
+   response?
+2. Can the shell consume it through topology and MF references without source
+   URL rewrites?
+3. Can UI, API, CSS, i18n JSON, and MF manifest markers be proven from the same
+   selected version?
+4. Does rollback disable or pin only this vertical without breaking unrelated
+   routes?
 
 ### Phase 0: Stabilize the Existing Lane
 
@@ -150,7 +182,9 @@ Exit criteria:
 
 ### Phase 5: Certify Production Rollout
 
-Use the Wave 3 `remote-commerce` package as the production evidence template.
+Use the Tractor Explore/Decide/Checkout package split as the production target.
+The legacy `remote-commerce` package can inform evidence structure only; it must
+not be treated as the final architecture.
 
 Required actions:
 

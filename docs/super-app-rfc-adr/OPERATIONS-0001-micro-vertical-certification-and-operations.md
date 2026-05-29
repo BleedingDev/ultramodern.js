@@ -150,6 +150,37 @@ Before production promotion:
 5. boundary guard validation for cross-vertical imports.
 6. owner and impacted-consumer review evidence.
 
+For the generated Tractor workspace, add these scaffold-specific gates:
+
+```bash
+mise exec -- pnpm ultramodern:check
+mise exec -- pnpm build
+mise exec -- pnpm cloudflare:build
+node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
+  --root-dir apps/remotes/remote-explore \
+  --bff /explore-api/effect/explore/readiness \
+  --expect-en "Explore Remote" \
+  --match-build-marker \
+  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
+node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js \
+  --dry-run \
+  --out .codex/reports/zephyr-live/tractor-dry-run.json
+```
+
+Promotion to a public environment additionally requires:
+
+```bash
+ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
+pnpm cloudflare:proof -- --require-public-urls
+```
+
+Live Zephyr evidence requires valid Zephyr credentials and public v1/v2 runtime,
+manifest, and Effect readiness URLs for Explore, Decide, and Checkout. Dry-run
+Zephyr evidence is not a substitute for live version-switching proof.
+
 ## 7. Acceptance Checklist
 
 A Micro Vertical is operable when:

@@ -179,6 +179,25 @@ async function fetchWorkerRoute({
   };
 }
 
+async function fetchHttpRoute({
+  fetchImpl = globalThis.fetch,
+  urlPath,
+  baseUrl,
+}) {
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('global fetch is not available in this Node runtime.');
+  }
+  const response = await fetchImpl(new URL(urlPath, baseUrl));
+  const body = await response.text();
+
+  return {
+    path: urlPath,
+    status: response.status,
+    contentType: response.headers.get('content-type'),
+    body,
+  };
+}
+
 function parseMaybeJson(body) {
   try {
     return JSON.parse(body);
@@ -229,43 +248,58 @@ function assertSuccessfulResponse(result, label) {
 async function validateCloudflareSsr({
   rootDir = process.cwd(),
   outputDir = DEFAULT_OUTPUT_DIR,
+  publicBaseUrl,
+  fetchImpl = globalThis.fetch,
   routes = DEFAULT_ROUTES,
   expected = {},
   reportPath,
   generatedAt = new Date().toISOString(),
 } = {}) {
-  const paths = resolveOutputPaths({ rootDir, outputDir });
-  const manifest = pathExists(paths.workerManifestPath)
-    ? readJson(paths.workerManifestPath)
-    : null;
+  const paths = publicBaseUrl
+    ? null
+    : resolveOutputPaths({ rootDir, outputDir });
+  const manifest =
+    paths && pathExists(paths.workerManifestPath)
+      ? readJson(paths.workerManifestPath)
+      : null;
 
-  assertFile(
-    path.join(paths.publicDir, 'mf-manifest.json'),
-    'MF manifest is missing',
-  );
-  if (routes.locale) {
-    const localePath = path.join(paths.publicDir, routes.locale);
-    assertFile(localePath, 'Locale asset is missing');
-  }
-  if (manifest?.bff?.worker) {
+  let worker;
+  if (paths) {
     assertFile(
-      path.join(paths.outputDir, manifest.bff.worker),
-      'Effect BFF worker bundle is missing',
+      path.join(paths.publicDir, 'mf-manifest.json'),
+      'MF manifest is missing',
     );
+    if (routes.locale) {
+      const localePath = path.join(paths.publicDir, routes.locale);
+      assertFile(localePath, 'Locale asset is missing');
+    }
+    if (manifest?.bff?.worker) {
+      assertFile(
+        path.join(paths.outputDir, manifest.bff.worker),
+        'Effect BFF worker bundle is missing',
+      );
+    }
+
+    worker = await importWorker(paths.workerEntry);
   }
 
-  const worker = await importWorker(paths.workerEntry);
   const responses = {};
 
   for (const [label, urlPath] of Object.entries(routes)) {
     if (!urlPath) {
       continue;
     }
-    const result = await fetchWorkerRoute({
-      worker,
-      publicDir: paths.publicDir,
-      urlPath,
-    });
+    const result = paths
+      ? await fetchWorkerRoute({
+          worker,
+          publicDir: paths.publicDir,
+          urlPath,
+        })
+      : await fetchHttpRoute({
+          fetchImpl,
+          baseUrl: publicBaseUrl,
+          urlPath,
+        });
     assertSuccessfulResponse(result, label);
     responses[label] = {
       status: result.status,
@@ -296,19 +330,21 @@ async function validateCloudflareSsr({
     schemaVersion: SCHEMA_VERSION,
     generatedAt,
     status: 'pass',
-    rootDir: paths.rootDir,
-    outputDir: paths.outputDir,
-    publicDir: paths.publicDir,
+    mode: publicBaseUrl ? 'public-url' : 'local-worker',
+    publicBaseUrl,
+    rootDir: paths?.rootDir,
+    outputDir: paths?.outputDir,
+    publicDir: paths?.publicDir,
     wrangler: {
-      main: paths.wrangler.main,
-      compatibilityDate: paths.wrangler.compatibility_date,
-      assets: paths.wrangler.assets,
+      main: paths?.wrangler.main,
+      compatibilityDate: paths?.wrangler.compatibility_date,
+      assets: paths?.wrangler.assets,
     },
     manifest,
     files: {
-      public: listFiles(paths.publicDir),
-      server: listFiles(path.join(paths.outputDir, 'server')),
-      worker: listFiles(path.join(paths.outputDir, 'worker')),
+      public: paths ? listFiles(paths.publicDir) : [],
+      server: paths ? listFiles(path.join(paths.outputDir, 'server')) : [],
+      worker: paths ? listFiles(path.join(paths.outputDir, 'worker')) : [],
     },
     routes,
     responses,
@@ -357,6 +393,7 @@ function parseArgs(argv) {
     const field = {
       '--root-dir': 'rootDir',
       '--output-dir': 'outputDir',
+      '--public-url': 'publicBaseUrl',
       '--out': 'reportPath',
       '--en': ['routes', 'en'],
       '--cs': ['routes', 'cs'],
@@ -391,6 +428,7 @@ function printUsage() {
 Options:
   --root-dir <path>       App root. Defaults to current directory.
   --output-dir <path>     Cloudflare output directory. Defaults to .output.
+  --public-url <url>      Validate deployed public HTTP routes instead of local .output.
   --out <path>            Evidence JSON path.
   --en <path>             English SSR route. Defaults to /en.
   --cs <path>             Czech SSR route. Defaults to /cs.
@@ -411,7 +449,9 @@ async function main(argv = process.argv.slice(2)) {
   }
   const report = await validateCloudflareSsr(args);
   process.stdout.write(
-    `[cloudflare-ssr-validation] ${report.status}: ${report.outputDir}\n`,
+    `[cloudflare-ssr-validation] ${report.status}: ${
+      report.publicBaseUrl ?? report.outputDir
+    }\n`,
   );
   if (args.reportPath) {
     process.stdout.write(
@@ -431,6 +471,7 @@ module.exports = {
   DEFAULT_ROUTES,
   createAssetBinding,
   extractUiBuildMarker,
+  fetchHttpRoute,
   findBuildMarker,
   parseArgs,
   validateCloudflareSsr,

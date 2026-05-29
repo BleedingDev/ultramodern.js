@@ -4,22 +4,22 @@ overview: Define the non-negotiable real Module Federation Tractor target for Ul
 todos:
   - id: capture-canonical-ownership
     content: "Define the canonical Explore, Decide, and Checkout ownership matrix from Tractor references, including routes, exposed React surfaces, Effect API ownership, translations, CSS ownership, deploy identity, and runtime markers."
-    status: pending
+    status: completed
   - id: specify-vertical-manifest-schema
     content: "Design the generated full-stack vertical manifest schema that ties package name, MF name, exposes, routes, Effect endpoints, locale namespaces, CSS layers, Zephyr app identity, Cloudflare worker identity, version marker, owner, and blast-radius metadata into one contract."
-    status: pending
+    status: completed
   - id: define-cross-vertical-contracts
     content: "Define explicit contracts for Decide consuming Checkout AddToCart/MiniCart and Explore recommendations/header/footer through Module Federation, with typed event or Effect command boundaries where state crosses verticals."
-    status: pending
+    status: completed
   - id: define-version-marker-contract
     content: "Define a UI and API marker contract that makes version skew observable: each vertical version must expose matching UI marker, BFF marker, manifest marker, and deploy selector metadata."
-    status: pending
+    status: completed
   - id: define-css-contract
     content: "Define the CSS ownership contract for federated remotes: design tokens, shared base layers, remote-owned component CSS, CSS chunk loading, deduplication rules, and conflict prevention."
-    status: pending
+    status: completed
   - id: define-validation-contract
     content: "Define validation evidence required before claiming success: generated contracts, build outputs, HTTP SSR checks, MF manifest checks, Effect endpoint checks, browser composition checks, boundary overlay geometry, and no source-content assertions."
-    status: pending
+    status: completed
 isProject: true
 ---
 

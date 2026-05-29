@@ -32,6 +32,7 @@ This order is intentional:
 
 | Team question | Canonical answer |
 | --- | --- |
+| What does the generated Tractor reference workspace contain? | `packages/document/docs/en/guides/get-started/ultramodern.mdx` and `packages/toolkit/create/template/README.md` |
 | How do we lay out the repo? | `WORKSPACE-0001-micro-vertical-workspace-scaffolding.md` |
 | How do we scaffold shell, remote, and service packages? | `packages/toolkit/create/README.md` and `packages/toolkit/create/template/README.md` |
 | When should we extract a remote or service? | `GOVERNANCE-0001-micro-vertical-extraction-governance.md` |
@@ -39,8 +40,69 @@ This order is intentional:
 | How do we certify production readiness? | `OPERATIONS-0001-micro-vertical-certification-and-operations.md` |
 | Which contracts are machine-readable? | `docs/super-app-rfc-adr/contracts/` |
 | Which gates prove the package still works? | `CI-GATES-0001-check-and-artifact-map.md` |
+| How do we prove Cloudflare and Zephyr behavior? | `CLOUDFLARE-ZEPHYR-0001-ultramodern-worker-ssr.md`, `scripts/ultramodern-cloudflare-ssr-validation/README.md`, and `scripts/ultramodern-zephyr-live-evidence/README.md` |
 
-## 4. Launch Checklist
+## 4. Tractor Reference Architecture
+
+The current downstream starter is the Tractor reference workspace:
+
+| Boundary | Package | Owns |
+| --- | --- | --- |
+| Shell | `apps/shell-super-app` | route assembly, topology selection, MF host config, `zephyr:dependencies`, global fallback policy |
+| Explore | `apps/remotes/remote-explore` | discovery routes, browser-safe MF exposes, `/explore-api/effect/explore/*`, route-owned i18n, vertical CSS |
+| Decide | `apps/remotes/remote-decide` | product selection routes, MF exposes, `/decide-api/effect/decide/*`, route-owned i18n, vertical CSS |
+| Checkout | `apps/remotes/remote-checkout` | cart and checkout routes, MF exposes, `/checkout-api/effect/checkout/*`, route-owned i18n, vertical CSS |
+| Shared tokens | `packages/shared-design-tokens` | shared CSS token layer and `./tokens.css` export |
+
+The shell may orchestrate but must not take ownership of vertical-local route
+behavior, Effect contracts, localized URL maps, dynamic locale JSON, or remote
+CSS. Each vertical must be deployable as one full-stack package so Zephyr or
+Cloudflare selection cannot drift UI and API versions apart.
+
+### Decision Table
+
+| Question | Keep code in existing vertical | Create a new package |
+| --- | --- | --- |
+| Same product owner, fallback behavior, Effect contract, and release train? | Yes | No |
+| Needs independent route ownership, rollout, rollback, or incident routing? | No | New `remote` vertical |
+| Needs cross-vertical strict trace/auth/locale/session propagation? | No | New Effect `service` |
+| Shares tokens, primitives, generated clients, or domain-neutral utilities? | No | New `shared` package |
+| Shares feature composites or workflow state? | No | Rework ownership before extraction |
+
+## 5. Adoption Gates
+
+Run these gates for a generated Tractor workspace:
+
+```bash
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+mise exec -- pnpm build
+mise exec -- pnpm cloudflare:build
+```
+
+Use local Cloudflare validation for `.output` evidence and generated public URL
+proof after deployment:
+
+```bash
+node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
+  --root-dir apps/remotes/remote-explore \
+  --bff /explore-api/effect/explore/readiness \
+  --expect-en "Explore Remote" \
+  --match-build-marker \
+  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
+
+ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+pnpm cloudflare:proof -- --require-public-urls
+```
+
+Zephyr evidence is split into dry-run configuration proof and live public URL
+proof. Live proof requires Zephyr credentials plus public shell and remote
+manifest, runtime, and Effect readiness URLs.
+
+## 6. Launch Checklist
 
 Before a team starts a Micro Vertical:
 
@@ -51,7 +113,7 @@ Before a team starts a Micro Vertical:
 5. document rollback controls before canary.
 6. run contract gates before production promotion.
 
-## 5. Done State
+## 7. Done State
 
 The downstream adoption story is complete when:
 

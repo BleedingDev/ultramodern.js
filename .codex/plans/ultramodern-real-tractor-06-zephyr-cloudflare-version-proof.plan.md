@@ -4,25 +4,25 @@ overview: Prove real full-stack vertical version and environment switching with 
 todos:
   - id: define-v1-v2-vertical-builds
     content: "Define v1 and v2 builds for Explore, Decide, and Checkout where UI marker, CSS marker, MF manifest marker, translation marker, and Effect BFF marker visibly change per selected version."
-    status: pending
+    status: completed
   - id: define-zephyr-build-order
     content: "Define Zephyr build order and dependency declarations for real remote-to-remote composition, including Checkout before Decide where Decide consumes Checkout, and Explore dependencies where applicable."
-    status: pending
+    status: completed
   - id: define-cloudflare-deploys
     content: "Define Cloudflare deploy targets for shell and each vertical, including worker names, compatibility flags, route bindings if needed, ASSETS binding, and per-vertical public URLs."
-    status: pending
+    status: completed
   - id: define-version-selection-mechanisms
     content: "Document and validate supported version/environment switching mechanisms: Zephyr dependency selectors, environment overrides, dashboard/browser-extension steps, and any available CLI/API path."
-    status: pending
+    status: completed
   - id: define-runtime-skew-assertions
     content: "Define assertions that fail if shell loads UI v2 while calling BFF v1, if CSS remains v1 after UI v2, or if translations come from a mismatched remote version."
-    status: pending
+    status: completed
   - id: define-public-url-evidence
     content: "Define required evidence for public Cloudflare and Zephyr URLs: SSR route responses, MF manifests, locale JSON, Effect endpoints, browser screenshots, and machine-readable marker comparison."
-    status: pending
+    status: completed
   - id: define-zerops-handoff
     content: "Define what remains for later Zerops long-running Node proof, including the same vertical artifact identity, readiness path, and marker-matching contract."
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -53,4 +53,3 @@ Later target:
 ## Operator Guidance
 
 The proof should be repeatable with credentials present and skippable without credentials. Keep sanitized evidence paths under `.codex/reports` or docs evidence folders.
-

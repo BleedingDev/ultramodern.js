@@ -4,25 +4,25 @@ overview: Update the UltraModern generator design so the Tractor demo creates re
 todos:
   - id: design-generator-options
     content: "Design generator flags and defaults for a real Tractor reference mode, including workspace creation, add-flow support, naming rules, ports, package names, MF names, route prefixes, and package-source install/workspace compatibility."
-    status: pending
+    status: completed
   - id: map-package-layouts
     content: "Specify exact generated files for shell, remote-explore, remote-decide, remote-checkout, shared contracts, shared design tokens, and shared Effect API support without duplicating ownership or hiding cross-vertical dependencies."
-    status: pending
+    status: completed
   - id: generate-topology-and-ownership
     content: "Define topology and ownership output updates so each real vertical has package id, MF manifest URL env var, Cloudflare worker name, Zephyr dependency id, route ownership, service endpoints, locale namespaces, and blast-radius metadata."
-    status: pending
+    status: completed
   - id: generate-shell-composition
     content: "Define shell composition outputs for consuming real remotes through Module Federation manifests, including local dev defaults, Cloudflare/Zephyr production URLs, remote dependency declarations, and deterministic fallbacks."
-    status: pending
+    status: completed
   - id: generate-per-vertical-scripts
     content: "Define package scripts for dev, build, cloudflare:build, cloudflare:preview, cloudflare:deploy, zephyr dependency reporting, typecheck, lint, and vertical validation for each remote."
-    status: pending
+    status: completed
   - id: update-add-flow
     content: "Design how `--microvertical remote` and Tractor reference generation coexist, so teams can add another vertical later without corrupting shell remotes, topology, Zephyr dependencies, or route metadata."
-    status: pending
+    status: completed
   - id: define-install-backed-proof
     content: "Define the install-backed validation path using published `@bleedingdev/*` packages so the generated real Tractor workspace proves npm package metadata and aliases, not local source assumptions."
-    status: pending
+    status: completed
 isProject: true
 ---
 

@@ -58,10 +58,6 @@ function writeText(root: string, relativePath: string, content: string) {
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-function expectNoHandlebarsArtifacts(content: string) {
-  expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
-}
-
 function expectPath(root: string, relativePath: string) {
   expect(fs.existsSync(path.join(root, relativePath))).toBe(true);
 }
@@ -125,6 +121,7 @@ function expectPnpm11Policy(workspaceDir: string) {
 
 function readGeneratedContract(workspaceDir: string) {
   return readJson<{
+    cssFederation: Record<string, any>;
     apps: Array<{
       id: string;
       config: Record<string, any>;
@@ -205,11 +202,87 @@ function expectAppConfigContract(
 function expectTailwindContract(contractEntry: {
   styling: Record<string, any>;
 }) {
-  expect(contractEntry.styling).toEqual({
+  expect(contractEntry.styling).toMatchObject({
     tailwind: true,
     postcssPlugins: ['@tailwindcss/postcss'],
     contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
   });
+}
+
+function expectCssFederationContract(
+  generatedContract: { cssFederation: Record<string, any> },
+  contractEntry: { id: string; styling: Record<string, any> },
+  expected: {
+    classPrefix: string;
+    ownedLayers: string[];
+    role: string;
+    rootSelector: string;
+    remote?: boolean;
+  },
+) {
+  expect(generatedContract.cssFederation.sharedDesignTokens).toMatchObject({
+    owner: {
+      id: 'shared-design-tokens',
+    },
+    role: 'shared-design-tokens',
+    rootSelector: ':root',
+    classPrefix: '--um-',
+    layers: {
+      owned: ['ultramodern-shared-tokens'],
+    },
+    entrypoints: {
+      css: ['packages/shared-design-tokens/src/tokens.css'],
+    },
+    assets: {
+      exports: ['./tokens.css'],
+    },
+    dedupe: {
+      duplicateBaseStylesAllowed: false,
+      runtimeLoad: 'once-per-content-hash',
+    },
+    ssr: {
+      firstPaintRequired: true,
+    },
+  });
+  expect(contractEntry.styling.federation).toMatchObject({
+    owner: {
+      id: contractEntry.id,
+    },
+    role: expected.role,
+    rootSelector: expected.rootSelector,
+    classPrefix: expected.classPrefix,
+    layers: {
+      shared: ['ultramodern-shared-tokens'],
+      owned: expected.ownedLayers,
+    },
+    entrypoints: {
+      css: ['src/routes/index.css'],
+    },
+    assets: {
+      owned: ['src/routes/index.css'],
+      emittedBy: 'modern-rspack-css-extraction',
+      contentHash: true,
+    },
+    dedupe: {
+      duplicateBaseStylesAllowed: false,
+      runtimeLoad: 'once-per-content-hash',
+    },
+    ssr: {
+      cloudflare: true,
+      firstPaintRequired: true,
+    },
+  });
+  expect(contractEntry.styling.federation.assets.shared).toEqual([
+    expect.stringMatching(/\/shared-design-tokens\/tokens\.css$/),
+  ]);
+  if (expected.remote) {
+    expect(contractEntry.styling.federation.entrypoints.remoteEntry).toBe(
+      'src/remote-entry.tsx',
+    );
+    expect(contractEntry.styling.federation.ssr.remoteCss).toBe(
+      'remote-manifest-owned-css',
+    );
+  }
 }
 
 const fullStackVerticals = [
@@ -221,7 +294,47 @@ const fullStackVerticals = [
     notFound: 'ExploreNotFound',
     path: 'apps/remotes/remote-explore',
     mfName: 'remoteExplore',
+    port: 3021,
     apiPrefix: '/explore-api',
+    namespace: 'explore',
+    localisedUrls: {
+      '/stores': {
+        cs: '/prodejci',
+        en: '/stores',
+      },
+      '/tractors': {
+        cs: '/traktory',
+        en: '/tractors',
+      },
+      '/unavailable': {
+        cs: '/nedostupne',
+        en: '/unavailable',
+      },
+    },
+    routePagePaths: [
+      'apps/remotes/remote-explore/src/routes/[lang]/tractors/page.tsx',
+      'apps/remotes/remote-explore/src/routes/[lang]/stores/page.tsx',
+      'apps/remotes/remote-explore/src/routes/[lang]/unavailable/page.tsx',
+    ],
+    domainOperations: [
+      'recommendationCreate',
+      'recommendationDetail',
+      'recommendationFeed',
+    ],
+    exposes: [
+      './Footer',
+      './Header',
+      './Recommendations',
+      './Route',
+      './StorePicker',
+    ],
+    remoteRefs: [],
+    componentPaths: [
+      'apps/remotes/remote-explore/src/components/footer.tsx',
+      'apps/remotes/remote-explore/src/components/header.tsx',
+      'apps/remotes/remote-explore/src/components/recommendations.tsx',
+      'apps/remotes/remote-explore/src/components/store-picker.tsx',
+    ],
   },
   {
     id: 'remote-decide',
@@ -231,7 +344,34 @@ const fullStackVerticals = [
     notFound: 'DecideNotFound',
     path: 'apps/remotes/remote-decide',
     mfName: 'remoteDecide',
+    port: 3022,
     apiPrefix: '/decide-api',
+    namespace: 'decide',
+    localisedUrls: {
+      '/tractors': {
+        cs: '/traktory',
+        en: '/tractors',
+      },
+      '/tractors/:slug': {
+        cs: '/traktory/:slug',
+        en: '/tractors/:slug',
+      },
+      '/unavailable': {
+        cs: '/nedostupne',
+        en: '/unavailable',
+      },
+    },
+    routePagePaths: [
+      'apps/remotes/remote-decide/src/routes/[lang]/tractors/page.tsx',
+      'apps/remotes/remote-decide/src/routes/[lang]/tractors/[slug]/page.tsx',
+      'apps/remotes/remote-decide/src/routes/[lang]/unavailable/page.tsx',
+    ],
+    domainOperations: ['configurationDraft', 'productDetail', 'productList'],
+    exposes: ['./ProductPage', './Route'],
+    remoteRefs: ['remote-explore', 'remote-checkout'],
+    componentPaths: [
+      'apps/remotes/remote-decide/src/components/product-page.tsx',
+    ],
   },
   {
     id: 'remote-checkout',
@@ -241,7 +381,55 @@ const fullStackVerticals = [
     notFound: 'CheckoutNotFound',
     path: 'apps/remotes/remote-checkout',
     mfName: 'remoteCheckout',
+    port: 3023,
     apiPrefix: '/checkout-api',
+    namespace: 'checkout',
+    localisedUrls: {
+      '/cart': {
+        cs: '/kosik',
+        en: '/cart',
+      },
+      '/checkout': {
+        cs: '/pokladna',
+        en: '/checkout',
+      },
+      '/checkout/thank-you': {
+        cs: '/pokladna/dekujeme',
+        en: '/checkout/thank-you',
+      },
+      '/checkout/thank-you/:orderId?': {
+        cs: '/pokladna/dekujeme/:orderId?',
+        en: '/checkout/thank-you/:orderId?',
+      },
+      '/unavailable': {
+        cs: '/nedostupne',
+        en: '/unavailable',
+      },
+    },
+    routePagePaths: [
+      'apps/remotes/remote-checkout/src/routes/[lang]/cart/page.tsx',
+      'apps/remotes/remote-checkout/src/routes/[lang]/checkout/page.tsx',
+      'apps/remotes/remote-checkout/src/routes/[lang]/checkout/thank-you/page.tsx',
+      'apps/remotes/remote-checkout/src/routes/[lang]/checkout/thank-you/[orderId$]/page.tsx',
+      'apps/remotes/remote-checkout/src/routes/[lang]/unavailable/page.tsx',
+    ],
+    domainOperations: ['cartMutation', 'cartSnapshot', 'orderConfirmation'],
+    exposes: [
+      './AddToCart',
+      './CartPage',
+      './CheckoutPage',
+      './MiniCart',
+      './Route',
+      './ThanksPage',
+    ],
+    remoteRefs: [],
+    componentPaths: [
+      'apps/remotes/remote-checkout/src/components/add-to-cart.tsx',
+      'apps/remotes/remote-checkout/src/components/cart-page.tsx',
+      'apps/remotes/remote-checkout/src/components/checkout-page.tsx',
+      'apps/remotes/remote-checkout/src/components/mini-cart.tsx',
+      'apps/remotes/remote-checkout/src/components/thanks-page.tsx',
+    ],
   },
 ] as const;
 
@@ -274,8 +462,23 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
   );
   linkTypecheckPackage(
     workspaceDir,
+    '@ultra-workspace/shell-super-app',
+    path.join(workspaceDir, 'apps/shell-super-app'),
+  );
+  linkTypecheckPackage(
+    workspaceDir,
     '@ultra-workspace/remote-explore',
     path.join(workspaceDir, 'apps/remotes/remote-explore'),
+  );
+  linkTypecheckPackage(
+    workspaceDir,
+    '@ultra-workspace/remote-decide',
+    path.join(workspaceDir, 'apps/remotes/remote-decide'),
+  );
+  linkTypecheckPackage(
+    workspaceDir,
+    '@ultra-workspace/remote-checkout',
+    path.join(workspaceDir, 'apps/remotes/remote-checkout'),
   );
   writeText(
     workspaceDir,
@@ -298,6 +501,13 @@ function writeEffectContractTypeFixtures(workspaceDir: string) {
           'apps/remotes/remote-explore/shared/effect/api.ts',
           'apps/remotes/remote-explore/src/effect/explore-client.ts',
           'apps/remotes/remote-explore/api/effect/index.ts',
+          'apps/remotes/remote-decide/shared/effect/api.ts',
+          'apps/remotes/remote-decide/src/effect/decide-client.ts',
+          'apps/remotes/remote-decide/api/effect/index.ts',
+          'apps/remotes/remote-checkout/shared/effect/api.ts',
+          'apps/remotes/remote-checkout/src/effect/checkout-client.ts',
+          'apps/remotes/remote-checkout/api/effect/index.ts',
+          'apps/shell-super-app/src/effect/recommendations-client.ts',
           'tests/type-contracts/*.ts',
         ],
       },
@@ -317,12 +527,40 @@ import {
   exploreEffectApi,
 } from '@ultra-workspace/remote-explore/shared/effect/api';
 import {
+  decideEffectApi,
+} from '@ultra-workspace/remote-decide/shared/effect/api';
+import {
+  checkoutEffectApi,
+} from '@ultra-workspace/remote-checkout/shared/effect/api';
+import {
   createExploreClient,
+  getExploreReadiness,
 } from '@ultra-workspace/remote-explore/effect/client';
+import {
+  createDecideClient,
+  getDecideReadiness,
+  getDecide,
+} from '@ultra-workspace/remote-decide/effect/client';
+import {
+  createCheckoutClient,
+  createCheckout,
+  getCheckoutReadiness,
+} from '@ultra-workspace/remote-checkout/effect/client';
+import {
+  getCheckoutReadiness as getCheckoutReadinessFromShell,
+  getDecideReadiness as getDecideReadinessFromShell,
+  getExploreReadiness as getExploreReadinessFromShell,
+} from '@ultra-workspace/shell-super-app/effect/clients';
 
 async function verifyClient() {
   const client = await runEffectRequest(
     makeEffectHttpApiClient(exploreEffectApi, { baseUrl: '/explore-api' }),
+  );
+  const decideClient = await runEffectRequest(
+    makeEffectHttpApiClient(decideEffectApi, { baseUrl: '/decide-api' }),
+  );
+  const checkoutClient = await runEffectRequest(
+    makeEffectHttpApiClient(checkoutEffectApi, { baseUrl: '/checkout-api' }),
   );
 
   const list = await runEffectRequest(
@@ -348,8 +586,54 @@ async function verifyClient() {
     packageClient.explore.list({ query: { limit: 1 } }),
   );
   const packageTitle: string = packageList.items[0]?.title ?? '';
+  const exploreReadiness = await getExploreReadiness();
+  const exploreStatus: 'ready' = exploreReadiness.status;
+  const decidePackageClient = await runEffectRequest(
+    createDecideClient({ baseUrl: '/decide-api' }),
+  );
+  const decideList = await runEffectRequest(
+    decidePackageClient.decide.list({ query: { limit: 1 } }),
+  );
+  const decideDetail = await getDecide('starter-decide');
+  const decideReadiness = await getDecideReadiness();
+  const checkoutPackageClient = await runEffectRequest(
+    createCheckoutClient({ baseUrl: '/checkout-api' }),
+  );
+  const checkoutList = await runEffectRequest(
+    checkoutPackageClient.checkout.list({ query: { limit: 1 } }),
+  );
+  const checkoutCreated = await createCheckout('Type fixture order');
+  const checkoutReadiness = await getCheckoutReadiness();
+  const directDecideReadiness = await runEffectRequest(
+    decideClient.decide.readiness({}),
+  );
+  const directCheckoutReadiness = await runEffectRequest(
+    checkoutClient.checkout.readiness({}),
+  );
+  const shellReadiness = await Promise.all([
+    getExploreReadinessFromShell(),
+    getDecideReadinessFromShell(),
+    getCheckoutReadinessFromShell(),
+  ]);
+  const readinessBuilds: string[] = [
+    exploreReadiness.marker.build,
+    decideReadiness.marker.build,
+    checkoutReadiness.marker.build,
+    directDecideReadiness.marker.build,
+    directCheckoutReadiness.marker.build,
+    ...shellReadiness.map(result => result.marker.build),
+  ];
 
-  return createdTitle || packageTitle;
+  return [
+    createdTitle,
+    packageTitle,
+    exploreStatus,
+    decideList.items[0]?.title,
+    decideDetail.title,
+    checkoutList.items[0]?.title,
+    checkoutCreated.item.title,
+    ...readinessBuilds,
+  ].join(':');
 }
 
 void verifyClient;
@@ -434,6 +718,19 @@ const marker = {
 HttpApiBuilder.group(exploreEffectApi, 'explore', handlers =>
   handlers
     .handle('list', () => Effect.succeed({ items: [{ id: 'starter-explore', marker, title: 'Starter explore' }] }))
+    .handle('readiness', () =>
+      Effect.succeed({
+        checks: {
+          effectBff: 'ready' as const,
+          moduleFederation: 'ready' as const,
+          ssr: 'ready' as const,
+          translations: 'ready' as const,
+        },
+        marker,
+        status: 'ready' as const,
+        versionSkew: 'none' as const,
+      }),
+    )
     .handle('get', ({ params }) =>
       Effect.succeed({ id: params.id, marker, title: 'Starter explore' }),
     )
@@ -458,6 +755,19 @@ HttpApiBuilder.group(exploreEffectApi, 'explore', handlers =>
             title: 123,
           },
         ],
+      }),
+    )
+    .handle('readiness', () =>
+      Effect.succeed({
+        checks: {
+          effectBff: 'ready' as const,
+          moduleFederation: 'ready' as const,
+          ssr: 'ready' as const,
+          translations: 'ready' as const,
+        },
+        marker,
+        status: 'ready' as const,
+        versionSkew: 'none' as const,
       }),
     )
     .handle('get', ({ params }) =>
@@ -550,6 +860,7 @@ describe('create-ultramodern-workspace', () => {
       '.agents/skills/rstest-best-practices/SKILL.md',
       'scripts/assert-mf-types.mjs',
       'scripts/validate-ultramodern-workspace.mjs',
+      'scripts/proof-cloudflare-version.mjs',
       'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
@@ -561,11 +872,15 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
       'apps/shell-super-app/src/ultramodern-build.ts',
+      'apps/shell-super-app/src/effect/recommendations-client.ts',
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
       'apps/shell-super-app/locales/en/translation.json',
+      'apps/shell-super-app/locales/en/shell.json',
       'apps/shell-super-app/locales/cs/translation.json',
+      'apps/shell-super-app/locales/cs/shell.json',
       'apps/shell-super-app/src/routes/index.css',
+      'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
       'apps/remotes/remote-explore/package.json',
       'apps/remotes/remote-explore/modern.config.ts',
       'apps/remotes/remote-explore/module-federation.config.ts',
@@ -576,9 +891,15 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-explore/shared/effect/api.ts',
       'apps/remotes/remote-explore/src/effect/explore-client.ts',
       'apps/remotes/remote-explore/locales/en/translation.json',
+      'apps/remotes/remote-explore/locales/en/explore.json',
       'apps/remotes/remote-explore/locales/cs/translation.json',
+      'apps/remotes/remote-explore/locales/cs/explore.json',
       'apps/remotes/remote-explore/src/routes/index.css',
-      'apps/remotes/remote-explore/src/components/explore-widget.tsx',
+      'apps/remotes/remote-explore/src/routes/ultramodern-route-metadata.ts',
+      'apps/remotes/remote-explore/src/components/footer.tsx',
+      'apps/remotes/remote-explore/src/components/header.tsx',
+      'apps/remotes/remote-explore/src/components/recommendations.tsx',
+      'apps/remotes/remote-explore/src/components/store-picker.tsx',
       'apps/remotes/remote-decide/package.json',
       'apps/remotes/remote-decide/modern.config.ts',
       'apps/remotes/remote-decide/module-federation.config.ts',
@@ -589,9 +910,12 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-decide/shared/effect/api.ts',
       'apps/remotes/remote-decide/src/effect/decide-client.ts',
       'apps/remotes/remote-decide/locales/en/translation.json',
+      'apps/remotes/remote-decide/locales/en/decide.json',
       'apps/remotes/remote-decide/locales/cs/translation.json',
+      'apps/remotes/remote-decide/locales/cs/decide.json',
       'apps/remotes/remote-decide/src/routes/index.css',
-      'apps/remotes/remote-decide/src/components/decide-widget.tsx',
+      'apps/remotes/remote-decide/src/routes/ultramodern-route-metadata.ts',
+      'apps/remotes/remote-decide/src/components/product-page.tsx',
       'apps/remotes/remote-checkout/package.json',
       'apps/remotes/remote-checkout/modern.config.ts',
       'apps/remotes/remote-checkout/module-federation.config.ts',
@@ -602,16 +926,26 @@ describe('create-ultramodern-workspace', () => {
       'apps/remotes/remote-checkout/shared/effect/api.ts',
       'apps/remotes/remote-checkout/src/effect/checkout-client.ts',
       'apps/remotes/remote-checkout/locales/en/translation.json',
+      'apps/remotes/remote-checkout/locales/en/checkout.json',
       'apps/remotes/remote-checkout/locales/cs/translation.json',
+      'apps/remotes/remote-checkout/locales/cs/checkout.json',
       'apps/remotes/remote-checkout/src/routes/index.css',
-      'apps/remotes/remote-checkout/src/components/checkout-widget.tsx',
+      'apps/remotes/remote-checkout/src/routes/ultramodern-route-metadata.ts',
+      'apps/remotes/remote-checkout/src/components/add-to-cart.tsx',
+      'apps/remotes/remote-checkout/src/components/cart-page.tsx',
+      'apps/remotes/remote-checkout/src/components/checkout-page.tsx',
+      'apps/remotes/remote-checkout/src/components/mini-cart.tsx',
+      'apps/remotes/remote-checkout/src/components/thanks-page.tsx',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
+      'packages/shared-design-tokens/src/tokens.css',
       'packages/shared-effect-api/src/index.ts',
     ]) {
       expectPath(workspaceDir, relativePath);
-      if (relativePath.endsWith('.ts') || relativePath.endsWith('.tsx')) {
-        expectNoHandlebarsArtifacts(readText(workspaceDir, relativePath));
+    }
+    for (const vertical of fullStackVerticals) {
+      for (const relativePath of vertical.routePagePaths) {
+        expectPath(workspaceDir, relativePath);
       }
     }
     expectNoPath(workspaceDir, 'services/service-recommendations-effect');
@@ -632,9 +966,6 @@ describe('create-ultramodern-workspace', () => {
       'packages/*',
     ]);
     expectPnpm11Policy(workspaceDir);
-    expect(readText(workspaceDir, 'pnpm-workspace.yaml')).toContain(
-      'packages:\n  - apps/*\n  - apps/remotes/*\n  - services/*\n  - packages/*',
-    );
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
       strategy: 'workspace',
@@ -651,6 +982,12 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(rootPackage.scripts['cloudflare:build']).toBe(
       'pnpm -r --filter "./apps/remotes/**" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
+    );
+    expect(rootPackage.scripts['cloudflare:deploy']).toBe(
+      'pnpm -r --filter "./apps/remotes/**" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
+    );
+    expect(rootPackage.scripts['cloudflare:proof']).toBe(
+      'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
     expect(rootPackage.scripts.format).toBe('oxfmt .');
     expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
@@ -677,12 +1014,7 @@ describe('create-ultramodern-workspace', () => {
       'zephyr-agent': '1.1.1',
     });
 
-    const agentsInstructions = readText(workspaceDir, 'AGENTS.md');
-    expect(agentsInstructions).toContain('UltraModern Agent Contract');
-    expect(agentsInstructions).toContain('Required Skill Baseline');
-    expect(agentsInstructions).toContain('module-federation/agent-skills');
-    expect(agentsInstructions).toContain('`mf`');
-    expect(agentsInstructions).toContain('TechsioCZ/skills');
+    expectPath(workspaceDir, 'AGENTS.md');
 
     const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
     expect(skillsLock.source.repository).toBe(
@@ -704,9 +1036,7 @@ describe('create-ultramodern-workspace', () => {
       'rstest-best-practices',
       'mf',
     ]);
-    expect(
-      readText(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md'),
-    ).toContain('name: rslib-modern-package');
+    expectPath(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md');
     const privateSource = skillsLock.sources.find(
       (source: { repository: string }) =>
         source.repository === 'https://github.com/TechsioCZ/skills',
@@ -739,6 +1069,10 @@ describe('create-ultramodern-workspace', () => {
     const expectedZephyrDependencies = {
       checkout: `@${packageScope}/remote-checkout@workspace:*`,
       decide: `@${packageScope}/remote-decide@workspace:*`,
+      explore: `@${packageScope}/remote-explore@workspace:*`,
+    };
+    const expectedRemoteDecideZephyrDependencies = {
+      checkout: `@${packageScope}/remote-checkout@workspace:*`,
       explore: `@${packageScope}/remote-explore@workspace:*`,
     };
     const generatedContract = readGeneratedContract(workspaceDir);
@@ -790,8 +1124,20 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.scripts['cloudflare:build']).toBe(
         'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy',
       );
+      expect(packageJson.scripts['cloudflare:deploy']).toBe(
+        'MODERNJS_DEPLOY=cloudflare modern deploy',
+      );
       expect(packageJson.scripts['cloudflare:preview']).toBe(
         'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy && wrangler dev --config .output/wrangler.json',
+      );
+      expect(packageJson.scripts['cloudflare:proof']).toBe(
+        `node ${
+          packagePath.includes('/remotes/') ? '../../..' : '../..'
+        }/scripts/proof-cloudflare-version.mjs --app ${
+          fullStackVerticals.find(
+            vertical => `${vertical.path}/package.json` === packagePath,
+          )?.id ?? 'shell-super-app'
+        }`,
       );
       expect(packageJson.scripts.serve).toBe('modern serve');
       expect(
@@ -800,9 +1146,13 @@ describe('create-ultramodern-workspace', () => {
         ),
       ).toBe(true);
       expect(packageJson['zephyr:dependencies']).toEqual(
-        packagePath.includes('/remotes/') ? {} : expectedZephyrDependencies,
+        packagePath.includes('/remote-decide/')
+          ? expectedRemoteDecideZephyrDependencies
+          : packagePath.includes('/remotes/')
+            ? {}
+            : expectedZephyrDependencies,
       );
-      expect(packageJson.scripts.typecheck).toContain('effect-tsgo');
+      expect(typeof packageJson.scripts.typecheck).toBe('string');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
         '1.170.8',
       );
@@ -819,6 +1169,10 @@ describe('create-ultramodern-workspace', () => {
         expect(packageJson.exports).toMatchObject({
           './effect/client': `./src/effect/${fullStackVertical.stem}-client.ts`,
           './shared/effect/api': './shared/effect/api.ts',
+        });
+      } else if (packagePath === 'apps/shell-super-app/package.json') {
+        expect(packageJson.exports).toMatchObject({
+          './effect/clients': './src/effect/recommendations-client.ts',
         });
       }
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
@@ -842,6 +1196,12 @@ describe('create-ultramodern-workspace', () => {
       'shell-super-app',
     );
     expectAppConfigContract(shellContract, {});
+    expectCssFederationContract(generatedContract, shellContract, {
+      classPrefix: 'shell-',
+      ownedLayers: ['ultramodern-shell-base', 'ultramodern-shell-overlay'],
+      role: 'shell-base-overlay',
+      rootSelector: '[data-app-id="shell-super-app"]',
+    });
     expect(shellContract.moduleFederation).toMatchObject({
       name: 'shellSuperApp',
       dts: {
@@ -849,6 +1209,11 @@ describe('create-ultramodern-workspace', () => {
         compilerInstance: '--package typescript -- tsc',
       },
     });
+    expect(shellContract.moduleFederation.remoteRefs).toEqual([
+      'remote-explore',
+      'remote-decide',
+      'remote-checkout',
+    ]);
     expect(shellContract.moduleFederation.remotes).toEqual([
       {
         id: 'remote-explore',
@@ -872,6 +1237,53 @@ describe('create-ultramodern-workspace', () => {
         manifestUrl: 'http://localhost:3023/mf-manifest.json',
       },
     ]);
+    expect(shellContract.i18n).toMatchObject({
+      backend: {
+        enabled: true,
+        loadPath: '/locales/{{lng}}/{{ns}}.json',
+      },
+      namespace: 'shell',
+      namespaces: ['shell', 'translation'],
+      localisedUrls: {},
+      resourceOwnership: {
+        ownerAppId: 'shell-super-app',
+        source: 'route-owned',
+      },
+    });
+    expect(shellContract.routes).toMatchObject({
+      source: 'route-owned',
+      metadataExport: './src/routes/ultramodern-route-metadata',
+      generatedRouteMap: true,
+    });
+    expect(shellContract.deploy).toMatchObject({
+      target: 'cloudflare',
+      cloudflare: {
+        workerName: 'ultra-workspace-shell-super-app',
+        publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+        assetsBinding: 'ASSETS',
+        routes: {
+          ssr: '/en',
+          mfManifest: '/mf-manifest.json',
+          locale: '/locales/en/shell.json',
+        },
+      },
+      worker: {
+        name: 'ultra-workspace-shell-super-app',
+        ssr: true,
+      },
+    });
+    expect(
+      readJson(
+        workspaceDir,
+        'apps/remotes/remote-checkout/locales/cs/checkout.json',
+      ).checkout.routes.cart,
+    ).toBe('Košík');
+    expect(
+      readJson(
+        workspaceDir,
+        'apps/remotes/remote-explore/locales/cs/explore.json',
+      ).explore.routes.storePicker,
+    ).toBe('Výběr prodejce');
 
     for (const vertical of fullStackVerticals) {
       const contractEntry = generatedContract.apps.find(
@@ -883,10 +1295,30 @@ describe('create-ultramodern-workspace', () => {
         hasEffect: true,
         apiPrefix: vertical.apiPrefix,
       });
+      expectCssFederationContract(generatedContract, verticalContract, {
+        classPrefix: `${vertical.domain}-`,
+        ownedLayers: [`ultramodern-remote-${vertical.domain}`],
+        role: 'vertical-remote-css',
+        rootSelector: `[data-app-id="${vertical.id}"]`,
+        remote: true,
+      });
       expect(verticalContract).toMatchObject({
         deploy: {
           target: 'cloudflare',
+          cloudflare: {
+            workerName: `ultra-workspace-${vertical.id}`,
+            publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${vertical.id
+              .replace(/-/g, '_')
+              .toUpperCase()}`,
+            assetsBinding: 'ASSETS',
+            routes: {
+              mfManifest: '/mf-manifest.json',
+              locale: `/locales/en/${vertical.namespace}.json`,
+              effectReadiness: `${vertical.apiPrefix}/effect/${vertical.stem}/readiness`,
+            },
+          },
           worker: {
+            name: `ultra-workspace-${vertical.id}`,
             ssr: true,
           },
           output: {
@@ -907,10 +1339,36 @@ describe('create-ultramodern-workspace', () => {
           client: './effect/client',
           group: vertical.group,
           notFound: vertical.notFound,
+          readiness: {
+            endpoint: `/effect/${vertical.stem}/readiness`,
+            marker: {
+              ui: 'ultramodernUiMarker',
+              api: 'ultramodernApiMarker',
+              skew: 'none',
+            },
+            checks: ['moduleFederation', 'ssr', 'translations', 'effectBff'],
+          },
+          requestContext: {
+            propagatedHeaders: expect.arrayContaining([
+              'accept-language',
+              'authorization',
+              'traceparent',
+              'x-correlation-id',
+              'x-tenant-id',
+              'x-ultramodern-env',
+              'x-vertical-version-id',
+            ]),
+            source: 'shell-to-vertical-effect-client',
+          },
           operations: {
             list: {
               method: 'GET',
               path: `/effect/${vertical.stem}`,
+              source: 'generated-client',
+            },
+            readiness: {
+              method: 'GET',
+              path: `/effect/${vertical.stem}/readiness`,
               source: 'generated-client',
             },
             get: {
@@ -933,10 +1391,37 @@ describe('create-ultramodern-workspace', () => {
           apiSurface: 'effect-bff',
         },
       });
+      expect(verticalContract.i18n).toMatchObject({
+        backend: {
+          enabled: true,
+          loadPath: '/locales/{{lng}}/{{ns}}.json',
+        },
+        namespace: vertical.namespace,
+        namespaces: [vertical.namespace, 'translation'],
+        localisedUrls: vertical.localisedUrls,
+        resourceOwnership: {
+          ownerAppId: vertical.id,
+          source: 'route-owned',
+        },
+      });
+      expect(verticalContract.routes).toMatchObject({
+        source: 'route-owned',
+        metadataExport: './src/routes/ultramodern-route-metadata',
+        localisedUrls: vertical.localisedUrls,
+        generatedRouteMap: true,
+        manualOverrides: [],
+      });
       expect(verticalContract.moduleFederation.exposes).toEqual(
-        expect.arrayContaining(['./Widget', './Route']),
+        vertical.exposes,
       );
-      expect(verticalContract.moduleFederation.exposes).toHaveLength(2);
+      expect(verticalContract.moduleFederation.remoteRefs ?? []).toEqual(
+        vertical.remoteRefs,
+      );
+      expect(
+        (verticalContract.moduleFederation.remotes ?? []).map(
+          (remote: { id: string }) => remote.id,
+        ),
+      ).toEqual(vertical.remoteRefs);
       expect(verticalContract.moduleFederation.dts).toEqual({
         displayErrorInTerminal: true,
         compilerInstance: '--package typescript -- tsc',
@@ -944,6 +1429,9 @@ describe('create-ultramodern-workspace', () => {
       expect(verticalContract.moduleFederation.browserSafeExposesOnly).toBe(
         true,
       );
+      expect(
+        Object.keys(verticalContract.effect.domainOperations).sort(),
+      ).toEqual([...vertical.domainOperations].sort());
       expect(verticalContract.marker.build).toMatch(/^[a-f0-9]{16}$/);
     }
 
@@ -960,15 +1448,36 @@ describe('create-ultramodern-workspace', () => {
       'remote-decide',
       'remote-checkout',
     ]);
+    expect(topology.shell.cloudflare).toMatchObject({
+      workerName: 'ultra-workspace-shell-super-app',
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+      assetsBinding: 'ASSETS',
+    });
     expect(topology.remotes).toHaveLength(3);
     for (const vertical of fullStackVerticals) {
       const topologyEntry = topology.remotes.find(
         (remote: { id: string }) => remote.id === vertical.id,
       );
       expect(topologyEntry.kind).toBe('vertical');
-      expect(topologyEntry.moduleFederation.manifestUrl).toContain(
-        '/mf-manifest.json',
+      expect(topologyEntry.cloudflare).toMatchObject({
+        workerName: `ultra-workspace-${vertical.id}`,
+        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${vertical.id
+          .replace(/-/g, '_')
+          .toUpperCase()}`,
+        assetsBinding: 'ASSETS',
+      });
+      expect(topologyEntry.moduleFederation.manifestUrl).toBe(
+        `http://localhost:${vertical.port}/mf-manifest.json`,
       );
+      expect(topologyEntry.moduleFederation.exposes).toEqual(vertical.exposes);
+      expect(topologyEntry.moduleFederation.remoteRefs ?? []).toEqual(
+        vertical.remoteRefs,
+      );
+      expect(
+        (topologyEntry.moduleFederation.remotes ?? []).map(
+          (remote: { id: string }) => remote.id,
+        ),
+      ).toEqual(vertical.remoteRefs);
       expect(topologyEntry.api).toMatchObject({
         effect: {
           runtime: 'effect',
@@ -985,8 +1494,22 @@ describe('create-ultramodern-workspace', () => {
             path: `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
           },
           serverEntry: `${vertical.path}/api/effect/index.ts`,
+          readiness: {
+            endpoint: `/effect/${vertical.stem}/readiness`,
+            marker: {
+              ui: 'ultramodernUiMarker',
+              api: 'ultramodernApiMarker',
+              skew: 'none',
+            },
+          },
+          requestContext: {
+            propagatedHeaders: expect.arrayContaining(['traceparent']),
+          },
         },
       });
+      expect(
+        Object.keys(topologyEntry.api.effect.domainOperations).sort(),
+      ).toEqual([...vertical.domainOperations].sort());
     }
     expect(
       topology.remotes.every(
@@ -1018,18 +1541,17 @@ describe('create-ultramodern-workspace', () => {
       'modernjs-ultramodern-superapp-workspace',
     );
     expect(manifest.template.compatibilityLane).toBe('ultramodern-mv');
-    expect(manifest.validation.expectedCommands).toContain(
+    expect(manifest.validation.expectedCommands).toEqual([
+      'mise install',
       'mise exec -- pnpm install',
-    );
-    expect(manifest.validation.expectedCommands).not.toContain(
-      'pnpm install --ignore-scripts',
-    );
-    expect(manifest.validation.expectedCommands).toContain(
       'mise exec -- pnpm run ultramodern:check',
-    );
-    expect(manifest.validation.postMaterializationValidation).toContain(
+    ]);
+    expect(manifest.validation.postMaterializationValidation).toEqual([
+      'ultramodern-workspace-contract-check',
+      'github-workflow-security-enforced',
       'pnpm-11-policy-enforced',
-    );
+      'template-manifest-retained',
+    ]);
     expect(manifest.packageSource.strategy).toBe('workspace');
     expect(manifest.agentSkills.source.commit).toBe(
       '61c948b42512e223bad44b83af4080eba48b2677',
@@ -1079,7 +1601,7 @@ describe('create-ultramodern-workspace', () => {
         stdio: 'pipe',
       },
     ).toString();
-    expect(validationOutput).toContain(
+    expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
   });
@@ -1163,6 +1685,7 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'shell-super-app',
     );
+    const generatedContract = readGeneratedContract(workspaceDir);
     expect(shellContract.moduleFederation.remotes).toContainEqual(
       expect.objectContaining({
         id: 'remote-catalog',
@@ -1172,9 +1695,25 @@ describe('create-ultramodern-workspace', () => {
         manifestUrl: 'http://localhost:3031/mf-manifest.json',
       }),
     );
+    const catalogContract = getGeneratedAppContract(
+      workspaceDir,
+      'remote-catalog',
+    );
+    expectCssFederationContract(generatedContract, catalogContract, {
+      classPrefix: 'catalog-',
+      ownedLayers: ['ultramodern-remote-catalog'],
+      role: 'vertical-remote-css',
+      rootSelector: '[data-app-id="remote-catalog"]',
+      remote: true,
+    });
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
-    expect(topology.shell.remoteRefs).toContain('remote-catalog');
+    expect(topology.shell.remoteRefs).toEqual([
+      'remote-explore',
+      'remote-decide',
+      'remote-checkout',
+      'remote-catalog',
+    ]);
     expect(
       topology.remotes.find(
         (remote: { id: string }) => remote.id === 'remote-catalog',
@@ -1420,7 +1959,7 @@ describe('create-ultramodern-workspace', () => {
         stdio: 'pipe',
       },
     ).toString();
-    expect(validationOutput).toContain(
+    expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
   });
@@ -1479,7 +2018,7 @@ describe('create-ultramodern-workspace', () => {
         stdio: 'pipe',
       },
     ).toString();
-    expect(validationOutput).toContain(
+    expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
   });

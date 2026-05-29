@@ -31,6 +31,7 @@
         "zephyrRspackPlugin",
         "packageJsonDependencyKey",
         "runtimeOverrideCapability",
+        "tractorVerticalVersionProof",
         "lifecycleCommandPolicy"
       ]
     },
@@ -87,7 +88,20 @@
           "markers"
         ],
         "properties": {
-          "id": { "enum": ["remote-v1", "remote-v2", "shell"] },
+          "id": {
+            "enum": [
+              "remote-explore-v1",
+              "remote-explore-v2",
+              "remote-decide-v1",
+              "remote-decide-v2",
+              "remote-checkout-v1",
+              "remote-checkout-v2",
+              "shell"
+            ]
+          },
+          "verticalId": { "type": ["string", "null"] },
+          "domain": { "type": ["string", "null"] },
+          "version": { "type": ["string", "null"] },
           "role": { "enum": ["remote", "shell"] },
           "appUid": { "type": ["string", "null"] },
           "packageName": { "type": ["string", "null"] },
@@ -112,7 +126,9 @@
             "type": "object",
             "properties": {
               "uiExpected": { "type": ["string", "null"] },
-              "apiExpected": { "type": ["string", "null"] }
+              "apiExpected": { "type": ["string", "null"] },
+              "cssExpected": { "type": ["string", "null"] },
+              "i18nExpected": { "type": ["string", "null"] }
             }
           }
         }

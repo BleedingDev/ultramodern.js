@@ -4,25 +4,25 @@ overview: Design and validate real Module Federation composition between Explore
 todos:
   - id: define-exposes-and-remotes
     content: "Define exact MF exposes and remote consumption edges: Explore exposes Header/Footer/Recommendations, Decide exposes ProductPage and consumes Explore plus Checkout, Checkout exposes AddToCart/MiniCart/Cart/Checkout/Thanks, and shell consumes route entries."
-    status: pending
+    status: completed
   - id: define-ssr-composition
     content: "Define SSR behavior for shell and remote route rendering on Cloudflare workers, including request context, locale, trace context, remote manifest resolution, and deterministic CSR fallback when remote SSR fails."
-    status: pending
+    status: completed
   - id: keep-dts-mandatory
     content: "Define mandatory MF DTS settings and validation so `dts: false` is rejected by generated contract/build validation, while TypeScript package and native-preview checks both remain supported."
-    status: pending
+    status: completed
   - id: define-runtime-fallbacks
     content: "Design visible remote unavailable, incompatible version, missing manifest, and timeout fallback states for each remote boundary without crashing the shell or hydrating partial broken UI."
-    status: pending
+    status: completed
   - id: define-typed-domain-events
     content: "Design typed domain event helpers or Effect command boundaries for checkout:add-to-cart, checkout:cart-updated, checkout:remove-from-cart, checkout:clear-cart, explore:selected-store, and mf:navigate."
-    status: pending
+    status: completed
   - id: define-cross-bundler-lane
     content: "Define a compatibility lane that proves at least one non-Modern.js/Rspack remote can interoperate through standard Module Federation contracts without weakening the primary Modern.js path."
-    status: pending
+    status: completed
   - id: define-mf-observability
     content: "Define runtime diagnostics for resolved remote URL, remote version marker, manifest digest, load timing, fallback reason, and DTS/type mismatch reporting."
-    status: pending
+    status: completed
 isProject: true
 ---
 

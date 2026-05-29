@@ -13,10 +13,34 @@
 Please follow [Quick Start](https://modernjs.dev/en/guides/get-started/quick-start) to get started with Modern.js.
 
 For UltraModern.js, use the BleedingDev create package. It defaults to the
-canonical SuperApp workspace and published BleedingDev package aliases:
+canonical Tractor SuperApp workspace and published BleedingDev package aliases:
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create my-super-app
+```
+
+The default workspace is a full-stack reference, not a visual-only commerce
+boundary demo. It generates:
+
+- `apps/shell-super-app` as the Module Federation host and topology owner.
+- `apps/remotes/remote-explore` for discovery UI plus
+  `/explore-api/effect/explore/*`.
+- `apps/remotes/remote-decide` for product selection UI plus
+  `/decide-api/effect/decide/*`.
+- `apps/remotes/remote-checkout` for cart and checkout UI plus
+  `/checkout-api/effect/checkout/*`.
+- `packages/shared-design-tokens` as the shared CSS token owner.
+- `.modernjs/ultramodern-generated-contract.json` with MF, Effect, i18n,
+  federated CSS, Cloudflare, and Zephyr dependency metadata.
+
+Validate the generated workspace before making application changes:
+
+```bash
+cd my-super-app
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+mise exec -- pnpm build
 ```
 
 ### Router Template
@@ -86,6 +110,16 @@ npx @modern-js/create catalog-api --microvertical service
 npx @modern-js/create catalog-contracts --microvertical shared
 ```
 
+Use this decision table before adding a package:
+
+| Need | Keep inside current vertical | Create a new vertical/package |
+| --- | --- | --- |
+| Route or widget changes with the same product owner, release train, and fallback behavior | Yes | No |
+| Route subtree needs independent rollout, rollback, or incident ownership | No | `--microvertical remote` |
+| Cross-vertical operation needs strict trace, auth, locale, and session propagation | No | `--microvertical service` |
+| Design tokens, primitives, generated clients, or domain-neutral utilities | No | `--microvertical shared` |
+| Feature composites or workflow state shared across verticals | No | Revisit ownership; do not hide it in `shared` |
+
 When a design system needs independent deployment, treat it as a horizontal
 Module Federation remote with the same topology, trust, SSR, compatibility, and
 fallback expectations as feature remotes. Otherwise shared packages should be
@@ -107,6 +141,59 @@ UltraModern.js entrypoint. The lower-level `--ultramodern-*` flags remain
 available for release engineering and local package-source testing, but users
 should not need them for normal app creation.
 
+### Tractor Architecture Contracts
+
+The generated shell owns route assembly and policy. The generated Explore,
+Decide, and Checkout remotes own their own route subtree, MF exposes, Effect BFF
+contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
+Cloudflare Worker output. The shell consumes remote UI through MF manifests and
+remote APIs through generated Effect clients exported by the remote packages.
+
+Route localization is route-owned. Each app writes
+`src/routes/ultramodern-route-metadata` and passes
+`ultramodernLocalisedUrls` into `@modern-js/plugin-i18n`. Locale JSON is served
+from `/locales/{{lng}}/{{ns}}.json`; Czech and English routes are generated from
+the route owner, not from shell rewrites.
+
+CSS federation is explicit:
+
+- `packages/shared-design-tokens` exports `./tokens.css` and owns
+  `ultramodern-shared-tokens`.
+- The shell owns shell base and overlay CSS only.
+- Vertical remotes own their remote CSS layer and `[data-app-id="<remote>"]`
+  root marker.
+- Tailwind CSS v4 is configured per app through `@tailwindcss/postcss`.
+- Duplicate base styles are forbidden; SSR first paint depends on shared token
+  CSS plus Modern/Rspack-emitted app CSS.
+
+Version switching evidence must keep UI, Effect API, CSS, i18n JSON, and MF
+manifest markers in lockstep for the same vertical version.
+
+### Cloudflare And Zephyr Proof
+
+Each generated app has:
+
+- `cloudflare:build`, `cloudflare:deploy`, `cloudflare:preview`, and
+  `cloudflare:proof` scripts.
+- Cloudflare metadata in `.modernjs/ultramodern-generated-contract.json`.
+- `zephyr:dependencies` for any consumed remotes.
+- `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
+
+Public URL proof is intentionally separate from local build validation:
+
+```bash
+ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+pnpm cloudflare:proof -- --require-public-urls
+```
+
+Live Zephyr switching proof requires Zephyr credentials and public runtime,
+manifest, and API URLs for v1 and v2 of Explore, Decide, and Checkout. Without
+public URLs and credentials, use dry-run evidence only; do not claim live
+Zephyr selection has been proven.
+
 ### Local Monorepo Testing
 
 When testing unreleased Modern.js packages from a local monorepo checkout, use
@@ -114,6 +201,16 @@ workspace protocol dependencies:
 
 ```bash
 npx @modern-js/create my-app --router tanstack --bff-runtime effect --workspace
+```
+
+For package-source validation of the full Tractor workspace, generate with the
+workspace package source, then run the generated contract gate:
+
+```bash
+npx @modern-js/create tractor-super-app --workspace
+cd tractor-super-app
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
 ```
 
 ## Documentation

@@ -4,25 +4,25 @@ overview: Design route-owned localization and routing metadata for real Explore,
 todos:
   - id: define-route-owned-metadata-api
     content: "Design a route-owned metadata export API for localized paths, canonical URLs, hreflang, route ownership, MF boundary id, locale namespace, and optional shell override hooks."
-    status: pending
+    status: completed
   - id: define-generated-route-map
     content: "Define how central route maps are generated from route-owned metadata while still allowing explicit manual overrides for production migrations or legacy URLs."
-    status: pending
+    status: completed
   - id: define-localized-route-set
     content: "Define Tractor route coverage in English and Czech: home/listing/store picker, product detail, cart, checkout, thanks/order confirmation, and unavailable fallback routes."
-    status: pending
+    status: completed
   - id: define-i18n-resource-ownership
     content: "Define per-vertical i18n namespace ownership and loading so each remote owns its translations and can serve static JSON from CDN/Cloudflare assets or load through an external translation service."
-    status: pending
+    status: completed
   - id: define-dynamic-i18n-backend
     content: "Design opt-in dynamic translation loading using native Modern.js/plugin-i18n backend options, with cache headers, CDN paths, error fallback, and no regression to inline-only behavior."
-    status: pending
+    status: completed
   - id: define-language-switching-contract
     content: "Define shell and remote language switching behavior so switching language preserves the current domain route where possible and remotes receive consistent locale context."
-    status: pending
+    status: completed
   - id: define-i18n-validation
     content: "Define HTTP and browser validation for localized SSR HTML, locale JSON, dynamic backend loading, canonical/hreflang metadata, Czech diacritics, and route transitions."
-    status: pending
+    status: completed
 isProject: true
 ---
 

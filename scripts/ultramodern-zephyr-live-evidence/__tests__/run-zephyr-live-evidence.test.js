@@ -13,6 +13,17 @@ const {
 const generatedAt = '2026-05-26T00:00:00.000Z';
 
 function completeConfig() {
+  const remoteTarget = (domain, version) => ({
+    appUid: `app_uid_remote_${domain}_${version}`,
+    selector: {
+      kind: version === 'v1' ? 'version' : 'tag',
+      value: version === 'v1' ? '@1.2.3' : '@latest',
+    },
+    manifestUrl: `https://${domain}-${version}.example.test/mf-manifest.json`,
+    runtimeUrl: `https://${domain}-${version}.example.test/`,
+    apiUrl: `https://${domain}-${version}.example.test/${domain}-api/effect/${domain}/readiness`,
+  });
+
   return {
     workspaceDir: '/tmp/generated-workspace',
     zephyr: { environment: 'staging' },
@@ -21,20 +32,12 @@ function completeConfig() {
       serverToken: 'server-token-value',
     },
     targets: {
-      remoteV1: {
-        appUid: 'app_uid_remote_v1',
-        selector: { kind: 'version', value: '@1.2.3' },
-        manifestUrl: 'https://remote-v1.example.test/mf-manifest.json',
-        runtimeUrl: 'https://remote-v1.example.test/',
-        apiUrl: 'https://remote-v1.example.test/commerce-api/version',
-      },
-      remoteV2: {
-        appUid: 'app_uid_remote_v2',
-        selector: { kind: 'tag', value: '@latest' },
-        manifestUrl: 'https://remote-v2.example.test/mf-manifest.json',
-        runtimeUrl: 'https://remote-v2.example.test/',
-        apiUrl: 'https://remote-v2.example.test/commerce-api/version',
-      },
+      exploreV1: remoteTarget('explore', 'v1'),
+      exploreV2: remoteTarget('explore', 'v2'),
+      decideV1: remoteTarget('decide', 'v1'),
+      decideV2: remoteTarget('decide', 'v2'),
+      checkoutV1: remoteTarget('checkout', 'v1'),
+      checkoutV2: remoteTarget('checkout', 'v2'),
       shell: {
         appUid: 'app_uid_shell',
         selector: { kind: 'environment', value: 'staging' },
@@ -141,15 +144,17 @@ test('happy dry-run writes a machine-readable evidence bundle', async () => {
       writtenBundle.docsEvidence.packageJsonDependencyKey,
       'zephyr:dependencies',
     );
-    assert.equal(writtenBundle.targets.length, 3);
-    assert.equal(writtenBundle.switchingScenarios.length, 2);
+    assert.equal(writtenBundle.targets.length, 7);
+    assert.equal(writtenBundle.switchingScenarios.length, 6);
     assert.equal(
       writtenBundle.targets.some(
         target =>
-          target.id === 'remote-v1' &&
-          target.appUid === 'app_uid_remote_v1' &&
-          target.markers.uiExpected === 'commerce-ui-version:v1' &&
-          target.markers.apiExpected === 'commerce-api-version:v1',
+          target.id === 'remote-explore-v1' &&
+          target.appUid === 'app_uid_remote_explore_v1' &&
+          target.markers.uiExpected === 'explore-ui-version:v1' &&
+          target.markers.apiExpected === 'explore-api-version:v1' &&
+          target.markers.cssExpected === 'explore-css-version:v1' &&
+          target.markers.i18nExpected === 'explore-i18n-version:v1',
       ),
       true,
     );

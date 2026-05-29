@@ -4,22 +4,22 @@ overview: Document the real Tractor architecture, operational workflows, version
 todos:
   - id: write-architecture-doc
     content: "Write the architecture doc explaining real Explore/Decide/Checkout full-stack verticals, MF composition, Effect ownership, i18n ownership, CSS ownership, and shell responsibilities."
-    status: pending
+    status: completed
   - id: write-generator-docs
     content: "Update create README/template docs for generating the real Tractor reference workspace, adding verticals, package-source install validation, and expected commands."
-    status: pending
+    status: completed
   - id: write-css-policy
     content: "Document federated CSS policy: shared tokens/base, Tailwind usage, remote-owned chunks, deduplication, SSR styling, FOUC checks, and version-switch behavior."
-    status: pending
+    status: completed
   - id: write-zephyr-cloudflare-runbook
     content: "Document Cloudflare deploy and Zephyr version/environment switching operations, including CLI/dashboard/browser-extension paths and evidence commands."
-    status: pending
+    status: completed
   - id: write-validation-runbook
     content: "Document how to run local, install-backed, browser, Cloudflare, and live Zephyr validation without relying on source-content tests."
-    status: pending
+    status: completed
   - id: write-migration-guidance
     content: "Document how an existing one-remote commerce demo or application migrates into real Explore/Decide/Checkout full-stack verticals without losing one-package ownership."
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -43,4 +43,3 @@ Documentation is downstream of proof. It should not claim capabilities until val
 ## Operator Guidance
 
 Docs should include command examples, evidence file paths, and a small decision table for when a team should create a new vertical versus keeping code inside an existing vertical.
-

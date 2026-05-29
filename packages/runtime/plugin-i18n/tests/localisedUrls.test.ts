@@ -162,6 +162,40 @@ describe('localisedUrls', () => {
       ),
     ).toBe('/products/cervena-bota');
   });
+
+  test('resolves nested optional route params with translated ancestors', () => {
+    const localisedUrls = {
+      '/checkout': {
+        en: '/checkout',
+        cs: '/pokladna',
+      },
+      '/checkout/thank-you': {
+        en: '/checkout/thank-you',
+        cs: '/pokladna/dekujeme',
+      },
+      '/checkout/thank-you/:orderId?': {
+        en: '/checkout/thank-you/:orderId?',
+        cs: '/pokladna/dekujeme/:orderId?',
+      },
+    };
+
+    expect(
+      resolveLocalisedPath(
+        '/checkout/thank-you',
+        'cs',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/pokladna/dekujeme');
+    expect(
+      resolveLocalisedPath(
+        '/pokladna/dekujeme/ABC-123',
+        'en',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/checkout/thank-you/ABC-123');
+  });
 });
 
 describe('i18n server API prefix skips', () => {

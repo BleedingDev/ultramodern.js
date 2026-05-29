@@ -143,6 +143,8 @@ test('parseArgs maps validation options', () => {
       '/repo/app',
       '--output-dir',
       'dist',
+      '--public-url',
+      'https://worker.example.test',
       '--out',
       '/tmp/report.json',
       '--expect-en',
@@ -154,6 +156,7 @@ test('parseArgs maps validation options', () => {
     {
       rootDir: '/repo/app',
       outputDir: 'dist',
+      publicBaseUrl: 'https://worker.example.test',
       reportPath: '/tmp/report.json',
       routes: {
         en: '/en',
@@ -169,4 +172,56 @@ test('parseArgs maps validation options', () => {
       },
     },
   );
+});
+
+test('validates public Cloudflare URL routes without local output', async () => {
+  const calls = [];
+  const fetchImpl = async url => {
+    const pathname = new URL(url).pathname;
+    calls.push(pathname);
+    const bodies = {
+      '/en':
+        '<html data-app-id="remote-explore" data-build-marker="build-123">Explore Remote</html>',
+      '/cs': '<html data-build-marker="build-123">Explore Remote CS</html>',
+      '/locales/en/translation.json': JSON.stringify({
+        explore: { title: 'Explore Remote' },
+      }),
+      '/mf-manifest.json': '{}',
+      '/explore-api/effect/explore/readiness': JSON.stringify({
+        marker: { build: 'build-123' },
+      }),
+    };
+    return new Response(bodies[pathname] ?? 'Not found', {
+      status: bodies[pathname] ? 200 : 404,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  };
+
+  const report = await validateCloudflareSsr({
+    publicBaseUrl: 'https://remote-explore.example.test',
+    fetchImpl,
+    routes: {
+      en: '/en',
+      cs: '/cs',
+      locale: '/locales/en/translation.json',
+      mfManifest: '/mf-manifest.json',
+      bff: '/explore-api/effect/explore/readiness',
+    },
+    expected: {
+      enText: 'Explore Remote',
+      matchBuildMarker: true,
+    },
+    generatedAt: '2026-05-27T00:00:00.000Z',
+  });
+
+  assert.equal(report.mode, 'public-url');
+  assert.equal(report.status, 'pass');
+  assert.equal(report.markers.match, true);
+  assert.deepEqual(calls.sort(), [
+    '/cs',
+    '/en',
+    '/explore-api/effect/explore/readiness',
+    '/locales/en/translation.json',
+    '/mf-manifest.json',
+  ]);
 });

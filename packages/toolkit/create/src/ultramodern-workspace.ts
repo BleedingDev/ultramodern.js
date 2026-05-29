@@ -117,6 +117,18 @@ type Ownership = {
   };
 };
 
+type SupportedWorkspaceLanguage = 'en' | 'cs';
+
+type RouteOwnedI18nPath = {
+  id: string;
+  canonicalPath: string;
+  localisedPaths: Record<SupportedWorkspaceLanguage, string>;
+  titleKey: string;
+  ownerAppId: string;
+  mfBoundaryId: string;
+  namespace: string;
+};
+
 export type UltramodernWorkspaceOptions = {
   targetDir: string;
   packageName: string;
@@ -141,6 +153,10 @@ export type AddUltramodernMicroVerticalOptions = {
 };
 
 export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
+
+function isRecord(value: unknown): value is Record<string, JsonValue> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 const shellApp: WorkspaceApp = {
   id: 'shell-super-app',
@@ -181,8 +197,11 @@ const remoteApps: WorkspaceApp[] = [
     port: 3021,
     mfName: 'remoteExplore',
     exposes: {
+      './Footer': './src/components/footer.tsx',
+      './Header': './src/components/header.tsx',
+      './Recommendations': './src/components/recommendations.tsx',
       './Route': './src/remote-entry.tsx',
-      './Widget': './src/components/explore-widget.tsx',
+      './StorePicker': './src/components/store-picker.tsx',
     },
     effectApi: {
       stem: 'explore',
@@ -215,9 +234,10 @@ const remoteApps: WorkspaceApp[] = [
     portEnv: 'REMOTE_DECIDE_PORT',
     port: 3022,
     mfName: 'remoteDecide',
+    remoteRefs: ['remote-explore', 'remote-checkout'],
     exposes: {
+      './ProductPage': './src/components/product-page.tsx',
       './Route': './src/remote-entry.tsx',
-      './Widget': './src/components/decide-widget.tsx',
     },
     effectApi: {
       stem: 'decide',
@@ -251,8 +271,12 @@ const remoteApps: WorkspaceApp[] = [
     port: 3023,
     mfName: 'remoteCheckout',
     exposes: {
+      './AddToCart': './src/components/add-to-cart.tsx',
+      './CartPage': './src/components/cart-page.tsx',
+      './CheckoutPage': './src/components/checkout-page.tsx',
+      './MiniCart': './src/components/mini-cart.tsx',
       './Route': './src/remote-entry.tsx',
-      './Widget': './src/components/checkout-widget.tsx',
+      './ThanksPage': './src/components/thanks-page.tsx',
     },
     effectApi: {
       stem: 'checkout',
@@ -826,6 +850,10 @@ function createRootPackageJson(
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'cloudflare:build':
         'pnpm -r --filter "./apps/remotes/**" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
+      'cloudflare:deploy':
+        'pnpm -r --filter "./apps/remotes/**" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
+      'cloudflare:proof':
+        'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
@@ -873,21 +901,94 @@ function zephyrRemoteDependency(scope: string, remote: WorkspaceApp): string {
   return `${packageName(scope, remote.packageSuffix)}@workspace:*`;
 }
 
+function resolveRemoteRefs(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = remoteApps,
+): WorkspaceApp[] {
+  const remoteRefs = app.remoteRefs ?? [];
+
+  return remoteRefs
+    .map(remoteRef => remotes.find(remote => remote.id === remoteRef))
+    .filter((remote): remote is WorkspaceApp => remote !== undefined);
+}
+
+function createModuleFederationRemoteContracts(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = remoteApps,
+) {
+  return resolveRemoteRefs(app, remotes).map(remote => ({
+    id: remote.id,
+    alias: remoteDependencyAlias(remote),
+    name: remote.mfName,
+    manifestEnv: createRemoteManifestEnv(remote),
+    manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+  }));
+}
+
 function createZephyrDependencies(
   scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = remoteApps,
 ): JsonValue {
-  if (app.kind !== 'shell') {
+  if (!app.remoteRefs?.length) {
     return {};
   }
 
   return Object.fromEntries(
-    remotes.map(remote => [
+    resolveRemoteRefs(app, remotes).map(remote => [
       remoteDependencyAlias(remote),
       zephyrRemoteDependency(scope, remote),
     ]),
   );
+}
+
+function createCloudflareWorkerName(scope: string, app: WorkspaceApp): string {
+  return toKebabCase(`${scope}-${app.packageSuffix}`).slice(0, 63);
+}
+
+function createCloudflarePublicUrlEnv(app: WorkspaceApp): string {
+  return `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`;
+}
+
+function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
+  const languageRoutes = createLocalisedUrlsMap(app);
+  const firstCanonicalPath = Object.keys(languageRoutes)[0];
+  const localizedPath =
+    firstCanonicalPath && isRecord(languageRoutes[firstCanonicalPath])
+      ? (languageRoutes[firstCanonicalPath].en as string | undefined)
+      : undefined;
+
+  return {
+    ssr: localizedPath ?? '/en',
+    mfManifest: '/mf-manifest.json',
+    locale: `/locales/en/${appI18nNamespace(app)}.json`,
+    ...(appHasEffectApi(app)
+      ? {
+          effectReadiness: `${effectApiPrefix(app)}/effect/${effectApiStem(
+            app,
+          )}/readiness`,
+        }
+      : {}),
+  };
+}
+
+function createCloudflareDeployContract(
+  scope: string,
+  app: WorkspaceApp,
+): JsonValue {
+  return {
+    target: 'cloudflare',
+    workerName: createCloudflareWorkerName(scope, app),
+    publicUrlEnv: createCloudflarePublicUrlEnv(app),
+    compatibilityFlags: ['nodejs_compat'],
+    assetsBinding: 'ASSETS',
+    routes: createCloudflareProofRoute(app),
+    evidence: {
+      proofScript: 'scripts/proof-cloudflare-version.mjs',
+      reportDefault:
+        '.codex/reports/cloudflare-version-proof/public-url-proof.json',
+    },
+  };
 }
 
 function createTsConfigBase(): JsonValue {
@@ -963,8 +1064,12 @@ function createAppPackage(
         : 'modern build',
       'cloudflare:build':
         'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy',
+      'cloudflare:deploy': 'MODERNJS_DEPLOY=cloudflare modern deploy',
       'cloudflare:preview':
         'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy && wrangler dev --config .output/wrangler.json',
+      'cloudflare:proof': `node ${relativeRootFor(
+        app.directory,
+      )}/scripts/proof-cloudflare-version.mjs --app ${app.id}`,
       serve: 'modern serve',
       typecheck: effectTsgoTypecheckCommand,
     },
@@ -984,6 +1089,10 @@ function createAppPackage(
     packageJson.exports = {
       './effect/client': `./src/effect/${app.effectApi.stem}-client.ts`,
       './shared/effect/api': './shared/effect/api.ts',
+    };
+  } else if (app.kind === 'shell') {
+    packageJson.exports = {
+      './effect/clients': './src/effect/recommendations-client.ts',
     };
   }
 
@@ -1071,6 +1180,13 @@ function createSharedPackage(
     },
   };
 
+  if (id === 'shared-design-tokens') {
+    packageJson.exports = {
+      ...(packageJson.exports as Record<string, JsonValue>),
+      './tokens.css': './src/tokens.css',
+    };
+  }
+
   if (id === 'shared-effect-api') {
     packageJson.dependencies = {
       '@modern-js/plugin-bff': modernPackageSpecifier(
@@ -1083,7 +1199,7 @@ function createSharedPackage(
   return packageJson;
 }
 
-function createAppModernConfig(app: WorkspaceApp): string {
+function createAppModernConfig(scope: string, app: WorkspaceApp): string {
   const bffImport = appHasEffectApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
     : '';
@@ -1110,6 +1226,7 @@ ${bffImport}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
+import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 
 type ZephyrRspackConfig = Parameters<ReturnType<typeof withZephyrRspack>>[0];
 
@@ -1128,6 +1245,7 @@ const zephyrRspackPlugin = () => ({
 });
 
 const appId = '${app.id}';
+const cloudflareWorkerName = '${createCloudflareWorkerName(scope, app)}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
 const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
 const hasConfiguredSiteUrl =
@@ -1170,13 +1288,14 @@ ${bffConfig}      output: {
         tanstackRouterPlugin(),
         i18nPlugin({
           backend: {
-            enabled: false,
+            enabled: true,
           },
           reactI18next: false,
           localeDetection: {
             fallbackLanguage: 'en',
             languages: ['en', 'cs'],
             localePathRedirect: true,
+            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
             ignoreRedirectRoutes: [
               '/@mf-types',
               '/bundles',
@@ -1209,6 +1328,7 @@ ${bffPluginEntry}        moduleFederationPlugin(),
       deploy: {
         target: 'cloudflare',
         worker: {
+          name: cloudflareWorkerName,
           ssr: true,
         },
       },
@@ -1287,10 +1407,11 @@ function createRemoteManifestEnv(remote: WorkspaceApp): string {
   return `REMOTE_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
 }
 
-function createShellModuleFederationConfig(
+function createModuleFederationRemotesConfig(
+  app: WorkspaceApp,
   remotes: WorkspaceApp[] = remoteApps,
 ): string {
-  const remoteEntries = remotes
+  const remoteEntries = resolveRemoteRefs(app, remotes)
     .map(remote => {
       const key = remoteDependencyAlias(remote);
       return `    ${key}:
@@ -1298,6 +1419,24 @@ function createShellModuleFederationConfig(
       '${remote.mfName}@http://localhost:${remote.port}/mf-manifest.json',`;
     })
     .join('\n');
+
+  if (!remoteEntries) {
+    return '';
+  }
+
+  return `  remotes: {
+${remoteEntries}
+  },
+`;
+}
+
+function createShellModuleFederationConfig(
+  remotes: WorkspaceApp[] = remoteApps,
+): string {
+  const shellHost = {
+    ...shellApp,
+    remoteRefs: remotes.map(remote => remote.id),
+  };
 
   return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
 import { createRequire } from 'node:module';
@@ -1322,10 +1461,7 @@ export default createModuleFederationConfig({
   },
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
-  remotes: {
-${remoteEntries}
-  },
-${createSharedModuleFederationConfig()},
+${createModuleFederationRemotesConfig(shellHost, remotes)}${createSharedModuleFederationConfig()},
 });
 `;
 }
@@ -1365,7 +1501,10 @@ export const ultramodernApiMarker = {
 `;
 }
 
-function createRemoteModuleFederationConfig(app: WorkspaceApp): string {
+function createRemoteModuleFederationConfig(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = remoteApps,
+): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   return `// @effect-diagnostics nodeBuiltinImport:off
 import { createRequire } from 'node:module';
@@ -1391,13 +1530,293 @@ export default createModuleFederationConfig({
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
-${createSharedModuleFederationConfig()},
+${createModuleFederationRemotesConfig(app, remotes)}${createSharedModuleFederationConfig()},
 });
 `;
 }
 
 function remoteWidgetFile(app: WorkspaceApp): string {
   return `${app.domain ?? app.id.replace(/^remote-/, '')}-widget`;
+}
+
+function appI18nNamespace(app: WorkspaceApp): string {
+  return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
+}
+
+function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
+  const namespace = appI18nNamespace(app);
+  const base = {
+    mfBoundaryId: app.mfName,
+    namespace,
+    ownerAppId: app.id,
+  };
+
+  if (app.kind === 'shell') {
+    return [
+      {
+        ...base,
+        canonicalPath: '/',
+        id: 'shell-home',
+        localisedPaths: {
+          cs: '/',
+          en: '/',
+        },
+        titleKey: 'shell.title',
+      },
+    ];
+  }
+
+  if (app.domain === 'explore') {
+    return [
+      {
+        ...base,
+        canonicalPath: '/',
+        id: 'explore-home',
+        localisedPaths: {
+          cs: '/',
+          en: '/',
+        },
+        titleKey: 'explore.title',
+      },
+      {
+        ...base,
+        canonicalPath: '/tractors',
+        id: 'explore-listing',
+        localisedPaths: {
+          cs: '/traktory',
+          en: '/tractors',
+        },
+        titleKey: 'explore.routes.listing',
+      },
+      {
+        ...base,
+        canonicalPath: '/stores',
+        id: 'explore-store-picker',
+        localisedPaths: {
+          cs: '/prodejci',
+          en: '/stores',
+        },
+        titleKey: 'explore.routes.storePicker',
+      },
+      {
+        ...base,
+        canonicalPath: '/unavailable',
+        id: 'explore-unavailable',
+        localisedPaths: {
+          cs: '/nedostupne',
+          en: '/unavailable',
+        },
+        titleKey: 'explore.routes.unavailable',
+      },
+    ];
+  }
+
+  if (app.domain === 'decide') {
+    return [
+      {
+        ...base,
+        canonicalPath: '/',
+        id: 'decide-home',
+        localisedPaths: {
+          cs: '/',
+          en: '/',
+        },
+        titleKey: 'decide.title',
+      },
+      {
+        ...base,
+        canonicalPath: '/tractors',
+        id: 'decide-listing-parent',
+        localisedPaths: {
+          cs: '/traktory',
+          en: '/tractors',
+        },
+        titleKey: 'decide.routes.listing',
+      },
+      {
+        ...base,
+        canonicalPath: '/tractors/:slug',
+        id: 'decide-product-detail',
+        localisedPaths: {
+          cs: '/traktory/:slug',
+          en: '/tractors/:slug',
+        },
+        titleKey: 'decide.routes.productDetail',
+      },
+      {
+        ...base,
+        canonicalPath: '/unavailable',
+        id: 'decide-unavailable',
+        localisedPaths: {
+          cs: '/nedostupne',
+          en: '/unavailable',
+        },
+        titleKey: 'decide.routes.unavailable',
+      },
+    ];
+  }
+
+  if (app.domain === 'checkout') {
+    return [
+      {
+        ...base,
+        canonicalPath: '/',
+        id: 'checkout-home',
+        localisedPaths: {
+          cs: '/',
+          en: '/',
+        },
+        titleKey: 'checkout.title',
+      },
+      {
+        ...base,
+        canonicalPath: '/cart',
+        id: 'checkout-cart',
+        localisedPaths: {
+          cs: '/kosik',
+          en: '/cart',
+        },
+        titleKey: 'checkout.routes.cart',
+      },
+      {
+        ...base,
+        canonicalPath: '/checkout',
+        id: 'checkout-start',
+        localisedPaths: {
+          cs: '/pokladna',
+          en: '/checkout',
+        },
+        titleKey: 'checkout.routes.checkout',
+      },
+      {
+        ...base,
+        canonicalPath: '/checkout/thank-you',
+        id: 'checkout-thank-you-parent',
+        localisedPaths: {
+          cs: '/pokladna/dekujeme',
+          en: '/checkout/thank-you',
+        },
+        titleKey: 'checkout.routes.thankYou',
+      },
+      {
+        ...base,
+        canonicalPath: '/checkout/thank-you/:orderId?',
+        id: 'checkout-thank-you',
+        localisedPaths: {
+          cs: '/pokladna/dekujeme/:orderId?',
+          en: '/checkout/thank-you/:orderId?',
+        },
+        titleKey: 'checkout.routes.thankYou',
+      },
+      {
+        ...base,
+        canonicalPath: '/unavailable',
+        id: 'checkout-unavailable',
+        localisedPaths: {
+          cs: '/nedostupne',
+          en: '/unavailable',
+        },
+        titleKey: 'checkout.routes.unavailable',
+      },
+    ];
+  }
+
+  return [
+    {
+      ...base,
+      canonicalPath: '/',
+      id: `${app.id}-home`,
+      localisedPaths: {
+        cs: '/',
+        en: '/',
+      },
+      titleKey: `${namespace}.title`,
+    },
+  ];
+}
+
+function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
+  return Object.fromEntries(
+    createRouteOwnedI18nPaths(app)
+      .filter(route => route.canonicalPath !== '/')
+      .map(route => [route.canonicalPath, route.localisedPaths]),
+  );
+}
+
+function createRouteMetadataModule(app: WorkspaceApp): string {
+  const routes = createRouteOwnedI18nPaths(app);
+  const localisedUrls = createLocalisedUrlsMap(app);
+  const namespace = appI18nNamespace(app);
+
+  return `export const ultramodernRouteNamespace = '${namespace}' as const;
+
+export const ultramodernRouteMetadata = ${JSON.stringify(routes, null, 2)} as const;
+
+export const ultramodernLocalisedUrls = ${JSON.stringify(localisedUrls, null, 2)} as const;
+
+export const ultramodernRouteConfig = {
+  source: 'route-owned',
+  namespace: ultramodernRouteNamespace,
+  localisedUrls: ultramodernLocalisedUrls,
+  routes: ultramodernRouteMetadata,
+} as const;
+`;
+}
+
+function routeSegmentToDirectory(segment: string): string {
+  if (segment.startsWith(':')) {
+    const name = segment.slice(1).replace(/\?$/u, '');
+    return segment.endsWith('?') ? `[${name}$]` : `[${name}]`;
+  }
+
+  return segment;
+}
+
+function createRoutePageFilePath(app: WorkspaceApp, canonicalPath: string) {
+  const segments = canonicalPath
+    .split('/')
+    .filter(Boolean)
+    .map(routeSegmentToDirectory);
+
+  return `${app.directory}/src/routes/[lang]/${[...segments, 'page.tsx'].join(
+    '/',
+  )}`;
+}
+
+function createRouteAliasPage(canonicalPath: string): string {
+  const depth = canonicalPath.split('/').filter(Boolean).length;
+  const rootPageImport = `${'../'.repeat(depth)}page`;
+
+  return `export { default } from '${rootPageImport}';
+`;
+}
+
+function createAppEnvDts(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = remoteApps,
+): string {
+  const remoteModuleDeclarations = resolveRemoteRefs(app, remotes)
+    .flatMap(remote =>
+      Object.keys(remote.exposes ?? {})
+        .filter(expose => expose !== './Route')
+        .map(expose => {
+          const moduleName = `${remoteDependencyAlias(remote)}/${expose.replace(
+            /^\.\//u,
+            '',
+          )}`;
+          return `declare module '${moduleName}' {
+  const Component: import('react').ComponentType<Record<string, never>>;
+  export default Component;
+}
+`;
+        }),
+    )
+    .join('\n');
+
+  return `/// <reference types='@modern-js/app-tools/types' />
+
+declare const ULTRAMODERN_SITE_URL: string;
+${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
 function createServiceModernConfig(): string {
@@ -1441,17 +1860,21 @@ export default defineConfig(
 }
 
 function createAppRuntimeConfig(app: WorkspaceApp): string {
+  const namespace = appI18nNamespace(app);
   const resources = {
     cs: {
+      [namespace]: createAppLocaleMessages(app, 'cs'),
       translation: createAppLocaleMessages(app, 'cs'),
     },
     en: {
+      [namespace]: createAppLocaleMessages(app, 'en'),
       translation: createAppLocaleMessages(app, 'en'),
     },
   };
 
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
 import { createInstance } from 'i18next';
+import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
 
 const i18nInstance = createInstance();
 
@@ -1459,12 +1882,12 @@ export default defineRuntimeConfig({
   i18n: {
     i18nInstance,
     initOptions: {
-      defaultNS: 'translation',
+      defaultNS: ultramodernRouteNamespace,
       fallbackLng: 'en',
       interpolation: {
         escapeValue: false,
       },
-      ns: ['translation'],
+      ns: [ultramodernRouteNamespace, 'translation'],
       resources: ${JSON.stringify(resources, null, 8)
         .split('\n')
         .join('\n      ')},
@@ -1478,10 +1901,19 @@ export default defineRuntimeConfig({
 `;
 }
 
-function createAppStyles(enableTailwind: boolean): string {
-  return `${enableTailwind ? "@import 'tailwindcss';\n\n" : ''}:root {
-  color: #10231c;
-  background: #f1eadc;
+function createCssTokenImport(scope: string): string {
+  return `@import '${packageName(scope, 'shared-design-tokens')}/tokens.css';\n`;
+}
+
+function createShellStyles(enableTailwind: boolean, scope: string): string {
+  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+    scope,
+  )}
+
+@layer ultramodern-shell-base {
+:root {
+  color: var(--um-color-foreground);
+  background: var(--um-color-canvas);
   font-family:
     Geist,
     Inter,
@@ -1509,9 +1941,60 @@ nav {
 }
 
 a {
-  color: #166b4b;
+  color: var(--um-color-link);
+}
 }
 
+@layer ultramodern-shell-overlay {
+.boundary-overlay {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 70;
+}
+
+.boundary-overlay__box {
+  border: 0.0625rem solid var(--boundary-color);
+  border-radius: 0.55rem;
+  box-shadow:
+    0 0 0 0.0625rem rgba(255, 255, 255, 0.72),
+    0 0.35rem 1.25rem color-mix(in srgb, var(--boundary-color) 20%, transparent);
+  position: fixed;
+}
+
+.boundary-overlay__label {
+  background: color-mix(in srgb, var(--boundary-color) 88%, white);
+  border-radius: 999px;
+  color: #0b0a08;
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 0.3rem 0.55rem;
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+  white-space: nowrap;
+}
+
+.boundary-overlay__box[data-label-placement="above"] .boundary-overlay__label {
+  bottom: calc(100% + 0.25rem);
+  top: auto;
+}
+}
+`;
+}
+
+function createRemoteStyles(
+  enableTailwind: boolean,
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  if (app.domain === 'commerce') {
+    return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+      scope,
+    )}
+
+@layer ultramodern-remote-${app.domain} {
 .commerce-shell {
   background: #f1eadc;
   color: #0b0a08;
@@ -1739,41 +2222,6 @@ a {
   width: 1rem;
 }
 
-.boundary-overlay {
-  inset: 0;
-  pointer-events: none;
-  position: fixed;
-  z-index: 70;
-}
-
-.boundary-overlay__box {
-  border: 0.0625rem solid var(--boundary-color);
-  border-radius: 0.55rem;
-  box-shadow:
-    0 0 0 0.0625rem rgba(255, 255, 255, 0.72),
-    0 0.35rem 1.25rem color-mix(in srgb, var(--boundary-color) 20%, transparent);
-  position: fixed;
-}
-
-.boundary-overlay__label {
-  background: color-mix(in srgb, var(--boundary-color) 88%, white);
-  border-radius: 999px;
-  color: #0b0a08;
-  font-size: 0.7rem;
-  font-weight: 850;
-  line-height: 1;
-  padding: 0.3rem 0.55rem;
-  position: absolute;
-  right: 0.35rem;
-  top: 0.35rem;
-  white-space: nowrap;
-}
-
-.boundary-overlay__box[data-label-placement="above"] .boundary-overlay__label {
-  bottom: calc(100% + 0.25rem);
-  top: auto;
-}
-
 @media (max-width: 860px) {
   .commerce-header,
   .commerce-footer,
@@ -1793,7 +2241,95 @@ a {
     min-height: 20rem;
   }
 }
+}
 `;
+  }
+
+  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+    scope,
+  )}
+
+@layer ultramodern-remote-${app.domain ?? app.id} {
+[data-app-id="${app.id}"] {
+  color: var(--um-color-foreground);
+  background: var(--um-color-surface);
+  font-family:
+    Geist,
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  min-height: 100vh;
+}
+
+[data-app-id="${app.id}"] main {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+[data-app-id="${app.id}"] nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+[data-app-id="${app.id}"] a {
+  color: var(--um-color-link);
+}
+
+[data-mf-remote="${app.id}"] {
+  border: 0.0625rem solid color-mix(in srgb, var(--um-color-accent) 30%, transparent);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+}
+`;
+}
+
+function createServiceStyles(
+  enableTailwind: boolean,
+  scope: string,
+  service: { id: string },
+): string {
+  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+    scope,
+  )}
+
+@layer ultramodern-effect-service {
+[data-app-id="${service.id}"] {
+  color: var(--um-color-foreground);
+  background: var(--um-color-surface);
+  font-family:
+    Geist,
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  min-height: 100vh;
+}
+
+[data-app-id="${service.id}"] main {
+  min-height: 100vh;
+  padding: 2rem;
+}
+}
+`;
+}
+
+function createAppStyles(
+  enableTailwind: boolean,
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  return app.kind === 'shell'
+    ? createShellStyles(enableTailwind, scope)
+    : createRemoteStyles(enableTailwind, scope, app);
 }
 
 function createPostcssConfig(): string {
@@ -1819,32 +2355,147 @@ function createLocalizedHeadComponent(): string {
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 
-const localizedPath = (language: SupportedLanguage) => \`/\${language}\`;
+const localisedUrls = ultramodernLocalisedUrls as Record<
+  string,
+  Record<SupportedLanguage, string>
+>;
+
+const isSupportedLanguage = (value: string): value is SupportedLanguage =>
+  supportedLanguages.includes(value as SupportedLanguage);
+
+const normalisePath = (pathname: string) => {
+  const normalised = pathname.replace(/\\/+$/u, '').replace(/\\/+/gu, '/');
+  return normalised.length > 0 ? normalised : '/';
+};
+
+const stripLanguagePrefix = (pathname: string) => {
+  const segments = normalisePath(pathname).split('/').filter(Boolean);
+  if (segments.length > 0 && isSupportedLanguage(segments[0] ?? '')) {
+    segments.shift();
+  }
+  return \`/\${segments.join('/')}\`;
+};
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+
+const paramName = (segment: string) => segment.slice(1).replace(/\\?$/u, '');
+
+const matchPattern = (pathname: string, pattern: string) => {
+  const names: string[] = [];
+  const source = normalisePath(pattern)
+    .split('/')
+    .filter(Boolean)
+    .map(segment => {
+      if (segment.startsWith(':')) {
+        names.push(paramName(segment));
+        return segment.endsWith('?') ? '(?:/([^/]+))?' : '/([^/]+)';
+      }
+      return \`/\${escapeRegExp(segment)}\`;
+    })
+    .join('');
+  const match = new RegExp(\`^\${source || '/'}$\`).exec(normalisePath(pathname));
+
+  if (!match) {
+    return undefined;
+  }
+
+  return names.reduce<Record<string, string>>((params, name, index) => {
+    params[name] = decodeURIComponent(match[index + 1] ?? '');
+    return params;
+  }, {});
+};
+
+const buildPath = (pattern: string, params: Record<string, string>) => {
+  const path = normalisePath(pattern)
+    .split('/')
+    .filter(Boolean)
+    .map(segment => {
+      if (!segment.startsWith(':')) {
+        return segment;
+      }
+      const value = params[paramName(segment)];
+      return value ? encodeURIComponent(value) : '';
+    })
+    .filter(Boolean)
+    .join('/');
+
+  return \`/\${path}\`;
+};
+
+const resolveLocalisedPath = (
+  pathname: string,
+  targetLanguage: SupportedLanguage,
+) => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname);
+
+  for (const entry of Object.values(localisedUrls)) {
+    const targetPattern = entry[targetLanguage];
+    if (!targetPattern) {
+      continue;
+    }
+
+    for (const language of supportedLanguages) {
+      const sourcePattern = entry[language];
+      const params = sourcePattern
+        ? matchPattern(pathWithoutLanguage, sourcePattern)
+        : undefined;
+      if (params) {
+        return buildPath(targetPattern, params);
+      }
+    }
+  }
+
+  return pathWithoutLanguage;
+};
+
+const localizedPath = (pathname: string, language: SupportedLanguage) => {
+  const pathWithoutLanguage = resolveLocalisedPath(pathname, language);
+  return pathWithoutLanguage === '/' ? \`/\${language}\` : \`/\${language}\${pathWithoutLanguage}\`;
+};
 
 const absoluteUrl = (pathname: string) => {
   const origin = ULTRAMODERN_SITE_URL.replace(/\\/+$/u, '');
   return \`\${origin}\${pathname}\`;
 };
+
+const locationSuffix = (location: {
+  hash?: unknown;
+  search?: unknown;
+  searchStr?: unknown;
+}) => {
+  const locationSearch =
+    typeof location.searchStr === 'string'
+      ? location.searchStr
+      : typeof location.search === 'string'
+        ? location.search
+        : '';
+  const locationHash = typeof location.hash === 'string' ? location.hash : '';
+
+  return \`\${locationSearch}\${locationHash}\`;
+};
+
 const LocalizedHead = () => {
-  const canonicalPath = localizedPath(fallbackLanguage);
+  const location = useLocation();
+  const canonicalPath = localizedPath(location.pathname, fallbackLanguage);
 
   return (
-    <>
+    <Helmet>
       <link rel="canonical" href={absoluteUrl(canonicalPath)} />
       {supportedLanguages.map(code => (
         <link
-          href={absoluteUrl(localizedPath(code))}
+          href={absoluteUrl(localizedPath(location.pathname, code))}
           hrefLang={code}
           key={code}
           rel="alternate"
         />
       ))}
       <link
-        href={absoluteUrl(localizedPath(fallbackLanguage))}
+        href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
         hrefLang="x-default"
         rel="alternate"
       />
-    </>
+    </Helmet>
   );
 };
 `;
@@ -1852,6 +2503,9 @@ const LocalizedHead = () => {
 
 function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -1862,6 +2516,8 @@ ${createLocalizedHeadComponent()}
 export default function ShellHome() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
 
   return (
     <main>
@@ -1870,7 +2526,7 @@ export default function ShellHome() {
         {languageCodes.map(code => (
           <a
             aria-current={language === code ? 'page' : undefined}
-            href={\`/\${code}\`}
+            href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
             key={code}
           >
             {t(\`shell.language.\${code}\`)}
@@ -1900,10 +2556,13 @@ function createRemotePage(app: WorkspaceApp): string {
 
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
+import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Helmet } from '@modern-js/runtime/head';\nimport { useLocation } from '@modern-js/plugin-tanstack/runtime';\nimport { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
   const effectBffState = appHasEffectApi(app)
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
@@ -1940,6 +2599,8 @@ ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
 ${effectBffState}  return (
     <main>
       <LocalizedHead />
@@ -1947,7 +2608,7 @@ ${effectBffState}  return (
         {supportedLanguages.map(code => (
           <a
             aria-current={language === code ? 'page' : undefined}
-            href={\`/\${code}\`}
+            href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
             key={code}
           >
             {t(\`${app.domain}.language.\${code}\`)}
@@ -1967,7 +2628,10 @@ ${effectBffMarkup}    </main>
 
 function createCommerceRemotePage(app: WorkspaceApp): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState, type CSSProperties } from 'react';
+import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -2140,6 +2804,8 @@ function BoundaryOverlay({
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
   const [cart, setCart] = useState<CartState>({});
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [effectApiStatus, setEffectApiStatus] = useState('pending');
@@ -2231,7 +2897,7 @@ export default function ${toPascalCase(app.id)}Home() {
               <a
                 aria-current={language === code ? 'page' : undefined}
                 className="commerce-pill"
-                href={\`/\${code}\`}
+                href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
                 key={code}
               >
                 {t(\`commerce.language.\${code}\`)}
@@ -2374,7 +3040,24 @@ export default function Layout() {
 }
 
 function createRemoteEntry(app: WorkspaceApp): string {
-  return `export { default } from './components/${remoteWidgetFile(app)}';
+  if (app.exposes?.['./ProductPage']) {
+    return `export { default } from './components/product-page';
+`;
+  }
+
+  if (app.exposes?.['./CartPage']) {
+    return `export { default } from './components/cart-page';
+`;
+  }
+
+  return `export default function ${toPascalCase(app.domain ?? app.id)}Route() {
+  return (
+    <section data-mf-remote="${app.id}" data-mf-expose="./Route">
+      <h2>${app.displayName}</h2>
+      <p>Route surface for ${app.domain ?? app.id}.</p>
+    </section>
+  );
+}
 `;
 }
 
@@ -2396,15 +3079,66 @@ function createRemoteWidget(app: WorkspaceApp): string {
 `;
 }
 
+function createRemoteExposeComponent(
+  app: WorkspaceApp,
+  expose: string,
+): string {
+  if (expose === './Widget') {
+    return createRemoteWidget(app);
+  }
+
+  const componentName = `${toPascalCase(app.domain ?? app.id)}${toPascalCase(
+    expose.replace(/^\.\//u, ''),
+  )}`;
+
+  if (app.id === 'remote-decide' && expose === './ProductPage') {
+    return `import AddToCart from 'checkout/AddToCart';
+import Recommendations from 'explore/Recommendations';
+
+export default function ${componentName}() {
+  return (
+    <section data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <p>Decide owns tractor product selection.</p>
+      <h2>Field Loader 112</h2>
+      <p>Hydraulic-ready compact tractor with guided implement matching.</p>
+      <AddToCart />
+      <Recommendations />
+    </section>
+  );
+}
+`;
+  }
+
+  return `export default function ${componentName}() {
+  return (
+    <section data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h2>${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
+      <p>Module Federation surface owned by ${app.ownership.team}.</p>
+    </section>
+  );
+}
+`;
+}
+
+function remoteComponentOutputPath(app: WorkspaceApp, expose: string) {
+  const exposePath = app.exposes?.[expose];
+
+  if (!exposePath?.startsWith('./src/components/')) {
+    return undefined;
+  }
+
+  return `${app.directory}/${exposePath.replace(/^\.\//u, '')}`;
+}
+
 function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   const czechLabels: Record<string, { role: string; title: string }> = {
     checkout: {
       role: 'pokladna',
-      title: 'Checkout remote',
+      title: 'Pokladní remote',
     },
     decide: {
       role: 'rozhodování',
-      title: 'Decide remote',
+      title: 'Rozhodovací remote',
     },
     'design-system': {
       role: 'design system',
@@ -2412,7 +3146,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
     },
     explore: {
       role: 'procházení',
-      title: 'Explore remote',
+      title: 'Průzkumný remote',
     },
     identity: {
       role: 'identita',
@@ -2432,6 +3166,9 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
           checkout: language === 'en' ? 'Checkout Remote' : 'Checkout remote',
           decide: language === 'en' ? 'Decide Remote' : 'Decide remote',
           explore: language === 'en' ? 'Explore Remote' : 'Explore remote',
+        },
+        routes: {
+          home: language === 'en' ? 'Home' : 'Domů',
         },
         title:
           language === 'en'
@@ -2554,6 +3291,17 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
         switcher: language === 'en' ? 'Language' : 'Jazyk',
       },
       role: language === 'en' ? (app.domain ?? app.kind) : czechLabel.role,
+      routes: {
+        cart: language === 'en' ? 'Cart' : 'Košík',
+        checkout: language === 'en' ? 'Checkout' : 'Pokladna',
+        home: language === 'en' ? 'Home' : 'Domů',
+        listing: language === 'en' ? 'Tractors' : 'Traktory',
+        productDetail: language === 'en' ? 'Tractor detail' : 'Detail traktoru',
+        storePicker: language === 'en' ? 'Store picker' : 'Výběr prodejce',
+        thankYou:
+          language === 'en' ? 'Order confirmation' : 'Potvrzení objednávky',
+        unavailable: language === 'en' ? 'Unavailable' : 'Nedostupné',
+      },
       title: language === 'en' ? app.displayName : czechLabel.title,
     },
   };
@@ -2591,6 +3339,19 @@ function createDesignTokens(): string {
 `;
 }
 
+function createSharedDesignTokensCss(): string {
+  return `@layer ultramodern-shared-tokens {
+:root {
+  --um-color-accent: #2f8f68;
+  --um-color-canvas: #f1eadc;
+  --um-color-foreground: #133225;
+  --um-color-link: #166b4b;
+  --um-color-surface: #f6fbf7;
+}
+}
+`;
+}
+
 function serviceEffectApiExport(
   service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
 ) {
@@ -2613,6 +3374,18 @@ function serviceEffectSchemaExport(
   service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
 ) {
   return `${toCamelCase(effectApiStem(service))}ItemSchema`;
+}
+
+function serviceEffectMarkerSchemaExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toCamelCase(effectApiStem(service))}MarkerSchema`;
+}
+
+function serviceEffectReadinessSchemaExport(
+  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+) {
+  return `${toCamelCase(effectApiStem(service))}ReadinessSchema`;
 }
 
 function serviceEffectErrorStem(
@@ -2655,6 +3428,8 @@ function createEffectSharedApiContract(
   service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
 ): string {
   const schemaExport = serviceEffectSchemaExport(service);
+  const markerSchemaExport = serviceEffectMarkerSchemaExport(service);
+  const readinessSchemaExport = serviceEffectReadinessSchemaExport(service);
   const createPayloadSchemaExport =
     serviceEffectCreatePayloadSchemaExport(service);
   const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
@@ -2665,17 +3440,31 @@ function createEffectSharedApiContract(
   const stem = effectApiStem(service);
   const servicePrefix = effectApiPrefix(service);
 
-  return `export const ${schemaExport} = Schema.Struct({
+  return `export const ${markerSchemaExport} = Schema.Struct({
+  appId: Schema.String,
+  packageName: Schema.String,
+  version: Schema.String,
+  build: Schema.String,
+  deployProfile: Schema.String,
+  surface: Schema.String,
+});
+
+export const ${schemaExport} = Schema.Struct({
   id: Schema.String,
-  marker: Schema.Struct({
-    appId: Schema.String,
-    packageName: Schema.String,
-    version: Schema.String,
-    build: Schema.String,
-    deployProfile: Schema.String,
-    surface: Schema.String,
-  }),
+  marker: ${markerSchemaExport},
   title: Schema.String,
+});
+
+export const ${readinessSchemaExport} = Schema.Struct({
+  checks: Schema.Struct({
+    effectBff: Schema.Literal('ready'),
+    moduleFederation: Schema.Literal('ready'),
+    ssr: Schema.Literal('ready'),
+    translations: Schema.Literal('ready'),
+  }),
+  marker: ${markerSchemaExport},
+  status: Schema.Literal('ready'),
+  versionSkew: Schema.Literal('none'),
 });
 
 export const ${createPayloadSchemaExport} = Schema.Struct({
@@ -2714,6 +3503,11 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
       }),
     )
     .add(
+      HttpApiEndpoint.get('readiness', '/effect/${stem}/readiness', {
+        success: ${readinessSchemaExport},
+      }),
+    )
+    .add(
       HttpApiEndpoint.get('get', '/effect/${stem}/:id', {
         params: {
           id: Schema.String,
@@ -2739,6 +3533,12 @@ export const ${groupName}OperationContexts = {
     method: 'GET',
     source: 'generated-client',
   },
+  readiness: {
+    operationId: '${apiName}:${groupName}:readiness',
+    routePath: '/effect/${stem}/readiness',
+    method: 'GET',
+    source: 'generated-client',
+  },
   get: {
     operationId: '${apiName}:${groupName}:get',
     routePath: '/effect/${stem}/:id',
@@ -2757,6 +3557,7 @@ export const ${groupName}ApiContract = {
   basePath: '${servicePrefix}/effect/${stem}',
   ownerId: '${service.id}',
   servicePrefix: '${servicePrefix}',
+  readinessPath: '${servicePrefix}/effect/${stem}/readiness',
 } as const;
 `;
 }
@@ -2838,6 +3639,24 @@ const ${groupName}Layer = HttpApiBuilder.group(
           }),
         ),
       )
+      .handle('readiness', () =>
+        Effect.succeed({
+          checks: {
+            effectBff: 'ready' as const,
+            moduleFederation: 'ready' as const,
+            ssr: 'ready' as const,
+            translations: 'ready' as const,
+          },
+          marker: ultramodernApiMarker,
+          status: 'ready' as const,
+          versionSkew: 'none' as const,
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.readiness', {
+            attributes: operationAttributes(${groupName}OperationContexts.readiness),
+            kind: 'server',
+          }),
+        ),
+      )
       .handle('get', ({ params }) => {
         const item = ${groupName}Items.find(item => item.id === params.id);
         return (item !== undefined
@@ -2891,6 +3710,7 @@ function createEffectClient(
   const clientOptionsName = `${toPascalCase(stem)}ClientOptions`;
   const createClientName = `create${toPascalCase(stem)}Client`;
   const listName = `list${toPascalCase(stem)}`;
+  const readinessName = `get${toPascalCase(stem)}Readiness`;
   const getName = `get${toPascalCase(singular)}`;
   const createName = `create${toPascalCase(singular)}`;
 
@@ -2936,6 +3756,20 @@ export function ${listName}(
   );
 }
 
+export function ${readinessName}(
+  options: ${clientOptionsName} = {},
+) {
+  return runEffectRequest(
+    ${createClientName}({
+      ...options,
+      operationContext:
+        options.operationContext ?? ${groupName}OperationContexts.readiness,
+    }),
+  ).then(client =>
+    runEffectRequest(client.${groupName}.readiness({})),
+  );
+}
+
 export function ${getName}(
   id: string,
   options: ${clientOptionsName} = {},
@@ -2972,9 +3806,28 @@ export function ${createName}(
 
 function createShellEffectClient(scope: string): string {
   return `export {
+  createCheckout,
+  createCheckoutClient,
+  getCheckout,
+  getCheckoutReadiness,
+  listCheckout,
+  type CheckoutClientOptions,
+} from '${packageName(scope, 'remote-checkout')}/effect/client';
+
+export {
+  createDecide,
+  createDecideClient,
+  getDecide,
+  getDecideReadiness,
+  listDecide,
+  type DecideClientOptions,
+} from '${packageName(scope, 'remote-decide')}/effect/client';
+
+export {
   createExplore,
   createExploreClient,
   getExplore,
+  getExploreReadiness,
   listExplore,
   type ExploreClientOptions,
 } from '${packageName(scope, 'remote-explore')}/effect/client';
@@ -2987,6 +3840,122 @@ function toPascalCase(value: string): string {
     .filter(Boolean)
     .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join('');
+}
+
+function createEffectReadinessContract(app: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}): JsonValue {
+  const stem = effectApiStem(app);
+  return {
+    endpoint: `/effect/${stem}/readiness`,
+    marker: {
+      ui: 'ultramodernUiMarker',
+      api: 'ultramodernApiMarker',
+      skew: 'none',
+    },
+    checks: ['moduleFederation', 'ssr', 'translations', 'effectBff'],
+  };
+}
+
+function createEffectRequestContextContract(): JsonValue {
+  return {
+    propagatedHeaders: [
+      'accept-language',
+      'authorization',
+      'traceparent',
+      'x-correlation-id',
+      'x-tenant-id',
+      'x-ultramodern-env',
+      'x-vertical-version-id',
+    ],
+    source: 'shell-to-vertical-effect-client',
+  };
+}
+
+function createEffectDomainOperations(app: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}): JsonValue {
+  const stem = effectApiStem(app);
+  const group = serviceEffectGroupName(app);
+  const basePath = `/effect/${stem}`;
+
+  if (stem === 'checkout') {
+    return {
+      cartSnapshot: {
+        client: 'listCheckout',
+        method: 'GET',
+        path: basePath,
+        resource: 'cart',
+        owner: app.id,
+      },
+      cartMutation: {
+        client: 'createCheckout',
+        method: 'POST',
+        path: basePath,
+        resource: 'cart-line',
+        owner: app.id,
+      },
+      orderConfirmation: {
+        client: 'getCheckout',
+        method: 'GET',
+        path: `${basePath}/:id`,
+        resource: 'order',
+        owner: app.id,
+      },
+    };
+  }
+
+  if (stem === 'decide') {
+    return {
+      productDetail: {
+        client: 'getDecide',
+        method: 'GET',
+        path: `${basePath}/:id`,
+        resource: 'product-detail',
+        owner: app.id,
+      },
+      configurationDraft: {
+        client: 'createDecide',
+        method: 'POST',
+        path: basePath,
+        resource: 'configuration',
+        owner: app.id,
+      },
+      productList: {
+        client: 'listDecide',
+        method: 'GET',
+        path: basePath,
+        resource: 'products',
+        owner: app.id,
+      },
+    };
+  }
+
+  return {
+    recommendationFeed: {
+      client: `list${toPascalCase(stem)}`,
+      method: 'GET',
+      path: basePath,
+      resource: 'recommendations',
+      owner: app.id,
+    },
+    recommendationDetail: {
+      client: `get${toPascalCase(serviceEffectErrorStem(app))}`,
+      method: 'GET',
+      path: `${basePath}/:id`,
+      resource: 'recommendation',
+      owner: app.id,
+    },
+    recommendationCreate: {
+      client: `create${toPascalCase(serviceEffectErrorStem(app))}`,
+      method: 'POST',
+      path: basePath,
+      resource: group,
+      owner: app.id,
+    },
+  };
 }
 
 function effectApiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
@@ -3012,6 +3981,9 @@ function effectApiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
       serverEntry: `${app.directory}/api/effect/index.ts`,
       basePath: `${app.effectApi.prefix}/effect/${app.effectApi.stem}`,
       consumedBy: app.effectApi.consumedBy,
+      readiness: createEffectReadinessContract(app),
+      requestContext: createEffectRequestContextContract(),
+      domainOperations: createEffectDomainOperations(app),
     },
   };
 }
@@ -3033,14 +4005,11 @@ function createTopology(scope: string): JsonValue {
       moduleFederation: {
         role: 'host',
         name: shellApp.mfName,
-        remotes: remoteApps.map(remote => ({
-          id: remote.id,
-          name: remote.mfName,
-          manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-        })),
+        remotes: createModuleFederationRemoteContracts(shellApp),
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
+      cloudflare: createCloudflareDeployContract(scope, shellApp),
       ownership: shellApp.ownership,
     },
     remotes: remoteApps.map(remote => ({
@@ -3053,6 +4022,12 @@ function createTopology(scope: string): JsonValue {
         name: remote.mfName,
         manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
         exposes: Object.keys(remote.exposes ?? {}),
+        ...(remote.remoteRefs?.length
+          ? {
+              remoteRefs: remote.remoteRefs,
+              remotes: createModuleFederationRemoteContracts(remote),
+            }
+          : {}),
         ssr: true,
         fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
@@ -3060,6 +4035,7 @@ function createTopology(scope: string): JsonValue {
       ...(effectApiTopologyMetadata(remote)
         ? { api: effectApiTopologyMetadata(remote) }
         : {}),
+      cloudflare: createCloudflareDeployContract(scope, remote),
       ownership: remote.ownership,
     })),
     effectServices: [],
@@ -3192,6 +4168,11 @@ function createEffectOperationContract(target: {
         path: `/effect/${stem}`,
         source: 'generated-client',
       },
+      readiness: {
+        method: 'GET',
+        path: `/effect/${stem}/readiness`,
+        source: 'generated-client',
+      },
       get: {
         method: 'GET',
         path: `/effect/${stem}/:id`,
@@ -3250,7 +4231,139 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
   };
 }
 
-function createStylingContract(enableTailwind: boolean): JsonValue {
+function cssLayerName(app: WorkspaceApp): string {
+  if (app.kind === 'shell') {
+    return 'ultramodern-shell-base';
+  }
+  return `ultramodern-remote-${app.domain ?? app.id}`;
+}
+
+function cssRole(app: WorkspaceApp): string {
+  if (app.kind === 'shell') {
+    return 'shell-base-overlay';
+  }
+  return app.kind === 'horizontal-remote'
+    ? 'horizontal-remote-css'
+    : 'vertical-remote-css';
+}
+
+function cssClassPrefix(app: WorkspaceApp): string {
+  if (app.kind === 'shell') {
+    return 'shell-';
+  }
+  return `${app.domain ?? app.id.replace(/^remote-/, '')}-`;
+}
+
+function createCssDedupeContract(scope: string): JsonValue {
+  return {
+    strategy: 'shared-token-package-plus-css-content-hash',
+    sharedPackage: packageName(scope, 'shared-design-tokens'),
+    sharedLayers: ['ultramodern-shared-tokens'],
+    runtimeLoad: 'once-per-content-hash',
+    duplicateBaseStylesAllowed: false,
+  };
+}
+
+function createCssSsrContract(app: WorkspaceApp): JsonValue {
+  return {
+    cloudflare: true,
+    firstPaintRequired: true,
+    linkEmission: 'modern-ssr-css-assets',
+    remoteCss:
+      app.kind === 'shell'
+        ? 'host-preloads-shell-and-shared-css'
+        : 'remote-manifest-owned-css',
+  };
+}
+
+function createAppCssFederationContract(
+  scope: string,
+  app: WorkspaceApp,
+): JsonValue {
+  const ownedLayers =
+    app.kind === 'shell'
+      ? ['ultramodern-shell-base', 'ultramodern-shell-overlay']
+      : [cssLayerName(app)];
+
+  return {
+    owner: {
+      id: app.id,
+      package: packageName(scope, app.packageSuffix),
+      team: app.ownership.team,
+    },
+    role: cssRole(app),
+    rootSelector: `[data-app-id="${app.id}"]`,
+    classPrefix: cssClassPrefix(app),
+    layers: {
+      shared: ['ultramodern-shared-tokens'],
+      owned: ownedLayers,
+      imports:
+        app.kind === 'shell'
+          ? ['ultramodern-shared-tokens']
+          : ['ultramodern-shared-tokens'],
+    },
+    entrypoints: {
+      layoutImport: 'src/routes/layout.tsx',
+      css: ['src/routes/index.css'],
+      ...(app.kind !== 'shell' ? { remoteEntry: 'src/remote-entry.tsx' } : {}),
+    },
+    assets: {
+      shared: [`${packageName(scope, 'shared-design-tokens')}/tokens.css`],
+      owned: ['src/routes/index.css'],
+      emittedBy: 'modern-rspack-css-extraction',
+      contentHash: true,
+    },
+    dedupe: createCssDedupeContract(scope),
+    ssr: createCssSsrContract(app),
+  };
+}
+
+function createCssFederationContract(scope: string): JsonValue {
+  return {
+    schemaVersion: 1,
+    sharedDesignTokens: {
+      owner: {
+        id: 'shared-design-tokens',
+        package: packageName(scope, 'shared-design-tokens'),
+        team: 'super-app-platform',
+      },
+      role: 'shared-design-tokens',
+      rootSelector: ':root',
+      classPrefix: '--um-',
+      layers: {
+        owned: ['ultramodern-shared-tokens'],
+      },
+      entrypoints: {
+        css: ['packages/shared-design-tokens/src/tokens.css'],
+        typescript: ['packages/shared-design-tokens/src/index.ts'],
+      },
+      assets: {
+        exports: ['./tokens.css'],
+        css: ['packages/shared-design-tokens/src/tokens.css'],
+      },
+      dedupe: createCssDedupeContract(scope),
+      ssr: {
+        cloudflare: true,
+        firstPaintRequired: true,
+        importedByApps: true,
+      },
+    },
+    ownershipRules: {
+      shell: ['base', 'overlay'],
+      remotes: ['vertical-css'],
+      forbiddenRemoteLayers: [
+        'ultramodern-shell-base',
+        'ultramodern-shell-overlay',
+      ],
+    },
+  };
+}
+
+function createStylingContract(
+  scope: string,
+  app: WorkspaceApp,
+  enableTailwind: boolean,
+): JsonValue {
   return {
     tailwind: enableTailwind,
     ...(enableTailwind
@@ -3259,6 +4372,7 @@ function createStylingContract(enableTailwind: boolean): JsonValue {
           contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
         }
       : {}),
+    federation: createAppCssFederationContract(scope, app),
   };
 }
 
@@ -3268,8 +4382,18 @@ function createAppGeneratedContract(
   apps: WorkspaceApp[],
   enableTailwind: boolean,
 ): JsonValue {
-  const remoteAppsForShell = apps.filter(
-    candidate => candidate.kind !== 'shell' && candidate.mfName,
+  const appWithResolvedRefs =
+    app.kind === 'shell'
+      ? {
+          ...app,
+          remoteRefs: apps
+            .filter(candidate => candidate.kind !== 'shell')
+            .map(candidate => candidate.id),
+        }
+      : app;
+  const consumedRemotes = createModuleFederationRemoteContracts(
+    appWithResolvedRefs,
+    apps,
   );
 
   return {
@@ -3278,10 +4402,12 @@ function createAppGeneratedContract(
     path: app.directory,
     kind: app.kind,
     config: createAppConfigContract(app),
-    styling: createStylingContract(enableTailwind),
+    styling: createStylingContract(scope, app, enableTailwind),
     deploy: {
       target: 'cloudflare',
+      cloudflare: createCloudflareDeployContract(scope, app),
       worker: {
+        name: createCloudflareWorkerName(scope, app),
         ssr: true,
       },
       output: {
@@ -3295,23 +4421,37 @@ function createAppGeneratedContract(
     },
     i18n: {
       plugin: '@modern-js/plugin-i18n',
-      backend: false,
+      backend: {
+        enabled: true,
+        loadPath: '/locales/{{lng}}/{{ns}}.json',
+      },
       reactI18next: false,
       languages: ['en', 'cs'],
       fallbackLanguage: 'en',
+      namespace: appI18nNamespace(app),
+      namespaces: [appI18nNamespace(app), 'translation'],
       publicDir: './locales',
+      localisedUrls: createLocalisedUrlsMap(app),
+      resourceOwnership: {
+        ownerAppId: app.id,
+        source: 'route-owned',
+        staticJson: `./locales/{lng}/${appI18nNamespace(app)}.json`,
+      },
+    },
+    routes: {
+      source: 'route-owned',
+      metadataExport: './src/routes/ultramodern-route-metadata',
+      localisedUrls: createLocalisedUrlsMap(app),
+      owned: createRouteOwnedI18nPaths(app),
+      generatedRouteMap: true,
+      manualOverrides: [],
     },
     moduleFederation: {
       name: app.mfName,
-      ...(app.kind === 'shell'
+      ...(appWithResolvedRefs.remoteRefs?.length
         ? {
-            remotes: remoteAppsForShell.map(remote => ({
-              id: remote.id,
-              alias: remoteDependencyAlias(remote),
-              name: remote.mfName,
-              manifestEnv: createRemoteManifestEnv(remote),
-              manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-            })),
+            remoteRefs: appWithResolvedRefs.remoteRefs,
+            remotes: consumedRemotes,
           }
         : {}),
       exposes: Object.keys(app.exposes ?? {}),
@@ -3373,6 +4513,9 @@ function createAppGeneratedContract(
             workerEntry: 'worker/__modern_bff_effect.js',
             contract: './shared/effect/api',
             client: './effect/client',
+            readiness: createEffectReadinessContract(app),
+            requestContext: createEffectRequestContextContract(),
+            domainOperations: createEffectDomainOperations(app),
             ...createEffectOperationContract(app),
           },
         }
@@ -3404,6 +4547,7 @@ function createGeneratedContract(
       zephyrAgent: ZEPHYR_AGENT_VERSION,
       wrangler: WRANGLER_VERSION,
     },
+    cssFederation: createCssFederationContract(scope),
     apps: apps.map(app =>
       createAppGeneratedContract(scope, app, apps, enableTailwind),
     ),
@@ -3563,7 +4707,19 @@ for (const appDir of appDirs) {
   }
 
   const config = fs.readFileSync(configPath, 'utf-8');
-  if (!config.includes('exposes:') || config.includes('dts: false')) {
+  if (config.includes('dts: false')) {
+    throw new Error(
+      \`Module Federation DTS must stay enabled: \${path.relative(root, configPath)}\`,
+    );
+  }
+
+  if (!config.includes("compilerInstance: '--package typescript -- tsc'")) {
+    throw new Error(
+      \`Module Federation DTS must use the workspace TypeScript compiler: \${path.relative(root, configPath)}\`,
+    );
+  }
+
+  if (!config.includes('exposes:')) {
     continue;
   }
 
@@ -3598,10 +4754,20 @@ function createWorkspaceValidationScript(
     mfName: remote.mfName,
     apiPrefix: remote.effectApi.prefix,
     packageName: packageName(scope, remote.packageSuffix),
-    widgetPath: `${remote.directory}/src/components/${remoteWidgetFile(
-      remote,
-    )}.tsx`,
+    exposes: Object.keys(remote.exposes ?? {}),
+    componentPaths: Object.keys(remote.exposes ?? {})
+      .map(expose => remoteComponentOutputPath(remote, expose))
+      .filter((componentPath): componentPath is string =>
+        Boolean(componentPath),
+      ),
+    namespace: appI18nNamespace(remote),
+    routePagePaths: createRouteOwnedI18nPaths(remote)
+      .filter(route => route.canonicalPath !== '/')
+      .map(route => createRoutePageFilePath(remote, route.canonicalPath)),
+    localisedUrls: createLocalisedUrlsMap(remote),
+    remoteRefs: remote.remoteRefs ?? [],
   }));
+  const shellNamespace = appI18nNamespace(shellApp);
   const oldRemotePaths = [
     'apps/remotes/remote-commerce',
     'apps/remotes/remote-identity',
@@ -3617,6 +4783,7 @@ const packageScope = '${scope}';
 const expectedPnpmVersion = '${PNPM_VERSION}';
 const tailwindEnabled = ${JSON.stringify(enableTailwind)};
 const fullStackVerticals = ${JSON.stringify(verticals, null, 2)};
+const shellNamespace = ${JSON.stringify(shellNamespace)};
 const oldRemotePaths = ${JSON.stringify(oldRemotePaths, null, 2)};
 
 const readText = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf-8');
@@ -3632,6 +4799,7 @@ const assertExists = relativePath => {
 const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), \`Unexpected \${relativePath}\`);
 };
+const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 
 const activePnpmVersion = execFileSync('pnpm', ['--version'], {
   cwd: root,
@@ -3665,19 +4833,25 @@ const requiredPaths = [
   '.modernjs/ultramodern-generated-contract.json',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/proof-cloudflare-version.mjs',
   'scripts/setup-agent-reference-repos.mjs',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
+  'apps/shell-super-app/src/effect/recommendations-client.ts',
   'apps/shell-super-app/locales/en/translation.json',
+  \`apps/shell-super-app/locales/en/\${shellNamespace}.json\`,
   'apps/shell-super-app/locales/cs/translation.json',
+  \`apps/shell-super-app/locales/cs/\${shellNamespace}.json\`,
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/layout.tsx',
+  'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
+  'packages/shared-design-tokens/src/tokens.css',
   'packages/shared-effect-api/src/index.ts',
 ];
 
@@ -3692,12 +4866,16 @@ for (const vertical of fullStackVerticals) {
     \`\${vertical.path}/src/modern-app-env.d.ts\`,
     \`\${vertical.path}/src/modern.runtime.ts\`,
     \`\${vertical.path}/src/remote-entry.tsx\`,
-    vertical.widgetPath,
+    ...vertical.componentPaths,
     \`\${vertical.path}/locales/en/translation.json\`,
+    \`\${vertical.path}/locales/en/\${vertical.namespace}.json\`,
     \`\${vertical.path}/locales/cs/translation.json\`,
+    \`\${vertical.path}/locales/cs/\${vertical.namespace}.json\`,
     \`\${vertical.path}/src/routes/index.css\`,
     \`\${vertical.path}/src/routes/layout.tsx\`,
+    \`\${vertical.path}/src/routes/ultramodern-route-metadata.ts\`,
     \`\${vertical.path}/src/routes/[lang]/page.tsx\`,
+    ...vertical.routePagePaths,
   );
 }
 
@@ -3741,12 +4919,23 @@ assert(
 );
 assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose ultramodern:check');
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
+assert(rootPackage.scripts?.['cloudflare:deploy']?.includes('run cloudflare:deploy'), 'Root must expose cloudflare:deploy');
+assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(
   JSON.stringify(generatedContract.apps?.map(app => app.id)) === JSON.stringify(expectedAppIds),
   'Generated contract must contain shell plus the Tractor full-stack remotes',
 );
+assert(generatedContract.cssFederation?.sharedDesignTokens?.owner?.id === 'shared-design-tokens', 'CSS federation must declare shared design token ownership');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.role === 'shared-design-tokens', 'CSS federation must mark shared-design-tokens as token owner');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.rootSelector === ':root', 'Shared design tokens must declare their root selector');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.classPrefix === '--um-', 'Shared design tokens must declare their CSS custom property prefix');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.layers?.owned?.includes('ultramodern-shared-tokens'), 'Shared design tokens must own the shared token CSS layer');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.entrypoints?.css?.includes('packages/shared-design-tokens/src/tokens.css'), 'Shared design tokens must declare their CSS entrypoint');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.assets?.exports?.includes('./tokens.css'), 'Shared design tokens must export their CSS asset');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.dedupe?.duplicateBaseStylesAllowed === false, 'Shared design token CSS must be deduplicated');
+assert(generatedContract.cssFederation?.sharedDesignTokens?.ssr?.firstPaintRequired === true, 'Shared design token CSS must be required for SSR first paint');
 
 const shellPackage = readJson('apps/shell-super-app/package.json');
 const expectedZephyrDependencies = Object.fromEntries(
@@ -3760,6 +4949,20 @@ assert(
     JSON.stringify(expectedZephyrDependencies),
   'Shell Zephyr dependencies must reference every Tractor remote package',
 );
+const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
+assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
+assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
+assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
+assert(shellContract?.styling?.federation?.owner?.id === 'shell-super-app', 'Shell CSS federation owner is missing');
+assert(shellContract?.styling?.federation?.role === 'shell-base-overlay', 'Shell must own base and overlay CSS');
+assert(shellContract?.styling?.federation?.rootSelector === '[data-app-id="shell-super-app"]', 'Shell CSS root selector is incorrect');
+assert(shellContract?.styling?.federation?.classPrefix === 'shell-', 'Shell CSS class prefix is incorrect');
+assert(shellContract?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), 'Shell must own the base CSS layer');
+assert(shellContract?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-overlay'), 'Shell must own the overlay CSS layer');
+assert(shellContract?.styling?.federation?.entrypoints?.css?.includes('src/routes/index.css'), 'Shell CSS entrypoint is missing');
+assert(shellContract?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), 'Shell must import the shared design token CSS asset');
+assert(shellContract?.styling?.federation?.dedupe?.duplicateBaseStylesAllowed === false, 'Shell CSS contract must forbid duplicated base styles');
+assert(shellContract?.styling?.federation?.ssr?.firstPaintRequired === true, 'Shell CSS must be required for SSR first paint');
 assert(
   topology.shell?.remoteRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
   'Topology shell remoteRefs must match Tractor remotes',
@@ -3770,27 +4973,76 @@ assert((topology.effectServices ?? []).length === 0, 'Default APIs must be verti
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
+  assert(packageJson.scripts?.['cloudflare:deploy'] === 'MODERNJS_DEPLOY=cloudflare modern deploy', \`\${vertical.id} must expose cloudflare:deploy\`);
+  assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
   assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
   assert(packageJson.exports?.['./effect/client'] === \`./src/effect/\${vertical.stem}-client.ts\`, \`\${vertical.id} must export its Effect client\`);
   assert(packageJson.exports?.['./shared/effect/api'] === './shared/effect/api.ts', \`\${vertical.id} must export its Effect API contract\`);
-  assert(packageJson['zephyr:dependencies'] && Object.keys(packageJson['zephyr:dependencies']).length === 0, \`\${vertical.id} must not declare downstream Zephyr deps\`);
+  const expectedVerticalZephyrDependencies = Object.fromEntries(
+    fullStackVerticals
+      .filter(candidate => vertical.remoteRefs.includes(candidate.id))
+      .map(candidate => [
+        candidate.domain,
+        \`\${candidate.packageName}@workspace:*\`,
+      ]),
+  );
+  assert(
+    JSON.stringify(packageJson['zephyr:dependencies']) ===
+      JSON.stringify(expectedVerticalZephyrDependencies),
+    \`\${vertical.id} Zephyr dependencies must match declared MF remote refs\`,
+  );
 
   const contractEntry = generatedContract.apps?.find(app => app.id === vertical.id);
   assert(contractEntry?.path === vertical.path, \`\${vertical.id} generated contract path is incorrect\`);
   assert(contractEntry?.kind === 'vertical', \`\${vertical.id} generated contract kind is incorrect\`);
+  assert(contractEntry?.deploy?.cloudflare?.workerName === expectedWorkerName(vertical.id), \`\${vertical.id} Cloudflare workerName is incorrect\`);
+  assert(contractEntry?.deploy?.cloudflare?.publicUrlEnv === \`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, \`\${vertical.id} Cloudflare public URL env is incorrect\`);
+  assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} MF name is incorrect\`);
-  assert(contractEntry?.moduleFederation?.exposes?.includes('./Widget'), \`\${vertical.id} must expose Widget\`);
-  assert(contractEntry?.moduleFederation?.exposes?.includes('./Route'), \`\${vertical.id} must expose Route\`);
+  assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} MF exposes are incorrect\`);
+  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === '--package typescript -- tsc', \`\${vertical.id} must keep mandatory DTS compiler\`);
+  assert(JSON.stringify(contractEntry?.moduleFederation?.remoteRefs ?? []) === JSON.stringify(vertical.remoteRefs), \`\${vertical.id} MF remoteRefs are incorrect\`);
+  assert(
+    JSON.stringify((contractEntry?.moduleFederation?.remotes ?? []).map(remote => remote.id)) ===
+      JSON.stringify(vertical.remoteRefs),
+    \`\${vertical.id} MF consumed remotes are incorrect\`,
+  );
   assert(contractEntry?.effect?.prefix === vertical.apiPrefix, \`\${vertical.id} Effect API prefix is incorrect\`);
   assert(contractEntry?.effect?.group === vertical.group, \`\${vertical.id} Effect group is incorrect\`);
+  assert(contractEntry?.effect?.readiness?.endpoint === \`/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} readiness endpoint is incorrect\`);
+  assert(contractEntry?.effect?.operations?.readiness?.path === \`/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} readiness operation is missing\`);
+  assert(contractEntry?.effect?.requestContext?.propagatedHeaders?.includes('traceparent'), \`\${vertical.id} trace context propagation is missing\`);
+  assert(Object.keys(contractEntry?.effect?.domainOperations ?? {}).length >= 3, \`\${vertical.id} domain operations are missing\`);
   assert(contractEntry?.i18n?.languages?.includes('en') && contractEntry?.i18n?.languages?.includes('cs'), \`\${vertical.id} must declare i18n languages\`);
+  assert(contractEntry?.i18n?.namespace === vertical.namespace, \`\${vertical.id} i18n namespace is incorrect\`);
+  assert(
+    JSON.stringify(contractEntry?.i18n?.localisedUrls) === JSON.stringify(vertical.localisedUrls),
+    \`\${vertical.id} localisedUrls must come from route metadata\`,
+  );
+  assert(contractEntry?.routes?.source === 'route-owned', \`\${vertical.id} routes must be route-owned\`);
+  assert(contractEntry?.routes?.metadataExport === './src/routes/ultramodern-route-metadata', \`\${vertical.id} route metadata export is incorrect\`);
+  assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
+  assert(contractEntry?.styling?.federation?.role === 'vertical-remote-css', \`\${vertical.id} must own only vertical CSS\`);
+  assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);
+  assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.domain}-\`, \`\${vertical.id} CSS class prefix is incorrect\`);
+  assert(contractEntry?.styling?.federation?.layers?.owned?.includes(\`ultramodern-remote-\${vertical.domain}\`), \`\${vertical.id} remote CSS layer is missing\`);
+  assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), \`\${vertical.id} must not own shell base CSS\`);
+  assert(contractEntry?.styling?.federation?.entrypoints?.remoteEntry === 'src/remote-entry.tsx', \`\${vertical.id} remote CSS contract must include remote entry\`);
+  assert(contractEntry?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), \`\${vertical.id} must import shared design token CSS\`);
+  assert(contractEntry?.styling?.federation?.dedupe?.runtimeLoad === 'once-per-content-hash', \`\${vertical.id} CSS dedupe strategy is incorrect\`);
+  assert(contractEntry?.styling?.federation?.ssr?.remoteCss === 'remote-manifest-owned-css', \`\${vertical.id} SSR CSS loading contract is incorrect\`);
 
   const topologyEntry = topology.remotes?.find(remote => remote.id === vertical.id);
   assert(topologyEntry?.kind === 'vertical', \`\${vertical.id} topology kind is incorrect\`);
   assert(topologyEntry?.package === vertical.packageName, \`\${vertical.id} topology package is incorrect\`);
+  assert(topologyEntry?.cloudflare?.workerName === expectedWorkerName(vertical.id), \`\${vertical.id} topology Cloudflare workerName is incorrect\`);
   assert(topologyEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} topology MF name is incorrect\`);
+  assert(JSON.stringify(topologyEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} topology exposes are incorrect\`);
+  assert(JSON.stringify(topologyEntry?.moduleFederation?.remoteRefs ?? []) === JSON.stringify(vertical.remoteRefs), \`\${vertical.id} topology remoteRefs are incorrect\`);
   assert(topologyEntry?.api?.effect?.bff?.prefix === vertical.apiPrefix, \`\${vertical.id} topology API prefix is incorrect\`);
   assert(topologyEntry?.api?.effect?.serverEntry === \`\${vertical.path}/api/effect/index.ts\`, \`\${vertical.id} topology server entry is incorrect\`);
+  assert(topologyEntry?.api?.effect?.readiness?.endpoint === \`/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} topology readiness endpoint is incorrect\`);
+  assert(Object.keys(topologyEntry?.api?.effect?.domainOperations ?? {}).length >= 3, \`\${vertical.id} topology domain operations are missing\`);
 
   assert(ownership.owners?.some(owner => owner.id === vertical.id && owner.path === vertical.path), \`\${vertical.id} ownership entry is missing\`);
   assert(overlay.ports?.[vertical.id], \`\${vertical.id} development port is missing\`);
@@ -3799,6 +5051,279 @@ for (const vertical of fullStackVerticals) {
 }
 
 console.log('UltraModern workspace scaffold validated');
+`;
+}
+
+function createCloudflareVersionProofScript(): string {
+  return `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+
+const contractPath = '.modernjs/ultramodern-generated-contract.json';
+const defaultOut =
+  '.codex/reports/cloudflare-version-proof/public-url-proof.json';
+
+function readJson(relativePath) {
+  return JSON.parse(fs.readFileSync(path.resolve(relativePath), 'utf8'));
+}
+
+function parseArgs(argv) {
+  const parsed = {
+    appId: undefined,
+    out: defaultOut,
+    requirePublicUrls: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--app') {
+      parsed.appId = argv[index + 1];
+      index += 1;
+    } else if (arg === '--out') {
+      parsed.out = argv[index + 1];
+      index += 1;
+    } else if (arg === '--require-public-urls') {
+      parsed.requirePublicUrls = true;
+    } else if (arg === '--help' || arg === '-h') {
+      parsed.help = true;
+    } else {
+      throw new Error(\`Unknown argument: \${arg}\`);
+    }
+  }
+
+  return parsed;
+}
+
+function printHelp() {
+  process.stdout.write(\`Usage:
+  node scripts/proof-cloudflare-version.mjs [--app remote-explore] [--out evidence.json] [--require-public-urls]
+
+Set each app's public URL using the contract env key, for example:
+  ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev
+\`);
+}
+
+function joinUrl(baseUrl, routePath) {
+  return new URL(routePath, baseUrl.endsWith('/') ? baseUrl : \`\${baseUrl}/\`);
+}
+
+async function fetchText(url) {
+  const response = await fetch(url);
+  return {
+    ok: response.ok,
+    status: response.status,
+    contentType: response.headers.get('content-type'),
+    body: await response.text(),
+  };
+}
+
+function parseMaybeJson(body) {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
+function markerFromJson(value) {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  if (value.marker && typeof value.marker.build === 'string') {
+    return value.marker.build;
+  }
+  if (typeof value.build === 'string') {
+    return value.build;
+  }
+  for (const nested of Object.values(value)) {
+    if (Array.isArray(nested)) {
+      for (const item of nested) {
+        const marker = markerFromJson(item);
+        if (marker) {
+          return marker;
+        }
+      }
+    } else {
+      const marker = markerFromJson(nested);
+      if (marker) {
+        return marker;
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractUiMarker(html) {
+  return html.match(/data-build-marker=["']([^"']+)["']/u)?.[1];
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+async function validateApp(app, publicUrl) {
+  const cloudflare = app.deploy?.cloudflare;
+  const routes = cloudflare?.routes ?? {};
+  const evidence = {
+    appId: app.id,
+    publicUrl,
+    workerName: cloudflare?.workerName,
+    publicUrlEnv: cloudflare?.publicUrlEnv,
+    assertions: [],
+  };
+
+  const ssrRoute = routes.ssr ?? '/en';
+  const ssr = await fetchText(joinUrl(publicUrl, ssrRoute));
+  evidence.assertions.push({
+    type: 'ssr',
+    route: ssrRoute,
+    status: ssr.ok ? 'pass' : 'fail',
+    statusCode: ssr.status,
+  });
+  assert(ssr.ok, \`\${app.id} SSR route returned HTTP \${ssr.status}\`);
+
+  const uiMarker = extractUiMarker(ssr.body);
+  evidence.assertions.push({
+    type: 'ui-marker',
+    expected: app.marker?.build,
+    actual: uiMarker,
+    status: uiMarker === app.marker?.build ? 'pass' : 'fail',
+  });
+  assert(uiMarker === app.marker?.build, \`\${app.id} UI marker mismatch\`);
+
+  const cssRootSelector = app.styling?.federation?.rootSelector;
+  const expectedAppId = cssRootSelector?.match(/data-app-id="([^"]+)"/u)?.[1];
+  evidence.assertions.push({
+    type: 'css-root-marker',
+    expected: cssRootSelector,
+    status:
+      expectedAppId && ssr.body.includes(\`data-app-id="\${expectedAppId}"\`)
+        ? 'pass'
+        : 'fail',
+  });
+  assert(
+    expectedAppId && ssr.body.includes(\`data-app-id="\${expectedAppId}"\`),
+    \`\${app.id} SSR response is missing CSS root marker \${cssRootSelector}\`,
+  );
+
+  const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
+  const manifest = await fetchText(joinUrl(publicUrl, manifestRoute));
+  evidence.assertions.push({
+    type: 'mf-manifest',
+    route: manifestRoute,
+    status: manifest.ok ? 'pass' : 'fail',
+    statusCode: manifest.status,
+  });
+  assert(
+    manifest.ok,
+    \`\${app.id} MF manifest returned HTTP \${manifest.status}\`,
+  );
+
+  const localeRoute = routes.locale ?? \`/locales/en/\${app.i18n?.namespace}.json\`;
+  const locale = await fetchText(joinUrl(publicUrl, localeRoute));
+  const localeJson = parseMaybeJson(locale.body);
+  evidence.assertions.push({
+    type: 'i18n-marker',
+    namespace: app.i18n?.namespace,
+    route: localeRoute,
+    status:
+      locale.ok &&
+      localeJson &&
+      Object.hasOwn(localeJson, app.i18n?.namespace)
+        ? 'pass'
+        : 'fail',
+    statusCode: locale.status,
+  });
+  assert(locale.ok, \`\${app.id} locale JSON returned HTTP \${locale.status}\`);
+  assert(
+    localeJson && Object.hasOwn(localeJson, app.i18n?.namespace),
+    \`\${app.id} locale JSON is missing namespace \${app.i18n?.namespace}\`,
+  );
+
+  if (routes.effectReadiness) {
+    const readiness = await fetchText(joinUrl(publicUrl, routes.effectReadiness));
+    const readinessJson = parseMaybeJson(readiness.body);
+    const apiMarker = markerFromJson(readinessJson);
+    evidence.assertions.push({
+      type: 'api-marker',
+      route: routes.effectReadiness,
+      expected: app.marker?.build,
+      actual: apiMarker,
+      status: readiness.ok && apiMarker === app.marker?.build ? 'pass' : 'fail',
+      statusCode: readiness.status,
+    });
+    assert(
+      readiness.ok,
+      \`\${app.id} Effect readiness returned HTTP \${readiness.status}\`,
+    );
+    assert(apiMarker === app.marker?.build, \`\${app.id} API marker mismatch\`);
+  }
+
+  return evidence;
+}
+
+async function main(argv = process.argv.slice(2)) {
+  const args = parseArgs(argv);
+  if (args.help) {
+    printHelp();
+    return 0;
+  }
+
+  const contract = readJson(contractPath);
+  const apps = args.appId
+    ? contract.apps.filter(app => app.id === args.appId)
+    : contract.apps;
+  assert(apps.length > 0, \`No generated app matched \${args.appId}\`);
+
+  const results = [];
+  const skipped = [];
+  for (const app of apps) {
+    const publicUrlEnv = app.deploy?.cloudflare?.publicUrlEnv;
+    const publicUrl = publicUrlEnv && process.env[publicUrlEnv];
+    if (!publicUrl) {
+      const skippedEntry = {
+        appId: app.id,
+        status: args.requirePublicUrls ? 'fail' : 'skipped',
+        publicUrlEnv,
+        reason: 'public URL environment variable is not set',
+      };
+      skipped.push(skippedEntry);
+      if (args.requirePublicUrls) {
+        throw new Error(\`\${app.id} requires \${publicUrlEnv}\`);
+      }
+      continue;
+    }
+    results.push(await validateApp(app, publicUrl));
+  }
+
+  const report = {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    status: results.length > 0 ? 'pass' : 'skipped',
+    contractPath,
+    results,
+    skipped,
+  };
+
+  fs.mkdirSync(path.dirname(args.out), { recursive: true });
+  fs.writeFileSync(args.out, \`\${JSON.stringify(report, null, 2)}\\n\`);
+  process.stdout.write(
+    \`[cloudflare-version-proof] \${report.status}: \${args.out}\\n\`,
+  );
+  return 0;
+}
+
+main().then(
+  exitCode => {
+    process.exitCode = exitCode;
+  },
+  error => {
+    process.stderr.write(\`[cloudflare-version-proof] \${error.message}\\n\`);
+    process.exitCode = 1;
+  },
+);
 `;
 }
 
@@ -3816,6 +5341,11 @@ function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/validate-ultramodern-workspace.mjs',
     createWorkspaceValidationScript(scope, enableTailwind),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/proof-cloudflare-version.mjs',
+    createCloudflareVersionProofScript(),
   );
 }
 
@@ -3839,7 +5369,7 @@ function writeApp(
   writeFile(
     targetDir,
     `${app.directory}/src/modern-app-env.d.ts`,
-    "/// <reference types='@modern-js/app-tools/types' />\n\ndeclare const ULTRAMODERN_SITE_URL: string;\n",
+    createAppEnvDts(app),
   );
   writeFile(
     targetDir,
@@ -3848,8 +5378,13 @@ function writeApp(
   );
   writeFile(
     targetDir,
+    `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
+    createRouteMetadataModule(app),
+  );
+  writeFile(
+    targetDir,
     `${app.directory}/modern.config.ts`,
-    createAppModernConfig(app),
+    createAppModernConfig(scope, app),
   );
   writeFile(
     targetDir,
@@ -3863,13 +5398,23 @@ function writeApp(
   );
   writeJson(
     targetDir,
+    `${app.directory}/locales/en/${appI18nNamespace(app)}.json`,
+    createAppLocaleMessages(app, 'en'),
+  );
+  writeJson(
+    targetDir,
     `${app.directory}/locales/cs/translation.json`,
+    createAppLocaleMessages(app, 'cs'),
+  );
+  writeJson(
+    targetDir,
+    `${app.directory}/locales/cs/${appI18nNamespace(app)}.json`,
     createAppLocaleMessages(app, 'cs'),
   );
   writeFile(
     targetDir,
     `${app.directory}/src/routes/index.css`,
-    createAppStyles(enableTailwind),
+    createAppStyles(enableTailwind, scope, app),
   );
   if (enableTailwind) {
     writeFile(
@@ -3900,6 +5445,16 @@ function writeApp(
     `${app.directory}/src/routes/[lang]/page.tsx`,
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
+  for (const route of createRouteOwnedI18nPaths(app)) {
+    if (route.canonicalPath === '/') {
+      continue;
+    }
+    writeFile(
+      targetDir,
+      createRoutePageFilePath(app, route.canonicalPath),
+      createRouteAliasPage(route.canonicalPath),
+    );
+  }
 
   if (app.kind === 'shell') {
     writeFile(
@@ -3933,11 +5488,17 @@ function writeApp(
       `${app.directory}/src/remote-entry.tsx`,
       createRemoteEntry(app),
     );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/components/${remoteWidgetFile(app)}.tsx`,
-      createRemoteWidget(app),
-    );
+    for (const expose of Object.keys(app.exposes ?? {})) {
+      const outputPath = remoteComponentOutputPath(app, expose);
+
+      if (outputPath) {
+        writeFile(
+          targetDir,
+          outputPath,
+          createRemoteExposeComponent(app, expose),
+        );
+      }
+    }
   }
 
   if (app.kind === 'horizontal-design-system') {
@@ -3997,7 +5558,7 @@ function writeEffectService(
   writeFile(
     targetDir,
     `${service.directory}/src/routes/index.css`,
-    createAppStyles(enableTailwind),
+    createServiceStyles(enableTailwind, scope, service),
   );
   if (enableTailwind) {
     writeFile(
@@ -4049,6 +5610,13 @@ function writeGenericSharedPackage(
     `export const packageId = '${sharedPackage.id}';
 `,
   );
+  if (sharedPackage.id === 'shared-design-tokens') {
+    writeFile(
+      targetDir,
+      `${sharedPackage.directory}/src/tokens.css`,
+      createSharedDesignTokensCss(),
+    );
+  }
 }
 
 function writeSharedPackages(
@@ -4094,6 +5662,11 @@ function writeSharedPackages(
   },
 } as const;
 `,
+  );
+  writeFile(
+    targetDir,
+    'packages/shared-design-tokens/src/tokens.css',
+    createSharedDesignTokensCss(),
   );
   writeFile(
     targetDir,
@@ -4288,6 +5861,12 @@ function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
       name: remote.mfName,
       manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
       exposes: Object.keys(remote.exposes ?? {}),
+      ...(remote.remoteRefs?.length
+        ? {
+            remoteRefs: remote.remoteRefs,
+            remotes: createModuleFederationRemoteContracts(remote),
+          }
+        : {}),
       ssr: true,
       fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
@@ -4349,6 +5928,25 @@ function remotesFromTopology(
       port: typeof ports[remote.id] === 'number' ? ports[remote.id] : 0,
       mfName:
         remote.moduleFederation?.name ?? `remote${toPascalCase(remote.id)}`,
+      ...(Array.isArray(remote.moduleFederation?.exposes)
+        ? {
+            exposes: Object.fromEntries(
+              remote.moduleFederation.exposes.map((expose: string) => [
+                expose,
+                '',
+              ]),
+            ),
+          }
+        : {}),
+      ...(Array.isArray(remote.moduleFederation?.remoteRefs)
+        ? { remoteRefs: remote.moduleFederation.remoteRefs }
+        : Array.isArray(remote.moduleFederation?.remotes)
+          ? {
+              remoteRefs: remote.moduleFederation.remotes
+                .map((entry: any) => entry.id)
+                .filter((id: unknown): id is string => typeof id === 'string'),
+            }
+          : {}),
       ...(effectApi ? { effectApi } : {}),
       ownership: remote.ownership ?? createNeutralOwnership(remote.id),
     };
@@ -4443,7 +6041,15 @@ export function addUltramodernMicroVertical(
       path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
       createGeneratedContract(
         scope,
-        [shellApp, ...remotesFromTopology(topology, overlay.ports)],
+        [
+          {
+            ...shellApp,
+            remoteRefs: remotesFromTopology(topology, overlay.ports).map(
+              remote => remote.id,
+            ),
+          },
+          ...remotesFromTopology(topology, overlay.ports),
+        ],
         enableTailwind,
       ),
     );

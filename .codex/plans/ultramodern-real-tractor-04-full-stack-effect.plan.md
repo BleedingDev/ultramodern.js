@@ -4,25 +4,25 @@ overview: Make each real Tractor vertical a full-stack package where UI, Effect 
 todos:
   - id: define-effect-ownership-per-vertical
     content: "Define which Effect APIs belong to Explore, Decide, and Checkout, including recommendations/store data, product/detail data, cart/order state, and health/readiness markers."
-    status: pending
+    status: completed
   - id: define-edge-and-node-runtimes
     content: "Define how each vertical's Effect BFF builds for Cloudflare edge today and keeps a Node/Zerops path later without forking package ownership."
-    status: pending
+    status: completed
   - id: define-request-context-propagation
     content: "Define propagation for locale, tenant, auth/session placeholder, traceparent, correlation id, environment selector, and vertical version id from shell to remote UI and BFF calls."
-    status: pending
+    status: completed
   - id: define-api-client-contracts
     content: "Define generated typed clients for cross-vertical and shell-to-vertical calls, including failure types, retry policy, and explicit boundary crossing metadata."
-    status: pending
+    status: completed
   - id: define-cart-state-model
     content: "Design Checkout-owned cart state with local SPA resilience, optional server-backed Effect persistence, clear cart, checkout, thanks/order confirmation, and version marker responses."
-    status: pending
+    status: completed
   - id: define-health-readiness
     content: "Define per-vertical health/readiness endpoints that prove the current package can serve MF assets, SSR route, translations, and Effect BFF with matching build/version identity."
-    status: pending
+    status: completed
   - id: define-effect-validation
     content: "Define local and deployed validation for each vertical's Effect endpoints, including skew detection between UI marker and BFF marker."
-    status: pending
+    status: completed
 isProject: true
 ---
 

@@ -77,8 +77,8 @@ Only `00 Boundary Contract` is unblocked. Launch these as sidecars while the roo
 - In scope: evidence and proposed contract only.
 - Out of scope: code edits, dependency upgrades, broad redesign outside the three micro-verticals.
 - Stop condition: ownership matrix is complete enough for SG-00 synthesis or any ambiguity is explicitly handed back.
-- Status: ready.
-- Agent id: unassigned.
+- Status: running.
+- Agent id: `019e7101-03e6-7360-9af3-ea8b6dd5556c` (`Harvey`).
 
 ### SG-00B Vertical Manifest Schema Scout
 
@@ -90,8 +90,8 @@ Only `00 Boundary Contract` is unblocked. Launch these as sidecars while the roo
 - In scope: contract shape and downstream integration map.
 - Out of scope: implementing schema or changing generator files.
 - Stop condition: schema proposal has no unresolved field ownership questions except those called out for root decision.
-- Status: ready.
-- Agent id: unassigned.
+- Status: running.
+- Agent id: `019e7101-0574-7440-b8eb-c6e0468f81ad` (`Helmholtz`).
 
 ### SG-00C Federated CSS Contract Scout
 
@@ -103,8 +103,8 @@ Only `00 Boundary Contract` is unblocked. Launch these as sidecars while the roo
 - In scope: contract and risk map.
 - Out of scope: editing Tailwind config or generated CSS.
 - Stop condition: clear recommendation for CSS ownership and required validation gates.
-- Status: ready.
-- Agent id: unassigned.
+- Status: running.
+- Agent id: `019e7101-06ea-7363-a680-a00e7dae7c44` (`Meitner`).
 
 ### SG-00R Root Boundary Synthesizer
 
@@ -113,7 +113,7 @@ Only `00 Boundary Contract` is unblocked. Launch these as sidecars while the roo
 - Purpose: integrate SG-00A/B/C outputs into the accepted boundary contract.
 - Ownership: contract docs/plans only; no implementation files unless the next user request changes scope.
 - Verification: rerun plan graph frontier and confirm `01`, `02`, `03`, `04`, and `05` are unblocked after `00` is completed.
-- Status: root-owned.
+- Status: completed.
 
 Merge point M0:
 
@@ -121,6 +121,7 @@ Merge point M0:
 - Manifest/schema contract exists.
 - CSS contract exists.
 - No implementation shortcut is allowed downstream that collapses Explore/Decide/Checkout into one remote.
+- Completed from SG-00A/B/C results on 2026-05-29: target packages are `remote-explore`, `remote-decide`, and `remote-checkout`; generated `.modernjs/ultramodern-micro-verticals.json` is the structural proof; CSS contract uses shared tokens, shell-owned base/overlay, and vertical-owned CSS assets.
 
 ## Wave 2: Generator, CSS, BFF, Routing
 
@@ -136,8 +137,8 @@ Launch after M0. These lanes can run in parallel only after SG-01 lands the gene
 - In scope: package graph, ports, scripts, workspace manifests, generated fixture shape.
 - Out of scope: MF runtime behavior, Cloudflare deployment proof, docs prose.
 - Verification: generated workspace installs, builds, and contains three distinct remote package roots with separate package metadata.
-- Status: blocked by M0.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7104-9e5a-7080-9da3-2c0bed676f1c` (`Parfit`).
 
 ### SG-03 Federated CSS Owner
 
@@ -148,8 +149,9 @@ Launch after M0. These lanes can run in parallel only after SG-01 lands the gene
 - In scope: SSR style order, remote CSS asset publication, boundary overlay styling that does not shift layout.
 - Out of scope: changing package topology or route ownership.
 - Verification: SSR HTML and browser screenshots show styled first paint, remote styles load exactly once per vertical, boundary overlay does not alter layout.
-- Status: blocked by M0, then coordinated with SG-01.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7110-a1cc-7290-88b1-2e84e6ee632b` (`Euclid`).
+- Prep agent: `019e7104-9f0f-7b70-bc0d-61bc4dde0798` (`Turing`).
 
 ### SG-04 Full-Stack Effect Owner
 
@@ -160,8 +162,9 @@ Launch after M0. These lanes can run in parallel only after SG-01 lands the gene
 - In scope: Explore catalog/query service, Decide product/detail/recommendation service, Checkout cart/order service, typed errors.
 - Out of scope: centralizing all domain behavior in one BFF, disabling backend on Cloudflare.
 - Verification: each vertical has a callable API path and browser-visible feature backed by that path in local and Cloudflare modes.
-- Status: blocked by M0 and SG-01.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7110-a22d-7892-88e7-c638ad6aaf3d` (`Aristotle`).
+- Prep agent: `019e7104-9f6e-7b33-8f16-aada7043a28a` (`Tesla`).
 
 ### SG-05 Routing i18n Owner
 
@@ -172,13 +175,15 @@ Launch after M0. These lanes can run in parallel only after SG-01 lands the gene
 - In scope: `/en/...` and `/cs/...` localized route slugs beyond bare language roots, CDN-cacheable translation JSON, no inline language conditionals.
 - Out of scope: product copy rewrites unrelated to route/i18n proof.
 - Verification: English and Czech localized routes render correct diacritics, translation JSON can be loaded dynamically, route switching preserves current vertical intent.
-- Status: blocked by M0 and SG-01.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7110-a294-70a1-8ddd-cc302171c470` (`Kant`).
+- Prep agent: `019e7104-9fd4-7fa1-8d10-ba38213b9a1a` (`Beauvoir`).
 
 Merge point M1:
 
 - Generator creates separate micro-vertical packages.
 - Generated topology exposes stable package names, ports, remotes, and env slots to downstream lanes.
+- Completed from SG-01 result on 2026-05-29: generator emits `remote-explore`, `remote-decide`, and `remote-checkout`; create-ultramodern-workspace tests passed 5/5 in SG-01 workspace; commit `55873dd11f` is on `bleedingdev/main-ultramodern`.
 
 Merge point M2:
 
@@ -197,8 +202,9 @@ Launch after SG-01 provides topology. SG-06 waits for SG-02 and SG-04 runtime ev
 - In scope: remote manifests, host registration, version/environment switches, boundary overlay labels sourced from actual remote metadata.
 - Out of scope: faking boundaries inside one remote, browser-only behavior that fails SSR.
 - Verification: host can consume each remote separately, changing a remote version/environment changes only that vertical, SSR and browser hydration remain correct.
-- Status: blocked by M0 and SG-01.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7110-a13d-7791-b677-4716461354dc` (`Dirac`).
+- Prep agent: `019e7104-9eab-7192-bcf8-e6e6f7c44fae` (`Pascal`).
 
 ### SG-06 Zephyr Cloudflare Version Proof Owner
 
@@ -209,8 +215,8 @@ Launch after SG-01 provides topology. SG-06 waits for SG-02 and SG-04 runtime ev
 - In scope: public Cloudflare URL, Zephyr manifests/assets where available, version switch evidence for at least one remote, documented limitations.
 - Out of scope: Zerops implementation before Zephyr integration exists.
 - Verification: public URL serves SSR app, API/BFF endpoints respond, at least one remote can be version/environment switched without rebuilding the whole app.
-- Status: blocked by SG-02 and SG-04.
-- Agent id: unassigned.
+- Status: completed; read-only prep completed by `Anscombe`.
+- Agent id: `019e7123-6b24-7cb1-b4d2-74854f5bf068` (`Herschel`).
 
 Merge point M3:
 
@@ -231,8 +237,8 @@ Launch after M3.
 - In scope: MF manifest checks through runtime APIs, SSR/hydration, localized routes, cart behavior, boundary overlay behavior, Cloudflare smoke tests, package publish readiness.
 - Out of scope: checking source text for strings, implementation shape, or forbidden imports.
 - Verification: all documented gates run locally; Cloudflare smoke suite has a repeatable command.
-- Status: blocked by SG-02, SG-03, SG-04, SG-05, SG-06.
-- Agent id: unassigned.
+- Status: completed; read-only prep completed.
+- Agent id: `019e7123-6ba7-75d1-8b9c-da31c9f1e1bf` (`Sagan`) for prep.
 
 ### SG-08 Docs Adoption Owner
 
@@ -243,14 +249,16 @@ Launch after M3.
 - In scope: precise user-facing commands, architecture diagram text, known limitations backed by evidence.
 - Out of scope: changing implementation after validation closes unless a defect is filed separately.
 - Verification: docs commands match SG-07 gates and public deployment evidence.
-- Status: blocked by SG-07.
-- Agent id: unassigned.
+- Status: completed.
+- Agent id: `019e7136-89dc-74b1-9975-c871ee18e9b4` (`Peirce`).
 
 Merge point M4:
 
 - Behavioral gates pass locally and against Cloudflare.
 - No source-content tests were introduced.
 - User-visible app demonstrates real Explore, Decide, Checkout verticals.
+- Docs adoption lane completed on 2026-05-29 with real Tractor architecture,
+  generator, CSS, Cloudflare/Zephyr, validation, and migration docs updated.
 
 Merge point M5:
 
@@ -349,7 +357,12 @@ You are SG-08 for graph ultramodern-real-tractor-v1. Start only after SG-07 pass
 
 ## Current Frontier
 
-- Ready: SG-00A, SG-00B, SG-00C, SG-00R.
-- Blocked: SG-01, SG-02, SG-03, SG-04, SG-05, SG-06, SG-07, SG-08.
-- Next root action: launch SG-00A/B/C or execute their read-only research locally, then synthesize M0.
-
+- Completed: SG-00A (`Harvey`), SG-00B (`Helmholtz`), SG-00C (`Meitner`), SG-00R.
+- Completed: SG-01 (`Parfit`).
+- Completed prep: SG-02 (`Pascal`), SG-03 (`Turing`), SG-04 (`Tesla`), SG-05 (`Beauvoir`).
+- Completed write lanes: SG-02 (`Dirac`), SG-03 (`Euclid`), SG-04 (`Aristotle`), SG-05 (`Kant`).
+- Completed implementation lane: SG-06 (`Herschel`).
+- Completed prep lanes: SG-06 (`Anscombe`), SG-07 (`Sagan`).
+- Completed validation lane: SG-07 (`Ampere`).
+- Completed docs adoption lane: SG-08 (`Peirce`).
+- Next root action: final validation, bead closeout, commit, and push.

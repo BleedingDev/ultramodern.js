@@ -12,25 +12,48 @@ const DEFAULT_EVIDENCE_PATH = path.join(
   'zephyr-live-evidence.json',
 );
 
+const TRACTOR_VERTICALS = [
+  {
+    id: 'remote-explore',
+    domain: 'explore',
+    defaultPath: 'apps/remotes/remote-explore',
+    apiPrefix: '/explore-api',
+  },
+  {
+    id: 'remote-decide',
+    domain: 'decide',
+    defaultPath: 'apps/remotes/remote-decide',
+    apiPrefix: '/decide-api',
+  },
+  {
+    id: 'remote-checkout',
+    domain: 'checkout',
+    defaultPath: 'apps/remotes/remote-checkout',
+    apiPrefix: '/checkout-api',
+  },
+];
+
 const TARGETS = [
-  {
-    id: 'remote-v1',
-    role: 'remote',
-    envPrefix: 'ZE_REMOTE_V1',
-    configKey: 'remoteV1',
-    defaultPath: 'apps/remotes/remote-commerce-v1',
-    expectedUiMarker: 'commerce-ui-version:v1',
-    expectedApiMarker: 'commerce-api-version:v1',
-  },
-  {
-    id: 'remote-v2',
-    role: 'remote',
-    envPrefix: 'ZE_REMOTE_V2',
-    configKey: 'remoteV2',
-    defaultPath: 'apps/remotes/remote-commerce-v2',
-    expectedUiMarker: 'commerce-ui-version:v2',
-    expectedApiMarker: 'commerce-api-version:v2',
-  },
+  ...TRACTOR_VERTICALS.flatMap(vertical =>
+    ['v1', 'v2'].map(version => ({
+      id: `${vertical.id}-${version}`,
+      verticalId: vertical.id,
+      domain: vertical.domain,
+      version,
+      role: 'remote',
+      envPrefix: `ZE_${vertical.id
+        .replace(/^remote-/, 'REMOTE_')
+        .replace(/-/g, '_')
+        .toUpperCase()}_${version.toUpperCase()}`,
+      configKey: `${vertical.domain}${version.toUpperCase()}`,
+      defaultPath: vertical.defaultPath,
+      expectedUiMarker: `${vertical.domain}-ui-version:${version}`,
+      expectedApiMarker: `${vertical.domain}-api-version:${version}`,
+      expectedCssMarker: `${vertical.domain}-css-version:${version}`,
+      expectedI18nMarker: `${vertical.domain}-i18n-version:${version}`,
+      defaultApiPath: `${vertical.apiPrefix}/effect/${vertical.domain}/readiness`,
+    })),
+  ),
   {
     id: 'shell',
     role: 'shell',
@@ -170,6 +193,9 @@ function resolveTarget(target, { env, config, environmentSelector }) {
 
   return {
     id: target.id,
+    verticalId: optionalString(target.verticalId),
+    domain: optionalString(target.domain),
+    version: optionalString(target.version),
     role: target.role,
     appUid: optionalString(
       pickFirstString(env[`${target.envPrefix}_APP_UID`], targetConfig.appUid),
@@ -208,6 +234,9 @@ function resolveTarget(target, { env, config, environmentSelector }) {
           env[`${target.envPrefix}_API_URL`],
           targetConfig.apiUrl,
           getPathValue(targetConfig, ['api', 'url']),
+          targetConfig.runtimeUrl && target.defaultApiPath
+            ? new URL(target.defaultApiPath, targetConfig.runtimeUrl).href
+            : undefined,
         ),
       ),
     },
@@ -224,6 +253,20 @@ function resolveTarget(target, { env, config, environmentSelector }) {
           env[`${target.envPrefix}_API_MARKER`],
           targetConfig.apiMarker,
           target.expectedApiMarker,
+        ),
+      ),
+      cssExpected: optionalString(
+        pickFirstString(
+          env[`${target.envPrefix}_CSS_MARKER`],
+          targetConfig.cssMarker,
+          target.expectedCssMarker,
+        ),
+      ),
+      i18nExpected: optionalString(
+        pickFirstString(
+          env[`${target.envPrefix}_I18N_MARKER`],
+          targetConfig.i18nMarker,
+          target.expectedI18nMarker,
         ),
       ),
     },
@@ -347,6 +390,18 @@ function includesMarker(body, marker) {
   );
 }
 
+function createRuntimeMarkerAssertion({ target, type, marker, response, url }) {
+  return {
+    target: target.id,
+    type,
+    url,
+    expectedMarker: marker,
+    status:
+      response.ok && includesMarker(response.body, marker) ? 'pass' : 'fail',
+    statusCode: response.statusCode,
+  };
+}
+
 async function fetchText(fetchImpl, url) {
   const response = await fetchImpl(url);
   const body = await response.text();
@@ -384,18 +439,31 @@ async function runLiveAssertions({ fetchImpl, targets }) {
     if (target.runtimeUrl && target.markers.uiExpected) {
       try {
         const response = await fetchText(fetchImpl, target.runtimeUrl);
-        assertions.push({
-          target: target.id,
-          type: 'ui-marker',
-          url: target.runtimeUrl,
-          expectedMarker: target.markers.uiExpected,
-          status:
-            response.ok &&
-            includesMarker(response.body, target.markers.uiExpected)
-              ? 'pass'
-              : 'fail',
-          statusCode: response.statusCode,
-        });
+        assertions.push(
+          createRuntimeMarkerAssertion({
+            target,
+            type: 'ui-marker',
+            url: target.runtimeUrl,
+            marker: target.markers.uiExpected,
+            response,
+          }),
+        );
+        for (const [type, marker] of [
+          ['css-marker', target.markers.cssExpected],
+          ['i18n-marker', target.markers.i18nExpected],
+        ]) {
+          if (marker) {
+            assertions.push(
+              createRuntimeMarkerAssertion({
+                target,
+                type,
+                url: target.runtimeUrl,
+                marker,
+                response,
+              }),
+            );
+          }
+        }
       } catch (error) {
         assertions.push({
           target: target.id,
@@ -416,6 +484,17 @@ async function runLiveAssertions({ fetchImpl, targets }) {
             : 'no expected UI marker configured for target',
         }),
       );
+      for (const type of ['css-marker', 'i18n-marker']) {
+        assertions.push(
+          createSkippedAssertion({
+            target,
+            type,
+            reason: target.runtimeUrl
+              ? `no expected ${type} configured for target`
+              : 'runtime URL missing',
+          }),
+        );
+      }
     }
 
     if (target.api.url && target.markers.apiExpected) {
@@ -472,6 +551,16 @@ function createDryRunAssertions(targets) {
     }),
     createSkippedAssertion({
       target,
+      type: 'css-marker',
+      reason: 'dry-run mode does not fetch runtime HTML',
+    }),
+    createSkippedAssertion({
+      target,
+      type: 'i18n-marker',
+      reason: 'dry-run mode does not fetch runtime HTML',
+    }),
+    createSkippedAssertion({
+      target,
       type: 'api-marker',
       reason: 'dry-run mode does not fetch API responses',
     }),
@@ -479,21 +568,32 @@ function createDryRunAssertions(targets) {
 }
 
 function createSwitchingScenarios(targets) {
-  const remoteV1 = targets.find(target => target.id === 'remote-v1');
-  const remoteV2 = targets.find(target => target.id === 'remote-v2');
   const shell = targets.find(target => target.id === 'shell');
-  return [remoteV1, remoteV2].filter(Boolean).map(remote => ({
-    id: `shell-selects-${remote.id}`,
-    shellAppUid: shell && shell.appUid,
-    remoteAppUid: remote.appUid,
-    selector: remote.selector,
-    manifestUrl: remote.manifestUrl,
-    runtimeUrl: shell && shell.runtimeUrl,
-    expectedUiMarker: remote.markers.uiExpected,
-    expectedApiMarker: remote.markers.apiExpected,
-    assertionRule:
-      'The shell pass requires UI and API markers from the same selected remote version.',
-  }));
+  return TRACTOR_VERTICALS.flatMap(vertical =>
+    ['v1', 'v2']
+      .map(version =>
+        targets.find(
+          target =>
+            target.verticalId === vertical.id && target.version === version,
+        ),
+      )
+      .filter(Boolean)
+      .map(remote => ({
+        id: `shell-selects-${remote.id}`,
+        verticalId: vertical.id,
+        domain: vertical.domain,
+        version: remote.version,
+        shellAppUid: shell && shell.appUid,
+        remoteAppUid: remote.appUid,
+        selector: remote.selector,
+        manifestUrl: remote.manifestUrl,
+        runtimeUrl: shell && shell.runtimeUrl,
+        expectedUiMarker: remote.markers.uiExpected,
+        expectedApiMarker: remote.markers.apiExpected,
+        assertionRule:
+          'The shell pass requires UI, CSS, i18n, MF manifest, and API markers from the same selected Tractor vertical version.',
+      })),
+  );
 }
 
 function computeStatus({ mode, requirements, assertions }) {
@@ -561,6 +661,8 @@ async function createEvidenceBundle(options = {}) {
       packageJsonDependencyKey: 'zephyr:dependencies',
       runtimeOverrideCapability:
         'Zephyr environment overrides can select remote versions, tags, or environments at runtime without rebuilding the host.',
+      tractorVerticalVersionProof:
+        'Explore, Decide, and Checkout each require v1/v2 UI, API, CSS, i18n, and MF manifest marker evidence.',
       lifecycleCommandPolicy:
         'Use normal Modern.js lifecycle commands such as pnpm install and pnpm build; this harness does not invent zephyr:* lifecycle commands.',
     },
@@ -641,8 +743,12 @@ Modes:
   --live     Requires ZE_ENV, ZE_USER_EMAIL, ZE_SERVER_TOKEN or ZE_SECRET_TOKEN, app UIDs, selectors, manifest URLs, and runtime URLs.
 
 Target env names:
-  ZE_REMOTE_V1_APP_UID, ZE_REMOTE_V1_SELECTOR, ZE_REMOTE_V1_MANIFEST_URL, ZE_REMOTE_V1_RUNTIME_URL, ZE_REMOTE_V1_API_URL
-  ZE_REMOTE_V2_APP_UID, ZE_REMOTE_V2_SELECTOR, ZE_REMOTE_V2_MANIFEST_URL, ZE_REMOTE_V2_RUNTIME_URL, ZE_REMOTE_V2_API_URL
+  ZE_REMOTE_EXPLORE_V1_APP_UID, ZE_REMOTE_EXPLORE_V1_SELECTOR, ZE_REMOTE_EXPLORE_V1_MANIFEST_URL, ZE_REMOTE_EXPLORE_V1_RUNTIME_URL, ZE_REMOTE_EXPLORE_V1_API_URL
+  ZE_REMOTE_EXPLORE_V2_APP_UID, ZE_REMOTE_EXPLORE_V2_SELECTOR, ZE_REMOTE_EXPLORE_V2_MANIFEST_URL, ZE_REMOTE_EXPLORE_V2_RUNTIME_URL, ZE_REMOTE_EXPLORE_V2_API_URL
+  ZE_REMOTE_DECIDE_V1_APP_UID, ZE_REMOTE_DECIDE_V1_SELECTOR, ZE_REMOTE_DECIDE_V1_MANIFEST_URL, ZE_REMOTE_DECIDE_V1_RUNTIME_URL, ZE_REMOTE_DECIDE_V1_API_URL
+  ZE_REMOTE_DECIDE_V2_APP_UID, ZE_REMOTE_DECIDE_V2_SELECTOR, ZE_REMOTE_DECIDE_V2_MANIFEST_URL, ZE_REMOTE_DECIDE_V2_RUNTIME_URL, ZE_REMOTE_DECIDE_V2_API_URL
+  ZE_REMOTE_CHECKOUT_V1_APP_UID, ZE_REMOTE_CHECKOUT_V1_SELECTOR, ZE_REMOTE_CHECKOUT_V1_MANIFEST_URL, ZE_REMOTE_CHECKOUT_V1_RUNTIME_URL, ZE_REMOTE_CHECKOUT_V1_API_URL
+  ZE_REMOTE_CHECKOUT_V2_APP_UID, ZE_REMOTE_CHECKOUT_V2_SELECTOR, ZE_REMOTE_CHECKOUT_V2_MANIFEST_URL, ZE_REMOTE_CHECKOUT_V2_RUNTIME_URL, ZE_REMOTE_CHECKOUT_V2_API_URL
   ZE_SHELL_APP_UID, ZE_SHELL_SELECTOR, ZE_SHELL_MANIFEST_URL, ZE_SHELL_RUNTIME_URL
 `);
 }
