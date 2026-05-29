@@ -1454,6 +1454,9 @@ function createModuleFederationRemotesConfig(
       const key = remoteDependencyAlias(remote);
       return `    ${key}:
       process.env['${createRemoteManifestEnv(remote)}'] ??
+      (process.env['${createCloudflarePublicUrlEnv(remote)}']?.trim()
+        ? \`${remote.mfName}@\${process.env['${createCloudflarePublicUrlEnv(remote)}']!.trim().replace(/\\/+$/u, '')}/mf-manifest.json\`
+        : undefined) ??
       '${remote.mfName}@http://localhost:${remote.port}/mf-manifest.json',`;
     })
     .join('\n');
@@ -2436,7 +2439,7 @@ import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 ${createLocalizedHeadComponent()}
 export default function ShellProductPage() {
   return (
-    <ShellFrame>
+    <ShellFrame boundary="decide">
       <LocalizedHead />
       <ProductPage />
     </ShellFrame>
@@ -2455,7 +2458,7 @@ import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 ${createLocalizedHeadComponent()}
 export default function ShellCartPage() {
   return (
-    <ShellFrame showCart={false}>
+    <ShellFrame boundary="checkout" showCart={false}>
       <LocalizedHead />
       <CartPage />
     </ShellFrame>
@@ -2476,6 +2479,7 @@ const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 
 type ShellFrameProps = {
+  boundary?: 'checkout' | 'decide' | 'explore';
   children: ReactNode;
   showCart?: boolean;
 };
@@ -2595,14 +2599,14 @@ const locationSuffix = (location: {
   return \`\${locationSearch}\${locationHash}\`;
 };
 
-export default function ShellFrame({ children, showCart = true }: ShellFrameProps) {
+export default function ShellFrame({ boundary = 'explore', children, showCart = true }: ShellFrameProps) {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
   return (
-    <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12">
+    <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12" data-mf-page-boundary={boundary}>
       <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <Header />
         <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
@@ -2610,8 +2614,10 @@ export default function ShellFrame({ children, showCart = true }: ShellFrameProp
             {t('shell.language.switcher')}
           </label>
           <select
-            className="h-10 rounded-full border border-stone-900/15 bg-white px-3 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5"
+            aria-label={t('shell.language.switcher')}
+            className="h-10 w-10 cursor-pointer appearance-none border-0 bg-transparent p-0 text-center text-3xl font-black leading-none text-stone-950 shadow-none [appearance:none] [text-align-last:center] focus-visible:rounded-md focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-700/40 [&::-ms-expand]:hidden [&::picker-icon]:hidden [&_option]:text-xl"
             id="ultramodern-language"
+            name="language"
             onChange={event => {
               const nextLanguage = event.currentTarget.value;
               if (isSupportedLanguage(nextLanguage)) {
@@ -2622,11 +2628,12 @@ export default function ShellFrame({ children, showCart = true }: ShellFrameProp
             }}
             value={language}
           >
-            {supportedLanguages.map(code => (
-              <option key={code} value={code}>
-                {t(\`shell.language.\${code}\`)}
-              </option>
-            ))}
+            <option aria-label={t('shell.language.en')} value="en">
+              🇬🇧
+            </option>
+            <option aria-label={t('shell.language.cs')} value="cs">
+              🇨🇿
+            </option>
           </select>
           {showCart ? <MiniCart /> : null}
         </div>
@@ -2651,7 +2658,7 @@ type BoundaryConfig = {
 type BoundaryBox = BoundaryConfig & {
   height: number;
   id: string;
-  labelPlacement: 'above' | 'inside';
+  labelPlacement: 'above' | 'edge' | 'inside';
   left: number;
   top: number;
   width: number;
@@ -2709,10 +2716,13 @@ export default function BoundaryOverlay() {
 
     const readBoxes = () => {
       const nextBoxes = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-mf-boundary]'),
+        document.querySelectorAll<HTMLElement>(
+          '[data-mf-page-boundary], [data-mf-boundary]',
+        ),
       )
         .map((element, index) => {
-          const id = element.dataset.mfBoundary ?? 'unknown';
+          const pageBoundary = element.dataset.mfPageBoundary;
+          const id = pageBoundary ?? element.dataset.mfBoundary ?? 'unknown';
           const rect = element.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) {
             return undefined;
@@ -2727,7 +2737,7 @@ export default function BoundaryOverlay() {
             ...config,
             height: rect.height,
             id: \`\${id}-\${index}\`,
-            labelPlacement: rect.height < 48 ? 'above' : 'inside',
+            labelPlacement: pageBoundary ? 'edge' : rect.height < 48 ? 'above' : 'inside',
             left: rect.left,
             top: rect.top,
             width: rect.width,
@@ -2742,7 +2752,7 @@ export default function BoundaryOverlay() {
 
     const resizeObserver = new ResizeObserver(readBoxes);
     for (const element of document.querySelectorAll<HTMLElement>(
-      '[data-mf-boundary]',
+      '[data-mf-page-boundary], [data-mf-boundary]',
     )) {
       resizeObserver.observe(element);
     }
@@ -2770,7 +2780,7 @@ export default function BoundaryOverlay() {
 
   return (
     <>
-      <label className="mx-auto mt-4 flex w-fit max-w-7xl items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
+      <label className="fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
         <input
           className="size-4 accent-emerald-800"
           checked={enabled}
@@ -2783,7 +2793,7 @@ export default function BoundaryOverlay() {
         <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[70]">
           {boxes.map(box => (
             <div
-              className="fixed rounded-lg border"
+              className="fixed rounded-lg border-2"
               data-label-placement={box.labelPlacement}
               key={box.id}
               style={
@@ -2798,7 +2808,7 @@ export default function BoundaryOverlay() {
               }
             >
               <span
-                className={\`absolute right-1 top-1 whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950 \${box.labelPlacement === 'above' ? 'bottom-[calc(100%+0.25rem)] top-auto' : ''}\`}
+                className={\`absolute whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950 \${box.labelPlacement === 'above' ? 'bottom-[calc(100%+0.25rem)] right-1 top-auto' : box.labelPlacement === 'edge' ? 'left-0 top-28 -translate-x-[calc(100%-1px)] -rotate-90 rounded-b-none' : 'right-1 top-1'}\`}
                 style={{ backgroundColor: box.color }}
               >
                 {box.label}
