@@ -58,14 +58,9 @@ function expectPnpm11Policy(projectDir: string) {
   expect(readPnpmConfig(projectDir, 'minimumReleaseAgeIgnoreMissingTime')).toBe(
     false,
   );
-  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
-    '@modern-js/*',
-    '@bleedingdev/*',
-    '@effect/tsgo',
-    '@effect/tsgo-*',
-    '@typescript/native-preview',
-    '@typescript/native-preview-*',
-  ]);
+  expect(
+    readPnpmConfig(projectDir, 'minimumReleaseAgeExclude'),
+  ).toBeUndefined();
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
   expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);
@@ -170,6 +165,9 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
+    expect(packageJson.scripts.postinstall).toBe(
+      'node ./scripts/bootstrap-agent-skills.mjs',
+    );
     expectSingleAppContract(appDir);
 
     const postcssConfigPath = path.join(appDir, 'postcss.config.mjs');
@@ -261,6 +259,7 @@ describe('create-tailwind', () => {
     expect(packageJson.scripts['format:check']).toBeUndefined();
     expect(packageJson.scripts['skills:install']).toBeUndefined();
     expect(packageJson.scripts['skills:check']).toBeUndefined();
+    expect(packageJson.scripts.postinstall).toBeUndefined();
     expect(packageJson.scripts.prepare).toBeUndefined();
     expect(packageJson.devDependencies.oxlint).toBeUndefined();
     expect(packageJson.devDependencies.oxfmt).toBeUndefined();

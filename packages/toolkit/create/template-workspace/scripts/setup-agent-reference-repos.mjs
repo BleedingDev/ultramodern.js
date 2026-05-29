@@ -359,6 +359,10 @@ function main() {
 try {
   main();
 } catch (error) {
-  console.error(`[agent-reference-repos] ${error.message}`);
-  process.exitCode = 1;
+  if (required || checkOnly) {
+    console.error(`[agent-reference-repos] ${error.message}`);
+    process.exitCode = 1;
+  } else {
+    warn(error.message);
+  }
 }

@@ -139,12 +139,8 @@ const requiredDeniedPaths = [
   'node_modules/**',
   'dist/**',
 ];
-const requiredLifecycleDeniedScripts = [
-  'preinstall',
-  'install',
-  'postinstall',
-  'prepare',
-];
+const requiredLifecycleDeniedScripts = ['preinstall', 'install', 'prepare'];
+const requiredLifecycleAllowedScripts = ['postinstall'];
 
 function getOptionValue(args: string[], names: string[]): string | undefined {
   for (const name of names) {
@@ -418,7 +414,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
     lifecyclePolicy: {
       denyByDefault: true,
       deniedScripts: requiredLifecycleDeniedScripts,
-      allowedScripts: [],
+      allowedScripts: requiredLifecycleAllowedScripts,
       requiresExplicitOptIn: true,
     },
     validation: {
@@ -437,7 +433,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       ],
       postMaterializationValidation: [
         'ultramodern-contract-check',
-        'dependency-install-with-lifecycle-deny',
+        'agent-skill-postinstall-allowed',
         'github-workflow-security-enforced',
         'package-source-retained',
         'pnpm-11-policy-enforced',
@@ -645,8 +641,9 @@ function validateTemplateManifest(manifest: TemplateManifest) {
     );
   }
   assertTemplateManifest(
-    manifest.lifecyclePolicy.allowedScripts.length === 0,
-    'lifecyclePolicy.allowedScripts must be empty for builtin materialization',
+    JSON.stringify(manifest.lifecyclePolicy.allowedScripts) ===
+      JSON.stringify(requiredLifecycleAllowedScripts),
+    'lifecyclePolicy.allowedScripts must only allow generated postinstall',
   );
 
   assertTemplateManifest(
@@ -1327,6 +1324,7 @@ async function main() {
       delete packageJson.scripts['lint:fix'];
       delete packageJson.scripts['skills:install'];
       delete packageJson.scripts['skills:check'];
+      delete packageJson.scripts.postinstall;
     }
     if (packageJson.devDependencies) {
       delete packageJson.devDependencies['lint-staged'];

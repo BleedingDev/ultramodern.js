@@ -15,6 +15,7 @@
 {{#unless isSubproject}}
     "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
+    "postinstall": "node ./scripts/bootstrap-agent-skills.mjs",
 {{/unless}}
     "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
     "format": "oxfmt .",

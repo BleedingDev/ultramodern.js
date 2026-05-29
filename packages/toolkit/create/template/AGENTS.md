@@ -18,10 +18,4 @@ Routes are locale-prefixed by default through `localePathRedirect: true`. Keep l
 
 ## Private Skills
 
-Private orchestration skills are not vendored into this template. If you are authorized for `TechsioCZ/skills`, run:
-
-```bash
-pnpm skills:install
-```
-
-The installer clones that private repository and copies only the allowlisted skills from `.agents/skills-lock.json`.
+Private orchestration skills are installed automatically during `pnpm install` when the current developer is authorized for `TechsioCZ/skills`. The installer clones that private repository and copies only the allowlisted skills from `.agents/skills-lock.json`; unauthorized developers get a warning and can continue with the public contract.

@@ -869,7 +869,7 @@ function createRootPackageJson(
       'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       postinstall:
-        'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
+        'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs',
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:check',
     },
@@ -2011,8 +2011,57 @@ function createCssTokenImport(scope: string): string {
   return `@import '${packageName(scope, 'shared-design-tokens')}/tokens.css';\n`;
 }
 
+function createTailwindPrefix(raw: string): string {
+  const prefix = raw.toLowerCase().replace(/[^a-z]/gu, '');
+
+  if (!prefix) {
+    throw new Error(`Cannot derive a Tailwind prefix from ${raw}`);
+  }
+
+  return prefix;
+}
+
+function tailwindPrefixForApp(app: WorkspaceApp): string {
+  if (app.kind === 'shell') {
+    return 'shell';
+  }
+
+  return createTailwindPrefix(app.domain ?? app.id);
+}
+
+function tailwindPrefixForService(service: { id: string }): string {
+  return createTailwindPrefix(service.id);
+}
+
+function assertUniqueTailwindPrefixes(
+  apps: WorkspaceApp[],
+  services: Array<{ id: string }> = [],
+) {
+  const seen = new Map<string, string>();
+  const entries = [
+    ...apps.map(app => [app.id, tailwindPrefixForApp(app)] as const),
+    ...services.map(
+      service => [service.id, tailwindPrefixForService(service)] as const,
+    ),
+  ];
+
+  for (const [id, prefix] of entries) {
+    const previous = seen.get(prefix);
+    if (previous) {
+      throw new Error(
+        `Tailwind prefix ${prefix} for ${id} collides with ${previous}`,
+      );
+    }
+    seen.set(prefix, id);
+  }
+}
+
+function createTailwindImport(prefix: string): string {
+  return `@import 'tailwindcss' prefix(${prefix}) source(none);\n@source '..';\n`;
+}
+
 function createShellStyles(enableTailwind: boolean, scope: string): string {
-  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(shellApp)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
@@ -2020,9 +2069,9 @@ function createShellStyles(enableTailwind: boolean, scope: string): string {
 function createRemoteStyles(
   enableTailwind: boolean,
   scope: string,
-  _app: WorkspaceApp,
+  app: WorkspaceApp,
 ): string {
-  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(app)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
@@ -2030,9 +2079,9 @@ function createRemoteStyles(
 function createServiceStyles(
   enableTailwind: boolean,
   scope: string,
-  _service: { id: string },
+  service: { id: string },
 ): string {
-  return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForService(service)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
@@ -2060,9 +2109,129 @@ function createTailwindConfig(): string {
   return `import type { Config } from 'tailwindcss';
 
 export default {
-  content: ['./src/**/*.{js,jsx,ts,tsx}'],
 } satisfies Config;
 `;
+}
+
+function stripTemporarySpecificityVariant(candidate: string): string {
+  return candidate.replace(/\[&&\]:/gu, '');
+}
+
+function prefixTailwindCandidate(candidate: string, prefix: string): string {
+  const normalized = stripTemporarySpecificityVariant(candidate);
+
+  if (!normalized || normalized.startsWith(`${prefix}:`)) {
+    return normalized;
+  }
+
+  return `${prefix}:${normalized}`;
+}
+
+function prefixTailwindClassList(classList: string, prefix: string): string {
+  return classList
+    .split(/(\s+)/u)
+    .map(part => (part.trim() ? prefixTailwindCandidate(part, prefix) : part))
+    .join('');
+}
+
+function looksLikeTailwindClassList(value: string): boolean {
+  return /\s/u.test(value) && /[-:[/\]]/u.test(value);
+}
+
+function findTemplateExpressionEnd(value: string, start: number): number {
+  let depth = 1;
+  let quote: '`' | '"' | "'" | undefined;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    const previous = value[index - 1];
+
+    if (quote) {
+      if (character === quote && previous !== '\\') {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (character === '`' || character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+
+    if (character === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (character === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function prefixTailwindStringsInExpression(
+  expression: string,
+  prefix: string,
+): string {
+  return expression.replace(
+    /(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1/gu,
+    (match, quote: string, value: string) => {
+      if (!looksLikeTailwindClassList(value)) {
+        return match;
+      }
+
+      return `${quote}${prefixTailwindClassList(value, prefix)}${quote}`;
+    },
+  );
+}
+
+function prefixTailwindTemplateBody(body: string, prefix: string): string {
+  let output = '';
+  let cursor = 0;
+
+  while (cursor < body.length) {
+    const expressionStart = body.indexOf('${', cursor);
+    if (expressionStart === -1) {
+      output += prefixTailwindClassList(body.slice(cursor), prefix);
+      break;
+    }
+
+    output += prefixTailwindClassList(
+      body.slice(cursor, expressionStart),
+      prefix,
+    );
+
+    const expressionEnd = findTemplateExpressionEnd(body, expressionStart + 2);
+    if (expressionEnd === -1) {
+      output += body.slice(expressionStart);
+      break;
+    }
+
+    output += '${';
+    output += prefixTailwindStringsInExpression(
+      body.slice(expressionStart + 2, expressionEnd),
+      prefix,
+    );
+    output += '}';
+    cursor = expressionEnd + 1;
+  }
+
+  return output;
+}
+
+function prefixTailwindClassNames(content: string, prefix: string): string {
+  return content
+    .replace(/className="([^"]*)"/gu, (_match, value: string) => {
+      return `className="${prefixTailwindClassList(value, prefix)}"`;
+    })
+    .replace(/className=\{`([\s\S]*?)`\}/gu, (_match, value: string) => {
+      return `className={\`${prefixTailwindTemplateBody(value, prefix)}\`}`;
+    });
 }
 
 function createCommerceAssetSvg(
@@ -2393,10 +2562,10 @@ export default function ShellHome() {
   return (
     <ShellFrame>
       <LocalizedHead />
-      <section className="mx-auto grid max-w-7xl items-center gap-8 py-8 md:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+      <section className="mx-auto grid max-w-7xl items-center [&&]:gap-8 py-8 md:[&&]:grid-cols-[0.9fr_1.1fr] lg:[&&]:gap-14">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('shell.hero.eyebrow')}</p>
-          <h1 className="mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">{t('shell.title')}</h1>
+          <h1 className="mt-3 max-w-3xl [&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">{t('shell.title')}</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('shell.hero.lede')}</p>
           <div className="mt-7 flex flex-wrap gap-3">
             <a className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10" href={\`/\${language}/tractors/field-loader-112\`}>
@@ -2635,8 +2804,8 @@ export default function ShellFrame({ boundary = 'explore', children, showCart = 
   const suffix = locationSuffix(location);
 
   return (
-    <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12" data-mf-page-boundary={boundary}>
-      <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-5 text-um-foreground sm:[&&]:px-6 lg:[&&]:px-12" data-mf-page-boundary={boundary}>
+      <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 [&&]:px-4 py-3 shadow-xl shadow-stone-900/10 sm:[&&]:px-6 md:[&&]:flex-row md:[&&]:flex-wrap md:[&&]:items-center md:[&&]:justify-between">
         <Header />
         <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
           <label className="sr-only" htmlFor="ultramodern-language">
@@ -2977,7 +3146,7 @@ export default function ${toPascalCase(app.id)}Home() {
   const location = useLocation();
   const suffix = locationSuffix(location);
 ${effectBffState}  return (
-    <main className="min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8">
+    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-6 text-um-foreground sm:[&&]:px-8">
       <LocalizedHead />
       <nav aria-label={t('${app.domain}.language.switcher')} className="flex gap-3">
         {supportedLanguages.map(code => (
@@ -3068,7 +3237,7 @@ export default function Header() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <header className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1" data-mf-boundary="explore">
+    <header className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:[&&]:flex-1" data-mf-boundary="explore">
       <a className="whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline" href={\`/\${language}\`}>Acre & Iron</a>
       <nav aria-label={t('explore.header.navigation')} className="flex items-center gap-5">
         <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
@@ -3097,7 +3266,7 @@ export default function Recommendations() {
   return (
     <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
       <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.recommendations.title')}</h2>
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-4 md:[&&]:grid-cols-2 xl:[&&]:grid-cols-4">
         {tractors.map(tractor => (
           <a className="block rounded-2xl bg-white/90 p-4 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
             <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={tractor.image} />
@@ -3125,7 +3294,7 @@ export default function StorePicker() {
   return (
     <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
       <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.stores.title')}</h2>
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <div className="mt-5 grid gap-4 md:[&&]:grid-cols-2">
         <article className="rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10">
           <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={fieldLoaderImage} />
           <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800">{t('explore.stores.northRegion')}</span>
@@ -3170,13 +3339,13 @@ export default function ${componentName}() {
 
   return (
     <>
-      <section className="mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <section className="mx-auto mt-10 grid max-w-7xl items-center [&&]:gap-8 md:[&&]:grid-cols-[1fr_0.95fr] lg:[&&]:gap-14" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
         <img alt="" className="aspect-[1/0.9] w-full rounded-3xl border-[18px] border-amber-200 bg-stone-200 object-cover shadow-2xl shadow-stone-900/20" src={fieldLoaderImage} />
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('decide.product.eyebrow')}</p>
-          <h1 className="mt-3 text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">Field Loader 112</h1>
+          <h1 className="mt-3 [&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">Field Loader 112</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('decide.product.lede')}</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:[&&]:grid-cols-3">
             <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.price')}</span><strong className="mt-2 block text-lg font-black">EUR 42,500</strong></article>
             <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.power')}</span><strong className="mt-2 block text-lg font-black">112 hp</strong></article>
             <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.availability')}</span><strong className="mt-2 block text-lg font-black">{t('decide.product.inStock')}</strong></article>
@@ -3244,14 +3413,14 @@ export default function ${componentName}() {
 
   return (
     <section className="mx-auto mt-10 max-w-7xl" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h1 className="text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">{t('checkout.cart.title')}</h1>
+      <h1 className="[&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">{t('checkout.cart.title')}</h1>
       <div className="mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
         {cart.lines.length === 0 ? (
           <p>{t('checkout.cart.empty')}</p>
         ) : (
           <>
             {cart.lines.map(line => (
-              <article className="grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:grid-cols-[1fr_auto] sm:items-center" key={line.id}>
+              <article className="grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:[&&]:grid-cols-[1fr_auto] sm:[&&]:items-center" key={line.id}>
                 <div>
                   <strong className="text-lg font-black">{line.name}</strong>
                   <p className="text-stone-600">EUR {line.price.toLocaleString('en-US')}</p>
@@ -5222,6 +5391,9 @@ assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-u
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
 assert(rootPackage.scripts?.['cloudflare:deploy']?.includes('run cloudflare:deploy'), 'Root must expose cloudflare:deploy');
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
+assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
+assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
+assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs', 'Root postinstall must bootstrap agent skills before reference repositories');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(
@@ -5706,6 +5878,16 @@ function writeApp(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
 ) {
+  const writeAppFile = (relativePath: string, content: string) => {
+    writeFile(
+      targetDir,
+      `${app.directory}/${relativePath}`,
+      enableTailwind && relativePath.endsWith('.tsx')
+        ? prefixTailwindClassNames(content, tailwindPrefixForApp(app))
+        : content,
+    );
+  };
+
   writeJson(
     targetDir,
     `${app.directory}/package.json`,
@@ -5785,19 +5967,14 @@ function writeApp(
       ? createShellModuleFederationConfig()
       : createRemoteModuleFederationConfig(app),
   );
-  writeFile(
-    targetDir,
-    `${app.directory}/src/routes/layout.tsx`,
-    createLayout(app.id),
-  );
+  writeAppFile('src/routes/layout.tsx', createLayout(app.id));
   for (const [relativePath, content] of Object.entries(
     commerceAssetsForApp(app),
   )) {
     writeFile(targetDir, `${app.directory}/${relativePath}`, content);
   }
-  writeFile(
-    targetDir,
-    `${app.directory}/src/routes/[lang]/page.tsx`,
+  writeAppFile(
+    'src/routes/[lang]/page.tsx',
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
   for (const route of createRouteOwnedI18nPaths(app)) {
@@ -5813,19 +5990,13 @@ function writeApp(
   }
 
   if (app.kind === 'shell') {
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/remote-components.tsx`,
+    writeAppFile(
+      'src/routes/remote-components.tsx',
       createShellRemoteComponents(scope),
     );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/shell-frame.tsx`,
-      createShellFrameComponent(),
-    );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/boundary-overlay.tsx`,
+    writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
+    writeAppFile(
+      'src/routes/boundary-overlay.tsx',
       createShellBoundaryOverlay(),
     );
     writeFile(
@@ -5833,26 +6004,16 @@ function writeApp(
       `${app.directory}/src/effect/recommendations-client.ts`,
       createShellEffectClient(scope),
     );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/[lang]/tractors/page.tsx`,
+    writeAppFile(
+      'src/routes/[lang]/tractors/page.tsx',
       createShellTractorsPage(),
     );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/[lang]/stores/page.tsx`,
-      createShellStoresPage(),
-    );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/[lang]/tractors/[slug]/page.tsx`,
+    writeAppFile('src/routes/[lang]/stores/page.tsx', createShellStoresPage());
+    writeAppFile(
+      'src/routes/[lang]/tractors/[slug]/page.tsx',
       createShellProductPage(),
     );
-    writeFile(
-      targetDir,
-      `${app.directory}/src/routes/[lang]/cart/page.tsx`,
-      createShellCartPage(),
-    );
+    writeAppFile('src/routes/[lang]/cart/page.tsx', createShellCartPage());
   }
 
   if (appHasEffectApi(app)) {
@@ -5874,15 +6035,10 @@ function writeApp(
   }
 
   if (app.kind === 'vertical' || app.kind === 'horizontal-remote') {
-    writeFile(
-      targetDir,
-      `${app.directory}/src/remote-entry.tsx`,
-      createRemoteEntry(app),
-    );
+    writeAppFile('src/remote-entry.tsx', createRemoteEntry(app));
     if (app.id === 'remote-decide') {
-      writeFile(
-        targetDir,
-        `${app.directory}/src/components/remote-components.tsx`,
+      writeAppFile(
+        'src/components/remote-components.tsx',
         createDecideRemoteComponents(scope),
       );
     }
@@ -5897,9 +6053,8 @@ function writeApp(
       const outputPath = remoteComponentOutputPath(app, expose);
 
       if (outputPath) {
-        writeFile(
-          targetDir,
-          outputPath,
+        writeAppFile(
+          outputPath.slice(app.directory.length + 1),
           createRemoteExposeComponent(app, expose),
         );
       }
@@ -5907,11 +6062,7 @@ function writeApp(
   }
 
   if (app.kind === 'horizontal-design-system') {
-    writeFile(
-      targetDir,
-      `${app.directory}/src/components/button.tsx`,
-      createDesignButton(),
-    );
+    writeAppFile('src/components/button.tsx', createDesignButton());
     writeFile(
       targetDir,
       `${app.directory}/src/tokens.ts`,
@@ -5927,6 +6078,16 @@ function writeEffectService(
   enableTailwind: boolean,
   service = effectService,
 ) {
+  const writeServiceFile = (relativePath: string, content: string) => {
+    writeFile(
+      targetDir,
+      `${service.directory}/${relativePath}`,
+      enableTailwind && relativePath.endsWith('.tsx')
+        ? prefixTailwindClassNames(content, tailwindPrefixForService(service))
+        : content,
+    );
+  };
+
   writeJson(
     targetDir,
     `${service.directory}/package.json`,
@@ -5952,12 +6113,11 @@ function writeEffectService(
     `${service.directory}/src/routes/layout.tsx`,
     createLayout(service.id),
   );
-  writeFile(
-    targetDir,
-    `${service.directory}/src/routes/page.tsx`,
+  writeServiceFile(
+    'src/routes/page.tsx',
     `export default function ${toPascalCase(service.id)}Home() {
   return (
-    <main className="min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8">
+    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-6 text-um-foreground sm:[&&]:px-8">
       <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
         <h1 className="text-3xl font-black">${service.id} Effect service</h1>
       </section>

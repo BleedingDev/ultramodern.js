@@ -55,32 +55,64 @@ if (!fs.existsSync(lockPath)) {
 
 const lock = readJson(lockPath);
 const installDir = path.join(root, lock.installDir ?? '.agents/skills');
-const privateSources = (lock.sources ?? []).filter(
+const sources = lock.sources ?? [];
+const requiredCloneSources = sources.filter((source) => source.install === 'clone');
+const optionalCloneSources = sources.filter(
   (source) => source.install === 'clone-if-authorized',
+);
+const requiredSkills = [
+  ...(lock.baseline ?? []),
+  ...requiredCloneSources.flatMap((source) => source.baseline ?? []),
+].filter(
+  (skill, index, skills) =>
+    skills.findIndex((candidate) => candidate.name === skill.name) === index,
 );
 
 if (checkOnly) {
-  const missing = privateSources.flatMap((source) =>
+  const missingRequired = requiredSkills
+    .map((skill) => skill.name)
+    .filter((skillName) => !fs.existsSync(path.join(installDir, skillName, 'SKILL.md')));
+  const missingOptional = optionalCloneSources.flatMap((source) =>
     (source.baseline ?? [])
       .map((skill) => skill.name)
       .filter((skillName) => !fs.existsSync(path.join(installDir, skillName, 'SKILL.md'))),
   );
-  if (missing.length > 0) {
+
+  if (missingRequired.length > 0) {
+    console.error(
+      `Required agent skills not installed: ${missingRequired.join(', ')}. Run pnpm skills:install.`,
+    );
+    process.exit(1);
+  }
+
+  if (missingOptional.length > 0) {
     console.warn(
-      `Private skills not installed: ${missing.join(', ')}. Run pnpm skills:install if you have access.`,
+      `Private skills not installed: ${missingOptional.join(', ')}. Run pnpm skills:install if you have access.`,
     );
   } else {
-    console.log('Agent skills are installed.');
+    console.log('Required and private agent skills are installed.');
+    process.exit(0);
   }
+  console.log('Required agent skills are installed.');
   process.exit(0);
 }
 
 fs.mkdirSync(installDir, { recursive: true });
 
-for (const source of privateSources) {
+for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-skills-'));
   try {
-    cloneSource(source, tempDir);
+    try {
+      cloneSource(source, tempDir);
+    } catch (error) {
+      if (source.install === 'clone-if-authorized') {
+        console.warn(
+          `Skipping ${source.repository}; current developer may not have access.`,
+        );
+        continue;
+      }
+      throw error;
+    }
     for (const skill of source.baseline ?? []) {
       const sourceSkillDir = resolveSkillDir(tempDir, skill.name);
       if (!sourceSkillDir) {

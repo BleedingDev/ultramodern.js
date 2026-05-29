@@ -81,7 +81,7 @@ const requiredDeniedPaths = [
 ];
 const requiredPostMaterialization = [
   'ultramodern-contract-check',
-  'dependency-install-with-lifecycle-deny',
+  'agent-skill-postinstall-allowed',
   'github-workflow-security-enforced',
   'package-source-retained',
   'pnpm-11-policy-enforced',
@@ -218,6 +218,12 @@ for (const deniedPath of requiredDeniedPaths) {
 if (templateManifest.lifecyclePolicy?.denyByDefault !== true) {
   manifestErrors.push('lifecyclePolicy.denyByDefault');
 }
+if (
+  JSON.stringify(templateManifest.lifecyclePolicy?.allowedScripts) !==
+  JSON.stringify(['postinstall'])
+) {
+  manifestErrors.push('lifecyclePolicy.allowedScripts');
+}
 
 for (const token of requiredPostMaterialization) {
   if (!templateManifest.validation?.postMaterializationValidation?.includes(token)) {
@@ -260,6 +266,7 @@ const requiredScripts = {
   'lint:fix': 'oxlint . --fix',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
+  postinstall: 'node ./scripts/bootstrap-agent-skills.mjs',
 {{/unless}}
 };
 

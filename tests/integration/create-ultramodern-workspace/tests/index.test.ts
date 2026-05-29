@@ -991,8 +991,11 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['skills:install']).toBe(
       'node ./scripts/bootstrap-agent-skills.mjs',
     );
+    expect(rootPackage.scripts['skills:check']).toBe(
+      'node ./scripts/bootstrap-agent-skills.mjs --check',
+    );
     expect(rootPackage.scripts.postinstall).toBe(
-      'node ./scripts/setup-agent-reference-repos.mjs && node ./scripts/bootstrap-agent-skills.mjs',
+      'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs',
     );
     expect(
       Object.keys(rootPackage.scripts).every(
