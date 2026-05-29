@@ -5631,6 +5631,7 @@ function writeGeneratedWorkspaceScripts(
   targetDir: string,
   scope: string,
   enableTailwind: boolean,
+  remotes: WorkspaceApp[] = remoteApps,
 ) {
   writeFileReplacing(
     targetDir,
@@ -5640,7 +5641,7 @@ function writeGeneratedWorkspaceScripts(
   writeFileReplacing(
     targetDir,
     'scripts/validate-ultramodern-workspace.mjs',
-    createWorkspaceValidationScript(scope, enableTailwind),
+    createWorkspaceValidationScript(scope, enableTailwind, remotes),
   );
   writeFileReplacing(
     targetDir,
@@ -6230,6 +6231,7 @@ function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
     ...(effectApiTopologyMetadata(remote)
       ? { api: effectApiTopologyMetadata(remote) }
       : {}),
+    cloudflare: createCloudflareDeployContract(scope, remote),
     ownership: remote.ownership,
   };
 }
@@ -6256,6 +6258,7 @@ function remotesFromTopology(
   ports: Record<string, unknown>,
 ) {
   return (topology.remotes ?? []).map((remote: any) => {
+    const packageSuffix = remote.package?.split('/').at(-1) ?? remote.id;
     const effectApi = remote.api?.effect
       ? ({
           stem:
@@ -6275,8 +6278,11 @@ function remotesFromTopology(
 
     return {
       id: remote.id,
-      directory: '',
-      packageSuffix: remote.package?.split('/').at(-1) ?? remote.id,
+      directory:
+        typeof remote.path === 'string'
+          ? remote.path
+          : `apps/remotes/${packageSuffix}`,
+      packageSuffix,
       displayName: remote.id,
       kind: remote.kind ?? 'vertical',
       domain: remote.domain ?? String(remote.id).replace(/^remote-/, ''),
@@ -6393,6 +6399,7 @@ export function addUltramodernMicroVertical(
     writeJsonFile(topologyPath, topology as JsonValue);
     writeJsonFile(ownershipPath, ownership as JsonValue);
     writeJsonFile(overlayPath, overlay as JsonValue);
+    const updatedRemotes = remotesFromTopology(topology, overlay.ports);
     writeJsonFile(
       path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
       createGeneratedContract(
@@ -6400,11 +6407,9 @@ export function addUltramodernMicroVertical(
         [
           {
             ...shellApp,
-            remoteRefs: remotesFromTopology(topology, overlay.ports).map(
-              remote => remote.id,
-            ),
+            remoteRefs: updatedRemotes.map(remote => remote.id),
           },
-          ...remotesFromTopology(topology, overlay.ports),
+          ...updatedRemotes,
         ],
         enableTailwind,
       ),
@@ -6416,13 +6421,17 @@ export function addUltramodernMicroVertical(
     writeFileReplacing(
       options.workspaceRoot,
       `${shellApp.directory}/module-federation.config.ts`,
-      createShellModuleFederationConfig(
-        remotesFromTopology(topology, overlay.ports),
-      ),
+      createShellModuleFederationConfig(updatedRemotes),
     );
     if (!fs.existsSync(shellConfigPath)) {
       throw new Error('Shell Module Federation config was not regenerated');
     }
+    writeGeneratedWorkspaceScripts(
+      options.workspaceRoot,
+      scope,
+      enableTailwind,
+      updatedRemotes,
+    );
     addShellZephyrDependency(options.workspaceRoot, scope, remote);
     addShellWorkspaceDependency(options.workspaceRoot, scope, remote);
     addRootDevScript(options.workspaceRoot, scope, remote.packageSuffix, name);
