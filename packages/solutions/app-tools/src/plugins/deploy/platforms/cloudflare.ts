@@ -22,6 +22,14 @@ const getWorkerName = (appDirectory: string) => {
   return basename.replace(/[^a-zA-Z0-9-_]/g, '-') || 'modern-cloudflare-worker';
 };
 
+const getConfiguredWorkerName = (
+  appDirectory: string,
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  const configuredName = modernConfig.deploy?.worker?.name?.trim();
+  return configuredName || getWorkerName(appDirectory);
+};
+
 const readRouteSpec = async (outputDirectory: string) => {
   const routeSpecPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
 
@@ -183,6 +191,7 @@ export const createCloudflarePreset: CreatePreset = ({
   const workerManifestPath = path.join(outputDirectory, WORKER_MANIFEST);
   const routeSpecOutputPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
   const wranglerConfigPath = path.join(outputDirectory, 'wrangler.json');
+  const workerName = getConfiguredWorkerName(appDirectory, modernConfig);
 
   return {
     async prepare() {
@@ -219,7 +228,7 @@ export const createCloudflarePreset: CreatePreset = ({
         wranglerConfigPath,
         {
           $schema: 'node_modules/wrangler/config-schema.json',
-          name: getWorkerName(appDirectory),
+          name: workerName,
           main: WORKER_ENTRY,
           compatibility_date: getCompatibilityDate(),
           compatibility_flags: ['nodejs_compat'],

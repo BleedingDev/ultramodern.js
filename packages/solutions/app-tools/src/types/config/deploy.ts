@@ -47,6 +47,7 @@ export interface DeployUserConfig {
    */
   microFrontend?: boolean | MicroFrontend;
   worker?: {
+    name?: string;
     ssr?: boolean;
   };
 }

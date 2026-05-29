@@ -19,7 +19,7 @@ const createAssetBinding = (publicDirectory: string) => ({
   },
 });
 
-async function createFixture() {
+async function createFixture({ workerName }: { workerName?: string } = {}) {
   const appDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'modern-cloudflare-deploy-'),
   );
@@ -192,6 +192,11 @@ async function createFixture() {
         prefix: '/commerce-api',
         runtimeFramework: 'effect',
       },
+      deploy: {
+        worker: {
+          name: workerName,
+        },
+      },
     } as any,
     api: {} as any,
   });
@@ -231,6 +236,17 @@ describe('cloudflare deploy preset', () => {
       binding: 'ASSETS',
     });
     expect(wranglerConfig.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('uses configured Cloudflare worker names when provided', async () => {
+    const { outputDirectory } = await createFixture({
+      workerName: 'commerce-production-worker',
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+
+    expect(wranglerConfig.name).toBe('commerce-production-worker');
   });
 
   it('places client-facing assets under the configured public asset root only', async () => {
