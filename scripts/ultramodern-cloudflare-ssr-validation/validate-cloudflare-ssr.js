@@ -12,7 +12,7 @@ const DEFAULT_ROUTES = {
   cs: '/cs',
   locale: '/locales/en/translation.json',
   mfManifest: '/mf-manifest.json',
-  bff: '/commerce-api/effect/recommendations',
+  bff: '/explore-api/effect/explore/readiness',
 };
 
 function isRecord(value) {
@@ -434,7 +434,7 @@ Options:
   --cs <path>             Czech SSR route. Defaults to /cs.
   --locale <path>         Locale asset route. Defaults to /locales/en/translation.json.
   --mf-manifest <path>    MF manifest route. Defaults to /mf-manifest.json.
-  --bff <path>            Effect BFF route. Defaults to /commerce-api/effect/recommendations.
+  --bff <path>            Effect BFF route. Defaults to /explore-api/effect/explore/readiness.
   --expect-en <text>      Text required in English SSR response.
   --expect-cs <text>      Text required in Czech SSR response.
   --match-build-marker    Require SSR UI marker and BFF JSON marker to match.

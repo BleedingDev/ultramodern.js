@@ -34,14 +34,14 @@ function writeFixture(rootDir, { bffBuild = 'build-123' } = {}) {
   });
   writeJson(path.join(outputDir, 'server/modern-worker-manifest.json'), {
     bff: {
-      prefix: '/commerce-api',
+      prefix: '/explore-api',
       worker: 'worker/__modern_bff_effect.js',
     },
   });
   writeFile(path.join(outputDir, 'public/mf-manifest.json'), '{}\n');
   writeJson(path.join(outputDir, 'public/locales/en/translation.json'), {
-    commerce: {
-      title: 'Commerce Remote',
+    explore: {
+      title: 'Explore Remote',
     },
   });
   writeFile(
@@ -57,16 +57,16 @@ function writeFixture(rootDir, { bffBuild = 'build-123' } = {}) {
           return env.ASSETS.fetch(request);
         }
         if (pathname === '/en') {
-          return new Response('<html data-build-marker="build-123">Commerce Remote</html>', {
+          return new Response('<html data-build-marker="build-123">Explore Remote</html>', {
             headers: { 'content-type': 'text/html; charset=utf-8' },
           });
         }
         if (pathname === '/cs') {
-          return new Response('<html data-build-marker="build-123">Obchodni remote</html>', {
+          return new Response('<html data-build-marker="build-123">Průzkumný remote</html>', {
             headers: { 'content-type': 'text/html; charset=utf-8' },
           });
         }
-        if (pathname === '/commerce-api/effect/recommendations') {
+        if (pathname === '/explore-api/effect/explore/readiness') {
           return new Response(JSON.stringify({
             items: [{ marker: { build: '${bffBuild}' } }],
           }), {
@@ -90,8 +90,8 @@ test('validates Worker SSR, assets, BFF JSON, and marker lockstep', async () => 
       rootDir,
       reportPath,
       expected: {
-        enText: 'Commerce Remote',
-        csText: 'Obchodni remote',
+        enText: 'Explore Remote',
+        csText: 'Průzkumný remote',
         matchBuildMarker: true,
       },
       generatedAt: '2026-05-27T00:00:00.000Z',
@@ -101,10 +101,7 @@ test('validates Worker SSR, assets, BFF JSON, and marker lockstep', async () => 
     assert.equal(report.status, 'pass');
     assert.equal(report.responses.en.status, 200);
     assert.equal(report.responses.cs.status, 200);
-    assert.equal(
-      report.responses.locale.json.commerce.title,
-      'Commerce Remote',
-    );
+    assert.equal(report.responses.locale.json.explore.title, 'Explore Remote');
     assert.equal(report.responses.bff.json.items[0].marker.build, 'build-123');
     assert.equal(report.markers.match, true);
     assert.equal(written.status, report.status);
@@ -163,7 +160,7 @@ test('parseArgs maps validation options', () => {
         cs: '/cs',
         locale: '/locales/en/translation.json',
         mfManifest: '/mf-manifest.json',
-        bff: '/commerce-api/effect/recommendations',
+        bff: '/explore-api/effect/explore/readiness',
       },
       expected: {
         enText: 'English',

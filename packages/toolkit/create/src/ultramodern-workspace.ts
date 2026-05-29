@@ -1247,21 +1247,10 @@ const zephyrRspackPlugin = () => ({
 const appId = '${app.id}';
 const cloudflareWorkerName = '${createCloudflareWorkerName(scope, app)}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
-const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL'];
-const hasConfiguredSiteUrl =
-  typeof configuredSiteUrl === 'string' && configuredSiteUrl.length > 0;
-const isProductionBuild =
-  process.env['NODE_ENV'] === 'production' || process.argv.includes('build');
-
-if (isProductionBuild && !hasConfiguredSiteUrl) {
-  throw new Error(
-    'MODERN_PUBLIC_SITE_URL must be set for production builds so canonical and hreflang URLs use the deployed origin.',
-  );
-}
-
-const siteUrl = hasConfiguredSiteUrl
-  ? configuredSiteUrl
-  : \`http://localhost:\${port}\`;
+const siteUrl =
+  process.env['MODERN_PUBLIC_SITE_URL'] ??
+  process.env['${createCloudflarePublicUrlEnv(app)}'] ??
+  \`http://localhost:\${port}\`;
 
 export default defineConfig(
   presetUltramodern(
@@ -2550,10 +2539,6 @@ export default function ShellHome() {
 }
 
 function createRemotePage(app: WorkspaceApp): string {
-  if (app.id === 'remote-commerce') {
-    return createCommerceRemotePage(app);
-  }
-
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
@@ -2621,405 +2606,6 @@ ${effectBffState}  return (
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
 ${effectBffMarkup}    </main>
-  );
-}
-`;
-}
-
-function createCommerceRemotePage(app: WorkspaceApp): string {
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useEffect, useState, type CSSProperties } from 'react';
-import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
-import { ultramodernUiMarker } from '../../ultramodern-build';
-
-const languageCodes = ['en', 'cs'] as const;
-
-const boundaryDefinitions = [
-  {
-    color: '#ff5a57',
-    id: 'explore',
-    labelKey: 'commerce.boundaries.explore',
-  },
-  {
-    color: '#24d671',
-    id: 'decide',
-    labelKey: 'commerce.boundaries.decide',
-  },
-  {
-    color: '#f4d044',
-    id: 'checkout',
-    labelKey: 'commerce.boundaries.checkout',
-  },
-] as const;
-
-type BoundaryId = (typeof boundaryDefinitions)[number]['id'];
-type BoundaryDefinition = (typeof boundaryDefinitions)[number];
-
-const boundaryMetadata: Record<BoundaryId, BoundaryDefinition> = {
-  checkout: boundaryDefinitions[2],
-  decide: boundaryDefinitions[1],
-  explore: boundaryDefinitions[0],
-};
-
-const products = [
-  {
-    id: 'field-loader-112',
-    titleKey: 'commerce.products.fieldLoader.title',
-    descriptionKey: 'commerce.products.fieldLoader.description',
-    priceKey: 'commerce.products.fieldLoader.price',
-    powerKey: 'commerce.products.fieldLoader.power',
-    availabilityKey: 'commerce.products.fieldLoader.availability',
-  },
-  {
-    id: 'orchard-tractor',
-    titleKey: 'commerce.products.orchard.title',
-    badgeKey: 'commerce.products.orchard.badge',
-  },
-  {
-    id: 'autonomy-kit',
-    titleKey: 'commerce.products.autonomy.title',
-    badgeKey: 'commerce.products.autonomy.badge',
-  },
-] as const;
-
-type ProductId = (typeof products)[number]['id'];
-type CartState = Partial<Record<ProductId, number>>;
-
-type BoundaryLabels = Record<BoundaryId, string>;
-type BoundaryBox = {
-  color: string;
-  height: number;
-  id: BoundaryId;
-  label: string;
-  labelPlacement: 'above' | 'inside';
-  left: number;
-  top: number;
-  width: number;
-};
-
-const featuredProduct = products[0];
-const recommendations = [products[1], products[2]] as const;
-
-${createLocalizedHeadComponent()}
-const isBoundaryId = (value: string): value is BoundaryId =>
-  Object.prototype.hasOwnProperty.call(boundaryMetadata, value);
-
-function collectBoundaryBoxes(labels: BoundaryLabels): BoundaryBox[] {
-  return Array.from(
-    document.querySelectorAll<HTMLElement>('[data-boundary], [data-boundary-page]'),
-  )
-    .map(element => {
-      const id = element.dataset.boundary ?? element.dataset.boundaryPage;
-
-      if (id === undefined || !isBoundaryId(id)) {
-        return undefined;
-      }
-
-      const rect = element.getBoundingClientRect();
-
-      if (rect.width <= 0 || rect.height <= 0) {
-        return undefined;
-      }
-
-      return {
-        color: boundaryMetadata[id].color,
-        height: rect.height,
-        id,
-        label: labels[id],
-        labelPlacement: rect.top > 28 ? 'above' : 'inside',
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-      };
-    })
-    .filter((box): box is BoundaryBox => box !== undefined);
-}
-
-function BoundaryOverlay({
-  labels,
-  visible,
-}: {
-  labels: BoundaryLabels;
-  visible: boolean;
-}) {
-  const [boxes, setBoxes] = useState<BoundaryBox[]>([]);
-
-  useEffect(() => {
-    if (!visible) {
-      setBoxes([]);
-      return;
-    }
-
-    let animationFrame = 0;
-    const update = () => {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = requestAnimationFrame(() => {
-        setBoxes(collectBoundaryBoxes(labels));
-      });
-    };
-    const observer = new ResizeObserver(update);
-
-    observer.observe(document.body);
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      observer.disconnect();
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [labels, visible]);
-
-  if (!visible) {
-    return null;
-  }
-
-  return (
-    <div aria-hidden="true" className="boundary-overlay">
-      {boxes.map((box, index) => (
-        <div
-          className="boundary-overlay__box"
-          data-boundary-id={box.id}
-          data-label-placement={box.labelPlacement}
-          key={\`\${box.id}-\${index}\`}
-          style={{
-            '--boundary-color': box.color,
-            height: box.height,
-            left: box.left,
-            top: box.top,
-            width: box.width,
-          } as CSSProperties}
-        >
-          <span className="boundary-overlay__label">{box.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export default function ${toPascalCase(app.id)}Home() {
-  const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
-  const [cart, setCart] = useState<CartState>({});
-  const [showBoundaries, setShowBoundaries] = useState(false);
-  const [effectApiStatus, setEffectApiStatus] = useState('pending');
-  const boundaryLabels = {
-    checkout: t('commerce.boundaries.checkout'),
-    decide: t('commerce.boundaries.decide'),
-    explore: t('commerce.boundaries.explore'),
-  } satisfies BoundaryLabels;
-  const cartLines = products
-    .map(product => ({
-      product,
-      quantity: cart[product.id] ?? 0,
-    }))
-    .filter(line => line.quantity > 0);
-  const cartCount = cartLines.reduce((total, line) => total + line.quantity, 0);
-
-  useEffect(() => {
-    void fetch('${effectApiPrefix(app)}/effect/${effectApiStem(app)}?limit=1', {
-      headers: {
-        accept: 'application/json',
-      },
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(\`Effect BFF request failed: \${response.status}\`);
-        }
-
-        return response.json() as Promise<{ items?: Array<{ title?: string }> }>;
-      })
-      .then(data => {
-        setEffectApiStatus(data.items[0]?.title ?? 'empty');
-      })
-      .catch(() => {
-        setEffectApiStatus('unavailable');
-      });
-  }, []);
-
-  const addToCart = (id: ProductId) => {
-    setCart(current => ({
-      ...current,
-      [id]: (current[id] ?? 0) + 1,
-    }));
-  };
-
-  const reduceQuantity = (id: ProductId) => {
-    setCart(current => {
-      const quantity = current[id] ?? 0;
-      const next = { ...current };
-
-      if (quantity <= 1) {
-        delete next[id];
-      } else {
-        next[id] = quantity - 1;
-      }
-
-      return next;
-    });
-  };
-
-  const removeFromCart = (id: ProductId) => {
-    setCart(current => {
-      const next = { ...current };
-
-      delete next[id];
-      return next;
-    });
-  };
-
-  return (
-    <main className="commerce-shell">
-      <LocalizedHead />
-      <BoundaryOverlay labels={boundaryLabels} visible={showBoundaries} />
-      <header className="commerce-header" data-boundary="explore">
-        <strong className="commerce-logo">{t('commerce.brand')}</strong>
-        <nav aria-label={t('commerce.navigation.primary')} className="commerce-nav">
-          <a className="commerce-pill" href="#machines">
-            {t('commerce.navigation.machines')}
-          </a>
-          <a className="commerce-pill" href="#checkout">
-            {t('commerce.navigation.checkout')}
-          </a>
-        </nav>
-        <div className="commerce-actions">
-          <a className="commerce-cart-button" data-boundary="checkout" href="#cart">
-            {t('commerce.cart.button', { count: cartCount })}
-          </a>
-          <nav aria-label={t('commerce.language.switcher')} className="commerce-language">
-            {languageCodes.map(code => (
-              <a
-                aria-current={language === code ? 'page' : undefined}
-                className="commerce-pill"
-                href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-                key={code}
-              >
-                {t(\`commerce.language.\${code}\`)}
-              </a>
-            ))}
-          </nav>
-        </div>
-      </header>
-
-      <div className="commerce-page">
-        <section className="commerce-product" data-boundary-page="decide" id="machines">
-          <div
-            aria-label={t('commerce.products.fieldLoader.imageAlt')}
-            className="commerce-product-media"
-            role="img"
-          />
-          <div>
-            <p className="commerce-eyebrow">{t('commerce.detail.eyebrow')}</p>
-            <h1 className="commerce-title">{t(featuredProduct.titleKey)}</h1>
-            <p className="commerce-lede">{t(featuredProduct.descriptionKey)}</p>
-            <div className="commerce-facts">
-              <div className="commerce-fact">
-                <span>{t('commerce.detail.price')}</span>
-                <strong>{t(featuredProduct.priceKey)}</strong>
-              </div>
-              <div className="commerce-fact">
-                <span>{t('commerce.detail.power')}</span>
-                <strong>{t(featuredProduct.powerKey)}</strong>
-              </div>
-              <div className="commerce-fact">
-                <span>{t('commerce.detail.availability')}</span>
-                <strong>{t(featuredProduct.availabilityKey)}</strong>
-              </div>
-            </div>
-            <div className="commerce-checkout" data-boundary="checkout" id="checkout">
-              <button
-                className="commerce-button"
-                onClick={() => addToCart(featuredProduct.id)}
-                type="button"
-              >
-                {t('commerce.cart.add')}
-              </button>
-              <a className="commerce-link-button" href="#cart">
-                {t('commerce.cart.view')}
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section data-boundary="explore">
-          <h2 className="commerce-section-title">{t('commerce.recommendations.title')}</h2>
-          <div className="commerce-grid">
-            {recommendations.map(product => (
-              <article className="commerce-card" key={product.id}>
-                <span>{t(product.badgeKey)}</span>
-                <strong>{t(product.titleKey)}</strong>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="commerce-cart-panel" data-boundary="checkout" id="cart">
-          <h2>{t('commerce.cart.title')}</h2>
-          {cartLines.length === 0 ? (
-            <p>{t('commerce.cart.empty')}</p>
-          ) : (
-            cartLines.map(line => (
-              <div className="commerce-cart-line" key={line.product.id}>
-                <strong>{t(line.product.titleKey)}</strong>
-                <div className="commerce-quantity">
-                  <button
-                    aria-label={t('commerce.cart.decrease', {
-                      name: t(line.product.titleKey),
-                    })}
-                    className="commerce-quantity-button"
-                    onClick={() => reduceQuantity(line.product.id)}
-                    type="button"
-                  >
-                    -
-                  </button>
-                  <span>{line.quantity}</span>
-                  <button
-                    aria-label={t('commerce.cart.increase', {
-                      name: t(line.product.titleKey),
-                    })}
-                    className="commerce-quantity-button"
-                    onClick={() => addToCart(line.product.id)}
-                    type="button"
-                  >
-                    +
-                  </button>
-                  <button
-                    className="commerce-link-button"
-                    onClick={() => removeFromCart(line.product.id)}
-                    type="button"
-                  >
-                    {t('commerce.cart.remove')}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </section>
-      </div>
-
-      <footer className="commerce-footer" data-boundary="explore">
-        <span>{t('commerce.footer.stack')}</span>
-        <span data-testid="effect-bff-status">{effectApiStatus}</span>
-        <span data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
-          {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
-        </span>
-      </footer>
-
-      <label className="commerce-boundary-toggle">
-        <input
-          checked={showBoundaries}
-          onChange={event => setShowBoundaries(event.currentTarget.checked)}
-          type="checkbox"
-        />
-        {t('commerce.boundaries.toggle')}
-      </label>
-    </main>
   );
 }
 `;
@@ -3183,105 +2769,6 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
     role: domain,
     title: `${app.displayName} CZ`,
   };
-
-  if (domain === 'commerce') {
-    return {
-      commerce: {
-        boundaries: {
-          checkout: language === 'en' ? 'checkout' : 'pokladna',
-          decide: language === 'en' ? 'decide' : 'rozhodování',
-          explore: language === 'en' ? 'explore' : 'procházení',
-          toggle:
-            language === 'en'
-              ? 'show team boundaries'
-              : 'zobrazit hranice týmů',
-        },
-        brand: 'Acre & Iron',
-        cart: {
-          add: language === 'en' ? 'Add to cart' : 'Přidat do košíku',
-          button:
-            language === 'en' ? 'Your cart ({{count}})' : 'Košík ({{count}})',
-          decrease:
-            language === 'en'
-              ? 'Decrease {{name}} quantity'
-              : 'Snížit množství položky {{name}}',
-          empty:
-            language === 'en' ? 'Your cart is empty.' : 'Košík je prázdný.',
-          increase:
-            language === 'en'
-              ? 'Increase {{name}} quantity'
-              : 'Zvýšit množství položky {{name}}',
-          remove: language === 'en' ? 'Remove' : 'Odebrat',
-          title: language === 'en' ? 'Cart' : 'Košík',
-          view: language === 'en' ? 'View cart' : 'Zobrazit košík',
-        },
-        detail: {
-          availability: language === 'en' ? 'Availability' : 'Dostupnost',
-          eyebrow: language === 'en' ? 'Machine detail' : 'Detail stroje',
-          power: language === 'en' ? 'Power' : 'Výkon',
-          price: language === 'en' ? 'Price' : 'Cena',
-        },
-        footer: {
-          stack:
-            language === 'en'
-              ? 'SPA, SSR-ready Module Federation, React, Effect BFF'
-              : 'SPA, SSR-ready Module Federation, React, Effect BFF',
-        },
-        language: {
-          cs: language === 'en' ? 'Czech' : 'Čeština',
-          en: language === 'en' ? 'English' : 'Angličtina',
-          switcher: language === 'en' ? 'Language' : 'Jazyk',
-        },
-        navigation: {
-          checkout: language === 'en' ? 'Checkout' : 'Pokladna',
-          machines: language === 'en' ? 'Machines' : 'Stroje',
-          primary:
-            language === 'en'
-              ? 'Primary commerce navigation'
-              : 'Hlavní navigace obchodu',
-        },
-        products: {
-          autonomy: {
-            badge: language === 'en' ? 'AI-first option' : 'AI varianta',
-            title:
-              language === 'en'
-                ? 'Autonomy Retrofit Kit'
-                : 'Sada pro autonomní řízení',
-          },
-          fieldLoader: {
-            availability: language === 'en' ? 'In stock' : 'Skladem',
-            description:
-              language === 'en'
-                ? 'A loader-ready tractor for feed, hay, gravel, and winter road work.'
-                : 'Traktor připravený na nakladač pro krmivo, seno, štěrk i zimní údržbu cest.',
-            imageAlt:
-              language === 'en'
-                ? 'Field Loader 112 tractor working on a bright farm lane'
-                : 'Traktor Field Loader 112 pracuje na světlé polní cestě',
-            power: '112 hp',
-            price: 'EUR 42,500',
-            title: 'Field Loader 112',
-          },
-          orchard: {
-            badge:
-              language === 'en'
-                ? 'Best for tight rows'
-                : 'Nejlepší do úzkých řádků',
-            title:
-              language === 'en'
-                ? 'Narrow Orchard Tractor'
-                : 'Úzký sadový traktor',
-          },
-        },
-        recommendations: {
-          title:
-            language === 'en' ? 'Compare alternatives' : 'Porovnat alternativy',
-        },
-        role: language === 'en' ? 'commerce' : 'obchod',
-        title: language === 'en' ? app.displayName : czechLabel.title,
-      },
-    };
-  }
 
   return {
     [domain]: {
@@ -4471,38 +3958,6 @@ function createAppGeneratedContract(
       uiSurface: 'ui',
       ...(appHasEffectApi(app) ? { apiSurface: 'effect-bff' } : {}),
     },
-    ...(app.domain === 'commerce'
-      ? {
-          boundaryVisualization: {
-            mode: 'overlay',
-            layoutAffecting: false,
-            toggle: 'user-controlled',
-            boundaries: [
-              {
-                id: 'explore',
-                labelKey: 'commerce.boundaries.explore',
-                owner: 'team-explore',
-                color: '#ff5a57',
-                owns: ['header', 'footer', 'recommendations', 'catalog'],
-              },
-              {
-                id: 'decide',
-                labelKey: 'commerce.boundaries.decide',
-                owner: 'team-decide',
-                color: '#24d671',
-                owns: ['product-detail', 'variant-selection'],
-              },
-              {
-                id: 'checkout',
-                labelKey: 'commerce.boundaries.checkout',
-                owner: 'team-checkout',
-                color: '#f4d044',
-                owns: ['add-to-cart', 'cart-link', 'cart-lines'],
-              },
-            ],
-          },
-        }
-      : {}),
     ...(appHasEffectApi(app)
       ? {
           effect: {
@@ -4685,6 +4140,13 @@ function createAssertMfTypesScript(
 import path from 'node:path';
 
 const root = process.cwd();
+const generatedContractPath = path.join(
+  root,
+  '.modernjs/ultramodern-generated-contract.json',
+);
+const generatedContract = fs.existsSync(generatedContractPath)
+  ? JSON.parse(fs.readFileSync(generatedContractPath, 'utf-8'))
+  : undefined;
 const defaultAppDirs = ${JSON.stringify(
     remotes.map(remote => remote.directory),
     null,
@@ -4706,20 +4168,20 @@ for (const appDir of appDirs) {
     );
   }
 
-  const config = fs.readFileSync(configPath, 'utf-8');
-  if (config.includes('dts: false')) {
+  const contractEntry = generatedContract?.apps?.find(
+    app => app.path === appDir.replace(/\\\\/g, '/'),
+  );
+  if (
+    contractEntry &&
+    contractEntry.moduleFederation?.dts?.compilerInstance !==
+      '--package typescript -- tsc'
+  ) {
     throw new Error(
-      \`Module Federation DTS must stay enabled: \${path.relative(root, configPath)}\`,
+      \`Module Federation DTS must use the workspace TypeScript compiler: \${appDir}\`,
     );
   }
 
-  if (!config.includes("compilerInstance: '--package typescript -- tsc'")) {
-    throw new Error(
-      \`Module Federation DTS must use the workspace TypeScript compiler: \${path.relative(root, configPath)}\`,
-    );
-  }
-
-  if (!config.includes('exposes:')) {
+  if (contractEntry && contractEntry.moduleFederation?.exposes?.length === 0) {
     continue;
   }
 
@@ -5058,13 +4520,23 @@ function createCloudflareVersionProofScript(): string {
   return `#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const contractPath = '.modernjs/ultramodern-generated-contract.json';
-const defaultOut =
-  '.codex/reports/cloudflare-version-proof/public-url-proof.json';
+const workspaceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const contractPath = path.join(
+  workspaceRoot,
+  '.modernjs/ultramodern-generated-contract.json',
+);
+const defaultOut = path.join(
+  workspaceRoot,
+  '.codex/reports/cloudflare-version-proof/public-url-proof.json',
+);
 
-function readJson(relativePath) {
-  return JSON.parse(fs.readFileSync(path.resolve(relativePath), 'utf8'));
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function parseArgs(argv) {
