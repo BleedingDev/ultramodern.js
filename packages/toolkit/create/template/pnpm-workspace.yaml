@@ -1,13 +1,6 @@
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
-minimumReleaseAgeExclude:
-  - '@modern-js/*'
-  - '@bleedingdev/*'
-  - '@effect/tsgo'
-  - '@effect/tsgo-*'
-  - '@typescript/native-preview'
-  - '@typescript/native-preview-*'
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 1440
 blockExoticSubdeps: true
