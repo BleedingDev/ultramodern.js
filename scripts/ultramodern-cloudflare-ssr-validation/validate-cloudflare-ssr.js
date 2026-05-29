@@ -124,12 +124,15 @@ function createContentType(filePath) {
 }
 
 function createAssetBinding(publicDir) {
+  const assetRoot = path.resolve(publicDir);
+
   return {
     fetch: async request => {
       const { pathname } = new URL(request.url);
-      const filePath = path.join(publicDir, pathname);
+      const filePath = path.resolve(assetRoot, `.${pathname}`);
+      const relativePath = path.relative(assetRoot, filePath);
 
-      if (!filePath.startsWith(publicDir)) {
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
         return new Response('Forbidden', { status: 403 });
       }
 

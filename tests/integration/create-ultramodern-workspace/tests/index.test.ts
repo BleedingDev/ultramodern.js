@@ -1604,6 +1604,16 @@ describe('create-ultramodern-workspace', () => {
     expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
+
+    const mfTypesHelp = execFileSync(
+      process.execPath,
+      ['scripts/assert-mf-types.mjs', '--help'],
+      {
+        cwd: workspaceDir,
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(mfTypesHelp).toMatch(/Usage:/u);
   });
 
   test('adds a full-stack remote MicroVertical to an existing workspace', () => {

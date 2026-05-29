@@ -1247,10 +1247,11 @@ const zephyrRspackPlugin = () => ({
 const appId = '${app.id}';
 const cloudflareWorkerName = '${createCloudflareWorkerName(scope, app)}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
+const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL']?.trim();
+const configuredCloudflareUrl =
+  process.env['${createCloudflarePublicUrlEnv(app)}']?.trim();
 const siteUrl =
-  process.env['MODERN_PUBLIC_SITE_URL'] ??
-  process.env['${createCloudflarePublicUrlEnv(app)}'] ??
-  \`http://localhost:\${port}\`;
+  configuredSiteUrl || configuredCloudflareUrl || \`http://localhost:\${port}\`;
 
 export default defineConfig(
   presetUltramodern(
@@ -4153,7 +4154,17 @@ const defaultAppDirs = ${JSON.stringify(
     2,
   )};
 
-const candidateDirs = process.argv.slice(2);
+const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  process.stdout.write(\`Usage:
+  node scripts/assert-mf-types.mjs [app-dir...]
+
+Checks that every Module Federation remote with exposed modules emitted a non-empty dist/@mf-types.zip archive and uses the workspace TypeScript compiler.
+\`);
+  process.exit(0);
+}
+
+const candidateDirs = args;
 const appDirs = candidateDirs.length
   ? candidateDirs
   : fs.existsSync(path.join(root, 'module-federation.config.ts'))
