@@ -1620,6 +1620,16 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
       },
       {
         ...base,
+        canonicalPath: '/stores',
+        id: 'shell-stores',
+        localisedPaths: {
+          cs: '/prodejci',
+          en: '/stores',
+        },
+        titleKey: 'shell.routes.storePicker',
+      },
+      {
+        ...base,
         canonicalPath: '/tractors/:slug',
         id: 'shell-product-detail',
         localisedPaths: {
@@ -2423,6 +2433,25 @@ export default function ShellTractorsPage() {
     <ShellFrame>
       <LocalizedHead />
       <Recommendations />
+    </ShellFrame>
+  );
+}
+`;
+}
+
+function createShellStoresPage(): string {
+  return `import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import ShellFrame from '../../shell-frame';
+import { StorePicker } from '../../remote-components';
+import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
+
+${createLocalizedHeadComponent()}
+export default function ShellStoresPage() {
+  return (
+    <ShellFrame>
+      <LocalizedHead />
+      <StorePicker />
     </ShellFrame>
   );
 }
@@ -3401,6 +3430,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
           listing: language === 'en' ? 'Tractors' : 'Traktory',
           productDetail:
             language === 'en' ? 'Tractor detail' : 'Detail traktoru',
+          storePicker: language === 'en' ? 'Stores' : 'Prodejci',
         },
         title: language === 'en' ? 'Acre & Iron' : 'Acre & Iron',
       },
@@ -5807,6 +5837,11 @@ function writeApp(
       targetDir,
       `${app.directory}/src/routes/[lang]/tractors/page.tsx`,
       createShellTractorsPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/stores/page.tsx`,
+      createShellStoresPage(),
     );
     writeFile(
       targetDir,
