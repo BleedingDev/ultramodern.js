@@ -1270,6 +1270,7 @@ export default defineConfig(
   presetUltramodern(
     {
 ${bffConfig}      output: {
+        assetPrefix: siteUrl,
         disableTsChecker: true,
         distPath: {
           html: './',
@@ -4407,6 +4408,14 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
       'zephyrRspackPlugin',
     ],
     output: {
+      assetPrefix: {
+        envFallbackOrder: [
+          'MODERN_PUBLIC_SITE_URL',
+          createCloudflarePublicUrlEnv(app),
+          app.portEnv,
+        ],
+        defaultLocalhostPort: app.port,
+      },
       disableTsChecker: true,
       distPath: {
         html: './',
@@ -5310,6 +5319,10 @@ function joinUrl(baseUrl, routePath) {
   return new URL(routePath, baseUrl.endsWith('/') ? baseUrl : \`\${baseUrl}/\`);
 }
 
+function normalizeUrlWithTrailingSlash(url) {
+  return url.endsWith('/') ? url : \`\${url}/\`;
+}
+
 async function fetchText(url) {
   const response = await fetch(url);
   return {
@@ -5414,6 +5427,7 @@ async function validateApp(app, publicUrl) {
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
   const manifest = await fetchText(joinUrl(publicUrl, manifestRoute));
+  const manifestJson = parseMaybeJson(manifest.body);
   evidence.assertions.push({
     type: 'mf-manifest',
     route: manifestRoute,
@@ -5433,6 +5447,18 @@ async function validateApp(app, publicUrl) {
   assert(
     manifest.accessControlAllowOrigin === '*',
     \`\${app.id} MF manifest is missing Cloudflare CORS headers\`,
+  );
+  const expectedPublicPath = normalizeUrlWithTrailingSlash(publicUrl);
+  const manifestPublicPath = manifestJson?.metaData?.publicPath;
+  evidence.assertions.push({
+    type: 'mf-manifest-public-path',
+    expected: expectedPublicPath,
+    actual: manifestPublicPath,
+    status: manifestPublicPath === expectedPublicPath ? 'pass' : 'fail',
+  });
+  assert(
+    manifestPublicPath === expectedPublicPath,
+    \`\${app.id} MF manifest publicPath must resolve remote assets from \${expectedPublicPath}\`,
   );
 
   const localeRoute = routes.locale ?? \`/locales/en/\${app.i18n?.namespace}.json\`;
