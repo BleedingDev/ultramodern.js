@@ -26,6 +26,7 @@ const ULTRACITE_VERSION = '7.7.0';
 const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
+const REACT_ROUTER_DOM_VERSION = '7.16.0';
 const PNPM_VERSION = '11.4.0';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
@@ -760,6 +761,7 @@ function appDependencies(
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
+    'react-router-dom': REACT_ROUTER_DOM_VERSION,
   };
 
   if (app.kind === 'shell') {
