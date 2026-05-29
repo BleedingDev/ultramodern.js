@@ -1238,6 +1238,8 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
 
 type ZephyrRspackConfig = Parameters<ReturnType<typeof withZephyrRspack>>[0];
 
+const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
+
 const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',
   pre: ['@modern-js/plugin-module-federation-config'],
@@ -1248,6 +1250,9 @@ const zephyrRspackPlugin = () => ({
       ) => ZephyrRspackConfig | Promise<ZephyrRspackConfig>,
     ) => void;
   }) {
+    if (!zephyrEnabled) {
+      return;
+    }
     api.modifyRspackConfig(config => withZephyrRspack()(config));
   },
 });
