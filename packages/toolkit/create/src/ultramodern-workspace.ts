@@ -1241,6 +1241,8 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
 type ZephyrRspackConfig = Parameters<ReturnType<typeof withZephyrRspack>>[0];
 
 const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
+const cloudflareDeployEnabled =
+  process.env['MODERNJS_DEPLOY'] === 'cloudflare';
 
 const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',
@@ -1331,13 +1333,17 @@ ${bffPluginEntry}        moduleFederationPlugin(),
           ]);
         },
       },
-      deploy: {
-        target: 'cloudflare',
-        worker: {
-          name: cloudflareWorkerName,
-          ssr: true,
-        },
-      },
+      ...(cloudflareDeployEnabled
+        ? {
+            deploy: {
+              target: 'cloudflare',
+              worker: {
+                name: cloudflareWorkerName,
+                ssr: true,
+              },
+            },
+          }
+        : {}),
       server: {
         port,
         publicDir: './locales',
@@ -1872,6 +1878,10 @@ function createAppEnvDts(
   return `/// <reference types='@modern-js/app-tools/types' />
 
 declare const ULTRAMODERN_SITE_URL: string;
+declare module '*.svg' {
+  const url: string;
+  export default url;
+}
 ${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
@@ -1975,537 +1985,27 @@ function createCssTokenImport(scope: string): string {
 function createShellStyles(enableTailwind: boolean, scope: string): string {
   return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
     scope,
-  )}
-
-@layer ultramodern-shell-base {
-:root {
-  color: var(--um-color-foreground);
-  background: var(--um-color-canvas);
-  font-family:
-    Geist,
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-}
-
-body {
-  margin: 0;
-}
-
-main {
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-nav {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-a {
-  color: var(--um-color-link);
-}
-
-.commerce-shell {
-  background: #f1eadc;
-  color: #0b0a08;
-  min-height: 100vh;
-  padding: 1.5rem clamp(1rem, 4vw, 3rem) 4rem;
-}
-
-.commerce-shell-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  margin: -4.25rem auto 3rem;
-  max-width: 88rem;
-}
-
-.commerce-language {
-  margin: 0;
-}
-
-.commerce-page {
-  margin: 3rem auto 0;
-  max-width: 88rem;
-}
-
-.commerce-hero {
-  padding: 4rem 0 2rem;
-}
-
-.commerce-eyebrow {
-  color: #00624b;
-  font-size: 0.85rem;
-  font-weight: 850;
-  letter-spacing: 0.16rem;
-  text-transform: uppercase;
-}
-
-.commerce-title {
-  font-size: clamp(2.5rem, 6vw, 4.8rem);
-  line-height: 0.95;
-  margin: 0.65rem 0 1.4rem;
-  max-width: 58rem;
-}
-
-.commerce-lede {
-  color: #555149;
-  font-size: 1.2rem;
-  line-height: 1.65;
-  max-width: 42rem;
-}
-
-.commerce-checkout {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.commerce-pill,
-.commerce-button,
-.commerce-link-button,
-.commerce-cart-button {
-  align-items: center;
-  border-radius: 999px;
-  border: 0.0625rem solid rgba(23, 23, 23, 0.14);
-  box-shadow: 0 0.25rem 0.75rem rgba(20, 17, 10, 0.08);
-  color: #14120d;
-  display: inline-flex;
-  font: inherit;
-  font-weight: 750;
-  justify-content: center;
-  min-height: 2.5rem;
-  padding: 0.65rem 1.05rem;
-  text-decoration: none;
-}
-
-.commerce-button {
-  background: #00624b;
-  border-color: #00624b;
-  color: #ffffff;
-}
-
-.commerce-link-button,
-.commerce-pill,
-.commerce-cart-button {
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.commerce-boundary-toggle {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.94);
-  border: 0.0625rem solid rgba(23, 23, 23, 0.12);
-  border-radius: 0.8rem;
-  bottom: 1.5rem;
-  box-shadow: 0 0.75rem 2rem rgba(18, 15, 10, 0.14);
-  color: #14120d;
-  display: flex;
-  gap: 0.65rem;
-  left: 1.5rem;
-  padding: 0.8rem 1rem;
-  position: fixed;
-  z-index: 80;
-}
-
-.commerce-boundary-toggle input {
-  accent-color: #00624b;
-  height: 1rem;
-  width: 1rem;
-}
-
-@media (max-width: 860px) {
-  .commerce-shell-actions {
-    justify-content: flex-start;
-    margin-top: 1rem;
-  }
-}
-}
-
-@layer ultramodern-shell-overlay {
-.boundary-overlay {
-  inset: 0;
-  pointer-events: none;
-  position: fixed;
-  z-index: 70;
-}
-
-.boundary-overlay__box {
-  border: 0.0625rem solid var(--boundary-color);
-  border-radius: 0.55rem;
-  box-shadow:
-    0 0 0 0.0625rem rgba(255, 255, 255, 0.72),
-    0 0.35rem 1.25rem color-mix(in srgb, var(--boundary-color) 20%, transparent);
-  position: fixed;
-}
-
-.boundary-overlay__label {
-  background: color-mix(in srgb, var(--boundary-color) 88%, white);
-  border-radius: 999px;
-  color: #0b0a08;
-  font-size: 0.7rem;
-  font-weight: 850;
-  line-height: 1;
-  padding: 0.3rem 0.55rem;
-  position: absolute;
-  right: 0.35rem;
-  top: 0.35rem;
-  white-space: nowrap;
-}
-
-.boundary-overlay__box[data-label-placement="above"] .boundary-overlay__label {
-  bottom: calc(100% + 0.25rem);
-  top: auto;
-}
-}
-`;
+  )}`;
 }
 
 function createRemoteStyles(
   enableTailwind: boolean,
   scope: string,
-  app: WorkspaceApp,
+  _app: WorkspaceApp,
 ): string {
-  if (['explore', 'decide', 'checkout'].includes(app.domain ?? '')) {
-    return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
-      scope,
-    )}
-
-@layer ultramodern-remote-${app.domain} {
-.commerce-shell {
-  background: #f1eadc;
-  color: #0b0a08;
-  min-height: 100vh;
-  padding: 1.5rem clamp(1rem, 4vw, 3rem) 4rem;
-}
-
-.commerce-header,
-.commerce-footer {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 0.625rem 1.875rem rgba(25, 20, 12, 0.08);
-  display: flex;
-  gap: 1.25rem;
-  justify-content: space-between;
-  margin: 0 auto;
-  max-width: 88rem;
-  padding: 1.25rem 1.75rem;
-}
-
-.commerce-logo {
-  font-size: 1.35rem;
-  font-weight: 800;
-}
-
-.commerce-nav,
-.commerce-actions,
-.commerce-language {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.commerce-nav {
-  margin: 0;
-}
-
-.commerce-pill,
-.commerce-button,
-.commerce-link-button,
-.commerce-cart-button,
-.commerce-quantity-button {
-  align-items: center;
-  border-radius: 999px;
-  border: 0.0625rem solid rgba(23, 23, 23, 0.14);
-  box-shadow: 0 0.25rem 0.75rem rgba(20, 17, 10, 0.08);
-  color: #14120d;
-  display: inline-flex;
-  font: inherit;
-  font-weight: 750;
-  justify-content: center;
-  min-height: 2.5rem;
-  padding: 0.65rem 1.05rem;
-  text-decoration: none;
-}
-
-.commerce-button {
-  background: #00624b;
-  border-color: #00624b;
-  color: #ffffff;
-}
-
-.commerce-link-button,
-.commerce-pill,
-.commerce-cart-button,
-.commerce-quantity-button {
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.commerce-page {
-  margin: 3rem auto 0;
-  max-width: 88rem;
-}
-
-.commerce-product {
-  align-items: center;
-  display: grid;
-  gap: clamp(2rem, 5vw, 4rem);
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.95fr);
-}
-
-.commerce-product-media {
-  aspect-ratio: 1 / 0.92;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 42%),
-    linear-gradient(135deg, #97c66d 0 20%, #6f9748 20% 34%, #d6c15d 34% 36%, #6a8f3e 36% 46%, #315824 46% 64%, #8bb85e 64% 100%);
-  border: 1.25rem solid #ffe987;
-  border-radius: 1.6rem;
-  box-shadow: inset 0 -7rem 8rem rgba(58, 77, 35, 0.22);
-  overflow: hidden;
-}
-
-.commerce-product-media::after {
-  background:
-    radial-gradient(circle at 27% 76%, #1e2422 0 5%, transparent 5.4%),
-    radial-gradient(circle at 55% 76%, #1e2422 0 6%, transparent 6.4%),
-    linear-gradient(0deg, #004b7b 0 100%);
-  border-radius: 1.2rem;
-  content: "";
-  display: block;
-  height: 19%;
-  margin: 58% auto 0;
-  width: 42%;
-}
-
-.commerce-eyebrow {
-  color: #00624b;
-  font-size: 0.85rem;
-  font-weight: 850;
-  letter-spacing: 0.16rem;
-  text-transform: uppercase;
-}
-
-.commerce-title {
-  font-size: clamp(2.5rem, 6vw, 4.8rem);
-  line-height: 0.95;
-  margin: 0.65rem 0 1.4rem;
-}
-
-.commerce-lede {
-  color: #555149;
-  font-size: 1.2rem;
-  line-height: 1.65;
-  max-width: 42rem;
-}
-
-.commerce-facts {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 2rem 0;
-}
-
-.commerce-fact,
-.commerce-card,
-.commerce-cart-panel {
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 1rem;
-  box-shadow: 0 0.5rem 1.25rem rgba(25, 20, 12, 0.08);
-  padding: 1.25rem;
-}
-
-.commerce-fact span,
-.commerce-card span {
-  color: #767067;
-  display: block;
-  font-weight: 750;
-  margin-bottom: 0.45rem;
-}
-
-.commerce-fact strong {
-  font-size: 1.1rem;
-}
-
-.commerce-checkout {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.commerce-section-title {
-  font-size: 1.8rem;
-  margin: 4.5rem 0 1.5rem;
-}
-
-.commerce-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.commerce-card strong {
-  display: block;
-  font-size: 1.45rem;
-}
-
-.commerce-cart-panel {
-  margin-top: 2rem;
-}
-
-.commerce-cart-line {
-  align-items: center;
-  border-top: 0.0625rem solid rgba(23, 23, 23, 0.12);
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 1rem 0;
-}
-
-.commerce-cart-line:first-of-type {
-  border-top: 0;
-}
-
-.commerce-quantity {
-  align-items: center;
-  display: flex;
-  gap: 0.45rem;
-}
-
-.commerce-quantity-button {
-  min-height: 2rem;
-  min-width: 2rem;
-  padding: 0.25rem;
-}
-
-.commerce-boundary-toggle {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 0.8rem;
-  bottom: 1.5rem;
-  box-shadow: 0 0.75rem 2rem rgba(18, 15, 10, 0.14);
-  display: flex;
-  gap: 0.65rem;
-  left: 1.5rem;
-  padding: 0.8rem 1rem;
-  position: fixed;
-  z-index: 80;
-}
-
-.commerce-boundary-toggle input {
-  accent-color: #00624b;
-  height: 1rem;
-  width: 1rem;
-}
-
-@media (max-width: 860px) {
-  .commerce-header,
-  .commerce-footer,
-  .commerce-product,
-  .commerce-grid,
-  .commerce-facts {
-    grid-template-columns: 1fr;
-  }
-
-  .commerce-header,
-  .commerce-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .commerce-product-media {
-    min-height: 20rem;
-  }
-}
-}
-`;
-  }
-
   return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
     scope,
-  )}
-
-@layer ultramodern-remote-${app.domain ?? app.id} {
-[data-app-id="${app.id}"] {
-  color: var(--um-color-foreground);
-  background: var(--um-color-surface);
-  font-family:
-    Geist,
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  min-height: 100vh;
-}
-
-[data-app-id="${app.id}"] main {
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-[data-app-id="${app.id}"] nav {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-[data-app-id="${app.id}"] a {
-  color: var(--um-color-link);
-}
-
-[data-mf-remote="${app.id}"] {
-  border: 0.0625rem solid color-mix(in srgb, var(--um-color-accent) 30%, transparent);
-  border-radius: 0.5rem;
-  padding: 1rem;
-}
-}
-`;
+  )}`;
 }
 
 function createServiceStyles(
   enableTailwind: boolean,
   scope: string,
-  service: { id: string },
+  _service: { id: string },
 ): string {
   return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
     scope,
-  )}
-
-@layer ultramodern-effect-service {
-[data-app-id="${service.id}"] {
-  color: var(--um-color-foreground);
-  background: var(--um-color-surface);
-  font-family:
-    Geist,
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  min-height: 100vh;
-}
-
-[data-app-id="${service.id}"] main {
-  min-height: 100vh;
-  padding: 2rem;
-}
-}
-`;
+  )}`;
 }
 
 function createAppStyles(
@@ -2534,6 +2034,118 @@ export default {
   content: ['./src/**/*.{js,jsx,ts,tsx}'],
 } satisfies Config;
 `;
+}
+
+function createCommerceAssetSvg(
+  title: string,
+  palette: { accent: string; ground: string; sky: string; tractor: string },
+): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="${title}">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="${palette.sky}"/>
+      <stop offset="1" stop-color="#fff8dc"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="${palette.ground}"/>
+      <stop offset="1" stop-color="${palette.accent}"/>
+    </linearGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#sky)"/>
+  <path d="M0 566c172-78 330-102 474-72 125 26 219 91 340 106 170 21 339-74 626-43v343H0z" fill="url(#field)"/>
+  <path d="M0 686c205-70 451-66 738 12 287 77 521 66 702-33v235H0z" fill="#4f7f38" opacity=".55"/>
+  <g fill="none" stroke="#fff6b7" stroke-linecap="round" stroke-width="10" opacity=".55">
+    <path d="M108 820c205-138 382-202 530-192"/>
+    <path d="M322 862c176-134 338-198 486-193"/>
+    <path d="M583 886c119-121 260-190 422-207"/>
+    <path d="M868 878c95-94 207-153 336-176"/>
+  </g>
+  <g transform="translate(430 430)">
+    <circle cx="170" cy="210" r="92" fill="#161616"/>
+    <circle cx="170" cy="210" r="54" fill="#d7c46d"/>
+    <circle cx="514" cy="214" r="108" fill="#161616"/>
+    <circle cx="514" cy="214" r="63" fill="#d7c46d"/>
+    <path d="M194 142h194l72-100h114c49 0 89 39 89 88v57H625l-51-90H452l-78 114H209z" fill="${palette.tractor}"/>
+    <path d="M283 67h134l-54 73H249z" fill="#c9ecff" opacity=".72"/>
+    <path d="M120 184h430v54H120z" fill="${palette.tractor}"/>
+    <path d="M578 52l60-35M618 37l34 72" stroke="#171717" stroke-linecap="round" stroke-width="14"/>
+    <path d="M90 236h578" stroke="#171717" stroke-linecap="round" stroke-width="18"/>
+  </g>
+</svg>
+`;
+}
+
+function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
+  if (app.kind === 'shell') {
+    return {
+      'src/assets/hero-field.svg': createCommerceAssetSvg(
+        'Tractor crossing cultivated fields',
+        {
+          accent: '#d6b85d',
+          ground: '#84ad58',
+          sky: '#9fd6e8',
+          tractor: '#005f73',
+        },
+      ),
+    };
+  }
+
+  if (app.id === 'remote-explore') {
+    return {
+      'src/assets/autonomy.svg': createCommerceAssetSvg(
+        'Autonomous tractor concept',
+        {
+          accent: '#c26a2e',
+          ground: '#668f55',
+          sky: '#d5e7de',
+          tractor: '#f2a51a',
+        },
+      ),
+      'src/assets/field-loader.svg': createCommerceAssetSvg(
+        'Field Loader 112 tractor',
+        {
+          accent: '#d6b85d',
+          ground: '#84ad58',
+          sky: '#9fd6e8',
+          tractor: '#00624b',
+        },
+      ),
+      'src/assets/orchard.svg': createCommerceAssetSvg(
+        'Orchard tractor between tight rows',
+        {
+          accent: '#b45b2d',
+          ground: '#6f9b4a',
+          sky: '#c9ebff',
+          tractor: '#1d5d9b',
+        },
+      ),
+      'src/assets/vineyard.svg': createCommerceAssetSvg(
+        'Vineyard narrow tractor',
+        {
+          accent: '#b88d58',
+          ground: '#5e8a45',
+          sky: '#f1dcb9',
+          tractor: '#914d76',
+        },
+      ),
+    };
+  }
+
+  if (app.id === 'remote-decide') {
+    return {
+      'src/assets/field-loader.svg': createCommerceAssetSvg(
+        'Field Loader 112 tractor detail',
+        {
+          accent: '#d6b85d',
+          ground: '#84ad58',
+          sky: '#9fd6e8',
+          tractor: '#00624b',
+        },
+      ),
+    };
+  }
+
+  return {};
 }
 
 function createLocalizedHeadComponent(): string {
@@ -2691,305 +2303,273 @@ function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useEffect, useState, type ComponentType } from 'react';
-import BoundaryOverlay from '../boundary-overlay';
+import heroField from '../../assets/hero-field.svg';
+import ShellFrame from '../shell-frame';
+import { StorePicker } from '../remote-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
-const languageCodes = ['en', 'cs'] as const;
-
 ${createLocalizedHeadComponent()}
-type HomeRouteRemotes = {
-  Header: ComponentType;
-  MiniCart: ComponentType;
-  StorePicker: ComponentType;
-};
-
-const useHomeRouteRemotes = () => {
-  const [remotes, setRemotes] = useState<HomeRouteRemotes | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import('../remote-components').then(({ Header, MiniCart, StorePicker }) => {
-      if (mounted) {
-        setRemotes({ Header, MiniCart, StorePicker });
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return remotes;
-};
-
 export default function ShellHome() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
-  const remotes = useHomeRouteRemotes();
-  const Header = remotes?.Header;
-  const MiniCart = remotes?.MiniCart;
-  const StorePicker = remotes?.StorePicker;
 
   return (
-    <main className="commerce-shell">
+    <ShellFrame>
       <LocalizedHead />
-      <BoundaryOverlay />
-      {Header ? <Header /> : null}
-      <div className="commerce-shell-actions">
-        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
-          {languageCodes.map(code => (
-            <a
-              aria-current={language === code ? 'page' : undefined}
-              className="commerce-pill"
-              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-              key={code}
-            >
-              {t(\`shell.language.\${code}\`)}
-            </a>
-          ))}
-        </nav>
-        {MiniCart ? <MiniCart /> : null}
-      </div>
-      <section className="commerce-page commerce-hero">
-        <p className="commerce-eyebrow">{t('shell.hero.eyebrow')}</p>
-        <h1 className="commerce-title">{t('shell.title')}</h1>
-        <p className="commerce-lede">{t('shell.hero.lede')}</p>
-        <div className="commerce-checkout">
-          <a className="commerce-button" href={\`/\${language}/tractors/field-loader-112\`}>
+      <section className="mx-auto grid max-w-7xl items-center gap-8 py-8 md:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('shell.hero.eyebrow')}</p>
+          <h1 className="mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">{t('shell.title')}</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('shell.hero.lede')}</p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <a className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10" href={\`/\${language}/tractors/field-loader-112\`}>
             {t('shell.hero.primary')}
-          </a>
-          <a className="commerce-link-button" href={\`/\${language}/tractors\`}>
+            </a>
+            <a className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10" href={\`/\${language}/tractors\`}>
             {t('shell.hero.secondary')}
-          </a>
+            </a>
+          </div>
         </div>
+        <img alt="" className="aspect-[16/10] w-full rounded-3xl bg-stone-200 object-cover shadow-2xl shadow-stone-900/20" src={heroField} />
       </section>
-      {StorePicker ? <StorePicker /> : null}
-      <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
-      <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+      <StorePicker />
+      <p className="sr-only" data-testid="ultramodern-preset">presetUltramodern workspace</p>
+      <p className="sr-only" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
-    </main>
+    </ShellFrame>
   );
 }
 `;
 }
 
 function createShellTractorsPage(): string {
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
+  return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useEffect, useState, type ComponentType } from 'react';
-import BoundaryOverlay from '../../boundary-overlay';
+import ShellFrame from '../../shell-frame';
+import { Recommendations } from '../../remote-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
-const languageCodes = ['en', 'cs'] as const;
-
 ${createLocalizedHeadComponent()}
-type TractorsRouteRemotes = {
-  Header: ComponentType;
-  MiniCart: ComponentType;
-  Recommendations: ComponentType;
-};
-
-const useTractorsRouteRemotes = () => {
-  const [remotes, setRemotes] = useState<TractorsRouteRemotes | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import('../../remote-components').then(({ Header, MiniCart, Recommendations }) => {
-      if (mounted) {
-        setRemotes({ Header, MiniCart, Recommendations });
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return remotes;
-};
-
 export default function ShellTractorsPage() {
-  const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
-  const remotes = useTractorsRouteRemotes();
-  const Header = remotes?.Header;
-  const MiniCart = remotes?.MiniCart;
-  const Recommendations = remotes?.Recommendations;
-
   return (
-    <main className="commerce-shell">
+    <ShellFrame>
       <LocalizedHead />
-      <BoundaryOverlay />
-      {Header ? <Header /> : null}
-      <div className="commerce-shell-actions">
-        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
-          {languageCodes.map(code => (
-            <a
-              aria-current={language === code ? 'page' : undefined}
-              className="commerce-pill"
-              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-              key={code}
-            >
-              {t(\`shell.language.\${code}\`)}
-            </a>
-          ))}
-        </nav>
-        {MiniCart ? <MiniCart /> : null}
-      </div>
-      {Recommendations ? <Recommendations /> : null}
-    </main>
+      <Recommendations />
+    </ShellFrame>
   );
 }
 `;
 }
 
 function createShellProductPage(): string {
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
+  return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useEffect, useState, type ComponentType } from 'react';
-import BoundaryOverlay from '../../../boundary-overlay';
+import ShellFrame from '../../../shell-frame';
+import { ProductPage } from '../../../remote-components';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 
-const languageCodes = ['en', 'cs'] as const;
-
 ${createLocalizedHeadComponent()}
-type ProductRouteRemotes = {
-  Header: ComponentType;
-  MiniCart: ComponentType;
-  ProductPage: ComponentType;
-};
-
-const useProductRouteRemotes = () => {
-  const [remotes, setRemotes] = useState<ProductRouteRemotes | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import('../../../remote-components').then(
-      ({ Header, MiniCart, ProductPage }) => {
-        if (mounted) {
-          setRemotes({ Header, MiniCart, ProductPage });
-        }
-      },
-    );
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return remotes;
-};
-
 export default function ShellProductPage() {
-  const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
-  const remotes = useProductRouteRemotes();
-  const Header = remotes?.Header;
-  const MiniCart = remotes?.MiniCart;
-  const ProductPage = remotes?.ProductPage;
-
   return (
-    <main className="commerce-shell">
+    <ShellFrame>
       <LocalizedHead />
-      <BoundaryOverlay />
-      {Header ? <Header /> : null}
-      <div className="commerce-shell-actions">
-        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
-          {languageCodes.map(code => (
-            <a
-              aria-current={language === code ? 'page' : undefined}
-              className="commerce-pill"
-              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-              key={code}
-            >
-              {t(\`shell.language.\${code}\`)}
-            </a>
-          ))}
-        </nav>
-        {MiniCart ? <MiniCart /> : null}
-      </div>
-      {ProductPage ? <ProductPage /> : null}
-    </main>
+      <ProductPage />
+    </ShellFrame>
   );
 }
 `;
 }
 
 function createShellCartPage(): string {
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
+  return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import { useEffect, useState, type ComponentType } from 'react';
-import BoundaryOverlay from '../../boundary-overlay';
+import ShellFrame from '../../shell-frame';
+import { CartPage } from '../../remote-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
-const languageCodes = ['en', 'cs'] as const;
-
 ${createLocalizedHeadComponent()}
-type CartRouteRemotes = {
-  CartPage: ComponentType;
-  Header: ComponentType;
-};
-
-const useCartRouteRemotes = () => {
-  const [remotes, setRemotes] = useState<CartRouteRemotes | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import('../../remote-components').then(({ CartPage, Header }) => {
-      if (mounted) {
-        setRemotes({ CartPage, Header });
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return remotes;
-};
-
 export default function ShellCartPage() {
+  return (
+    <ShellFrame showCart={false}>
+      <LocalizedHead />
+      <CartPage />
+    </ShellFrame>
+  );
+}
+`;
+}
+
+function createShellFrameComponent(): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import type { ReactNode } from 'react';
+import BoundaryOverlay from './boundary-overlay';
+import { Header, MiniCart } from './remote-components';
+import { ultramodernLocalisedUrls } from './ultramodern-route-metadata';
+
+const supportedLanguages = ['en', 'cs'] as const;
+type SupportedLanguage = (typeof supportedLanguages)[number];
+
+type ShellFrameProps = {
+  children: ReactNode;
+  showCart?: boolean;
+};
+
+const localisedUrls = ultramodernLocalisedUrls as Record<
+  string,
+  Record<SupportedLanguage, string>
+>;
+
+const isSupportedLanguage = (value: string): value is SupportedLanguage =>
+  supportedLanguages.includes(value as SupportedLanguage);
+
+const normalisePath = (pathname: string) => {
+  const normalised = pathname.replace(/\\/+$/u, '').replace(/\\/+/gu, '/');
+  return normalised.length > 0 ? normalised : '/';
+};
+
+const stripLanguagePrefix = (pathname: string) => {
+  const segments = normalisePath(pathname).split('/').filter(Boolean);
+  if (segments.length > 0 && isSupportedLanguage(segments[0] ?? '')) {
+    segments.shift();
+  }
+  return \`/\${segments.join('/')}\`;
+};
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+
+const paramName = (segment: string) => segment.slice(1).replace(/\\?$/u, '');
+
+const matchPattern = (pathname: string, pattern: string) => {
+  const names: string[] = [];
+  const source = normalisePath(pattern)
+    .split('/')
+    .filter(Boolean)
+    .map(segment => {
+      if (segment.startsWith(':')) {
+        names.push(paramName(segment));
+        return segment.endsWith('?') ? '(?:/([^/]+))?' : '/([^/]+)';
+      }
+      return \`/\${escapeRegExp(segment)}\`;
+    })
+    .join('');
+  const match = new RegExp(\`^\${source || '/'}$\`).exec(normalisePath(pathname));
+
+  if (!match) {
+    return undefined;
+  }
+
+  return names.reduce<Record<string, string>>((params, name, index) => {
+    params[name] = decodeURIComponent(match[index + 1] ?? '');
+    return params;
+  }, {});
+};
+
+const buildPath = (pattern: string, params: Record<string, string>) => {
+  const path = normalisePath(pattern)
+    .split('/')
+    .filter(Boolean)
+    .map(segment => {
+      if (!segment.startsWith(':')) {
+        return segment;
+      }
+      const value = params[paramName(segment)];
+      return value ? encodeURIComponent(value) : '';
+    })
+    .filter(Boolean)
+    .join('/');
+
+  return \`/\${path}\`;
+};
+
+const resolveLocalisedPath = (
+  pathname: string,
+  targetLanguage: SupportedLanguage,
+) => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname);
+
+  for (const entry of Object.values(localisedUrls)) {
+    const targetPattern = entry[targetLanguage];
+    if (!targetPattern) {
+      continue;
+    }
+
+    for (const language of supportedLanguages) {
+      const sourcePattern = entry[language];
+      const params = sourcePattern
+        ? matchPattern(pathWithoutLanguage, sourcePattern)
+        : undefined;
+      if (params) {
+        return buildPath(targetPattern, params);
+      }
+    }
+  }
+
+  return pathWithoutLanguage;
+};
+
+const localizedPath = (pathname: string, language: SupportedLanguage) => {
+  const pathWithoutLanguage = resolveLocalisedPath(pathname, language);
+  return pathWithoutLanguage === '/' ? \`/\${language}\` : \`/\${language}\${pathWithoutLanguage}\`;
+};
+
+const locationSuffix = (location: {
+  hash?: unknown;
+  search?: unknown;
+  searchStr?: unknown;
+}) => {
+  const locationSearch =
+    typeof location.searchStr === 'string'
+      ? location.searchStr
+      : typeof location.search === 'string'
+        ? location.search
+        : '';
+  const locationHash = typeof location.hash === 'string' ? location.hash : '';
+
+  return \`\${locationSearch}\${locationHash}\`;
+};
+
+export default function ShellFrame({ children, showCart = true }: ShellFrameProps) {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
-  const remotes = useCartRouteRemotes();
-  const Header = remotes?.Header;
-  const CartPage = remotes?.CartPage;
 
   return (
-    <main className="commerce-shell">
-      <LocalizedHead />
+    <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12">
       <BoundaryOverlay />
-      {Header ? <Header /> : null}
-      <div className="commerce-shell-actions">
-        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
-          {languageCodes.map(code => (
-            <a
-              aria-current={language === code ? 'page' : undefined}
-              className="commerce-pill"
-              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-              key={code}
-            >
-              {t(\`shell.language.\${code}\`)}
-            </a>
-          ))}
-        </nav>
+      <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6">
+        <Header />
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          <label className="sr-only" htmlFor="ultramodern-language">
+            {t('shell.language.switcher')}
+          </label>
+          <select
+            className="h-10 rounded-full border border-stone-900/15 bg-white px-3 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5"
+            id="ultramodern-language"
+            onChange={event => {
+              const nextLanguage = event.currentTarget.value;
+              if (isSupportedLanguage(nextLanguage)) {
+                window.location.assign(
+                  \`\${localizedPath(location.pathname, nextLanguage)}\${suffix}\`,
+                );
+              }
+            }}
+            value={language}
+          >
+            {supportedLanguages.map(code => (
+              <option key={code} value={code}>
+                {t(\`shell.language.\${code}\`)}
+              </option>
+            ))}
+          </select>
+          {showCart ? <MiniCart /> : null}
+        </div>
       </div>
-      {CartPage ? <CartPage /> : null}
+      {children}
     </main>
   );
 }
@@ -3118,8 +2698,9 @@ export default function BoundaryOverlay() {
 
   return (
     <>
-      <label className="commerce-boundary-toggle">
+      <label className="fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
         <input
+          className="size-4 accent-emerald-800"
           checked={enabled}
           onChange={event => setEnabled(event.currentTarget.checked)}
           type="checkbox"
@@ -3127,15 +2708,16 @@ export default function BoundaryOverlay() {
         <span>{toggleLabel}</span>
       </label>
       {enabled ? (
-        <div aria-hidden="true" className="boundary-overlay">
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[70]">
           {boxes.map(box => (
             <div
-              className="boundary-overlay__box"
+              className="fixed rounded-lg border"
               data-label-placement={box.labelPlacement}
               key={box.id}
               style={
                 {
-                  '--boundary-color': box.color,
+                  borderColor: box.color,
+                  boxShadow: \`0 0 0 1px rgba(255,255,255,.72), 0 6px 20px color-mix(in srgb, \${box.color} 20%, transparent)\`,
                   height: box.height,
                   left: box.left,
                   top: box.top,
@@ -3143,7 +2725,12 @@ export default function BoundaryOverlay() {
                 } as CSSProperties
               }
             >
-              <span className="boundary-overlay__label">{box.label}</span>
+              <span
+                className={\`absolute right-1 top-1 whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950 \${box.labelPlacement === 'above' ? 'bottom-[calc(100%+0.25rem)] top-auto' : ''}\`}
+                style={{ backgroundColor: box.color }}
+              >
+                {box.label}
+              </span>
             </div>
           ))}
         </div>
@@ -3173,55 +2760,70 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
+
+const HeaderLoading = () => (
+  <div className="flex min-w-0 flex-1 items-center gap-5" data-mf-boundary="explore">
+    <div className="h-6 w-28 rounded-full bg-stone-200" />
+    <div className="hidden h-5 w-44 rounded-full bg-stone-100 sm:block" />
+  </div>
+);
+
+const MiniCartLoading = () => (
+  <div className="h-10 w-28 rounded-full bg-stone-100" data-mf-boundary="checkout" />
+);
+
+const PanelLoading = () => (
+  <section className="mx-auto mt-10 max-w-7xl rounded-2xl bg-white/75 p-6 shadow-xl shadow-stone-900/10">
+    <div className="h-5 w-40 rounded-full bg-stone-200" />
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <div className="h-36 rounded-xl bg-stone-100" />
+      <div className="h-36 rounded-xl bg-stone-100" />
+    </div>
+  </section>
+);
 
 export const Header = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Header'),
-  loading: null,
-  noSSR: true,
+  loading: <HeaderLoading />,
 });
 export const StorePicker = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/StorePicker'),
-  loading: null,
-  noSSR: true,
+  loading: <PanelLoading />,
 });
 export const Recommendations = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Recommendations'),
-  loading: null,
-  noSSR: true,
+  loading: <PanelLoading />,
 });
 export const ProductPage = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('decide/ProductPage'),
-  loading: null,
-  noSSR: true,
+  loading: <PanelLoading />,
 });
 export const MiniCart = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/MiniCart'),
-  loading: null,
-  noSSR: true,
+  loading: <MiniCartLoading />,
 });
 export const CartPage = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/CartPage'),
-  loading: null,
-  noSSR: true,
+  loading: <PanelLoading />,
 });
 `;
 }
@@ -3275,12 +2877,13 @@ export default function ${toPascalCase(app.id)}Home() {
   const location = useLocation();
   const suffix = locationSuffix(location);
 ${effectBffState}  return (
-    <main>
+    <main className="min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8">
       <LocalizedHead />
-      <nav aria-label={t('${app.domain}.language.switcher')}>
+      <nav aria-label={t('${app.domain}.language.switcher')} className="flex gap-3">
         {supportedLanguages.map(code => (
           <a
             aria-current={language === code ? 'page' : undefined}
+            className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-bold text-stone-950 no-underline"
             href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
             key={code}
           >
@@ -3288,9 +2891,9 @@ ${effectBffState}  return (
           </a>
         ))}
       </nav>
-      <h1>{t('${app.domain}.title')}</h1>
-      <p data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
-      <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+      <h1 className="mt-10 text-5xl font-black">{t('${app.domain}.title')}</h1>
+      <p className="mt-3 text-lg text-stone-600" data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
+      <p className="sr-only" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
 ${effectBffMarkup}    </main>
@@ -3326,9 +2929,9 @@ function createRemoteEntry(app: WorkspaceApp): string {
 
   return `export default function ${toPascalCase(app.domain ?? app.id)}Route() {
   return (
-    <section data-mf-remote="${app.id}" data-mf-expose="./Route">
-      <h2>${app.displayName}</h2>
-      <p>Route surface for ${app.domain ?? app.id}.</p>
+    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}" data-mf-expose="./Route">
+      <h2 className="text-2xl font-black">${app.displayName}</h2>
+      <p className="mt-2 text-stone-600">Route surface for ${app.domain ?? app.id}.</p>
     </section>
   );
 }
@@ -3344,9 +2947,9 @@ function createRemoteWidget(app: WorkspaceApp): string {
 
   return `export default function ${componentName}() {
   return (
-    <section data-mf-remote="${app.id}">
-      <h2>${app.displayName}</h2>
-      <p>${body}</p>
+    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}">
+      <h2 className="text-2xl font-black">${app.displayName}</h2>
+      <p className="mt-2 text-stone-600">${body}</p>
     </section>
   );
 }
@@ -3365,11 +2968,11 @@ export default function Header() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <header className="commerce-header" data-mf-boundary="explore">
-      <a className="commerce-logo" href={\`/\${language}\`}>Acre & Iron</a>
-      <nav aria-label={t('explore.header.navigation')} className="commerce-nav">
-        <a href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
-        <a href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
+    <header className="flex min-w-0 flex-1 flex-wrap items-center gap-x-8 gap-y-2" data-mf-boundary="explore">
+      <a className="whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline" href={\`/\${language}\`}>Acre & Iron</a>
+      <nav aria-label={t('explore.header.navigation')} className="flex items-center gap-5">
+        <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
+        <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
       </nav>
     </header>
   );
@@ -3379,12 +2982,16 @@ export default function Header() {
 
   if (app.id === 'remote-explore' && expose === './Recommendations') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import autonomyImage from '../assets/autonomy.svg';
+import fieldLoaderImage from '../assets/field-loader.svg';
+import orchardImage from '../assets/orchard.svg';
+import vineyardImage from '../assets/vineyard.svg';
 
 const tractors = [
-  { badge: 'explore.recommendations.bestRows', name: 'Orchard Tractor', slug: 'orchard-tractor' },
-  { badge: 'explore.recommendations.aiFirst', name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
-  { badge: 'explore.recommendations.loaderReady', name: 'Field Loader 112', slug: 'field-loader-112' },
-  { badge: 'explore.recommendations.vineyard', name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
+  { badge: 'explore.recommendations.bestRows', image: orchardImage, name: 'Orchard Tractor', slug: 'orchard-tractor' },
+  { badge: 'explore.recommendations.aiFirst', image: autonomyImage, name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
+  { badge: 'explore.recommendations.loaderReady', image: fieldLoaderImage, name: 'Field Loader 112', slug: 'field-loader-112' },
+  { badge: 'explore.recommendations.vineyard', image: vineyardImage, name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
 ] as const;
 
 export default function Recommendations() {
@@ -3392,13 +2999,14 @@ export default function Recommendations() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="commerce-page" data-mf-boundary="explore">
-      <h2 className="commerce-section-title">{t('explore.recommendations.title')}</h2>
-      <div className="commerce-grid">
+    <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
+      <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.recommendations.title')}</h2>
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {tractors.map(tractor => (
-          <a className="commerce-card" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
-            <span>{t(tractor.badge)}</span>
-            <strong>{tractor.name}</strong>
+          <a className="block rounded-2xl bg-white/90 p-4 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
+            <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={tractor.image} />
+            <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-amber-700">{t(tractor.badge)}</span>
+            <strong className="mt-2 block text-xl font-black leading-tight">{tractor.name}</strong>
           </a>
         ))}
       </div>
@@ -3410,22 +3018,26 @@ export default function Recommendations() {
 
   if (app.id === 'remote-explore' && expose === './StorePicker') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import fieldLoaderImage from '../assets/field-loader.svg';
+import vineyardImage from '../assets/vineyard.svg';
 
 export default function StorePicker() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="commerce-page" data-mf-boundary="explore">
-      <h2 className="commerce-section-title">{t('explore.stores.title')}</h2>
-      <div className="commerce-grid">
-        <article className="commerce-card">
-          <span>{t('explore.stores.northRegion')}</span>
-          <strong>Bohemia Field Supply</strong>
+    <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
+      <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.stores.title')}</h2>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <article className="rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10">
+          <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={fieldLoaderImage} />
+          <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800">{t('explore.stores.northRegion')}</span>
+          <strong className="mt-2 block text-2xl font-black">Bohemia Field Supply</strong>
         </article>
-        <article className="commerce-card">
-          <span>{t('explore.stores.southRegion')}</span>
-          <strong>Moravia Iron Works</strong>
+        <article className="rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10">
+          <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={vineyardImage} />
+          <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800">{t('explore.stores.southRegion')}</span>
+          <strong className="mt-2 block text-2xl font-black">Moravia Iron Works</strong>
         </article>
       </div>
     </section>
@@ -3436,7 +3048,7 @@ export default function StorePicker() {
 
   if (app.id === 'remote-explore' && expose === './Footer') {
     return `export default function Footer() {
-  return <footer className="commerce-footer" data-mf-boundary="explore">Acre & Iron</footer>;
+  return <footer className="mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600" data-mf-boundary="explore">Acre & Iron</footer>;
 }
 `;
   }
@@ -3451,6 +3063,7 @@ export default function StorePicker() {
 
   if (app.id === 'remote-decide' && expose === './ProductPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import fieldLoaderImage from '../assets/field-loader.svg';
 import { AddToCart, Recommendations } from './remote-components';
 
 export default function ${componentName}() {
@@ -3459,16 +3072,16 @@ export default function ${componentName}() {
 
   return (
     <>
-      <section className="commerce-page commerce-product" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-        <div className="commerce-product-media" aria-hidden="true" />
+      <section className="mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+        <img alt="" className="aspect-[1/0.9] w-full rounded-3xl border-[18px] border-amber-200 bg-stone-200 object-cover shadow-2xl shadow-stone-900/20" src={fieldLoaderImage} />
         <div>
-          <p className="commerce-eyebrow">{t('decide.product.eyebrow')}</p>
-          <h1 className="commerce-title">Field Loader 112</h1>
-          <p className="commerce-lede">{t('decide.product.lede')}</p>
-          <div className="commerce-facts">
-            <article className="commerce-fact"><span>{t('decide.product.price')}</span><strong>EUR 42,500</strong></article>
-            <article className="commerce-fact"><span>{t('decide.product.power')}</span><strong>112 hp</strong></article>
-            <article className="commerce-fact"><span>{t('decide.product.availability')}</span><strong>{t('decide.product.inStock')}</strong></article>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('decide.product.eyebrow')}</p>
+          <h1 className="mt-3 text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">Field Loader 112</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('decide.product.lede')}</p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.price')}</span><strong className="mt-2 block text-lg font-black">EUR 42,500</strong></article>
+            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.power')}</span><strong className="mt-2 block text-lg font-black">112 hp</strong></article>
+            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.availability')}</span><strong className="mt-2 block text-lg font-black">{t('decide.product.inStock')}</strong></article>
           </div>
           <AddToCart />
         </div>
@@ -3490,11 +3103,11 @@ export default function ${componentName}() {
   const cart = useCartLines();
 
   return (
-    <div className="commerce-checkout" data-mf-boundary="checkout">
-      <button className="commerce-button" onClick={cart.addFieldLoader} type="button">
+    <div className="mt-8 flex flex-wrap gap-3" data-mf-boundary="checkout">
+      <button className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10" onClick={cart.addFieldLoader} type="button">
         {t('checkout.actions.addToCart')}
       </button>
-      <a className="commerce-link-button" href={\`/\${language}/cart\`}>
+      <a className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10" href={\`/\${language}/cart\`}>
         {t('checkout.actions.viewCart')}
       </a>
     </div>
@@ -3514,7 +3127,7 @@ export default function ${componentName}() {
   const count = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    <a className="commerce-cart-button" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
+    <a className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 no-underline shadow-lg shadow-stone-900/5" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
       {t('checkout.cart.title')} ({count})
     </a>
   );
@@ -3532,24 +3145,24 @@ export default function ${componentName}() {
   const cart = useCartLines();
 
   return (
-    <section className="commerce-page" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h1 className="commerce-title">{t('checkout.cart.title')}</h1>
-      <div className="commerce-cart-panel">
+    <section className="mx-auto mt-10 max-w-7xl" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h1 className="text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl">{t('checkout.cart.title')}</h1>
+      <div className="mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
         {cart.lines.length === 0 ? (
           <p>{t('checkout.cart.empty')}</p>
         ) : (
           <>
             {cart.lines.map(line => (
-              <article className="commerce-cart-line" key={line.id}>
+              <article className="grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:grid-cols-[1fr_auto] sm:items-center" key={line.id}>
                 <div>
-                  <strong>{line.name}</strong>
-                  <p>EUR {line.price.toLocaleString('en-US')}</p>
+                  <strong className="text-lg font-black">{line.name}</strong>
+                  <p className="text-stone-600">EUR {line.price.toLocaleString('en-US')}</p>
                 </div>
-                <div className="commerce-quantity">
-                  <button className="commerce-quantity-button" onClick={() => cart.decrement(line.id)} type="button">-</button>
-                  <span>{line.quantity}</span>
-                  <button className="commerce-quantity-button" onClick={() => cart.increment(line.id)} type="button">+</button>
-                  <button className="commerce-link-button" onClick={() => cart.remove(line.id)} type="button">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black" onClick={() => cart.decrement(line.id)} type="button">-</button>
+                  <span className="min-w-6 text-center font-black">{line.quantity}</span>
+                  <button className="inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black" onClick={() => cart.increment(line.id)} type="button">+</button>
+                  <button className="inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950" onClick={() => cart.remove(line.id)} type="button">
                     {t('checkout.actions.remove')}
                   </button>
                 </div>
@@ -3567,9 +3180,9 @@ export default function ${componentName}() {
 
   return `export default function ${componentName}() {
   return (
-    <section data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h2>${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
-      <p>Module Federation surface owned by ${app.ownership.team}.</p>
+    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h2 className="text-2xl font-black">${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
+      <p className="mt-2 text-stone-600">Module Federation surface owned by ${app.ownership.team}.</p>
     </section>
   );
 }
@@ -3595,23 +3208,40 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
+
+const AddToCartLoading = () => (
+  <div className="mt-8 flex gap-3" data-mf-boundary="checkout">
+    <div className="h-11 w-32 rounded-full bg-stone-200" />
+    <div className="h-11 w-28 rounded-full bg-white/80" />
+  </div>
+);
+
+const RecommendationsLoading = () => (
+  <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
+    <div className="h-8 w-64 rounded-full bg-stone-200" />
+    <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="h-48 rounded-2xl bg-white/80" />
+      <div className="h-48 rounded-2xl bg-white/80" />
+      <div className="h-48 rounded-2xl bg-white/80" />
+      <div className="h-48 rounded-2xl bg-white/80" />
+    </div>
+  </section>
+);
 
 export const AddToCart = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/AddToCart'),
-  loading: null,
-  noSSR: true,
+  loading: <AddToCartLoading />,
 });
 export const Recommendations = createLazyComponent({
   export: 'default',
   fallback: remoteFallback,
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Recommendations'),
-  loading: null,
-  noSSR: true,
+  loading: <RecommendationsLoading />,
 });
 `;
 }
@@ -3789,17 +3419,9 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
 }
 
 function createDesignButton(): string {
-  return `import { designTokens } from '../tokens';
-
-export default function Button({ label }: { label: string }) {
+  return `export default function Button({ label }: { label: string }) {
   return (
-    <button
-      type="button"
-      style={{
-        borderRadius: designTokens.radius.control,
-        color: designTokens.color.foreground,
-      }}
-    >
+    <button className="rounded-full text-um-foreground" type="button">
       {label}
     </button>
   );
@@ -3918,14 +3540,12 @@ export function useCartLines() {
 }
 
 function createSharedDesignTokensCss(): string {
-  return `@layer ultramodern-shared-tokens {
-:root {
-  --um-color-accent: #2f8f68;
-  --um-color-canvas: #f1eadc;
-  --um-color-foreground: #133225;
-  --um-color-link: #166b4b;
-  --um-color-surface: #f6fbf7;
-}
+  return `@theme {
+  --color-um-accent: #2f8f68;
+  --color-um-canvas: #f1eadc;
+  --color-um-foreground: #133225;
+  --color-um-link: #166b4b;
+  --color-um-surface: #f6fbf7;
 }
 `;
 }
@@ -6059,6 +5679,11 @@ function writeApp(
     `${app.directory}/src/routes/layout.tsx`,
     createLayout(app.id),
   );
+  for (const [relativePath, content] of Object.entries(
+    commerceAssetsForApp(app),
+  )) {
+    writeFile(targetDir, `${app.directory}/${relativePath}`, content);
+  }
   writeFile(
     targetDir,
     `${app.directory}/src/routes/[lang]/page.tsx`,
@@ -6081,6 +5706,11 @@ function writeApp(
       targetDir,
       `${app.directory}/src/routes/remote-components.tsx`,
       createShellRemoteComponents(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/shell-frame.tsx`,
+      createShellFrameComponent(),
     );
     writeFile(
       targetDir,
@@ -6210,7 +5840,13 @@ function writeEffectService(
     targetDir,
     `${service.directory}/src/routes/page.tsx`,
     `export default function ${toPascalCase(service.id)}Home() {
-  return <main>${service.id} Effect service</main>;
+  return (
+    <main className="min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8">
+      <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
+        <h1 className="text-3xl font-black">${service.id} Effect service</h1>
+      </section>
+    </main>
+  );
 }
 `,
   );
