@@ -2849,40 +2849,55 @@ export default function ShellCartPage() {
 }
 
 function createShellRemoteComponents(): string {
-  return `import { loadRemote } from '@module-federation/modern-js-v3/runtime';
-import * as React from 'react';
+  return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
+import { getInstance } from '@module-federation/modern-js-v3/runtime';
 
-type RemoteComponent = React.ComponentType<Record<string, never>>;
+const remoteFallback =
+  ({ error }: { error: Error }) =>
+    <div data-remote-error={error.name}>Remote unavailable</div>;
 
-const lazyRemote = (moduleId: string) => {
-  const Component = React.lazy(async () => {
-    const module = await loadRemote(moduleId);
-    const remote = (module as { default?: unknown }).default;
-
-    if (typeof remote !== 'function') {
-      throw new Error(\`Remote "\${moduleId}" did not expose a React component.\`);
-    }
-
-    return {
-      default: remote as RemoteComponent,
-    };
-  });
-
-  return function RemoteComponent() {
-    return (
-      <React.Suspense fallback={null}>
-        <Component />
-      </React.Suspense>
-    );
-  };
-};
-
-export const Header = lazyRemote('explore/Header');
-export const StorePicker = lazyRemote('explore/StorePicker');
-export const Recommendations = lazyRemote('explore/Recommendations');
-export const ProductPage = lazyRemote('decide/ProductPage');
-export const MiniCart = lazyRemote('checkout/MiniCart');
-export const CartPage = lazyRemote('checkout/CartPage');
+export const Header = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('explore/Header'),
+  loading: null,
+});
+export const StorePicker = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('explore/StorePicker'),
+  loading: null,
+});
+export const Recommendations = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('explore/Recommendations'),
+  loading: null,
+});
+export const ProductPage = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('decide/ProductPage'),
+  loading: null,
+});
+export const MiniCart = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('checkout/MiniCart'),
+  loading: null,
+});
+export const CartPage = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('checkout/CartPage'),
+  loading: null,
+});
 `;
 }
 
@@ -3237,36 +3252,27 @@ export default function ${componentName}() {
 }
 
 function createDecideRemoteComponents(): string {
-  return `import { loadRemote } from '@module-federation/modern-js-v3/runtime';
-import * as React from 'react';
+  return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
+import { getInstance } from '@module-federation/modern-js-v3/runtime';
 
-type RemoteComponent = React.ComponentType<Record<string, never>>;
+const remoteFallback =
+  ({ error }: { error: Error }) =>
+    <div data-remote-error={error.name}>Remote unavailable</div>;
 
-const lazyRemote = (moduleId: string) => {
-  const Component = React.lazy(async () => {
-    const module = await loadRemote(moduleId);
-    const remote = (module as { default?: unknown }).default;
-
-    if (typeof remote !== 'function') {
-      throw new Error(\`Remote "\${moduleId}" did not expose a React component.\`);
-    }
-
-    return {
-      default: remote as RemoteComponent,
-    };
-  });
-
-  return function RemoteComponent() {
-    return (
-      <React.Suspense fallback={null}>
-        <Component />
-      </React.Suspense>
-    );
-  };
-};
-
-export const AddToCart = lazyRemote('checkout/AddToCart');
-export const Recommendations = lazyRemote('explore/Recommendations');
+export const AddToCart = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('checkout/AddToCart'),
+  loading: null,
+});
+export const Recommendations = createLazyComponent({
+  export: 'default',
+  fallback: remoteFallback,
+  instance: getInstance(),
+  loader: () => import('explore/Recommendations'),
+  loading: null,
+});
 `;
 }
 
