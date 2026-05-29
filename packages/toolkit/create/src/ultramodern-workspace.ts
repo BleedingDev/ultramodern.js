@@ -951,6 +951,14 @@ function createCloudflarePublicUrlEnv(app: WorkspaceApp): string {
 }
 
 function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
+  if (app.kind === 'shell') {
+    return {
+      ssr: '/en',
+      mfManifest: '/mf-manifest.json',
+      locale: `/locales/en/${appI18nNamespace(app)}.json`,
+    };
+  }
+
   const languageRoutes = createLocalisedUrlsMap(app);
   const firstCanonicalPath = Object.keys(languageRoutes)[0];
   const localizedPath =
@@ -1553,6 +1561,36 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
         },
         titleKey: 'shell.title',
       },
+      {
+        ...base,
+        canonicalPath: '/tractors',
+        id: 'shell-tractors',
+        localisedPaths: {
+          cs: '/traktory',
+          en: '/tractors',
+        },
+        titleKey: 'shell.routes.listing',
+      },
+      {
+        ...base,
+        canonicalPath: '/tractors/:slug',
+        id: 'shell-product-detail',
+        localisedPaths: {
+          cs: '/traktory/:slug',
+          en: '/tractors/:slug',
+        },
+        titleKey: 'shell.routes.productDetail',
+      },
+      {
+        ...base,
+        canonicalPath: '/cart',
+        id: 'shell-cart',
+        localisedPaths: {
+          cs: '/kosik',
+          en: '/cart',
+        },
+        titleKey: 'shell.routes.cart',
+      },
     ];
   }
 
@@ -1851,14 +1889,25 @@ export default defineConfig(
 
 function createAppRuntimeConfig(app: WorkspaceApp): string {
   const namespace = appI18nNamespace(app);
+  const localeMessages = (language: 'en' | 'cs') => {
+    if (app.kind !== 'shell') {
+      return createAppLocaleMessages(app, language);
+    }
+
+    return Object.assign(
+      {},
+      createAppLocaleMessages(app, language),
+      ...remoteApps.map(remote => createAppLocaleMessages(remote, language)),
+    );
+  };
   const resources = {
     cs: {
-      [namespace]: createAppLocaleMessages(app, 'cs'),
-      translation: createAppLocaleMessages(app, 'cs'),
+      [namespace]: localeMessages('cs'),
+      translation: localeMessages('cs'),
     },
     en: {
-      [namespace]: createAppLocaleMessages(app, 'en'),
-      translation: createAppLocaleMessages(app, 'en'),
+      [namespace]: localeMessages('en'),
+      translation: localeMessages('en'),
     },
   };
 
@@ -1933,6 +1982,103 @@ nav {
 a {
   color: var(--um-color-link);
 }
+
+.commerce-shell {
+  background: #f1eadc;
+  color: #0b0a08;
+  min-height: 100vh;
+  padding: 1.5rem clamp(1rem, 4vw, 3rem) 4rem;
+}
+
+.commerce-shell-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin: -4.25rem auto 3rem;
+  max-width: 88rem;
+}
+
+.commerce-language {
+  margin: 0;
+}
+
+.commerce-page {
+  margin: 3rem auto 0;
+  max-width: 88rem;
+}
+
+.commerce-hero {
+  padding: 4rem 0 2rem;
+}
+
+.commerce-eyebrow {
+  color: #00624b;
+  font-size: 0.85rem;
+  font-weight: 850;
+  letter-spacing: 0.16rem;
+  text-transform: uppercase;
+}
+
+.commerce-title {
+  font-size: clamp(2.5rem, 6vw, 4.8rem);
+  line-height: 0.95;
+  margin: 0.65rem 0 1.4rem;
+  max-width: 58rem;
+}
+
+.commerce-lede {
+  color: #555149;
+  font-size: 1.2rem;
+  line-height: 1.65;
+  max-width: 42rem;
+}
+
+.commerce-checkout {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.commerce-pill,
+.commerce-button,
+.commerce-link-button,
+.commerce-cart-button {
+  align-items: center;
+  border-radius: 999px;
+  border: 0.0625rem solid rgba(23, 23, 23, 0.14);
+  box-shadow: 0 0.25rem 0.75rem rgba(20, 17, 10, 0.08);
+  color: #14120d;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 750;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.65rem 1.05rem;
+  text-decoration: none;
+}
+
+.commerce-button {
+  background: #00624b;
+  border-color: #00624b;
+  color: #ffffff;
+}
+
+.commerce-link-button,
+.commerce-pill,
+.commerce-cart-button {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@media (max-width: 860px) {
+  .commerce-shell-actions {
+    justify-content: flex-start;
+    margin-top: 1rem;
+  }
+}
 }
 
 @layer ultramodern-shell-overlay {
@@ -1979,7 +2125,7 @@ function createRemoteStyles(
   scope: string,
   app: WorkspaceApp,
 ): string {
-  if (app.domain === 'commerce') {
+  if (['explore', 'decide', 'checkout'].includes(app.domain ?? '')) {
     return `${enableTailwind ? "@import 'tailwindcss';\n" : ''}${createCssTokenImport(
       scope,
     )}
@@ -2495,12 +2641,13 @@ function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import Header from 'explore/Header';
+import StorePicker from 'explore/StorePicker';
+import MiniCart from 'checkout/MiniCart';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 const languageCodes = ['en', 'cs'] as const;
-
-const remoteKeys = ['explore', 'decide', 'checkout'] as const;
 
 ${createLocalizedHeadComponent()}
 export default function ShellHome() {
@@ -2510,29 +2657,172 @@ export default function ShellHome() {
   const suffix = locationSuffix(location);
 
   return (
-    <main>
+    <main className="commerce-shell">
       <LocalizedHead />
-      <nav aria-label={t('shell.language.switcher')}>
-        {languageCodes.map(code => (
-          <a
-            aria-current={language === code ? 'page' : undefined}
-            href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
-            key={code}
-          >
-            {t(\`shell.language.\${code}\`)}
+      <Header />
+      <div className="commerce-shell-actions">
+        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
+          {languageCodes.map(code => (
+            <a
+              aria-current={language === code ? 'page' : undefined}
+              className="commerce-pill"
+              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
+              key={code}
+            >
+              {t(\`shell.language.\${code}\`)}
+            </a>
+          ))}
+        </nav>
+        <MiniCart />
+      </div>
+      <section className="commerce-page commerce-hero">
+        <p className="commerce-eyebrow">{t('shell.hero.eyebrow')}</p>
+        <h1 className="commerce-title">{t('shell.title')}</h1>
+        <p className="commerce-lede">{t('shell.hero.lede')}</p>
+        <div className="commerce-checkout">
+          <a className="commerce-button" href={\`/\${language}/tractors/field-loader-112\`}>
+            {t('shell.hero.primary')}
           </a>
-        ))}
-      </nav>
-      <h1>{t('shell.title')}</h1>
+          <a className="commerce-link-button" href={\`/\${language}/tractors\`}>
+            {t('shell.hero.secondary')}
+          </a>
+        </div>
+      </section>
+      <StorePicker />
       <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
-      <ul>
-        {remoteKeys.map(remote => (
-          <li key={remote}>{t(\`shell.remotes.\${remote}\`)}</li>
-        ))}
-      </ul>
+    </main>
+  );
+}
+`;
+}
+
+function createShellTractorsPage(): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import Header from 'explore/Header';
+import Recommendations from 'explore/Recommendations';
+import MiniCart from 'checkout/MiniCart';
+import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
+
+const languageCodes = ['en', 'cs'] as const;
+
+${createLocalizedHeadComponent()}
+export default function ShellTractorsPage() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
+
+  return (
+    <main className="commerce-shell">
+      <LocalizedHead />
+      <Header />
+      <div className="commerce-shell-actions">
+        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
+          {languageCodes.map(code => (
+            <a
+              aria-current={language === code ? 'page' : undefined}
+              className="commerce-pill"
+              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
+              key={code}
+            >
+              {t(\`shell.language.\${code}\`)}
+            </a>
+          ))}
+        </nav>
+        <MiniCart />
+      </div>
+      <Recommendations />
+    </main>
+  );
+}
+`;
+}
+
+function createShellProductPage(): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import Header from 'explore/Header';
+import ProductPage from 'decide/ProductPage';
+import MiniCart from 'checkout/MiniCart';
+import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
+
+const languageCodes = ['en', 'cs'] as const;
+
+${createLocalizedHeadComponent()}
+export default function ShellProductPage() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
+
+  return (
+    <main className="commerce-shell">
+      <LocalizedHead />
+      <Header />
+      <div className="commerce-shell-actions">
+        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
+          {languageCodes.map(code => (
+            <a
+              aria-current={language === code ? 'page' : undefined}
+              className="commerce-pill"
+              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
+              key={code}
+            >
+              {t(\`shell.language.\${code}\`)}
+            </a>
+          ))}
+        </nav>
+        <MiniCart />
+      </div>
+      <ProductPage />
+    </main>
+  );
+}
+`;
+}
+
+function createShellCartPage(): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import Header from 'explore/Header';
+import CartPage from 'checkout/CartPage';
+import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
+
+const languageCodes = ['en', 'cs'] as const;
+
+${createLocalizedHeadComponent()}
+export default function ShellCartPage() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const location = useLocation();
+  const suffix = locationSuffix(location);
+
+  return (
+    <main className="commerce-shell">
+      <LocalizedHead />
+      <Header />
+      <div className="commerce-shell-actions">
+        <nav aria-label={t('shell.language.switcher')} className="commerce-language">
+          {languageCodes.map(code => (
+            <a
+              aria-current={language === code ? 'page' : undefined}
+              className="commerce-pill"
+              href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
+              key={code}
+            >
+              {t(\`shell.language.\${code}\`)}
+            </a>
+          ))}
+        </nav>
+      </div>
+      <CartPage />
     </main>
   );
 }
@@ -2670,6 +2960,90 @@ function createRemoteExposeComponent(
   app: WorkspaceApp,
   expose: string,
 ): string {
+  if (app.id === 'remote-explore' && expose === './Header') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function Header() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+
+  return (
+    <header className="commerce-header" data-mf-boundary="explore">
+      <a className="commerce-logo" href={\`/\${language}\`}>Acre & Iron</a>
+      <nav aria-label={t('explore.header.navigation')} className="commerce-nav">
+        <a href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
+        <a href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
+      </nav>
+    </header>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-explore' && expose === './Recommendations') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+const tractors = [
+  { badge: 'explore.recommendations.bestRows', name: 'Orchard Tractor', slug: 'orchard-tractor' },
+  { badge: 'explore.recommendations.aiFirst', name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
+  { badge: 'explore.recommendations.loaderReady', name: 'Field Loader 112', slug: 'field-loader-112' },
+  { badge: 'explore.recommendations.vineyard', name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
+] as const;
+
+export default function Recommendations() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+
+  return (
+    <section className="commerce-page" data-mf-boundary="explore">
+      <h2 className="commerce-section-title">{t('explore.recommendations.title')}</h2>
+      <div className="commerce-grid">
+        {tractors.map(tractor => (
+          <a className="commerce-card" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
+            <span>{t(tractor.badge)}</span>
+            <strong>{tractor.name}</strong>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-explore' && expose === './StorePicker') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function StorePicker() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+
+  return (
+    <section className="commerce-page" data-mf-boundary="explore">
+      <h2 className="commerce-section-title">{t('explore.stores.title')}</h2>
+      <div className="commerce-grid">
+        <article className="commerce-card">
+          <span>{t('explore.stores.northRegion')}</span>
+          <strong>Bohemia Field Supply</strong>
+        </article>
+        <article className="commerce-card">
+          <span>{t('explore.stores.southRegion')}</span>
+          <strong>Moravia Iron Works</strong>
+        </article>
+      </div>
+    </section>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-explore' && expose === './Footer') {
+    return `export default function Footer() {
+  return <footer className="commerce-footer" data-mf-boundary="explore">Acre & Iron</footer>;
+}
+`;
+  }
+
   if (expose === './Widget') {
     return createRemoteWidget(app);
   }
@@ -2679,17 +3053,116 @@ function createRemoteExposeComponent(
   )}`;
 
   if (app.id === 'remote-decide' && expose === './ProductPage') {
-    return `import AddToCart from 'checkout/AddToCart';
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import AddToCart from 'checkout/AddToCart';
 import Recommendations from 'explore/Recommendations';
 
 export default function ${componentName}() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+
   return (
-    <section data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <p>Decide owns tractor product selection.</p>
-      <h2>Field Loader 112</h2>
-      <p>Hydraulic-ready compact tractor with guided implement matching.</p>
-      <AddToCart />
+    <>
+      <section className="commerce-page commerce-product" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+        <div className="commerce-product-media" aria-hidden="true" />
+        <div>
+          <p className="commerce-eyebrow">{t('decide.product.eyebrow')}</p>
+          <h1 className="commerce-title">Field Loader 112</h1>
+          <p className="commerce-lede">{t('decide.product.lede')}</p>
+          <div className="commerce-facts">
+            <article className="commerce-fact"><span>{t('decide.product.price')}</span><strong>EUR 42,500</strong></article>
+            <article className="commerce-fact"><span>{t('decide.product.power')}</span><strong>112 hp</strong></article>
+            <article className="commerce-fact"><span>{t('decide.product.availability')}</span><strong>{t('decide.product.inStock')}</strong></article>
+          </div>
+          <AddToCart />
+        </div>
+      </section>
       <Recommendations />
+    </>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-checkout' && expose === './AddToCart') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useCartLines } from '../cart-store';
+
+export default function ${componentName}() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const cart = useCartLines();
+
+  return (
+    <div className="commerce-checkout" data-mf-boundary="checkout">
+      <button className="commerce-button" onClick={cart.addFieldLoader} type="button">
+        {t('checkout.actions.addToCart')}
+      </button>
+      <a className="commerce-link-button" href={\`/\${language}/cart\`}>
+        {t('checkout.actions.viewCart')}
+      </a>
+    </div>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-checkout' && expose === './MiniCart') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useCartLines } from '../cart-store';
+
+export default function ${componentName}() {
+  const { i18nInstance, language } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const cart = useCartLines();
+  const count = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+
+  return (
+    <a className="commerce-cart-button" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
+      {t('checkout.cart.title')} ({count})
+    </a>
+  );
+}
+`;
+  }
+
+  if (app.id === 'remote-checkout' && expose === './CartPage') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useCartLines } from '../cart-store';
+
+export default function ${componentName}() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance.t.bind(i18nInstance);
+  const cart = useCartLines();
+
+  return (
+    <section className="commerce-page" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h1 className="commerce-title">{t('checkout.cart.title')}</h1>
+      <div className="commerce-cart-panel">
+        {cart.lines.length === 0 ? (
+          <p>{t('checkout.cart.empty')}</p>
+        ) : (
+          <>
+            {cart.lines.map(line => (
+              <article className="commerce-cart-line" key={line.id}>
+                <div>
+                  <strong>{line.name}</strong>
+                  <p>EUR {line.price.toLocaleString('en-US')}</p>
+                </div>
+                <div className="commerce-quantity">
+                  <button className="commerce-quantity-button" onClick={() => cart.decrement(line.id)} type="button">-</button>
+                  <span>{line.quantity}</span>
+                  <button className="commerce-quantity-button" onClick={() => cart.increment(line.id)} type="button">+</button>
+                  <button className="commerce-link-button" onClick={() => cart.remove(line.id)} type="button">
+                    {t('checkout.actions.remove')}
+                  </button>
+                </div>
+              </article>
+            ))}
+            <p><strong>{t('checkout.cart.total')}: EUR {cart.total.toLocaleString('en-US')}</strong></p>
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -2744,6 +3217,19 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   if (app.kind === 'shell') {
     return {
       shell: {
+        hero: {
+          eyebrow:
+            language === 'en'
+              ? 'Federated tractor commerce'
+              : 'Federovaný obchod s traktory',
+          lede:
+            language === 'en'
+              ? 'A full-stack Micro Vertical reference where Explore, Decide, and Checkout ship independently but compose into one storefront.'
+              : 'Full-stack Micro Vertical ukázka, kde Procházení, Rozhodování a Pokladna vycházejí samostatně, ale skládají jeden obchod.',
+          primary:
+            language === 'en' ? 'View Field Loader' : 'Zobrazit Field Loader',
+          secondary: language === 'en' ? 'Compare machines' : 'Porovnat stroje',
+        },
         language: {
           cs: language === 'en' ? 'Czech' : 'Čeština',
           en: language === 'en' ? 'English' : 'Angličtina',
@@ -2755,12 +3241,13 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
           explore: language === 'en' ? 'Explore Remote' : 'Explore remote',
         },
         routes: {
+          cart: language === 'en' ? 'Cart' : 'Košík',
           home: language === 'en' ? 'Home' : 'Domů',
+          listing: language === 'en' ? 'Tractors' : 'Traktory',
+          productDetail:
+            language === 'en' ? 'Tractor detail' : 'Detail traktoru',
         },
-        title:
-          language === 'en'
-            ? 'UltraModern SuperApp Shell'
-            : 'UltraModern SuperApp shell',
+        title: language === 'en' ? 'Acre & Iron' : 'Acre & Iron',
       },
     };
   }
@@ -2791,6 +3278,67 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
         unavailable: language === 'en' ? 'Unavailable' : 'Nedostupné',
       },
       title: language === 'en' ? app.displayName : czechLabel.title,
+      ...(domain === 'explore'
+        ? {
+            header: {
+              machines: language === 'en' ? 'Machines' : 'Stroje',
+              navigation:
+                language === 'en' ? 'Main navigation' : 'Hlavní navigace',
+              stores: language === 'en' ? 'Stores' : 'Prodejci',
+            },
+            recommendations: {
+              aiFirst: language === 'en' ? 'AI-first option' : 'AI varianta',
+              bestRows:
+                language === 'en'
+                  ? 'Best for tight rows'
+                  : 'Nejlepší do úzkých řádků',
+              loaderReady:
+                language === 'en' ? 'Loader-ready' : 'Připraveno pro nakladač',
+              title:
+                language === 'en'
+                  ? 'Compare alternatives'
+                  : 'Porovnat alternativy',
+              vineyard:
+                language === 'en' ? 'Vineyard profile' : 'Profil pro vinice',
+            },
+            stores: {
+              northRegion:
+                language === 'en' ? 'North region' : 'Severní region',
+              southRegion: language === 'en' ? 'South region' : 'Jižní region',
+              title: language === 'en' ? 'Stores' : 'Prodejci',
+            },
+          }
+        : {}),
+      ...(domain === 'decide'
+        ? {
+            product: {
+              availability: language === 'en' ? 'Availability' : 'Dostupnost',
+              eyebrow: language === 'en' ? 'Machine detail' : 'Detail stroje',
+              inStock: language === 'en' ? 'In stock' : 'Skladem',
+              lede:
+                language === 'en'
+                  ? 'A loader-ready tractor for feed, hay, gravel, and winter road work.'
+                  : 'Traktor připravený pro nakladač na krmivo, seno, štěrk a zimní údržbu cest.',
+              power: language === 'en' ? 'Power' : 'Výkon',
+              price: language === 'en' ? 'Price' : 'Cena',
+            },
+          }
+        : {}),
+      ...(domain === 'checkout'
+        ? {
+            actions: {
+              addToCart: language === 'en' ? 'Add to cart' : 'Přidat do košíku',
+              remove: language === 'en' ? 'Remove' : 'Odebrat',
+              viewCart: language === 'en' ? 'View cart' : 'Zobrazit košík',
+            },
+            cart: {
+              empty:
+                language === 'en' ? 'Your cart is empty.' : 'Košík je prázdný.',
+              title: language === 'en' ? 'Your cart' : 'Váš košík',
+              total: language === 'en' ? 'Total' : 'Celkem',
+            },
+          }
+        : {}),
     },
   };
 }
@@ -2824,6 +3372,103 @@ function createDesignTokens(): string {
     control: '999px',
   },
 } as const;
+`;
+}
+
+function createCheckoutCartStore(): string {
+  return `import { useEffect, useMemo, useState } from 'react';
+
+export type CartLine = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+};
+
+const storageKey = 'ultramodern-tractor-cart';
+const cartEvent = 'ultramodern-cart-change';
+const fieldLoader: CartLine = {
+  id: 'field-loader-112',
+  name: 'Field Loader 112',
+  price: 42500,
+  quantity: 1,
+};
+
+const readCart = (): CartLine[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    return value ? (JSON.parse(value) as CartLine[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeCart = (lines: CartLine[]) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(storageKey, JSON.stringify(lines));
+  window.dispatchEvent(new CustomEvent(cartEvent));
+};
+
+const updateLine = (
+  id: string,
+  updater: (line: CartLine) => CartLine | undefined,
+) => {
+  const next = readCart()
+    .map(line => (line.id === id ? updater(line) : line))
+    .filter((line): line is CartLine => Boolean(line));
+  writeCart(next);
+};
+
+export function useCartLines() {
+  const [lines, setLines] = useState<CartLine[]>(() => readCart());
+
+  useEffect(() => {
+    const refresh = () => setLines(readCart());
+    window.addEventListener(cartEvent, refresh);
+    window.addEventListener('storage', refresh);
+    refresh();
+
+    return () => {
+      window.removeEventListener(cartEvent, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  return useMemo(
+    () => ({
+      lines,
+      total: lines.reduce((sum, line) => sum + line.price * line.quantity, 0),
+      addFieldLoader: () => {
+        const existing = readCart();
+        const match = existing.find(line => line.id === fieldLoader.id);
+        writeCart(
+          match
+            ? existing.map(line =>
+                line.id === fieldLoader.id
+                  ? { ...line, quantity: line.quantity + 1 }
+                  : line,
+              )
+            : [...existing, fieldLoader],
+        );
+      },
+      increment: (id: string) =>
+        updateLine(id, line => ({ ...line, quantity: line.quantity + 1 })),
+      decrement: (id: string) =>
+        updateLine(id, line =>
+          line.quantity > 1 ? { ...line, quantity: line.quantity - 1 } : undefined,
+        ),
+      remove: (id: string) => writeCart(readCart().filter(line => line.id !== id)),
+    }),
+    [lines],
+  );
+}
 `;
 }
 
@@ -4929,14 +5574,25 @@ function writeApp(
     app.kind === 'shell' ? createShellPage() : createRemotePage(app),
   );
   for (const route of createRouteOwnedI18nPaths(app)) {
-    if (route.canonicalPath === '/') {
+    if (route.canonicalPath === '/' || app.kind === 'shell') {
       continue;
     }
-    writeFile(
-      targetDir,
-      createRoutePageFilePath(app, route.canonicalPath),
-      createRouteAliasPage(route.canonicalPath),
-    );
+    const routePaths = new Set([
+      route.canonicalPath,
+      ...Object.values(route.localisedPaths),
+    ]);
+
+    for (const routePath of routePaths) {
+      if (routePath === '/') {
+        continue;
+      }
+
+      writeFile(
+        targetDir,
+        createRoutePageFilePath(app, routePath),
+        createRouteAliasPage(routePath),
+      );
+    }
   }
 
   if (app.kind === 'shell') {
@@ -4944,6 +5600,36 @@ function writeApp(
       targetDir,
       `${app.directory}/src/effect/recommendations-client.ts`,
       createShellEffectClient(scope),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/tractors/page.tsx`,
+      createShellTractorsPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/traktory/page.tsx`,
+      createShellTractorsPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/tractors/[slug]/page.tsx`,
+      createShellProductPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/traktory/[slug]/page.tsx`,
+      createShellProductPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/cart/page.tsx`,
+      createShellCartPage(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/[lang]/kosik/page.tsx`,
+      createShellCartPage(),
     );
   }
 
@@ -4971,6 +5657,13 @@ function writeApp(
       `${app.directory}/src/remote-entry.tsx`,
       createRemoteEntry(app),
     );
+    if (app.id === 'remote-checkout') {
+      writeFile(
+        targetDir,
+        `${app.directory}/src/cart-store.ts`,
+        createCheckoutCartStore(),
+      );
+    }
     for (const expose of Object.keys(app.exposes ?? {})) {
       const outputPath = remoteComponentOutputPath(app, expose);
 
