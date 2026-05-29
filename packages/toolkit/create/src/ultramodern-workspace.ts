@@ -2101,6 +2101,28 @@ a {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.commerce-boundary-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  border: 0.0625rem solid rgba(23, 23, 23, 0.12);
+  border-radius: 0.8rem;
+  bottom: 1.5rem;
+  box-shadow: 0 0.75rem 2rem rgba(18, 15, 10, 0.14);
+  color: #14120d;
+  display: flex;
+  gap: 0.65rem;
+  left: 1.5rem;
+  padding: 0.8rem 1rem;
+  position: fixed;
+  z-index: 80;
+}
+
+.commerce-boundary-toggle input {
+  accent-color: #00624b;
+  height: 1rem;
+  width: 1rem;
+}
+
 @media (max-width: 860px) {
   .commerce-shell-actions {
     justify-content: flex-start;
@@ -2670,6 +2692,7 @@ function createShellPage(): string {
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState, type ComponentType } from 'react';
+import BoundaryOverlay from '../boundary-overlay';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
@@ -2714,6 +2737,7 @@ export default function ShellHome() {
   return (
     <main className="commerce-shell">
       <LocalizedHead />
+      <BoundaryOverlay />
       {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
@@ -2759,6 +2783,7 @@ function createShellTractorsPage(): string {
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState, type ComponentType } from 'react';
+import BoundaryOverlay from '../../boundary-overlay';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -2802,6 +2827,7 @@ export default function ShellTractorsPage() {
   return (
     <main className="commerce-shell">
       <LocalizedHead />
+      <BoundaryOverlay />
       {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
@@ -2830,6 +2856,7 @@ function createShellProductPage(): string {
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState, type ComponentType } from 'react';
+import BoundaryOverlay from '../../../boundary-overlay';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -2875,6 +2902,7 @@ export default function ShellProductPage() {
   return (
     <main className="commerce-shell">
       <LocalizedHead />
+      <BoundaryOverlay />
       {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
@@ -2903,6 +2931,7 @@ function createShellCartPage(): string {
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState, type ComponentType } from 'react';
+import BoundaryOverlay from '../../boundary-overlay';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -2944,6 +2973,7 @@ export default function ShellCartPage() {
   return (
     <main className="commerce-shell">
       <LocalizedHead />
+      <BoundaryOverlay />
       {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
@@ -2961,6 +2991,165 @@ export default function ShellCartPage() {
       </div>
       {CartPage ? <CartPage /> : null}
     </main>
+  );
+}
+`;
+}
+
+function createShellBoundaryOverlay(): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+
+type BoundaryConfig = {
+  color: string;
+  label: string;
+};
+
+type BoundaryBox = BoundaryConfig & {
+  height: number;
+  id: string;
+  labelPlacement: 'above' | 'inside';
+  left: number;
+  top: number;
+  width: number;
+};
+
+declare global {
+  interface Window {
+    __ULTRAMODERN_BOUNDARIES__?: Partial<Record<string, Partial<BoundaryConfig>>>;
+  }
+}
+
+const defaultBoundaryColors = {
+  checkout: 'var(--um-boundary-checkout, #f6cf45)',
+  decide: 'var(--um-boundary-decide, #30e27a)',
+  explore: 'var(--um-boundary-explore, #ff5a5f)',
+} as const;
+
+const boundaryIds = ['explore', 'decide', 'checkout'] as const;
+
+export default function BoundaryOverlay() {
+  const { i18nInstance, language } = useModernI18n();
+  const [enabled, setEnabled] = useState(false);
+  const [boxes, setBoxes] = useState<BoundaryBox[]>([]);
+  const boundaryConfig = useMemo(() => {
+    const t = i18nInstance['t'].bind(i18nInstance);
+    const runtimeOverrides =
+      typeof window === 'undefined'
+        ? {}
+        : (window.__ULTRAMODERN_BOUNDARIES__ ?? {});
+
+    return Object.fromEntries(
+      boundaryIds.map(id => [
+        id,
+        {
+          color: runtimeOverrides[id]?.color ?? defaultBoundaryColors[id],
+          label: runtimeOverrides[id]?.label ?? t(\`shell.boundaries.\${id}\`),
+        },
+      ]),
+    ) as Record<string, BoundaryConfig>;
+  }, [i18nInstance, language]);
+  const toggleLabel = i18nInstance['t'].bind(i18nInstance)(
+    'shell.boundaries.toggle',
+  );
+
+  useEffect(() => {
+    if (!enabled) {
+      setBoxes([]);
+      return;
+    }
+
+    const readBoxes = () => {
+      const nextBoxes = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-mf-boundary]'),
+      )
+        .map((element, index) => {
+          const id = element.dataset.mfBoundary ?? 'unknown';
+          const rect = element.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) {
+            return undefined;
+          }
+          const fallback = {
+            color: 'var(--um-boundary-unknown, #7c8cff)',
+            label: id,
+          };
+          const config = boundaryConfig[id] ?? fallback;
+
+          return {
+            ...config,
+            height: rect.height,
+            id: \`\${id}-\${index}\`,
+            labelPlacement: rect.height < 48 ? 'above' : 'inside',
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+          } satisfies BoundaryBox;
+        })
+        .filter((box): box is BoundaryBox => box !== undefined);
+
+      setBoxes(nextBoxes);
+    };
+
+    readBoxes();
+
+    const resizeObserver = new ResizeObserver(readBoxes);
+    for (const element of document.querySelectorAll<HTMLElement>(
+      '[data-mf-boundary]',
+    )) {
+      resizeObserver.observe(element);
+    }
+
+    const mutationObserver = new MutationObserver(readBoxes);
+    mutationObserver.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    window.addEventListener('resize', readBoxes);
+    window.addEventListener('scroll', readBoxes, true);
+
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', readBoxes);
+      window.removeEventListener('scroll', readBoxes, true);
+    };
+  }, [boundaryConfig, enabled]);
+
+  return (
+    <>
+      <label className="commerce-boundary-toggle">
+        <input
+          checked={enabled}
+          onChange={event => setEnabled(event.currentTarget.checked)}
+          type="checkbox"
+        />
+        <span>{toggleLabel}</span>
+      </label>
+      {enabled ? (
+        <div aria-hidden="true" className="boundary-overlay">
+          {boxes.map(box => (
+            <div
+              className="boundary-overlay__box"
+              data-label-placement={box.labelPlacement}
+              key={box.id}
+              style={
+                {
+                  '--boundary-color': box.color,
+                  height: box.height,
+                  left: box.left,
+                  top: box.top,
+                  width: box.width,
+                } as CSSProperties
+              }
+            >
+              <span className="boundary-overlay__label">{box.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }
 `;
@@ -3487,6 +3676,15 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
           checkout: language === 'en' ? 'Checkout Remote' : 'Checkout remote',
           decide: language === 'en' ? 'Decide Remote' : 'Decide remote',
           explore: language === 'en' ? 'Explore Remote' : 'Explore remote',
+        },
+        boundaries: {
+          checkout: language === 'en' ? 'checkout' : 'pokladna',
+          decide: language === 'en' ? 'decide' : 'rozhodování',
+          explore: language === 'en' ? 'explore' : 'procházení',
+          toggle:
+            language === 'en'
+              ? 'show team boundaries'
+              : 'zobrazit hranice týmů',
         },
         routes: {
           cart: language === 'en' ? 'Cart' : 'Košík',
@@ -5884,6 +6082,11 @@ function writeApp(
       targetDir,
       `${app.directory}/src/routes/remote-components.tsx`,
       createShellRemoteComponents(),
+    );
+    writeFile(
+      targetDir,
+      `${app.directory}/src/routes/boundary-overlay.tsx`,
+      createShellBoundaryOverlay(),
     );
     writeFile(
       targetDir,
