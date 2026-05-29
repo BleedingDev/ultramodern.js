@@ -385,6 +385,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       allowedPaths: [
         '.agents/**',
         '.browserslistrc',
+        '.codex/**',
         '.github/**',
         '.gitignore',
         '.mise.toml',
@@ -394,6 +395,7 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
         'README.md',
         'api/**',
         'config/**',
+        'lefthook.yml',
         'modern.config.ts',
         'oxfmt.config.ts',
         'oxlint.config.ts',
@@ -1328,11 +1330,14 @@ async function main() {
     }
     if (packageJson.devDependencies) {
       delete packageJson.devDependencies['lint-staged'];
+      delete packageJson.devDependencies.lefthook;
       delete packageJson.devDependencies['simple-git-hooks'];
       delete packageJson.devDependencies.oxlint;
       delete packageJson.devDependencies.oxfmt;
       delete packageJson.devDependencies.ultracite;
     }
+    fs.rmSync(path.join(targetDir, '.codex'), { recursive: true, force: true });
+    fs.rmSync(path.join(targetDir, 'lefthook.yml'), { force: true });
   }
 
   fs.writeFileSync(

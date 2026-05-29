@@ -1,0 +1,15 @@
+pre-commit:
+  commands:
+    format:
+      run: pnpm format
+      stage_fixed: true
+    lint:
+      run: pnpm lint:fix
+      stage_fixed: true
+    check:
+      run: pnpm ultramodern:check
+
+pre-push:
+  commands:
+    check:
+      run: pnpm ultramodern:check

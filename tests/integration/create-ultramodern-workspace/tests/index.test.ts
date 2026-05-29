@@ -106,9 +106,9 @@ function expectPnpm11Policy(workspaceDir: string) {
     '@swc/core': true,
     'core-js': true,
     esbuild: true,
+    lefthook: true,
     'msgpackr-extract': true,
     sharp: true,
-    'simple-git-hooks': true,
     workerd: true,
   });
   expect(readPnpmConfig(workspaceDir, 'onlyBuiltDependencies')).toBeUndefined();
@@ -200,7 +200,6 @@ function expectTailwindContract(contractEntry: {
   expect(contractEntry.styling).toMatchObject({
     tailwind: true,
     postcssPlugins: ['@tailwindcss/postcss'],
-    contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
   });
 }
 
@@ -995,7 +994,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/bootstrap-agent-skills.mjs --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs',
+      'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs',
     );
     expect(
       Object.keys(rootPackage.scripts).every(
@@ -1005,6 +1004,7 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.13.0',
       '@typescript/native-preview': '7.0.0-dev.20260527.2',
+      lefthook: '^2.1.9',
       oxlint: '1.66.0',
       oxfmt: '0.51.0',
       ultracite: '7.7.0',
@@ -1013,6 +1013,8 @@ describe('create-ultramodern-workspace', () => {
     });
 
     expectPath(workspaceDir, 'AGENTS.md');
+    expectPath(workspaceDir, '.codex/hooks.json');
+    expectPath(workspaceDir, 'lefthook.yml');
 
     const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
     expect(skillsLock.source.repository).toBe(
@@ -1195,7 +1197,7 @@ describe('create-ultramodern-workspace', () => {
     );
     expectAppConfigContract(shellContract, {});
     expectCssFederationContract(generatedContract, shellContract, {
-      classPrefix: 'shell-',
+      classPrefix: 'shell:',
       ownedLayers: ['ultramodern-shell-base', 'ultramodern-shell-overlay'],
       role: 'shell-base-overlay',
       rootSelector: '[data-app-id="shell-super-app"]',
@@ -1293,7 +1295,7 @@ describe('create-ultramodern-workspace', () => {
         apiPrefix: vertical.apiPrefix,
       });
       expectCssFederationContract(generatedContract, verticalContract, {
-        classPrefix: `${vertical.domain}-`,
+        classPrefix: `${vertical.domain}:`,
         ownedLayers: [`ultramodern-remote-${vertical.domain}`],
         role: 'vertical-remote-css',
         rootSelector: `[data-app-id="${vertical.id}"]`,
@@ -1707,7 +1709,7 @@ describe('create-ultramodern-workspace', () => {
       'remote-catalog',
     );
     expectCssFederationContract(generatedContract, catalogContract, {
-      classPrefix: 'catalog-',
+      classPrefix: 'catalog:',
       ownedLayers: ['ultramodern-remote-catalog'],
       role: 'vertical-remote-css',
       rootSelector: '[data-app-id="remote-catalog"]',

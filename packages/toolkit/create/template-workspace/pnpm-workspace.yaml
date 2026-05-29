@@ -24,7 +24,7 @@ allowBuilds:
   '@swc/core': true
   core-js: true
   esbuild: true
+  lefthook: true
   msgpackr-extract: true
   sharp: true
-  simple-git-hooks: true
   workerd: true

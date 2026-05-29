@@ -72,9 +72,9 @@ function expectPnpm11Policy(projectDir: string) {
     '@swc/core': true,
     'core-js': true,
     esbuild: true,
+    lefthook: true,
     'msgpackr-extract': true,
     sharp: true,
-    'simple-git-hooks': true,
     workerd: true,
   });
   expect(readPnpmConfig(projectDir, 'onlyBuiltDependencies')).toBeUndefined();
@@ -166,8 +166,11 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
     expect(packageJson.scripts.postinstall).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs',
+      'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)',
     );
+    expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(true);
+    expect(packageJson.devDependencies.lefthook).toBe('^2.1.9');
     expectSingleAppContract(appDir);
 
     const postcssConfigPath = path.join(appDir, 'postcss.config.mjs');
@@ -253,6 +256,8 @@ describe('create-tailwind', () => {
 
     expect(packageJson['lint-staged']).toBeUndefined();
     expect(packageJson['simple-git-hooks']).toBeUndefined();
+    expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(false);
     expect(packageJson.scripts.lint).toBeUndefined();
     expect(packageJson.scripts['lint:fix']).toBeUndefined();
     expect(packageJson.scripts.format).toBeUndefined();
@@ -265,6 +270,7 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies.oxfmt).toBeUndefined();
     expect(packageJson.devDependencies.ultracite).toBeUndefined();
     expect(packageJson.devDependencies['lint-staged']).toBeUndefined();
+    expect(packageJson.devDependencies.lefthook).toBeUndefined();
     expect(packageJson.devDependencies['simple-git-hooks']).toBeUndefined();
     expectSingleAppContract(appDir);
 

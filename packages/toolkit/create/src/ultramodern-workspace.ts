@@ -23,6 +23,7 @@ const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260527.2';
 const OXLINT_VERSION = '1.66.0';
 const OXFMT_VERSION = '0.51.0';
 const ULTRACITE_VERSION = '7.7.0';
+const LEFTHOOK_VERSION = '^2.1.9';
 const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
@@ -869,7 +870,7 @@ function createRootPackageJson(
       'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       postinstall:
-        'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs',
+        'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs',
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:check',
     },
@@ -891,6 +892,7 @@ function createRootPackageJson(
     devDependencies: {
       '@effect/tsgo': EFFECT_TSGO_VERSION,
       '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      lefthook: LEFTHOOK_VERSION,
       oxlint: OXLINT_VERSION,
       oxfmt: OXFMT_VERSION,
       ultracite: ULTRACITE_VERSION,
@@ -2113,125 +2115,13 @@ export default {
 `;
 }
 
-function stripTemporarySpecificityVariant(candidate: string): string {
-  return candidate.replace(/\[&&\]:/gu, '');
-}
-
-function prefixTailwindCandidate(candidate: string, prefix: string): string {
-  const normalized = stripTemporarySpecificityVariant(candidate);
-
-  if (!normalized || normalized.startsWith(`${prefix}:`)) {
-    return normalized;
-  }
-
-  return `${prefix}:${normalized}`;
-}
-
-function prefixTailwindClassList(classList: string, prefix: string): string {
-  return classList
-    .split(/(\s+)/u)
-    .map(part => (part.trim() ? prefixTailwindCandidate(part, prefix) : part))
-    .join('');
-}
-
-function looksLikeTailwindClassList(value: string): boolean {
-  return /\s/u.test(value) && /[-:[/\]]/u.test(value);
-}
-
-function findTemplateExpressionEnd(value: string, start: number): number {
-  let depth = 1;
-  let quote: '`' | '"' | "'" | undefined;
-
-  for (let index = start; index < value.length; index += 1) {
-    const character = value[index];
-    const previous = value[index - 1];
-
-    if (quote) {
-      if (character === quote && previous !== '\\') {
-        quote = undefined;
-      }
-      continue;
-    }
-
-    if (character === '`' || character === '"' || character === "'") {
-      quote = character;
-      continue;
-    }
-
-    if (character === '{') {
-      depth += 1;
-      continue;
-    }
-
-    if (character === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        return index;
-      }
-    }
-  }
-
-  return -1;
-}
-
-function prefixTailwindStringsInExpression(
-  expression: string,
-  prefix: string,
-): string {
-  return expression.replace(
-    /(['"])([^'"\\]*(?:\\.[^'"\\]*)*)\1/gu,
-    (match, quote: string, value: string) => {
-      if (!looksLikeTailwindClassList(value)) {
-        return match;
-      }
-
-      return `${quote}${prefixTailwindClassList(value, prefix)}${quote}`;
-    },
-  );
-}
-
-function prefixTailwindTemplateBody(body: string, prefix: string): string {
-  let output = '';
-  let cursor = 0;
-
-  while (cursor < body.length) {
-    const expressionStart = body.indexOf('${', cursor);
-    if (expressionStart === -1) {
-      output += prefixTailwindClassList(body.slice(cursor), prefix);
-      break;
-    }
-
-    output += prefixTailwindClassList(
-      body.slice(cursor, expressionStart),
-      prefix,
-    );
-
-    const expressionEnd = findTemplateExpressionEnd(body, expressionStart + 2);
-    if (expressionEnd === -1) {
-      output += body.slice(expressionStart);
-      break;
-    }
-
-    output += '${';
-    output += prefixTailwindStringsInExpression(
-      body.slice(expressionStart + 2, expressionEnd),
-      prefix,
-    );
-    output += '}';
-    cursor = expressionEnd + 1;
-  }
-
-  return output;
-}
-
-function prefixTailwindClassNames(content: string, prefix: string): string {
-  return content
-    .replace(/className="([^"]*)"/gu, (_match, value: string) => {
-      return `className="${prefixTailwindClassList(value, prefix)}"`;
-    })
-    .replace(/className=\{`([\s\S]*?)`\}/gu, (_match, value: string) => {
-      return `className={\`${prefixTailwindTemplateBody(value, prefix)}\`}`;
-    });
+function createTw(prefix: string) {
+  return (classList: string) =>
+    classList
+      .split(/\s+/u)
+      .filter(Boolean)
+      .map(candidate => `${prefix}:${candidate.replace(/\[&&\]:/gu, '')}`)
+      .join(' ');
 }
 
 function createCommerceAssetSvg(
@@ -2544,6 +2434,8 @@ const LocalizedHead = () => {
 }
 
 function createShellPage(): string {
+  const tw = createTw(tailwindPrefixForApp(shellApp));
+
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
@@ -2562,25 +2454,25 @@ export default function ShellHome() {
   return (
     <ShellFrame>
       <LocalizedHead />
-      <section className="mx-auto grid max-w-7xl items-center [&&]:gap-8 py-8 md:[&&]:grid-cols-[0.9fr_1.1fr] lg:[&&]:gap-14">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('shell.hero.eyebrow')}</p>
-          <h1 className="mt-3 max-w-3xl [&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">{t('shell.title')}</h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('shell.hero.lede')}</p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <a className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10" href={\`/\${language}/tractors/field-loader-112\`}>
+      <section className="${tw('mx-auto grid max-w-7xl items-center gap-8 py-8 md:grid-cols-[0.9fr_1.1fr] lg:gap-14')}">
+        <div className="${tw('min-w-0')}">
+          <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('shell.hero.eyebrow')}</p>
+          <h1 className="${tw('mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('shell.title')}</h1>
+          <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('shell.hero.lede')}</p>
+          <div className="${tw('mt-7 flex flex-wrap gap-3')}">
+            <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" href={\`/\${language}/tractors/field-loader-112\`}>
             {t('shell.hero.primary')}
             </a>
-            <a className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10" href={\`/\${language}/tractors\`}>
+            <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" href={\`/\${language}/tractors\`}>
             {t('shell.hero.secondary')}
             </a>
           </div>
         </div>
-        <img alt="" className="aspect-[16/10] w-full rounded-3xl bg-stone-200 object-cover shadow-2xl shadow-stone-900/20" src={heroField} />
+        <img alt="" className="${tw('aspect-[16/10] w-full rounded-3xl bg-stone-200 object-cover shadow-2xl shadow-stone-900/20')}" src={heroField} />
       </section>
       <StorePicker />
-      <p className="sr-only" data-testid="ultramodern-preset">presetUltramodern workspace</p>
-      <p className="sr-only" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+      <p className="${tw('sr-only')}" data-testid="ultramodern-preset">presetUltramodern workspace</p>
+      <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
     </ShellFrame>
@@ -2666,6 +2558,8 @@ export default function ShellCartPage() {
 }
 
 function createShellFrameComponent(): string {
+  const tw = createTw(tailwindPrefixForApp(shellApp));
+
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import type { ReactNode } from 'react';
@@ -2804,16 +2698,16 @@ export default function ShellFrame({ boundary = 'explore', children, showCart = 
   const suffix = locationSuffix(location);
 
   return (
-    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-5 text-um-foreground sm:[&&]:px-6 lg:[&&]:px-12" data-mf-page-boundary={boundary}>
-      <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 [&&]:px-4 py-3 shadow-xl shadow-stone-900/10 sm:[&&]:px-6 md:[&&]:flex-row md:[&&]:flex-wrap md:[&&]:items-center md:[&&]:justify-between">
+    <main className="${tw('min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12')}" data-mf-page-boundary={boundary}>
+      <div className="${tw('mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between')}">
         <Header />
-        <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
-          <label className="sr-only" htmlFor="ultramodern-language">
+        <div className="${tw('flex min-w-0 flex-wrap items-center gap-2 md:ml-auto')}">
+          <label className="${tw('sr-only')}" htmlFor="ultramodern-language">
             {t('shell.language.switcher')}
           </label>
           <select
             aria-label={t('shell.language.switcher')}
-            className="h-10 w-10 cursor-pointer appearance-none border-0 bg-transparent p-0 text-center text-3xl font-black leading-none text-stone-950 shadow-none [appearance:none] [text-align-last:center] focus-visible:rounded-md focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-700/40 [&::-ms-expand]:hidden [&::picker-icon]:hidden [&_option]:text-xl"
+            className="${tw('h-10 w-10 cursor-pointer appearance-none border-0 bg-transparent p-0 text-center text-3xl font-black leading-none text-stone-950 shadow-none [appearance:none] [text-align-last:center] focus-visible:rounded-md focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-700/40 [&::-ms-expand]:hidden [&::picker-icon]:hidden [&_option]:text-xl')}"
             id="ultramodern-language"
             name="language"
             onChange={event => {
@@ -2845,6 +2739,8 @@ export default function ShellFrame({ boundary = 'explore', children, showCart = 
 }
 
 function createShellBoundaryOverlay(): string {
+  const tw = createTw(tailwindPrefixForApp(shellApp));
+
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
@@ -2978,9 +2874,9 @@ export default function BoundaryOverlay() {
 
   return (
     <>
-      <label className="fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
+      <label className="${tw('fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15')}">
         <input
-          className="size-4 accent-emerald-800"
+          className="${tw('size-4 accent-emerald-800')}"
           checked={enabled}
           onChange={event => setEnabled(event.currentTarget.checked)}
           type="checkbox"
@@ -2988,10 +2884,10 @@ export default function BoundaryOverlay() {
         <span>{toggleLabel}</span>
       </label>
       {enabled ? (
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[70]">
+        <div aria-hidden="true" className="${tw('pointer-events-none fixed inset-0 z-[70]')}">
           {boxes.map(box => (
             <div
-              className="fixed rounded-lg border-2"
+              className="${tw('fixed rounded-lg border-2')}"
               data-label-placement={box.labelPlacement}
               key={box.id}
               style={
@@ -3006,7 +2902,7 @@ export default function BoundaryOverlay() {
               }
             >
               <span
-                className={\`absolute whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950 \${box.labelPlacement === 'above' ? 'bottom-[calc(100%+0.25rem)] right-1 top-auto' : box.labelPlacement === 'edge' ? 'left-0 top-28 -translate-x-[calc(100%-1px)] -rotate-90 rounded-b-none' : 'right-1 top-1'}\`}
+                className={\`${tw('absolute whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950')} \${box.labelPlacement === 'above' ? '${tw('bottom-[calc(100%+0.25rem)] right-1 top-auto')}' : box.labelPlacement === 'edge' ? '${tw('left-0 top-28 -translate-x-[calc(100%-1px)] -rotate-90 rounded-b-none')}' : '${tw('right-1 top-1')}'}\`}
                 style={{ backgroundColor: box.color }}
               >
                 {box.label}
@@ -3022,6 +2918,8 @@ export default function BoundaryOverlay() {
 }
 
 function createShellRemoteComponents(scope: string): string {
+  const tw = createTw(tailwindPrefixForApp(shellApp));
+
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
@@ -3046,7 +2944,7 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Remote unavailable</div>;
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3098,6 +2996,7 @@ export const CartPage = createHydratedRemote(CartPageServer, 'checkout/CartPage'
 }
 
 function createRemotePage(app: WorkspaceApp): string {
+  const tw = createTw(tailwindPrefixForApp(app));
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
@@ -3146,13 +3045,13 @@ export default function ${toPascalCase(app.id)}Home() {
   const location = useLocation();
   const suffix = locationSuffix(location);
 ${effectBffState}  return (
-    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-6 text-um-foreground sm:[&&]:px-8">
+    <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
       <LocalizedHead />
-      <nav aria-label={t('${app.domain}.language.switcher')} className="flex gap-3">
+      <nav aria-label={t('${app.domain}.language.switcher')} className="${tw('flex gap-3')}">
         {supportedLanguages.map(code => (
           <a
             aria-current={language === code ? 'page' : undefined}
-            className="rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-bold text-stone-950 no-underline"
+            className="${tw('rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-bold text-stone-950 no-underline')}"
             href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
             key={code}
           >
@@ -3160,9 +3059,9 @@ ${effectBffState}  return (
           </a>
         ))}
       </nav>
-      <h1 className="mt-10 text-5xl font-black">{t('${app.domain}.title')}</h1>
-      <p className="mt-3 text-lg text-stone-600" data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
-      <p className="sr-only" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
+      <h1 className="${tw('mt-10 text-5xl font-black')}">{t('${app.domain}.title')}</h1>
+      <p className="${tw('mt-3 text-lg text-stone-600')}" data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
+      <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
 ${effectBffMarkup}    </main>
@@ -3186,6 +3085,8 @@ export default function Layout() {
 }
 
 function createRemoteEntry(app: WorkspaceApp): string {
+  const tw = createTw(tailwindPrefixForApp(app));
+
   if (app.exposes?.['./ProductPage']) {
     return `export { default } from './components/product-page';
 `;
@@ -3198,9 +3099,9 @@ function createRemoteEntry(app: WorkspaceApp): string {
 
   return `export default function ${toPascalCase(app.domain ?? app.id)}Route() {
   return (
-    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}" data-mf-expose="./Route">
-      <h2 className="text-2xl font-black">${app.displayName}</h2>
-      <p className="mt-2 text-stone-600">Route surface for ${app.domain ?? app.id}.</p>
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}" data-mf-expose="./Route">
+      <h2 className="${tw('text-2xl font-black')}">${app.displayName}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">Route surface for ${app.domain ?? app.id}.</p>
     </section>
   );
 }
@@ -3208,6 +3109,7 @@ function createRemoteEntry(app: WorkspaceApp): string {
 }
 
 function createRemoteWidget(app: WorkspaceApp): string {
+  const tw = createTw(tailwindPrefixForApp(app));
   const componentName = `${toPascalCase(app.domain ?? app.id)}Widget`;
   const body =
     app.kind === 'vertical'
@@ -3216,9 +3118,9 @@ function createRemoteWidget(app: WorkspaceApp): string {
 
   return `export default function ${componentName}() {
   return (
-    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}">
-      <h2 className="text-2xl font-black">${app.displayName}</h2>
-      <p className="mt-2 text-stone-600">${body}</p>
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}">
+      <h2 className="${tw('text-2xl font-black')}">${app.displayName}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">${body}</p>
     </section>
   );
 }
@@ -3229,6 +3131,8 @@ function createRemoteExposeComponent(
   app: WorkspaceApp,
   expose: string,
 ): string {
+  const tw = createTw(tailwindPrefixForApp(app));
+
   if (app.id === 'remote-explore' && expose === './Header') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
@@ -3237,11 +3141,11 @@ export default function Header() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <header className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:[&&]:flex-1" data-mf-boundary="explore">
-      <a className="whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline" href={\`/\${language}\`}>Acre & Iron</a>
-      <nav aria-label={t('explore.header.navigation')} className="flex items-center gap-5">
-        <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
-        <a className="text-sm font-extrabold text-stone-900 no-underline" href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
+    <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-mf-boundary="explore">
+      <a className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" href={\`/\${language}\`}>Acre & Iron</a>
+      <nav aria-label={t('explore.header.navigation')} className="${tw('flex items-center gap-5')}">
+        <a className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
+        <a className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
       </nav>
     </header>
   );
@@ -3264,14 +3168,14 @@ export default function Recommendations() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
-      <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.recommendations.title')}</h2>
-      <div className="mt-5 grid gap-4 md:[&&]:grid-cols-2 xl:[&&]:grid-cols-4">
+    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-mf-boundary="explore">
+      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('explore.recommendations.title')}</h2>
+      <div className="${tw('mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4')}">
         {tractors.map(tractor => (
-          <a className="block rounded-2xl bg-white/90 p-4 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
-            <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={tractor.image} />
-            <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-amber-700">{t(tractor.badge)}</span>
-            <strong className="mt-2 block text-xl font-black leading-tight">{tractor.name}</strong>
+          <a className="${tw('block rounded-2xl bg-white/90 p-4 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
+            <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={tractor.image} />
+            <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-amber-700')}">{t(tractor.badge)}</span>
+            <strong className="${tw('mt-2 block text-xl font-black leading-tight')}">{tractor.name}</strong>
           </a>
         ))}
       </div>
@@ -3292,18 +3196,18 @@ export default function StorePicker() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
-      <h2 className="text-3xl font-black tracking-normal text-stone-950">{t('explore.stores.title')}</h2>
-      <div className="mt-5 grid gap-4 md:[&&]:grid-cols-2">
-        <article className="rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10">
-          <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={fieldLoaderImage} />
-          <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800">{t('explore.stores.northRegion')}</span>
-          <strong className="mt-2 block text-2xl font-black">Bohemia Field Supply</strong>
+    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-mf-boundary="explore">
+      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('explore.stores.title')}</h2>
+      <div className="${tw('mt-5 grid gap-4 md:grid-cols-2')}">
+        <article className="${tw('rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10')}">
+          <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={fieldLoaderImage} />
+          <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('explore.stores.northRegion')}</span>
+          <strong className="${tw('mt-2 block text-2xl font-black')}">Bohemia Field Supply</strong>
         </article>
-        <article className="rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10">
-          <img alt="" className="aspect-video w-full rounded-xl bg-stone-200 object-cover" src={vineyardImage} />
-          <span className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800">{t('explore.stores.southRegion')}</span>
-          <strong className="mt-2 block text-2xl font-black">Moravia Iron Works</strong>
+        <article className="${tw('rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10')}">
+          <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={vineyardImage} />
+          <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('explore.stores.southRegion')}</span>
+          <strong className="${tw('mt-2 block text-2xl font-black')}">Moravia Iron Works</strong>
         </article>
       </div>
     </section>
@@ -3314,7 +3218,7 @@ export default function StorePicker() {
 
   if (app.id === 'remote-explore' && expose === './Footer') {
     return `export default function Footer() {
-  return <footer className="mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600" data-mf-boundary="explore">Acre & Iron</footer>;
+  return <footer className="${tw('mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600')}" data-mf-boundary="explore">Acre & Iron</footer>;
 }
 `;
   }
@@ -3339,16 +3243,16 @@ export default function ${componentName}() {
 
   return (
     <>
-      <section className="mx-auto mt-10 grid max-w-7xl items-center [&&]:gap-8 md:[&&]:grid-cols-[1fr_0.95fr] lg:[&&]:gap-14" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-        <img alt="" className="aspect-[1/0.9] w-full rounded-3xl border-[18px] border-amber-200 bg-stone-200 object-cover shadow-2xl shadow-stone-900/20" src={fieldLoaderImage} />
+      <section className="${tw('mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14')}" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+        <img alt="" className="${tw('aspect-[1/0.9] w-full rounded-3xl border-[18px] border-amber-200 bg-stone-200 object-cover shadow-2xl shadow-stone-900/20')}" src={fieldLoaderImage} />
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">{t('decide.product.eyebrow')}</p>
-          <h1 className="mt-3 [&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">Field Loader 112</h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">{t('decide.product.lede')}</p>
-          <div className="mt-8 grid gap-4 sm:[&&]:grid-cols-3">
-            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.price')}</span><strong className="mt-2 block text-lg font-black">EUR 42,500</strong></article>
-            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.power')}</span><strong className="mt-2 block text-lg font-black">112 hp</strong></article>
-            <article className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10"><span className="block text-sm font-bold text-stone-500">{t('decide.product.availability')}</span><strong className="mt-2 block text-lg font-black">{t('decide.product.inStock')}</strong></article>
+          <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('decide.product.eyebrow')}</p>
+          <h1 className="${tw('mt-3 text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">Field Loader 112</h1>
+          <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('decide.product.lede')}</p>
+          <div className="${tw('mt-8 grid gap-4 sm:grid-cols-3')}">
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.price')}</span><strong className="${tw('mt-2 block text-lg font-black')}">EUR 42,500</strong></article>
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.power')}</span><strong className="${tw('mt-2 block text-lg font-black')}">112 hp</strong></article>
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.availability')}</span><strong className="${tw('mt-2 block text-lg font-black')}">{t('decide.product.inStock')}</strong></article>
           </div>
           <AddToCart />
         </div>
@@ -3370,11 +3274,11 @@ export default function ${componentName}() {
   const cart = useCartLines();
 
   return (
-    <div className="mt-8 flex flex-wrap gap-3" data-mf-boundary="checkout">
-      <button className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10" onClick={cart.addFieldLoader} type="button">
+    <div className="${tw('mt-8 flex flex-wrap gap-3')}" data-mf-boundary="checkout">
+      <button className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" onClick={cart.addFieldLoader} type="button">
         {t('checkout.actions.addToCart')}
       </button>
-      <a className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10" href={\`/\${language}/cart\`}>
+      <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" href={\`/\${language}/cart\`}>
         {t('checkout.actions.viewCart')}
       </a>
     </div>
@@ -3394,7 +3298,7 @@ export default function ${componentName}() {
   const count = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    <a className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 no-underline shadow-lg shadow-stone-900/5" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
+    <a className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 no-underline shadow-lg shadow-stone-900/5')}" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
       {t('checkout.cart.title')} ({count})
     </a>
   );
@@ -3412,24 +3316,24 @@ export default function ${componentName}() {
   const cart = useCartLines();
 
   return (
-    <section className="mx-auto mt-10 max-w-7xl" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h1 className="[&&]:text-5xl font-black leading-none tracking-normal text-stone-950 md:[&&]:text-7xl">{t('checkout.cart.title')}</h1>
-      <div className="mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
+    <section className="${tw('mx-auto mt-10 max-w-7xl')}" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h1 className="${tw('text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('checkout.cart.title')}</h1>
+      <div className="${tw('mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
         {cart.lines.length === 0 ? (
           <p>{t('checkout.cart.empty')}</p>
         ) : (
           <>
             {cart.lines.map(line => (
-              <article className="grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:[&&]:grid-cols-[1fr_auto] sm:[&&]:items-center" key={line.id}>
+              <article className="${tw('grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:grid-cols-[1fr_auto] sm:items-center')}" key={line.id}>
                 <div>
-                  <strong className="text-lg font-black">{line.name}</strong>
-                  <p className="text-stone-600">EUR {line.price.toLocaleString('en-US')}</p>
+                  <strong className="${tw('text-lg font-black')}">{line.name}</strong>
+                  <p className="${tw('text-stone-600')}">EUR {line.price.toLocaleString('en-US')}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button className="inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black" onClick={() => cart.decrement(line.id)} type="button">-</button>
-                  <span className="min-w-6 text-center font-black">{line.quantity}</span>
-                  <button className="inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black" onClick={() => cart.increment(line.id)} type="button">+</button>
-                  <button className="inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950" onClick={() => cart.remove(line.id)} type="button">
+                <div className="${tw('flex flex-wrap items-center gap-2')}">
+                  <button className="${tw('inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black')}" onClick={() => cart.decrement(line.id)} type="button">-</button>
+                  <span className="${tw('min-w-6 text-center font-black')}">{line.quantity}</span>
+                  <button className="${tw('inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black')}" onClick={() => cart.increment(line.id)} type="button">+</button>
+                  <button className="${tw('inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950')}" onClick={() => cart.remove(line.id)} type="button">
                     {t('checkout.actions.remove')}
                   </button>
                 </div>
@@ -3447,16 +3351,21 @@ export default function ${componentName}() {
 
   return `export default function ${componentName}() {
   return (
-    <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h2 className="text-2xl font-black">${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
-      <p className="mt-2 text-stone-600">Module Federation surface owned by ${app.ownership.team}.</p>
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}" data-mf-expose="${expose}">
+      <h2 className="${tw('text-2xl font-black')}">${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">Module Federation surface owned by ${app.ownership.team}.</p>
     </section>
   );
 }
 `;
 }
 
-function createDecideRemoteComponents(scope: string): string {
+function createDecideRemoteComponents(
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  const tw = createTw(tailwindPrefixForApp(app));
+
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
@@ -3477,7 +3386,7 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Remote unavailable</div>;
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3697,10 +3606,12 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   };
 }
 
-function createDesignButton(): string {
+function createDesignButton(app: WorkspaceApp): string {
+  const tw = createTw(tailwindPrefixForApp(app));
+
   return `export default function Button({ label }: { label: string }) {
   return (
-    <button className="rounded-full text-um-foreground" type="button">
+    <button className="${tw('rounded-full text-um-foreground')}" type="button">
       {label}
     </button>
   );
@@ -4733,10 +4644,7 @@ function cssRole(app: WorkspaceApp): string {
 }
 
 function cssClassPrefix(app: WorkspaceApp): string {
-  if (app.kind === 'shell') {
-    return 'shell-';
-  }
-  return `${app.domain ?? app.id.replace(/^remote-/, '')}-`;
+  return `${tailwindPrefixForApp(app)}:`;
 }
 
 function createCssDedupeContract(scope: string): JsonValue {
@@ -4854,7 +4762,9 @@ function createStylingContract(
     ...(enableTailwind
       ? {
           postcssPlugins: ['@tailwindcss/postcss'],
-          contentGlobs: ['./src/**/*.{js,jsx,ts,tsx}'],
+          prefix: tailwindPrefixForApp(app),
+          source: '..',
+          sourceMode: 'source(none)',
         }
       : {}),
     federation: createAppCssFederationContract(scope, app),
@@ -5046,6 +4956,7 @@ function createTemplateManifest(
       targetRoot: 'generated-project-root',
       allowedPaths: [
         '.agents/**',
+        '.codex/**',
         '.github/**',
         '.gitignore',
         '.mise.toml',
@@ -5054,6 +4965,7 @@ function createTemplateManifest(
         'README.md',
         'apps/**',
         'packages/**',
+        'lefthook.yml',
         'package.json',
         'oxfmt.config.ts',
         'oxlint.config.ts',
@@ -5223,6 +5135,7 @@ function createWorkspaceValidationScript(
     path: remote.directory,
     mfName: remote.mfName,
     apiPrefix: remote.effectApi.prefix,
+    tailwindPrefix: tailwindPrefixForApp(remote),
     packageName: packageName(scope, remote.packageSuffix),
     exposes: Object.keys(remote.exposes ?? {}),
     componentPaths: Object.keys(remote.exposes ?? {})
@@ -5393,7 +5306,7 @@ assert(rootPackage.scripts?.['cloudflare:deploy']?.includes('run cloudflare:depl
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs', 'Root postinstall must bootstrap agent skills before reference repositories');
+assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs', 'Root postinstall must bootstrap agent skills and hooks before reference repositories');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(
@@ -5429,7 +5342,7 @@ assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-supe
 assert(shellContract?.styling?.federation?.owner?.id === 'shell-super-app', 'Shell CSS federation owner is missing');
 assert(shellContract?.styling?.federation?.role === 'shell-base-overlay', 'Shell must own base and overlay CSS');
 assert(shellContract?.styling?.federation?.rootSelector === '[data-app-id="shell-super-app"]', 'Shell CSS root selector is incorrect');
-assert(shellContract?.styling?.federation?.classPrefix === 'shell-', 'Shell CSS class prefix is incorrect');
+assert(shellContract?.styling?.federation?.classPrefix === 'shell:', 'Shell CSS class prefix is incorrect');
 assert(shellContract?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), 'Shell must own the base CSS layer');
 assert(shellContract?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-overlay'), 'Shell must own the overlay CSS layer');
 assert(shellContract?.styling?.federation?.entrypoints?.css?.includes('src/routes/index.css'), 'Shell CSS entrypoint is missing');
@@ -5497,7 +5410,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
   assert(contractEntry?.styling?.federation?.role === 'vertical-remote-css', \`\${vertical.id} must own only vertical CSS\`);
   assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);
-  assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.domain}-\`, \`\${vertical.id} CSS class prefix is incorrect\`);
+  assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.domain}:\`, \`\${vertical.id} CSS class prefix is incorrect\`);
   assert(contractEntry?.styling?.federation?.layers?.owned?.includes(\`ultramodern-remote-\${vertical.domain}\`), \`\${vertical.id} remote CSS layer is missing\`);
   assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), \`\${vertical.id} must not own shell base CSS\`);
   assert(contractEntry?.styling?.federation?.entrypoints?.remoteEntry === 'src/remote-entry.tsx', \`\${vertical.id} remote CSS contract must include remote entry\`);
@@ -5879,13 +5792,7 @@ function writeApp(
   enableTailwind: boolean,
 ) {
   const writeAppFile = (relativePath: string, content: string) => {
-    writeFile(
-      targetDir,
-      `${app.directory}/${relativePath}`,
-      enableTailwind && relativePath.endsWith('.tsx')
-        ? prefixTailwindClassNames(content, tailwindPrefixForApp(app))
-        : content,
-    );
+    writeFile(targetDir, `${app.directory}/${relativePath}`, content);
   };
 
   writeJson(
@@ -6039,7 +5946,7 @@ function writeApp(
     if (app.id === 'remote-decide') {
       writeAppFile(
         'src/components/remote-components.tsx',
-        createDecideRemoteComponents(scope),
+        createDecideRemoteComponents(scope, app),
       );
     }
     if (app.id === 'remote-checkout') {
@@ -6062,7 +5969,7 @@ function writeApp(
   }
 
   if (app.kind === 'horizontal-design-system') {
-    writeAppFile('src/components/button.tsx', createDesignButton());
+    writeAppFile('src/components/button.tsx', createDesignButton(app));
     writeFile(
       targetDir,
       `${app.directory}/src/tokens.ts`,
@@ -6078,14 +5985,9 @@ function writeEffectService(
   enableTailwind: boolean,
   service = effectService,
 ) {
+  const tw = createTw(tailwindPrefixForService(service));
   const writeServiceFile = (relativePath: string, content: string) => {
-    writeFile(
-      targetDir,
-      `${service.directory}/${relativePath}`,
-      enableTailwind && relativePath.endsWith('.tsx')
-        ? prefixTailwindClassNames(content, tailwindPrefixForService(service))
-        : content,
-    );
+    writeFile(targetDir, `${service.directory}/${relativePath}`, content);
   };
 
   writeJson(
@@ -6117,9 +6019,9 @@ function writeEffectService(
     'src/routes/page.tsx',
     `export default function ${toPascalCase(service.id)}Home() {
   return (
-    <main className="min-h-screen bg-um-canvas [&&]:px-4 py-6 text-um-foreground sm:[&&]:px-8">
-      <section className="rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10">
-        <h1 className="text-3xl font-black">${service.id} Effect service</h1>
+    <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
+      <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
+        <h1 className="${tw('text-3xl font-black')}">${service.id} Effect service</h1>
       </section>
     </main>
   );
@@ -6614,6 +6516,7 @@ export function addUltramodernMicroVertical(
     writeJsonFile(ownershipPath, ownership as JsonValue);
     writeJsonFile(overlayPath, overlay as JsonValue);
     const updatedRemotes = remotesFromTopology(topology, overlay.ports);
+    assertUniqueTailwindPrefixes([shellApp, ...updatedRemotes]);
     writeJsonFile(
       path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
       createGeneratedContract(
@@ -6654,6 +6557,10 @@ export function addUltramodernMicroVertical(
 
   if (options.kind === 'service') {
     const service = createServiceDescriptor(name, port);
+    assertUniqueTailwindPrefixes(
+      [shellApp, ...remotesFromTopology(topology, overlay.ports)],
+      [...(topology.effectServices ?? []), service],
+    );
     assertCanCreate(options.workspaceRoot, service.directory);
     if (
       (topology.effectServices ?? []).some(
@@ -6753,6 +6660,7 @@ export function generateUltramodernWorkspace(
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
   const enableTailwind = options.enableTailwind !== false;
+  assertUniqueTailwindPrefixes([shellApp, ...remoteApps]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   copyRootTemplate(options.targetDir, {

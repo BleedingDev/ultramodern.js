@@ -92,8 +92,10 @@ const requiredPaths = [
 {{#unless isSubproject}}
   'AGENTS.md',
   '.agents/skills-lock.json',
+  '.codex/hooks.json',
   '.github/renovate.json',
   '.github/workflows/ultramodern-gates.yml',
+  'lefthook.yml',
   'oxlint.config.ts',
   'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
@@ -266,7 +268,7 @@ const requiredScripts = {
   'lint:fix': 'oxlint . --fix',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
-  postinstall: 'node ./scripts/bootstrap-agent-skills.mjs',
+  postinstall: 'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)',
 {{/unless}}
 };
 
@@ -355,9 +357,9 @@ if (
     '@swc/core': true,
     'core-js': true,
     esbuild: true,
+    lefthook: true,
     'msgpackr-extract': true,
     sharp: true,
-    'simple-git-hooks': true,
     workerd: true,
   })
 ) {
@@ -474,6 +476,7 @@ for (const dependency of [
   'tailwindcss',
 {{/if}}
 {{#unless isSubproject}}
+  'lefthook',
   'oxlint',
   'oxfmt',
   'ultracite',
