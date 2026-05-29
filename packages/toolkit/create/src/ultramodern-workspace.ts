@@ -775,6 +775,11 @@ function appDependencies(
     }
   }
 
+  for (const remote of resolveRemoteRefs(app)) {
+    dependencies[packageName(scope, remote.packageSuffix)] =
+      WORKSPACE_PACKAGE_VERSION;
+  }
+
   if (appHasEffectApi(app)) {
     dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
       '@modern-js/plugin-bff',
@@ -1063,6 +1068,12 @@ function createAppPackage(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
 ): JsonValue {
+  const packageExports: Record<string, JsonValue> = Object.fromEntries(
+    Object.entries(app.exposes ?? {}).map(([expose, source]) => [
+      expose,
+      source,
+    ]),
+  );
   const packageJson: Record<string, JsonValue> = {
     private: true,
     name: packageName(scope, app.packageSuffix),
@@ -1096,14 +1107,18 @@ function createAppPackage(
   };
 
   if (appHasEffectApi(app)) {
-    packageJson.exports = {
+    Object.assign(packageExports, {
       './effect/client': `./src/effect/${app.effectApi.stem}-client.ts`,
       './shared/effect/api': './shared/effect/api.ts',
-    };
+    });
   } else if (app.kind === 'shell') {
-    packageJson.exports = {
+    Object.assign(packageExports, {
       './effect/clients': './src/effect/recommendations-client.ts',
-    };
+    });
+  }
+
+  if (Object.keys(packageExports).length > 0) {
+    packageJson.exports = packageExports;
   }
 
   return packageJson;
@@ -2741,13 +2756,19 @@ export default function BoundaryOverlay() {
 `;
 }
 
-function createShellRemoteComponents(): string {
+function createShellRemoteComponents(scope: string): string {
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
-import type { JSX } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
+import HeaderServer from '${packageName(scope, 'remote-explore')}/Header';
+import StorePickerServer from '${packageName(scope, 'remote-explore')}/StorePicker';
+import RecommendationsServer from '${packageName(scope, 'remote-explore')}/Recommendations';
+import ProductPageServer from '${packageName(scope, 'remote-decide')}/ProductPage';
+import MiniCartServer from '${packageName(scope, 'remote-checkout')}/MiniCart';
+import CartPageServer from '${packageName(scope, 'remote-checkout')}/CartPage';
 
 type RemoteComponentModule = {
-  default: () => JSX.Element;
+  default: ComponentType;
 };
 
 const loadRemoteComponent = async (specifier: string) => {
@@ -2762,69 +2783,52 @@ const remoteFallback =
   ({ error }: { error: Error }) =>
     <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
 
-const HeaderLoading = () => (
-  <div className="flex min-w-0 flex-1 items-center gap-5" data-mf-boundary="explore">
-    <div className="h-6 w-28 rounded-full bg-stone-200" />
-    <div className="hidden h-5 w-44 rounded-full bg-stone-100 sm:block" />
-  </div>
-);
+const createHydratedRemote = (
+  ServerComponent: ComponentType,
+  specifier: string,
+) => {
+  return function HydratedRemote() {
+    const [hydrated, setHydrated] = useState(false);
 
-const MiniCartLoading = () => (
-  <div className="h-10 w-28 rounded-full bg-stone-100" data-mf-boundary="checkout" />
-);
+    useEffect(() => {
+      setHydrated(true);
+    }, []);
 
-const PanelLoading = () => (
-  <section className="mx-auto mt-10 max-w-7xl rounded-2xl bg-white/75 p-6 shadow-xl shadow-stone-900/10">
-    <div className="h-5 w-40 rounded-full bg-stone-200" />
-    <div className="mt-5 grid gap-4 md:grid-cols-2">
-      <div className="h-36 rounded-xl bg-stone-100" />
-      <div className="h-36 rounded-xl bg-stone-100" />
-    </div>
-  </section>
-);
+    const FederatedComponent = useMemo(() => {
+      if (!hydrated) {
+        return undefined;
+      }
+      const instance = getInstance();
+      if (!instance) {
+        return undefined;
+      }
+      return createLazyComponent({
+        export: 'default',
+        fallback: remoteFallback,
+        instance,
+        loader: () => loadRemoteComponent(specifier),
+        loading: <ServerComponent />,
+      });
+    }, [hydrated]);
 
-export const Header = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('explore/Header'),
-  loading: <HeaderLoading />,
-});
-export const StorePicker = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('explore/StorePicker'),
-  loading: <PanelLoading />,
-});
-export const Recommendations = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('explore/Recommendations'),
-  loading: <PanelLoading />,
-});
-export const ProductPage = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('decide/ProductPage'),
-  loading: <PanelLoading />,
-});
-export const MiniCart = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('checkout/MiniCart'),
-  loading: <MiniCartLoading />,
-});
-export const CartPage = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('checkout/CartPage'),
-  loading: <PanelLoading />,
-});
+    if (!FederatedComponent) {
+      return <ServerComponent />;
+    }
+
+    return (
+      <Suspense fallback={<ServerComponent />}>
+        <FederatedComponent />
+      </Suspense>
+    );
+  };
+};
+
+export const Header = createHydratedRemote(HeaderServer, 'explore/Header');
+export const StorePicker = createHydratedRemote(StorePickerServer, 'explore/StorePicker');
+export const Recommendations = createHydratedRemote(RecommendationsServer, 'explore/Recommendations');
+export const ProductPage = createHydratedRemote(ProductPageServer, 'decide/ProductPage');
+export const MiniCart = createHydratedRemote(MiniCartServer, 'checkout/MiniCart');
+export const CartPage = createHydratedRemote(CartPageServer, 'checkout/CartPage');
 `;
 }
 
@@ -3189,13 +3193,15 @@ export default function ${componentName}() {
 `;
 }
 
-function createDecideRemoteComponents(): string {
+function createDecideRemoteComponents(scope: string): string {
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
-import type { JSX } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
+import RecommendationsServer from '${packageName(scope, 'remote-explore')}/Recommendations';
+import AddToCartServer from '${packageName(scope, 'remote-checkout')}/AddToCart';
 
 type RemoteComponentModule = {
-  default: () => JSX.Element;
+  default: ComponentType;
 };
 
 const loadRemoteComponent = async (specifier: string) => {
@@ -3210,39 +3216,48 @@ const remoteFallback =
   ({ error }: { error: Error }) =>
     <div className="rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900" data-remote-error={error.name}>Remote unavailable</div>;
 
-const AddToCartLoading = () => (
-  <div className="mt-8 flex gap-3" data-mf-boundary="checkout">
-    <div className="h-11 w-32 rounded-full bg-stone-200" />
-    <div className="h-11 w-28 rounded-full bg-white/80" />
-  </div>
-);
+const createHydratedRemote = (
+  ServerComponent: ComponentType,
+  specifier: string,
+) => {
+  return function HydratedRemote() {
+    const [hydrated, setHydrated] = useState(false);
 
-const RecommendationsLoading = () => (
-  <section className="mx-auto mt-12 max-w-7xl" data-mf-boundary="explore">
-    <div className="h-8 w-64 rounded-full bg-stone-200" />
-    <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <div className="h-48 rounded-2xl bg-white/80" />
-      <div className="h-48 rounded-2xl bg-white/80" />
-      <div className="h-48 rounded-2xl bg-white/80" />
-      <div className="h-48 rounded-2xl bg-white/80" />
-    </div>
-  </section>
-);
+    useEffect(() => {
+      setHydrated(true);
+    }, []);
 
-export const AddToCart = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('checkout/AddToCart'),
-  loading: <AddToCartLoading />,
-});
-export const Recommendations = createLazyComponent({
-  export: 'default',
-  fallback: remoteFallback,
-  instance: getInstance(),
-  loader: () => loadRemoteComponent('explore/Recommendations'),
-  loading: <RecommendationsLoading />,
-});
+    const FederatedComponent = useMemo(() => {
+      if (!hydrated) {
+        return undefined;
+      }
+      const instance = getInstance();
+      if (!instance) {
+        return undefined;
+      }
+      return createLazyComponent({
+        export: 'default',
+        fallback: remoteFallback,
+        instance,
+        loader: () => loadRemoteComponent(specifier),
+        loading: <ServerComponent />,
+      });
+    }, [hydrated]);
+
+    if (!FederatedComponent) {
+      return <ServerComponent />;
+    }
+
+    return (
+      <Suspense fallback={<ServerComponent />}>
+        <FederatedComponent />
+      </Suspense>
+    );
+  };
+};
+
+export const AddToCart = createHydratedRemote(AddToCartServer, 'checkout/AddToCart');
+export const Recommendations = createHydratedRemote(RecommendationsServer, 'explore/Recommendations');
 `;
 }
 
@@ -5705,7 +5720,7 @@ function writeApp(
     writeFile(
       targetDir,
       `${app.directory}/src/routes/remote-components.tsx`,
-      createShellRemoteComponents(),
+      createShellRemoteComponents(scope),
     );
     writeFile(
       targetDir,
@@ -5767,7 +5782,7 @@ function writeApp(
       writeFile(
         targetDir,
         `${app.directory}/src/components/remote-components.tsx`,
-        createDecideRemoteComponents(),
+        createDecideRemoteComponents(scope),
       );
     }
     if (app.id === 'remote-checkout') {
