@@ -2603,7 +2603,6 @@ export default function ShellFrame({ children, showCart = true }: ShellFrameProp
 
   return (
     <main className="min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12">
-      <BoundaryOverlay />
       <div className="mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <Header />
         <div className="flex min-w-0 flex-wrap items-center gap-2 md:ml-auto">
@@ -2632,6 +2631,7 @@ export default function ShellFrame({ children, showCart = true }: ShellFrameProp
           {showCart ? <MiniCart /> : null}
         </div>
       </div>
+      <BoundaryOverlay />
       {children}
     </main>
   );
@@ -2673,6 +2673,7 @@ const boundaryIds = ['explore', 'decide', 'checkout'] as const;
 
 export default function BoundaryOverlay() {
   const { i18nInstance, language } = useModernI18n();
+  const [mounted, setMounted] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [boxes, setBoxes] = useState<BoundaryBox[]>([]);
   const boundaryConfig = useMemo(() => {
@@ -2695,6 +2696,10 @@ export default function BoundaryOverlay() {
   const toggleLabel = i18nInstance['t'].bind(i18nInstance)(
     'shell.boundaries.toggle',
   );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -2759,9 +2764,13 @@ export default function BoundaryOverlay() {
     };
   }, [boundaryConfig, enabled]);
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <>
-      <label className="fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
+      <label className="mx-auto mt-4 flex w-fit max-w-7xl items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15">
         <input
           className="size-4 accent-emerald-800"
           checked={enabled}
