@@ -1365,6 +1365,16 @@ ${bffPluginEntry}        moduleFederationPlugin(),
 
 function createSharedModuleFederationConfig(): string {
   return `  shared: {
+    '@modern-js/plugin-i18n/runtime': {
+      requiredVersion: pluginI18nVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    '@modern-js/plugin-tanstack/runtime': {
+      requiredVersion: pluginTanstackVersion,
+      singleton: true,
+      treeShaking: false,
+    },
     '@modern-js/runtime': {
       requiredVersion: runtimeVersion,
       singleton: true,
@@ -1448,6 +1458,8 @@ import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
 const require = createRequire(import.meta.url);
+const pluginI18nVersion = (require('@modern-js/plugin-i18n/package.json') as { version: string }).version;
+const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json') as { version: string }).version;
 const runtimeVersion = (require('@modern-js/runtime/package.json') as { version: string }).version;
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
@@ -1516,6 +1528,8 @@ import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
 const require = createRequire(import.meta.url);
+const pluginI18nVersion = (require('@modern-js/plugin-i18n/package.json') as { version: string }).version;
+const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json') as { version: string }).version;
 const runtimeVersion = (require('@modern-js/runtime/package.json') as { version: string }).version;
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
