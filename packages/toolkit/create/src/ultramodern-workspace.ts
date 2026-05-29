@@ -2669,23 +2669,52 @@ function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useEffect, useState, type ComponentType } from 'react';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
-import { Header, MiniCart, StorePicker } from '../remote-components';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
+type HomeRouteRemotes = {
+  Header: ComponentType;
+  MiniCart: ComponentType;
+  StorePicker: ComponentType;
+};
+
+const useHomeRouteRemotes = () => {
+  const [remotes, setRemotes] = useState<HomeRouteRemotes | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import('../remote-components').then(({ Header, MiniCart, StorePicker }) => {
+      if (mounted) {
+        setRemotes({ Header, MiniCart, StorePicker });
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return remotes;
+};
+
 export default function ShellHome() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
+  const remotes = useHomeRouteRemotes();
+  const Header = remotes?.Header;
+  const MiniCart = remotes?.MiniCart;
+  const StorePicker = remotes?.StorePicker;
 
   return (
     <main className="commerce-shell">
       <LocalizedHead />
-      <Header />
+      {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
           {languageCodes.map(code => (
@@ -2699,7 +2728,7 @@ export default function ShellHome() {
             </a>
           ))}
         </nav>
-        <MiniCart />
+        {MiniCart ? <MiniCart /> : null}
       </div>
       <section className="commerce-page commerce-hero">
         <p className="commerce-eyebrow">{t('shell.hero.eyebrow')}</p>
@@ -2714,7 +2743,7 @@ export default function ShellHome() {
           </a>
         </div>
       </section>
-      <StorePicker />
+      {StorePicker ? <StorePicker /> : null}
       <p data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <p data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
@@ -2729,22 +2758,51 @@ function createShellTractorsPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useEffect, useState, type ComponentType } from 'react';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
-import { Header, MiniCart, Recommendations } from '../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
+type TractorsRouteRemotes = {
+  Header: ComponentType;
+  MiniCart: ComponentType;
+  Recommendations: ComponentType;
+};
+
+const useTractorsRouteRemotes = () => {
+  const [remotes, setRemotes] = useState<TractorsRouteRemotes | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import('../../remote-components').then(({ Header, MiniCart, Recommendations }) => {
+      if (mounted) {
+        setRemotes({ Header, MiniCart, Recommendations });
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return remotes;
+};
+
 export default function ShellTractorsPage() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
+  const remotes = useTractorsRouteRemotes();
+  const Header = remotes?.Header;
+  const MiniCart = remotes?.MiniCart;
+  const Recommendations = remotes?.Recommendations;
 
   return (
     <main className="commerce-shell">
       <LocalizedHead />
-      <Header />
+      {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
           {languageCodes.map(code => (
@@ -2758,9 +2816,9 @@ export default function ShellTractorsPage() {
             </a>
           ))}
         </nav>
-        <MiniCart />
+        {MiniCart ? <MiniCart /> : null}
       </div>
-      <Recommendations />
+      {Recommendations ? <Recommendations /> : null}
     </main>
   );
 }
@@ -2771,22 +2829,53 @@ function createShellProductPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useEffect, useState, type ComponentType } from 'react';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
-import { Header, MiniCart, ProductPage } from '../../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
+type ProductRouteRemotes = {
+  Header: ComponentType;
+  MiniCart: ComponentType;
+  ProductPage: ComponentType;
+};
+
+const useProductRouteRemotes = () => {
+  const [remotes, setRemotes] = useState<ProductRouteRemotes | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import('../../../remote-components').then(
+      ({ Header, MiniCart, ProductPage }) => {
+        if (mounted) {
+          setRemotes({ Header, MiniCart, ProductPage });
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return remotes;
+};
+
 export default function ShellProductPage() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
+  const remotes = useProductRouteRemotes();
+  const Header = remotes?.Header;
+  const MiniCart = remotes?.MiniCart;
+  const ProductPage = remotes?.ProductPage;
 
   return (
     <main className="commerce-shell">
       <LocalizedHead />
-      <Header />
+      {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
           {languageCodes.map(code => (
@@ -2800,9 +2889,9 @@ export default function ShellProductPage() {
             </a>
           ))}
         </nav>
-        <MiniCart />
+        {MiniCart ? <MiniCart /> : null}
       </div>
-      <ProductPage />
+      {ProductPage ? <ProductPage /> : null}
     </main>
   );
 }
@@ -2813,22 +2902,49 @@ function createShellCartPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useEffect, useState, type ComponentType } from 'react';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
-import { CartPage, Header } from '../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
+type CartRouteRemotes = {
+  CartPage: ComponentType;
+  Header: ComponentType;
+};
+
+const useCartRouteRemotes = () => {
+  const [remotes, setRemotes] = useState<CartRouteRemotes | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import('../../remote-components').then(({ CartPage, Header }) => {
+      if (mounted) {
+        setRemotes({ CartPage, Header });
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return remotes;
+};
+
 export default function ShellCartPage() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
+  const remotes = useCartRouteRemotes();
+  const Header = remotes?.Header;
+  const CartPage = remotes?.CartPage;
 
   return (
     <main className="commerce-shell">
       <LocalizedHead />
-      <Header />
+      {Header ? <Header /> : null}
       <div className="commerce-shell-actions">
         <nav aria-label={t('shell.language.switcher')} className="commerce-language">
           {languageCodes.map(code => (
@@ -2843,7 +2959,7 @@ export default function ShellCartPage() {
           ))}
         </nav>
       </div>
-      <CartPage />
+      {CartPage ? <CartPage /> : null}
     </main>
   );
 }
@@ -2877,6 +2993,7 @@ export const Header = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Header'),
   loading: null,
+  noSSR: true,
 });
 export const StorePicker = createLazyComponent({
   export: 'default',
@@ -2884,6 +3001,7 @@ export const StorePicker = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/StorePicker'),
   loading: null,
+  noSSR: true,
 });
 export const Recommendations = createLazyComponent({
   export: 'default',
@@ -2891,6 +3009,7 @@ export const Recommendations = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Recommendations'),
   loading: null,
+  noSSR: true,
 });
 export const ProductPage = createLazyComponent({
   export: 'default',
@@ -2898,6 +3017,7 @@ export const ProductPage = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('decide/ProductPage'),
   loading: null,
+  noSSR: true,
 });
 export const MiniCart = createLazyComponent({
   export: 'default',
@@ -2905,6 +3025,7 @@ export const MiniCart = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/MiniCart'),
   loading: null,
+  noSSR: true,
 });
 export const CartPage = createLazyComponent({
   export: 'default',
@@ -2912,6 +3033,7 @@ export const CartPage = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/CartPage'),
   loading: null,
+  noSSR: true,
 });
 `;
 }
@@ -3293,6 +3415,7 @@ export const AddToCart = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('checkout/AddToCart'),
   loading: null,
+  noSSR: true,
 });
 export const Recommendations = createLazyComponent({
   export: 'default',
@@ -3300,6 +3423,7 @@ export const Recommendations = createLazyComponent({
   instance: getInstance(),
   loader: () => loadRemoteComponent('explore/Recommendations'),
   loading: null,
+  noSSR: true,
 });
 `;
 }
