@@ -1321,6 +1321,7 @@ ${bffConfig}      output: {
             localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
             ignoreRedirectRoutes: [
               '/@mf-types',
+              '/assets',
               '/bundles',
               '${effectApiPrefix(app)}',
               '/locales',
@@ -1361,7 +1362,7 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         : {}),
       server: {
         port,
-        publicDir: './locales',
+        publicDir: ['./locales', './assets'],
         ssr: {
           mode: 'stream',
           moduleFederationAppSSR: true,
@@ -2090,10 +2091,20 @@ function createCommerceAssetSvg(
 `;
 }
 
+const commerceAssetPublicRoot = 'assets/ultramodern';
+
+function commerceAssetPublicPath(filename: string): string {
+  return `${commerceAssetPublicRoot}/${filename}`;
+}
+
+function commerceAssetUrl(filename: string): string {
+  return `/${commerceAssetPublicRoot}/${filename}`;
+}
+
 function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
   if (app.kind === 'shell') {
     return {
-      'src/assets/hero-field.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('hero-field.svg')]: createCommerceAssetSvg(
         'Tractor crossing cultivated fields',
         {
           accent: '#d6b85d',
@@ -2102,12 +2113,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
           tractor: '#005f73',
         },
       ),
-    };
-  }
-
-  if (app.id === 'remote-explore') {
-    return {
-      'src/assets/autonomy.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('autonomy.svg')]: createCommerceAssetSvg(
         'Autonomous tractor concept',
         {
           accent: '#c26a2e',
@@ -2116,7 +2122,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
           tractor: '#f2a51a',
         },
       ),
-      'src/assets/field-loader.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
         'Field Loader 112 tractor',
         {
           accent: '#d6b85d',
@@ -2125,7 +2131,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
           tractor: '#00624b',
         },
       ),
-      'src/assets/orchard.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('orchard.svg')]: createCommerceAssetSvg(
         'Orchard tractor between tight rows',
         {
           accent: '#b45b2d',
@@ -2134,7 +2140,48 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
           tractor: '#1d5d9b',
         },
       ),
-      'src/assets/vineyard.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('vineyard.svg')]: createCommerceAssetSvg(
+        'Vineyard narrow tractor',
+        {
+          accent: '#b88d58',
+          ground: '#5e8a45',
+          sky: '#f1dcb9',
+          tractor: '#914d76',
+        },
+      ),
+    };
+  }
+
+  if (app.id === 'remote-explore') {
+    return {
+      [commerceAssetPublicPath('autonomy.svg')]: createCommerceAssetSvg(
+        'Autonomous tractor concept',
+        {
+          accent: '#c26a2e',
+          ground: '#668f55',
+          sky: '#d5e7de',
+          tractor: '#f2a51a',
+        },
+      ),
+      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
+        'Field Loader 112 tractor',
+        {
+          accent: '#d6b85d',
+          ground: '#84ad58',
+          sky: '#9fd6e8',
+          tractor: '#00624b',
+        },
+      ),
+      [commerceAssetPublicPath('orchard.svg')]: createCommerceAssetSvg(
+        'Orchard tractor between tight rows',
+        {
+          accent: '#b45b2d',
+          ground: '#6f9b4a',
+          sky: '#c9ebff',
+          tractor: '#1d5d9b',
+        },
+      ),
+      [commerceAssetPublicPath('vineyard.svg')]: createCommerceAssetSvg(
         'Vineyard narrow tractor',
         {
           accent: '#b88d58',
@@ -2148,7 +2195,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
 
   if (app.id === 'remote-decide') {
     return {
-      'src/assets/field-loader.svg': createCommerceAssetSvg(
+      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
         'Field Loader 112 tractor detail',
         {
           accent: '#d6b85d',
@@ -2318,11 +2365,12 @@ function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import heroField from '../../assets/hero-field.svg';
 import ShellFrame from '../shell-frame';
 import { StorePicker } from '../remote-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
+
+const heroField = '${commerceAssetUrl('hero-field.svg')}';
 
 ${createLocalizedHeadComponent()}
 export default function ShellHome() {
@@ -2986,16 +3034,12 @@ export default function Header() {
 
   if (app.id === 'remote-explore' && expose === './Recommendations') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import autonomyImage from '../assets/autonomy.svg';
-import fieldLoaderImage from '../assets/field-loader.svg';
-import orchardImage from '../assets/orchard.svg';
-import vineyardImage from '../assets/vineyard.svg';
 
 const tractors = [
-  { badge: 'explore.recommendations.bestRows', image: orchardImage, name: 'Orchard Tractor', slug: 'orchard-tractor' },
-  { badge: 'explore.recommendations.aiFirst', image: autonomyImage, name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
-  { badge: 'explore.recommendations.loaderReady', image: fieldLoaderImage, name: 'Field Loader 112', slug: 'field-loader-112' },
-  { badge: 'explore.recommendations.vineyard', image: vineyardImage, name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
+  { badge: 'explore.recommendations.bestRows', image: '${commerceAssetUrl('orchard.svg')}', name: 'Orchard Tractor', slug: 'orchard-tractor' },
+  { badge: 'explore.recommendations.aiFirst', image: '${commerceAssetUrl('autonomy.svg')}', name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
+  { badge: 'explore.recommendations.loaderReady', image: '${commerceAssetUrl('field-loader.svg')}', name: 'Field Loader 112', slug: 'field-loader-112' },
+  { badge: 'explore.recommendations.vineyard', image: '${commerceAssetUrl('vineyard.svg')}', name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
 ] as const;
 
 export default function Recommendations() {
@@ -3022,8 +3066,9 @@ export default function Recommendations() {
 
   if (app.id === 'remote-explore' && expose === './StorePicker') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import fieldLoaderImage from '../assets/field-loader.svg';
-import vineyardImage from '../assets/vineyard.svg';
+
+const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
+const vineyardImage = '${commerceAssetUrl('vineyard.svg')}';
 
 export default function StorePicker() {
   const { i18nInstance } = useModernI18n();
@@ -3067,8 +3112,9 @@ export default function StorePicker() {
 
   if (app.id === 'remote-decide' && expose === './ProductPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import fieldLoaderImage from '../assets/field-loader.svg';
 import { AddToCart, Recommendations } from './remote-components';
+
+const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
 
 export default function ${componentName}() {
   const { i18nInstance } = useModernI18n();
@@ -4651,7 +4697,7 @@ function createAppGeneratedContract(
       fallbackLanguage: 'en',
       namespace: appI18nNamespace(app),
       namespaces: [appI18nNamespace(app), 'translation'],
-      publicDir: './locales',
+      publicDir: ['./locales', './assets'],
       localisedUrls: createLocalisedUrlsMap(app),
       resourceOwnership: {
         ownerAppId: app.id,

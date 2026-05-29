@@ -88,6 +88,41 @@ describe('fileSystemRoutes', () => {
     });
     expect(code).toMatchSnapshot();
   });
+
+  test('uses synchronous route components for stream SSR when route chunks are disabled', async () => {
+    const routes = [
+      {
+        path: '/',
+        _component: '@_modern_js_src/routes/layout.tsx',
+        id: 'layout',
+        type: 'nested' as const,
+        children: [
+          {
+            path: 'tractors',
+            _component: '@_modern_js_src/routes/tractors/page.tsx',
+            id: 'tractors/page',
+            type: 'nested' as const,
+          },
+        ],
+      },
+    ];
+
+    const code = await fileSystemRoutes({
+      metaName: 'modern-js',
+      entryName: 'main',
+      routes,
+      internalDirectory: '',
+      ssrMode: 'stream',
+      splitRouteChunks: false,
+    });
+
+    expect(code).toContain(
+      "import component_0 from '@_modern_js_src/routes/tractors/page.tsx';",
+    );
+    expect(code).toContain('"lazyImport": null');
+    expect(code).toContain('"component": component_0');
+    expect(code).not.toContain('lazy(() => import(/* webpackMode: "eager" */');
+  });
 });
 
 describe('routesForServer', () => {

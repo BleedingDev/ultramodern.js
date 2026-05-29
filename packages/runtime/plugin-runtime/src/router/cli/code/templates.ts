@@ -358,17 +358,8 @@ export const fileSystemRoutes = async ({
               ? `loadable(${lazyImport})`
               : `lazy(${lazyImport})`;
         } else {
-          if (ssrMode === 'string') {
-            components.push(route._component);
-            component = `component_${components.length - 1}`;
-          } else {
-            lazyImport = createLazyImport({
-              componentPath: route._component,
-              routeId: route.id,
-              eager: true,
-            });
-            component = `lazy(${lazyImport})`;
-          }
+          components.push(route._component);
+          component = `component_${components.length - 1}`;
         }
       }
     } else if (route._component) {
