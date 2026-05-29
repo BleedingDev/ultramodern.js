@@ -2647,10 +2647,8 @@ function createShellPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import Header from 'explore/Header';
-import StorePicker from 'explore/StorePicker';
-import MiniCart from 'checkout/MiniCart';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
+import { Header, MiniCart, StorePicker } from '../remote-components';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 const languageCodes = ['en', 'cs'] as const;
@@ -2658,7 +2656,7 @@ const languageCodes = ['en', 'cs'] as const;
 ${createLocalizedHeadComponent()}
 export default function ShellHome() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
@@ -2709,17 +2707,15 @@ function createShellTractorsPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import Header from 'explore/Header';
-import Recommendations from 'explore/Recommendations';
-import MiniCart from 'checkout/MiniCart';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
+import { Header, MiniCart, Recommendations } from '../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
 export default function ShellTractorsPage() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
@@ -2753,17 +2749,15 @@ function createShellProductPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import Header from 'explore/Header';
-import ProductPage from 'decide/ProductPage';
-import MiniCart from 'checkout/MiniCart';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
+import { Header, MiniCart, ProductPage } from '../../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
 export default function ShellProductPage() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
@@ -2797,16 +2791,15 @@ function createShellCartPage(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import Header from 'explore/Header';
-import CartPage from 'checkout/CartPage';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
+import { CartPage, Header } from '../../remote-components';
 
 const languageCodes = ['en', 'cs'] as const;
 
 ${createLocalizedHeadComponent()}
 export default function ShellCartPage() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
@@ -2832,6 +2825,44 @@ export default function ShellCartPage() {
     </main>
   );
 }
+`;
+}
+
+function createShellRemoteComponents(): string {
+  return `import { loadRemote } from '@module-federation/modern-js-v3/runtime';
+import * as React from 'react';
+
+type RemoteComponent = React.ComponentType<Record<string, never>>;
+
+const lazyRemote = (moduleId: string) => {
+  const Component = React.lazy(async () => {
+    const module = await loadRemote(moduleId);
+    const remote = (module as { default?: unknown }).default;
+
+    if (typeof remote !== 'function') {
+      throw new Error(\`Remote "\${moduleId}" did not expose a React component.\`);
+    }
+
+    return {
+      default: remote as RemoteComponent,
+    };
+  });
+
+  return function RemoteComponent() {
+    return (
+      <React.Suspense fallback={null}>
+        <Component />
+      </React.Suspense>
+    );
+  };
+};
+
+export const Header = lazyRemote('explore/Header');
+export const StorePicker = lazyRemote('explore/StorePicker');
+export const Recommendations = lazyRemote('explore/Recommendations');
+export const ProductPage = lazyRemote('decide/ProductPage');
+export const MiniCart = lazyRemote('checkout/MiniCart');
+export const CartPage = lazyRemote('checkout/CartPage');
 `;
 }
 
@@ -2880,7 +2911,7 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 ${effectBffState}  return (
@@ -2971,7 +3002,7 @@ function createRemoteExposeComponent(
 
 export default function Header() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <header className="commerce-header" data-mf-boundary="explore">
@@ -2998,7 +3029,7 @@ const tractors = [
 
 export default function Recommendations() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <section className="commerce-page" data-mf-boundary="explore">
@@ -3022,7 +3053,7 @@ export default function Recommendations() {
 
 export default function StorePicker() {
   const { i18nInstance } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <section className="commerce-page" data-mf-boundary="explore">
@@ -3060,12 +3091,11 @@ export default function StorePicker() {
 
   if (app.id === 'remote-decide' && expose === './ProductPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import AddToCart from 'checkout/AddToCart';
-import Recommendations from 'explore/Recommendations';
+import { AddToCart, Recommendations } from './remote-components';
 
 export default function ${componentName}() {
   const { i18nInstance } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <>
@@ -3096,7 +3126,7 @@ import { useCartLines } from '../cart-store';
 
 export default function ${componentName}() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const cart = useCartLines();
 
   return (
@@ -3119,7 +3149,7 @@ import { useCartLines } from '../cart-store';
 
 export default function ${componentName}() {
   const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const cart = useCartLines();
   const count = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
 
@@ -3138,7 +3168,7 @@ import { useCartLines } from '../cart-store';
 
 export default function ${componentName}() {
   const { i18nInstance } = useModernI18n();
-  const t = i18nInstance.t.bind(i18nInstance);
+  const t = i18nInstance['t'].bind(i18nInstance);
   const cart = useCartLines();
 
   return (
@@ -3183,6 +3213,40 @@ export default function ${componentName}() {
     </section>
   );
 }
+`;
+}
+
+function createDecideRemoteComponents(): string {
+  return `import { loadRemote } from '@module-federation/modern-js-v3/runtime';
+import * as React from 'react';
+
+type RemoteComponent = React.ComponentType<Record<string, never>>;
+
+const lazyRemote = (moduleId: string) => {
+  const Component = React.lazy(async () => {
+    const module = await loadRemote(moduleId);
+    const remote = (module as { default?: unknown }).default;
+
+    if (typeof remote !== 'function') {
+      throw new Error(\`Remote "\${moduleId}" did not expose a React component.\`);
+    }
+
+    return {
+      default: remote as RemoteComponent,
+    };
+  });
+
+  return function RemoteComponent() {
+    return (
+      <React.Suspense fallback={null}>
+        <Component />
+      </React.Suspense>
+    );
+  };
+};
+
+export const AddToCart = lazyRemote('checkout/AddToCart');
+export const Recommendations = lazyRemote('explore/Recommendations');
 `;
 }
 
@@ -5604,6 +5668,11 @@ function writeApp(
   if (app.kind === 'shell') {
     writeFile(
       targetDir,
+      `${app.directory}/src/routes/remote-components.tsx`,
+      createShellRemoteComponents(),
+    );
+    writeFile(
+      targetDir,
       `${app.directory}/src/effect/recommendations-client.ts`,
       createShellEffectClient(scope),
     );
@@ -5663,6 +5732,13 @@ function writeApp(
       `${app.directory}/src/remote-entry.tsx`,
       createRemoteEntry(app),
     );
+    if (app.id === 'remote-decide') {
+      writeFile(
+        targetDir,
+        `${app.directory}/src/components/remote-components.tsx`,
+        createDecideRemoteComponents(),
+      );
+    }
     if (app.id === 'remote-checkout') {
       writeFile(
         targetDir,

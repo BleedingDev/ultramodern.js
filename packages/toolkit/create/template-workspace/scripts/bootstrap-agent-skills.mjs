@@ -17,6 +17,14 @@ const run = (command, args, options = {}) =>
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
   });
 
+const removeTree = dir =>
+  fs.rmSync(dir, {
+    force: true,
+    maxRetries: 5,
+    recursive: true,
+    retryDelay: 100,
+  });
+
 const cloneSource = (source, targetDir) => {
   const repo = source.repository.replace(/^https:\/\/github.com\//u, '');
   try {
@@ -144,12 +152,12 @@ for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
           console.log(`Skipping existing ${skill.name}`);
           continue;
         }
-        fs.rmSync(targetSkillDir, { force: true, recursive: true });
+        removeTree(targetSkillDir);
       }
       fs.cpSync(sourceSkillDir, targetSkillDir, { recursive: true });
       console.log(`Installed ${skill.name}`);
     }
   } finally {
-    fs.rmSync(tempDir, { force: true, recursive: true });
+    removeTree(tempDir);
   }
 }
