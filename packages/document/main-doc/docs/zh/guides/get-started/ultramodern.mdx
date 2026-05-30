@@ -38,7 +38,7 @@ UltraModern.js V3 记录的是一套“更强默认值的 Modern.js 参考档案
 | Metrics 与 Trace 关联 | SSR metrics 不解析 W3C trace 上下文 | 解析 `traceparent` 并注入 `trace_id` / `span_id` 标签 | 已实现 | 提升跨系统观测关联度 |
 | 应用级 MF SSR 合约开关 | 无专门 app-level MF SSR 稳定性契约开关 | 新增 `server.ssr.moduleFederationAppSSR`，并在检测到 MF SSR 标记时自动启用环境变量握手 | 已实现 | 注入 `process.env.MODERN_MF_APP_SSR` |
 | 应用级 MF SSR 运行时桥接 | 非稳定默认桥接路径 | V3 在「服务端渲染 + MF 标记」场景下提供稳定桥接默认行为 | 已实现 | 保留显式关闭路径 |
-| MF 远程加载可靠性契约 | 远程加载重试/降级策略通常由业务自管 | 新增 timeout/network/contract-error 的确定性降级矩阵与分布式 OTEL 连续性断言 | 已实现 | 对应 `routes-tanstack-mf` 可靠性套件 |
+| MF vertical 加载可靠性契约 | 加载重试/降级策略通常由业务自管 | 新增 timeout/network/contract-error 的确定性降级矩阵与分布式 OTEL 连续性断言 | 已实现 | 对应 `routes-tanstack-mf` 可靠性套件 |
 | BFF 运行时选型 | Modern.js V3 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-only MF 数据契约与 failure-injection 覆盖 | 已实现（Effect 默认 + 严格拆分） | 该流明确不引入 Zod |
 | 模块 SDK 合约产物 | 无框架级模块契约产物 | 新增机器可读模块家族契约与类型化模块 SDK 接口 | 已实现 | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | 边界反模式 CI 守卫 | 无专门边界反模式工作流 | 新增基于 profile 的边界检查（导入边界/必需钩子/模块禁用模式） | 已实现 | `.github/workflows/boundary-anti-patterns.yml` |
@@ -239,7 +239,7 @@ UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
 
 - `@modern-js/plugin-bff` 运行时路径迁移到 Effect v4。
 - MF 数据拉取契约采用 Effect-only 指导（该流明确不引入 Zod）。
-- 远程加载可靠性矩阵覆盖 timeout/network/contract error 的确定性注入场景。
+- MF vertical 加载可靠性矩阵覆盖 timeout/network/contract error 的确定性注入场景。
 - build 与 serve 路径重新启用分布式 trace 连续性断言。
 - 数据平台架构补齐 operation identity、请求/水合 envelope 完整性、scope key 与失效路由契约。
 
@@ -247,7 +247,7 @@ UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
 
 - `docs/super-app-rfc-adr/ADR-0003-effect-only-mf-data-fetch-reliability.md`
 - `packages/cli/plugin-bff/docs/data-platform-architecture.md`
-- `tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts`
+- `routes-tanstack-mf` 可靠性覆盖
 
 ### 11) 发布与模块认证 Gate 模型
 
@@ -279,6 +279,65 @@ UltraModern.js V3 对应 Beads Stream D 落地了额外可靠性能力：
 
 - 将应用级 MF SSR 强制为所有应用的默认路径。
 - 将 Effect-only 数据获取运行时强制为所有应用的默认路径。
+
+## 人类工作流
+
+公开的 BleedingDev create 包默认从简单路径开始。默认命令会创建一个
+可上线的 UltraModern 单应用，包含 `presetUltramodern(...)`、SSR、
+TanStack Router、Tailwind CSS v4、i18n、Effect BFF、生成质量 gate，以及
+Cloudflare 部署基础：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create myapp
+cd myapp
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
+
+只有当独立归属边界有实际价值时，才创建 SuperApp workspace：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+cd my-super-app
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
+
+真实业务边界出现后，再添加对应 MicroVertical：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-create maps --vertical
+mise exec -- pnpm ultramodern:check
+```
+
+`--vertical` 会修改当前 workspace：创建 vertical 包，并更新 topology 元数据、
+ownership 记录、shell Module Federation、开发 overlays、包依赖、生成契约、
+端口、路由归属 i18n、CSS 隔离，以及 vertical 自己拥有的 Effect BFF/client surface。
+
+生成应用和 vertical 沿用正常的 Modern.js SSR 路径。SuperApp workspace 在需要
+Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这个开关是
+显式契约，不是所有应用的强制要求。
+
+每个应用都会产出 `src/routes/ultramodern-route-metadata` 和
+`ultramodernLocalisedUrls`。i18n 插件在 `localeDetection.localisedUrls` 中读取它，
+并从 `/locales/{{lng}}/{{ns}}.json` 提供动态后端 JSON。
+
+生成契约会在 `.modernjs/ultramodern-generated-contract.json` 中写入
+`cssFederation`：共享 design tokens 保留在 `packages/shared-design-tokens`，
+shell CSS 拥有 shell layer，每个 vertical 拥有自己的 CSS layer 与应用本地前缀，
+SSR 首屏使用 Modern/Rspack 产物和 manifest 归属的 vertical CSS。
+
+生成 workspace 包含 `scripts/proof-cloudflare-version.mjs`，用于 live Cloudflare 和
+Zephyr 证据。Live 证明需要公开 Worker URL 和 Zephyr 凭据；本地检查仍可校验
+生成契约、构建、Cloudflare 输出、dry-run Zephyr 证据计划和本地证据 schema。
+
+BleedingDev 包通过 GitHub Actions trusted publishing 发布。公开发布 workflow 不使用
+长期 npm token；不要从开发机器手动发布包。
 
 ## 基线开关（可按需关闭）
 

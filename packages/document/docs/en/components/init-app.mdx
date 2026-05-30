@@ -107,13 +107,32 @@ When `--bff` or `--bff-runtime effect` is enabled, `modern.config.ts` enables `@
 When `--bff-runtime hono` is enabled, `modern.config.ts` enables `@modern-js/plugin-bff`, generates `api/lambda/hello.ts`, and sets `bff.runtimeFramework` to `hono`.
 When `--workspace` is enabled, `@modern-js/*` dependencies use `workspace:*` versions for local monorepo linkage.
 
-If you want the public UltraModern.js SuperApp path, use the BleedingDev create
-package. It defaults to the canonical Effect + TanStack + SSR + Micro Verticals
-workspace and published BleedingDev package aliases:
+If you want the public UltraModern.js path, use the BleedingDev create package.
+It creates a simple production-ready UltraModern app by default and installs
+the published BleedingDev package aliases:
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
 ```
 
-The lower-level `--ultramodern-*` flags are reserved for release engineering
-and local package-source testing.
+Create a SuperApp workspace only when you need independently owned verticals:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+```
+
+From a generated SuperApp workspace, add a business MicroVertical in place:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+```
+
+The `--vertical` command mutates the current workspace: it adds the vertical
+package and wires topology, ownership metadata, shell Module Federation,
+development overlays, package dependencies, generated contracts, route-owned
+i18n, CSS isolation, and the Effect BFF/client surface.
+
+The lower-level `--ultramodern-package-*` flags are reserved for release
+engineering and local package-source testing. BleedingDev packages are published
+through GitHub Actions trusted publishing; do not publish them manually from a
+developer machine.

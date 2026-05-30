@@ -36,7 +36,7 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 | BFF 运行时选型 | Modern.js 3.0 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-first 契约与 MF failure-injection 覆盖 |
 | Telemetry 标准化 | 可观测链路通常由业务侧自行拼装 | 增加框架级 telemetry 管线，内置 OTLP/VictoriaMetrics，支持脱敏、批处理与背压 |
 | 应用级 MF SSR 协议 | 没有以 super-app 为重点的应用级稳定性契约开关 | 增加 `server.ssr.moduleFederationAppSSR` 配置/环境变量握手，并补齐集成级回归保障 |
-| MF 远程加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加 timeout/network/contract-error 的确定性可靠性矩阵与分布式 OTEL 连续性断言 |
+| MF vertical 加载可靠性 | 重试/降级策略通常由各业务单独实现 | 增加 timeout/network/contract-error 的确定性可靠性矩阵与分布式 OTEL 连续性断言 |
 | 模块准入治理 | 基线无模块认证证据化 gate profile | 新增模块 SDK 契约、边界反模式守卫与发布/模块认证 gate 工作流 |
 | 路由运行时 | 默认运行时路径以 React Router 为中心 | 增加 TanStack Router 运行时/CLI 一等支持（React Router 继续可用） |
 | 脚手架模板 | 默认 create 模板以 React Router 起步路径为中心 | 增加 TanStack-ready 与 Tailwind-ready 的 create 模板 |
@@ -57,6 +57,95 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
 3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
 4. 这套公开预设现在已经附带显式的发布 / 认证 gate。生成脚手架也会自带 `.github/workflows/ultramodern-gates.yml`，因此 `pnpm run ultramodern:check` 与 `pnpm run build` 从第一天开始就是接入契约的一部分。
+
+## 人类工作流
+
+公开的 BleedingDev create 包默认从简单路径开始。默认命令会创建一个
+可上线的 UltraModern 单应用，包含 `presetUltramodern(...)`、SSR、
+TanStack Router、Tailwind CSS v4、i18n、Effect BFF、生成质量 gate，以及
+Cloudflare 部署基础：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create myapp
+cd myapp
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
+
+只有当独立归属边界有实际价值时，才创建 SuperApp workspace：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+cd my-super-app
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
+
+workspace 从 shell 和平台契约起步，不强制生成演示业务域。真实业务边界出现后，
+再添加对应 MicroVertical：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-create maps --vertical
+mise exec -- pnpm ultramodern:check
+```
+
+`--vertical` 会修改当前 workspace：创建 vertical 包，并更新 topology 元数据、
+ownership 记录、shell Module Federation、开发 overlays、包依赖、生成契约、
+端口、路由归属 i18n、CSS 隔离，以及 vertical 自己拥有的 Effect BFF/client surface。
+
+### 运行时契约
+
+生成应用和 vertical 沿用正常的 Modern.js SSR 路径。SuperApp workspace 在需要
+Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这个开关是
+显式契约，不是所有应用的强制要求。
+
+每个应用都会产出 `src/routes/ultramodern-route-metadata` 和
+`ultramodernLocalisedUrls`。i18n 插件在 `localeDetection.localisedUrls` 中读取它，
+并从 `/locales/{{lng}}/{{ns}}.json` 提供动态后端 JSON。路由 owner 需要同时维护
+本地化路径和 locale resource JSON。
+
+生成契约会在 `.modernjs/ultramodern-generated-contract.json` 中写入
+`cssFederation`：
+
+- `packages/shared-design-tokens` 拥有共享 token layer，并导出 `./tokens.css`。
+- Shell CSS 只拥有 `[data-app-id="shell-super-app"]` 下的 shell base 和 overlay layer。
+- 每个 vertical 拥有自己的 CSS layer，例如 `[data-app-id="vertical-transportation"]` 和应用本地 class 前缀。
+- Tailwind CSS v4 通过 `@tailwindcss/postcss` 保持在每个生成应用内部；共享 base style 不应由 vertical 重复定义。
+- SSR 首屏依赖 Modern/Rspack 产出共享 token CSS 和应用自己的 CSS。Vertical CSS 通过 manifest 归属加载，不复制到 shell 源码中。
+
+版本切换必须从同一个 vertical build marker 选择 UI、Effect API、CSS、i18n JSON 与 MF manifest 证据。只切换 shell 渲染里的 UI marker 不足以证明完整版本切换。
+
+### 校验与部署
+
+本地 gate：
+
+```bash
+mise exec -- pnpm ultramodern:check
+mise exec -- pnpm build
+mise exec -- pnpm cloudflare:build
+```
+
+生成 workspace 包含 `scripts/proof-cloudflare-version.mjs`，用于 live Cloudflare 和
+Zephyr 证据：
+
+```bash
+ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_PAYMENTS=https://payments.example.workers.dev \
+mise exec -- pnpm cloudflare:proof -- --require-public-urls
+```
+
+Live Cloudflare 与 Zephyr 证明需要公开 Worker URL 和 Zephyr 凭据。没有这些凭据时，
+仓库仍可校验生成契约、本地构建、本地 Cloudflare 输出、dry-run Zephyr 证据计划和
+本地证据 schema，但不能证明由 shell 驱动的 live 版本选择。
+
+BleedingDev 包通过 GitHub Actions trusted publishing 发布。公开发布 workflow 不使用
+长期 npm token；不要从开发机器手动发布包。
 
 ## 基线开关（可按需关闭）
 

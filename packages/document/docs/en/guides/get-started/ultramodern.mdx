@@ -36,7 +36,7 @@ UltraModern.js additions are designed as the default product surface for new Sup
 | BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |
 | Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP/VictoriaMetrics exporters, redaction, batching, and backpressure controls |
 | App-level MF SSR handshake | No dedicated super-app app-level stability contract focus | Adds `server.ssr.moduleFederationAppSSR` plus integration-tested env/config handshake |
-| MF remote reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
+| MF vertical loading reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
 | Module onboarding governance | No module-certification evidence profile in baseline | Adds module SDK contracts, boundary anti-pattern guards, and release/module certification gate workflows |
 | Router runtime | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI path (React Router remains supported) |
 | Scaffolding templates | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates |
@@ -60,74 +60,74 @@ For teams already on Modern.js 3.0, the adoption path remains compatibility-awar
 
 This page is not a migration guide or codemod plan. Migration guidance for existing applications is intentionally deferred from the current Micro Verticals framework scope.
 
-## Micro Vertical Delivery Path
+## Human Workflow
 
-`presetUltramodern(...)` is also the single public entrypoint for Micro Verticals. The intended adoption sequence is:
-
-1. start with one app and keep route/data ownership inside the shell,
-2. extract stable route subtrees into MF remotes once fallback and compatibility behavior are explicit,
-3. extract shared workflows into strict Effect services when request, identity, locale, and trace context must survive deployment boundaries,
-4. keep Hono only as an explicit compatibility lane for existing Modern.js-style BFF handlers.
-
-In this repo, the reference examples are:
-
-- `routes-tanstack-mf` for shell + remote composition and MF SSR contracts,
-- `bff-corss-project` for cross-project producer/consumer wiring,
-- `bff-runtime-parity` for generated-client build/serve parity,
-- `bff-hono` for the compatibility lane.
-
-## Tractor Reference Workspace
-
-The BleedingDev create entrypoint now scaffolds the real Tractor reference workspace instead of the earlier visual boundary demo:
+The public BleedingDev create package starts small. The default command creates
+one production-ready UltraModern app with `presetUltramodern(...)`, SSR,
+TanStack Router, Tailwind CSS v4, i18n, Effect BFF, generated quality gates, and
+Cloudflare deploy basics:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create tractor-super-app
-cd tractor-super-app
+pnpm dlx @bleedingdev/modern-js-create myapp
+cd myapp
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm ultramodern:check
 ```
 
-The generated workspace has one shell and three full-stack vertical remotes:
+Create a SuperApp workspace only when independent ownership is useful:
 
-| Package | Owner role | Port | Owns |
-| --- | --- | --- | --- |
-| `apps/shell-super-app` | platform shell | `3020` | route assembly, topology selection, MF host config, shell CSS overlays, global fallback policy |
-| `apps/remotes/remote-explore` | Explore vertical | `3021` | tractor discovery routes, header/footer/recommendations/store picker exposes, `/explore-api/effect/explore/*` |
-| `apps/remotes/remote-decide` | Decide vertical | `3022` | product selection and configuration routes, `ProductPage`, `/decide-api/effect/decide/*` |
-| `apps/remotes/remote-checkout` | Checkout vertical | `3023` | cart, checkout, thanks routes, cart exposes, `/checkout-api/effect/checkout/*` |
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+cd my-super-app
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
 
-The shell consumes remotes through Module Federation references in topology metadata and `zephyr:dependencies`; it should not hardcode deployed remote URLs in source. Each vertical owns its UI route subtree, browser-safe MF exposes, Effect BFF contract, generated client export, locale JSON, CSS entrypoint, Cloudflare Worker metadata, and build marker.
+The workspace starts from a shell and generated platform contracts. It does not
+generate a demo domain by default. Add real business MicroVerticals when they
+become real ownership boundaries:
 
-### Route-Owned I18n
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-create maps --vertical
+mise exec -- pnpm ultramodern:check
+```
 
-Each app emits `src/routes/ultramodern-route-metadata` with `ultramodernLocalisedUrls`. The i18n plugin reads that map in `localeDetection.localisedUrls`, serves dynamic backend JSON from `/locales/{{lng}}/{{ns}}.json`, and keeps `reactI18next` disabled for the generated shell and remotes.
+The `--vertical` command mutates the current workspace. It creates the vertical
+package and updates topology metadata, ownership records, shell Module
+Federation wiring, local development overlays, package dependencies, generated
+contracts, ports, route-owned i18n, CSS isolation, and the vertical-owned Effect
+BFF/client surface.
 
-Examples:
+### Runtime Contracts
 
-| Vertical | Canonical route | English | Czech |
-| --- | --- | --- | --- |
-| Explore | `/tractors` | `/tractors` | `/traktory` |
-| Explore | `/stores` | `/stores` | `/prodejci` |
-| Decide | `/tractors/:slug` | `/tractors/:slug` | `/traktory/:slug` |
-| Checkout | `/cart` | `/cart` | `/kosik` |
-| Checkout | `/checkout/thank-you/:orderId?` | `/checkout/thank-you/:orderId?` | `/pokladna/dekujeme/:orderId?` |
+Generated apps and verticals keep SSR on the normal Modern.js path. SuperApp
+workspaces add `server.ssr.moduleFederationAppSSR` when Module Federation SSR is
+needed, but the flag remains an explicit contract rather than a requirement for
+every app.
 
-The route owner changes localized paths and locale resource JSON together. Shell-owned URL rewrites are not part of the contract.
+Each app emits `src/routes/ultramodern-route-metadata` with
+`ultramodernLocalisedUrls`. The i18n plugin reads that map in
+`localeDetection.localisedUrls` and serves dynamic backend JSON from
+`/locales/{{lng}}/{{ns}}.json`. The route owner changes localized paths and
+locale resource JSON together.
 
-### Federated CSS Contract
-
-The generated contract writes `.modernjs/ultramodern-generated-contract.json` with a `cssFederation` section:
+The generated contract writes `.modernjs/ultramodern-generated-contract.json`
+with a `cssFederation` section:
 
 - `packages/shared-design-tokens` owns the shared token layer and exports `./tokens.css`.
 - Shell CSS owns only shell base and overlay layers under `[data-app-id="shell-super-app"]`.
-- Remote CSS owns one vertical layer, for example `[data-app-id="remote-explore"]` with `explore-` class prefixes.
-- Tailwind CSS v4 is local to each generated app through `@tailwindcss/postcss`; shared base styles must not be duplicated by remotes.
-- SSR first paint requires shared token CSS and app-owned CSS to be emitted by Modern/Rspack assets. Remote CSS is loaded through remote manifest ownership, not copied into shell source.
+- Each vertical owns one CSS layer, for example `[data-app-id="vertical-transportation"]` with app-local class prefixes.
+- Tailwind CSS v4 is local to each generated app through `@tailwindcss/postcss`; shared base styles must not be duplicated by verticals.
+- SSR first paint requires shared token CSS and app-owned CSS to be emitted by Modern/Rspack assets. Vertical CSS is loaded through manifest ownership, not copied into shell source.
 
 Version switching must select UI, Effect API, CSS, i18n JSON, and MF manifest evidence from the same vertical build marker. A shell render that only changes the UI marker is not enough.
 
-### Validation And Proof
+### Validation And Deploy
 
 Local gates:
 
@@ -137,28 +137,21 @@ mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
 ```
 
-Local Cloudflare artifact validation can run without public credentials:
-
-```bash
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-explore \
-  --bff /explore-api/effect/explore/readiness \
-  --expect-en "Explore Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
-```
-
-Generated workspaces also include `scripts/proof-cloudflare-version.mjs`:
+Generated workspaces include `scripts/proof-cloudflare-version.mjs` for live
+Cloudflare and Zephyr proof:
 
 ```bash
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_PAYMENTS=https://payments.example.workers.dev \
 mise exec -- pnpm cloudflare:proof -- --require-public-urls
 ```
 
 Live Cloudflare and Zephyr proof requires public Worker URLs and Zephyr credentials. Without those, the repo can validate generated contracts, local builds, local Cloudflare output, dry-run Zephyr evidence plans, and local evidence schemas, but it cannot prove shell-driven live version selection.
+
+BleedingDev packages are published through GitHub Actions trusted publishing.
+The public workflow is tokenless; do not publish packages manually from a
+developer machine.
 
 ## Baseline Switches (Opt-out)
 

@@ -38,7 +38,7 @@ This page is the complete public difference reference for the UltraModern.js 3.0
 | Metrics/trace correlation | SSR metrics tags do not parse W3C trace context | `traceparent` is parsed and emits `trace_id` / `span_id` tags | Implemented | Improves cross-system observability joins |
 | App-level MF SSR contract flag | No dedicated app-level MF SSR stability contract switch | Adds `server.ssr.moduleFederationAppSSR` contract and auto-enables env wiring when MF SSR markers are detected | Implemented | Sets `process.env.MODERN_MF_APP_SSR` |
 | App-level MF SSR runtime bridge | Not a stable default bridge path | V3 applies stable bridge defaults for MF SSR node output/runtime env when server rendering + MF markers are present | Implemented | Keeps explicit opt-out path via config/env |
-| MF remote loader reliability contracts | Remote loading fallback patterns are typically app-defined | Adds deterministic timeout/network/contract-error fallback matrix and distributed OTEL continuity assertions | Implemented | `routes-tanstack-mf` reliability suite |
+| MF vertical loading reliability contracts | Loading fallback patterns are typically app-defined | Adds deterministic timeout/network/contract-error fallback matrix and distributed OTEL continuity assertions | Implemented | `routes-tanstack-mf` reliability suite |
 | BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-only MF data contracts plus failure-injection coverage for federated data fetch | Implemented (Effect-default + strict split) | Stream is explicit about no Zod introduction |
 | Module SDK contract artifact | No framework-level module contract artifact | Adds machine-readable module contract + typed module SDK interfaces | Implemented | `module-sdk-contracts.json` + `moduleSdk.d.ts` |
 | Boundary anti-pattern CI guards | No dedicated boundary anti-pattern workflow | Adds profile-driven CI checks for boundary imports, required hooks, and forbidden module patterns | Implemented | `.github/workflows/boundary-anti-patterns.yml` |
@@ -239,7 +239,7 @@ UltraModern.js 3.0 shipped additional reliability work aligned to Beads stream D
 
 - `@modern-js/plugin-bff` runtime path migrated to Effect v4.
 - Effect-only MF data-fetch contract guidance (explicitly no Zod layer in this stream).
-- MF reliability matrix includes deterministic failure injection (timeout/network/contract error).
+- MF vertical loading reliability matrix includes deterministic failure injection (timeout/network/contract error).
 - Distributed trace continuity checks were re-enabled for build and serve paths.
 - Data-platform architecture defines operation identity, envelope integrity, scoped invalidation, and trace propagation contracts.
 
@@ -247,7 +247,7 @@ Reference materials:
 
 - `docs/super-app-rfc-adr/ADR-0003-effect-only-mf-data-fetch-reliability.md`
 - `packages/cli/plugin-bff/docs/data-platform-architecture.md`
-- `tests/integration/routes-tanstack-mf/test/remote-loader-reliability.test.ts`
+- `routes-tanstack-mf` reliability coverage
 
 ### 11) Release and module certification gate model
 
@@ -280,21 +280,71 @@ The following are intentionally out of scope for this public V3 preset profile:
 - Forcing Effect-only data-fetch runtime as the mandatory default for every app.
 - Forcing app-level MF SSR for every app regardless of readiness.
 
-## Micro Vertical Delivery Path
+## Human Workflow
 
-`presetUltramodern(...)` is also the single public entrypoint for Micro Verticals. The intended adoption sequence is:
+The public BleedingDev create package starts small. The default command creates
+one production-ready UltraModern app with `presetUltramodern(...)`, SSR,
+TanStack Router, Tailwind CSS v4, i18n, Effect BFF, generated quality gates, and
+Cloudflare deploy basics:
 
-1. start with one app and keep route/data ownership inside the shell,
-2. extract stable route subtrees into MF remotes once fallback and compatibility behavior are explicit,
-3. extract shared workflows into strict Effect services when request, identity, locale, and trace context must survive deployment boundaries,
-4. keep Hono only as an explicit compatibility lane for existing Modern.js-style BFF handlers.
+```bash
+pnpm dlx @bleedingdev/modern-js-create myapp
+cd myapp
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
 
-In this repo, the reference examples are:
+Create a SuperApp workspace only when independent ownership is useful:
 
-- `routes-tanstack-mf` for shell + remote composition and MF SSR contracts,
-- `bff-corss-project` for cross-project producer/consumer wiring,
-- `bff-runtime-parity` for generated-client build/serve parity,
-- `bff-hono` for the compatibility lane.
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+cd my-super-app
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm ultramodern:check
+```
+
+Add real business MicroVerticals as they become ownership boundaries:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-create maps --vertical
+mise exec -- pnpm ultramodern:check
+```
+
+The `--vertical` command mutates the current workspace. It creates the vertical
+package and updates topology metadata, ownership records, shell Module
+Federation wiring, local development overlays, package dependencies, generated
+contracts, ports, route-owned i18n, CSS isolation, and the vertical-owned Effect
+BFF/client surface.
+
+Generated apps and verticals keep SSR on the normal Modern.js path. SuperApp
+workspaces add `server.ssr.moduleFederationAppSSR` when Module Federation SSR is
+needed, but the flag remains an explicit contract rather than a requirement for
+every app.
+
+Each app emits `src/routes/ultramodern-route-metadata` with
+`ultramodernLocalisedUrls`. The i18n plugin reads that map in
+`localeDetection.localisedUrls` and serves dynamic backend JSON from
+`/locales/{{lng}}/{{ns}}.json`.
+
+The generated contract writes `.modernjs/ultramodern-generated-contract.json`
+with `cssFederation`: shared design tokens stay in `packages/shared-design-tokens`,
+shell CSS owns shell layers, each vertical owns one CSS layer with app-local
+prefixes, and SSR first paint uses Modern/Rspack assets plus manifest-owned
+vertical CSS.
+
+Generated workspaces include `scripts/proof-cloudflare-version.mjs` for live
+Cloudflare and Zephyr proof. Live proof requires public Worker URLs and Zephyr
+credentials; local checks still validate generated contracts, builds,
+Cloudflare output, dry-run Zephyr evidence plans, and local evidence schemas.
+
+BleedingDev packages are published through GitHub Actions trusted publishing.
+The public workflow is tokenless; do not publish packages manually from a
+developer machine.
 
 ## Baseline Switches (Opt-out)
 

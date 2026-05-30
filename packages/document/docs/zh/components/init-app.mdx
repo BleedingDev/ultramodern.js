@@ -107,11 +107,30 @@ npx @modern-js/create@latest myapp --router tanstack --bff-runtime effect --work
 当启用 `--bff-runtime hono` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/lambda/hello.ts`，并将 `bff.runtimeFramework` 设置为 `hono`。
 当启用 `--workspace` 时，`@modern-js/*` 依赖会使用 `workspace:*` 版本，便于本地 monorepo 联调。
 
-如果你需要公开的 UltraModern.js SuperApp 路径，请使用 BleedingDev create 包。
-它默认生成规范的 Effect + TanStack + SSR + Micro Verticals workspace，并使用已发布的 BleedingDev 包别名：
+如果你需要公开的 UltraModern.js 路径，请使用 BleedingDev create 包。
+它默认创建一个简单、可上线的 UltraModern 应用，并安装已发布的
+BleedingDev 包别名：
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
 ```
 
-底层 `--ultramodern-*` 参数只保留给发布工程和本地包源测试使用。
+只有在需要多个独立归属的 vertical 时，才显式创建 SuperApp workspace：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+```
+
+在已生成的 SuperApp workspace 根目录中，可以就地添加业务
+MicroVertical：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+```
+
+`--vertical` 会修改当前 workspace：新增 vertical 包，并写入 topology、
+ownership 元数据、shell Module Federation、开发 overlays、包依赖、生成契约、
+路由归属 i18n、CSS 隔离，以及 Effect BFF/client surface。
+
+底层 `--ultramodern-package-*` 参数只保留给发布工程和本地包源测试使用。
+BleedingDev 包通过 GitHub Actions trusted publishing 发布；不要从开发机器手动发布。
