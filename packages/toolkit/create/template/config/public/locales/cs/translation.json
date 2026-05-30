@@ -5,27 +5,27 @@
     },
     "cards": {
       "bff": {
-        "body": "Pouzivej Effect jako hlavni BFF cestu, Hono nech jako explicitni zalozni volbu.",
+        "body": "Pridej serverovou logiku, kdyz route potrebuje typovana data nebo mutace.",
         "title": "BFF + Effect"
       },
       "config": {
-        "body": "Upravuj vygenerovane vychozi hodnoty v modern.config.ts.",
+        "body": "Upravuj vychozi hodnoty v modern.config.ts podle rustu aplikace.",
         "title": "Konfigurace presetUltramodern"
       },
       "gates": {
-        "body": "Starter obsahuje PR workflow pro ultramodern:check a build.",
+        "body": "Pred releasem spust ultramodern:check, testy, typecheck, lint a build.",
         "title": "Ultramodern kontroly"
       },
       "guide": {
-        "body": "Projdi si verejny preset pripraveny pro MV, TanStack a Effect.",
+        "body": "Zacni jednou aplikaci a pridej routy, API nebo balicky az kdyz pomuzou.",
         "title": "UltraModern.js pruvodce"
       }
     },
     "description": {
-      "afterConfig": ", udrzuj",
-      "afterPreset": "profil. Zacni v",
-      "end": "zelene a lad vygenerovany preset jen tam, kde aplikace potrebuje mekci cestu.",
-      "intro": "Tento starter prinasi verejny"
+      "afterConfig": "podle rustu aplikace a udrzuj",
+      "afterPreset": "profilem. Lad",
+      "end": "zelene pri pridavani rout, API a workspace balicku.",
+      "intro": "Zacni s verejnym"
     },
     "language": {
       "cs": "Cestina",
@@ -33,7 +33,7 @@
       "switcher": "Jazyk"
     },
     "logoAlt": "Logo UltraModern.js",
-    "name": "presetUltramodern",
-    "title": "UltraModern.js 3.0"
+    "name": "Jednoduchy starter aplikace",
+    "title": "UltraModern.js Starter"
   }
 }

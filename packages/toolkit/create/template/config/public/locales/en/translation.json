@@ -5,27 +5,27 @@
     },
     "cards": {
       "bff": {
-        "body": "Keep Effect as the preferred BFF lane while Hono stays an explicit fallback.",
+        "body": "Add server logic when a route needs typed data or mutation handling.",
         "title": "BFF + Effect"
       },
       "config": {
-        "body": "Tune the generated defaults in modern.config.ts.",
+        "body": "Tune generated defaults in modern.config.ts as the app grows.",
         "title": "Configure presetUltramodern"
       },
       "gates": {
-        "body": "The starter includes a PR workflow for ultramodern:check and build.",
+        "body": "Run ultramodern:check, tests, typecheck, lint, and build before release.",
         "title": "Ultramodern Gates"
       },
       "guide": {
-        "body": "Review the MV-first, TanStack-ready, Effect-ready public preset.",
+        "body": "Start with one app, then add routes, APIs, and packages when they help.",
         "title": "UltraModern.js Guide"
       }
     },
     "description": {
-      "afterConfig": ", keep",
-      "afterPreset": "profile. Start in",
-      "end": "green, and tune the generated preset only where your app needs a softer lane.",
-      "intro": "This starter ships the public"
+      "afterConfig": "as the app grows, and keep",
+      "afterPreset": "profile. Tune",
+      "end": "green while you add routes, APIs, and workspace packages.",
+      "intro": "Start from the public"
     },
     "language": {
       "cs": "Czech",
@@ -33,7 +33,7 @@
       "switcher": "Language"
     },
     "logoAlt": "UltraModern.js Logo",
-    "name": "presetUltramodern",
-    "title": "UltraModern.js 3.0"
+    "name": "Simple app starter",
+    "title": "UltraModern.js Starter"
   }
 }
