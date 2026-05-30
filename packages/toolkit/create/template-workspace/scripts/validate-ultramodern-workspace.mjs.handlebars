@@ -31,25 +31,25 @@ const moduleFederationAgentSkills = ['mf'];
 const privateAgentSkills = ['plan-graph', 'dag', 'subagent-graph', 'helm', 'debugger-mode'];
 const fullStackVerticals = [
   {
-    id: 'remote-commerce',
+    id: 'commerce',
     domain: 'commerce',
     stem: 'recommendations',
     group: 'recommendations',
-    path: 'apps/remotes/remote-commerce',
-    mfName: 'remoteCommerce',
+    path: 'verticals/commerce',
+    mfName: 'verticalCommerce',
     apiPrefix: '/commerce-api',
   },
   {
-    id: 'remote-identity',
+    id: 'identity',
     domain: 'identity',
     stem: 'identity',
     group: 'identity',
-    path: 'apps/remotes/remote-identity',
-    mfName: 'remoteIdentity',
+    path: 'verticals/identity',
+    mfName: 'verticalIdentity',
     apiPrefix: '/identity-api',
   },
 ];
-const designSystemRemotePath = 'apps/remotes/remote-design-system';
+const designSystemRemotePath = 'verticals/design-system';
 
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
@@ -87,7 +87,7 @@ const assertNotExists = (relativePath) => {
 
 assert(
   activePnpmVersion === expectedPnpmVersion,
-  `Generated workspace requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun through mise exec -- pnpm ...`,
+  `Generated workspace requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell`,
 );
 
 const requiredPaths = [
@@ -134,42 +134,42 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/layout.tsx',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-commerce/package.json',
-  'apps/remotes/remote-commerce/modern.config.ts',
-  'apps/remotes/remote-commerce/module-federation.config.ts',
-  'apps/remotes/remote-commerce/api/effect/index.ts',
-  'apps/remotes/remote-commerce/shared/effect/api.ts',
-  'apps/remotes/remote-commerce/src/effect/recommendations-client.ts',
-  'apps/remotes/remote-commerce/src/modern-app-env.d.ts',
-  'apps/remotes/remote-commerce/src/modern.runtime.ts',
-  'apps/remotes/remote-commerce/locales/en/translation.json',
-  'apps/remotes/remote-commerce/locales/cs/translation.json',
-  'apps/remotes/remote-commerce/src/routes/index.css',
-  'apps/remotes/remote-commerce/src/routes/layout.tsx',
-  'apps/remotes/remote-commerce/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-identity/package.json',
-  'apps/remotes/remote-identity/modern.config.ts',
-  'apps/remotes/remote-identity/module-federation.config.ts',
-  'apps/remotes/remote-identity/api/effect/index.ts',
-  'apps/remotes/remote-identity/shared/effect/api.ts',
-  'apps/remotes/remote-identity/src/effect/identity-client.ts',
-  'apps/remotes/remote-identity/src/modern-app-env.d.ts',
-  'apps/remotes/remote-identity/src/modern.runtime.ts',
-  'apps/remotes/remote-identity/locales/en/translation.json',
-  'apps/remotes/remote-identity/locales/cs/translation.json',
-  'apps/remotes/remote-identity/src/routes/index.css',
-  'apps/remotes/remote-identity/src/routes/layout.tsx',
-  'apps/remotes/remote-identity/src/routes/[lang]/page.tsx',
-  'apps/remotes/remote-design-system/package.json',
-  'apps/remotes/remote-design-system/modern.config.ts',
-  'apps/remotes/remote-design-system/module-federation.config.ts',
-  'apps/remotes/remote-design-system/src/modern-app-env.d.ts',
-  'apps/remotes/remote-design-system/src/modern.runtime.ts',
-  'apps/remotes/remote-design-system/locales/en/translation.json',
-  'apps/remotes/remote-design-system/locales/cs/translation.json',
-  'apps/remotes/remote-design-system/src/routes/index.css',
-  'apps/remotes/remote-design-system/src/routes/layout.tsx',
-  'apps/remotes/remote-design-system/src/routes/[lang]/page.tsx',
+  'verticals/commerce/package.json',
+  'verticals/commerce/modern.config.ts',
+  'verticals/commerce/module-federation.config.ts',
+  'verticals/commerce/api/effect/index.ts',
+  'verticals/commerce/shared/effect/api.ts',
+  'verticals/commerce/src/effect/recommendations-client.ts',
+  'verticals/commerce/src/modern-app-env.d.ts',
+  'verticals/commerce/src/modern.runtime.ts',
+  'verticals/commerce/locales/en/translation.json',
+  'verticals/commerce/locales/cs/translation.json',
+  'verticals/commerce/src/routes/index.css',
+  'verticals/commerce/src/routes/layout.tsx',
+  'verticals/commerce/src/routes/[lang]/page.tsx',
+  'verticals/identity/package.json',
+  'verticals/identity/modern.config.ts',
+  'verticals/identity/module-federation.config.ts',
+  'verticals/identity/api/effect/index.ts',
+  'verticals/identity/shared/effect/api.ts',
+  'verticals/identity/src/effect/identity-client.ts',
+  'verticals/identity/src/modern-app-env.d.ts',
+  'verticals/identity/src/modern.runtime.ts',
+  'verticals/identity/locales/en/translation.json',
+  'verticals/identity/locales/cs/translation.json',
+  'verticals/identity/src/routes/index.css',
+  'verticals/identity/src/routes/layout.tsx',
+  'verticals/identity/src/routes/[lang]/page.tsx',
+  'verticals/design-system/package.json',
+  'verticals/design-system/modern.config.ts',
+  'verticals/design-system/module-federation.config.ts',
+  'verticals/design-system/src/modern-app-env.d.ts',
+  'verticals/design-system/src/modern.runtime.ts',
+  'verticals/design-system/locales/en/translation.json',
+  'verticals/design-system/locales/cs/translation.json',
+  'verticals/design-system/src/routes/index.css',
+  'verticals/design-system/src/routes/layout.tsx',
+  'verticals/design-system/src/routes/[lang]/page.tsx',
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-effect-api/src/index.ts',
@@ -179,12 +179,12 @@ if (tailwindEnabled) {
   requiredPaths.push(
     'apps/shell-super-app/postcss.config.mjs',
     'apps/shell-super-app/tailwind.config.ts',
-    'apps/remotes/remote-commerce/postcss.config.mjs',
-    'apps/remotes/remote-commerce/tailwind.config.ts',
-    'apps/remotes/remote-identity/postcss.config.mjs',
-    'apps/remotes/remote-identity/tailwind.config.ts',
-    'apps/remotes/remote-design-system/postcss.config.mjs',
-    'apps/remotes/remote-design-system/tailwind.config.ts',
+    'verticals/commerce/postcss.config.mjs',
+    'verticals/commerce/tailwind.config.ts',
+    'verticals/identity/postcss.config.mjs',
+    'verticals/identity/tailwind.config.ts',
+    'verticals/design-system/postcss.config.mjs',
+    'verticals/design-system/tailwind.config.ts',
   );
 }
 
@@ -196,9 +196,9 @@ assertNotExists('services/service-recommendations-effect');
 
 for (const appDirectory of [
   'apps/shell-super-app',
-  'apps/remotes/remote-commerce',
-  'apps/remotes/remote-identity',
-  'apps/remotes/remote-design-system',
+  'verticals/commerce',
+  'verticals/identity',
+  'verticals/design-system',
 ]) {
   assert(
     !fs.existsSync(path.join(root, appDirectory, 'src/routes/page.tsx')),
@@ -243,7 +243,7 @@ assert(
 );
 assert(
   JSON.stringify(readPnpmConfig('packages')) ===
-    JSON.stringify(['apps/*', 'apps/remotes/*', 'services/*', 'packages/*']),
+    JSON.stringify(['apps/*', 'verticals/*', 'packages/*']),
   'pnpm-workspace.yaml must retain workspace package globs',
 );
 assert(readPnpmConfig('minimumReleaseAge') === 0, 'pnpm minimumReleaseAge must be 0');
@@ -292,9 +292,9 @@ for (const requiredSnippet of [
   'pull_request:',
   'persist-credentials: false',
   'jdx/mise-action',
-  'mise exec -- pnpm install --frozen-lockfile',
-  'mise exec -- pnpm run ultramodern:check',
-  'mise exec -- pnpm build',
+  'pnpm install --frozen-lockfile',
+  'pnpm run ultramodern:check',
+  'pnpm build',
   'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
   'timeout-minutes:',
   'egress-policy: audit',
@@ -354,7 +354,7 @@ assert(
 
 const requiredRootScripts = {
   build:
-    'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+    'pnpm -r --filter "./verticals/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
   lint: 'oxlint .',
@@ -489,20 +489,20 @@ for (const skillName of privateAgentSkills) {
 
 const appPackagePaths = [
   'apps/shell-super-app/package.json',
-  'apps/remotes/remote-commerce/package.json',
-  'apps/remotes/remote-identity/package.json',
+  'verticals/commerce/package.json',
+  'verticals/identity/package.json',
   `${designSystemRemotePath}/package.json`,
 ];
 
 const expectedZephyrDependencies = {
-  commerce: `@${packageScope}/remote-commerce@workspace:*`,
-  identity: `@${packageScope}/remote-identity@workspace:*`,
-  designSystem: `@${packageScope}/remote-design-system@workspace:*`,
+  commerce: `@${packageScope}/commerce@workspace:*`,
+  identity: `@${packageScope}/identity@workspace:*`,
+  designSystem: `@${packageScope}/design-system@workspace:*`,
 };
 
 for (const packagePath of appPackagePaths) {
   const packageJson = readJson(packagePath);
-  const isRemote = packagePath.includes('/remotes/');
+  const isRemote = packagePath.includes('/verticals/');
   const fullStackVertical = fullStackVerticals.find(
     (vertical) => `${vertical.path}/package.json` === packagePath,
   );
@@ -512,7 +512,7 @@ for (const packagePath of appPackagePaths) {
       (isRemote
         ? 'modern build && node ../../../scripts/assert-mf-types.mjs'
         : 'modern build'),
-    `${packagePath} must enforce Module Federation DTS on remote builds`,
+    `${packagePath} must enforce Module Federation DTS on federated builds`,
   );
   assert(packageJson.scripts?.serve === 'modern serve', `${packagePath} must use vanilla modern serve`);
   assert(
@@ -528,13 +528,13 @@ for (const packagePath of appPackagePaths) {
   if (isRemote) {
     assert(
       Object.keys(packageJson['zephyr:dependencies']).length === 0,
-      `${packagePath} must declare an empty zephyr:dependencies map until it consumes remotes`,
+      `${packagePath} must declare an empty zephyr:dependencies map until it consumes verticals`,
     );
   } else {
     assert(
       JSON.stringify(packageJson['zephyr:dependencies']) ===
         JSON.stringify(expectedZephyrDependencies),
-      `${packagePath} must map shell remote aliases to Zephyr workspace remote package dependencies`,
+      `${packagePath} must map shell vertical aliases to Zephyr workspace vertical package dependencies`,
     );
   }
   assert(
@@ -627,11 +627,11 @@ for (const packagePath of appPackagePaths) {
   if (packagePath === `${designSystemRemotePath}/package.json`) {
     assert(
       !packageJson.dependencies?.['@modern-js/plugin-bff'],
-      'Design-system remote must remain FE-only and must not depend on @modern-js/plugin-bff',
+      'Design-system vertical must remain FE-only and must not depend on @modern-js/plugin-bff',
     );
     assert(
       !packageJson.exports?.['./effect/client'] && !packageJson.exports?.['./shared/effect/api'],
-      'Design-system remote must not expose Effect client or contract exports',
+      'Design-system vertical must not expose Effect client or contract exports',
     );
   }
   if (tailwindEnabled) {
@@ -662,9 +662,9 @@ for (const packagePath of appPackagePaths) {
 
 for (const federationConfigPath of [
   'apps/shell-super-app/module-federation.config.ts',
-  'apps/remotes/remote-commerce/module-federation.config.ts',
-  'apps/remotes/remote-identity/module-federation.config.ts',
-  'apps/remotes/remote-design-system/module-federation.config.ts',
+  'verticals/commerce/module-federation.config.ts',
+  'verticals/identity/module-federation.config.ts',
+  'verticals/design-system/module-federation.config.ts',
 ]) {
   const federationConfig = readText(federationConfigPath);
   assert(
@@ -678,9 +678,9 @@ for (const federationConfigPath of [
 
 for (const appDirectory of [
   'apps/shell-super-app',
-  'apps/remotes/remote-commerce',
-  'apps/remotes/remote-identity',
-  'apps/remotes/remote-design-system',
+  'verticals/commerce',
+  'verticals/identity',
+  'verticals/design-system',
 ]) {
   if (tailwindEnabled) {
     assertExists(`${appDirectory}/postcss.config.mjs`);
@@ -700,9 +700,9 @@ for (const appDirectory of [
 
 for (const configPath of [
   'apps/shell-super-app/modern.config.ts',
-  'apps/remotes/remote-commerce/modern.config.ts',
-  'apps/remotes/remote-identity/modern.config.ts',
-  'apps/remotes/remote-design-system/modern.config.ts',
+  'verticals/commerce/modern.config.ts',
+  'verticals/identity/modern.config.ts',
+  'verticals/design-system/modern.config.ts',
 ]) {
   const config = readText(configPath);
   assert(config.includes('presetUltramodern('), `${configPath} must use presetUltramodern`);
@@ -751,16 +751,16 @@ assert(
   'Shell MF config must share react-dom/client explicitly',
 );
 assert(
-  shellMf.includes('remoteCommerce@http://localhost:3021/mf-manifest.json'),
-  'Shell must reference commerce remote',
+  shellMf.includes('verticalCommerce@http://localhost:3021/mf-manifest.json'),
+  'Shell must reference commerce vertical',
 );
 assert(
-  shellMf.includes('remoteIdentity@http://localhost:3022/mf-manifest.json'),
-  'Shell must reference identity remote',
+  shellMf.includes('verticalIdentity@http://localhost:3022/mf-manifest.json'),
+  'Shell must reference identity vertical',
 );
 assert(
-  shellMf.includes('remoteDesignSystem@http://localhost:3023/mf-manifest.json'),
-  'Shell must reference design-system remote',
+  shellMf.includes('verticalDesignSystem@http://localhost:3023/mf-manifest.json'),
+  'Shell must reference design-system vertical',
 );
 
 const shellPackage = readJson('apps/shell-super-app/package.json');
@@ -816,14 +816,14 @@ for (const vertical of fullStackVerticals) {
   );
 }
 
-const designMf = readText('apps/remotes/remote-design-system/module-federation.config.ts');
-assert(designMf.includes("name: 'remoteDesignSystem'"), 'Design-system remote MF name is missing');
+const designMf = readText('verticals/design-system/module-federation.config.ts');
+assert(designMf.includes("name: 'verticalDesignSystem'"), 'Design-system federated MF name is missing');
 assert(
   designMf.includes("'react-dom/client'"),
-  'Design-system remote MF config must share react-dom/client explicitly',
+  'Design-system federated MF config must share react-dom/client explicitly',
 );
-assert(designMf.includes("'./Button'"), 'Design-system remote must expose Button');
-assert(designMf.includes("'./tokens'"), 'Design-system remote must expose tokens');
+assert(designMf.includes("'./Button'"), 'Design-system vertical must expose Button');
+assert(designMf.includes("'./tokens'"), 'Design-system vertical must expose tokens');
 const sharedEffectApi = readText('packages/shared-effect-api/src/index.ts');
 assert(
   !sharedEffectApi.includes('recommendationsEffectApi') &&
@@ -835,10 +835,10 @@ assert(
 const topology = readJson('topology/reference-topology.json');
 assert(topology.preset === 'presetUltramodern', 'Topology must reference presetUltramodern');
 assert(topology.shell?.id === 'shell-super-app', 'Topology shell id is incorrect');
-assert(topology.shell?.remoteRefs?.length === 3, 'Topology shell must reference three remotes');
-assert(topology.remotes?.length === 3, 'Topology must contain three remotes');
+assert(topology.shell?.verticalRefs?.length === 3, 'Topology shell must reference three verticals');
+assert(topology.verticals?.length === 3, 'Topology must contain three verticals');
 for (const vertical of fullStackVerticals) {
-  const topologyEntry = topology.remotes.find((remote) => remote.id === vertical.id);
+  const topologyEntry = topology.verticals.find((vertical) => vertical.id === vertical.id);
   assert(topologyEntry?.kind === 'vertical', `${vertical.id} must be a vertical topology entry`);
   assert(
     topologyEntry?.moduleFederation?.manifestUrl?.includes('/mf-manifest.json') &&
@@ -852,21 +852,21 @@ for (const vertical of fullStackVerticals) {
   );
 }
 assert(
-  topology.remotes.some(
-    (remote) => remote.id === 'remote-design-system' && remote.kind === 'horizontal-design-system',
+  topology.verticals.some(
+    (vertical) => vertical.id === 'design-system' && vertical.kind === 'vertical',
   ),
-  'Topology must contain the horizontal design-system remote',
+  'Topology must contain the horizontal design-system vertical',
 );
 assert(
-  (topology.effectServices ?? []).length === 0,
-  'Default vertical-owned APIs must not be generated as topology.effectServices',
+  !('effectServices' in topology),
+  'Topology must not expose effectServices; vertical APIs are owned by vertical packages',
 );
 assert(topology.sharedPackages?.length === 3, 'Topology must contain shared package placeholders');
 
 const ownership = readJson('topology/ownership.json');
 assert(
   ownership.owners?.some(
-    (owner) => owner.id === 'remote-commerce' && owner.ownership?.team === 'commerce-experience',
+    (owner) => owner.id === 'commerce' && owner.ownership?.team === 'commerce-experience',
   ),
   'Ownership metadata must retain commerce owner',
 );
@@ -920,7 +920,7 @@ assert(
   'Template manifest must list every pinned private agent skill entry',
 );
 assert(
-  manifest.validation?.expectedCommands?.includes('mise exec -- pnpm run ultramodern:check'),
+  manifest.validation?.expectedCommands?.includes('pnpm run ultramodern:check'),
   'Template manifest must document the validation command',
 );
 assert(

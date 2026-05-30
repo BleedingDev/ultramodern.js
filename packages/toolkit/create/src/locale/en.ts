@@ -17,8 +17,8 @@ export const EN_LOCALE = {
     success: '✨ Created successfully!',
     nextSteps: '📋 Next steps:',
     step1: 'cd {projectName}',
-    step2: 'mise exec -- pnpm install',
-    step3: 'mise exec -- pnpm dev',
+    step2: 'pnpm install',
+    step3: 'pnpm dev',
   },
   help: {
     title: '🚀 Modern.js Project Creator',
@@ -45,8 +45,8 @@ export const EN_LOCALE = {
       '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
-    optionMicroVertical:
-      '      --microvertical Add a MicroVertical package to an existing UltraModern workspace (remote, horizontal-remote, service, shared)',
+    optionVertical:
+      '      --vertical Add a full-stack vertical to an existing UltraModern workspace',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -60,7 +60,7 @@ export const EN_LOCALE = {
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-super-app',
-    example11: '  create catalog --microvertical remote',
+    example11: '  create catalog --vertical',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

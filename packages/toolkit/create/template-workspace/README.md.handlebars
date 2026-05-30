@@ -6,34 +6,33 @@ This workspace keeps `presetUltramodern(...)` as the single public
 UltraModern.js 3.0 SuperApp surface and scaffolds the canonical Micro Vertical
 starter topology:
 
-- `apps/shell-super-app` owns shell route assembly and remote manifest wiring.
-- `apps/remotes/remote-commerce` owns the commerce vertical remote, its
+- `apps/shell-super-app` owns shell route assembly and federated manifest wiring.
+- `verticals/commerce` owns the commerce vertical, its
   browser-safe Module Federation exposes, and its Effect BFF/API surface.
-- `apps/remotes/remote-identity` owns the identity vertical remote, its
+- `verticals/identity` owns the identity vertical, its
   browser-safe Module Federation exposes, and its Effect BFF/API surface.
-- `apps/remotes/remote-design-system` owns the horizontal design-system remote.
+- `verticals/design-system` owns the design-system vertical.
 - `packages/shared-*` provide placeholders for cross-workspace contracts.
 
-Default vertical APIs are owned by the vertical package, not by `services/*`.
+Default vertical APIs are owned by the vertical package.
 Each full-stack vertical keeps its `api/effect/index.ts` handlers next to its
 `shared/effect/api.ts` contract and `src/effect/*-client.ts` typed client
 surface. The Module Federation config exposes only browser-safe Route and
 Widget modules; server handlers and Effect client/contract modules stay out of
-browser remotes. `services/*` is reserved for explicit external service
-packages.
+browser verticals.
 
 Run the scaffold validator before adding business code:
 
 ```bash
 mise install
-mise exec -- pnpm ultramodern:check
+pnpm ultramodern:check
 ```
 
-By default, `mise exec -- pnpm install` also prepares read-only agent reference repositories
+By default, `pnpm install` also prepares read-only agent reference repositories
 under `repos/` for Effect and UltraModern.js source lookup using squashed git
 subtrees. Disable this setup with
-`ULTRAMODERN_SKIP_AGENT_REPOS=1 mise exec -- pnpm install`, or rerun it
-explicitly with `mise exec -- pnpm agents:refs:install`.
+`ULTRAMODERN_SKIP_AGENT_REPOS=1 pnpm install`, or rerun it
+explicitly with `pnpm agents:refs:install`.
 
 The topology and ownership metadata are generated under `topology/`. The
 workspace also ships `.github/workflows/ultramodern-workspace-gates.yml` and

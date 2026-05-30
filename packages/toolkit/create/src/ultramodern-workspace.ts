@@ -74,14 +74,14 @@ type WorkspaceApp = {
   directory: string;
   packageSuffix: string;
   displayName: string;
-  kind: 'shell' | 'vertical' | 'horizontal-remote' | 'horizontal-design-system';
+  kind: 'shell' | 'vertical' | 'horizontal-design-system';
   domain?: string;
   portEnv: string;
   port: number;
   mfName: string;
   exposes?: Record<string, string>;
   effectApi?: WorkspaceEffectApi;
-  remoteRefs?: string[];
+  verticalRefs?: string[];
   ownership: Ownership;
 };
 
@@ -90,12 +90,6 @@ type WorkspaceEffectApi = {
   prefix: string;
   consumedBy: string[];
 };
-
-export type MicroVerticalKind =
-  | 'remote'
-  | 'horizontal-remote'
-  | 'service'
-  | 'shared';
 
 type UltramodernPackageSourceStrategy = 'workspace' | 'install';
 
@@ -145,10 +139,9 @@ export type UltramodernWorkspaceOptions = {
   };
 };
 
-export type AddUltramodernMicroVerticalOptions = {
+export type AddUltramodernVerticalOptions = {
   workspaceRoot: string;
   name: string;
-  kind: MicroVerticalKind;
   modernVersion: string;
   enableTailwind?: boolean;
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
@@ -169,7 +162,7 @@ const shellApp: WorkspaceApp = {
   portEnv: 'SHELL_SUPER_APP_PORT',
   port: 3020,
   mfName: 'shellSuperApp',
-  remoteRefs: ['remote-explore', 'remote-decide', 'remote-checkout'],
+  verticalRefs: ['explore', 'decide', 'checkout'],
   ownership: {
     team: 'super-app-platform',
     slack: '#super-app-platform',
@@ -187,36 +180,35 @@ const shellApp: WorkspaceApp = {
   },
 };
 
-const remoteApps: WorkspaceApp[] = [
+const verticalApps: WorkspaceApp[] = [
   {
-    id: 'remote-explore',
-    directory: 'apps/remotes/remote-explore',
-    packageSuffix: 'remote-explore',
-    displayName: 'Explore Remote',
+    id: 'explore',
+    directory: 'verticals/explore',
+    packageSuffix: 'explore',
+    displayName: 'Explore Vertical',
     kind: 'vertical',
     domain: 'explore',
-    portEnv: 'REMOTE_EXPLORE_PORT',
+    portEnv: 'VERTICAL_EXPLORE_PORT',
     port: 3021,
-    mfName: 'remoteExplore',
+    mfName: 'verticalExplore',
     exposes: {
       './Footer': './src/components/footer.tsx',
       './Header': './src/components/header.tsx',
       './Recommendations': './src/components/recommendations.tsx',
-      './Route': './src/remote-entry.tsx',
+      './Route': './src/federation-entry.tsx',
       './StorePicker': './src/components/store-picker.tsx',
     },
     effectApi: {
       stem: 'explore',
       prefix: '/explore-api',
-      consumedBy: [shellApp.id, 'remote-explore'],
+      consumedBy: [shellApp.id, 'explore'],
     },
     ownership: {
       team: 'tractor-explore',
       slack: '#tractor-explore',
       pagerDuty: 'pd-tractor-explore',
-      runbookRef: 'runbooks/wave2/remote-explore.md',
-      adrRef:
-        'docs/super-app-rfc-adr/wave2/reference-topology.md#remote-explore',
+      runbookRef: 'runbooks/wave2/explore.md',
+      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#explore',
       blastRadius: {
         tier: 'tier-1-tractor-discovery',
         references: [
@@ -227,32 +219,31 @@ const remoteApps: WorkspaceApp[] = [
     },
   },
   {
-    id: 'remote-decide',
-    directory: 'apps/remotes/remote-decide',
-    packageSuffix: 'remote-decide',
-    displayName: 'Decide Remote',
+    id: 'decide',
+    directory: 'verticals/decide',
+    packageSuffix: 'decide',
+    displayName: 'Decide Vertical',
     kind: 'vertical',
     domain: 'decide',
-    portEnv: 'REMOTE_DECIDE_PORT',
+    portEnv: 'VERTICAL_DECIDE_PORT',
     port: 3022,
-    mfName: 'remoteDecide',
-    remoteRefs: ['remote-explore', 'remote-checkout'],
+    mfName: 'verticalDecide',
+    verticalRefs: ['explore', 'checkout'],
     exposes: {
       './ProductPage': './src/components/product-page.tsx',
-      './Route': './src/remote-entry.tsx',
+      './Route': './src/federation-entry.tsx',
     },
     effectApi: {
       stem: 'decide',
       prefix: '/decide-api',
-      consumedBy: [shellApp.id, 'remote-decide'],
+      consumedBy: [shellApp.id, 'decide'],
     },
     ownership: {
       team: 'tractor-decide',
       slack: '#tractor-decide',
       pagerDuty: 'pd-tractor-decide',
-      runbookRef: 'runbooks/wave2/remote-decide.md',
-      adrRef:
-        'docs/super-app-rfc-adr/wave2/reference-topology.md#remote-decide',
+      runbookRef: 'runbooks/wave2/decide.md',
+      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#decide',
       blastRadius: {
         tier: 'tier-1-tractor-configuration',
         references: [
@@ -263,35 +254,34 @@ const remoteApps: WorkspaceApp[] = [
     },
   },
   {
-    id: 'remote-checkout',
-    directory: 'apps/remotes/remote-checkout',
-    packageSuffix: 'remote-checkout',
-    displayName: 'Checkout Remote',
+    id: 'checkout',
+    directory: 'verticals/checkout',
+    packageSuffix: 'checkout',
+    displayName: 'Checkout Vertical',
     kind: 'vertical',
     domain: 'checkout',
-    portEnv: 'REMOTE_CHECKOUT_PORT',
+    portEnv: 'VERTICAL_CHECKOUT_PORT',
     port: 3023,
-    mfName: 'remoteCheckout',
+    mfName: 'verticalCheckout',
     exposes: {
       './AddToCart': './src/components/add-to-cart.tsx',
       './CartPage': './src/components/cart-page.tsx',
       './CheckoutPage': './src/components/checkout-page.tsx',
       './MiniCart': './src/components/mini-cart.tsx',
-      './Route': './src/remote-entry.tsx',
+      './Route': './src/federation-entry.tsx',
       './ThanksPage': './src/components/thanks-page.tsx',
     },
     effectApi: {
       stem: 'checkout',
       prefix: '/checkout-api',
-      consumedBy: [shellApp.id, 'remote-checkout'],
+      consumedBy: [shellApp.id, 'checkout'],
     },
     ownership: {
       team: 'tractor-checkout',
       slack: '#tractor-checkout',
       pagerDuty: 'pd-tractor-checkout',
-      runbookRef: 'runbooks/wave2/remote-checkout.md',
-      adrRef:
-        'docs/super-app-rfc-adr/wave2/reference-topology.md#remote-checkout',
+      runbookRef: 'runbooks/wave2/checkout.md',
+      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#checkout',
       blastRadius: {
         tier: 'tier-1-tractor-purchase',
         references: [
@@ -302,29 +292,6 @@ const remoteApps: WorkspaceApp[] = [
     },
   },
 ];
-
-const effectService = {
-  id: 'service-recommendations-effect',
-  directory: 'services/service-recommendations-effect',
-  packageSuffix: 'service-recommendations-effect',
-  portEnv: 'SERVICE_RECOMMENDATIONS_PORT',
-  port: 3030,
-  ownership: {
-    team: 'personalization-platform',
-    slack: '#personalization-platform',
-    pagerDuty: 'pd-personalization-platform',
-    runbookRef: 'runbooks/wave2/service-recommendations-effect.md',
-    adrRef:
-      'docs/super-app-rfc-adr/wave2/reference-topology.md#service-recommendations-effect',
-    blastRadius: {
-      tier: 'tier-2-personalization',
-      references: [
-        'docs/super-app-rfc-adr/wave2/blast-radius.md#recommendations',
-        'docs/super-app-rfc-adr/wave2/rollback.md#effect-service-lkg',
-      ],
-    },
-  },
-};
 
 const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -411,26 +378,25 @@ const sharedPackages = [
   {
     id: 'shared-design-tokens',
     directory: 'packages/shared-design-tokens',
-    description: 'Design token placeholders consumed by shell and remotes.',
+    description: 'Design token placeholders consumed by shell and verticals.',
   },
   {
     id: 'shared-effect-api',
     directory: 'packages/shared-effect-api',
-    description:
-      'Shared Effect API type placeholders for services and clients.',
+    description: 'Shared Effect API type placeholders for vertical clients.',
   },
 ];
 
 function createNeutralOwnership(
   id: string,
-  tier = 'tier-2-microvertical',
+  tier = 'tier-2-vertical',
 ): Ownership {
   return {
     team: 'super-app-platform',
     slack: '#super-app-platform',
     pagerDuty: 'pd-super-app-platform',
-    runbookRef: `runbooks/microverticals/${id}.md`,
-    adrRef: `docs/super-app-rfc-adr/microverticals.md#${id}`,
+    runbookRef: `runbooks/verticals/${id}.md`,
+    adrRef: `docs/super-app-rfc-adr/verticals.md#${id}`,
     blastRadius: {
       tier,
       references: [`docs/super-app-rfc-adr/blast-radius.md#${id}`],
@@ -438,40 +404,32 @@ function createNeutralOwnership(
   };
 }
 
-function createRemoteDescriptor(
-  name: string,
-  kind: Extract<MicroVerticalKind, 'remote' | 'horizontal-remote'>,
-  port: number,
-): WorkspaceApp {
+function createVerticalDescriptor(name: string, port: number): WorkspaceApp {
   const domain = toKebabCase(name);
-  const id = `remote-${domain}`;
+  const id = domain;
   const displayPrefix = toPascalCase(domain).replace(
     /([a-z])([A-Z])/g,
     '$1 $2',
   );
   return {
     id,
-    directory: `apps/remotes/${id}`,
-    packageSuffix: id,
-    displayName: `${displayPrefix} Remote`,
-    kind: kind === 'horizontal-remote' ? 'horizontal-remote' : 'vertical',
+    directory: `verticals/${domain}`,
+    packageSuffix: domain,
+    displayName: `${displayPrefix} Vertical`,
+    kind: 'vertical',
     domain,
-    portEnv: `REMOTE_${toEnvSegment(domain)}_PORT`,
+    portEnv: `VERTICAL_${toEnvSegment(domain)}_PORT`,
     port,
-    mfName: `remote${toPascalCase(domain)}`,
+    mfName: `vertical${toPascalCase(domain)}`,
     exposes: {
-      './Route': './src/remote-entry.tsx',
+      './Route': './src/federation-entry.tsx',
       './Widget': `./src/components/${domain}-widget.tsx`,
     },
-    ...(kind === 'remote'
-      ? {
-          effectApi: {
-            stem: domain,
-            prefix: `/${domain}-api`,
-            consumedBy: [shellApp.id, id],
-          },
-        }
-      : {}),
+    effectApi: {
+      stem: domain,
+      prefix: `/${domain}-api`,
+      consumedBy: [shellApp.id, id],
+    },
     ownership: createNeutralOwnership(id),
   };
 }
@@ -519,7 +477,7 @@ function effectApiStem(target: { id: string; effectApi?: WorkspaceEffectApi }) {
   );
 }
 
-function verticalEffectApps(remotes: WorkspaceApp[] = remoteApps) {
+function verticalEffectApps(remotes: WorkspaceApp[] = verticalApps) {
   return remotes.filter(appHasEffectApi);
 }
 
@@ -832,34 +790,28 @@ function createRootPackageJson(
       dev: `pnpm --parallel --filter ${packageName(
         scope,
         shellApp.packageSuffix,
-      )} --filter ${packageName(
+      )} --filter ${packageName(scope, 'explore')} --filter ${packageName(
         scope,
-        'remote-explore',
-      )} --filter ${packageName(
-        scope,
-        'remote-decide',
-      )} --filter ${packageName(scope, 'remote-checkout')} dev`,
+        'decide',
+      )} --filter ${packageName(scope, 'checkout')} dev`,
       'dev:shell': `pnpm --filter ${packageName(
         scope,
         shellApp.packageSuffix,
       )} dev`,
-      'dev:explore': `pnpm --filter ${packageName(scope, 'remote-explore')} dev`,
-      'dev:decide': `pnpm --filter ${packageName(scope, 'remote-decide')} dev`,
-      'dev:checkout': `pnpm --filter ${packageName(
-        scope,
-        'remote-checkout',
-      )} dev`,
+      'dev:explore': `pnpm --filter ${packageName(scope, 'explore')} dev`,
+      'dev:decide': `pnpm --filter ${packageName(scope, 'decide')} dev`,
+      'dev:checkout': `pnpm --filter ${packageName(scope, 'checkout')} dev`,
       build:
-        'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+        'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
       format: 'oxfmt .',
       'format:check': 'oxfmt --check .',
       lint: 'oxlint .',
       'lint:fix': 'oxlint . --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'cloudflare:build':
-        'pnpm -r --filter "./apps/remotes/**" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
+        'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
       'cloudflare:deploy':
-        'pnpm -r --filter "./apps/remotes/**" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
+        'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
       'cloudflare:proof':
         'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
@@ -878,7 +830,7 @@ function createRootPackageJson(
       node: '>=20',
       pnpm: `>=${PNPM_VERSION} <11.5.0`,
     },
-    workspaces: ['apps/*', 'apps/remotes/*', 'services/*', 'packages/*'],
+    workspaces: ['apps/*', 'verticals/*', 'packages/*'],
     modernjs: {
       preset: 'presetUltramodern',
       workspace: 'ultramodern-superapp',
@@ -912,18 +864,18 @@ function zephyrRemoteDependency(scope: string, remote: WorkspaceApp): string {
 
 function resolveRemoteRefs(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): WorkspaceApp[] {
-  const remoteRefs = app.remoteRefs ?? [];
+  const verticalRefs = app.verticalRefs ?? [];
 
-  return remoteRefs
+  return verticalRefs
     .map(remoteRef => remotes.find(remote => remote.id === remoteRef))
     .filter((remote): remote is WorkspaceApp => remote !== undefined);
 }
 
 function createModuleFederationRemoteContracts(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ) {
   return resolveRemoteRefs(app, remotes).map(remote => ({
     id: remote.id,
@@ -937,9 +889,9 @@ function createModuleFederationRemoteContracts(
 function createZephyrDependencies(
   scope: string,
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): JsonValue {
-  if (!app.remoteRefs?.length) {
+  if (!app.verticalRefs?.length) {
     return {};
   }
 
@@ -1130,7 +1082,11 @@ function createServicePackage(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
-  service = effectService,
+  service: {
+    id: string;
+    packageSuffix: string;
+    directory: string;
+  },
 ): JsonValue {
   return {
     private: true,
@@ -1444,12 +1400,12 @@ ${entries.map(([key, entryValue]) => `    '${key}': '${entryValue}',`).join('\n'
 }
 
 function createRemoteManifestEnv(remote: WorkspaceApp): string {
-  return `REMOTE_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
+  return `VERTICAL_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
 }
 
 function createModuleFederationRemotesConfig(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const remoteEntries = resolveRemoteRefs(app, remotes)
     .map(remote => {
@@ -1474,11 +1430,11 @@ ${remoteEntries}
 }
 
 function createShellModuleFederationConfig(
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const shellHost = {
     ...shellApp,
-    remoteRefs: remotes.map(remote => remote.id),
+    verticalRefs: remotes.map(remote => remote.id),
   };
 
   return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
@@ -1548,7 +1504,7 @@ export const ultramodernApiMarker = {
 
 function createRemoteModuleFederationConfig(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   return `// @effect-diagnostics nodeBuiltinImport:off
@@ -1886,7 +1842,7 @@ function createRouteAliasPage(canonicalPath: string): string {
 
 function createAppEnvDts(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const remoteModuleDeclarations = resolveRemoteRefs(app, remotes)
     .flatMap(remote =>
@@ -1916,11 +1872,7 @@ declare module '*.svg' {
 ${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
-function createServiceModernConfig(): string {
-  return createServiceModernConfigFor(effectService);
-}
-
-function createServiceModernConfigFor(service = effectService): string {
+function createServiceModernConfigFor(service): string {
   return `// @effect-diagnostics processEnv:off
 import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
 import { bffPlugin } from '@modern-js/plugin-bff';
@@ -1966,7 +1918,7 @@ function createAppRuntimeConfig(app: WorkspaceApp): string {
     return Object.assign(
       {},
       createAppLocaleMessages(app, language),
-      ...remoteApps.map(remote => createAppLocaleMessages(remote, language)),
+      ...verticalApps.map(remote => createAppLocaleMessages(remote, language)),
     );
   };
   const resources = {
@@ -2224,7 +2176,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
     };
   }
 
-  if (app.id === 'remote-explore') {
+  if (app.id === 'explore') {
     return {
       [commerceAssetPublicPath('autonomy.svg')]: createCommerceAssetSvg(
         'Autonomous tractor concept',
@@ -2265,7 +2217,7 @@ function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
     };
   }
 
-  if (app.id === 'remote-decide') {
+  if (app.id === 'decide') {
     return {
       [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
         'Field Loader 112 tractor detail',
@@ -2440,7 +2392,7 @@ function createShellPage(): string {
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../shell-frame';
-import { StorePicker } from '../remote-components';
+import { StorePicker } from '../vertical-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
@@ -2485,7 +2437,7 @@ function createShellTractorsPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { Recommendations } from '../../remote-components';
+import { Recommendations } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
@@ -2504,7 +2456,7 @@ function createShellStoresPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { StorePicker } from '../../remote-components';
+import { StorePicker } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
@@ -2523,7 +2475,7 @@ function createShellProductPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../../shell-frame';
-import { ProductPage } from '../../../remote-components';
+import { ProductPage } from '../../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
@@ -2542,7 +2494,7 @@ function createShellCartPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { CartPage } from '../../remote-components';
+import { CartPage } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
@@ -2564,7 +2516,7 @@ function createShellFrameComponent(): string {
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import type { ReactNode } from 'react';
 import BoundaryOverlay from './boundary-overlay';
-import { Header, MiniCart } from './remote-components';
+import { Header, MiniCart } from './vertical-components';
 import { ultramodernLocalisedUrls } from './ultramodern-route-metadata';
 
 const supportedLanguages = ['en', 'cs'] as const;
@@ -2923,12 +2875,12 @@ function createShellRemoteComponents(scope: string): string {
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import HeaderServer from '${packageName(scope, 'remote-explore')}/Header';
-import StorePickerServer from '${packageName(scope, 'remote-explore')}/StorePicker';
-import RecommendationsServer from '${packageName(scope, 'remote-explore')}/Recommendations';
-import ProductPageServer from '${packageName(scope, 'remote-decide')}/ProductPage';
-import MiniCartServer from '${packageName(scope, 'remote-checkout')}/MiniCart';
-import CartPageServer from '${packageName(scope, 'remote-checkout')}/CartPage';
+import HeaderServer from '${packageName(scope, 'explore')}/Header';
+import StorePickerServer from '${packageName(scope, 'explore')}/StorePicker';
+import RecommendationsServer from '${packageName(scope, 'explore')}/Recommendations';
+import ProductPageServer from '${packageName(scope, 'decide')}/ProductPage';
+import MiniCartServer from '${packageName(scope, 'checkout')}/MiniCart';
+import CartPageServer from '${packageName(scope, 'checkout')}/CartPage';
 
 type RemoteComponentModule = {
   default: ComponentType;
@@ -2944,7 +2896,7 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Vertical unavailable</div>;
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3133,7 +3085,7 @@ function createRemoteExposeComponent(
 ): string {
   const tw = createTw(tailwindPrefixForApp(app));
 
-  if (app.id === 'remote-explore' && expose === './Header') {
+  if (app.id === 'explore' && expose === './Header') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function Header() {
@@ -3153,7 +3105,7 @@ export default function Header() {
 `;
   }
 
-  if (app.id === 'remote-explore' && expose === './Recommendations') {
+  if (app.id === 'explore' && expose === './Recommendations') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 const tractors = [
@@ -3185,7 +3137,7 @@ export default function Recommendations() {
 `;
   }
 
-  if (app.id === 'remote-explore' && expose === './StorePicker') {
+  if (app.id === 'explore' && expose === './StorePicker') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
@@ -3216,7 +3168,7 @@ export default function StorePicker() {
 `;
   }
 
-  if (app.id === 'remote-explore' && expose === './Footer') {
+  if (app.id === 'explore' && expose === './Footer') {
     return `export default function Footer() {
   return <footer className="${tw('mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600')}" data-mf-boundary="explore">Acre & Iron</footer>;
 }
@@ -3231,9 +3183,9 @@ export default function StorePicker() {
     expose.replace(/^\.\//u, ''),
   )}`;
 
-  if (app.id === 'remote-decide' && expose === './ProductPage') {
+  if (app.id === 'decide' && expose === './ProductPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { AddToCart, Recommendations } from './remote-components';
+import { AddToCart, Recommendations } from './vertical-components';
 
 const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
 
@@ -3264,7 +3216,7 @@ export default function ${componentName}() {
 `;
   }
 
-  if (app.id === 'remote-checkout' && expose === './AddToCart') {
+  if (app.id === 'checkout' && expose === './AddToCart') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useCartLines } from '../cart-store';
 
@@ -3287,7 +3239,7 @@ export default function ${componentName}() {
 `;
   }
 
-  if (app.id === 'remote-checkout' && expose === './MiniCart') {
+  if (app.id === 'checkout' && expose === './MiniCart') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useCartLines } from '../cart-store';
 
@@ -3306,7 +3258,7 @@ export default function ${componentName}() {
 `;
   }
 
-  if (app.id === 'remote-checkout' && expose === './CartPage') {
+  if (app.id === 'checkout' && expose === './CartPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useCartLines } from '../cart-store';
 
@@ -3369,8 +3321,8 @@ function createDecideRemoteComponents(
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import RecommendationsServer from '${packageName(scope, 'remote-explore')}/Recommendations';
-import AddToCartServer from '${packageName(scope, 'remote-checkout')}/AddToCart';
+import RecommendationsServer from '${packageName(scope, 'explore')}/Recommendations';
+import AddToCartServer from '${packageName(scope, 'checkout')}/AddToCart';
 
 type RemoteComponentModule = {
   default: ComponentType;
@@ -3386,7 +3338,7 @@ const loadRemoteComponent = async (specifier: string) => {
 
 const remoteFallback =
   ({ error }: { error: Error }) =>
-    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Remote unavailable</div>;
+    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Vertical unavailable</div>;
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3489,9 +3441,9 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
           switcher: language === 'en' ? 'Language' : 'Jazyk',
         },
         remotes: {
-          checkout: language === 'en' ? 'Checkout Remote' : 'Checkout remote',
-          decide: language === 'en' ? 'Decide Remote' : 'Decide remote',
-          explore: language === 'en' ? 'Explore Remote' : 'Explore remote',
+          checkout: language === 'en' ? 'Checkout Vertical' : 'Checkout remote',
+          decide: language === 'en' ? 'Decide Vertical' : 'Decide remote',
+          explore: language === 'en' ? 'Explore Vertical' : 'Explore remote',
         },
         boundaries: {
           checkout: language === 'en' ? 'checkout' : 'pokladna',
@@ -3740,64 +3692,74 @@ function createSharedDesignTokensCss(): string {
 `;
 }
 
-function serviceEffectApiExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectApiExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectGroupName(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectGroupName(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return toCamelCase(effectApiStem(service));
 }
 
-function serviceEffectApiName(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectApiName(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toPascalCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectSchemaExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectSchemaExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(effectApiStem(service))}ItemSchema`;
 }
 
-function serviceEffectMarkerSchemaExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectMarkerSchemaExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(effectApiStem(service))}MarkerSchema`;
 }
 
-function serviceEffectReadinessSchemaExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectReadinessSchemaExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(effectApiStem(service))}ReadinessSchema`;
 }
 
-function serviceEffectErrorStem(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectErrorStem(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   const stem = effectApiStem(service);
   return stem === 'recommendations' ? 'recommendation' : stem;
 }
 
-function serviceEffectCreatePayloadSchemaExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectCreatePayloadSchemaExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(effectApiStem(service))}CreatePayloadSchema`;
 }
 
-function serviceEffectNotFoundErrorExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectNotFoundErrorExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toPascalCase(serviceEffectErrorStem(service))}NotFound`;
 }
 
-function serviceEffectNotFoundSchemaExport(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-) {
+function serviceEffectNotFoundSchemaExport(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
   return `${toCamelCase(serviceEffectErrorStem(service))}NotFoundSchema`;
 }
 
@@ -3812,9 +3774,10 @@ function createEffectSharedApiImports(): string {
 `;
 }
 
-function createEffectSharedApiContract(
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
-): string {
+function createEffectSharedApiContract(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}): string {
   const schemaExport = serviceEffectSchemaExport(service);
   const markerSchemaExport = serviceEffectMarkerSchemaExport(service);
   const readinessSchemaExport = serviceEffectReadinessSchemaExport(service);
@@ -3967,7 +3930,7 @@ ${createEffectSharedApiContract(service)}`;
 
 function createEffectServiceEntry(
   scope: string,
-  service: { id: string; effectApi?: WorkspaceEffectApi } = effectService,
+  service: { id: string; effectApi?: WorkspaceEffectApi },
   contractImportPath = packageName(scope, 'shared-effect-api'),
 ): string {
   const apiExport = serviceEffectApiExport(service);
@@ -4200,7 +4163,7 @@ function createShellEffectClient(scope: string): string {
   getCheckoutReadiness,
   listCheckout,
   type CheckoutClientOptions,
-} from '${packageName(scope, 'remote-checkout')}/effect/client';
+} from '${packageName(scope, 'checkout')}/effect/client';
 
 export {
   createDecide,
@@ -4209,7 +4172,7 @@ export {
   getDecideReadiness,
   listDecide,
   type DecideClientOptions,
-} from '${packageName(scope, 'remote-decide')}/effect/client';
+} from '${packageName(scope, 'decide')}/effect/client';
 
 export {
   createExplore,
@@ -4218,7 +4181,7 @@ export {
   getExploreReadiness,
   listExplore,
   type ExploreClientOptions,
-} from '${packageName(scope, 'remote-explore')}/effect/client';
+} from '${packageName(scope, 'explore')}/effect/client';
 `;
 }
 
@@ -4381,15 +4344,13 @@ function createTopology(scope: string): JsonValue {
     schemaVersion: 1,
     id: 'ultramodern-superapp-workspace-reference-topology',
     description:
-      'Generated UltraModern workspace skeleton based on the reference topology shape.',
+      'Generated UltraModern workspace skeleton with full-stack vertical ownership.',
     preset: 'presetUltramodern',
-    sourceFixture:
-      'scripts/mv-integration-pilot/__fixtures__/reference-topology.json',
     shell: {
       id: shellApp.id,
       kind: 'shell',
       package: packageName(scope, shellApp.packageSuffix),
-      remoteRefs: shellApp.remoteRefs,
+      verticalRefs: shellApp.verticalRefs,
       moduleFederation: {
         role: 'host',
         name: shellApp.mfName,
@@ -4400,33 +4361,33 @@ function createTopology(scope: string): JsonValue {
       cloudflare: createCloudflareDeployContract(scope, shellApp),
       ownership: shellApp.ownership,
     },
-    remotes: remoteApps.map(remote => ({
-      id: remote.id,
-      kind: remote.kind,
-      domain: remote.domain,
-      package: packageName(scope, remote.packageSuffix),
+    verticals: verticalApps.map(vertical => ({
+      id: vertical.id,
+      kind: vertical.kind,
+      domain: vertical.domain,
+      package: packageName(scope, vertical.packageSuffix),
+      path: vertical.directory,
       moduleFederation: {
         role: 'remote',
-        name: remote.mfName,
-        manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-        exposes: Object.keys(remote.exposes ?? {}),
-        ...(remote.remoteRefs?.length
+        name: vertical.mfName,
+        manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+        exposes: Object.keys(vertical.exposes ?? {}),
+        ...(vertical.verticalRefs?.length
           ? {
-              remoteRefs: remote.remoteRefs,
-              remotes: createModuleFederationRemoteContracts(remote),
+              verticalRefs: vertical.verticalRefs,
+              remotes: createModuleFederationRemoteContracts(vertical),
             }
           : {}),
         ssr: true,
         fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
-      ...(effectApiTopologyMetadata(remote)
-        ? { api: effectApiTopologyMetadata(remote) }
+      ...(effectApiTopologyMetadata(vertical)
+        ? { api: effectApiTopologyMetadata(vertical) }
         : {}),
-      cloudflare: createCloudflareDeployContract(scope, remote),
-      ownership: remote.ownership,
+      cloudflare: createCloudflareDeployContract(scope, vertical),
+      ownership: vertical.ownership,
     })),
-    effectServices: [],
     sharedPackages: sharedPackages.map(sharedPackage => ({
       id: sharedPackage.id,
       package: packageName(scope, sharedPackage.id),
@@ -4435,7 +4396,7 @@ function createTopology(scope: string): JsonValue {
     })),
     validation: {
       script: 'scripts/validate-ultramodern-workspace.mjs',
-      commands: ['mise exec -- pnpm ultramodern:check'],
+      commands: ['pnpm ultramodern:check'],
     },
   };
 }
@@ -4446,7 +4407,7 @@ function createOwnership(scope: string): JsonValue {
     preset: 'presetUltramodern',
     owners: [
       shellApp,
-      ...remoteApps,
+      ...verticalApps,
       ...sharedPackages.map(sharedPackage => ({
         id: sharedPackage.id,
         packageSuffix: sharedPackage.id,
@@ -4481,10 +4442,10 @@ function createDevelopmentOverlay(): JsonValue {
     environment: 'development',
     preset: 'presetUltramodern',
     ports: Object.fromEntries(
-      [shellApp, ...remoteApps].map(app => [app.id, app.port]),
+      [shellApp, ...verticalApps].map(app => [app.id, app.port]),
     ),
     manifests: Object.fromEntries(
-      remoteApps.map(remote => [
+      verticalApps.map(remote => [
         remote.id,
         `http://localhost:${remote.port}/mf-manifest.json`,
       ]),
@@ -4631,16 +4592,14 @@ function cssLayerName(app: WorkspaceApp): string {
   if (app.kind === 'shell') {
     return 'ultramodern-shell-base';
   }
-  return `ultramodern-remote-${app.domain ?? app.id}`;
+  return `ultramodern-vertical-${app.domain ?? app.id}`;
 }
 
 function cssRole(app: WorkspaceApp): string {
   if (app.kind === 'shell') {
     return 'shell-base-overlay';
   }
-  return app.kind === 'horizontal-remote'
-    ? 'horizontal-remote-css'
-    : 'vertical-remote-css';
+  return 'vertical-css';
 }
 
 function cssClassPrefix(app: WorkspaceApp): string {
@@ -4662,10 +4621,10 @@ function createCssSsrContract(app: WorkspaceApp): JsonValue {
     cloudflare: true,
     firstPaintRequired: true,
     linkEmission: 'modern-ssr-css-assets',
-    remoteCss:
+    verticalCss:
       app.kind === 'shell'
         ? 'host-preloads-shell-and-shared-css'
-        : 'remote-manifest-owned-css',
+        : 'federated-manifest-owned-css',
   };
 }
 
@@ -4698,7 +4657,9 @@ function createAppCssFederationContract(
     entrypoints: {
       layoutImport: 'src/routes/layout.tsx',
       css: ['src/routes/index.css'],
-      ...(app.kind !== 'shell' ? { remoteEntry: 'src/remote-entry.tsx' } : {}),
+      ...(app.kind !== 'shell'
+        ? { federationEntry: 'src/federation-entry.tsx' }
+        : {}),
     },
     assets: {
       shared: [`${packageName(scope, 'shared-design-tokens')}/tokens.css`],
@@ -4743,8 +4704,8 @@ function createCssFederationContract(scope: string): JsonValue {
     },
     ownershipRules: {
       shell: ['base', 'overlay'],
-      remotes: ['vertical-css'],
-      forbiddenRemoteLayers: [
+      verticals: ['vertical-css'],
+      forbiddenVerticalLayers: [
         'ultramodern-shell-base',
         'ultramodern-shell-overlay',
       ],
@@ -4781,7 +4742,7 @@ function createAppGeneratedContract(
     app.kind === 'shell'
       ? {
           ...app,
-          remoteRefs: apps
+          verticalRefs: apps
             .filter(candidate => candidate.kind !== 'shell')
             .map(candidate => candidate.id),
         }
@@ -4843,9 +4804,9 @@ function createAppGeneratedContract(
     },
     moduleFederation: {
       name: app.mfName,
-      ...(appWithResolvedRefs.remoteRefs?.length
+      ...(appWithResolvedRefs.verticalRefs?.length
         ? {
-            remoteRefs: appWithResolvedRefs.remoteRefs,
+            verticalRefs: appWithResolvedRefs.verticalRefs,
             remotes: consumedRemotes,
           }
         : {}),
@@ -4888,7 +4849,7 @@ function createAppGeneratedContract(
 
 function createGeneratedContract(
   scope: string,
-  apps: WorkspaceApp[] = [shellApp, ...remoteApps],
+  apps: WorkspaceApp[] = [shellApp, ...verticalApps],
   enableTailwind = true,
 ): JsonValue {
   return {
@@ -4928,7 +4889,7 @@ function createTemplateManifest(
       version: modernVersion,
       displayName: 'Modern.js UltraModern SuperApp Workspace',
       description:
-        'Canonical shell, remotes, Effect service, shared packages, and topology skeleton.',
+        'Canonical shell, full-stack verticals, shared packages, and topology skeleton.',
       compatibilityLane: 'ultramodern-mv',
       minimumModernVersion: modernVersion,
     },
@@ -5036,15 +4997,15 @@ function createTemplateManifest(
       ],
       expectedCommands: [
         'mise install',
-        'mise exec -- pnpm install',
-        'mise exec -- pnpm run ultramodern:check',
+        'pnpm install',
+        'pnpm run ultramodern:check',
       ],
     },
   };
 }
 
 function createAssertMfTypesScript(
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   return `import fs from 'node:fs';
 import path from 'node:path';
@@ -5125,7 +5086,7 @@ for (const appDir of appDirs) {
 function createWorkspaceValidationScript(
   scope: string,
   enableTailwind: boolean,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const verticals = remotes.filter(appHasEffectApi).map(remote => ({
     id: remote.id,
@@ -5148,14 +5109,10 @@ function createWorkspaceValidationScript(
       .filter(route => route.canonicalPath !== '/')
       .map(route => createRoutePageFilePath(remote, route.canonicalPath)),
     localisedUrls: createLocalisedUrlsMap(remote),
-    remoteRefs: remote.remoteRefs ?? [],
+    verticalRefs: remote.verticalRefs ?? [],
   }));
   const shellNamespace = appI18nNamespace(shellApp);
-  const oldRemotePaths = [
-    'apps/remotes/remote-commerce',
-    'apps/remotes/remote-identity',
-    'apps/remotes/remote-design-system',
-  ];
+  const oldRemotePaths = ['apps/remotes'];
 
   return `import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -5192,7 +5149,7 @@ const activePnpmVersion = execFileSync('pnpm', ['--version'], {
 
 assert(
   activePnpmVersion === expectedPnpmVersion,
-  \`Generated workspace requires pnpm \${expectedPnpmVersion}; active pnpm is \${activePnpmVersion}. Run mise install, then rerun through mise exec -- pnpm ...\`,
+  \`Generated workspace requires pnpm \${expectedPnpmVersion}; active pnpm is \${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell.\`,
 );
 
 const requiredPaths = [
@@ -5248,7 +5205,7 @@ for (const vertical of fullStackVerticals) {
     \`\${vertical.path}/src/effect/\${vertical.stem}-client.ts\`,
     \`\${vertical.path}/src/modern-app-env.d.ts\`,
     \`\${vertical.path}/src/modern.runtime.ts\`,
-    \`\${vertical.path}/src/remote-entry.tsx\`,
+    \`\${vertical.path}/src/federation-entry.tsx\`,
     ...vertical.componentPaths,
     \`\${vertical.path}/locales/en/translation.json\`,
     \`\${vertical.path}/locales/en/\${vertical.namespace}.json\`,
@@ -5297,8 +5254,8 @@ assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'ins
 assert(packageSource.generatedWorkspacePackages?.specifier === 'workspace:*', 'Generated workspace packages must keep workspace:* links');
 assert(
   rootPackage.scripts?.build ===
-    'pnpm -r --filter "./apps/remotes/**" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
-  'Root build script must build remotes before shell',
+    'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+  'Root build script must build verticals before shell',
 );
 assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose ultramodern:check');
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
@@ -5311,7 +5268,7 @@ assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skil
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(
   JSON.stringify(generatedContract.apps?.map(app => app.id)) === JSON.stringify(expectedAppIds),
-  'Generated contract must contain shell plus the Tractor full-stack remotes',
+  'Generated contract must contain shell plus the Tractor full-stack verticals',
 );
 assert(generatedContract.cssFederation?.sharedDesignTokens?.owner?.id === 'shared-design-tokens', 'CSS federation must declare shared design token ownership');
 assert(generatedContract.cssFederation?.sharedDesignTokens?.role === 'shared-design-tokens', 'CSS federation must mark shared-design-tokens as token owner');
@@ -5333,7 +5290,7 @@ const expectedZephyrDependencies = Object.fromEntries(
 assert(
   JSON.stringify(shellPackage['zephyr:dependencies']) ===
     JSON.stringify(expectedZephyrDependencies),
-  'Shell Zephyr dependencies must reference every Tractor remote package',
+  'Shell Zephyr dependencies must reference every Tractor vertical package',
 );
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
@@ -5350,11 +5307,12 @@ assert(shellContract?.styling?.federation?.assets?.shared?.some(asset => asset.e
 assert(shellContract?.styling?.federation?.dedupe?.duplicateBaseStylesAllowed === false, 'Shell CSS contract must forbid duplicated base styles');
 assert(shellContract?.styling?.federation?.ssr?.firstPaintRequired === true, 'Shell CSS must be required for SSR first paint');
 assert(
-  topology.shell?.remoteRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
-  'Topology shell remoteRefs must match Tractor remotes',
+  topology.shell?.verticalRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
+  'Topology shell verticalRefs must match Tractor verticals',
 );
-assert(topology.remotes?.length === fullStackVerticals.length, 'Topology must contain only Tractor remotes');
-assert((topology.effectServices ?? []).length === 0, 'Default APIs must be vertical-owned, not effectServices');
+assert(topology.verticals?.length === fullStackVerticals.length, 'Topology must contain only Tractor verticals');
+assert(!('remotes' in topology), 'Topology must not expose legacy remotes; use verticals');
+assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, not effectServices');
 
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
@@ -5366,7 +5324,7 @@ for (const vertical of fullStackVerticals) {
   assert(packageJson.exports?.['./shared/effect/api'] === './shared/effect/api.ts', \`\${vertical.id} must export its Effect API contract\`);
   const expectedVerticalZephyrDependencies = Object.fromEntries(
     fullStackVerticals
-      .filter(candidate => vertical.remoteRefs.includes(candidate.id))
+      .filter(candidate => vertical.verticalRefs.includes(candidate.id))
       .map(candidate => [
         candidate.domain,
         \`\${candidate.packageName}@workspace:*\`,
@@ -5375,7 +5333,7 @@ for (const vertical of fullStackVerticals) {
   assert(
     JSON.stringify(packageJson['zephyr:dependencies']) ===
       JSON.stringify(expectedVerticalZephyrDependencies),
-    \`\${vertical.id} Zephyr dependencies must match declared MF remote refs\`,
+    \`\${vertical.id} Zephyr dependencies must match declared vertical refs\`,
   );
 
   const contractEntry = generatedContract.apps?.find(app => app.id === vertical.id);
@@ -5387,11 +5345,11 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} MF name is incorrect\`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} MF exposes are incorrect\`);
   assert(contractEntry?.moduleFederation?.dts?.compilerInstance === '--package typescript -- tsc', \`\${vertical.id} must keep mandatory DTS compiler\`);
-  assert(JSON.stringify(contractEntry?.moduleFederation?.remoteRefs ?? []) === JSON.stringify(vertical.remoteRefs), \`\${vertical.id} MF remoteRefs are incorrect\`);
+  assert(JSON.stringify(contractEntry?.moduleFederation?.verticalRefs ?? []) === JSON.stringify(vertical.verticalRefs), \`\${vertical.id} MF verticalRefs are incorrect\`);
   assert(
     JSON.stringify((contractEntry?.moduleFederation?.remotes ?? []).map(remote => remote.id)) ===
-      JSON.stringify(vertical.remoteRefs),
-    \`\${vertical.id} MF consumed remotes are incorrect\`,
+      JSON.stringify(vertical.verticalRefs),
+    \`\${vertical.id} MF consumed verticals are incorrect\`,
   );
   assert(contractEntry?.effect?.prefix === vertical.apiPrefix, \`\${vertical.id} Effect API prefix is incorrect\`);
   assert(contractEntry?.effect?.group === vertical.group, \`\${vertical.id} Effect group is incorrect\`);
@@ -5408,23 +5366,23 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.routes?.source === 'route-owned', \`\${vertical.id} routes must be route-owned\`);
   assert(contractEntry?.routes?.metadataExport === './src/routes/ultramodern-route-metadata', \`\${vertical.id} route metadata export is incorrect\`);
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
-  assert(contractEntry?.styling?.federation?.role === 'vertical-remote-css', \`\${vertical.id} must own only vertical CSS\`);
+  assert(contractEntry?.styling?.federation?.role === 'vertical-css', \`\${vertical.id} must own only vertical CSS\`);
   assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);
   assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.domain}:\`, \`\${vertical.id} CSS class prefix is incorrect\`);
-  assert(contractEntry?.styling?.federation?.layers?.owned?.includes(\`ultramodern-remote-\${vertical.domain}\`), \`\${vertical.id} remote CSS layer is missing\`);
+  assert(contractEntry?.styling?.federation?.layers?.owned?.includes(\`ultramodern-vertical-\${vertical.domain}\`), \`\${vertical.id} vertical CSS layer is missing\`);
   assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), \`\${vertical.id} must not own shell base CSS\`);
-  assert(contractEntry?.styling?.federation?.entrypoints?.remoteEntry === 'src/remote-entry.tsx', \`\${vertical.id} remote CSS contract must include remote entry\`);
+  assert(contractEntry?.styling?.federation?.entrypoints?.federationEntry === 'src/federation-entry.tsx', \`\${vertical.id} CSS contract must include federation entry\`);
   assert(contractEntry?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), \`\${vertical.id} must import shared design token CSS\`);
   assert(contractEntry?.styling?.federation?.dedupe?.runtimeLoad === 'once-per-content-hash', \`\${vertical.id} CSS dedupe strategy is incorrect\`);
-  assert(contractEntry?.styling?.federation?.ssr?.remoteCss === 'remote-manifest-owned-css', \`\${vertical.id} SSR CSS loading contract is incorrect\`);
+  assert(contractEntry?.styling?.federation?.ssr?.verticalCss === 'federated-manifest-owned-css', \`\${vertical.id} SSR CSS loading contract is incorrect\`);
 
-  const topologyEntry = topology.remotes?.find(remote => remote.id === vertical.id);
+  const topologyEntry = topology.verticals?.find(verticalEntry => verticalEntry.id === vertical.id);
   assert(topologyEntry?.kind === 'vertical', \`\${vertical.id} topology kind is incorrect\`);
   assert(topologyEntry?.package === vertical.packageName, \`\${vertical.id} topology package is incorrect\`);
   assert(topologyEntry?.cloudflare?.workerName === expectedWorkerName(vertical.id), \`\${vertical.id} topology Cloudflare workerName is incorrect\`);
   assert(topologyEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} topology MF name is incorrect\`);
   assert(JSON.stringify(topologyEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} topology exposes are incorrect\`);
-  assert(JSON.stringify(topologyEntry?.moduleFederation?.remoteRefs ?? []) === JSON.stringify(vertical.remoteRefs), \`\${vertical.id} topology remoteRefs are incorrect\`);
+  assert(JSON.stringify(topologyEntry?.moduleFederation?.verticalRefs ?? []) === JSON.stringify(vertical.verticalRefs), \`\${vertical.id} topology verticalRefs are incorrect\`);
   assert(topologyEntry?.api?.effect?.bff?.prefix === vertical.apiPrefix, \`\${vertical.id} topology API prefix is incorrect\`);
   assert(topologyEntry?.api?.effect?.serverEntry === \`\${vertical.path}/api/effect/index.ts\`, \`\${vertical.id} topology server entry is incorrect\`);
   assert(topologyEntry?.api?.effect?.readiness?.endpoint === \`/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} topology readiness endpoint is incorrect\`);
@@ -5492,10 +5450,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(\`Usage:
-  node scripts/proof-cloudflare-version.mjs [--app remote-explore] [--out evidence.json] [--require-public-urls]
+  node scripts/proof-cloudflare-version.mjs [--app explore] [--out evidence.json] [--require-public-urls]
 
 Set each app's public URL using the contract env key, for example:
-  ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev
+  ULTRAMODERN_PUBLIC_URL_EXPLORE=https://explore.example.workers.dev
 \`);
 }
 
@@ -5765,7 +5723,7 @@ function writeGeneratedWorkspaceScripts(
   targetDir: string,
   scope: string,
   enableTailwind: boolean,
-  remotes: WorkspaceApp[] = remoteApps,
+  remotes: WorkspaceApp[] = verticalApps,
 ) {
   writeFileReplacing(
     targetDir,
@@ -5898,7 +5856,7 @@ function writeApp(
 
   if (app.kind === 'shell') {
     writeAppFile(
-      'src/routes/remote-components.tsx',
+      'src/routes/vertical-components.tsx',
       createShellRemoteComponents(scope),
     );
     writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
@@ -5941,15 +5899,15 @@ function writeApp(
     );
   }
 
-  if (app.kind === 'vertical' || app.kind === 'horizontal-remote') {
-    writeAppFile('src/remote-entry.tsx', createRemoteEntry(app));
-    if (app.id === 'remote-decide') {
+  if (app.kind === 'vertical') {
+    writeAppFile('src/federation-entry.tsx', createRemoteEntry(app));
+    if (app.id === 'decide') {
       writeAppFile(
-        'src/components/remote-components.tsx',
+        'src/components/vertical-components.tsx',
         createDecideRemoteComponents(scope, app),
       );
     }
-    if (app.id === 'remote-checkout') {
+    if (app.id === 'checkout') {
       writeFile(
         targetDir,
         `${app.directory}/src/cart-store.ts`,
@@ -5983,7 +5941,7 @@ function writeEffectService(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
-  service = effectService,
+  service,
 ) {
   const tw = createTw(tailwindPrefixForService(service));
   const writeServiceFile = (relativePath: string, content: string) => {
@@ -6156,10 +6114,7 @@ function writeJsonFile(filePath: string, value: JsonValue) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
 }
 
-function appendEffectSharedApiContract(
-  targetDir: string,
-  service = effectService,
-) {
+function appendEffectSharedApiContract(targetDir: string, service) {
   const relativePath = 'packages/shared-effect-api/src/index.ts';
   assertSafeRelativePath(relativePath);
   const filePath = path.join(targetDir, relativePath);
@@ -6238,11 +6193,28 @@ function existingPackageSource(
   };
 }
 
-function assertValidMicroVerticalName(name: string): string {
+function existingTailwindEnabled(workspaceRoot: string): boolean {
+  const contractPath = path.join(workspaceRoot, GENERATED_CONTRACT_PATH);
+  if (!fs.existsSync(contractPath)) {
+    return true;
+  }
+  const contract = readJsonFile(contractPath);
+  const apps =
+    isRecord(contract) && Array.isArray(contract.apps) ? contract.apps : [];
+  const shell = apps.find(
+    (app: unknown): app is Record<string, JsonValue> =>
+      isRecord(app) && app.id === shellApp.id,
+  );
+  return shell?.styling && isRecord(shell.styling)
+    ? shell.styling.tailwind !== false
+    : true;
+}
+
+function assertValidVerticalName(name: string): string {
   const normalized = toKebabCase(name);
   if (!normalized || normalized !== name) {
     throw new Error(
-      `Invalid MicroVertical name "${name}". Use lowercase kebab-case.`,
+      `Invalid Vertical name "${name}". Use lowercase kebab-case.`,
     );
   }
   return normalized;
@@ -6323,32 +6295,36 @@ function addShellWorkspaceDependency(
   writeJsonFile(packagePath, shellPackage as JsonValue);
 }
 
-function remoteTopologyEntry(scope: string, remote: WorkspaceApp): JsonValue {
+function verticalTopologyEntry(
+  scope: string,
+  vertical: WorkspaceApp,
+): JsonValue {
   return {
-    id: remote.id,
-    kind: remote.kind,
-    domain: remote.domain,
-    package: packageName(scope, remote.packageSuffix),
+    id: vertical.id,
+    kind: vertical.kind,
+    domain: vertical.domain,
+    package: packageName(scope, vertical.packageSuffix),
+    path: vertical.directory,
     moduleFederation: {
       role: 'remote',
-      name: remote.mfName,
-      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-      exposes: Object.keys(remote.exposes ?? {}),
-      ...(remote.remoteRefs?.length
+      name: vertical.mfName,
+      manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+      exposes: Object.keys(vertical.exposes ?? {}),
+      ...(vertical.verticalRefs?.length
         ? {
-            remoteRefs: remote.remoteRefs,
-            remotes: createModuleFederationRemoteContracts(remote),
+            verticalRefs: vertical.verticalRefs,
+            remotes: createModuleFederationRemoteContracts(vertical),
           }
         : {}),
       ssr: true,
       fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
-    ...(effectApiTopologyMetadata(remote)
-      ? { api: effectApiTopologyMetadata(remote) }
+    ...(effectApiTopologyMetadata(vertical)
+      ? { api: effectApiTopologyMetadata(vertical) }
       : {}),
-    cloudflare: createCloudflareDeployContract(scope, remote),
-    ownership: remote.ownership,
+    cloudflare: createCloudflareDeployContract(scope, vertical),
+    ownership: vertical.ownership,
   };
 }
 
@@ -6369,72 +6345,70 @@ function ownershipEntry(
   };
 }
 
-function remotesFromTopology(
+function verticalsFromTopology(
   topology: Record<string, any>,
   ports: Record<string, unknown>,
 ) {
-  return (topology.remotes ?? []).map((remote: any) => {
-    const packageSuffix = remote.package?.split('/').at(-1) ?? remote.id;
-    const effectApi = remote.api?.effect
+  return (topology.verticals ?? []).map((vertical: any) => {
+    const domain = vertical.domain ?? String(vertical.id);
+    const packageSuffix = vertical.package?.split('/').at(-1) ?? domain;
+    const effectApi = vertical.api?.effect
       ? ({
           stem:
-            typeof remote.api.effect.basePath === 'string'
-              ? (remote.api.effect.basePath.split('/').filter(Boolean).at(-1) ??
-                remote.domain ??
-                String(remote.id).replace(/^remote-/, ''))
-              : (remote.domain ?? String(remote.id).replace(/^remote-/, '')),
-          prefix:
-            remote.api.effect.bff?.prefix ??
-            `/${remote.domain ?? String(remote.id).replace(/^remote-/, '')}-api`,
-          consumedBy: Array.isArray(remote.api.effect.consumedBy)
-            ? remote.api.effect.consumedBy
-            : [shellApp.id, remote.id],
+            typeof vertical.api.effect.basePath === 'string'
+              ? (vertical.api.effect.basePath
+                  .split('/')
+                  .filter(Boolean)
+                  .at(-1) ?? domain)
+              : domain,
+          prefix: vertical.api.effect.bff?.prefix ?? `/${domain}-api`,
+          consumedBy: Array.isArray(vertical.api.effect.consumedBy)
+            ? vertical.api.effect.consumedBy
+            : [shellApp.id, vertical.id],
         } satisfies WorkspaceEffectApi)
       : undefined;
 
     return {
-      id: remote.id,
+      id: vertical.id,
       directory:
-        typeof remote.path === 'string'
-          ? remote.path
-          : `apps/remotes/${packageSuffix}`,
+        typeof vertical.path === 'string'
+          ? vertical.path
+          : `verticals/${domain}`,
       packageSuffix,
-      displayName: remote.id,
-      kind: remote.kind ?? 'vertical',
-      domain: remote.domain ?? String(remote.id).replace(/^remote-/, ''),
+      displayName: vertical.displayName ?? `${toPascalCase(domain)} Vertical`,
+      kind: 'vertical',
+      domain,
       portEnv: '',
-      port: typeof ports[remote.id] === 'number' ? ports[remote.id] : 0,
+      port: typeof ports[vertical.id] === 'number' ? ports[vertical.id] : 0,
       mfName:
-        remote.moduleFederation?.name ?? `remote${toPascalCase(remote.id)}`,
-      ...(Array.isArray(remote.moduleFederation?.exposes)
+        vertical.moduleFederation?.name ?? `vertical${toPascalCase(domain)}`,
+      ...(Array.isArray(vertical.moduleFederation?.exposes)
         ? {
             exposes: Object.fromEntries(
-              remote.moduleFederation.exposes.map((expose: string) => [
+              vertical.moduleFederation.exposes.map((expose: string) => [
                 expose,
                 '',
               ]),
             ),
           }
         : {}),
-      ...(Array.isArray(remote.moduleFederation?.remoteRefs)
-        ? { remoteRefs: remote.moduleFederation.remoteRefs }
-        : Array.isArray(remote.moduleFederation?.remotes)
+      ...(Array.isArray(vertical.moduleFederation?.verticalRefs)
+        ? { verticalRefs: vertical.moduleFederation.verticalRefs }
+        : Array.isArray(vertical.moduleFederation?.remotes)
           ? {
-              remoteRefs: remote.moduleFederation.remotes
+              verticalRefs: vertical.moduleFederation.remotes
                 .map((entry: any) => entry.id)
                 .filter((id: unknown): id is string => typeof id === 'string'),
             }
           : {}),
       ...(effectApi ? { effectApi } : {}),
-      ownership: remote.ownership ?? createNeutralOwnership(remote.id),
+      ownership: vertical.ownership ?? createNeutralOwnership(vertical.id),
     };
   }) as WorkspaceApp[];
 }
 
-export function addUltramodernMicroVertical(
-  options: AddUltramodernMicroVerticalOptions,
-) {
-  const name = assertValidMicroVerticalName(options.name);
+export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
+  const name = assertValidVerticalName(options.name);
   const rootPackage = readJsonFile(
     path.join(options.workspaceRoot, 'package.json'),
   );
@@ -6469,189 +6443,89 @@ export function addUltramodernMicroVertical(
     options.modernVersion,
     options.packageSource,
   );
-  const enableTailwind = options.enableTailwind !== false;
+  const enableTailwind =
+    options.enableTailwind ?? existingTailwindEnabled(options.workspaceRoot);
   const port = nextAvailablePort(overlay.ports);
 
-  if (options.kind === 'remote' || options.kind === 'horizontal-remote') {
-    const remote = createRemoteDescriptor(name, options.kind, port);
-    assertCanCreate(options.workspaceRoot, remote.directory);
-    if ((topology.remotes ?? []).some((entry: any) => entry.id === remote.id)) {
-      throw new Error(`Topology already contains ${remote.id}`);
-    }
-    if (Object.values(overlay.ports).includes(remote.port)) {
-      throw new Error(`Development port ${remote.port} is already in use`);
-    }
-
-    writeApp(
-      options.workspaceRoot,
-      scope,
-      remote,
-      packageSource,
-      enableTailwind,
-    );
-    topology.shell ??= {};
-    topology.shell.remoteRefs ??= [];
-    topology.shell.remoteRefs.push(remote.id);
-    topology.shell.moduleFederation ??= {};
-    topology.shell.moduleFederation.remotes ??= [];
-    topology.shell.moduleFederation.remotes.push({
-      id: remote.id,
-      name: remote.mfName,
-      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-    });
-    topology.remotes ??= [];
-    topology.remotes.push(remoteTopologyEntry(scope, remote));
-    ownership.owners ??= [];
-    ownership.owners.push(ownershipEntry(scope, remote));
-    overlay.ports[remote.id] = remote.port;
-    overlay.manifests ??= {};
-    overlay.manifests[remote.id] =
-      `http://localhost:${remote.port}/mf-manifest.json`;
-    if (appHasEffectApi(remote)) {
-      overlay.apis ??= {};
-      overlay.apis[remote.id] =
-        `http://localhost:${remote.port}${effectApiPrefix(remote)}`;
-    }
-    writeJsonFile(topologyPath, topology as JsonValue);
-    writeJsonFile(ownershipPath, ownership as JsonValue);
-    writeJsonFile(overlayPath, overlay as JsonValue);
-    const updatedRemotes = remotesFromTopology(topology, overlay.ports);
-    assertUniqueTailwindPrefixes([shellApp, ...updatedRemotes]);
-    writeJsonFile(
-      path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
-      createGeneratedContract(
-        scope,
-        [
-          {
-            ...shellApp,
-            remoteRefs: updatedRemotes.map(remote => remote.id),
-          },
-          ...updatedRemotes,
-        ],
-        enableTailwind,
-      ),
-    );
-    const shellConfigPath = path.join(
-      options.workspaceRoot,
-      `${shellApp.directory}/module-federation.config.ts`,
-    );
-    writeFileReplacing(
-      options.workspaceRoot,
-      `${shellApp.directory}/module-federation.config.ts`,
-      createShellModuleFederationConfig(updatedRemotes),
-    );
-    if (!fs.existsSync(shellConfigPath)) {
-      throw new Error('Shell Module Federation config was not regenerated');
-    }
-    writeGeneratedWorkspaceScripts(
-      options.workspaceRoot,
-      scope,
-      enableTailwind,
-      updatedRemotes,
-    );
-    addShellZephyrDependency(options.workspaceRoot, scope, remote);
-    addShellWorkspaceDependency(options.workspaceRoot, scope, remote);
-    addRootDevScript(options.workspaceRoot, scope, remote.packageSuffix, name);
-    return;
+  const vertical = createVerticalDescriptor(name, port);
+  assertCanCreate(options.workspaceRoot, vertical.directory);
+  if (
+    (topology.verticals ?? []).some((entry: any) => entry.id === vertical.id)
+  ) {
+    throw new Error(`Topology already contains ${vertical.id}`);
+  }
+  if (Object.values(overlay.ports).includes(vertical.port)) {
+    throw new Error(`Development port ${vertical.port} is already in use`);
   }
 
-  if (options.kind === 'service') {
-    const service = createServiceDescriptor(name, port);
-    assertUniqueTailwindPrefixes(
-      [shellApp, ...remotesFromTopology(topology, overlay.ports)],
-      [...(topology.effectServices ?? []), service],
-    );
-    assertCanCreate(options.workspaceRoot, service.directory);
-    if (
-      (topology.effectServices ?? []).some(
-        (entry: any) => entry.id === service.id,
-      )
-    ) {
-      throw new Error(`Topology already contains ${service.id}`);
-    }
-    writeEffectService(
-      options.workspaceRoot,
+  writeApp(
+    options.workspaceRoot,
+    scope,
+    vertical,
+    packageSource,
+    enableTailwind,
+  );
+  topology.shell ??= {};
+  topology.shell.verticalRefs ??= [];
+  topology.shell.verticalRefs.push(vertical.id);
+  topology.shell.moduleFederation ??= {};
+  topology.shell.moduleFederation.remotes ??= [];
+  topology.shell.moduleFederation.remotes.push({
+    id: vertical.id,
+    name: vertical.mfName,
+    manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+  });
+  topology.verticals ??= [];
+  topology.verticals.push(verticalTopologyEntry(scope, vertical));
+  ownership.owners ??= [];
+  ownership.owners.push(ownershipEntry(scope, vertical));
+  overlay.ports[vertical.id] = vertical.port;
+  overlay.manifests ??= {};
+  overlay.manifests[vertical.id] =
+    `http://localhost:${vertical.port}/mf-manifest.json`;
+  overlay.apis ??= {};
+  overlay.apis[vertical.id] =
+    `http://localhost:${vertical.port}${effectApiPrefix(vertical)}`;
+  writeJsonFile(topologyPath, topology as JsonValue);
+  writeJsonFile(ownershipPath, ownership as JsonValue);
+  writeJsonFile(overlayPath, overlay as JsonValue);
+  const updatedVerticals = verticalsFromTopology(topology, overlay.ports);
+  assertUniqueTailwindPrefixes([shellApp, ...updatedVerticals]);
+  writeJsonFile(
+    path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
+    createGeneratedContract(
       scope,
-      packageSource,
+      [
+        {
+          ...shellApp,
+          verticalRefs: updatedVerticals.map(vertical => vertical.id),
+        },
+        ...updatedVerticals,
+      ],
       enableTailwind,
-      service,
-    );
-    appendEffectSharedApiContract(options.workspaceRoot, service);
-    topology.effectServices ??= [];
-    topology.effectServices.push({
-      id: service.id,
-      kind: 'effect-service',
-      runtime: 'effect',
-      package: packageName(scope, service.packageSuffix),
-      consumedBy: [shellApp.id],
-      bff: {
-        prefix: serviceApiPrefix(service),
-        openapi: '/openapi.json',
-      },
-      contract: {
-        package: packageName(scope, 'shared-effect-api'),
-        export: serviceEffectApiExport(service),
-        path: 'packages/shared-effect-api/src/index.ts',
-      },
-      serverEntry: `${service.directory}/api/effect/index.ts`,
-      basePath: `${serviceApiPrefix(service)}/effect/${effectApiStem(service)}`,
-      ...createEffectOperationContract(service),
-      ownership: service.ownership,
-    });
-    ownership.owners ??= [];
-    ownership.owners.push(ownershipEntry(scope, service));
-    overlay.ports[service.id] = service.port;
-    overlay.services ??= {};
-    overlay.services[service.id] =
-      `http://localhost:${service.port}${serviceApiPrefix(service)}`;
-    writeJsonFile(topologyPath, topology as JsonValue);
-    writeJsonFile(ownershipPath, ownership as JsonValue);
-    writeJsonFile(overlayPath, overlay as JsonValue);
-    addRootDevScript(options.workspaceRoot, scope, service.packageSuffix, name);
-    return;
+    ),
+  );
+  const shellConfigPath = path.join(
+    options.workspaceRoot,
+    `${shellApp.directory}/module-federation.config.ts`,
+  );
+  writeFileReplacing(
+    options.workspaceRoot,
+    `${shellApp.directory}/module-federation.config.ts`,
+    createShellModuleFederationConfig(updatedVerticals),
+  );
+  if (!fs.existsSync(shellConfigPath)) {
+    throw new Error('Shell Module Federation config was not regenerated');
   }
-
-  if (options.kind === 'shared') {
-    const sharedPackage = createSharedPackageDescriptor(name);
-    assertCanCreate(options.workspaceRoot, sharedPackage.directory);
-    if (
-      (topology.sharedPackages ?? []).some(
-        (entry: any) => entry.id === sharedPackage.id,
-      )
-    ) {
-      throw new Error(`Topology already contains ${sharedPackage.id}`);
-    }
-    writeGenericSharedPackage(
-      options.workspaceRoot,
-      scope,
-      packageSource,
-      sharedPackage,
-    );
-    topology.sharedPackages ??= [];
-    topology.sharedPackages.push({
-      id: sharedPackage.id,
-      package: packageName(scope, sharedPackage.id),
-      path: sharedPackage.directory,
-      description: sharedPackage.description,
-    });
-    ownership.owners ??= [];
-    ownership.owners.push(
-      ownershipEntry(scope, {
-        id: sharedPackage.id,
-        packageSuffix: sharedPackage.id,
-        directory: sharedPackage.directory,
-        ownership: createNeutralOwnership(
-          sharedPackage.id,
-          'tier-1-shared-contract',
-        ),
-      }),
-    );
-    writeJsonFile(topologyPath, topology as JsonValue);
-    writeJsonFile(ownershipPath, ownership as JsonValue);
-    return;
-  }
-
-  throw new Error(`Unsupported MicroVertical kind: ${options.kind}`);
+  writeGeneratedWorkspaceScripts(
+    options.workspaceRoot,
+    scope,
+    enableTailwind,
+    updatedVerticals,
+  );
+  addShellZephyrDependency(options.workspaceRoot, scope, vertical);
+  addShellWorkspaceDependency(options.workspaceRoot, scope, vertical);
+  addRootDevScript(options.workspaceRoot, scope, vertical.packageSuffix, name);
 }
 
 export function generateUltramodernWorkspace(
@@ -6660,7 +6534,7 @@ export function generateUltramodernWorkspace(
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
   const enableTailwind = options.enableTailwind !== false;
-  assertUniqueTailwindPrefixes([shellApp, ...remoteApps]);
+  assertUniqueTailwindPrefixes([shellApp, ...verticalApps]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   copyRootTemplate(options.targetDir, {
@@ -6704,11 +6578,11 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     GENERATED_CONTRACT_PATH,
-    createGeneratedContract(scope, [shellApp, ...remoteApps], enableTailwind),
+    createGeneratedContract(scope, [shellApp, ...verticalApps], enableTailwind),
   );
 
   writeApp(options.targetDir, scope, shellApp, packageSource, enableTailwind);
-  for (const remote of remoteApps) {
+  for (const remote of verticalApps) {
     writeApp(options.targetDir, scope, remote, packageSource, enableTailwind);
   }
   writeSharedPackages(options.targetDir, scope, packageSource);

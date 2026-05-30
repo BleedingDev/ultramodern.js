@@ -3,9 +3,9 @@ import path from 'node:path';
 
 const root = process.cwd();
 const defaultAppDirs = [
-  'apps/remotes/remote-commerce',
-  'apps/remotes/remote-identity',
-  'apps/remotes/remote-design-system',
+  'verticals/commerce',
+  'verticals/identity',
+  'verticals/design-system',
 ];
 
 const candidateDirs = process.argv.slice(2);

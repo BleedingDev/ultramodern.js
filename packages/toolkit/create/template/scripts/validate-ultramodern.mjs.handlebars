@@ -34,7 +34,7 @@ const activePnpmVersion = execFileSync('pnpm', ['--version'], {
 
 if (activePnpmVersion !== expectedPnpmVersion) {
   console.error(
-    `Generated app requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun through mise exec -- pnpm ...`,
+    `Generated app requires pnpm ${expectedPnpmVersion}; active pnpm is ${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell`,
   );
   process.exit(1);
 }
@@ -154,9 +154,9 @@ for (const requiredSnippet of [
   'pull_request:',
   'persist-credentials: false',
   'jdx/mise-action',
-  'mise exec -- pnpm install --frozen-lockfile',
-  'mise exec -- pnpm run ultramodern:check',
-  'mise exec -- pnpm run build',
+  'pnpm install --frozen-lockfile',
+  'pnpm run ultramodern:check',
+  'pnpm run build',
   'MODERN_PUBLIC_SITE_URL: http://localhost:8080',
   'timeout-minutes:',
   'egress-policy: audit',

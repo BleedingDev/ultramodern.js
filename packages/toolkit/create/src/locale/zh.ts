@@ -16,8 +16,8 @@ export const ZH_LOCALE = {
     success: '✨ 创建成功！',
     nextSteps: '📋 下一步：',
     step1: 'cd {projectName}',
-    step2: 'mise exec -- pnpm install',
-    step3: 'mise exec -- pnpm dev',
+    step2: 'pnpm install',
+    step3: 'pnpm dev',
   },
   help: {
     title: '🚀 Modern.js 项目创建工具',
@@ -42,8 +42,8 @@ export const ZH_LOCALE = {
       '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
-    optionMicroVertical:
-      '      --microvertical 向现有 UltraModern 工作区添加 MicroVertical 包（remote、horizontal-remote、service、shared）',
+    optionVertical:
+      '      --vertical 向现有 UltraModern 工作区添加全栈 Vertical',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -58,7 +58,7 @@ export const ZH_LOCALE = {
       '  create my-app --router tanstack --bff-runtime effect --workspace',
     example10:
       '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
-    example11: '  create catalog --microvertical remote',
+    example11: '  create catalog --vertical',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

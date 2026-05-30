@@ -28,7 +28,7 @@ Use these skills when the task touches the matching subsystem:
 - `rstest-best-practices`: Rstest configuration, test writing, mocking, snapshots, coverage, and CI test behavior.
 - `mf`: Module Federation docs, Modern.js integration, DTS/type checks, shared dependency checks, runtime errors, and observability troubleshooting.
 
-The public `module-federation/agent-skills` repository is installed during `mise exec -- pnpm install` and `mise exec -- pnpm skills:install`. `mise exec -- pnpm skills:check` fails when the required public `mf` skill is missing.
+The public `module-federation/agent-skills` repository is installed during `pnpm install` and `pnpm skills:install`. `pnpm skills:check` fails when the required public `mf` skill is missing.
 
 ## Private Skills
 
@@ -42,7 +42,7 @@ The installer copies only the pinned private skills from `.agents/skills-lock.js
 
 ## Agent Reference Repositories
 
-The workspace installs read-only source references under `repos/` by default during `mise exec -- pnpm install` using `git subtree add --squash`. These repositories are reference material for coding agents, not application source:
+The workspace installs read-only source references under `repos/` by default during `pnpm install` using `git subtree add --squash`. These repositories are reference material for coding agents, not application source:
 
 - `repos/effect` from `Effect-TS/effect`.
 - `repos/ultramodern.js` from `BleedingDev/ultramodern.js`.

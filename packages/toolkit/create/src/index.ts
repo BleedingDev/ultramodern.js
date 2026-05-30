@@ -6,9 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { i18n, localeKeys } from './locale';
 import {
-  addUltramodernMicroVertical,
+  addUltramodernVertical,
   generateUltramodernWorkspace,
-  type MicroVerticalKind,
   ULTRAMODERN_WORKSPACE_FLAG,
 } from './ultramodern-workspace';
 
@@ -444,9 +443,9 @@ function createBuiltinTemplateManifest(version: string): TemplateManifest {
       ],
       expectedCommands: [
         'mise install',
-        'mise exec -- pnpm install',
-        'mise exec -- pnpm test',
-        'mise exec -- pnpm run ultramodern:check',
+        'pnpm install',
+        'pnpm test',
+        'pnpm run ultramodern:check',
       ],
     },
   };
@@ -811,8 +810,8 @@ function showHelp() {
   if (localeKeys.help.optionUltramodernPackageNamePrefix) {
     console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
   }
-  if (localeKeys.help.optionMicroVertical) {
-    console.log(i18n.t(localeKeys.help.optionMicroVertical));
+  if (localeKeys.help.optionVertical) {
+    console.log(i18n.t(localeKeys.help.optionVertical));
   }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
@@ -880,30 +879,31 @@ function detectTailwindFlag(): boolean {
   return !args.includes('--no-tailwind');
 }
 
+function detectExplicitTailwindFlag(): boolean | undefined {
+  const args = process.argv.slice(2);
+  if (args.includes('--no-tailwind')) {
+    return false;
+  }
+  if (args.includes('--tailwind')) {
+    return true;
+  }
+  return undefined;
+}
+
 function detectWorkspaceProtocolFlag(): boolean {
   const args = process.argv.slice(2);
   return args.includes('--workspace');
 }
 
-function detectMicroVerticalKind(): MicroVerticalKind | undefined {
-  const kind = getOptionValue(process.argv.slice(2), ['--microvertical']);
-  if (!kind) {
-    return undefined;
+function detectVerticalFlag(): boolean {
+  const args = process.argv.slice(2);
+  if (args.some(arg => arg.startsWith('--vertical='))) {
+    console.error(
+      '--vertical does not accept a value. Use: create <name> --vertical',
+    );
+    process.exit(1);
   }
-
-  if (
-    kind === 'remote' ||
-    kind === 'horizontal-remote' ||
-    kind === 'service' ||
-    kind === 'shared'
-  ) {
-    return kind;
-  }
-
-  console.error(
-    '--microvertical must be one of: remote, horizontal-remote, service, shared',
-  );
-  process.exit(1);
+  return args.includes('--vertical');
 }
 
 function detectUltramodernWorkspaceFlag(
@@ -1069,7 +1069,6 @@ async function getProjectName(): Promise<{
     '--ultramodern-package-registry',
     '--ultramodern-package-scope',
     '--ultramodern-package-name-prefix',
-    '--microvertical',
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -1084,6 +1083,7 @@ async function getProjectName(): Promise<{
     '--tailwind',
     '--no-tailwind',
     '--workspace',
+    '--vertical',
     ULTRAMODERN_WORKSPACE_FLAG,
   ]);
   const positionalArgs: string[] = [];
@@ -1108,13 +1108,17 @@ async function getProjectName(): Promise<{
       arg.startsWith('--ultramodern-package-version=') ||
       arg.startsWith('--ultramodern-package-registry=') ||
       arg.startsWith('--ultramodern-package-scope=') ||
-      arg.startsWith('--ultramodern-package-name-prefix=') ||
-      arg.startsWith('--microvertical=')
+      arg.startsWith('--ultramodern-package-name-prefix=')
     ) {
       continue;
     }
 
     positionalArgs.push(arg);
+  }
+
+  if (positionalArgs.length > 1) {
+    console.error(`Unexpected positional argument: ${positionalArgs[1]}`);
+    process.exit(1);
   }
 
   const projectNameArg = positionalArgs[0];
@@ -1168,9 +1172,9 @@ async function main() {
   const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
     ? getBleedingDevFrameworkVersion(createPackage, version)
     : version;
-  const microVerticalKind = detectMicroVerticalKind();
+  const addVertical = detectVerticalFlag();
 
-  if (microVerticalKind) {
+  if (addVertical) {
     const overridePackageSource = args.some(arg =>
       arg.startsWith('--ultramodern-package-'),
     )
@@ -1180,12 +1184,11 @@ async function main() {
           createPackage,
         )
       : undefined;
-    addUltramodernMicroVertical({
+    addUltramodernVertical({
       workspaceRoot: process.cwd(),
       name: generatedPackageName,
-      kind: microVerticalKind,
       modernVersion: version,
-      enableTailwind: detectTailwindFlag(),
+      enableTailwind: detectExplicitTailwindFlag(),
       packageSource: overridePackageSource,
     });
 
@@ -1193,8 +1196,7 @@ async function main() {
     const reset = '\x1b[0m';
 
     console.log(`${i18n.t(localeKeys.message.success)}\n`);
-    console.log(`${dim}   mise install${reset}`);
-    console.log(`${dim}   mise exec -- pnpm ultramodern:check${reset}\n`);
+    console.log(`${dim}   pnpm ultramodern:check${reset}\n`);
     return;
   }
 
@@ -1231,9 +1233,8 @@ async function main() {
         `${dim}   ${i18n.t(localeKeys.message.step1, { projectName })}${reset}`,
       );
     }
-    console.log(`${dim}   mise install${reset}`);
     console.log(`${dim}   ${i18n.t(localeKeys.message.step2)}${reset}`);
-    console.log(`${dim}   mise exec -- pnpm ultramodern:check${reset}`);
+    console.log(`${dim}   pnpm ultramodern:check${reset}`);
     console.log(`${dim}   ${i18n.t(localeKeys.message.step3)}${reset}\n`);
     return;
   }

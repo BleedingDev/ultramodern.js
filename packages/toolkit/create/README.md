@@ -23,11 +23,11 @@ The default workspace is a full-stack reference, not a visual-only commerce
 boundary demo. It generates:
 
 - `apps/shell-super-app` as the Module Federation host and topology owner.
-- `apps/remotes/remote-explore` for discovery UI plus
+- `verticals/explore` for discovery UI plus
   `/explore-api/effect/explore/*`.
-- `apps/remotes/remote-decide` for product selection UI plus
+- `verticals/decide` for product selection UI plus
   `/decide-api/effect/decide/*`.
-- `apps/remotes/remote-checkout` for cart and checkout UI plus
+- `verticals/checkout` for cart and checkout UI plus
   `/checkout-api/effect/checkout/*`.
 - `packages/shared-design-tokens` as the shared CSS token owner.
 - `.modernjs/ultramodern-generated-contract.json` with MF, Effect, i18n,
@@ -38,9 +38,9 @@ Validate the generated workspace before making application changes:
 ```bash
 cd my-super-app
 mise install
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
-mise exec -- pnpm build
+pnpm install
+pnpm ultramodern:check
+pnpm build
 ```
 
 ### Router Template
@@ -96,41 +96,31 @@ You can combine TanStack Router + default Tailwind + Effect BFF in one command:
 npx @modern-js/create my-app --router tanstack --bff-runtime effect
 ```
 
-### Micro Vertical Workspace Recipes
+### Vertical Workspace Recipes
 
 Use the workspace add flow from the UltraModern workspace root. It derives the
 package path, package name, port, Module Federation name, topology entry, local
-overlay, ownership entry, and root `dev:*` script from the requested name and
-kind.
+overlay, ownership entry, Effect BFF surface, and root `dev:*` script from the
+requested vertical name.
 
 ```bash
-npx @modern-js/create catalog --microvertical remote
-npx @modern-js/create design-system --microvertical horizontal-remote
-npx @modern-js/create catalog-api --microvertical service
-npx @modern-js/create catalog-contracts --microvertical shared
+npx @modern-js/create catalog --vertical
 ```
 
-Use this decision table before adding a package:
+Use this decision table before adding a vertical:
 
-| Need | Keep inside current vertical | Create a new vertical/package |
+| Need | Keep inside current vertical | Create a new vertical |
 | --- | --- | --- |
 | Route or widget changes with the same product owner, release train, and fallback behavior | Yes | No |
-| Route subtree needs independent rollout, rollback, or incident ownership | No | `--microvertical remote` |
-| Cross-vertical operation needs strict trace, auth, locale, and session propagation | No | `--microvertical service` |
-| Design tokens, primitives, generated clients, or domain-neutral utilities | No | `--microvertical shared` |
-| Feature composites or workflow state shared across verticals | No | Revisit ownership; do not hide it in `shared` |
-
-When a design system needs independent deployment, treat it as a horizontal
-Module Federation remote with the same topology, trust, SSR, compatibility, and
-fallback expectations as feature remotes. Otherwise shared packages should be
-regular workspace packages for tokens, primitives, generated clients, or
-domain-neutral utilities. Keep feature composites and workflow logic owned by a
-shell, remote, or service package.
+| Route subtree needs independent rollout, rollback, or incident ownership | No | `--vertical` |
+| UI and Effect BFF must version, deploy, and roll back together | No | `--vertical` |
+| Design tokens, primitives, generated clients, or domain-neutral utilities | Yes | Use an ordinary workspace package, not a vertical |
+| Feature composites or workflow state shared across verticals | No | Revisit ownership; do not hide it in shared code |
 
 The lower-level `--router`, `--workspace`, and `--sub` flags remain available
-for manual package scaffolding, but UltraModern MicroVertical additions should
-prefer `--microvertical` to avoid hand-writing workspace paths and topology
-metadata.
+for manual package scaffolding, but UltraModern vertical additions should use
+`--vertical` so paths, topology, Effect BFF contracts, and local overlays stay
+consistent.
 
 See
 `docs/super-app-rfc-adr/WORKSPACE-0001-micro-vertical-workspace-scaffolding.md`
@@ -144,10 +134,11 @@ should not need them for normal app creation.
 ### Tractor Architecture Contracts
 
 The generated shell owns route assembly and policy. The generated Explore,
-Decide, and Checkout remotes own their own route subtree, MF exposes, Effect BFF
+Decide, and Checkout verticals own their own route subtree, MF exposes, Effect BFF
 contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
-Cloudflare Worker output. The shell consumes remote UI through MF manifests and
-remote APIs through generated Effect clients exported by the remote packages.
+Cloudflare Worker output. The shell consumes vertical UI through MF manifests
+and vertical APIs through generated Effect clients exported by the vertical
+packages.
 
 Route localization is route-owned. Each app writes
 `src/routes/ultramodern-route-metadata` and passes
@@ -160,7 +151,7 @@ CSS federation is explicit:
 - `packages/shared-design-tokens` exports `./tokens.css` and owns
   `ultramodern-shared-tokens`.
 - The shell owns shell base and overlay CSS only.
-- Vertical remotes own their remote CSS layer and `[data-app-id="<remote>"]`
+- Verticals own their vertical CSS layer and `[data-app-id="<vertical>"]`
   root marker.
 - Tailwind CSS v4 is configured per app through `@tailwindcss/postcss`.
 - Duplicate base styles are forbidden; SSR first paint depends on shared token
@@ -176,15 +167,15 @@ Each generated app has:
 - `cloudflare:build`, `cloudflare:deploy`, `cloudflare:preview`, and
   `cloudflare:proof` scripts.
 - Cloudflare metadata in `.modernjs/ultramodern-generated-contract.json`.
-- `zephyr:dependencies` for any consumed remotes.
+- `zephyr:dependencies` for any consumed verticals.
 - `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
 
 Public URL proof is intentionally separate from local build validation:
 
 ```bash
-ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_EXPLORE=https://explore.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_DECIDE=https://decide.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_CHECKOUT=https://checkout.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
 pnpm cloudflare:proof -- --require-public-urls
 ```
@@ -209,8 +200,8 @@ workspace package source, then run the generated contract gate:
 ```bash
 npx @modern-js/create tractor-super-app --workspace
 cd tractor-super-app
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+pnpm install
+pnpm ultramodern:check
 ```
 
 ## Documentation
