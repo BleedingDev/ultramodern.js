@@ -52,9 +52,9 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 ## Project Priorities
 
 - Keep `presetUltramodern` as the single preset.
-- Prefer Effect for BFF/service code.
+- Prefer Effect for BFF code.
 - Prefer TanStack Router for app routing.
-- Keep design-system code as a normal Micro Frontend or shared package, not a special core path.
+- Keep UI-kit or design-system code as ordinary vertical or shared package code, not a special core path.
 - Keep generated packages explicit and publishable: stable `exports`, correct declarations, small public APIs, and clear ownership metadata.
 - Do not add migration tooling or codemods unless the project owner explicitly asks for migration work.
 

@@ -74,7 +74,7 @@ type WorkspaceApp = {
   directory: string;
   packageSuffix: string;
   displayName: string;
-  kind: 'shell' | 'vertical' | 'horizontal-design-system';
+  kind: 'shell' | 'vertical';
   domain?: string;
   portEnv: string;
   port: number;
@@ -434,26 +434,6 @@ function createVerticalDescriptor(name: string, port: number): WorkspaceApp {
   };
 }
 
-function createServiceDescriptor(name: string, port: number) {
-  const normalized = toKebabCase(name);
-  const suffix = normalized.endsWith('-effect')
-    ? normalized
-    : `service-${normalized.replace(/^service-/, '')}-effect`;
-  return {
-    id: suffix,
-    directory: `services/${suffix}`,
-    packageSuffix: suffix,
-    portEnv: `${toEnvSegment(suffix)}_PORT`,
-    port,
-    ownership: createNeutralOwnership(suffix, 'tier-2-effect-service'),
-  };
-}
-
-function serviceApiPrefix(service: { id: string }): string {
-  const name = service.id.replace(/^service-/, '').replace(/-effect$/, '');
-  return name.endsWith('-api') ? `/${name}` : `/${name}-api`;
-}
-
 function appHasEffectApi(app: WorkspaceApp): app is WorkspaceApp & {
   effectApi: WorkspaceEffectApi;
 } {
@@ -464,17 +444,11 @@ function effectApiPrefix(target: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  return target.effectApi?.prefix ?? serviceApiPrefix(target);
+  return target.effectApi?.prefix ?? `/${toKebabCase(target.id)}-api`;
 }
 
 function effectApiStem(target: { id: string; effectApi?: WorkspaceEffectApi }) {
-  return (
-    target.effectApi?.stem ??
-    target.id
-      .replace(/^service-/, '')
-      .replace(/-effect$/, '')
-      .replace(/-api$/, '')
-  );
+  return target.effectApi?.stem ?? toKebabCase(target.id).replace(/-api$/, '');
 }
 
 function verticalEffectApps(remotes: WorkspaceApp[] = verticalApps) {
@@ -1077,67 +1051,6 @@ function createAppPackage(
   }
 
   return packageJson;
-}
-
-function createServicePackage(
-  scope: string,
-  packageSource: ResolvedPackageSource,
-  enableTailwind: boolean,
-  service: {
-    id: string;
-    packageSuffix: string;
-    directory: string;
-  },
-): JsonValue {
-  return {
-    private: true,
-    name: packageName(scope, service.packageSuffix),
-    version: '0.1.0',
-    scripts: {
-      dev: 'modern dev',
-      build: 'modern build',
-      serve: 'modern serve',
-      typecheck: effectTsgoTypecheckCommand,
-    },
-    modernjs: {
-      preset: 'presetUltramodern',
-      role: 'effect-service',
-      appId: service.id,
-      topology: `${relativeRootFor(service.directory)}/topology/reference-topology.json`,
-    },
-    dependencies: {
-      '@modern-js/runtime': modernPackageSpecifier(
-        '@modern-js/runtime',
-        packageSource,
-      ),
-      [packageName(scope, 'shared-effect-api')]: WORKSPACE_PACKAGE_VERSION,
-      react: REACT_VERSION,
-      'react-dom': REACT_DOM_VERSION,
-    },
-    devDependencies: {
-      '@modern-js/app-tools': modernPackageSpecifier(
-        '@modern-js/app-tools',
-        packageSource,
-      ),
-      '@modern-js/plugin-bff': modernPackageSpecifier(
-        '@modern-js/plugin-bff',
-        packageSource,
-      ),
-      '@effect/tsgo': EFFECT_TSGO_VERSION,
-      ...(enableTailwind
-        ? {
-            '@tailwindcss/postcss': `^${TAILWIND_POSTCSS_VERSION}`,
-            postcss: '^8.5.6',
-            tailwindcss: `^${TAILWIND_VERSION}`,
-          }
-        : {}),
-      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-      '@types/node': '^20',
-      '@types/react': '^19.1.8',
-      '@types/react-dom': '^19.1.6',
-      typescript: TYPESCRIPT_VERSION,
-    },
-  };
 }
 
 function createSharedPackage(
@@ -1969,42 +1882,6 @@ declare module '*.svg' {
 ${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
-function createServiceModernConfigFor(service): string {
-  return `// @effect-diagnostics processEnv:off
-import { appTools, defineConfig, presetUltramodern } from '@modern-js/app-tools';
-import { bffPlugin } from '@modern-js/plugin-bff';
-
-const appId = '${service.id}';
-const port = Number(process.env['${service.portEnv}'] ?? ${service.port});
-
-export default defineConfig(
-  presetUltramodern(
-    {
-      bff: {
-        effect: {
-          openapi: {
-            path: '/openapi.json',
-          },
-        },
-        prefix: '${serviceApiPrefix(service)}',
-        runtimeFramework: 'effect',
-      },
-      plugins: [appTools(), bffPlugin()],
-      server: {
-        port,
-      },
-    },
-    {
-      appId,
-      enableBffRequestId: true,
-      enableTelemetryExporters: true,
-      telemetryFailLoudStartup: false,
-    },
-  ),
-);
-`;
-}
-
 function createAppRuntimeConfig(app: WorkspaceApp, scope: string): string {
   const pluginsConfig =
     app.kind === 'shell'
@@ -2067,21 +1944,9 @@ function tailwindPrefixForApp(app: WorkspaceApp): string {
   return createTailwindPrefix(app.domain ?? app.id);
 }
 
-function tailwindPrefixForService(service: { id: string }): string {
-  return createTailwindPrefix(service.id);
-}
-
-function assertUniqueTailwindPrefixes(
-  apps: WorkspaceApp[],
-  services: Array<{ id: string }> = [],
-) {
+function assertUniqueTailwindPrefixes(apps: WorkspaceApp[]) {
   const seen = new Map<string, string>();
-  const entries = [
-    ...apps.map(app => [app.id, tailwindPrefixForApp(app)] as const),
-    ...services.map(
-      service => [service.id, tailwindPrefixForService(service)] as const,
-    ),
-  ];
+  const entries = apps.map(app => [app.id, tailwindPrefixForApp(app)] as const);
 
   for (const [id, prefix] of entries) {
     const previous = seen.get(prefix);
@@ -2110,16 +1975,6 @@ function createRemoteStyles(
   app: WorkspaceApp,
 ): string {
   return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(app)) : ''}${createCssTokenImport(
-    scope,
-  )}`;
-}
-
-function createServiceStyles(
-  enableTailwind: boolean,
-  scope: string,
-  service: { id: string },
-): string {
-  return `${enableTailwind ? createTailwindImport(tailwindPrefixForService(service)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
@@ -3506,32 +3361,6 @@ function createAppPublicLocaleMessages(
   );
 }
 
-function createDesignButton(app: WorkspaceApp): string {
-  const tw = createTw(tailwindPrefixForApp(app));
-
-  return `export default function Button({ label }: { label: string }) {
-  return (
-    <button className="${tw('rounded-full text-um-foreground')}" type="button">
-      {label}
-    </button>
-  );
-}
-`;
-}
-
-function createDesignTokens(): string {
-  return `export const designTokens = {
-  color: {
-    accent: '#2f8f68',
-    foreground: '#133225',
-  },
-  radius: {
-    control: '999px',
-  },
-} as const;
-`;
-}
-
 function createActionQueueStore(): string {
   return `import { useEffect, useMemo, useState } from 'react';
 
@@ -3633,74 +3462,74 @@ function createSharedDesignTokensCss(): string {
 `;
 }
 
-function serviceEffectApiExport(service: {
+function verticalEffectApiExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toCamelCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectGroupName(service: {
+function verticalEffectGroupName(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return toCamelCase(effectApiStem(service));
 }
 
-function serviceEffectApiName(service: {
+function verticalEffectApiName(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toPascalCase(effectApiStem(service))}EffectApi`;
 }
 
-function serviceEffectSchemaExport(service: {
+function verticalEffectSchemaExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toCamelCase(effectApiStem(service))}ItemSchema`;
 }
 
-function serviceEffectMarkerSchemaExport(service: {
+function verticalEffectMarkerSchemaExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toCamelCase(effectApiStem(service))}MarkerSchema`;
 }
 
-function serviceEffectReadinessSchemaExport(service: {
+function verticalEffectReadinessSchemaExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toCamelCase(effectApiStem(service))}ReadinessSchema`;
 }
 
-function serviceEffectErrorStem(service: {
+function verticalEffectErrorStem(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return effectApiStem(service);
 }
 
-function serviceEffectCreatePayloadSchemaExport(service: {
+function verticalEffectCreatePayloadSchemaExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
   return `${toCamelCase(effectApiStem(service))}CreatePayloadSchema`;
 }
 
-function serviceEffectNotFoundErrorExport(service: {
+function verticalEffectNotFoundErrorExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  return `${toPascalCase(serviceEffectErrorStem(service))}NotFound`;
+  return `${toPascalCase(verticalEffectErrorStem(service))}NotFound`;
 }
 
-function serviceEffectNotFoundSchemaExport(service: {
+function verticalEffectNotFoundSchemaExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  return `${toCamelCase(serviceEffectErrorStem(service))}NotFoundSchema`;
+  return `${toCamelCase(verticalEffectErrorStem(service))}NotFoundSchema`;
 }
 
 function createEffectSharedApiImports(): string {
@@ -3718,18 +3547,18 @@ function createEffectSharedApiContract(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }): string {
-  const schemaExport = serviceEffectSchemaExport(service);
-  const markerSchemaExport = serviceEffectMarkerSchemaExport(service);
-  const readinessSchemaExport = serviceEffectReadinessSchemaExport(service);
+  const schemaExport = verticalEffectSchemaExport(service);
+  const markerSchemaExport = verticalEffectMarkerSchemaExport(service);
+  const readinessSchemaExport = verticalEffectReadinessSchemaExport(service);
   const createPayloadSchemaExport =
-    serviceEffectCreatePayloadSchemaExport(service);
-  const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
-  const notFoundSchemaExport = serviceEffectNotFoundSchemaExport(service);
-  const apiExport = serviceEffectApiExport(service);
-  const apiName = serviceEffectApiName(service);
-  const groupName = serviceEffectGroupName(service);
+    verticalEffectCreatePayloadSchemaExport(service);
+  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
+  const notFoundSchemaExport = verticalEffectNotFoundSchemaExport(service);
+  const apiExport = verticalEffectApiExport(service);
+  const apiName = verticalEffectApiName(service);
+  const groupName = verticalEffectGroupName(service);
   const stem = effectApiStem(service);
-  const servicePrefix = effectApiPrefix(service);
+  const apiPrefix = effectApiPrefix(service);
 
   return `export const ${markerSchemaExport} = Schema.Struct({
   appId: Schema.String,
@@ -3845,10 +3674,10 @@ export const ${groupName}OperationContexts = {
 } satisfies Record<string, OperationContext>;
 
 export const ${groupName}ApiContract = {
-  basePath: '${servicePrefix}/effect/${stem}',
+  apiPrefix: '${apiPrefix}',
+  basePath: '${apiPrefix}/effect/${stem}',
   ownerId: '${service.id}',
-  servicePrefix: '${servicePrefix}',
-  readinessPath: '${servicePrefix}/effect/${stem}/readiness',
+  readinessPath: '${apiPrefix}/effect/${stem}/readiness',
 } as const;
 `;
 }
@@ -3863,7 +3692,7 @@ ${createEffectSharedApiContract(service)}`;
   }
 
   return `export const sharedEffectApiPackage = {
-  scope: 'external-effect-service-contracts',
+  scope: 'external-effect-api-contracts',
 } as const;
 `;
 }
@@ -3873,9 +3702,9 @@ function createEffectServiceEntry(
   service: { id: string; effectApi?: WorkspaceEffectApi },
   contractImportPath = packageName(scope, 'shared-effect-api'),
 ): string {
-  const apiExport = serviceEffectApiExport(service);
-  const groupName = serviceEffectGroupName(service);
-  const notFoundErrorExport = serviceEffectNotFoundErrorExport(service);
+  const apiExport = verticalEffectApiExport(service);
+  const groupName = verticalEffectGroupName(service);
+  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
   const stem = effectApiStem(service);
 
   return `import {
@@ -3993,11 +3822,11 @@ function createEffectClient(
   service: { id: string; effectApi?: WorkspaceEffectApi },
   contractImportPath: string,
 ): string {
-  const apiExport = serviceEffectApiExport(service);
-  const contractExport = serviceEffectGroupName(service);
+  const apiExport = verticalEffectApiExport(service);
+  const contractExport = verticalEffectGroupName(service);
   const stem = effectApiStem(service);
-  const groupName = serviceEffectGroupName(service);
-  const singular = serviceEffectErrorStem(service);
+  const groupName = verticalEffectGroupName(service);
+  const singular = verticalEffectErrorStem(service);
   const clientOptionsName = `${toPascalCase(stem)}ClientOptions`;
   const createClientName = `create${toPascalCase(stem)}Client`;
   const listName = `list${toPascalCase(stem)}`;
@@ -4027,7 +3856,7 @@ export function ${createClientName}(
   options: ${clientOptionsName} = {},
 ) {
   return makeEffectHttpApiClient(${apiExport}, {
-    baseUrl: options.baseUrl ?? ${contractExport}ApiContract.servicePrefix,
+    baseUrl: options.baseUrl ?? ${contractExport}ApiContract.apiPrefix,
   });
 }
 
@@ -4169,7 +3998,7 @@ function createEffectDomainOperations(app: {
   effectApi?: WorkspaceEffectApi;
 }): JsonValue {
   const stem = effectApiStem(app);
-  const group = serviceEffectGroupName(app);
+  const group = verticalEffectGroupName(app);
   const basePath = `/effect/${stem}`;
 
   if (stem === 'actions') {
@@ -4233,14 +4062,14 @@ function createEffectDomainOperations(app: {
       owner: app.id,
     },
     workspaceDetail: {
-      client: `get${toPascalCase(serviceEffectErrorStem(app))}`,
+      client: `get${toPascalCase(verticalEffectErrorStem(app))}`,
       method: 'GET',
       path: `${basePath}/:id`,
       resource: 'workspace-item',
       owner: app.id,
     },
     workspaceCreate: {
-      client: `create${toPascalCase(serviceEffectErrorStem(app))}`,
+      client: `create${toPascalCase(verticalEffectErrorStem(app))}`,
       method: 'POST',
       path: basePath,
       resource: group,
@@ -4449,8 +4278,8 @@ function createEffectOperationContract(target: {
 }): JsonValue {
   const stem = effectApiStem(target);
   return {
-    group: serviceEffectGroupName(target),
-    notFound: serviceEffectNotFoundErrorExport(target),
+    group: verticalEffectGroupName(target),
+    notFound: verticalEffectNotFoundErrorExport(target),
     operations: {
       list: {
         method: 'GET',
@@ -4873,7 +4702,6 @@ function createTemplateManifest(
         'oxlint.config.ts',
         'pnpm-workspace.yaml',
         'scripts/**',
-        'services/**',
         'topology/**',
         'tsconfig.base.json',
       ],
@@ -5033,7 +4861,7 @@ function createWorkspaceValidationScript(
     id: remote.id,
     domain: remote.domain,
     stem: remote.effectApi.stem,
-    group: serviceEffectGroupName(remote),
+    group: verticalEffectGroupName(remote),
     path: remote.directory,
     mfName: remote.mfName,
     apiPrefix: remote.effectApi.prefix,
@@ -5866,94 +5694,6 @@ function writeApp(
       }
     }
   }
-
-  if (app.kind === 'horizontal-design-system') {
-    writeAppFile('src/components/button.tsx', createDesignButton(app));
-    writeFile(
-      targetDir,
-      `${app.directory}/src/tokens.ts`,
-      createDesignTokens(),
-    );
-  }
-}
-
-function writeEffectService(
-  targetDir: string,
-  scope: string,
-  packageSource: ResolvedPackageSource,
-  enableTailwind: boolean,
-  service,
-) {
-  const tw = createTw(tailwindPrefixForService(service));
-  const writeServiceFile = (relativePath: string, content: string) => {
-    writeFile(targetDir, `${service.directory}/${relativePath}`, content);
-  };
-
-  writeJson(
-    targetDir,
-    `${service.directory}/package.json`,
-    createServicePackage(scope, packageSource, enableTailwind, service),
-  );
-  writeJson(
-    targetDir,
-    `${service.directory}/tsconfig.json`,
-    createPackageTsConfig(service.directory, true),
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/src/modern-app-env.d.ts`,
-    "/// <reference types='@modern-js/app-tools/types' />\n",
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/src/ultramodern-build.ts`,
-    createUltramodernBuildModule(scope, service),
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/src/routes/layout.tsx`,
-    createLayout(service.id),
-  );
-  writeServiceFile(
-    'src/routes/page.tsx',
-    `export default function ${toPascalCase(service.id)}Home() {
-  return (
-    <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
-      <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
-        <h1 className="${tw('text-3xl font-black')}">${service.id} Effect service</h1>
-      </section>
-    </main>
-  );
-}
-`,
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/src/routes/index.css`,
-    createServiceStyles(enableTailwind, scope, service),
-  );
-  if (enableTailwind) {
-    writeFile(
-      targetDir,
-      `${service.directory}/postcss.config.mjs`,
-      createPostcssConfig(),
-    );
-    writeFile(
-      targetDir,
-      `${service.directory}/tailwind.config.ts`,
-      createTailwindConfig(),
-    );
-  }
-  writeFile(
-    targetDir,
-    `${service.directory}/modern.config.ts`,
-    createServiceModernConfigFor(service),
-  );
-  writeFile(
-    targetDir,
-    `${service.directory}/api/effect/index.ts`,
-    createEffectServiceEntry(scope, service),
-  );
 }
 
 function writeGenericSharedPackage(
@@ -6064,7 +5804,7 @@ function appendEffectSharedApiContract(targetDir: string, service) {
     throw new Error(`Missing generated Effect API package: ${relativePath}`);
   }
   const current = fs.readFileSync(filePath, 'utf-8');
-  const apiExport = serviceEffectApiExport(service);
+  const apiExport = verticalEffectApiExport(service);
   if (current.includes(`export const ${apiExport} =`)) {
     return;
   }
