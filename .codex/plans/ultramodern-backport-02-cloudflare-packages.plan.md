@@ -4,19 +4,19 @@ overview: Modernize generated Cloudflare deployment and package version defaults
 todos:
   - id: audit-generated-deploy-scripts
     content: Audit generated deploy scripts and Modern.js integration points to identify which Cloudflare steps are genuinely required and which are demo-specific or redundant wrappers.
-    status: pending
+    status: completed
   - id: align-modernjs-version-defaults
     content: Update generated workspace package defaults to the required Modern.js 11.5.x line and current UltraModern package source behavior.
-    status: pending
+    status: completed
   - id: simplify-cloudflare-path
     content: Refactor Cloudflare deploy scaffolding so it uses Modern.js native build/deploy behavior as much as possible, with only necessary Worker-specific configuration and proof steps.
-    status: pending
+    status: completed
   - id: preserve-non-cloudflare-targets
     content: Validate that Cloudflare-specific environment variables, wrangler config generation, and deploy scripts do not break non-Cloudflare build or deploy targets.
-    status: pending
+    status: completed
   - id: wire-trusted-publishing-only
     content: Ensure package publication is documented and automated only through GitHub Actions trusted publishing, with no local npm publish workflow or manual package push path.
-    status: pending
+    status: completed
   - id: validate-release-candidate
     content: Run the package, generator, build, and scaffold verification gates required before opening the trusted-publishing release path.
     status: pending

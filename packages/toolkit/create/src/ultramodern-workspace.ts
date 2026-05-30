@@ -162,7 +162,7 @@ const shellApp: WorkspaceApp = {
   portEnv: 'SHELL_SUPER_APP_PORT',
   port: 3020,
   mfName: 'shellSuperApp',
-  verticalRefs: ['explore', 'decide', 'checkout'],
+  verticalRefs: ['workspace', 'records', 'actions'],
   ownership: {
     team: 'super-app-platform',
     slack: '#super-app-platform',
@@ -182,111 +182,111 @@ const shellApp: WorkspaceApp = {
 
 const verticalApps: WorkspaceApp[] = [
   {
-    id: 'explore',
-    directory: 'verticals/explore',
-    packageSuffix: 'explore',
-    displayName: 'Explore Vertical',
+    id: 'workspace',
+    directory: 'verticals/workspace',
+    packageSuffix: 'workspace',
+    displayName: 'Workspace Vertical',
     kind: 'vertical',
-    domain: 'explore',
-    portEnv: 'VERTICAL_EXPLORE_PORT',
+    domain: 'workspace',
+    portEnv: 'VERTICAL_WORKSPACE_PORT',
     port: 3021,
-    mfName: 'verticalExplore',
+    mfName: 'verticalWorkspace',
     exposes: {
       './Footer': './src/components/footer.tsx',
       './Header': './src/components/header.tsx',
-      './Recommendations': './src/components/recommendations.tsx',
+      './Highlights': './src/components/highlights.tsx',
+      './DirectoryPanel': './src/components/directory-panel.tsx',
       './Route': './src/federation-entry.tsx',
-      './StorePicker': './src/components/store-picker.tsx',
     },
     effectApi: {
-      stem: 'explore',
-      prefix: '/explore-api',
-      consumedBy: [shellApp.id, 'explore'],
+      stem: 'workspace',
+      prefix: '/workspace-api',
+      consumedBy: [shellApp.id, 'workspace'],
     },
     ownership: {
-      team: 'tractor-explore',
-      slack: '#tractor-explore',
-      pagerDuty: 'pd-tractor-explore',
-      runbookRef: 'runbooks/wave2/explore.md',
-      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#explore',
+      team: 'workspace-experience',
+      slack: '#workspace-experience',
+      pagerDuty: 'pd-workspace-experience',
+      runbookRef: 'runbooks/verticals/workspace.md',
+      adrRef: 'docs/architecture/verticals.md#workspace',
       blastRadius: {
-        tier: 'tier-1-tractor-discovery',
+        tier: 'tier-1-workspace-experience',
         references: [
-          'docs/super-app-rfc-adr/wave2/blast-radius.md#explore',
-          'docs/super-app-rfc-adr/wave2/rollback.md#explore-lkg',
+          'docs/architecture/blast-radius.md#workspace',
+          'docs/architecture/rollback.md#workspace-lkg',
         ],
       },
     },
   },
   {
-    id: 'decide',
-    directory: 'verticals/decide',
-    packageSuffix: 'decide',
-    displayName: 'Decide Vertical',
+    id: 'records',
+    directory: 'verticals/records',
+    packageSuffix: 'records',
+    displayName: 'Records Vertical',
     kind: 'vertical',
-    domain: 'decide',
-    portEnv: 'VERTICAL_DECIDE_PORT',
+    domain: 'records',
+    portEnv: 'VERTICAL_RECORDS_PORT',
     port: 3022,
-    mfName: 'verticalDecide',
-    verticalRefs: ['explore', 'checkout'],
+    mfName: 'verticalRecords',
+    verticalRefs: ['workspace', 'actions'],
     exposes: {
-      './ProductPage': './src/components/product-page.tsx',
+      './RecordPage': './src/components/record-page.tsx',
       './Route': './src/federation-entry.tsx',
     },
     effectApi: {
-      stem: 'decide',
-      prefix: '/decide-api',
-      consumedBy: [shellApp.id, 'decide'],
+      stem: 'records',
+      prefix: '/records-api',
+      consumedBy: [shellApp.id, 'records'],
     },
     ownership: {
-      team: 'tractor-decide',
-      slack: '#tractor-decide',
-      pagerDuty: 'pd-tractor-decide',
-      runbookRef: 'runbooks/wave2/decide.md',
-      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#decide',
+      team: 'records-experience',
+      slack: '#records-experience',
+      pagerDuty: 'pd-records-experience',
+      runbookRef: 'runbooks/verticals/records.md',
+      adrRef: 'docs/architecture/verticals.md#records',
       blastRadius: {
-        tier: 'tier-1-tractor-configuration',
+        tier: 'tier-1-records-experience',
         references: [
-          'docs/super-app-rfc-adr/wave2/blast-radius.md#decide',
-          'docs/super-app-rfc-adr/wave2/rollback.md#decide-lkg',
+          'docs/architecture/blast-radius.md#records',
+          'docs/architecture/rollback.md#records-lkg',
         ],
       },
     },
   },
   {
-    id: 'checkout',
-    directory: 'verticals/checkout',
-    packageSuffix: 'checkout',
-    displayName: 'Checkout Vertical',
+    id: 'actions',
+    directory: 'verticals/actions',
+    packageSuffix: 'actions',
+    displayName: 'Actions Vertical',
     kind: 'vertical',
-    domain: 'checkout',
-    portEnv: 'VERTICAL_CHECKOUT_PORT',
+    domain: 'actions',
+    portEnv: 'VERTICAL_ACTIONS_PORT',
     port: 3023,
-    mfName: 'verticalCheckout',
+    mfName: 'verticalActions',
     exposes: {
-      './AddToCart': './src/components/add-to-cart.tsx',
-      './CartPage': './src/components/cart-page.tsx',
-      './CheckoutPage': './src/components/checkout-page.tsx',
-      './MiniCart': './src/components/mini-cart.tsx',
+      './ActionQueue': './src/components/action-queue.tsx',
+      './ActionReviewPage': './src/components/action-review-page.tsx',
+      './ActionSuccessPage': './src/components/action-success-page.tsx',
       './Route': './src/federation-entry.tsx',
-      './ThanksPage': './src/components/thanks-page.tsx',
+      './StartAction': './src/components/start-action.tsx',
+      './StatusBadge': './src/components/status-badge.tsx',
     },
     effectApi: {
-      stem: 'checkout',
-      prefix: '/checkout-api',
-      consumedBy: [shellApp.id, 'checkout'],
+      stem: 'actions',
+      prefix: '/actions-api',
+      consumedBy: [shellApp.id, 'actions'],
     },
     ownership: {
-      team: 'tractor-checkout',
-      slack: '#tractor-checkout',
-      pagerDuty: 'pd-tractor-checkout',
-      runbookRef: 'runbooks/wave2/checkout.md',
-      adrRef: 'docs/super-app-rfc-adr/wave2/reference-topology.md#checkout',
+      team: 'actions-experience',
+      slack: '#actions-experience',
+      pagerDuty: 'pd-actions-experience',
+      runbookRef: 'runbooks/verticals/actions.md',
+      adrRef: 'docs/architecture/verticals.md#actions',
       blastRadius: {
-        tier: 'tier-1-tractor-purchase',
+        tier: 'tier-1-actions-experience',
         references: [
-          'docs/super-app-rfc-adr/wave2/blast-radius.md#checkout',
-          'docs/super-app-rfc-adr/wave2/rollback.md#checkout-lkg',
+          'docs/architecture/blast-radius.md#actions',
+          'docs/architecture/rollback.md#actions-lkg',
         ],
       },
     },
@@ -790,17 +790,17 @@ function createRootPackageJson(
       dev: `pnpm --parallel --filter ${packageName(
         scope,
         shellApp.packageSuffix,
-      )} --filter ${packageName(scope, 'explore')} --filter ${packageName(
+      )} --filter ${packageName(scope, 'workspace')} --filter ${packageName(
         scope,
-        'decide',
-      )} --filter ${packageName(scope, 'checkout')} dev`,
+        'records',
+      )} --filter ${packageName(scope, 'actions')} dev`,
       'dev:shell': `pnpm --filter ${packageName(
         scope,
         shellApp.packageSuffix,
       )} dev`,
-      'dev:explore': `pnpm --filter ${packageName(scope, 'explore')} dev`,
-      'dev:decide': `pnpm --filter ${packageName(scope, 'decide')} dev`,
-      'dev:checkout': `pnpm --filter ${packageName(scope, 'checkout')} dev`,
+      'dev:workspace': `pnpm --filter ${packageName(scope, 'workspace')} dev`,
+      'dev:records': `pnpm --filter ${packageName(scope, 'records')} dev`,
+      'dev:actions': `pnpm --filter ${packageName(scope, 'actions')} dev`,
       build:
         'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
       format: 'oxfmt .',
@@ -1040,7 +1040,7 @@ function createAppPackage(
       'cloudflare:build':
         'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       'cloudflare:deploy':
-        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       'cloudflare:preview':
         'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
       'cloudflare:proof': `node ${relativeRootFor(
@@ -1068,7 +1068,7 @@ function createAppPackage(
     });
   } else if (app.kind === 'shell') {
     Object.assign(packageExports, {
-      './effect/clients': './src/effect/recommendations-client.ts',
+      './effect/clients': './src/effect/vertical-clients.ts',
     });
   }
 
@@ -1650,198 +1650,198 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
       },
       {
         ...base,
-        canonicalPath: '/tractors',
-        id: 'shell-tractors',
+        canonicalPath: '/workspaces',
+        id: 'shell-workspaces',
         localisedPaths: {
-          cs: '/traktory',
-          en: '/tractors',
+          cs: '/pracovni-prostory',
+          en: '/workspaces',
         },
-        titleKey: 'shell.routes.listing',
+        titleKey: 'shell.routes.workspaces',
       },
       {
         ...base,
-        canonicalPath: '/stores',
-        id: 'shell-stores',
+        canonicalPath: '/directory',
+        id: 'shell-directory',
         localisedPaths: {
-          cs: '/prodejci',
-          en: '/stores',
+          cs: '/adresar',
+          en: '/directory',
         },
-        titleKey: 'shell.routes.storePicker',
+        titleKey: 'shell.routes.directory',
       },
       {
         ...base,
-        canonicalPath: '/tractors/:slug',
-        id: 'shell-product-detail',
+        canonicalPath: '/records/:slug',
+        id: 'shell-record-detail',
         localisedPaths: {
-          cs: '/traktory/:slug',
-          en: '/tractors/:slug',
+          cs: '/zaznamy/:slug',
+          en: '/records/:slug',
         },
-        titleKey: 'shell.routes.productDetail',
+        titleKey: 'shell.routes.recordDetail',
       },
       {
         ...base,
-        canonicalPath: '/cart',
-        id: 'shell-cart',
+        canonicalPath: '/actions',
+        id: 'shell-actions',
         localisedPaths: {
-          cs: '/kosik',
-          en: '/cart',
+          cs: '/akce',
+          en: '/actions',
         },
-        titleKey: 'shell.routes.cart',
-      },
-    ];
-  }
-
-  if (app.domain === 'explore') {
-    return [
-      {
-        ...base,
-        canonicalPath: '/',
-        id: 'explore-home',
-        localisedPaths: {
-          cs: '/',
-          en: '/',
-        },
-        titleKey: 'explore.title',
-      },
-      {
-        ...base,
-        canonicalPath: '/tractors',
-        id: 'explore-listing',
-        localisedPaths: {
-          cs: '/traktory',
-          en: '/tractors',
-        },
-        titleKey: 'explore.routes.listing',
-      },
-      {
-        ...base,
-        canonicalPath: '/stores',
-        id: 'explore-store-picker',
-        localisedPaths: {
-          cs: '/prodejci',
-          en: '/stores',
-        },
-        titleKey: 'explore.routes.storePicker',
-      },
-      {
-        ...base,
-        canonicalPath: '/unavailable',
-        id: 'explore-unavailable',
-        localisedPaths: {
-          cs: '/nedostupne',
-          en: '/unavailable',
-        },
-        titleKey: 'explore.routes.unavailable',
+        titleKey: 'shell.routes.actions',
       },
     ];
   }
 
-  if (app.domain === 'decide') {
+  if (app.domain === 'workspace') {
     return [
       {
         ...base,
         canonicalPath: '/',
-        id: 'decide-home',
+        id: 'workspace-home',
         localisedPaths: {
           cs: '/',
           en: '/',
         },
-        titleKey: 'decide.title',
+        titleKey: 'workspace.title',
       },
       {
         ...base,
-        canonicalPath: '/tractors',
-        id: 'decide-listing-parent',
+        canonicalPath: '/workspaces',
+        id: 'workspace-listing',
         localisedPaths: {
-          cs: '/traktory',
-          en: '/tractors',
+          cs: '/pracovni-prostory',
+          en: '/workspaces',
         },
-        titleKey: 'decide.routes.listing',
+        titleKey: 'workspace.routes.workspaces',
       },
       {
         ...base,
-        canonicalPath: '/tractors/:slug',
-        id: 'decide-product-detail',
+        canonicalPath: '/directory',
+        id: 'workspace-directory',
         localisedPaths: {
-          cs: '/traktory/:slug',
-          en: '/tractors/:slug',
+          cs: '/adresar',
+          en: '/directory',
         },
-        titleKey: 'decide.routes.productDetail',
+        titleKey: 'workspace.routes.directory',
       },
       {
         ...base,
         canonicalPath: '/unavailable',
-        id: 'decide-unavailable',
+        id: 'workspace-unavailable',
         localisedPaths: {
           cs: '/nedostupne',
           en: '/unavailable',
         },
-        titleKey: 'decide.routes.unavailable',
+        titleKey: 'workspace.routes.unavailable',
       },
     ];
   }
 
-  if (app.domain === 'checkout') {
+  if (app.domain === 'records') {
     return [
       {
         ...base,
         canonicalPath: '/',
-        id: 'checkout-home',
+        id: 'records-home',
         localisedPaths: {
           cs: '/',
           en: '/',
         },
-        titleKey: 'checkout.title',
+        titleKey: 'records.title',
       },
       {
         ...base,
-        canonicalPath: '/cart',
-        id: 'checkout-cart',
+        canonicalPath: '/workspaces',
+        id: 'records-workspace-parent',
         localisedPaths: {
-          cs: '/kosik',
-          en: '/cart',
+          cs: '/pracovni-prostory',
+          en: '/workspaces',
         },
-        titleKey: 'checkout.routes.cart',
+        titleKey: 'records.routes.workspaces',
       },
       {
         ...base,
-        canonicalPath: '/checkout',
-        id: 'checkout-start',
+        canonicalPath: '/records/:slug',
+        id: 'records-detail',
         localisedPaths: {
-          cs: '/pokladna',
-          en: '/checkout',
+          cs: '/zaznamy/:slug',
+          en: '/records/:slug',
         },
-        titleKey: 'checkout.routes.checkout',
-      },
-      {
-        ...base,
-        canonicalPath: '/checkout/thank-you',
-        id: 'checkout-thank-you-parent',
-        localisedPaths: {
-          cs: '/pokladna/dekujeme',
-          en: '/checkout/thank-you',
-        },
-        titleKey: 'checkout.routes.thankYou',
-      },
-      {
-        ...base,
-        canonicalPath: '/checkout/thank-you/:orderId?',
-        id: 'checkout-thank-you',
-        localisedPaths: {
-          cs: '/pokladna/dekujeme/:orderId?',
-          en: '/checkout/thank-you/:orderId?',
-        },
-        titleKey: 'checkout.routes.thankYou',
+        titleKey: 'records.routes.recordDetail',
       },
       {
         ...base,
         canonicalPath: '/unavailable',
-        id: 'checkout-unavailable',
+        id: 'records-unavailable',
         localisedPaths: {
           cs: '/nedostupne',
           en: '/unavailable',
         },
-        titleKey: 'checkout.routes.unavailable',
+        titleKey: 'records.routes.unavailable',
+      },
+    ];
+  }
+
+  if (app.domain === 'actions') {
+    return [
+      {
+        ...base,
+        canonicalPath: '/',
+        id: 'actions-home',
+        localisedPaths: {
+          cs: '/',
+          en: '/',
+        },
+        titleKey: 'actions.title',
+      },
+      {
+        ...base,
+        canonicalPath: '/actions',
+        id: 'actions-queue',
+        localisedPaths: {
+          cs: '/akce',
+          en: '/actions',
+        },
+        titleKey: 'actions.routes.actions',
+      },
+      {
+        ...base,
+        canonicalPath: '/actions/review',
+        id: 'actions-review',
+        localisedPaths: {
+          cs: '/akce/revize',
+          en: '/actions/review',
+        },
+        titleKey: 'actions.routes.review',
+      },
+      {
+        ...base,
+        canonicalPath: '/actions/done',
+        id: 'actions-done-parent',
+        localisedPaths: {
+          cs: '/akce/hotovo',
+          en: '/actions/done',
+        },
+        titleKey: 'actions.routes.done',
+      },
+      {
+        ...base,
+        canonicalPath: '/actions/done/:actionId?',
+        id: 'actions-done',
+        localisedPaths: {
+          cs: '/akce/hotovo/:actionId?',
+          en: '/actions/done/:actionId?',
+        },
+        titleKey: 'actions.routes.done',
+      },
+      {
+        ...base,
+        canonicalPath: '/unavailable',
+        id: 'actions-unavailable',
+        localisedPaths: {
+          cs: '/nedostupne',
+          en: '/unavailable',
+        },
+        titleKey: 'actions.routes.unavailable',
       },
     ];
   }
@@ -1922,6 +1922,21 @@ function createRouteAliasPage(canonicalPath: string): string {
 `;
 }
 
+function createBoundaryDebugMetadata(scope: string): JsonValue {
+  return {
+    schemaVersion: 1,
+    appId: shellApp.id,
+    boundaries: [shellApp, ...verticalApps].map(app => ({
+      appId: app.id,
+      mfName: app.mfName,
+      packageName: packageName(scope, app.packageSuffix),
+      role: app.kind === 'shell' ? 'host' : 'vertical',
+      ownerTeam: app.ownership.team,
+      label: app.displayName,
+    })),
+  };
+}
+
 function createAppEnvDts(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = verticalApps,
@@ -1990,32 +2005,21 @@ export default defineConfig(
 `;
 }
 
-function createAppRuntimeConfig(app: WorkspaceApp): string {
-  const namespace = appI18nNamespace(app);
-  const localeMessages = (language: 'en' | 'cs') => {
-    if (app.kind !== 'shell') {
-      return createAppLocaleMessages(app, language);
-    }
-
-    return Object.assign(
-      {},
-      createAppLocaleMessages(app, language),
-      ...verticalApps.map(remote => createAppLocaleMessages(remote, language)),
-    );
-  };
-  const resources = {
-    cs: {
-      [namespace]: localeMessages('cs'),
-      translation: localeMessages('cs'),
-    },
-    en: {
-      [namespace]: localeMessages('en'),
-      translation: localeMessages('en'),
-    },
-  };
+function createAppRuntimeConfig(app: WorkspaceApp, scope: string): string {
+  const pluginsConfig =
+    app.kind === 'shell'
+      ? `  plugins: [
+    ultramodernBoundaryDebuggerPlugin({
+      metadata: ${JSON.stringify(createBoundaryDebugMetadata(scope), null, 6)
+        .split('\n')
+        .join('\n      ')},
+    }),
+  ],
+`
+      : '';
 
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
-import { createInstance } from 'i18next';
+${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import { createInstance } from 'i18next';
 import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
 
 const i18nInstance = createInstance();
@@ -2030,15 +2034,13 @@ export default defineRuntimeConfig({
         escapeValue: false,
       },
       ns: [ultramodernRouteNamespace, 'translation'],
-      resources: ${JSON.stringify(resources, null, 8)
-        .split('\n')
-        .join('\n      ')},
       supportedLngs: ['en', 'cs'],
     },
   },
   router: {
     framework: 'tanstack',
   },
+${pluginsConfig}
 });
 `;
 }
@@ -2158,161 +2160,7 @@ function createTw(prefix: string) {
       .join(' ');
 }
 
-function createCommerceAssetSvg(
-  title: string,
-  palette: { accent: string; ground: string; sky: string; tractor: string },
-): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="${title}">
-  <defs>
-    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0" stop-color="${palette.sky}"/>
-      <stop offset="1" stop-color="#fff8dc"/>
-    </linearGradient>
-    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="${palette.ground}"/>
-      <stop offset="1" stop-color="${palette.accent}"/>
-    </linearGradient>
-  </defs>
-  <rect width="1440" height="900" fill="url(#sky)"/>
-  <path d="M0 566c172-78 330-102 474-72 125 26 219 91 340 106 170 21 339-74 626-43v343H0z" fill="url(#field)"/>
-  <path d="M0 686c205-70 451-66 738 12 287 77 521 66 702-33v235H0z" fill="#4f7f38" opacity=".55"/>
-  <g fill="none" stroke="#fff6b7" stroke-linecap="round" stroke-width="10" opacity=".55">
-    <path d="M108 820c205-138 382-202 530-192"/>
-    <path d="M322 862c176-134 338-198 486-193"/>
-    <path d="M583 886c119-121 260-190 422-207"/>
-    <path d="M868 878c95-94 207-153 336-176"/>
-  </g>
-  <g transform="translate(430 430)">
-    <circle cx="170" cy="210" r="92" fill="#161616"/>
-    <circle cx="170" cy="210" r="54" fill="#d7c46d"/>
-    <circle cx="514" cy="214" r="108" fill="#161616"/>
-    <circle cx="514" cy="214" r="63" fill="#d7c46d"/>
-    <path d="M194 142h194l72-100h114c49 0 89 39 89 88v57H625l-51-90H452l-78 114H209z" fill="${palette.tractor}"/>
-    <path d="M283 67h134l-54 73H249z" fill="#c9ecff" opacity=".72"/>
-    <path d="M120 184h430v54H120z" fill="${palette.tractor}"/>
-    <path d="M578 52l60-35M618 37l34 72" stroke="#171717" stroke-linecap="round" stroke-width="14"/>
-    <path d="M90 236h578" stroke="#171717" stroke-linecap="round" stroke-width="18"/>
-  </g>
-</svg>
-`;
-}
-
-const commerceAssetPublicRoot = 'assets/ultramodern';
-
-function commerceAssetPublicPath(filename: string): string {
-  return `${commerceAssetPublicRoot}/${filename}`;
-}
-
-function commerceAssetUrl(filename: string): string {
-  return `/${commerceAssetPublicRoot}/${filename}`;
-}
-
-function commerceAssetsForApp(app: WorkspaceApp): Record<string, string> {
-  if (app.kind === 'shell') {
-    return {
-      [commerceAssetPublicPath('hero-field.svg')]: createCommerceAssetSvg(
-        'Tractor crossing cultivated fields',
-        {
-          accent: '#d6b85d',
-          ground: '#84ad58',
-          sky: '#9fd6e8',
-          tractor: '#005f73',
-        },
-      ),
-      [commerceAssetPublicPath('autonomy.svg')]: createCommerceAssetSvg(
-        'Autonomous tractor concept',
-        {
-          accent: '#c26a2e',
-          ground: '#668f55',
-          sky: '#d5e7de',
-          tractor: '#f2a51a',
-        },
-      ),
-      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
-        'Field Loader 112 tractor',
-        {
-          accent: '#d6b85d',
-          ground: '#84ad58',
-          sky: '#9fd6e8',
-          tractor: '#00624b',
-        },
-      ),
-      [commerceAssetPublicPath('orchard.svg')]: createCommerceAssetSvg(
-        'Orchard tractor between tight rows',
-        {
-          accent: '#b45b2d',
-          ground: '#6f9b4a',
-          sky: '#c9ebff',
-          tractor: '#1d5d9b',
-        },
-      ),
-      [commerceAssetPublicPath('vineyard.svg')]: createCommerceAssetSvg(
-        'Vineyard narrow tractor',
-        {
-          accent: '#b88d58',
-          ground: '#5e8a45',
-          sky: '#f1dcb9',
-          tractor: '#914d76',
-        },
-      ),
-    };
-  }
-
-  if (app.id === 'explore') {
-    return {
-      [commerceAssetPublicPath('autonomy.svg')]: createCommerceAssetSvg(
-        'Autonomous tractor concept',
-        {
-          accent: '#c26a2e',
-          ground: '#668f55',
-          sky: '#d5e7de',
-          tractor: '#f2a51a',
-        },
-      ),
-      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
-        'Field Loader 112 tractor',
-        {
-          accent: '#d6b85d',
-          ground: '#84ad58',
-          sky: '#9fd6e8',
-          tractor: '#00624b',
-        },
-      ),
-      [commerceAssetPublicPath('orchard.svg')]: createCommerceAssetSvg(
-        'Orchard tractor between tight rows',
-        {
-          accent: '#b45b2d',
-          ground: '#6f9b4a',
-          sky: '#c9ebff',
-          tractor: '#1d5d9b',
-        },
-      ),
-      [commerceAssetPublicPath('vineyard.svg')]: createCommerceAssetSvg(
-        'Vineyard narrow tractor',
-        {
-          accent: '#b88d58',
-          ground: '#5e8a45',
-          sky: '#f1dcb9',
-          tractor: '#914d76',
-        },
-      ),
-    };
-  }
-
-  if (app.id === 'decide') {
-    return {
-      [commerceAssetPublicPath('field-loader.svg')]: createCommerceAssetSvg(
-        'Field Loader 112 tractor detail',
-        {
-          accent: '#d6b85d',
-          ground: '#84ad58',
-          sky: '#9fd6e8',
-          tractor: '#00624b',
-        },
-      ),
-    };
-  }
-
+function workspaceAssetsForApp(_app: WorkspaceApp): Record<string, string> {
   return {};
 }
 
@@ -2470,19 +2318,17 @@ const LocalizedHead = () => {
 function createShellPage(): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../shell-frame';
-import { StorePicker } from '../vertical-components';
+import { DirectoryPanel, Highlights } from '../vertical-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
-const heroField = '${commerceAssetUrl('hero-field.svg')}';
-
 ${createLocalizedHeadComponent()}
 export default function ShellHome() {
-  const { i18nInstance, language } = useModernI18n();
+  const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
@@ -2494,17 +2340,31 @@ export default function ShellHome() {
           <h1 className="${tw('mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('shell.title')}</h1>
           <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('shell.hero.lede')}</p>
           <div className="${tw('mt-7 flex flex-wrap gap-3')}">
-            <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" href={\`/\${language}/tractors/field-loader-112\`}>
-            {t('shell.hero.primary')}
-            </a>
-            <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" href={\`/\${language}/tractors\`}>
-            {t('shell.hero.secondary')}
-            </a>
+            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/records/starter-record">
+              {t('shell.hero.primary')}
+            </I18nLink>
+            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/workspaces">
+              {t('shell.hero.secondary')}
+            </I18nLink>
           </div>
         </div>
-        <img alt="" className="${tw('aspect-[16/10] w-full rounded-3xl bg-stone-200 object-cover shadow-2xl shadow-stone-900/20')}" src={heroField} />
+        <div className="${tw('rounded-3xl bg-white/90 p-6 shadow-2xl shadow-stone-900/15')}">
+          <div className="${tw('grid gap-4 sm:grid-cols-2')}">
+            <article className="${tw('rounded-2xl bg-emerald-50 p-5')}">
+              <span className="${tw('text-sm font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('shell.hero.cardOneKicker')}</span>
+              <strong className="${tw('mt-3 block text-3xl font-black text-stone-950')}">3</strong>
+              <p className="${tw('mt-2 text-sm font-semibold text-stone-600')}">{t('shell.hero.cardOne')}</p>
+            </article>
+            <article className="${tw('rounded-2xl bg-amber-50 p-5')}">
+              <span className="${tw('text-sm font-black uppercase tracking-[0.16em] text-amber-800')}">{t('shell.hero.cardTwoKicker')}</span>
+              <strong className="${tw('mt-3 block text-3xl font-black text-stone-950')}">SSR</strong>
+              <p className="${tw('mt-2 text-sm font-semibold text-stone-600')}">{t('shell.hero.cardTwo')}</p>
+            </article>
+          </div>
+        </div>
       </section>
-      <StorePicker />
+      <Highlights />
+      <DirectoryPanel />
       <p className="${tw('sr-only')}" data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
@@ -2515,76 +2375,76 @@ export default function ShellHome() {
 `;
 }
 
-function createShellTractorsPage(): string {
+function createShellWorkspacesPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { Recommendations } from '../../vertical-components';
+import { Highlights } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
-export default function ShellTractorsPage() {
+export default function ShellWorkspacesPage() {
   return (
     <ShellFrame>
       <LocalizedHead />
-      <Recommendations />
+      <Highlights />
     </ShellFrame>
   );
 }
 `;
 }
 
-function createShellStoresPage(): string {
+function createShellDirectoryPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { StorePicker } from '../../vertical-components';
+import { DirectoryPanel } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
-export default function ShellStoresPage() {
+export default function ShellDirectoryPage() {
   return (
     <ShellFrame>
       <LocalizedHead />
-      <StorePicker />
+      <DirectoryPanel />
     </ShellFrame>
   );
 }
 `;
 }
 
-function createShellProductPage(): string {
+function createShellRecordPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../../shell-frame';
-import { ProductPage } from '../../../vertical-components';
+import { RecordPage } from '../../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
-export default function ShellProductPage() {
+export default function ShellRecordPage() {
   return (
-    <ShellFrame boundary="decide">
+    <ShellFrame>
       <LocalizedHead />
-      <ProductPage />
+      <RecordPage />
     </ShellFrame>
   );
 }
 `;
 }
 
-function createShellCartPage(): string {
+function createShellActionsPage(): string {
   return `import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../../shell-frame';
-import { CartPage } from '../../vertical-components';
+import { ActionQueue } from '../../vertical-components';
 import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
 ${createLocalizedHeadComponent()}
-export default function ShellCartPage() {
+export default function ShellActionsPage() {
   return (
-    <ShellFrame boundary="checkout" showCart={false}>
+    <ShellFrame>
       <LocalizedHead />
-      <CartPage />
+      <ActionQueue />
     </ShellFrame>
   );
 }
@@ -2597,17 +2457,14 @@ function createShellFrameComponent(): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import type { ReactNode } from 'react';
-import BoundaryOverlay from './boundary-overlay';
-import { Header, MiniCart } from './vertical-components';
+import { Header, StatusBadge } from './vertical-components';
 import { ultramodernLocalisedUrls } from './ultramodern-route-metadata';
 
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 
 type ShellFrameProps = {
-  boundary?: 'checkout' | 'decide' | 'explore';
   children: ReactNode;
-  showCart?: boolean;
 };
 
 const localisedUrls = ultramodernLocalisedUrls as Record<
@@ -2725,14 +2582,14 @@ const locationSuffix = (location: {
   return \`\${locationSearch}\${locationHash}\`;
 };
 
-export default function ShellFrame({ boundary = 'explore', children, showCart = true }: ShellFrameProps) {
+export default function ShellFrame({ children }: ShellFrameProps) {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
   const location = useLocation();
   const suffix = locationSuffix(location);
 
   return (
-    <main className="${tw('min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12')}" data-mf-page-boundary={boundary}>
+    <main className="${tw('min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12')}">
       <div className="${tw('mx-auto flex min-h-20 max-w-7xl flex-col items-start gap-3 bg-white/90 px-4 py-3 shadow-xl shadow-stone-900/10 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between')}">
         <Header />
         <div className="${tw('flex min-w-0 flex-wrap items-center gap-2 md:ml-auto')}">
@@ -2761,191 +2618,11 @@ export default function ShellFrame({ boundary = 'explore', children, showCart = 
               🇨🇿
             </option>
           </select>
-          {showCart ? <MiniCart /> : null}
+          <StatusBadge />
         </div>
       </div>
-      <BoundaryOverlay />
       {children}
     </main>
-  );
-}
-`;
-}
-
-function createShellBoundaryOverlay(): string {
-  const tw = createTw(tailwindPrefixForApp(shellApp));
-
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-
-type BoundaryConfig = {
-  color: string;
-  label: string;
-};
-
-type BoundaryBox = BoundaryConfig & {
-  height: number;
-  id: string;
-  labelPlacement: 'above' | 'edge' | 'inside';
-  left: number;
-  top: number;
-  width: number;
-};
-
-declare global {
-  interface Window {
-    __ULTRAMODERN_BOUNDARIES__?: Partial<Record<string, Partial<BoundaryConfig>>>;
-  }
-}
-
-const defaultBoundaryColors = {
-  checkout: 'var(--um-boundary-checkout, #f6cf45)',
-  decide: 'var(--um-boundary-decide, #30e27a)',
-  explore: 'var(--um-boundary-explore, #ff5a5f)',
-} as const;
-
-const boundaryIds = ['explore', 'decide', 'checkout'] as const;
-
-export default function BoundaryOverlay() {
-  const { i18nInstance, language } = useModernI18n();
-  const [mounted, setMounted] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [boxes, setBoxes] = useState<BoundaryBox[]>([]);
-  const boundaryConfig = useMemo(() => {
-    const t = i18nInstance['t'].bind(i18nInstance);
-    const runtimeOverrides =
-      typeof window === 'undefined'
-        ? {}
-        : (window.__ULTRAMODERN_BOUNDARIES__ ?? {});
-
-    return Object.fromEntries(
-      boundaryIds.map(id => [
-        id,
-        {
-          color: runtimeOverrides[id]?.color ?? defaultBoundaryColors[id],
-          label: runtimeOverrides[id]?.label ?? t(\`shell.boundaries.\${id}\`),
-        },
-      ]),
-    ) as Record<string, BoundaryConfig>;
-  }, [i18nInstance, language]);
-  const toggleLabel = i18nInstance['t'].bind(i18nInstance)(
-    'shell.boundaries.toggle',
-  );
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!enabled) {
-      setBoxes([]);
-      return;
-    }
-
-    const readBoxes = () => {
-      const nextBoxes = Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '[data-mf-page-boundary], [data-mf-boundary]',
-        ),
-      )
-        .map((element, index) => {
-          const pageBoundary = element.dataset.mfPageBoundary;
-          const id = pageBoundary ?? element.dataset.mfBoundary ?? 'unknown';
-          const rect = element.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) {
-            return undefined;
-          }
-          const fallback = {
-            color: 'var(--um-boundary-unknown, #7c8cff)',
-            label: id,
-          };
-          const config = boundaryConfig[id] ?? fallback;
-
-          return {
-            ...config,
-            height: rect.height,
-            id: \`\${id}-\${index}\`,
-            labelPlacement: pageBoundary ? 'edge' : rect.height < 48 ? 'above' : 'inside',
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-          } satisfies BoundaryBox;
-        })
-        .filter((box): box is BoundaryBox => box !== undefined);
-
-      setBoxes(nextBoxes);
-    };
-
-    readBoxes();
-
-    const resizeObserver = new ResizeObserver(readBoxes);
-    for (const element of document.querySelectorAll<HTMLElement>(
-      '[data-mf-page-boundary], [data-mf-boundary]',
-    )) {
-      resizeObserver.observe(element);
-    }
-
-    const mutationObserver = new MutationObserver(readBoxes);
-    mutationObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-
-    window.addEventListener('resize', readBoxes);
-    window.addEventListener('scroll', readBoxes, true);
-
-    return () => {
-      mutationObserver.disconnect();
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', readBoxes);
-      window.removeEventListener('scroll', readBoxes, true);
-    };
-  }, [boundaryConfig, enabled]);
-
-  if (!mounted) {
-    return null;
-  }
-
-  return (
-    <>
-      <label className="${tw('fixed bottom-5 left-5 z-[80] flex items-center gap-2 rounded-xl border border-stone-900/10 bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-2xl shadow-stone-900/15')}">
-        <input
-          className="${tw('size-4 accent-emerald-800')}"
-          checked={enabled}
-          onChange={event => setEnabled(event.currentTarget.checked)}
-          type="checkbox"
-        />
-        <span>{toggleLabel}</span>
-      </label>
-      {enabled ? (
-        <div aria-hidden="true" className="${tw('pointer-events-none fixed inset-0 z-[70]')}">
-          {boxes.map(box => (
-            <div
-              className="${tw('fixed rounded-lg border-2')}"
-              data-label-placement={box.labelPlacement}
-              key={box.id}
-              style={
-                {
-                  borderColor: box.color,
-                  boxShadow: \`0 0 0 1px rgba(255,255,255,.72), 0 6px 20px color-mix(in srgb, \${box.color} 20%, transparent)\`,
-                  height: box.height,
-                  left: box.left,
-                  top: box.top,
-                  width: box.width,
-                } as CSSProperties
-              }
-            >
-              <span
-                className={\`${tw('absolute whitespace-nowrap rounded-full px-2 py-1 text-[0.7rem] font-black leading-none text-stone-950')} \${box.labelPlacement === 'above' ? '${tw('bottom-[calc(100%+0.25rem)] right-1 top-auto')}' : box.labelPlacement === 'edge' ? '${tw('left-0 top-28 -translate-x-[calc(100%-1px)] -rotate-90 rounded-b-none')}' : '${tw('right-1 top-1')}'}\`}
-                style={{ backgroundColor: box.color }}
-              >
-                {box.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </>
   );
 }
 `;
@@ -2957,12 +2634,13 @@ function createShellRemoteComponents(scope: string): string {
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import HeaderServer from '${packageName(scope, 'explore')}/Header';
-import StorePickerServer from '${packageName(scope, 'explore')}/StorePicker';
-import RecommendationsServer from '${packageName(scope, 'explore')}/Recommendations';
-import ProductPageServer from '${packageName(scope, 'decide')}/ProductPage';
-import MiniCartServer from '${packageName(scope, 'checkout')}/MiniCart';
-import CartPageServer from '${packageName(scope, 'checkout')}/CartPage';
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import HeaderServer from '${packageName(scope, 'workspace')}/Header';
+import DirectoryPanelServer from '${packageName(scope, 'workspace')}/DirectoryPanel';
+import HighlightsServer from '${packageName(scope, 'workspace')}/Highlights';
+import RecordPageServer from '${packageName(scope, 'records')}/RecordPage';
+import ActionQueueServer from '${packageName(scope, 'actions')}/ActionQueue';
+import StatusBadgeServer from '${packageName(scope, 'actions')}/StatusBadge';
 
 type RemoteComponentModule = {
   default: ComponentType;
@@ -2977,8 +2655,11 @@ const loadRemoteComponent = async (specifier: string) => {
 };
 
 const remoteFallback =
-  ({ error }: { error: Error }) =>
-    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Vertical unavailable</div>;
+  ({ error }: { error: Error }) => {
+    const { i18nInstance } = useModernI18n();
+    const t = i18nInstance['t'].bind(i18nInstance);
+    return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>{t('shell.remoteUnavailable')}</div>;
+  };
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3020,12 +2701,12 @@ const createHydratedRemote = (
   };
 };
 
-export const Header = createHydratedRemote(HeaderServer, 'explore/Header');
-export const StorePicker = createHydratedRemote(StorePickerServer, 'explore/StorePicker');
-export const Recommendations = createHydratedRemote(RecommendationsServer, 'explore/Recommendations');
-export const ProductPage = createHydratedRemote(ProductPageServer, 'decide/ProductPage');
-export const MiniCart = createHydratedRemote(MiniCartServer, 'checkout/MiniCart');
-export const CartPage = createHydratedRemote(CartPageServer, 'checkout/CartPage');
+export const Header = createHydratedRemote(HeaderServer, 'workspace/Header');
+export const DirectoryPanel = createHydratedRemote(DirectoryPanelServer, 'workspace/DirectoryPanel');
+export const Highlights = createHydratedRemote(HighlightsServer, 'workspace/Highlights');
+export const RecordPage = createHydratedRemote(RecordPageServer, 'records/RecordPage');
+export const ActionQueue = createHydratedRemote(ActionQueueServer, 'actions/ActionQueue');
+export const StatusBadge = createHydratedRemote(StatusBadgeServer, 'actions/StatusBadge');
 `;
 }
 
@@ -3120,22 +2801,28 @@ export default function Layout() {
 
 function createRemoteEntry(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
+  const domain = app.domain ?? app.id;
 
-  if (app.exposes?.['./ProductPage']) {
-    return `export { default } from './components/product-page';
+  if (app.exposes?.['./RecordPage']) {
+    return `export { default } from './components/record-page';
 `;
   }
 
-  if (app.exposes?.['./CartPage']) {
-    return `export { default } from './components/cart-page';
+  if (app.exposes?.['./ActionQueue']) {
+    return `export { default } from './components/action-queue';
 `;
   }
 
-  return `export default function ${toPascalCase(app.domain ?? app.id)}Route() {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function ${toPascalCase(domain)}Route() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
   return (
     <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}" data-mf-expose="./Route">
-      <h2 className="${tw('text-2xl font-black')}">${app.displayName}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">Route surface for ${app.domain ?? app.id}.</p>
+      <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.routeSurface')}</p>
     </section>
   );
 }
@@ -3144,17 +2831,19 @@ function createRemoteEntry(app: WorkspaceApp): string {
 
 function createRemoteWidget(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
-  const componentName = `${toPascalCase(app.domain ?? app.id)}Widget`;
-  const body =
-    app.kind === 'vertical'
-      ? `Owns the ${app.domain} vertical route surface.`
-      : 'Provides shared UI primitives for the workspace.';
+  const domain = app.domain ?? app.id;
+  const componentName = `${toPascalCase(domain)}Widget`;
 
-  return `export default function ${componentName}() {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function ${componentName}() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
   return (
     <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}">
-      <h2 className="${tw('text-2xl font-black')}">${app.displayName}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">${body}</p>
+      <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.widgetBody')}</p>
     </section>
   );
 }
@@ -3167,19 +2856,19 @@ function createRemoteExposeComponent(
 ): string {
   const tw = createTw(tailwindPrefixForApp(app));
 
-  if (app.id === 'explore' && expose === './Header') {
-    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  if (app.id === 'workspace' && expose === './Header') {
+    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function Header() {
-  const { i18nInstance, language } = useModernI18n();
+  const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-mf-boundary="explore">
-      <a className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" href={\`/\${language}\`}>Acre & Iron</a>
-      <nav aria-label={t('explore.header.navigation')} className="${tw('flex items-center gap-5')}">
-        <a className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" href={\`/\${language}/tractors\`}>{t('explore.header.machines')}</a>
-        <a className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" href={\`/\${language}/stores\`}>{t('explore.header.stores')}</a>
+    <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
+      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('workspace.header.brand')}</I18nLink>
+      <nav aria-label={t('workspace.header.navigation')} className="${tw('flex items-center gap-5')}">
+        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/workspaces">{t('workspace.header.workspaces')}</I18nLink>
+        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/directory">{t('workspace.header.directory')}</I18nLink>
       </nav>
     </header>
   );
@@ -3187,30 +2876,28 @@ export default function Header() {
 `;
   }
 
-  if (app.id === 'explore' && expose === './Recommendations') {
-    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  if (app.id === 'workspace' && expose === './Highlights') {
+    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
-const tractors = [
-  { badge: 'explore.recommendations.bestRows', image: '${commerceAssetUrl('orchard.svg')}', name: 'Orchard Tractor', slug: 'orchard-tractor' },
-  { badge: 'explore.recommendations.aiFirst', image: '${commerceAssetUrl('autonomy.svg')}', name: 'Autonomy Retrofit Kit', slug: 'autonomy-retrofit-kit' },
-  { badge: 'explore.recommendations.loaderReady', image: '${commerceAssetUrl('field-loader.svg')}', name: 'Field Loader 112', slug: 'field-loader-112' },
-  { badge: 'explore.recommendations.vineyard', image: '${commerceAssetUrl('vineyard.svg')}', name: 'Vineyard Narrow 80', slug: 'vineyard-narrow-80' },
+const highlights = [
+  { badge: 'workspace.highlights.shell', href: '/workspaces', name: 'workspace.highlights.shellTitle' },
+  { badge: 'workspace.highlights.records', href: '/records/starter-record', name: 'workspace.highlights.recordsTitle' },
+  { badge: 'workspace.highlights.actions', href: '/actions', name: 'workspace.highlights.actionsTitle' },
 ] as const;
 
-export default function Recommendations() {
-  const { i18nInstance, language } = useModernI18n();
+export default function Highlights() {
+  const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-mf-boundary="explore">
-      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('explore.recommendations.title')}</h2>
-      <div className="${tw('mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4')}">
-        {tractors.map(tractor => (
-          <a className="${tw('block rounded-2xl bg-white/90 p-4 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" href={\`/\${language}/tractors/\${tractor.slug}\`} key={tractor.slug}>
-            <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={tractor.image} />
-            <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-amber-700')}">{t(tractor.badge)}</span>
-            <strong className="${tw('mt-2 block text-xl font-black leading-tight')}">{tractor.name}</strong>
-          </a>
+    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
+      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('workspace.highlights.title')}</h2>
+      <div className="${tw('mt-5 grid gap-4 md:grid-cols-3')}">
+        {highlights.map(highlight => (
+          <I18nLink className="${tw('block rounded-2xl bg-white/90 p-5 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" key={highlight.href} to={highlight.href}>
+            <span className="${tw('text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t(highlight.badge)}</span>
+            <strong className="${tw('mt-3 block text-xl font-black leading-tight')}">{t(highlight.name)}</strong>
+          </I18nLink>
         ))}
       </div>
     </section>
@@ -3219,29 +2906,26 @@ export default function Recommendations() {
 `;
   }
 
-  if (app.id === 'explore' && expose === './StorePicker') {
+  if (app.id === 'workspace' && expose === './DirectoryPanel') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
-const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
-const vineyardImage = '${commerceAssetUrl('vineyard.svg')}';
-
-export default function StorePicker() {
+export default function DirectoryPanel() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-mf-boundary="explore">
-      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('explore.stores.title')}</h2>
+    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
+      <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('workspace.directory.title')}</h2>
       <div className="${tw('mt-5 grid gap-4 md:grid-cols-2')}">
-        <article className="${tw('rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10')}">
-          <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={fieldLoaderImage} />
-          <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('explore.stores.northRegion')}</span>
-          <strong className="${tw('mt-2 block text-2xl font-black')}">Bohemia Field Supply</strong>
+        <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
+          <span className="${tw('text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('workspace.directory.platformTeam')}</span>
+          <strong className="${tw('mt-2 block text-2xl font-black')}">{t('workspace.directory.platformName')}</strong>
+          <p className="${tw('mt-2 text-sm font-semibold text-stone-600')}">{t('workspace.directory.platformCopy')}</p>
         </article>
-        <article className="${tw('rounded-2xl bg-white/90 p-4 shadow-xl shadow-stone-900/10')}">
-          <img alt="" className="${tw('aspect-video w-full rounded-xl bg-stone-200 object-cover')}" src={vineyardImage} />
-          <span className="${tw('mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('explore.stores.southRegion')}</span>
-          <strong className="${tw('mt-2 block text-2xl font-black')}">Moravia Iron Works</strong>
+        <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
+          <span className="${tw('text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('workspace.directory.deliveryTeam')}</span>
+          <strong className="${tw('mt-2 block text-2xl font-black')}">{t('workspace.directory.deliveryName')}</strong>
+          <p className="${tw('mt-2 text-sm font-semibold text-stone-600')}">{t('workspace.directory.deliveryCopy')}</p>
         </article>
       </div>
     </section>
@@ -3250,9 +2934,14 @@ export default function StorePicker() {
 `;
   }
 
-  if (app.id === 'explore' && expose === './Footer') {
-    return `export default function Footer() {
-  return <footer className="${tw('mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600')}" data-mf-boundary="explore">Acre & Iron</footer>;
+  if (app.id === 'workspace' && expose === './Footer') {
+    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function Footer() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
+  return <footer className="${tw('mx-auto mt-12 max-w-7xl text-sm font-bold text-stone-600')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">{t('workspace.footer')}</footer>;
 }
 `;
   }
@@ -3265,11 +2954,9 @@ export default function StorePicker() {
     expose.replace(/^\.\//u, ''),
   )}`;
 
-  if (app.id === 'decide' && expose === './ProductPage') {
+  if (app.id === 'records' && expose === './RecordPage') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { AddToCart, Recommendations } from './vertical-components';
-
-const fieldLoaderImage = '${commerceAssetUrl('field-loader.svg')}';
+import { Highlights, StartAction } from './vertical-components';
 
 export default function ${componentName}() {
   const { i18nInstance } = useModernI18n();
@@ -3277,103 +2964,107 @@ export default function ${componentName}() {
 
   return (
     <>
-      <section className="${tw('mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14')}" data-mf-boundary="decide" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-        <img alt="" className="${tw('aspect-[1/0.9] w-full rounded-3xl border-[18px] border-amber-200 bg-stone-200 object-cover shadow-2xl shadow-stone-900/20')}" src={fieldLoaderImage} />
+      <section className="${tw('mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+        <div className="${tw('rounded-3xl border-[18px] border-amber-200 bg-white/90 p-8 shadow-2xl shadow-stone-900/15')}">
+          <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('records.record.lifecycle')}</p>
+          <dl className="${tw('mt-6 grid gap-4')}">
+            <div><dt className="${tw('text-sm font-bold text-stone-500')}">{t('records.record.owner')}</dt><dd className="${tw('text-xl font-black')}">{t('records.record.ownerName')}</dd></div>
+            <div><dt className="${tw('text-sm font-bold text-stone-500')}">{t('records.record.state')}</dt><dd className="${tw('text-xl font-black')}">{t('records.record.ready')}</dd></div>
+          </dl>
+        </div>
         <div>
-          <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('decide.product.eyebrow')}</p>
-          <h1 className="${tw('mt-3 text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">Field Loader 112</h1>
-          <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('decide.product.lede')}</p>
+          <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('records.record.eyebrow')}</p>
+          <h1 className="${tw('mt-3 text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('records.record.title')}</h1>
+          <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('records.record.lede')}</p>
           <div className="${tw('mt-8 grid gap-4 sm:grid-cols-3')}">
-            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.price')}</span><strong className="${tw('mt-2 block text-lg font-black')}">EUR 42,500</strong></article>
-            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.power')}</span><strong className="${tw('mt-2 block text-lg font-black')}">112 hp</strong></article>
-            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('decide.product.availability')}</span><strong className="${tw('mt-2 block text-lg font-black')}">{t('decide.product.inStock')}</strong></article>
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('records.record.priority')}</span><strong className="${tw('mt-2 block text-lg font-black')}">{t('records.record.priorityValue')}</strong></article>
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('records.record.sla')}</span><strong className="${tw('mt-2 block text-lg font-black')}">{t('records.record.slaValue')}</strong></article>
+            <article className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}"><span className="${tw('block text-sm font-bold text-stone-500')}">{t('records.record.status')}</span><strong className="${tw('mt-2 block text-lg font-black')}">{t('records.record.ready')}</strong></article>
           </div>
-          <AddToCart />
+          <StartAction />
         </div>
       </section>
-      <Recommendations />
+      <Highlights />
     </>
   );
 }
 `;
   }
 
-  if (app.id === 'checkout' && expose === './AddToCart') {
-    return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useCartLines } from '../cart-store';
+  if (app.id === 'actions' && expose === './StartAction') {
+    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useActionQueue } from '../action-queue-store';
 
 export default function ${componentName}() {
-  const { i18nInstance, language } = useModernI18n();
+  const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const cart = useCartLines();
+  const queue = useActionQueue();
 
   return (
-    <div className="${tw('mt-8 flex flex-wrap gap-3')}" data-mf-boundary="checkout">
-      <button className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" onClick={cart.addFieldLoader} type="button">
-        {t('checkout.actions.addToCart')}
+    <div className="${tw('mt-8 flex flex-wrap gap-3')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
+      <button className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" onClick={queue.addStarterAction} type="button">
+        {t('actions.controls.start')}
       </button>
-      <a className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" href={\`/\${language}/cart\`}>
-        {t('checkout.actions.viewCart')}
-      </a>
+      <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/actions">
+        {t('actions.controls.viewQueue')}
+      </I18nLink>
     </div>
   );
 }
 `;
   }
 
-  if (app.id === 'checkout' && expose === './MiniCart') {
+  if (app.id === 'actions' && expose === './StatusBadge') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useCartLines } from '../cart-store';
+import { useActionQueue } from '../action-queue-store';
 
 export default function ${componentName}() {
-  const { i18nInstance, language } = useModernI18n();
+  const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const cart = useCartLines();
-  const count = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+  const queue = useActionQueue();
 
   return (
-    <a className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 no-underline shadow-lg shadow-stone-900/5')}" data-mf-boundary="checkout" href={\`/\${language}/cart\`}>
-      {t('checkout.cart.title')} ({count})
-    </a>
+    <span className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
+      {t('actions.queue.itemCount', { count: queue.lines.length })}
+    </span>
   );
 }
 `;
   }
 
-  if (app.id === 'checkout' && expose === './CartPage') {
+  if (app.id === 'actions' && expose === './ActionQueue') {
     return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useCartLines } from '../cart-store';
+import { useActionQueue } from '../action-queue-store';
 
 export default function ${componentName}() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const cart = useCartLines();
+  const queue = useActionQueue();
 
   return (
-    <section className="${tw('mx-auto mt-10 max-w-7xl')}" data-mf-boundary="checkout" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h1 className="${tw('text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('checkout.cart.title')}</h1>
+    <section className="${tw('mx-auto mt-10 max-w-7xl')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+      <h1 className="${tw('text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('actions.queue.title')}</h1>
       <div className="${tw('mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
-        {cart.lines.length === 0 ? (
-          <p>{t('checkout.cart.empty')}</p>
+        {queue.lines.length === 0 ? (
+          <p>{t('actions.queue.empty')}</p>
         ) : (
           <>
-            {cart.lines.map(line => (
+            {queue.lines.map(line => (
               <article className="${tw('grid gap-4 border-t border-stone-900/10 py-4 first:border-t-0 sm:grid-cols-[1fr_auto] sm:items-center')}" key={line.id}>
                 <div>
-                  <strong className="${tw('text-lg font-black')}">{line.name}</strong>
-                  <p className="${tw('text-stone-600')}">EUR {line.price.toLocaleString('en-US')}</p>
+                  <strong className="${tw('text-lg font-black')}">{t(line.nameKey)}</strong>
+                  <p className="${tw('text-stone-600')}">{t(\`actions.queue.status.\${line.status}\`)}</p>
                 </div>
                 <div className="${tw('flex flex-wrap items-center gap-2')}">
-                  <button className="${tw('inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black')}" onClick={() => cart.decrement(line.id)} type="button">-</button>
-                  <span className="${tw('min-w-6 text-center font-black')}">{line.quantity}</span>
-                  <button className="${tw('inline-flex size-9 items-center justify-center rounded-full border border-stone-900/15 bg-white font-black')}" onClick={() => cart.increment(line.id)} type="button">+</button>
-                  <button className="${tw('inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950')}" onClick={() => cart.remove(line.id)} type="button">
-                    {t('checkout.actions.remove')}
+                  <button className="${tw('inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950')}" onClick={() => queue.complete(line.id)} type="button">
+                    {t('actions.controls.complete')}
+                  </button>
+                  <button className="${tw('inline-flex min-h-10 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 font-bold text-stone-950')}" onClick={() => queue.remove(line.id)} type="button">
+                    {t('actions.controls.remove')}
                   </button>
                 </div>
               </article>
             ))}
-            <p><strong>{t('checkout.cart.total')}: EUR {cart.total.toLocaleString('en-US')}</strong></p>
           </>
         )}
       </div>
@@ -3383,18 +3074,35 @@ export default function ${componentName}() {
 `;
   }
 
-  return `export default function ${componentName}() {
+  if (app.id === 'actions' && expose === './ActionReviewPage') {
+    return `export { default } from './action-queue';
+`;
+  }
+
+  if (app.id === 'actions' && expose === './ActionSuccessPage') {
+    return `export { default } from './action-queue';
+`;
+  }
+
+  const domain = app.domain ?? app.id;
+
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+
+export default function ${componentName}() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
   return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}" data-mf-expose="${expose}">
-      <h2 className="${tw('text-2xl font-black')}">${app.displayName} ${expose.replace(/^\.\//u, '')}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">Module Federation surface owned by ${app.ownership.team}.</p>
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+      <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
+      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.federatedSurface')}</p>
     </section>
   );
 }
 `;
 }
 
-function createDecideRemoteComponents(
+function createRecordsRemoteComponents(
   scope: string,
   app: WorkspaceApp,
 ): string {
@@ -3403,8 +3111,9 @@ function createDecideRemoteComponents(
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import RecommendationsServer from '${packageName(scope, 'explore')}/Recommendations';
-import AddToCartServer from '${packageName(scope, 'checkout')}/AddToCart';
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import HighlightsServer from '${packageName(scope, 'workspace')}/Highlights';
+import StartActionServer from '${packageName(scope, 'actions')}/StartAction';
 
 type RemoteComponentModule = {
   default: ComponentType;
@@ -3419,8 +3128,11 @@ const loadRemoteComponent = async (specifier: string) => {
 };
 
 const remoteFallback =
-  ({ error }: { error: Error }) =>
-    <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>Vertical unavailable</div>;
+  ({ error }: { error: Error }) => {
+    const { i18nInstance } = useModernI18n();
+    const t = i18nInstance['t'].bind(i18nInstance);
+    return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>{t('records.remoteUnavailable')}</div>;
+  };
 
 const createHydratedRemote = (
   ServerComponent: ComponentType,
@@ -3462,8 +3174,8 @@ const createHydratedRemote = (
   };
 };
 
-export const AddToCart = createHydratedRemote(AddToCartServer, 'checkout/AddToCart');
-export const Recommendations = createHydratedRemote(RecommendationsServer, 'explore/Recommendations');
+export const Highlights = createHydratedRemote(HighlightsServer, 'workspace/Highlights');
+export const StartAction = createHydratedRemote(StartActionServer, 'actions/StartAction');
 `;
 }
 
@@ -3477,167 +3189,321 @@ function remoteComponentOutputPath(app: WorkspaceApp, expose: string) {
   return `${app.directory}/${exposePath.replace(/^\.\//u, '')}`;
 }
 
-function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
-  const czechLabels: Record<string, { role: string; title: string }> = {
-    checkout: {
-      role: 'pokladna',
-      title: 'Pokladní remote',
+const commonLocaleMessages = {
+  cs: {
+    language: {
+      cs: 'Čeština',
+      en: 'Angličtina',
+      switcher: 'Jazyk',
     },
-    decide: {
-      role: 'rozhodování',
-      title: 'Rozhodovací remote',
+    routes: {
+      actions: 'Akce',
+      directory: 'Adresář',
+      done: 'Akce dokončena',
+      home: 'Domů',
+      recordDetail: 'Detail záznamu',
+      review: 'Revize akce',
+      unavailable: 'Nedostupné',
+      workspaces: 'Pracovní prostory',
     },
-    'design-system': {
-      role: 'design system',
-      title: 'Design system remote',
+  },
+  en: {
+    language: {
+      cs: 'Czech',
+      en: 'English',
+      switcher: 'Language',
     },
-    explore: {
-      role: 'procházení',
-      title: 'Průzkumný remote',
+    routes: {
+      actions: 'Actions',
+      directory: 'Directory',
+      done: 'Action complete',
+      home: 'Home',
+      recordDetail: 'Record detail',
+      review: 'Action review',
+      unavailable: 'Unavailable',
+      workspaces: 'Workspaces',
     },
-    identity: {
-      role: 'identita',
-      title: 'Identitní remote',
-    },
-  };
+  },
+} satisfies Record<'en' | 'cs', Record<string, JsonValue>>;
 
-  if (app.kind === 'shell') {
-    return {
-      shell: {
-        hero: {
-          eyebrow:
-            language === 'en'
-              ? 'Federated tractor commerce'
-              : 'Federovaný obchod s traktory',
-          lede:
-            language === 'en'
-              ? 'A full-stack Micro Vertical reference where Explore, Decide, and Checkout ship independently but compose into one storefront.'
-              : 'Full-stack Micro Vertical ukázka, kde Procházení, Rozhodování a Pokladna vycházejí samostatně, ale skládají jeden obchod.',
-          primary:
-            language === 'en' ? 'View Field Loader' : 'Zobrazit Field Loader',
-          secondary: language === 'en' ? 'Compare machines' : 'Porovnat stroje',
-        },
-        language: {
-          cs: language === 'en' ? 'Czech' : 'Čeština',
-          en: language === 'en' ? 'English' : 'Angličtina',
-          switcher: language === 'en' ? 'Language' : 'Jazyk',
-        },
-        remotes: {
-          checkout: language === 'en' ? 'Checkout Vertical' : 'Checkout remote',
-          decide: language === 'en' ? 'Decide Vertical' : 'Decide remote',
-          explore: language === 'en' ? 'Explore Vertical' : 'Explore remote',
-        },
-        boundaries: {
-          checkout: language === 'en' ? 'checkout' : 'pokladna',
-          decide: language === 'en' ? 'decide' : 'rozhodování',
-          explore: language === 'en' ? 'explore' : 'procházení',
-          toggle:
-            language === 'en'
-              ? 'show team boundaries'
-              : 'zobrazit hranice týmů',
-        },
-        routes: {
-          cart: language === 'en' ? 'Cart' : 'Košík',
-          home: language === 'en' ? 'Home' : 'Domů',
-          listing: language === 'en' ? 'Tractors' : 'Traktory',
-          productDetail:
-            language === 'en' ? 'Tractor detail' : 'Detail traktoru',
-          storePicker: language === 'en' ? 'Stores' : 'Prodejci',
-        },
-        title: language === 'en' ? 'Acre & Iron' : 'Acre & Iron',
+const generatedLocaleResources = {
+  cs: {
+    actions: {
+      ...commonLocaleMessages.cs,
+      federatedSurface: 'Federovaná plocha vlastněná tímto verticalem.',
+      remoteUnavailable: 'Remote vertical je nedostupný',
+      role: 'akce',
+      routeSurface: 'Routovaná plocha vlastněná tímto verticalem.',
+      title: 'Akční vertical',
+      widgetBody: 'Vlastní routovanou plochu verticalu.',
+      controls: {
+        complete: 'Dokončit',
+        remove: 'Odebrat',
+        start: 'Spustit akci',
+        viewQueue: 'Zobrazit frontu',
       },
-    };
-  }
+      queue: {
+        empty: 'Zatím nejsou ve frontě žádné akce.',
+        itemCount_few: '{{count}} akce',
+        itemCount_many: '{{count}} akce',
+        itemCount_one: '{{count}} akce',
+        itemCount_other: '{{count}} akcí',
+        starterAction: 'Zkontrolovat startovací záznam',
+        status: {
+          complete: 'Dokončeno',
+          queued: 'Ve frontě',
+        },
+        title: 'Fronta akcí',
+      },
+    },
+    records: {
+      ...commonLocaleMessages.cs,
+      federatedSurface: 'Federovaná plocha vlastněná tímto verticalem.',
+      remoteUnavailable: 'Remote vertical je nedostupný',
+      role: 'záznamy',
+      routeSurface: 'Routovaná plocha vlastněná tímto verticalem.',
+      title: 'Záznamový vertical',
+      widgetBody: 'Vlastní routovanou plochu verticalu.',
+      record: {
+        eyebrow: 'Detail záznamu',
+        lede: 'Startovací záznam ověřuje spolupráci lokalizovaného SSR, hydratace remote části a Effect BFF vlastněného verticalem.',
+        lifecycle: 'Životní cyklus',
+        owner: 'Vlastník',
+        ownerName: 'Zkušenost pracovního prostoru',
+        priority: 'Priorita',
+        priorityValue: 'P1',
+        ready: 'Připraveno',
+        sla: 'SLA',
+        slaValue: '24 h',
+        state: 'Stav',
+        status: 'Status',
+        title: 'Startovací záznam',
+      },
+    },
+    shell: {
+      boundaries: {
+        actions: 'akce',
+        records: 'záznamy',
+        toggle: 'zobrazit hranice verticalů',
+        workspace: 'pracovní prostor',
+      },
+      hero: {
+        cardOne:
+          'Samostatné verticaly generované s UI, routami, i18n a Effect BFF.',
+        cardOneKicker: 'Verticaly',
+        cardTwo:
+          'Plný markup, styly a lokalizovaný obsah se vykreslí před hydratací.',
+        cardTwoKicker: 'Vykreslení',
+        eyebrow: 'Federovaný full-stack starter',
+        lede: 'Neutrální MicroVertical workspace, kde shell, pracovní prostor, záznamy a akce vycházejí samostatně, ale skládají jednu SSR aplikaci.',
+        primary: 'Otevřít startovací záznam',
+        secondary: 'Zobrazit pracovní prostory',
+      },
+      language: commonLocaleMessages.cs.language,
+      remoteUnavailable: 'Remote vertical je nedostupný',
+      remotes: {
+        actions: 'Akční vertical',
+        records: 'Záznamový vertical',
+        workspace: 'Pracovní vertical',
+      },
+      routes: commonLocaleMessages.cs.routes,
+      title: 'UltraModern Workspace',
+    },
+    workspace: {
+      ...commonLocaleMessages.cs,
+      federatedSurface: 'Federovaná plocha vlastněná tímto verticalem.',
+      footer: 'UltraModern workspace',
+      remoteUnavailable: 'Remote vertical je nedostupný',
+      role: 'pracovní prostor',
+      routeSurface: 'Routovaná plocha vlastněná tímto verticalem.',
+      title: 'Pracovní vertical',
+      widgetBody: 'Poskytuje sdílené UI prvky pro pracovní prostor.',
+      directory: {
+        deliveryCopy: 'Vlastní generované akční toky a stav workflow.',
+        deliveryName: 'Doručovací operace',
+        deliveryTeam: 'Doručovací tým',
+        platformCopy: 'Vlastní skládání shellu, routování a sdílený zážitek.',
+        platformName: 'Platformní zkušenost',
+        platformTeam: 'Platformní tým',
+        title: 'Adresář',
+      },
+      header: {
+        brand: 'UltraModern Workspace',
+        directory: 'Adresář',
+        navigation: 'Hlavní navigace',
+        workspaces: 'Pracovní prostory',
+      },
+      highlights: {
+        actions: 'Akční část',
+        actionsTitle: 'Spusťte akci napříč verticaly',
+        records: 'Záznamová část',
+        recordsTitle: 'Otevřete záznam vlastněný routou',
+        shell: 'Shell část',
+        shellTitle: 'Skládejte verticaly v shellu',
+        title: 'Generované plochy verticalů',
+      },
+    },
+  },
+  en: {
+    actions: {
+      ...commonLocaleMessages.en,
+      federatedSurface: 'Federated surface owned by this vertical.',
+      remoteUnavailable: 'Remote vertical unavailable',
+      role: 'actions',
+      routeSurface: 'Route surface owned by this vertical.',
+      title: 'Actions Vertical',
+      widgetBody: 'Owns a vertical route surface.',
+      controls: {
+        complete: 'Complete',
+        remove: 'Remove',
+        start: 'Start action',
+        viewQueue: 'View queue',
+      },
+      queue: {
+        empty: 'No actions are queued yet.',
+        itemCount_one: '{{count}} action',
+        itemCount_other: '{{count}} actions',
+        starterAction: 'Review starter record',
+        status: {
+          complete: 'Complete',
+          queued: 'Queued',
+        },
+        title: 'Action queue',
+      },
+    },
+    records: {
+      ...commonLocaleMessages.en,
+      federatedSurface: 'Federated surface owned by this vertical.',
+      remoteUnavailable: 'Remote vertical unavailable',
+      role: 'records',
+      routeSurface: 'Route surface owned by this vertical.',
+      title: 'Records Vertical',
+      widgetBody: 'Owns a vertical route surface.',
+      record: {
+        eyebrow: 'Record detail',
+        lede: 'A starter record proving localized SSR, remote hydration, and a vertical-owned Effect BFF can cooperate.',
+        lifecycle: 'Lifecycle',
+        owner: 'Owner',
+        ownerName: 'Workspace Experience',
+        priority: 'Priority',
+        priorityValue: 'P1',
+        ready: 'Ready',
+        sla: 'SLA',
+        slaValue: '24h',
+        state: 'State',
+        status: 'Status',
+        title: 'Starter Record',
+      },
+    },
+    shell: {
+      boundaries: {
+        actions: 'actions',
+        records: 'records',
+        toggle: 'show vertical boundaries',
+        workspace: 'workspace',
+      },
+      hero: {
+        cardOne:
+          'Independent verticals generated with UI, routes, i18n, and Effect BFF.',
+        cardOneKicker: 'Verticals',
+        cardTwo:
+          'Full page markup, styles, and localized content render before hydration.',
+        cardTwoKicker: 'Rendering',
+        eyebrow: 'Federated full-stack starter',
+        lede: 'A neutral MicroVertical workspace where shell, workspace, records, and actions ship independently while composing into one SSR application.',
+        primary: 'Open starter record',
+        secondary: 'View workspaces',
+      },
+      language: commonLocaleMessages.en.language,
+      remoteUnavailable: 'Remote vertical unavailable',
+      remotes: {
+        actions: 'Actions Vertical',
+        records: 'Records Vertical',
+        workspace: 'Workspace Vertical',
+      },
+      routes: commonLocaleMessages.en.routes,
+      title: 'UltraModern Workspace',
+    },
+    workspace: {
+      ...commonLocaleMessages.en,
+      federatedSurface: 'Federated surface owned by this vertical.',
+      footer: 'UltraModern workspace',
+      remoteUnavailable: 'Remote vertical unavailable',
+      role: 'workspace',
+      routeSurface: 'Route surface owned by this vertical.',
+      title: 'Workspace Vertical',
+      widgetBody: 'Provides shared UI primitives for the workspace.',
+      directory: {
+        deliveryCopy: 'Owns generated action flows and workflow state.',
+        deliveryName: 'Delivery Operations',
+        deliveryTeam: 'Delivery team',
+        platformCopy: 'Owns shell composition, routing, and shared experience.',
+        platformName: 'Platform Experience',
+        platformTeam: 'Platform team',
+        title: 'Directory',
+      },
+      header: {
+        brand: 'UltraModern Workspace',
+        directory: 'Directory',
+        navigation: 'Main navigation',
+        workspaces: 'Workspaces',
+      },
+      highlights: {
+        actions: 'Action lane',
+        actionsTitle: 'Trigger a cross-vertical action',
+        records: 'Record lane',
+        recordsTitle: 'Open a route-owned record',
+        shell: 'Shell lane',
+        shellTitle: 'Compose verticals in the shell',
+        title: 'Generated vertical surfaces',
+      },
+    },
+  },
+} satisfies Record<'en' | 'cs', Record<string, Record<string, JsonValue>>>;
 
+const createFallbackLocaleMessages = (
+  app: WorkspaceApp,
+  language: 'en' | 'cs',
+) => ({
+  ...commonLocaleMessages[language],
+  federatedSurface:
+    generatedLocaleResources[language].workspace.federatedSurface,
+  remoteUnavailable:
+    generatedLocaleResources[language].workspace.remoteUnavailable,
+  role: app.domain ?? app.kind,
+  routeSurface: generatedLocaleResources[language].workspace.routeSurface,
+  title: app.displayName,
+  widgetBody:
+    app.kind === 'vertical'
+      ? generatedLocaleResources[language].records.widgetBody
+      : generatedLocaleResources[language].workspace.widgetBody,
+});
+
+function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   const domain = app.domain ?? app.id;
-  const czechLabel = czechLabels[domain] ?? {
-    role: domain,
-    title: `${app.displayName} CZ`,
-  };
+  const messageKey = app.kind === 'shell' ? 'shell' : domain;
+  const messages =
+    generatedLocaleResources[language][messageKey] ??
+    createFallbackLocaleMessages(app, language);
 
   return {
-    [domain]: {
-      language: {
-        cs: language === 'en' ? 'Czech' : 'Čeština',
-        en: language === 'en' ? 'English' : 'Angličtina',
-        switcher: language === 'en' ? 'Language' : 'Jazyk',
-      },
-      role: language === 'en' ? (app.domain ?? app.kind) : czechLabel.role,
-      routes: {
-        cart: language === 'en' ? 'Cart' : 'Košík',
-        checkout: language === 'en' ? 'Checkout' : 'Pokladna',
-        home: language === 'en' ? 'Home' : 'Domů',
-        listing: language === 'en' ? 'Tractors' : 'Traktory',
-        productDetail: language === 'en' ? 'Tractor detail' : 'Detail traktoru',
-        storePicker: language === 'en' ? 'Store picker' : 'Výběr prodejce',
-        thankYou:
-          language === 'en' ? 'Order confirmation' : 'Potvrzení objednávky',
-        unavailable: language === 'en' ? 'Unavailable' : 'Nedostupné',
-      },
-      title: language === 'en' ? app.displayName : czechLabel.title,
-      ...(domain === 'explore'
-        ? {
-            header: {
-              machines: language === 'en' ? 'Machines' : 'Stroje',
-              navigation:
-                language === 'en' ? 'Main navigation' : 'Hlavní navigace',
-              stores: language === 'en' ? 'Stores' : 'Prodejci',
-            },
-            recommendations: {
-              aiFirst: language === 'en' ? 'AI-first option' : 'AI varianta',
-              bestRows:
-                language === 'en'
-                  ? 'Best for tight rows'
-                  : 'Nejlepší do úzkých řádků',
-              loaderReady:
-                language === 'en' ? 'Loader-ready' : 'Připraveno pro nakladač',
-              title:
-                language === 'en'
-                  ? 'Compare alternatives'
-                  : 'Porovnat alternativy',
-              vineyard:
-                language === 'en' ? 'Vineyard profile' : 'Profil pro vinice',
-            },
-            stores: {
-              northRegion:
-                language === 'en' ? 'North region' : 'Severní region',
-              southRegion: language === 'en' ? 'South region' : 'Jižní region',
-              title: language === 'en' ? 'Stores' : 'Prodejci',
-            },
-          }
-        : {}),
-      ...(domain === 'decide'
-        ? {
-            product: {
-              availability: language === 'en' ? 'Availability' : 'Dostupnost',
-              eyebrow: language === 'en' ? 'Machine detail' : 'Detail stroje',
-              inStock: language === 'en' ? 'In stock' : 'Skladem',
-              lede:
-                language === 'en'
-                  ? 'A loader-ready tractor for feed, hay, gravel, and winter road work.'
-                  : 'Traktor připravený pro nakladač na krmivo, seno, štěrk a zimní údržbu cest.',
-              power: language === 'en' ? 'Power' : 'Výkon',
-              price: language === 'en' ? 'Price' : 'Cena',
-            },
-          }
-        : {}),
-      ...(domain === 'checkout'
-        ? {
-            actions: {
-              addToCart: language === 'en' ? 'Add to cart' : 'Přidat do košíku',
-              remove: language === 'en' ? 'Remove' : 'Odebrat',
-              viewCart: language === 'en' ? 'View cart' : 'Zobrazit košík',
-            },
-            cart: {
-              empty:
-                language === 'en' ? 'Your cart is empty.' : 'Košík je prázdný.',
-              title: language === 'en' ? 'Your cart' : 'Váš košík',
-              total: language === 'en' ? 'Total' : 'Celkem',
-            },
-          }
-        : {}),
-    },
+    [messageKey]: messages,
   };
+}
+
+function createAppPublicLocaleMessages(
+  app: WorkspaceApp,
+  language: 'en' | 'cs',
+) {
+  if (app.kind !== 'shell') {
+    return createAppLocaleMessages(app, language);
+  }
+
+  return Object.assign(
+    {},
+    createAppLocaleMessages(app, language),
+    ...verticalApps.map(remote => createAppLocaleMessages(remote, language)),
+  );
 }
 
 function createDesignButton(app: WorkspaceApp): string {
@@ -3666,68 +3532,66 @@ function createDesignTokens(): string {
 `;
 }
 
-function createCheckoutCartStore(): string {
+function createActionQueueStore(): string {
   return `import { useEffect, useMemo, useState } from 'react';
 
-export type CartLine = {
+export type ActionLine = {
   id: string;
-  name: string;
-  price: number;
-  quantity: number;
+  nameKey: string;
+  status: 'queued' | 'complete';
 };
 
-const storageKey = 'ultramodern-tractor-cart';
-const cartEvent = 'ultramodern-cart-change';
-const fieldLoader: CartLine = {
-  id: 'field-loader-112',
-  name: 'Field Loader 112',
-  price: 42500,
-  quantity: 1,
+const storageKey = 'ultramodern-action-queue';
+const queueEvent = 'ultramodern-action-queue-change';
+const starterAction: ActionLine = {
+  id: 'starter-action',
+  nameKey: 'actions.queue.starterAction',
+  status: 'queued',
 };
 
-const readCart = (): CartLine[] => {
+const readQueue = (): ActionLine[] => {
   if (typeof window === 'undefined') {
     return [];
   }
 
   try {
     const value = window.localStorage.getItem(storageKey);
-    return value ? (JSON.parse(value) as CartLine[]) : [];
+    return value ? (JSON.parse(value) as ActionLine[]) : [];
   } catch {
     return [];
   }
 };
 
-const writeCart = (lines: CartLine[]) => {
+const writeQueue = (lines: ActionLine[]) => {
   if (typeof window === 'undefined') {
     return;
   }
 
   window.localStorage.setItem(storageKey, JSON.stringify(lines));
-  window.dispatchEvent(new CustomEvent(cartEvent));
+  window.dispatchEvent(new CustomEvent(queueEvent));
 };
 
 const updateLine = (
   id: string,
-  updater: (line: CartLine) => CartLine | undefined,
+  updater: (line: ActionLine) => ActionLine | undefined,
 ) => {
-  const next = readCart()
+  const next = readQueue()
     .map(line => (line.id === id ? updater(line) : line))
-    .filter((line): line is CartLine => Boolean(line));
-  writeCart(next);
+    .filter((line): line is ActionLine => Boolean(line));
+  writeQueue(next);
 };
 
-export function useCartLines() {
-  const [lines, setLines] = useState<CartLine[]>(() => readCart());
+export function useActionQueue() {
+  const [lines, setLines] = useState<ActionLine[]>(() => readQueue());
 
   useEffect(() => {
-    const refresh = () => setLines(readCart());
-    window.addEventListener(cartEvent, refresh);
+    const refresh = () => setLines(readQueue());
+    window.addEventListener(queueEvent, refresh);
     window.addEventListener('storage', refresh);
     refresh();
 
     return () => {
-      window.removeEventListener(cartEvent, refresh);
+      window.removeEventListener(queueEvent, refresh);
       window.removeEventListener('storage', refresh);
     };
   }, []);
@@ -3735,27 +3599,22 @@ export function useCartLines() {
   return useMemo(
     () => ({
       lines,
-      total: lines.reduce((sum, line) => sum + line.price * line.quantity, 0),
-      addFieldLoader: () => {
-        const existing = readCart();
-        const match = existing.find(line => line.id === fieldLoader.id);
-        writeCart(
+      addStarterAction: () => {
+        const existing = readQueue();
+        const match = existing.find(line => line.id === starterAction.id);
+        writeQueue(
           match
             ? existing.map(line =>
-                line.id === fieldLoader.id
-                  ? { ...line, quantity: line.quantity + 1 }
+                line.id === starterAction.id
+                  ? { ...line, status: 'queued' as const }
                   : line,
               )
-            : [...existing, fieldLoader],
+            : [...existing, starterAction],
         );
       },
-      increment: (id: string) =>
-        updateLine(id, line => ({ ...line, quantity: line.quantity + 1 })),
-      decrement: (id: string) =>
-        updateLine(id, line =>
-          line.quantity > 1 ? { ...line, quantity: line.quantity - 1 } : undefined,
-        ),
-      remove: (id: string) => writeCart(readCart().filter(line => line.id !== id)),
+      complete: (id: string) =>
+        updateLine(id, line => ({ ...line, status: 'complete' as const })),
+      remove: (id: string) => writeQueue(readQueue().filter(line => line.id !== id)),
     }),
     [lines],
   );
@@ -3820,8 +3679,7 @@ function serviceEffectErrorStem(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  const stem = effectApiStem(service);
-  return stem === 'recommendations' ? 'recommendation' : stem;
+  return effectApiStem(service);
 }
 
 function serviceEffectCreatePayloadSchemaExport(service: {
@@ -4239,31 +4097,31 @@ export function ${createName}(
 
 function createShellEffectClient(scope: string): string {
   return `export {
-  createCheckout,
-  createCheckoutClient,
-  getCheckout,
-  getCheckoutReadiness,
-  listCheckout,
-  type CheckoutClientOptions,
-} from '${packageName(scope, 'checkout')}/effect/client';
+  createActions,
+  createActionsClient,
+  getActions,
+  getActionsReadiness,
+  listActions,
+  type ActionsClientOptions,
+} from '${packageName(scope, 'actions')}/effect/client';
 
 export {
-  createDecide,
-  createDecideClient,
-  getDecide,
-  getDecideReadiness,
-  listDecide,
-  type DecideClientOptions,
-} from '${packageName(scope, 'decide')}/effect/client';
+  createRecords,
+  createRecordsClient,
+  getRecords,
+  getRecordsReadiness,
+  listRecords,
+  type RecordsClientOptions,
+} from '${packageName(scope, 'records')}/effect/client';
 
 export {
-  createExplore,
-  createExploreClient,
-  getExplore,
-  getExploreReadiness,
-  listExplore,
-  type ExploreClientOptions,
-} from '${packageName(scope, 'explore')}/effect/client';
+  createWorkspace,
+  createWorkspaceClient,
+  getWorkspace,
+  getWorkspaceReadiness,
+  listWorkspace,
+  type WorkspaceClientOptions,
+} from '${packageName(scope, 'workspace')}/effect/client';
 `;
 }
 
@@ -4314,74 +4172,74 @@ function createEffectDomainOperations(app: {
   const group = serviceEffectGroupName(app);
   const basePath = `/effect/${stem}`;
 
-  if (stem === 'checkout') {
+  if (stem === 'actions') {
     return {
-      cartSnapshot: {
-        client: 'listCheckout',
+      actionQueue: {
+        client: 'listActions',
         method: 'GET',
         path: basePath,
-        resource: 'cart',
+        resource: 'action-queue',
         owner: app.id,
       },
-      cartMutation: {
-        client: 'createCheckout',
+      actionMutation: {
+        client: 'createActions',
         method: 'POST',
         path: basePath,
-        resource: 'cart-line',
+        resource: 'action',
         owner: app.id,
       },
-      orderConfirmation: {
-        client: 'getCheckout',
+      actionStatus: {
+        client: 'getActions',
         method: 'GET',
         path: `${basePath}/:id`,
-        resource: 'order',
+        resource: 'action-status',
         owner: app.id,
       },
     };
   }
 
-  if (stem === 'decide') {
+  if (stem === 'records') {
     return {
-      productDetail: {
-        client: 'getDecide',
+      recordDetail: {
+        client: 'getRecords',
         method: 'GET',
         path: `${basePath}/:id`,
-        resource: 'product-detail',
+        resource: 'record',
         owner: app.id,
       },
-      configurationDraft: {
-        client: 'createDecide',
+      recordDraft: {
+        client: 'createRecords',
         method: 'POST',
         path: basePath,
-        resource: 'configuration',
+        resource: 'record-draft',
         owner: app.id,
       },
-      productList: {
-        client: 'listDecide',
+      recordList: {
+        client: 'listRecords',
         method: 'GET',
         path: basePath,
-        resource: 'products',
+        resource: 'records',
         owner: app.id,
       },
     };
   }
 
   return {
-    recommendationFeed: {
+    workspaceFeed: {
       client: `list${toPascalCase(stem)}`,
       method: 'GET',
       path: basePath,
-      resource: 'recommendations',
+      resource: 'workspace-items',
       owner: app.id,
     },
-    recommendationDetail: {
+    workspaceDetail: {
       client: `get${toPascalCase(serviceEffectErrorStem(app))}`,
       method: 'GET',
       path: `${basePath}/:id`,
-      resource: 'recommendation',
+      resource: 'workspace-item',
       owner: app.id,
     },
-    recommendationCreate: {
+    workspaceCreate: {
       client: `create${toPascalCase(serviceEffectErrorStem(app))}`,
       method: 'POST',
       path: basePath,
@@ -5263,7 +5121,7 @@ const requiredPaths = [
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
-  'apps/shell-super-app/src/effect/recommendations-client.ts',
+  'apps/shell-super-app/src/effect/vertical-clients.ts',
   'apps/shell-super-app/locales/en/translation.json',
   \`apps/shell-super-app/locales/en/\${shellNamespace}.json\`,
   'apps/shell-super-app/locales/cs/translation.json',
@@ -5319,8 +5177,6 @@ for (const requiredPath of requiredPaths) {
 for (const oldRemotePath of oldRemotePaths) {
   assertNotExists(oldRemotePath);
 }
-assertNotExists('services/service-recommendations-effect');
-
 const rootPackage = readJson('package.json');
 const packageSource = readJson('.modernjs/ultramodern-package-source.json');
 const generatedContract = readJson('.modernjs/ultramodern-generated-contract.json');
@@ -5351,7 +5207,7 @@ assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skil
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(
   JSON.stringify(generatedContract.apps?.map(app => app.id)) === JSON.stringify(expectedAppIds),
-  'Generated contract must contain shell plus the Tractor full-stack verticals',
+  'Generated contract must contain shell plus the full-stack verticals',
 );
 assert(generatedContract.cssFederation?.sharedDesignTokens?.owner?.id === 'shared-design-tokens', 'CSS federation must declare shared design token ownership');
 assert(generatedContract.cssFederation?.sharedDesignTokens?.role === 'shared-design-tokens', 'CSS federation must mark shared-design-tokens as token owner');
@@ -5373,7 +5229,7 @@ const expectedZephyrDependencies = Object.fromEntries(
 assert(
   JSON.stringify(shellPackage['zephyr:dependencies']) ===
     JSON.stringify(expectedZephyrDependencies),
-  'Shell Zephyr dependencies must reference every Tractor vertical package',
+  'Shell Zephyr dependencies must reference every vertical package',
 );
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
@@ -5391,16 +5247,16 @@ assert(shellContract?.styling?.federation?.dedupe?.duplicateBaseStylesAllowed ==
 assert(shellContract?.styling?.federation?.ssr?.firstPaintRequired === true, 'Shell CSS must be required for SSR first paint');
 assert(
   topology.shell?.verticalRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
-  'Topology shell verticalRefs must match Tractor verticals',
+  'Topology shell verticalRefs must match generated verticals',
 );
-assert(topology.verticals?.length === fullStackVerticals.length, 'Topology must contain only Tractor verticals');
+assert(topology.verticals?.length === fullStackVerticals.length, 'Topology must contain only generated verticals');
 assert(!('remotes' in topology), 'Topology must not expose legacy remotes; use verticals');
 assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, not effectServices');
 
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
-  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', \`\${vertical.id} must expose cloudflare:deploy\`);
+  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy', \`\${vertical.id} must expose cloudflare:deploy\`);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
   assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
   assert(packageJson.exports?.['./effect/client'] === \`./src/effect/\${vertical.stem}-client.ts\`, \`\${vertical.id} must export its Effect client\`);
@@ -5533,10 +5389,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(\`Usage:
-  node scripts/proof-cloudflare-version.mjs [--app explore] [--out evidence.json] [--require-public-urls]
+  node scripts/proof-cloudflare-version.mjs [--app workspace] [--out evidence.json] [--require-public-urls]
 
 Set each app's public URL using the contract env key, for example:
-  ULTRAMODERN_PUBLIC_URL_EXPLORE=https://explore.example.workers.dev
+  ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev
 \`);
 }
 
@@ -5869,27 +5725,27 @@ function writeApp(
   writeFile(
     targetDir,
     `${app.directory}/src/modern.runtime.ts`,
-    createAppRuntimeConfig(app),
+    createAppRuntimeConfig(app, scope),
   );
   writeJson(
     targetDir,
     `${app.directory}/locales/en/translation.json`,
-    createAppLocaleMessages(app, 'en'),
+    createAppPublicLocaleMessages(app, 'en'),
   );
   writeJson(
     targetDir,
     `${app.directory}/locales/en/${appI18nNamespace(app)}.json`,
-    createAppLocaleMessages(app, 'en'),
+    createAppPublicLocaleMessages(app, 'en'),
   );
   writeJson(
     targetDir,
     `${app.directory}/locales/cs/translation.json`,
-    createAppLocaleMessages(app, 'cs'),
+    createAppPublicLocaleMessages(app, 'cs'),
   );
   writeJson(
     targetDir,
     `${app.directory}/locales/cs/${appI18nNamespace(app)}.json`,
-    createAppLocaleMessages(app, 'cs'),
+    createAppPublicLocaleMessages(app, 'cs'),
   );
   writeFile(
     targetDir,
@@ -5917,7 +5773,7 @@ function writeApp(
   );
   writeAppFile('src/routes/layout.tsx', createLayout(app.id));
   for (const [relativePath, content] of Object.entries(
-    commerceAssetsForApp(app),
+    workspaceAssetsForApp(app),
   )) {
     writeFile(targetDir, `${app.directory}/${relativePath}`, content);
   }
@@ -5943,25 +5799,27 @@ function writeApp(
       createShellRemoteComponents(scope),
     );
     writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
-    writeAppFile(
-      'src/routes/boundary-overlay.tsx',
-      createShellBoundaryOverlay(),
-    );
     writeFile(
       targetDir,
-      `${app.directory}/src/effect/recommendations-client.ts`,
+      `${app.directory}/src/effect/vertical-clients.ts`,
       createShellEffectClient(scope),
     );
     writeAppFile(
-      'src/routes/[lang]/tractors/page.tsx',
-      createShellTractorsPage(),
+      'src/routes/[lang]/workspaces/page.tsx',
+      createShellWorkspacesPage(),
     );
-    writeAppFile('src/routes/[lang]/stores/page.tsx', createShellStoresPage());
     writeAppFile(
-      'src/routes/[lang]/tractors/[slug]/page.tsx',
-      createShellProductPage(),
+      'src/routes/[lang]/directory/page.tsx',
+      createShellDirectoryPage(),
     );
-    writeAppFile('src/routes/[lang]/cart/page.tsx', createShellCartPage());
+    writeAppFile(
+      'src/routes/[lang]/records/[slug]/page.tsx',
+      createShellRecordPage(),
+    );
+    writeAppFile(
+      'src/routes/[lang]/actions/page.tsx',
+      createShellActionsPage(),
+    );
   }
 
   if (appHasEffectApi(app)) {
@@ -5984,17 +5842,17 @@ function writeApp(
 
   if (app.kind === 'vertical') {
     writeAppFile('src/federation-entry.tsx', createRemoteEntry(app));
-    if (app.id === 'decide') {
+    if (app.id === 'records') {
       writeAppFile(
         'src/components/vertical-components.tsx',
-        createDecideRemoteComponents(scope, app),
+        createRecordsRemoteComponents(scope, app),
       );
     }
-    if (app.id === 'checkout') {
+    if (app.id === 'actions') {
       writeFile(
         targetDir,
-        `${app.directory}/src/cart-store.ts`,
-        createCheckoutCartStore(),
+        `${app.directory}/src/action-queue-store.ts`,
+        createActionQueueStore(),
       );
     }
     for (const expose of Object.keys(app.exposes ?? {})) {

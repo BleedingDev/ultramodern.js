@@ -4,19 +4,19 @@ overview: Establish the boundary between UltraModern.js framework capabilities a
 todos:
   - id: audit-current-generator-scope
     content: Audit the current UltraModern workspace generator and templates for Tractor Store specific content, demo-only assets, debug UI, and framework-level capabilities that should remain.
-    status: pending
+    status: completed
   - id: define-hardcore-scaffold-contract
     content: Define the vanilla UltraModern preset contract: easy to customize, i18n-ready, SSR-ready, Cloudflare-ready, CSS-isolated, vertical-oriented, and free of product-demo copy or assets.
-    status: pending
+    status: completed
   - id: classify-backport-candidates
     content: Classify each discovered change as framework backport, generated-app baseline, native debug feature, or external demo repository work.
-    status: pending
+    status: completed
   - id: prepare-demo-repo-handoff
     content: Write the extraction handoff for publishing the full Tractor Store showcase as a separate BleedingDev demo repository, including what must not be copied back into UltraModern.js.
-    status: pending
+    status: completed
   - id: lock-publishing-boundary
     content: Document that package publishing must run only through GitHub Actions trusted publishing and that framework pushes target the bleedingdev remote unless explicitly overridden.
-    status: pending
+    status: completed
 isProject: false
 ---
 

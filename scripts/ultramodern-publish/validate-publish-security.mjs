@@ -156,6 +156,16 @@ function validatePublishScriptContract() {
   requireIncludes(publishScript, "'--access',\n    'public'", 'publish script');
   requireIncludes(
     publishScript,
+    'assertTrustedPublishContext();',
+    'publish script',
+  );
+  requireIncludes(
+    publishScript,
+    "process.env.GITHUB_REPOSITORY !== 'BleedingDev/ultramodern.js'",
+    'publish script',
+  );
+  requireIncludes(
+    publishScript,
     "repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git'",
     'publish script',
   );

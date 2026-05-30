@@ -170,7 +170,7 @@ jobs:
             args+=(--no-skip-existing)
           fi
 
-          mise exec -- pnpm ultramodern:publish-bleedingdev -- "${args[@]}"
+          mise exec -- node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish "${args[@]}"
 
       - name: Upload publish manifest
         if: always()

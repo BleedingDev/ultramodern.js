@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-30T21:12:35.969428+00:00",
+  "generated_at": "2026-05-30T21:35:58.002005+00:00",
   "graph_id": "ultramodern-backport-00-scope-and-demo-split-plus-4-plans-7b0f2758d5",
   "plan_set_hash": "924b5edb4f",
   "selection_hash": "7b0f2758d5",
@@ -50,31 +50,31 @@
         {
           "id": "audit-current-generator-scope",
           "content": "Audit the current UltraModern workspace generator and templates for Tractor Store specific content, demo-only assets, debug UI, and framework-level capabilities that should remain.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "define-hardcore-scaffold-contract",
           "content": "Define the vanilla UltraModern preset contract: easy to customize, i18n-ready, SSR-ready, Cloudflare-ready, CSS-isolated, vertical-oriented, and free of product-demo copy or assets.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "classify-backport-candidates",
           "content": "Classify each discovered change as framework backport, generated-app baseline, native debug feature, or external demo repository work.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "prepare-demo-repo-handoff",
           "content": "Write the extraction handoff for publishing the full Tractor Store showcase as a separate BleedingDev demo repository, including what must not be copied back into UltraModern.js.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "lock-publishing-boundary",
           "content": "Document that package publishing must run only through GitHub Actions trusted publishing and that framework pushes target the bleedingdev remote unless explicitly overridden.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         }
       ],
@@ -279,44 +279,12 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-backport-00-scope-and-demo-split",
-      "plan_name": "ultramodern-backport-00-scope-and-demo-split",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-backport-00-scope-and-demo-split.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "audit-current-generator-scope",
-          "content": "Audit the current UltraModern workspace generator and templates for Tractor Store specific content, demo-only assets, debug UI, and framework-level capabilities that should remain.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "define-hardcore-scaffold-contract",
-          "content": "Define the vanilla UltraModern preset contract: easy to customize, i18n-ready, SSR-ready, Cloudflare-ready, CSS-isolated, vertical-oriented, and free of product-demo copy or assets.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "classify-backport-candidates",
-          "content": "Classify each discovered change as framework backport, generated-app baseline, native debug feature, or external demo repository work.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 5
-    },
-    {
       "plan_slug": "ultramodern-backport-01-css-i18n-routing",
       "plan_name": "ultramodern-backport-01-css-i18n-routing",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-backport-01-css-i18n-routing.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-backport-00-scope-and-demo-split"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "audit-generated-tailwind-v4-contract",
@@ -347,8 +315,8 @@
       "plan_name": "ultramodern-backport-02-cloudflare-packages",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-backport-02-cloudflare-packages.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-backport-00-scope-and-demo-split"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "audit-generated-deploy-scripts",
@@ -379,8 +347,8 @@
       "plan_name": "ultramodern-backport-03-native-boundaries",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-backport-03-native-boundaries.plan.md",
       "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-backport-00-scope-and-demo-split"],
+      "state": "ready",
+      "blocked_by": [],
       "active": [
         {
           "id": "design-native-boundary-api",
@@ -441,9 +409,21 @@
       ],
       "completed": 0,
       "total": 7
+    },
+    {
+      "plan_slug": "ultramodern-backport-00-scope-and-demo-split",
+      "plan_name": "ultramodern-backport-00-scope-and-demo-split",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-backport-00-scope-and-demo-split.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 5,
+      "total": 5
     }
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "generated-selection"
+  "graph_source": "matched-plan-set"
 }

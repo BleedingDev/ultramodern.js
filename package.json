@@ -70,7 +70,6 @@
     "validate:superapp-upstream-drift": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke --drift-only",
     "validate:superapp-readiness-report": "node scripts/superapp-certification/generate-readiness-report.js",
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
-    "ultramodern:publish-bleedingdev": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish",
     "ultramodern:affected-bleedingdev-publish": "node scripts/ultramodern-publish/resolve-affected-packages.mjs",
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
     "ultramodern:trust-bleedingdev-publish": "node scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs",
@@ -83,9 +82,9 @@
   },
   "engines": {
     "node": ">=20",
-    "pnpm": ">=11.4.0 <11.5.0"
+    "pnpm": ">=11.5.0 <11.6.0"
   },
-  "packageManager": "pnpm@11.4.0",
+  "packageManager": "pnpm@11.5.0",
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"

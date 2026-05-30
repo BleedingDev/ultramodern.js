@@ -4,19 +4,19 @@ overview: Backport the reusable SSR, i18n, and Tailwind isolation fixes into Ult
 todos:
   - id: audit-generated-tailwind-v4-contract
     content: Audit generated shell and vertical apps for Tailwind v4 usage, prefix generation, content scanning, and remaining non-Tailwind CSS that is not strictly necessary.
-    status: pending
+    status: completed
   - id: enforce-native-prefix-isolation
     content: Implement or tighten the Tailwind-native prefix contract so each generated app emits stable prefixed utility classes without regex-transforming arbitrary class names.
-    status: pending
+    status: completed
   - id: remove-temporary-style-patches
     content: Remove any temporary shell-side font, size, or cascade patches that mask remote or vertical CSS problems instead of fixing isolation at the source.
-    status: pending
+    status: completed
   - id: harden-i18n-template-copy
     content: Fix generated i18n message templates so copy is complete per locale, does not split literal phrases incorrectly, and can be customized from one obvious place.
-    status: pending
+    status: completed
   - id: harden-ssr-localized-routing
     content: Verify and fix generated SSR routing for localized paths, canonical metadata, alternate locale links, and no-JS full-page rendering.
-    status: pending
+    status: completed
   - id: add-framework-level-regression-tests
     content: Add targeted generator/runtime tests that validate class prefix emission, i18n template output, localized route config, and SSR markup shape without checking product-demo source content.
     status: pending

@@ -92,6 +92,26 @@ function writeJson(filePath, value) {
   fs.renameSync(`${filePath}.tmp`, filePath);
 }
 
+function assertTrustedPublishContext() {
+  if (process.env.GITHUB_ACTIONS !== 'true') {
+    throw new Error(
+      'Publishing is only allowed from the GitHub Actions trusted publishing workflow. Run without --publish locally to prepare and validate packages.',
+    );
+  }
+
+  if (process.env.GITHUB_REPOSITORY !== 'BleedingDev/ultramodern.js') {
+    throw new Error(
+      'Publishing is only allowed from BleedingDev/ultramodern.js.',
+    );
+  }
+
+  if (process.env.GITHUB_REF !== 'refs/heads/main-ultramodern') {
+    throw new Error(
+      'Publishing is only allowed from refs/heads/main-ultramodern.',
+    );
+  }
+}
+
 function collectPackageJsonFiles(dir) {
   const results = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -695,9 +715,13 @@ function main() {
   );
 
   if (!options.publish) {
-    console.log('Publish skipped. Re-run with --publish to publish packages.');
+    console.log(
+      'Publish skipped. GitHub Actions trusted publishing is required for npm publish.',
+    );
     return;
   }
+
+  assertTrustedPublishContext();
 
   for (const item of manifest.packages) {
     const packageDir = path.join(repoRoot, item.packageDir);

@@ -4,10 +4,10 @@ overview: Validate the backports from the point of view of a human scaffolding a
 todos:
   - id: scaffold-new-repository
     content: Scaffold a completely new repository using the UltraModern preset and the documented human workflow, without copying the Tractor Store demo from the framework repository.
-    status: pending
+    status: completed
   - id: add-new-verticals
     content: Add at least one new MicroVertical through the supported tooling and verify the generated vertical includes UI, route integration, BFF/API capability, i18n, and CSS isolation.
-    status: pending
+    status: completed
   - id: verify-ssr-no-js
     content: Build and run the generated app, disable JavaScript in the browser, and verify full styled page content renders without fallback warnings.
     status: pending
