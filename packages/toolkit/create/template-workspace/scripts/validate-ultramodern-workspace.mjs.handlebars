@@ -238,8 +238,8 @@ assert(
   `Root must pin pnpm ${expectedPnpmVersion}`,
 );
 assert(
-  rootPackage.engines?.pnpm === `>=${expectedPnpmVersion} <11.5.0`,
-  `Root must require pnpm >=${expectedPnpmVersion} <11.5.0`,
+  rootPackage.engines?.pnpm === `>=${expectedPnpmVersion} <11.6.0`,
+  `Root must require pnpm >=${expectedPnpmVersion} <11.6.0`,
 );
 assert(
   JSON.stringify(readPnpmConfig('packages')) ===

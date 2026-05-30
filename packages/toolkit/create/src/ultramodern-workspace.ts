@@ -28,7 +28,7 @@ const I18NEXT_VERSION = '26.2.0';
 const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const REACT_ROUTER_DOM_VERSION = '7.16.0';
-const PNPM_VERSION = '11.4.0';
+const PNPM_VERSION = '11.5.0';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
@@ -828,7 +828,7 @@ function createRootPackageJson(
     },
     engines: {
       node: '>=20',
-      pnpm: `>=${PNPM_VERSION} <11.5.0`,
+      pnpm: `>=${PNPM_VERSION} <11.6.0`,
     },
     workspaces: ['apps/*', 'verticals/*', 'packages/*'],
     modernjs: {

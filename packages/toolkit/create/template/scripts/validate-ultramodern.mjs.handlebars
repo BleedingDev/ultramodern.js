@@ -308,8 +308,8 @@ if (packageJson.packageManager !== `pnpm@${expectedPnpmVersion}`) {
   process.exit(1);
 }
 
-if (packageJson.engines?.pnpm !== `>=${expectedPnpmVersion} <11.5.0`) {
-  console.error(`Generated app package must require pnpm >=${expectedPnpmVersion} <11.5.0`);
+if (packageJson.engines?.pnpm !== `>=${expectedPnpmVersion} <11.6.0`) {
+  console.error(`Generated app package must require pnpm >=${expectedPnpmVersion} <11.6.0`);
   process.exit(1);
 }
 

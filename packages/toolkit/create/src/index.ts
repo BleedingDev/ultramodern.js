@@ -128,7 +128,7 @@ const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
 const TANSTACK_ROUTER_VERSION = '1.170.8';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
-const PNPM_VERSION = '11.4.0';
+const PNPM_VERSION = '11.5.0';
 const requiredDeniedPaths = [
   '.git/**',
   '.npmrc',
