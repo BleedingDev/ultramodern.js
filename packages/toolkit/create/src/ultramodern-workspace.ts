@@ -1038,10 +1038,11 @@ function createAppPackage(
         ? `modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
         : 'modern build',
       'cloudflare:build':
-        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy',
-      'cloudflare:deploy': 'MODERNJS_DEPLOY=cloudflare modern deploy',
+        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+      'cloudflare:deploy':
+        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
       'cloudflare:preview':
-        'MODERNJS_DEPLOY=cloudflare modern build && MODERNJS_DEPLOY=cloudflare modern deploy && wrangler dev --config .output/wrangler.json',
+        'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
       'cloudflare:proof': `node ${relativeRootFor(
         app.directory,
       )}/scripts/proof-cloudflare-version.mjs --app ${app.id}`,
@@ -1237,11 +1238,38 @@ const zephyrRspackPlugin = () => ({
 const appId = '${app.id}';
 const cloudflareWorkerName = '${createCloudflareWorkerName(scope, app)}';
 const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
-const configuredSiteUrl = process.env['MODERN_PUBLIC_SITE_URL']?.trim();
-const configuredCloudflareUrl =
-  process.env['${createCloudflarePublicUrlEnv(app)}']?.trim();
+const envValue = (name: string) => {
+  const value = process.env[name]?.trim();
+  return value !== undefined && value.length > 0 ? value : undefined;
+};
+const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
+const configuredCloudflareUrl = envValue('${createCloudflarePublicUrlEnv(app)}');
+const cloudflareWorkersDevSubdomain = envValue(
+  'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+);
+const inferredCloudflareUrl =
+  cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined
+    ? \`https://\${cloudflareWorkerName}.\${cloudflareWorkersDevSubdomain}.workers.dev\`
+    : undefined;
 const siteUrl =
-  configuredSiteUrl || configuredCloudflareUrl || \`http://localhost:\${port}\`;
+  configuredCloudflareUrl ||
+  configuredSiteUrl ||
+  inferredCloudflareUrl ||
+  \`http://localhost:\${port}\`;
+
+if (
+  cloudflareDeployEnabled &&
+  process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true' &&
+  configuredCloudflareUrl === undefined &&
+  configuredSiteUrl === undefined &&
+  inferredCloudflareUrl === undefined
+) {
+  throw new Error(
+    \`Cloudflare deploy for \${appId} needs ${createCloudflarePublicUrlEnv(
+      app,
+    )}, MODERN_PUBLIC_SITE_URL, or ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN.\`,
+  );
+}
 
 export default defineConfig(
   presetUltramodern(
@@ -1403,19 +1431,69 @@ function createRemoteManifestEnv(remote: WorkspaceApp): string {
   return `VERTICAL_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
 }
 
+function createModuleFederationRemoteUrlHelpers(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = verticalApps,
+): string {
+  if (resolveRemoteRefs(app, remotes).length === 0) {
+    return '';
+  }
+
+  return `const cloudflareDeployEnabled =
+  process.env['MODERNJS_DEPLOY'] === 'cloudflare';
+const cloudflareWorkersDevSubdomain =
+  process.env['ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']?.trim();
+const requireCloudflarePublicUrls =
+  process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true';
+
+function createRemoteManifestUrl(options: {
+  manifestEnv: string;
+  publicUrlEnv: string;
+  workerName: string;
+  mfName: string;
+  port: number;
+}) {
+  const configuredManifest = process.env[options.manifestEnv]?.trim();
+  if (configuredManifest !== undefined && configuredManifest.length > 0) {
+    return configuredManifest;
+  }
+
+  const configuredPublicUrl = process.env[options.publicUrlEnv]?.trim();
+  if (configuredPublicUrl !== undefined && configuredPublicUrl.length > 0) {
+    return \`\${options.mfName}@\${configuredPublicUrl.replace(/\\/+$/u, '')}/mf-manifest.json\`;
+  }
+
+  if (cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined) {
+    return \`\${options.mfName}@https://\${options.workerName}.\${cloudflareWorkersDevSubdomain}.workers.dev/mf-manifest.json\`;
+  }
+
+  if (cloudflareDeployEnabled && requireCloudflarePublicUrls) {
+    throw new Error(
+      \`Cloudflare deploy needs \${options.publicUrlEnv}, \${options.manifestEnv}, or ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN for remote \${options.mfName}.\`,
+    );
+  }
+
+  return \`\${options.mfName}@http://localhost:\${options.port}/mf-manifest.json\`;
+}
+
+`;
+}
+
 function createModuleFederationRemotesConfig(
+  scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const remoteEntries = resolveRemoteRefs(app, remotes)
     .map(remote => {
       const key = remoteDependencyAlias(remote);
-      return `    ${key}:
-      process.env['${createRemoteManifestEnv(remote)}'] ??
-      (process.env['${createCloudflarePublicUrlEnv(remote)}']?.trim()
-        ? \`${remote.mfName}@\${process.env['${createCloudflarePublicUrlEnv(remote)}']!.trim().replace(/\\/+$/u, '')}/mf-manifest.json\`
-        : undefined) ??
-      '${remote.mfName}@http://localhost:${remote.port}/mf-manifest.json',`;
+      return `    ${key}: createRemoteManifestUrl({
+      manifestEnv: '${createRemoteManifestEnv(remote)}',
+      publicUrlEnv: '${createCloudflarePublicUrlEnv(remote)}',
+      workerName: '${createCloudflareWorkerName(scope, remote)}',
+      mfName: '${remote.mfName}',
+      port: ${remote.port},
+    }),`;
     })
     .join('\n');
 
@@ -1430,6 +1508,7 @@ ${remoteEntries}
 }
 
 function createShellModuleFederationConfig(
+  scope: string,
   remotes: WorkspaceApp[] = verticalApps,
 ): string {
   const shellHost = {
@@ -1449,6 +1528,7 @@ const runtimeVersion = (require('@modern-js/runtime/package.json') as { version:
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
+${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
 export default createModuleFederationConfig({
   treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
   dev: {
@@ -1462,7 +1542,7 @@ export default createModuleFederationConfig({
   },
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
-${createModuleFederationRemotesConfig(shellHost, remotes)}${createSharedModuleFederationConfig()},
+${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
 });
 `;
 }
@@ -1503,6 +1583,7 @@ export const ultramodernApiMarker = {
 }
 
 function createRemoteModuleFederationConfig(
+  scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = verticalApps,
 ): string {
@@ -1519,6 +1600,7 @@ const runtimeVersion = (require('@modern-js/runtime/package.json') as { version:
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
+${createModuleFederationRemoteUrlHelpers(app, remotes)}
 export default createModuleFederationConfig({
   treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
   dev: {
@@ -1533,7 +1615,7 @@ export default createModuleFederationConfig({
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
-${createModuleFederationRemotesConfig(app, remotes)}${createSharedModuleFederationConfig()},
+${createModuleFederationRemotesConfig(scope, app, remotes)}${createSharedModuleFederationConfig()},
 });
 `;
 }
@@ -4550,8 +4632,9 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
     output: {
       assetPrefix: {
         envFallbackOrder: [
-          'MODERN_PUBLIC_SITE_URL',
           createCloudflarePublicUrlEnv(app),
+          'MODERN_PUBLIC_SITE_URL',
+          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
           app.portEnv,
         ],
         defaultLocalhostPort: app.port,
@@ -5317,7 +5400,7 @@ assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, no
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
-  assert(packageJson.scripts?.['cloudflare:deploy'] === 'MODERNJS_DEPLOY=cloudflare modern deploy', \`\${vertical.id} must expose cloudflare:deploy\`);
+  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', \`\${vertical.id} must expose cloudflare:deploy\`);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
   assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
   assert(packageJson.exports?.['./effect/client'] === \`./src/effect/\${vertical.stem}-client.ts\`, \`\${vertical.id} must export its Effect client\`);
@@ -5829,8 +5912,8 @@ function writeApp(
     targetDir,
     `${app.directory}/module-federation.config.ts`,
     app.kind === 'shell'
-      ? createShellModuleFederationConfig()
-      : createRemoteModuleFederationConfig(app),
+      ? createShellModuleFederationConfig(scope)
+      : createRemoteModuleFederationConfig(scope, app),
   );
   writeAppFile('src/routes/layout.tsx', createLayout(app.id));
   for (const [relativePath, content] of Object.entries(
@@ -6512,7 +6595,7 @@ export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
   writeFileReplacing(
     options.workspaceRoot,
     `${shellApp.directory}/module-federation.config.ts`,
-    createShellModuleFederationConfig(updatedVerticals),
+    createShellModuleFederationConfig(scope, updatedVerticals),
   );
   if (!fs.existsSync(shellConfigPath)) {
     throw new Error('Shell Module Federation config was not regenerated');
