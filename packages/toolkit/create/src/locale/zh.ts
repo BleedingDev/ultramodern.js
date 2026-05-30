@@ -35,15 +35,15 @@ export const ZH_LOCALE = {
     optionWorkspace:
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionUltramodernWorkspace:
-      '      --ultramodern-workspace 生成标准 UltraModern SuperApp 工作区',
+      '      --ultramodern-workspace 生成 UltraModern SuperApp 工作区（显式选择；默认创建简单应用）',
     optionUltramodernPackageSource:
-      '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install）',
+      '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install；BleedingDev 默认使用 install alias）',
     optionUltramodernPackageScope:
       '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
     optionVertical:
-      '      --vertical 向现有 UltraModern 工作区添加全栈 Vertical',
+      '      --vertical 修改当前已有的 UltraModern 工作区，并接入名为 <项目名称> 的 MicroVertical',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  create my-app',
@@ -56,9 +56,10 @@ export const ZH_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
-    example10:
-      '  create my-super-app --ultramodern-workspace --ultramodern-package-source install --ultramodern-package-scope bleedingdev',
-    example11: '  create catalog --vertical',
+    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
+    example12: '  create catalog --vertical',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

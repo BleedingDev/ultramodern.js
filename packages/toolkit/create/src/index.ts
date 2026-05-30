@@ -843,6 +843,9 @@ function showHelp() {
   if (localeKeys.help.example11) {
     console.log(i18n.t(localeKeys.help.example11));
   }
+  if (localeKeys.help.example12) {
+    console.log(i18n.t(localeKeys.help.example12));
+  }
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');
@@ -906,14 +909,9 @@ function detectVerticalFlag(): boolean {
   return args.includes('--vertical');
 }
 
-function detectUltramodernWorkspaceFlag(
-  createPackage: CreatePackageJson,
-): boolean {
+function detectUltramodernWorkspaceFlag(): boolean {
   const args = process.argv.slice(2);
-  return (
-    args.includes(ULTRAMODERN_WORKSPACE_FLAG) ||
-    isBleedingDevCreatePackage(createPackage)
-  );
+  return args.includes(ULTRAMODERN_WORKSPACE_FLAG);
 }
 
 function detectUltramodernPackageSource(
@@ -1208,7 +1206,7 @@ async function main() {
     }
   }
 
-  const generateWorkspace = detectUltramodernWorkspaceFlag(createPackage);
+  const generateWorkspace = detectUltramodernWorkspaceFlag();
 
   if (generateWorkspace) {
     generateUltramodernWorkspace({

@@ -38,15 +38,15 @@ export const EN_LOCALE = {
     optionWorkspace:
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionUltramodernWorkspace:
-      '      --ultramodern-workspace Generate the canonical UltraModern SuperApp workspace',
+      '      --ultramodern-workspace Generate an UltraModern SuperApp workspace (explicit opt-in; default is a simple app)',
     optionUltramodernPackageSource:
-      '      --ultramodern-package-source Select UltraModern package source (workspace or install)',
+      '      --ultramodern-package-source Select UltraModern package source (workspace or install; BleedingDev defaults to install aliases)',
     optionUltramodernPackageScope:
       '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
     optionVertical:
-      '      --vertical Add a full-stack vertical to an existing UltraModern workspace',
+      '      --vertical Mutate the current existing UltraModern workspace and wire a MicroVertical named <project-name>',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  create my-app',
@@ -59,8 +59,10 @@ export const EN_LOCALE = {
     example8: '  create my-app --router tanstack --bff-runtime effect',
     example9:
       '  create my-app --router tanstack --bff-runtime effect --workspace',
-    example10: '  pnpm dlx @bleedingdev/modern-js-create my-super-app',
-    example11: '  create catalog --vertical',
+    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
+    example12: '  create catalog --vertical',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {
