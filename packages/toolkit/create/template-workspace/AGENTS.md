@@ -1,6 +1,8 @@
 # UltraModern Agent Contract
 
-This workspace is generated as an agent-ready UltraModern.js SuperApp. Agents should treat the files under `.agents/skills` as local project instructions, not optional reading.
+This workspace is generated as an agent-ready UltraModern.js SuperApp shell.
+Agents should treat the files under `.agents/skills` as local project
+instructions, not optional reading.
 
 ## Quality Gates
 
@@ -13,7 +15,14 @@ This workspace is generated as an agent-ready UltraModern.js SuperApp. Agents sh
 
 ## Localized Routes
 
-Generated apps keep locale-prefixed entry routes under `src/routes/[lang]`, static language links, and canonical plus `hreflang` metadata. Runtime i18n is not enabled in the starter because the current React 19 + Module Federation streaming SSR stack must render predictably first. Production builds fail unless `MODERN_PUBLIC_SITE_URL` is set per deployed app, so canonical URLs always use the production origin.
+Generated apps keep locale-prefixed entry routes under `src/routes/[lang]`,
+static language links, and canonical plus `hreflang` metadata. A new workspace
+starts shell-only; `create <domain> --vertical` adds route-owned metadata,
+localized resources, and Effect BFF surfaces for that domain. Runtime i18n is
+not enabled in the starter because the current React 19 + Module Federation
+streaming SSR stack must render predictably first. Production builds fail unless
+`MODERN_PUBLIC_SITE_URL` is set per deployed app, so canonical URLs always use
+the production origin.
 
 ## Required Skill Baseline
 
@@ -52,6 +61,10 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 ## Project Priorities
 
 - Keep `presetUltramodern` as the single preset.
+- Keep the initial workspace shell-only unless a user explicitly asks for a
+  starter vertical.
+- Use `create <domain> --vertical` as the growth path for real business
+  MicroVerticals.
 - Prefer Effect for BFF code.
 - Prefer TanStack Router for app routing.
 - Keep UI-kit or design-system code as ordinary vertical or shared package code, not a special core path.

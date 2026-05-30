@@ -162,7 +162,7 @@ const shellApp: WorkspaceApp = {
   portEnv: 'SHELL_SUPER_APP_PORT',
   port: 3020,
   mfName: 'shellSuperApp',
-  verticalRefs: ['workspace', 'records', 'actions'],
+  verticalRefs: [],
   ownership: {
     team: 'super-app-platform',
     slack: '#super-app-platform',
@@ -180,118 +180,12 @@ const shellApp: WorkspaceApp = {
   },
 };
 
-const verticalApps: WorkspaceApp[] = [
-  {
-    id: 'workspace',
-    directory: 'verticals/workspace',
-    packageSuffix: 'workspace',
-    displayName: 'Workspace Vertical',
-    kind: 'vertical',
-    domain: 'workspace',
-    portEnv: 'VERTICAL_WORKSPACE_PORT',
-    port: 3021,
-    mfName: 'verticalWorkspace',
-    exposes: {
-      './Footer': './src/components/footer.tsx',
-      './Header': './src/components/header.tsx',
-      './Highlights': './src/components/highlights.tsx',
-      './DirectoryPanel': './src/components/directory-panel.tsx',
-      './Route': './src/federation-entry.tsx',
-    },
-    effectApi: {
-      stem: 'workspace',
-      prefix: '/workspace-api',
-      consumedBy: [shellApp.id, 'workspace'],
-    },
-    ownership: {
-      team: 'workspace-experience',
-      slack: '#workspace-experience',
-      pagerDuty: 'pd-workspace-experience',
-      runbookRef: 'runbooks/verticals/workspace.md',
-      adrRef: 'docs/architecture/verticals.md#workspace',
-      blastRadius: {
-        tier: 'tier-1-workspace-experience',
-        references: [
-          'docs/architecture/blast-radius.md#workspace',
-          'docs/architecture/rollback.md#workspace-lkg',
-        ],
-      },
-    },
-  },
-  {
-    id: 'records',
-    directory: 'verticals/records',
-    packageSuffix: 'records',
-    displayName: 'Records Vertical',
-    kind: 'vertical',
-    domain: 'records',
-    portEnv: 'VERTICAL_RECORDS_PORT',
-    port: 3022,
-    mfName: 'verticalRecords',
-    verticalRefs: ['workspace', 'actions'],
-    exposes: {
-      './RecordPage': './src/components/record-page.tsx',
-      './Route': './src/federation-entry.tsx',
-    },
-    effectApi: {
-      stem: 'records',
-      prefix: '/records-api',
-      consumedBy: [shellApp.id, 'records'],
-    },
-    ownership: {
-      team: 'records-experience',
-      slack: '#records-experience',
-      pagerDuty: 'pd-records-experience',
-      runbookRef: 'runbooks/verticals/records.md',
-      adrRef: 'docs/architecture/verticals.md#records',
-      blastRadius: {
-        tier: 'tier-1-records-experience',
-        references: [
-          'docs/architecture/blast-radius.md#records',
-          'docs/architecture/rollback.md#records-lkg',
-        ],
-      },
-    },
-  },
-  {
-    id: 'actions',
-    directory: 'verticals/actions',
-    packageSuffix: 'actions',
-    displayName: 'Actions Vertical',
-    kind: 'vertical',
-    domain: 'actions',
-    portEnv: 'VERTICAL_ACTIONS_PORT',
-    port: 3023,
-    mfName: 'verticalActions',
-    exposes: {
-      './ActionQueue': './src/components/action-queue.tsx',
-      './ActionReviewPage': './src/components/action-review-page.tsx',
-      './ActionSuccessPage': './src/components/action-success-page.tsx',
-      './Route': './src/federation-entry.tsx',
-      './StartAction': './src/components/start-action.tsx',
-      './StatusBadge': './src/components/status-badge.tsx',
-    },
-    effectApi: {
-      stem: 'actions',
-      prefix: '/actions-api',
-      consumedBy: [shellApp.id, 'actions'],
-    },
-    ownership: {
-      team: 'actions-experience',
-      slack: '#actions-experience',
-      pagerDuty: 'pd-actions-experience',
-      runbookRef: 'runbooks/verticals/actions.md',
-      adrRef: 'docs/architecture/verticals.md#actions',
-      blastRadius: {
-        tier: 'tier-1-actions-experience',
-        references: [
-          'docs/architecture/blast-radius.md#actions',
-          'docs/architecture/rollback.md#actions-lkg',
-        ],
-      },
-    },
-  },
-];
+function createShellHost(remotes: WorkspaceApp[] = []): WorkspaceApp {
+  return {
+    ...shellApp,
+    verticalRefs: remotes.map(remote => remote.id),
+  };
+}
 
 const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -451,7 +345,7 @@ function effectApiStem(target: { id: string; effectApi?: WorkspaceEffectApi }) {
   return target.effectApi?.stem ?? toKebabCase(target.id).replace(/-api$/, '');
 }
 
-function verticalEffectApps(remotes: WorkspaceApp[] = verticalApps) {
+function verticalEffectApps(remotes: WorkspaceApp[] = []) {
   return remotes.filter(appHasEffectApi);
 }
 
@@ -671,6 +565,7 @@ function appDependencies(
   scope: string,
   packageSource: ResolvedPackageSource,
   app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
 ): Record<string, string> {
   const dependencies: Record<string, string> = {
     '@modern-js/plugin-tanstack': modernPackageSpecifier(
@@ -702,13 +597,13 @@ function appDependencies(
       '@modern-js/plugin-bff',
       packageSource,
     );
-    for (const remote of verticalEffectApps()) {
+    for (const remote of verticalEffectApps(remotes)) {
       dependencies[packageName(scope, remote.packageSuffix)] =
         WORKSPACE_PACKAGE_VERSION;
     }
   }
 
-  for (const remote of resolveRemoteRefs(app)) {
+  for (const remote of resolveRemoteRefs(app, remotes)) {
     dependencies[packageName(scope, remote.packageSuffix)] =
       WORKSPACE_PACKAGE_VERSION;
   }
@@ -753,7 +648,23 @@ function appDevDependencies(
 function createRootPackageJson(
   scope: string,
   packageSource: ResolvedPackageSource,
+  remotes: WorkspaceApp[] = [],
 ): JsonValue {
+  const shellFilter = `--filter ${packageName(scope, shellApp.packageSuffix)}`;
+  const remoteFilters = remotes.map(
+    remote => `--filter ${packageName(scope, remote.packageSuffix)}`,
+  );
+  const remoteBuildPrefix =
+    remotes.length > 0 ? 'pnpm -r --filter "./verticals/*" run build && ' : '';
+  const remoteCloudflareBuildPrefix =
+    remotes.length > 0
+      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && '
+      : '';
+  const remoteCloudflareDeployPrefix =
+    remotes.length > 0
+      ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && '
+      : '';
+
   return {
     private: true,
     name: scope,
@@ -761,31 +672,25 @@ function createRootPackageJson(
     type: 'module',
     packageManager: `pnpm@${PNPM_VERSION}`,
     scripts: {
-      dev: `pnpm --parallel --filter ${packageName(
-        scope,
-        shellApp.packageSuffix,
-      )} --filter ${packageName(scope, 'workspace')} --filter ${packageName(
-        scope,
-        'records',
-      )} --filter ${packageName(scope, 'actions')} dev`,
+      dev: `pnpm --parallel ${[shellFilter, ...remoteFilters].join(' ')} dev`,
       'dev:shell': `pnpm --filter ${packageName(
         scope,
         shellApp.packageSuffix,
       )} dev`,
-      'dev:workspace': `pnpm --filter ${packageName(scope, 'workspace')} dev`,
-      'dev:records': `pnpm --filter ${packageName(scope, 'records')} dev`,
-      'dev:actions': `pnpm --filter ${packageName(scope, 'actions')} dev`,
-      build:
-        'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+      ...Object.fromEntries(
+        remotes.map(remote => [
+          `dev:${remote.packageSuffix}`,
+          `pnpm --filter ${packageName(scope, remote.packageSuffix)} dev`,
+        ]),
+      ),
+      build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
       format: 'oxfmt .',
       'format:check': 'oxfmt --check .',
       lint: 'oxlint .',
       'lint:fix': 'oxlint . --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
-      'cloudflare:build':
-        'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
-      'cloudflare:deploy':
-        'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
+      'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types`,
+      'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
         'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
@@ -838,7 +743,7 @@ function zephyrRemoteDependency(scope: string, remote: WorkspaceApp): string {
 
 function resolveRemoteRefs(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): WorkspaceApp[] {
   const verticalRefs = app.verticalRefs ?? [];
 
@@ -849,7 +754,7 @@ function resolveRemoteRefs(
 
 function createModuleFederationRemoteContracts(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ) {
   return resolveRemoteRefs(app, remotes).map(remote => ({
     id: remote.id,
@@ -863,7 +768,7 @@ function createModuleFederationRemoteContracts(
 function createZephyrDependencies(
   scope: string,
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): JsonValue {
   if (!app.verticalRefs?.length) {
     return {};
@@ -995,6 +900,7 @@ function createAppPackage(
   app: WorkspaceApp,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
+  remotes: WorkspaceApp[] = [],
 ): JsonValue {
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
     Object.entries(app.exposes ?? {}).map(([expose, source]) => [
@@ -1030,8 +936,8 @@ function createAppPackage(
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
       ...(appHasEffectApi(app) ? { apiRuntime: 'effect-bff' } : {}),
     },
-    'zephyr:dependencies': createZephyrDependencies(scope, app),
-    dependencies: appDependencies(scope, packageSource, app),
+    'zephyr:dependencies': createZephyrDependencies(scope, app, remotes),
+    dependencies: appDependencies(scope, packageSource, app, remotes),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
 
@@ -1346,7 +1252,7 @@ function createRemoteManifestEnv(remote: WorkspaceApp): string {
 
 function createModuleFederationRemoteUrlHelpers(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   if (resolveRemoteRefs(app, remotes).length === 0) {
     return '';
@@ -1395,7 +1301,7 @@ function createRemoteManifestUrl(options: {
 function createModuleFederationRemotesConfig(
   scope: string,
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const remoteEntries = resolveRemoteRefs(app, remotes)
     .map(remote => {
@@ -1422,7 +1328,7 @@ ${remoteEntries}
 
 function createShellModuleFederationConfig(
   scope: string,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const shellHost = {
     ...shellApp,
@@ -1498,7 +1404,7 @@ export const ultramodernApiMarker = {
 function createRemoteModuleFederationConfig(
   scope: string,
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   return `// @effect-diagnostics nodeBuiltinImport:off
@@ -1560,46 +1466,6 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
           en: '/',
         },
         titleKey: 'shell.title',
-      },
-      {
-        ...base,
-        canonicalPath: '/workspaces',
-        id: 'shell-workspaces',
-        localisedPaths: {
-          cs: '/pracovni-prostory',
-          en: '/workspaces',
-        },
-        titleKey: 'shell.routes.workspaces',
-      },
-      {
-        ...base,
-        canonicalPath: '/directory',
-        id: 'shell-directory',
-        localisedPaths: {
-          cs: '/adresar',
-          en: '/directory',
-        },
-        titleKey: 'shell.routes.directory',
-      },
-      {
-        ...base,
-        canonicalPath: '/records/:slug',
-        id: 'shell-record-detail',
-        localisedPaths: {
-          cs: '/zaznamy/:slug',
-          en: '/records/:slug',
-        },
-        titleKey: 'shell.routes.recordDetail',
-      },
-      {
-        ...base,
-        canonicalPath: '/actions',
-        id: 'shell-actions',
-        localisedPaths: {
-          cs: '/akce',
-          en: '/actions',
-        },
-        titleKey: 'shell.routes.actions',
       },
     ];
   }
@@ -1835,11 +1701,14 @@ function createRouteAliasPage(canonicalPath: string): string {
 `;
 }
 
-function createBoundaryDebugMetadata(scope: string): JsonValue {
+function createBoundaryDebugMetadata(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): JsonValue {
   return {
     schemaVersion: 1,
     appId: shellApp.id,
-    boundaries: [shellApp, ...verticalApps].map(app => ({
+    boundaries: [shellApp, ...remotes].map(app => ({
       appId: app.id,
       mfName: app.mfName,
       packageName: packageName(scope, app.packageSuffix),
@@ -1852,7 +1721,7 @@ function createBoundaryDebugMetadata(scope: string): JsonValue {
 
 function createAppEnvDts(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const remoteModuleDeclarations = resolveRemoteRefs(app, remotes)
     .flatMap(remote =>
@@ -1882,12 +1751,20 @@ declare module '*.svg' {
 ${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
-function createAppRuntimeConfig(app: WorkspaceApp, scope: string): string {
+function createAppRuntimeConfig(
+  app: WorkspaceApp,
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): string {
   const pluginsConfig =
     app.kind === 'shell'
       ? `  plugins: [
     ultramodernBoundaryDebuggerPlugin({
-      metadata: ${JSON.stringify(createBoundaryDebugMetadata(scope), null, 6)
+      metadata: ${JSON.stringify(
+        createBoundaryDebugMetadata(scope, remotes),
+        null,
+        6,
+      )
         .split('\n')
         .join('\n      ')},
     }),
@@ -2170,14 +2047,15 @@ const LocalizedHead = () => {
 `;
 }
 
-function createShellPage(): string {
+function createShellPage(remotes: WorkspaceApp[] = []): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
+  const remoteCount = String(remotes.length);
 
   return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../shell-frame';
-import { DirectoryPanel, Highlights } from '../vertical-components';
+import { VerticalShowcase } from '../vertical-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
@@ -2195,19 +2073,19 @@ export default function ShellHome() {
           <h1 className="${tw('mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('shell.title')}</h1>
           <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('shell.hero.lede')}</p>
           <div className="${tw('mt-7 flex flex-wrap gap-3')}">
-            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/records/starter-record">
+            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/">
               {t('shell.hero.primary')}
             </I18nLink>
-            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/workspaces">
+            <span className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}">
               {t('shell.hero.secondary')}
-            </I18nLink>
+            </span>
           </div>
         </div>
         <div className="${tw('rounded-3xl bg-white/90 p-6 shadow-2xl shadow-stone-900/15')}">
           <div className="${tw('grid gap-4 sm:grid-cols-2')}">
             <article className="${tw('rounded-2xl bg-emerald-50 p-5')}">
               <span className="${tw('text-sm font-black uppercase tracking-[0.16em] text-emerald-800')}">{t('shell.hero.cardOneKicker')}</span>
-              <strong className="${tw('mt-3 block text-3xl font-black text-stone-950')}">3</strong>
+              <strong className="${tw('mt-3 block text-3xl font-black text-stone-950')}">${remoteCount}</strong>
               <p className="${tw('mt-2 text-sm font-semibold text-stone-600')}">{t('shell.hero.cardOne')}</p>
             </article>
             <article className="${tw('rounded-2xl bg-amber-50 p-5')}">
@@ -2218,8 +2096,7 @@ export default function ShellHome() {
           </div>
         </div>
       </section>
-      <Highlights />
-      <DirectoryPanel />
+      <VerticalShowcase />
       <p className="${tw('sr-only')}" data-testid="ultramodern-preset">presetUltramodern workspace</p>
       <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
@@ -2483,19 +2360,42 @@ export default function ShellFrame({ children }: ShellFrameProps) {
 `;
 }
 
-function createShellRemoteComponents(scope: string): string {
+function createShellRemoteComponents(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
+  const widgetRemotes = remotes.filter(remote =>
+    Object.hasOwn(remote.exposes ?? {}, './Widget'),
+  );
+  const serverImports = widgetRemotes
+    .map(
+      remote =>
+        `import ${toPascalCase(remote.id)}WidgetServer from '${packageName(
+          scope,
+          remote.packageSuffix,
+        )}/Widget';`,
+    )
+    .join('\n');
+  const hydratedExports = widgetRemotes
+    .map(remote => {
+      const componentName = `${toPascalCase(remote.id)}Widget`;
+      return `const ${componentName} = createHydratedRemote(${componentName}Server, '${remoteDependencyAlias(remote)}/Widget');`;
+    })
+    .join('\n');
+  const showcaseItems = widgetRemotes
+    .map(remote => {
+      const componentName = `${toPascalCase(remote.id)}Widget`;
+      return `          <${componentName} key="${remote.id}" />`;
+    })
+    .join('\n');
+  const remoteCount = String(widgetRemotes.length);
 
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import HeaderServer from '${packageName(scope, 'workspace')}/Header';
-import DirectoryPanelServer from '${packageName(scope, 'workspace')}/DirectoryPanel';
-import HighlightsServer from '${packageName(scope, 'workspace')}/Highlights';
-import RecordPageServer from '${packageName(scope, 'records')}/RecordPage';
-import ActionQueueServer from '${packageName(scope, 'actions')}/ActionQueue';
-import StatusBadgeServer from '${packageName(scope, 'actions')}/StatusBadge';
+import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+${serverImports}
 
 type RemoteComponentModule = {
   default: ComponentType;
@@ -2556,12 +2456,50 @@ const createHydratedRemote = (
   };
 };
 
-export const Header = createHydratedRemote(HeaderServer, 'workspace/Header');
-export const DirectoryPanel = createHydratedRemote(DirectoryPanelServer, 'workspace/DirectoryPanel');
-export const Highlights = createHydratedRemote(HighlightsServer, 'workspace/Highlights');
-export const RecordPage = createHydratedRemote(RecordPageServer, 'records/RecordPage');
-export const ActionQueue = createHydratedRemote(ActionQueueServer, 'actions/ActionQueue');
-export const StatusBadge = createHydratedRemote(StatusBadgeServer, 'actions/StatusBadge');
+${hydratedExports}
+
+export function Header() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
+  return (
+    <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${shellApp.mfName}" data-modern-mf-expose="shell/Header">
+      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</I18nLink>
+    </header>
+  );
+}
+
+export function StatusBadge() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
+  return (
+    <span className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5')}">
+      {${remoteCount}} {t('shell.hero.cardOneKicker')}
+    </span>
+  );
+}
+
+export function VerticalShowcase() {
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+
+  if (${remoteCount} === 0) {
+    return (
+      <section className="${tw('mx-auto mt-12 max-w-7xl rounded-2xl bg-white/90 p-6 shadow-xl shadow-stone-900/10')}">
+        <p className="${tw('text-lg font-bold text-stone-700')}">{t('shell.hero.empty')}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="${tw('mx-auto mt-12 max-w-7xl')}" data-modern-boundary-id="${shellApp.mfName}">
+      <div className="${tw('grid gap-4 md:grid-cols-2')}">
+${showcaseItems}
+      </div>
+    </section>
+  );
+}
 `;
 }
 
@@ -3137,31 +3075,27 @@ const generatedLocaleResources = {
     },
     shell: {
       boundaries: {
-        actions: 'akce',
-        records: 'záznamy',
         toggle: 'zobrazit hranice verticalů',
-        workspace: 'pracovní prostor',
       },
       hero: {
         cardOne:
-          'Samostatné verticaly generované s UI, routami, i18n a Effect BFF.',
+          'Přidejte první business vertical příkazem create <domain> --vertical, až ho opravdu potřebujete.',
         cardOneKicker: 'Verticaly',
         cardTwo:
           'Plný markup, styly a lokalizovaný obsah se vykreslí před hydratací.',
         cardTwoKicker: 'Vykreslení',
-        eyebrow: 'Federovaný full-stack starter',
-        lede: 'Neutrální MicroVertical workspace, kde shell, pracovní prostor, záznamy a akce vycházejí samostatně, ale skládají jednu SSR aplikaci.',
-        primary: 'Otevřít startovací záznam',
-        secondary: 'Zobrazit pracovní prostory',
+        empty: 'Zatím nejsou připojené žádné MicroVerticaly.',
+        eyebrow: 'Shell SuperApp starter',
+        lede: 'Začněte s produkčně připraveným shellem. MicroVerticaly přidávejte až podle skutečných business domén.',
+        primary: 'Shell je připraven',
+        secondary: 'Přidejte vertical, až bude potřeba',
       },
       language: commonLocaleMessages.cs.language,
       remoteUnavailable: 'Remote vertical je nedostupný',
-      remotes: {
-        actions: 'Akční vertical',
-        records: 'Záznamový vertical',
-        workspace: 'Pracovní vertical',
+      remotes: {},
+      routes: {
+        home: commonLocaleMessages.cs.routes.home,
       },
-      routes: commonLocaleMessages.cs.routes,
       title: 'UltraModern Workspace',
     },
     workspace: {
@@ -3252,31 +3186,27 @@ const generatedLocaleResources = {
     },
     shell: {
       boundaries: {
-        actions: 'actions',
-        records: 'records',
         toggle: 'show vertical boundaries',
-        workspace: 'workspace',
       },
       hero: {
         cardOne:
-          'Independent verticals generated with UI, routes, i18n, and Effect BFF.',
+          'Add the first business vertical with create <domain> --vertical when the product needs one.',
         cardOneKicker: 'Verticals',
         cardTwo:
           'Full page markup, styles, and localized content render before hydration.',
         cardTwoKicker: 'Rendering',
-        eyebrow: 'Federated full-stack starter',
-        lede: 'A neutral MicroVertical workspace where shell, workspace, records, and actions ship independently while composing into one SSR application.',
-        primary: 'Open starter record',
-        secondary: 'View workspaces',
+        empty: 'No MicroVerticals are connected yet.',
+        eyebrow: 'Shell SuperApp starter',
+        lede: 'Start with a production-ready shell. Add MicroVerticals later for real business domains.',
+        primary: 'Shell ready',
+        secondary: 'Add a vertical when needed',
       },
       language: commonLocaleMessages.en.language,
       remoteUnavailable: 'Remote vertical unavailable',
-      remotes: {
-        actions: 'Actions Vertical',
-        records: 'Records Vertical',
-        workspace: 'Workspace Vertical',
+      remotes: {},
+      routes: {
+        home: commonLocaleMessages.en.routes.home,
       },
-      routes: commonLocaleMessages.en.routes,
       title: 'UltraModern Workspace',
     },
     workspace: {
@@ -3349,6 +3279,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
 function createAppPublicLocaleMessages(
   app: WorkspaceApp,
   language: 'en' | 'cs',
+  remotes: WorkspaceApp[] = [],
 ) {
   if (app.kind !== 'shell') {
     return createAppLocaleMessages(app, language);
@@ -3357,7 +3288,7 @@ function createAppPublicLocaleMessages(
   return Object.assign(
     {},
     createAppLocaleMessages(app, language),
-    ...verticalApps.map(remote => createAppLocaleMessages(remote, language)),
+    ...remotes.map(remote => createAppLocaleMessages(remote, language)),
   );
 }
 
@@ -3924,33 +3855,29 @@ export function ${createName}(
 `;
 }
 
-function createShellEffectClient(scope: string): string {
-  return `export {
-  createActions,
-  createActionsClient,
-  getActions,
-  getActionsReadiness,
-  listActions,
-  type ActionsClientOptions,
-} from '${packageName(scope, 'actions')}/effect/client';
+function createShellEffectClient(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): string {
+  const exports = verticalEffectApps(remotes)
+    .map(remote => {
+      const stem = effectApiStem(remote);
+      const pascalStem = toPascalCase(stem);
+      const pascalSingular = toPascalCase(verticalEffectErrorStem(remote));
+      return `export {
+  create${pascalSingular},
+  create${pascalStem}Client,
+  get${pascalSingular},
+  get${pascalStem}Readiness,
+  list${pascalStem},
+  type ${pascalStem}ClientOptions,
+} from '${packageName(scope, remote.packageSuffix)}/effect/client';`;
+    })
+    .join('\n\n');
 
-export {
-  createRecords,
-  createRecordsClient,
-  getRecords,
-  getRecordsReadiness,
-  listRecords,
-  type RecordsClientOptions,
-} from '${packageName(scope, 'records')}/effect/client';
-
-export {
-  createWorkspace,
-  createWorkspaceClient,
-  getWorkspace,
-  getWorkspaceReadiness,
-  listWorkspace,
-  type WorkspaceClientOptions,
-} from '${packageName(scope, 'workspace')}/effect/client';
+  return exports
+    ? `${exports}\n`
+    : `export const ultramodernVerticalClients = [] as const;
 `;
 }
 
@@ -4108,29 +4035,33 @@ function effectApiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
   };
 }
 
-function createTopology(scope: string): JsonValue {
+function createTopology(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): JsonValue {
+  const shellHost = createShellHost(remotes);
   return {
     schemaVersion: 1,
     id: 'ultramodern-superapp-workspace-reference-topology',
     description:
-      'Generated UltraModern workspace skeleton with full-stack vertical ownership.',
+      'Generated UltraModern SuperApp shell that can grow by adding full-stack verticals.',
     preset: 'presetUltramodern',
     shell: {
       id: shellApp.id,
       kind: 'shell',
       package: packageName(scope, shellApp.packageSuffix),
-      verticalRefs: shellApp.verticalRefs,
+      verticalRefs: shellHost.verticalRefs,
       moduleFederation: {
         role: 'host',
         name: shellApp.mfName,
-        remotes: createModuleFederationRemoteContracts(shellApp),
+        remotes: createModuleFederationRemoteContracts(shellHost, remotes),
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
       cloudflare: createCloudflareDeployContract(scope, shellApp),
       ownership: shellApp.ownership,
     },
-    verticals: verticalApps.map(vertical => ({
+    verticals: remotes.map(vertical => ({
       id: vertical.id,
       kind: vertical.kind,
       domain: vertical.domain,
@@ -4170,13 +4101,16 @@ function createTopology(scope: string): JsonValue {
   };
 }
 
-function createOwnership(scope: string): JsonValue {
+function createOwnership(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): JsonValue {
   return {
     schemaVersion: 1,
     preset: 'presetUltramodern',
     owners: [
       shellApp,
-      ...verticalApps,
+      ...remotes,
       ...sharedPackages.map(sharedPackage => ({
         id: sharedPackage.id,
         packageSuffix: sharedPackage.id,
@@ -4205,22 +4139,22 @@ function createOwnership(scope: string): JsonValue {
   };
 }
 
-function createDevelopmentOverlay(): JsonValue {
+function createDevelopmentOverlay(remotes: WorkspaceApp[] = []): JsonValue {
   return {
     schemaVersion: 1,
     environment: 'development',
     preset: 'presetUltramodern',
     ports: Object.fromEntries(
-      [shellApp, ...verticalApps].map(app => [app.id, app.port]),
+      [shellApp, ...remotes].map(app => [app.id, app.port]),
     ),
     manifests: Object.fromEntries(
-      verticalApps.map(remote => [
+      remotes.map(remote => [
         remote.id,
         `http://localhost:${remote.port}/mf-manifest.json`,
       ]),
     ),
     apis: Object.fromEntries(
-      verticalEffectApps().map(app => [
+      verticalEffectApps(remotes).map(app => [
         app.id,
         `http://localhost:${app.port}${effectApiPrefix(app)}`,
       ]),
@@ -4619,7 +4553,7 @@ function createAppGeneratedContract(
 
 function createGeneratedContract(
   scope: string,
-  apps: WorkspaceApp[] = [shellApp, ...verticalApps],
+  apps: WorkspaceApp[] = [createShellHost()],
   enableTailwind = true,
 ): JsonValue {
   return {
@@ -4659,7 +4593,7 @@ function createTemplateManifest(
       version: modernVersion,
       displayName: 'Modern.js UltraModern SuperApp Workspace',
       description:
-        'Canonical shell, full-stack verticals, shared packages, and topology skeleton.',
+        'Growable SuperApp shell, shared packages, and topology skeleton.',
       compatibilityLane: 'ultramodern-mv',
       minimumModernVersion: modernVersion,
     },
@@ -4773,9 +4707,7 @@ function createTemplateManifest(
   };
 }
 
-function createAssertMfTypesScript(
-  remotes: WorkspaceApp[] = verticalApps,
-): string {
+function createAssertMfTypesScript(remotes: WorkspaceApp[] = []): string {
   return `import fs from 'node:fs';
 import path from 'node:path';
 
@@ -4855,7 +4787,7 @@ for (const appDir of appDirs) {
 function createWorkspaceValidationScript(
   scope: string,
   enableTailwind: boolean,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const verticals = remotes.filter(appHasEffectApi).map(remote => ({
     id: remote.id,
@@ -4882,6 +4814,18 @@ function createWorkspaceValidationScript(
   }));
   const shellNamespace = appI18nNamespace(shellApp);
   const oldRemotePaths = ['apps/remotes'];
+  const expectedBuildScript =
+    remotes.length > 0
+      ? 'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types'
+      : 'pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types';
+  const expectedCloudflareBuildScript =
+    remotes.length > 0
+      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types'
+      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types';
+  const expectedCloudflareDeployScript =
+    remotes.length > 0
+      ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy'
+      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy';
 
   return `import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -4894,6 +4838,9 @@ const tailwindEnabled = ${JSON.stringify(enableTailwind)};
 const fullStackVerticals = ${JSON.stringify(verticals, null, 2)};
 const shellNamespace = ${JSON.stringify(shellNamespace)};
 const oldRemotePaths = ${JSON.stringify(oldRemotePaths, null, 2)};
+const expectedBuildScript = ${JSON.stringify(expectedBuildScript)};
+const expectedCloudflareBuildScript = ${JSON.stringify(expectedCloudflareBuildScript)};
+const expectedCloudflareDeployScript = ${JSON.stringify(expectedCloudflareDeployScript)};
 
 const readText = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = relativePath => JSON.parse(readText(relativePath));
@@ -5020,13 +4967,13 @@ assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy,
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
 assert(packageSource.generatedWorkspacePackages?.specifier === 'workspace:*', 'Generated workspace packages must keep workspace:* links');
 assert(
-  rootPackage.scripts?.build ===
-    'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+  rootPackage.scripts?.build === expectedBuildScript,
   'Root build script must build verticals before shell',
 );
+assert(rootPackage.scripts?.['cloudflare:build'] === expectedCloudflareBuildScript, 'Root cloudflare:build script is incorrect');
 assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose ultramodern:check');
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
-assert(rootPackage.scripts?.['cloudflare:deploy']?.includes('run cloudflare:deploy'), 'Root must expose cloudflare:deploy');
+assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeployScript, 'Root must expose cloudflare:deploy');
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
@@ -5490,12 +5437,12 @@ function writeGeneratedWorkspaceScripts(
   targetDir: string,
   scope: string,
   enableTailwind: boolean,
-  remotes: WorkspaceApp[] = verticalApps,
+  remotes: WorkspaceApp[] = [],
 ) {
   writeFileReplacing(
     targetDir,
     'scripts/assert-mf-types.mjs',
-    createAssertMfTypesScript(),
+    createAssertMfTypesScript(remotes),
   );
   writeFileReplacing(
     targetDir,
@@ -5515,181 +5462,175 @@ function writeApp(
   app: WorkspaceApp,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
+  remotes: WorkspaceApp[] = [],
 ) {
+  const resolvedApp = app.kind === 'shell' ? createShellHost(remotes) : app;
   const writeAppFile = (relativePath: string, content: string) => {
-    writeFile(targetDir, `${app.directory}/${relativePath}`, content);
+    writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
   };
 
   writeJson(
     targetDir,
-    `${app.directory}/package.json`,
-    createAppPackage(scope, app, packageSource, enableTailwind),
+    `${resolvedApp.directory}/package.json`,
+    createAppPackage(
+      scope,
+      resolvedApp,
+      packageSource,
+      enableTailwind,
+      remotes,
+    ),
   );
   writeJson(
     targetDir,
-    `${app.directory}/tsconfig.json`,
-    createPackageTsConfig(app.directory, appHasEffectApi(app)),
+    `${resolvedApp.directory}/tsconfig.json`,
+    createPackageTsConfig(resolvedApp.directory, appHasEffectApi(resolvedApp)),
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/modern-app-env.d.ts`,
-    createAppEnvDts(app),
+    `${resolvedApp.directory}/src/modern-app-env.d.ts`,
+    createAppEnvDts(resolvedApp, remotes),
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/ultramodern-build.ts`,
-    createUltramodernBuildModule(scope, app),
+    `${resolvedApp.directory}/src/ultramodern-build.ts`,
+    createUltramodernBuildModule(scope, resolvedApp),
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
-    createRouteMetadataModule(app),
+    `${resolvedApp.directory}/src/routes/ultramodern-route-metadata.ts`,
+    createRouteMetadataModule(resolvedApp),
   );
   writeFile(
     targetDir,
-    `${app.directory}/modern.config.ts`,
-    createAppModernConfig(scope, app),
+    `${resolvedApp.directory}/modern.config.ts`,
+    createAppModernConfig(scope, resolvedApp),
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/modern.runtime.ts`,
-    createAppRuntimeConfig(app, scope),
+    `${resolvedApp.directory}/src/modern.runtime.ts`,
+    createAppRuntimeConfig(resolvedApp, scope, remotes),
   );
   writeJson(
     targetDir,
-    `${app.directory}/locales/en/translation.json`,
-    createAppPublicLocaleMessages(app, 'en'),
+    `${resolvedApp.directory}/locales/en/translation.json`,
+    createAppPublicLocaleMessages(resolvedApp, 'en', remotes),
   );
   writeJson(
     targetDir,
-    `${app.directory}/locales/en/${appI18nNamespace(app)}.json`,
-    createAppPublicLocaleMessages(app, 'en'),
+    `${resolvedApp.directory}/locales/en/${appI18nNamespace(resolvedApp)}.json`,
+    createAppPublicLocaleMessages(resolvedApp, 'en', remotes),
   );
   writeJson(
     targetDir,
-    `${app.directory}/locales/cs/translation.json`,
-    createAppPublicLocaleMessages(app, 'cs'),
+    `${resolvedApp.directory}/locales/cs/translation.json`,
+    createAppPublicLocaleMessages(resolvedApp, 'cs', remotes),
   );
   writeJson(
     targetDir,
-    `${app.directory}/locales/cs/${appI18nNamespace(app)}.json`,
-    createAppPublicLocaleMessages(app, 'cs'),
+    `${resolvedApp.directory}/locales/cs/${appI18nNamespace(resolvedApp)}.json`,
+    createAppPublicLocaleMessages(resolvedApp, 'cs', remotes),
   );
   writeFile(
     targetDir,
-    `${app.directory}/src/routes/index.css`,
-    createAppStyles(enableTailwind, scope, app),
+    `${resolvedApp.directory}/src/routes/index.css`,
+    createAppStyles(enableTailwind, scope, resolvedApp),
   );
   if (enableTailwind) {
     writeFile(
       targetDir,
-      `${app.directory}/postcss.config.mjs`,
+      `${resolvedApp.directory}/postcss.config.mjs`,
       createPostcssConfig(),
     );
     writeFile(
       targetDir,
-      `${app.directory}/tailwind.config.ts`,
+      `${resolvedApp.directory}/tailwind.config.ts`,
       createTailwindConfig(),
     );
   }
   writeFile(
     targetDir,
-    `${app.directory}/module-federation.config.ts`,
-    app.kind === 'shell'
-      ? createShellModuleFederationConfig(scope)
-      : createRemoteModuleFederationConfig(scope, app),
+    `${resolvedApp.directory}/module-federation.config.ts`,
+    resolvedApp.kind === 'shell'
+      ? createShellModuleFederationConfig(scope, remotes)
+      : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
   );
-  writeAppFile('src/routes/layout.tsx', createLayout(app.id));
+  writeAppFile('src/routes/layout.tsx', createLayout(resolvedApp.id));
   for (const [relativePath, content] of Object.entries(
-    workspaceAssetsForApp(app),
+    workspaceAssetsForApp(resolvedApp),
   )) {
-    writeFile(targetDir, `${app.directory}/${relativePath}`, content);
+    writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
   }
   writeAppFile(
     'src/routes/[lang]/page.tsx',
-    app.kind === 'shell' ? createShellPage() : createRemotePage(app),
+    resolvedApp.kind === 'shell'
+      ? createShellPage(remotes)
+      : createRemotePage(resolvedApp),
   );
-  for (const route of createRouteOwnedI18nPaths(app)) {
-    if (route.canonicalPath === '/' || app.kind === 'shell') {
+  for (const route of createRouteOwnedI18nPaths(resolvedApp)) {
+    if (route.canonicalPath === '/' || resolvedApp.kind === 'shell') {
       continue;
     }
 
     writeFile(
       targetDir,
-      createRoutePageFilePath(app, route.canonicalPath),
+      createRoutePageFilePath(resolvedApp, route.canonicalPath),
       createRouteAliasPage(route.canonicalPath),
     );
   }
 
-  if (app.kind === 'shell') {
+  if (resolvedApp.kind === 'shell') {
     writeAppFile(
       'src/routes/vertical-components.tsx',
-      createShellRemoteComponents(scope),
+      createShellRemoteComponents(scope, remotes),
     );
     writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
     writeFile(
       targetDir,
-      `${app.directory}/src/effect/vertical-clients.ts`,
-      createShellEffectClient(scope),
-    );
-    writeAppFile(
-      'src/routes/[lang]/workspaces/page.tsx',
-      createShellWorkspacesPage(),
-    );
-    writeAppFile(
-      'src/routes/[lang]/directory/page.tsx',
-      createShellDirectoryPage(),
-    );
-    writeAppFile(
-      'src/routes/[lang]/records/[slug]/page.tsx',
-      createShellRecordPage(),
-    );
-    writeAppFile(
-      'src/routes/[lang]/actions/page.tsx',
-      createShellActionsPage(),
+      `${resolvedApp.directory}/src/effect/vertical-clients.ts`,
+      createShellEffectClient(scope, remotes),
     );
   }
 
-  if (appHasEffectApi(app)) {
+  if (appHasEffectApi(resolvedApp)) {
     writeFile(
       targetDir,
-      `${app.directory}/shared/effect/api.ts`,
-      createEffectSharedApi(app),
+      `${resolvedApp.directory}/shared/effect/api.ts`,
+      createEffectSharedApi(resolvedApp),
     );
     writeFile(
       targetDir,
-      `${app.directory}/api/effect/index.ts`,
-      createEffectServiceEntry(scope, app, '../../shared/effect/api'),
+      `${resolvedApp.directory}/api/effect/index.ts`,
+      createEffectServiceEntry(scope, resolvedApp, '../../shared/effect/api'),
     );
     writeFile(
       targetDir,
-      `${app.directory}/src/effect/${app.effectApi.stem}-client.ts`,
-      createEffectClient(app, '../../shared/effect/api'),
+      `${resolvedApp.directory}/src/effect/${resolvedApp.effectApi.stem}-client.ts`,
+      createEffectClient(resolvedApp, '../../shared/effect/api'),
     );
   }
 
-  if (app.kind === 'vertical') {
-    writeAppFile('src/federation-entry.tsx', createRemoteEntry(app));
-    if (app.id === 'records') {
+  if (resolvedApp.kind === 'vertical') {
+    writeAppFile('src/federation-entry.tsx', createRemoteEntry(resolvedApp));
+    if (resolvedApp.id === 'records') {
       writeAppFile(
         'src/components/vertical-components.tsx',
-        createRecordsRemoteComponents(scope, app),
+        createRecordsRemoteComponents(scope, resolvedApp),
       );
     }
-    if (app.id === 'actions') {
+    if (resolvedApp.id === 'actions') {
       writeFile(
         targetDir,
-        `${app.directory}/src/action-queue-store.ts`,
+        `${resolvedApp.directory}/src/action-queue-store.ts`,
         createActionQueueStore(),
       );
     }
-    for (const expose of Object.keys(app.exposes ?? {})) {
-      const outputPath = remoteComponentOutputPath(app, expose);
+    for (const expose of Object.keys(resolvedApp.exposes ?? {})) {
+      const outputPath = remoteComponentOutputPath(resolvedApp, expose);
 
       if (outputPath) {
         writeAppFile(
-          outputPath.slice(app.directory.length + 1),
-          createRemoteExposeComponent(app, expose),
+          outputPath.slice(resolvedApp.directory.length + 1),
+          createRemoteExposeComponent(resolvedApp, expose),
         );
       }
     }
@@ -5938,6 +5879,105 @@ function addRootDevScript(
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
+function updateRootWorkspaceScripts(
+  workspaceRoot: string,
+  scope: string,
+  packageSource: ResolvedPackageSource,
+  remotes: WorkspaceApp[],
+) {
+  const packagePath = path.join(workspaceRoot, 'package.json');
+  const rootPackage = readJsonFile(packagePath);
+  const generatedRootPackage = createRootPackageJson(
+    scope,
+    packageSource,
+    remotes,
+  ) as Record<string, any>;
+  rootPackage.scripts = generatedRootPackage.scripts;
+  writeJsonFile(packagePath, rootPackage as JsonValue);
+}
+
+function rewriteShellAppFiles(
+  workspaceRoot: string,
+  scope: string,
+  packageSource: ResolvedPackageSource,
+  enableTailwind: boolean,
+  remotes: WorkspaceApp[],
+) {
+  const shellHost = createShellHost(remotes);
+  writeJsonFile(
+    path.join(workspaceRoot, `${shellApp.directory}/package.json`),
+    createAppPackage(scope, shellHost, packageSource, enableTailwind, remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/modern-app-env.d.ts`,
+    createAppEnvDts(shellHost, remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/routes/ultramodern-route-metadata.ts`,
+    createRouteMetadataModule(shellHost),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/modern.runtime.ts`,
+    createAppRuntimeConfig(shellHost, scope, remotes),
+  );
+  writeJsonFile(
+    path.join(
+      workspaceRoot,
+      `${shellApp.directory}/locales/en/translation.json`,
+    ),
+    createAppPublicLocaleMessages(shellHost, 'en', remotes),
+  );
+  writeJsonFile(
+    path.join(
+      workspaceRoot,
+      `${shellApp.directory}/locales/en/${appI18nNamespace(shellHost)}.json`,
+    ),
+    createAppPublicLocaleMessages(shellHost, 'en', remotes),
+  );
+  writeJsonFile(
+    path.join(
+      workspaceRoot,
+      `${shellApp.directory}/locales/cs/translation.json`,
+    ),
+    createAppPublicLocaleMessages(shellHost, 'cs', remotes),
+  );
+  writeJsonFile(
+    path.join(
+      workspaceRoot,
+      `${shellApp.directory}/locales/cs/${appI18nNamespace(shellHost)}.json`,
+    ),
+    createAppPublicLocaleMessages(shellHost, 'cs', remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/module-federation.config.ts`,
+    createShellModuleFederationConfig(scope, remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/routes/[lang]/page.tsx`,
+    createShellPage(remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/routes/vertical-components.tsx`,
+    createShellRemoteComponents(scope, remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/routes/shell-frame.tsx`,
+    createShellFrameComponent(),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/effect/vertical-clients.ts`,
+    createShellEffectClient(scope, remotes),
+  );
+}
+
 function addShellZephyrDependency(
   workspaceRoot: string,
   scope: string,
@@ -5979,6 +6019,7 @@ function addShellWorkspaceDependency(
 function verticalTopologyEntry(
   scope: string,
   vertical: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
 ): JsonValue {
   return {
     id: vertical.id,
@@ -5994,7 +6035,7 @@ function verticalTopologyEntry(
       ...(vertical.verticalRefs?.length
         ? {
             verticalRefs: vertical.verticalRefs,
-            remotes: createModuleFederationRemoteContracts(vertical),
+            remotes: createModuleFederationRemoteContracts(vertical, remotes),
           }
         : {}),
       ssr: true,
@@ -6059,7 +6100,7 @@ function verticalsFromTopology(
       displayName: vertical.displayName ?? `${toPascalCase(domain)} Vertical`,
       kind: 'vertical',
       domain,
-      portEnv: '',
+      portEnv: `VERTICAL_${toEnvSegment(domain)}_PORT`,
       port: typeof ports[vertical.id] === 'number' ? ports[vertical.id] : 0,
       mfName:
         vertical.moduleFederation?.name ?? `vertical${toPascalCase(domain)}`,
@@ -6068,7 +6109,11 @@ function verticalsFromTopology(
             exposes: Object.fromEntries(
               vertical.moduleFederation.exposes.map((expose: string) => [
                 expose,
-                '',
+                expose === './Route'
+                  ? './src/federation-entry.tsx'
+                  : expose === './Widget'
+                    ? `./src/components/${domain}-widget.tsx`
+                    : '',
               ]),
             ),
           }
@@ -6186,18 +6231,13 @@ export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
       enableTailwind,
     ),
   );
-  const shellConfigPath = path.join(
+  rewriteShellAppFiles(
     options.workspaceRoot,
-    `${shellApp.directory}/module-federation.config.ts`,
+    scope,
+    packageSource,
+    enableTailwind,
+    updatedVerticals,
   );
-  writeFileReplacing(
-    options.workspaceRoot,
-    `${shellApp.directory}/module-federation.config.ts`,
-    createShellModuleFederationConfig(scope, updatedVerticals),
-  );
-  if (!fs.existsSync(shellConfigPath)) {
-    throw new Error('Shell Module Federation config was not regenerated');
-  }
   writeGeneratedWorkspaceScripts(
     options.workspaceRoot,
     scope,
@@ -6206,7 +6246,12 @@ export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
   );
   addShellZephyrDependency(options.workspaceRoot, scope, vertical);
   addShellWorkspaceDependency(options.workspaceRoot, scope, vertical);
-  addRootDevScript(options.workspaceRoot, scope, vertical.packageSuffix, name);
+  updateRootWorkspaceScripts(
+    options.workspaceRoot,
+    scope,
+    packageSource,
+    updatedVerticals,
+  );
 }
 
 export function generateUltramodernWorkspace(
@@ -6215,7 +6260,8 @@ export function generateUltramodernWorkspace(
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
   const enableTailwind = options.enableTailwind !== false;
-  assertUniqueTailwindPrefixes([shellApp, ...verticalApps]);
+  const initialVerticals: WorkspaceApp[] = [];
+  assertUniqueTailwindPrefixes([shellApp, ...initialVerticals]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   copyRootTemplate(options.targetDir, {
@@ -6228,23 +6274,23 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     'package.json',
-    createRootPackageJson(scope, packageSource),
+    createRootPackageJson(scope, packageSource, initialVerticals),
   );
   writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase());
   writeJson(
     options.targetDir,
     'topology/reference-topology.json',
-    createTopology(scope),
+    createTopology(scope, initialVerticals),
   );
   writeJson(
     options.targetDir,
     'topology/ownership.json',
-    createOwnership(scope),
+    createOwnership(scope, initialVerticals),
   );
   writeJson(
     options.targetDir,
     'topology/local-overlays/development.json',
-    createDevelopmentOverlay(),
+    createDevelopmentOverlay(initialVerticals),
   );
   writeJson(
     options.targetDir,
@@ -6259,15 +6305,38 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     GENERATED_CONTRACT_PATH,
-    createGeneratedContract(scope, [shellApp, ...verticalApps], enableTailwind),
+    createGeneratedContract(
+      scope,
+      [createShellHost(initialVerticals), ...initialVerticals],
+      enableTailwind,
+    ),
   );
 
-  writeApp(options.targetDir, scope, shellApp, packageSource, enableTailwind);
-  for (const remote of verticalApps) {
-    writeApp(options.targetDir, scope, remote, packageSource, enableTailwind);
+  writeApp(
+    options.targetDir,
+    scope,
+    shellApp,
+    packageSource,
+    enableTailwind,
+    initialVerticals,
+  );
+  for (const remote of initialVerticals) {
+    writeApp(
+      options.targetDir,
+      scope,
+      remote,
+      packageSource,
+      enableTailwind,
+      initialVerticals,
+    );
   }
   writeSharedPackages(options.targetDir, scope, packageSource);
-  writeGeneratedWorkspaceScripts(options.targetDir, scope, enableTailwind);
+  writeGeneratedWorkspaceScripts(
+    options.targetDir,
+    scope,
+    enableTailwind,
+    initialVerticals,
+  );
 }
 
 export const ultramodernWorkspaceVersions = {

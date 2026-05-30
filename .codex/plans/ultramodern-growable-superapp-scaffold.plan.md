@@ -4,25 +4,25 @@ overview: Transform UltraModern scaffolding and documentation so users start wit
 todos:
   - id: define-product-modes
     content: Define the supported scaffold modes and command contract: simple UltraModern app by default, explicit SuperApp workspace mode, optional example/demo mode outside the default path, and in-place `--vertical` mutation for real business domains.
-    status: pending
+    status: completed
   - id: update-create-cli-defaults
     content: Update `@modern-js/create` detection and CLI help so the BleedingDev UltraModern create entrypoint creates a simple app by default instead of forcing a multi-vertical workspace, while preserving explicit workspace and package-source flags.
-    status: pending
+    status: completed
   - id: simplify-workspace-generator
     content: Change the UltraModern workspace generator so a new workspace does not force placeholder `workspace`, `records`, and `actions` verticals; provide either shell-only or one explicitly named starter vertical, with topology, package scripts, CSS isolation, i18n, Effect BFF, and validation still coherent.
-    status: pending
+    status: completed
   - id: harden-add-vertical-flow
     content: Re-validate and tighten `create <domain> --vertical` as the human-facing growth path, proving it creates a full-stack MicroVertical and updates topology, ownership, overlays, shell Module Federation, package dependencies, generated contracts, ports, i18n, CSS isolation, and Effect clients.
-    status: pending
+    status: completed
   - id: document-human-workflow
     content: Rewrite public docs and generated READMEs around the human workflow: create a simple app, decide when a SuperApp workspace is warranted, add domains such as transportation, food-delivery, payments, or maps as MicroVerticals, and understand what the command changes.
-    status: pending
+    status: completed
   - id: remove-stale-reference-language
     content: Remove or quarantine stale Tractor/remotes/explore-decide-checkout/service-oriented language from public docs, generated templates, ADR indexes, and adoption material unless it is clearly labeled as historical evidence or an external demo repository.
-    status: pending
+    status: completed
   - id: validate-fresh-adoption-paths
     content: Validate the complete adoption paths from scratch: simple app create/build/check, SuperApp workspace create/check, add two or more business verticals/check, SSR/i18n/CSS/boundary debug behavior, and docs commands copy-pasted in a clean directory.
-    status: pending
+    status: completed
 isProject: false
 ---
 

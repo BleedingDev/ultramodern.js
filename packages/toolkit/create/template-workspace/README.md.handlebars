@@ -3,26 +3,28 @@
 Generated UltraModern SuperApp workspace.
 
 This workspace keeps `presetUltramodern(...)` as the single public
-UltraModern.js 3.0 SuperApp surface and scaffolds the canonical Micro Vertical
-starter topology:
+UltraModern.js 3.0 SuperApp surface and starts with an explicit shell:
 
-- `apps/shell-super-app` owns shell route assembly and federated manifest wiring.
-- `verticals/workspace` owns the workspace vertical, its
-  browser-safe Module Federation exposes, and its Effect BFF/API surface.
-- `verticals/records` owns the records vertical, its
-  browser-safe Module Federation exposes, and its Effect BFF/API surface.
-- `verticals/actions` owns the actions vertical, its
-  browser-safe Module Federation exposes, and its Effect BFF/API surface.
-- `packages/shared-*` provide placeholders for cross-workspace contracts.
+- `apps/shell-super-app` owns shell route assembly, Module Federation host
+  wiring, shared SSR/i18n runtime setup, and the boundary debugger.
+- `packages/shared-*` provide placeholders for cross-workspace contracts,
+  design tokens, and Effect API sharing.
+- `verticals/*` is intentionally empty until a real business domain is added.
 
-Default vertical APIs are owned by the vertical package.
-Each full-stack vertical keeps its `api/effect/index.ts` handlers next to its
-`shared/effect/api.ts` contract and `src/effect/*-client.ts` typed client
-surface. The Module Federation config exposes only browser-safe Route and
-Widget modules; server handlers and Effect client/contract modules stay out of
-browser verticals.
+Add a full-stack MicroVertical when the product needs one:
 
-Run the scaffold validator before adding business code:
+```bash
+pnpm create modern@latest transportation --vertical
+pnpm create modern@latest payments --vertical
+```
+
+Each added vertical owns its UI/routes, browser-safe Module Federation exposes,
+localized route metadata, CSS prefix, Effect BFF handlers, local API contract,
+and typed client surface. Server handlers and Effect client/contract modules
+stay out of browser exposes.
+
+Run the scaffold validator before adding business code and after every
+`--vertical` mutation:
 
 ```bash
 mise install
