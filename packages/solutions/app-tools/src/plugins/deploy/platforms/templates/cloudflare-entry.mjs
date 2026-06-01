@@ -284,8 +284,24 @@ async function fetchRemoteJson(jsonUrl) {
     remoteJsonPromises.set(
       jsonUrl,
       fetch(jsonUrl)
-        .then(response => (response.ok ? response.json() : {}))
-        .catch(() => ({})),
+        .then(response => {
+          if (!response.ok) {
+            remoteJsonPromises.delete(jsonUrl);
+
+            return {};
+          }
+
+          return response.json().catch(() => {
+            remoteJsonPromises.delete(jsonUrl);
+
+            return {};
+          });
+        })
+        .catch(() => {
+          remoteJsonPromises.delete(jsonUrl);
+
+          return {};
+        }),
     );
   }
 

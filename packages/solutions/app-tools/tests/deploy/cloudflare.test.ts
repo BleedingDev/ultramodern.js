@@ -605,6 +605,105 @@ describe('cloudflare deploy preset', () => {
     }
   });
 
+  it('retries transient remote manifest misses before injecting federated CSS', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const originalFetch = globalThis.fetch;
+    let exploreManifestFetches = 0;
+    const remoteManifests: Record<string, unknown> = {
+      'https://explore.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: 'https://explore.example.com/',
+        },
+        exposes: [
+          {
+            name: 'Header',
+            path: './Header',
+            assets: {
+              css: {
+                async: ['static/css/explore.css'],
+                sync: [],
+              },
+            },
+          },
+        ],
+      },
+      'https://explore.example.com/routes-manifest.json': {
+        routeAssets: {},
+      },
+      'https://checkout.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: 'https://checkout.example.com/',
+        },
+        exposes: [],
+      },
+      'https://checkout.example.com/routes-manifest.json': {
+        routeAssets: {},
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+
+      if (url === 'https://explore.example.com/mf-manifest.json') {
+        exploreManifestFetches += 1;
+
+        if (exploreManifestFetches === 1) {
+          return new Response('not ready', { status: 503 });
+        }
+      }
+
+      const manifest = remoteManifests[url];
+
+      if (manifest) {
+        return new Response(JSON.stringify(manifest), {
+          headers: {
+            'content-type': 'application/json',
+          },
+        });
+      }
+
+      return originalFetch(input);
+    }) as typeof fetch;
+
+    try {
+      const assetBinding = createAssetBinding(
+        path.join(outputDirectory, 'public'),
+      );
+      const firstResponse = await worker.fetch(
+        new Request('https://example.com/styled'),
+        {
+          ASSETS: assetBinding,
+        },
+      );
+      const firstHtml = await firstResponse.text();
+
+      expect(firstResponse.status).toBe(200);
+      expect(firstHtml).not.toContain(
+        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+      );
+
+      const secondResponse = await worker.fetch(
+        new Request('https://example.com/styled'),
+        {
+          ASSETS: assetBinding,
+        },
+      );
+      const secondHtml = await secondResponse.text();
+
+      expect(secondResponse.status).toBe(200);
+      expect(secondHtml).toContain(
+        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+      );
+      expect(exploreManifestFetches).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('follows same-origin asset redirects when reading SSR templates', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
