@@ -151,23 +151,6 @@ async function preloadMatchedRouteComponents(
   );
 }
 
-async function waitForRouterSerialization(
-  tanstackRouter: TanstackRouterWithServerSsr,
-) {
-  const serverSsr = tanstackRouter.serverSsr;
-  if (
-    !serverSsr ||
-    typeof serverSsr.onSerializationFinished !== 'function' ||
-    serverSsr.isSerializationFinished?.()
-  ) {
-    return;
-  }
-
-  await new Promise<void>(resolve => {
-    serverSsr.onSerializationFinished?.(resolve);
-  });
-}
-
 function htmlEscapeAttr(value: string) {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
@@ -400,7 +383,6 @@ export const tanstackRouterPlugin = (
         context.ssrContext?.response.status(tanstackRouter.state.statusCode);
 
         await serverRouter.serverSsr?.dehydrate?.();
-        await waitForRouterSerialization(serverRouter);
 
         const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
         const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);

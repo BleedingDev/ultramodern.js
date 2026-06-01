@@ -499,9 +499,12 @@ export const tanstackRouterPlugin = (
         context.ssrContext?.response.status(tanstackRouter.state.statusCode);
 
         await serverRouter.serverSsr?.dehydrate?.();
-        await waitForRouterSerialization(serverRouter);
 
         if (isRSCNavigation) {
+          // RSC navigations consume the server payload directly. Normal HTML SSR
+          // emits the buffered bootstrap script below and must not wait here
+          // because Modern's non-streaming hook has not rendered the app yet.
+          await waitForRouterSerialization(serverRouter);
           setTanstackRscServerPayload(
             createTanstackRscServerPayload(serverRouter, {
               omitClientLoaderData: true,
