@@ -10,7 +10,7 @@ This project is generated for Codex-first UltraModern.js work.
 - `pnpm i18n:check` rejects hardcoded user-visible JSX text.
 - `pnpm ultramodern:check` verifies the generated contract.
 - Generated Codex stop hooks and subagent-stop hooks run `pnpm format && pnpm lint:fix && pnpm ultramodern:check`.
-- `postinstall` installs `lefthook` when the app is inside a Git worktree. Generated `lefthook.yml` runs `pnpm format`, `pnpm lint:fix`, and `pnpm ultramodern:check` on pre-commit; pre-push runs `pnpm ultramodern:check`.
+- `postinstall` installs `lefthook` when the app is inside a Git worktree. Generated `lefthook.yml` runs `pnpm format && pnpm lint:fix && pnpm ultramodern:check` on pre-commit; pre-push runs `pnpm ultramodern:check`.
 
 ## Internationalization
 

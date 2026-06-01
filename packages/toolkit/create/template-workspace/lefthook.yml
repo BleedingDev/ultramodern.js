@@ -1,13 +1,8 @@
 pre-commit:
   commands:
-    format:
-      run: pnpm format
+    fix-and-check:
+      run: pnpm format && pnpm lint:fix && pnpm check
       stage_fixed: true
-    lint:
-      run: pnpm lint:fix
-      stage_fixed: true
-    check:
-      run: pnpm check
 
 pre-push:
   commands:

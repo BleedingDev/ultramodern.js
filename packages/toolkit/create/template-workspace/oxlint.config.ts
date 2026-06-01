@@ -12,6 +12,7 @@ export default defineConfig({
     '.agents',
     'dist',
     'node_modules',
+    'repos/**',
     '.modern',
     '.modernjs',
     '**/routeTree.gen.ts',

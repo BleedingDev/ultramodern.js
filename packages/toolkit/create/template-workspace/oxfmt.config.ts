@@ -8,6 +8,7 @@ export default defineConfig({
     '**/*.json',
     'dist',
     'node_modules',
+    'repos/**',
     '.modern',
     '.modernjs',
     '**/routeTree.gen.ts',

@@ -102,6 +102,39 @@ describe('create builder Options', () => {
     expect(
       typeof cloudflareResult.environments.workerSSR?.tools?.bundlerChain,
     ).toBe('function');
+
+    const previousDeployTarget = process.env.MODERNJS_DEPLOY;
+    process.env.MODERNJS_DEPLOY = 'cloudflare';
+    try {
+      const envCloudflareResult = getBuilderEnvironments(
+        {
+          output: {
+            ssg: true,
+          },
+          deploy: {
+            worker: {
+              ssr: true,
+            },
+          },
+        } as any,
+        appContext as any,
+        {} as any,
+      );
+
+      expect(envCloudflareResult.environments.workerSSR?.output).toEqual({
+        module: true,
+        target: 'web',
+      });
+      expect(
+        typeof envCloudflareResult.environments.workerSSR?.tools?.bundlerChain,
+      ).toBe('function');
+    } finally {
+      if (previousDeployTarget === undefined) {
+        delete process.env.MODERNJS_DEPLOY;
+      } else {
+        process.env.MODERNJS_DEPLOY = previousDeployTarget;
+      }
+    }
   });
 
   it('adds the Effect BFF entry to Cloudflare workerSSR builds', () => {

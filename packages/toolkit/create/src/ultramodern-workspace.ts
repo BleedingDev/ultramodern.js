@@ -69,6 +69,22 @@ type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+function sortJsonValue(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonValue);
+  }
+
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, sortJsonValue(entry)]),
+    );
+  }
+
+  return value;
+}
+
 type WorkspaceApp = {
   id: string;
   directory: string;
@@ -684,10 +700,11 @@ function createRootPackageJson(
         ]),
       ),
       build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
-      format: 'oxfmt .',
-      'format:check': 'oxfmt --check .',
-      lint: 'oxlint .',
-      'lint:fix': 'oxlint . --fix',
+      format: "oxfmt . '!repos/**'",
+      'format:check': "oxfmt --check . '!repos/**'",
+      lint: 'oxlint apps/*/src verticals/*/src packages/*/src --ignore-pattern "**/modern-tanstack/**"',
+      'lint:fix':
+        'oxlint apps/*/src verticals/*/src packages/*/src --ignore-pattern "**/modern-tanstack/**" --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
@@ -703,7 +720,7 @@ function createRootPackageJson(
       'ultramodern:i18n-boundaries':
         'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
-        'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs',
+        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)",
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:i18n-boundaries && pnpm ultramodern:check',
     },
@@ -1159,9 +1176,7 @@ ${bffPluginEntry}        moduleFederationPlugin(),
       ...(cloudflareDeployEnabled
         ? {
             deploy: {
-              target: 'cloudflare',
               worker: {
-                name: cloudflareWorkerName,
                 ssr: true,
               },
             },
@@ -1385,10 +1400,10 @@ function createUltramodernBuildModule(
 ): string {
   return `export const ultramodernVerticalIdentity = {
   appId: '${app.id}',
-  packageName: '${packageName(scope, app.packageSuffix)}',
-  version: '0.1.0',
   build: '${createBuildMarker(scope, app)}',
   deployProfile: 'cloudflare-ssr-mf-effect-v1',
+  packageName: '${packageName(scope, app.packageSuffix)}',
+  version: '0.1.0',
 } as const;
 
 export const ultramodernUiMarker = {
@@ -1656,8 +1671,8 @@ function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
 }
 
 function createRouteMetadataModule(app: WorkspaceApp): string {
-  const routes = createRouteOwnedI18nPaths(app);
-  const localisedUrls = createLocalisedUrlsMap(app);
+  const routes = sortJsonValue(createRouteOwnedI18nPaths(app));
+  const localisedUrls = sortJsonValue(createLocalisedUrlsMap(app));
   const namespace = appI18nNamespace(app);
 
   return `export const ultramodernRouteNamespace = '${namespace}' as const;
@@ -1667,10 +1682,10 @@ export const ultramodernRouteMetadata = ${JSON.stringify(routes, null, 2)} as co
 export const ultramodernLocalisedUrls = ${JSON.stringify(localisedUrls, null, 2)} as const;
 
 export const ultramodernRouteConfig = {
-  source: 'route-owned',
-  namespace: ultramodernRouteNamespace,
   localisedUrls: ultramodernLocalisedUrls,
+  namespace: ultramodernRouteNamespace,
   routes: ultramodernRouteMetadata,
+  source: 'route-owned',
 } as const;
 `;
 }
@@ -1708,16 +1723,16 @@ function createBoundaryDebugMetadata(
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
   return {
-    schemaVersion: 1,
     appId: shellApp.id,
     boundaries: [shellApp, ...remotes].map(app => ({
       appId: app.id,
+      label: app.displayName,
       mfName: app.mfName,
+      ownerTeam: app.ownership.team,
       packageName: packageName(scope, app.packageSuffix),
       role: app.kind === 'shell' ? 'host' : 'vertical',
-      ownerTeam: app.ownership.team,
-      label: app.displayName,
     })),
+    schemaVersion: 1,
   };
 }
 
@@ -1735,7 +1750,7 @@ function createAppEnvDts(
             '',
           )}`;
           return `declare module '${moduleName}' {
-  const Component: import('react').ComponentType<Record<string, never>>;
+  const Component: React.ComponentType<Record<string, never>>;
   export default Component;
 }
 `;
@@ -1743,13 +1758,19 @@ function createAppEnvDts(
     )
     .join('\n');
 
-  return `/// <reference types='@modern-js/app-tools/types' />
+  const reactTypeReference = remoteModuleDeclarations
+    ? "/// <reference types='react' />\n"
+    : '';
+  const siteUrlDeclaration = 'declare const ULTRAMODERN_SITE_URL: string;';
 
-declare const ULTRAMODERN_SITE_URL: string;
+  return `${reactTypeReference}/// <reference types='@modern-js/app-tools/types' />
+
+${siteUrlDeclaration}
 declare module '*.svg' {
   const url: string;
   export default url;
 }
+declare module '*.css';
 ${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
 }
 
@@ -1793,10 +1814,10 @@ export default defineRuntimeConfig({
       supportedLngs: ['en', 'cs'],
     },
   },
+${pluginsConfig}
   router: {
     framework: 'tanstack',
   },
-${pluginsConfig}
 });
 `;
 }
@@ -1898,7 +1919,7 @@ function workspaceAssetsForApp(_app: WorkspaceApp): Record<string, string> {
   return {};
 }
 
-function createLocalizedHeadComponent(): string {
+function createLocalizedHeadComponent(includeLocationSuffix = true): string {
   return `const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
@@ -1912,7 +1933,7 @@ const isSupportedLanguage = (value: string): value is SupportedLanguage =>
   supportedLanguages.includes(value as SupportedLanguage);
 
 const normalisePath = (pathname: string) => {
-  const normalised = pathname.replace(/\\/+$/u, '').replace(/\\/+/gu, '/');
+  const normalised = pathname.replaceAll(/\\/+/gu, '/').replace(/\\/+$/u, '');
   return normalised.length > 0 ? normalised : '/';
 };
 
@@ -1925,7 +1946,7 @@ const stripLanguagePrefix = (pathname: string) => {
 };
 
 const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+  value.replaceAll(/[.*+?^\${}()|[\\]\\\\]/gu, '\\\\$&');
 
 const paramName = (segment: string) => segment.slice(1).replace(/\\?$/u, '');
 
@@ -1942,16 +1963,19 @@ const matchPattern = (pathname: string, pattern: string) => {
       return \`/\${escapeRegExp(segment)}\`;
     })
     .join('');
-  const match = new RegExp(\`^\${source || '/'}$\`).exec(normalisePath(pathname));
+  const match = new RegExp(\`^\${source || '/'}$\`, 'u').exec(
+    normalisePath(pathname),
+  );
 
-  if (!match) {
-    return undefined;
+  if (match === null) {
+    return;
   }
 
-  return names.reduce<Record<string, string>>((params, name, index) => {
+  const params: Record<string, string> = {};
+  for (const [index, name] of names.entries()) {
     params[name] = decodeURIComponent(match[index + 1] ?? '');
-    return params;
-  }, {});
+  }
+  return params;
 };
 
 const buildPath = (pattern: string, params: Record<string, string>) => {
@@ -1963,7 +1987,9 @@ const buildPath = (pattern: string, params: Record<string, string>) => {
         return segment;
       }
       const value = params[paramName(segment)];
-      return value ? encodeURIComponent(value) : '';
+      return value !== undefined && value.length > 0
+        ? encodeURIComponent(value)
+        : '';
     })
     .filter(Boolean)
     .join('/');
@@ -1979,16 +2005,17 @@ const resolveLocalisedPath = (
 
   for (const entry of Object.values(localisedUrls)) {
     const targetPattern = entry[targetLanguage];
-    if (!targetPattern) {
+    if (targetPattern === undefined) {
       continue;
     }
 
     for (const language of supportedLanguages) {
       const sourcePattern = entry[language];
-      const params = sourcePattern
-        ? matchPattern(pathWithoutLanguage, sourcePattern)
-        : undefined;
-      if (params) {
+      const params =
+        sourcePattern === undefined
+          ? undefined
+          : matchPattern(pathWithoutLanguage, sourcePattern);
+      if (params !== undefined) {
         return buildPath(targetPattern, params);
       }
     }
@@ -2007,21 +2034,26 @@ const absoluteUrl = (pathname: string) => {
   return \`\${origin}\${pathname}\`;
 };
 
-const locationSuffix = (location: {
+${
+  includeLocationSuffix
+    ? `const locationSuffix = (location: {
   hash?: unknown;
   search?: unknown;
   searchStr?: unknown;
 }) => {
-  const locationSearch =
-    typeof location.searchStr === 'string'
-      ? location.searchStr
-      : typeof location.search === 'string'
-        ? location.search
-        : '';
+  let locationSearch = '';
+  if (typeof location.searchStr === 'string') {
+    locationSearch = location.searchStr;
+  } else if (typeof location.search === 'string') {
+    locationSearch = location.search;
+  }
   const locationHash = typeof location.hash === 'string' ? location.hash : '';
 
   return \`\${locationSearch}\${locationHash}\`;
 };
+`
+    : ''
+}
 
 const LocalizedHead = () => {
   const location = useLocation();
@@ -2061,7 +2093,7 @@ import { VerticalShowcase } from '../vertical-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
-${createLocalizedHeadComponent()}
+${createLocalizedHeadComponent(false)}
 export default function ShellHome() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
@@ -2197,9 +2229,9 @@ import { ultramodernLocalisedUrls } from './ultramodern-route-metadata';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 
-type ShellFrameProps = {
+interface ShellFrameProps {
   children: ReactNode;
-};
+}
 
 const localisedUrls = ultramodernLocalisedUrls as Record<
   string,
@@ -2210,7 +2242,7 @@ const isSupportedLanguage = (value: string): value is SupportedLanguage =>
   supportedLanguages.includes(value as SupportedLanguage);
 
 const normalisePath = (pathname: string) => {
-  const normalised = pathname.replace(/\\/+$/u, '').replace(/\\/+/gu, '/');
+  const normalised = pathname.replaceAll(/\\/+/gu, '/').replace(/\\/+$/u, '');
   return normalised.length > 0 ? normalised : '/';
 };
 
@@ -2223,7 +2255,7 @@ const stripLanguagePrefix = (pathname: string) => {
 };
 
 const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+  value.replaceAll(/[.*+?^\${}()|[\\]\\\\]/gu, '\\\\$&');
 
 const paramName = (segment: string) => segment.slice(1).replace(/\\?$/u, '');
 
@@ -2240,16 +2272,19 @@ const matchPattern = (pathname: string, pattern: string) => {
       return \`/\${escapeRegExp(segment)}\`;
     })
     .join('');
-  const match = new RegExp(\`^\${source || '/'}$\`).exec(normalisePath(pathname));
+  const match = new RegExp(\`^\${source || '/'}$\`, 'u').exec(
+    normalisePath(pathname),
+  );
 
-  if (!match) {
-    return undefined;
+  if (match === null) {
+    return;
   }
 
-  return names.reduce<Record<string, string>>((params, name, index) => {
+  const params: Record<string, string> = {};
+  for (const [index, name] of names.entries()) {
     params[name] = decodeURIComponent(match[index + 1] ?? '');
-    return params;
-  }, {});
+  }
+  return params;
 };
 
 const buildPath = (pattern: string, params: Record<string, string>) => {
@@ -2261,7 +2296,9 @@ const buildPath = (pattern: string, params: Record<string, string>) => {
         return segment;
       }
       const value = params[paramName(segment)];
-      return value ? encodeURIComponent(value) : '';
+      return value !== undefined && value.length > 0
+        ? encodeURIComponent(value)
+        : '';
     })
     .filter(Boolean)
     .join('/');
@@ -2277,16 +2314,17 @@ const resolveLocalisedPath = (
 
   for (const entry of Object.values(localisedUrls)) {
     const targetPattern = entry[targetLanguage];
-    if (!targetPattern) {
+    if (targetPattern === undefined) {
       continue;
     }
 
     for (const language of supportedLanguages) {
       const sourcePattern = entry[language];
-      const params = sourcePattern
-        ? matchPattern(pathWithoutLanguage, sourcePattern)
-        : undefined;
-      if (params) {
+      const params =
+        sourcePattern === undefined
+          ? undefined
+          : matchPattern(pathWithoutLanguage, sourcePattern);
+      if (params !== undefined) {
         return buildPath(targetPattern, params);
       }
     }
@@ -2305,12 +2343,12 @@ const locationSuffix = (location: {
   search?: unknown;
   searchStr?: unknown;
 }) => {
-  const locationSearch =
-    typeof location.searchStr === 'string'
-      ? location.searchStr
-      : typeof location.search === 'string'
-        ? location.search
-        : '';
+  let locationSearch = '';
+  if (typeof location.searchStr === 'string') {
+    locationSearch = location.searchStr;
+  } else if (typeof location.search === 'string') {
+    locationSearch = location.search;
+  }
   const locationHash = typeof location.hash === 'string' ? location.hash : '';
 
   return \`\${locationSearch}\${locationHash}\`;
@@ -2395,21 +2433,19 @@ function createShellRemoteComponents(
 
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
-import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 ${serverImports}
 
-type RemoteComponentModule = {
+interface RemoteComponentModule {
   default: ComponentType;
-};
+}
 
-const loadRemoteComponent = async (specifier: string) => {
-  const module = await loadRemote<RemoteComponentModule>(specifier);
-  if (!module) {
-    throw new Error(\`Remote module unavailable: \${specifier}\`);
-  }
-  return module;
-};
+const widgetCount = Number('${remoteCount}');
+
+const loadRemoteComponent = (specifier: string) =>
+  loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
 
 const remoteFallback =
   ({ error }: { error: Error }) => {
@@ -2418,11 +2454,9 @@ const remoteFallback =
     return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>{t('shell.remoteUnavailable')}</div>;
   };
 
-const createHydratedRemote = (
-  ServerComponent: ComponentType,
-  specifier: string,
-) => {
-  return function HydratedRemote() {
+const createHydratedRemote =
+  (ServerComponent: ComponentType, specifier: string) =>
+  function HydratedRemote() {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
@@ -2431,11 +2465,11 @@ const createHydratedRemote = (
 
     const FederatedComponent = useMemo(() => {
       if (!hydrated) {
-        return undefined;
+        return null;
       }
       const instance = getInstance();
-      if (!instance) {
-        return undefined;
+      if (instance === null || instance === undefined) {
+        return null;
       }
       return createLazyComponent({
         export: 'default',
@@ -2446,7 +2480,7 @@ const createHydratedRemote = (
       });
     }, [hydrated]);
 
-    if (!FederatedComponent) {
+    if (FederatedComponent === null) {
       return <ServerComponent />;
     }
 
@@ -2456,11 +2490,10 @@ const createHydratedRemote = (
       </Suspense>
     );
   };
-};
 
 ${hydratedExports}
 
-export function Header() {
+export const Header = () => {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
@@ -2469,24 +2502,24 @@ export function Header() {
       <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</I18nLink>
     </header>
   );
-}
+};
 
-export function StatusBadge() {
+export const StatusBadge = () => {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <span className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5')}">
-      {${remoteCount}} {t('shell.hero.cardOneKicker')}
+      {widgetCount} {t('shell.hero.cardOneKicker')}
     </span>
   );
-}
+};
 
-export function VerticalShowcase() {
+export const VerticalShowcase = () => {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
-  if (${remoteCount} === 0) {
+  if (widgetCount === 0) {
     return (
       <section className="${tw('mx-auto mt-12 max-w-7xl rounded-2xl bg-white/90 p-6 shadow-xl shadow-stone-900/10')}">
         <p className="${tw('text-lg font-bold text-stone-700')}">{t('shell.hero.empty')}</p>
@@ -2501,17 +2534,23 @@ ${showcaseItems}
       </div>
     </section>
   );
-}
+};
 `;
 }
 
 function createRemotePage(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
+  const listEffectItems = `list${toPascalCase(effectApiStem(app))}`;
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
+import {
+  Effect,
+  ${listEffectItems},
+  runEffectRequest,
+} from '../../effect/${effectApiStem(app)}-client';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
@@ -2520,24 +2559,29 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
   useEffect(() => {
-    void fetch('${effectApiPrefix(app)}/effect/${effectApiStem(app)}?limit=1', {
-      headers: {
-        accept: 'application/json',
-      },
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(\`Effect BFF request failed: \${response.status}\`);
-        }
+    let cancelled = false;
+    void runEffectRequest(
+      ${listEffectItems}({ limit: 1 }).pipe(
+        Effect.match({
+          onFailure: () => {
+            if (cancelled) {
+              return;
+            }
+            setEffectApiStatus('unavailable');
+          },
+          onSuccess: data => {
+            if (cancelled) {
+              return;
+            }
+            setEffectApiStatus(data.items.at(0)?.title ?? 'empty');
+          },
+        }),
+      ),
+    );
 
-        return response.json() as Promise<{ items?: Array<{ title?: string }> }>;
-      })
-      .then(data => {
-        setEffectApiStatus(data.items[0]?.title ?? 'empty');
-      })
-      .catch(() => {
-        setEffectApiStatus('unavailable');
-      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
 `
@@ -2570,7 +2614,7 @@ ${effectBffState}  return (
         ))}
       </nav>
       <h1 className="${tw('mt-10 text-5xl font-black')}">{t('${app.domain}.title')}</h1>
-      <p className="${tw('mt-3 text-lg text-stone-600')}" data-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
+      <p className="${tw('mt-3 text-lg text-stone-600')}" data-modern-mf-role="${app.kind}">{t('${app.domain}.role')}</p>
       <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
@@ -2905,22 +2949,18 @@ function createRecordsRemoteComponents(
 
   return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
-import { Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import HighlightsServer from '${packageName(scope, 'workspace')}/Highlights';
 import StartActionServer from '${packageName(scope, 'actions')}/StartAction';
 
-type RemoteComponentModule = {
+interface RemoteComponentModule {
   default: ComponentType;
-};
+}
 
-const loadRemoteComponent = async (specifier: string) => {
-  const module = await loadRemote<RemoteComponentModule>(specifier);
-  if (!module) {
-    throw new Error(\`Remote module unavailable: \${specifier}\`);
-  }
-  return module;
-};
+const loadRemoteComponent = (specifier: string) =>
+  loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
 
 const remoteFallback =
   ({ error }: { error: Error }) => {
@@ -2929,11 +2969,9 @@ const remoteFallback =
     return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>{t('records.remoteUnavailable')}</div>;
   };
 
-const createHydratedRemote = (
-  ServerComponent: ComponentType,
-  specifier: string,
-) => {
-  return function HydratedRemote() {
+const createHydratedRemote =
+  (ServerComponent: ComponentType, specifier: string) =>
+  function HydratedRemote() {
     const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
@@ -2942,11 +2980,11 @@ const createHydratedRemote = (
 
     const FederatedComponent = useMemo(() => {
       if (!hydrated) {
-        return undefined;
+        return null;
       }
       const instance = getInstance();
-      if (!instance) {
-        return undefined;
+      if (instance === null || instance === undefined) {
+        return null;
       }
       return createLazyComponent({
         export: 'default',
@@ -2957,7 +2995,7 @@ const createHydratedRemote = (
       });
     }, [hydrated]);
 
-    if (!FederatedComponent) {
+    if (FederatedComponent === null) {
       return <ServerComponent />;
     }
 
@@ -2967,7 +3005,6 @@ const createHydratedRemote = (
       </Suspense>
     );
   };
-};
 
 export const Highlights = createHydratedRemote(HighlightsServer, 'workspace/Highlights');
 export const StartAction = createHydratedRemote(StartActionServer, 'actions/StartAction');
@@ -3662,8 +3699,7 @@ const ${groupName}Items = [
   },
 ];
 
-const operationAttributes = (operationContext: OperationContext) => {
-  return {
+const operationAttributes = (operationContext: OperationContext) => ({
     'modernjs.operation.id': operationContext.operationId,
     'modernjs.operation.method': operationContext.method,
     'modernjs.operation.route': operationContext.routePath,
@@ -3671,8 +3707,7 @@ const operationAttributes = (operationContext: OperationContext) => {
     ...(typeof operationContext.traceId === 'string'
       ? { 'modernjs.trace.id': operationContext.traceId }
       : {}),
-  };
-};
+  });
 
 const ${groupName}Layer = HttpApiBuilder.group(
   ${apiExport},
@@ -3768,6 +3803,7 @@ function createEffectClient(
   const createName = `create${toPascalCase(singular)}`;
 
   return `import {
+  Effect,
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
@@ -3775,85 +3811,74 @@ import {
   ${contractExport}ApiContract,
   ${apiExport},
   ${groupName}OperationContexts,
-  type OperationContext,
 } from '${contractImportPath}';
+import type { OperationContext } from '${contractImportPath}';
 
-export type ${clientOptionsName} = {
+export { Effect, runEffectRequest };
+
+export interface ${clientOptionsName} {
   baseUrl?: string | URL;
   locale?: string;
   operationContext?: OperationContext;
   traceparent?: string;
-};
-
-export function ${createClientName}(
-  options: ${clientOptionsName} = {},
-) {
-  return makeEffectHttpApiClient(${apiExport}, {
-    baseUrl: options.baseUrl ?? ${contractExport}ApiContract.apiPrefix,
-  });
 }
 
-export function ${listName}(
+export const ${createClientName} = (
+  options: ${clientOptionsName} = {},
+) =>
+  makeEffectHttpApiClient(${apiExport}, {
+    baseUrl: options.baseUrl ?? ${contractExport}ApiContract.apiPrefix,
+  });
+
+export const ${listName} = (
   options: ${clientOptionsName} & { limit?: number } = {},
-) {
-  return runEffectRequest(
-    ${createClientName}({
-      ...options,
-      operationContext:
-        options.operationContext ?? ${groupName}OperationContexts.list,
-    }),
-  ).then(client =>
-    runEffectRequest(
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.list,
+  }).pipe(
+    Effect.flatMap(client =>
       client.${groupName}.list({ query: { limit: options.limit } }),
     ),
   );
-}
 
-export function ${readinessName}(
+export const ${readinessName} = (
   options: ${clientOptionsName} = {},
-) {
-  return runEffectRequest(
-    ${createClientName}({
-      ...options,
-      operationContext:
-        options.operationContext ?? ${groupName}OperationContexts.readiness,
-    }),
-  ).then(client =>
-    runEffectRequest(client.${groupName}.readiness({})),
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.readiness,
+  }).pipe(
+    Effect.flatMap(client => client.${groupName}.readiness({})),
   );
-}
 
-export function ${getName}(
+export const ${getName} = (
   id: string,
   options: ${clientOptionsName} = {},
-) {
-  return runEffectRequest(
-    ${createClientName}({
-      ...options,
-      operationContext:
-        options.operationContext ?? ${groupName}OperationContexts.get,
-    }),
-  ).then(client =>
-    runEffectRequest(client.${groupName}.get({ params: { id } })),
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.get,
+  }).pipe(
+    Effect.flatMap(client => client.${groupName}.get({ params: { id } })),
   );
-}
 
-export function ${createName}(
+export const ${createName} = (
   title: string,
   options: ${clientOptionsName} = {},
-) {
-  return runEffectRequest(
-    ${createClientName}({
-      ...options,
-      operationContext:
-        options.operationContext ?? ${groupName}OperationContexts.create,
-    }),
-  ).then(client =>
-    runEffectRequest(
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.create,
+  }).pipe(
+    Effect.flatMap(client =>
       client.${groupName}.create({ payload: { title } }),
     ),
   );
-}
 `;
 }
 
@@ -5174,7 +5199,7 @@ assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeploySc
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs', 'Root postinstall must bootstrap agent skills and hooks before reference repositories');
+assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)", 'Root postinstall must format, bootstrap agent skills, install reference repositories, and enable hooks last');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 assert(

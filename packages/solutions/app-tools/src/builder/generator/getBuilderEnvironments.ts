@@ -87,6 +87,13 @@ function getEffectBffEntry(
   );
 }
 
+function isCloudflareWorkerDeploy(normalizedConfig: AppNormalizedConfig) {
+  return (
+    normalizedConfig.deploy?.target === 'cloudflare' ||
+    process.env.MODERNJS_DEPLOY === 'cloudflare'
+  );
+}
+
 export function getBuilderEnvironments(
   normalizedConfig: AppNormalizedConfig,
   appContext: AppToolsContext,
@@ -162,7 +169,7 @@ export function getBuilderEnvironments(
 
   if (useWorkerTarget) {
     const useCloudflareModuleWorker =
-      normalizedConfig.deploy?.target === 'cloudflare';
+      isCloudflareWorkerDeploy(normalizedConfig);
     const effectBffEntry = useCloudflareModuleWorker
       ? getEffectBffEntry(normalizedConfig, appContext)
       : undefined;
@@ -220,6 +227,7 @@ export function getBuilderEnvironments(
       ? resolvePackageEntry('@loadable/component', [
           appContext.appDirectory,
           process.cwd(),
+          CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR,
         ])
       : undefined;
     const loadableServerWorkerFile = useCloudflareModuleWorker
