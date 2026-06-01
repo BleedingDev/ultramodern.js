@@ -25,8 +25,14 @@ const defaultExtender = {
 export const createReadableStreamFromElement: CreateReadableStreamFromElement =
   async (request, rootElement, options) => {
     const { renderToPipeableStream } = await import('react-dom/server');
-    const { runtimeContext, htmlTemplate, config, ssrConfig, entryName } =
-      options;
+    const {
+      runtimeContext,
+      htmlTemplate,
+      config,
+      ssrConfig,
+      entryName,
+      moduleFederationCssAssets,
+    } = options;
     let shellChunkStatus = ShellChunkStatus.START;
 
     let renderLevel = RenderLevel.SERVER_RENDER;
@@ -86,6 +92,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
               runtimeContext,
               config,
               entryName,
+              moduleFederationCssAssets,
               styledComponentsStyleTags,
             }).then(({ shellAfter, shellBefore }) => {
               const pendingScripts: string[] = [];
@@ -198,6 +205,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
               runtimeContext,
               entryName,
               config,
+              moduleFederationCssAssets,
             }).then(({ shellAfter, shellBefore }) => {
               const fallbackHtml = `${shellBefore}${shellAfter}`;
 

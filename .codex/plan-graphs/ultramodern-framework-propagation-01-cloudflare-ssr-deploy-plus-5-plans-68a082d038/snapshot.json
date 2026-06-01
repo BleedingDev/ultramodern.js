@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T00:08:18.017883+00:00",
+  "generated_at": "2026-06-01T00:12:59.950773+00:00",
   "graph_id": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy-plus-5-plans-68a082d038",
   "plan_set_hash": "c66fbd8f39",
   "selection_hash": "68a082d038",
@@ -541,5 +541,5 @@
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "generated-selection"
+  "graph_source": "matched-plan-set"
 }

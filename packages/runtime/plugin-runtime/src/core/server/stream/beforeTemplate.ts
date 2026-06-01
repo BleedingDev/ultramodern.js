@@ -5,6 +5,7 @@ import ReactHelmet, { type HelmetData } from 'react-helmet';
 import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../../context';
 import { CHUNK_CSS_PLACEHOLDER } from '../constants';
+import { createFederatedCssLinks } from '../federatedCss';
 import { createReplaceHelemt } from '../helmet';
 import type { HandleRequestConfig } from '../requestHandler';
 import { type BuildHtmlCb, buildHtml } from '../shared';
@@ -43,14 +44,20 @@ export interface BuildShellBeforeTemplateOptions {
   entryName: string;
   config: HandleRequestConfig;
   styledComponentsStyleTags?: string;
+  moduleFederationCssAssets?: string[];
 }
 
 export async function buildShellBeforeTemplate(
   beforeAppTemplate: string,
   options: BuildShellBeforeTemplateOptions,
 ) {
-  const { config, runtimeContext, styledComponentsStyleTags, entryName } =
-    options;
+  const {
+    config,
+    runtimeContext,
+    styledComponentsStyleTags,
+    entryName,
+    moduleFederationCssAssets,
+  } = options;
 
   const helmetData: HelmetData = ReactHelmet.renderStatic();
 
@@ -71,6 +78,12 @@ export async function buildShellBeforeTemplate(
     if (styledComponentsStyleTags) {
       css += styledComponentsStyleTags;
     }
+    css += createFederatedCssLinks(moduleFederationCssAssets, {
+      template,
+      existingAssets: css
+        .match(/href="([^"]+)"/g)
+        ?.map(item => item.replace(/^href="/, '').replace(/"$/, '')),
+    });
     return safeReplace(template, CHUNK_CSS_PLACEHOLDER, css);
 
     async function getCssChunks() {

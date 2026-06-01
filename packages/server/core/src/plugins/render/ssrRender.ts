@@ -75,6 +75,8 @@ export async function ssrRender(
   const { entryName } = routeInfo;
   const loadableStats = serverManifest.loadableStats || {};
   const routeManifest = serverManifest.routeManifest || {};
+  const moduleFederationCssAssets =
+    serverManifest.moduleFederationCssAssets || [];
 
   const headers = parseHeaders(request);
 
@@ -102,6 +104,7 @@ export async function ssrRender(
       route: routeInfo,
       loadableStats,
       routeManifest,
+      moduleFederationCssAssets,
       htmlTemplate: html,
       entryName: entryName || MAIN_ENTRY_NAME,
     },

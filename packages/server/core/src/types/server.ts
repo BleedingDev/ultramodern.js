@@ -68,6 +68,7 @@ export type ServerManifest = {
   loadableStats?: Record<string, any>;
   routeManifest?: Record<string, any>;
   nestedRoutesJson?: Record<string, any>;
+  moduleFederationCssAssets?: string[];
 };
 
 type ServerVariables = {

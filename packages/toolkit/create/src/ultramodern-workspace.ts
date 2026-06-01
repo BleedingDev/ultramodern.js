@@ -700,10 +700,12 @@ function createRootPackageJson(
         'node ./scripts/setup-agent-reference-repos.mjs --check',
       'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
       'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
+      'ultramodern:i18n-boundaries':
+        'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
         'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs',
       check:
-        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:check',
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:i18n-boundaries && pnpm ultramodern:check',
     },
     engines: {
       node: '>=20',
@@ -920,7 +922,7 @@ function createAppPackage(
       'cloudflare:build':
         'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       'cloudflare:deploy':
-        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
       'cloudflare:preview':
         'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
       'cloudflare:proof': `node ${relativeRootFor(
@@ -1169,7 +1171,7 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         port,
         publicDir: ['./locales', './assets'],
         ssr: {
-          mode: 'stream',
+          mode: 'string',
           moduleFederationAppSSR: true,
         },
       },
@@ -2613,7 +2615,7 @@ export default function ${toPascalCase(domain)}Route() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}" data-mf-expose="./Route">
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Route">
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.routeSurface')}</p>
     </section>
@@ -2634,7 +2636,7 @@ export default function ${componentName}() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-mf-remote="${app.id}">
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Widget">
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.widgetBody')}</p>
     </section>
@@ -2757,7 +2759,7 @@ export default function ${componentName}() {
 
   return (
     <>
-      <section className="${tw('mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+      <section className="${tw('mx-auto mt-10 grid max-w-7xl items-center gap-8 md:grid-cols-[1fr_0.95fr] lg:gap-14')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
         <div className="${tw('rounded-3xl border-[18px] border-amber-200 bg-white/90 p-8 shadow-2xl shadow-stone-900/15')}">
           <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('records.record.lifecycle')}</p>
           <dl className="${tw('mt-6 grid gap-4')}">
@@ -2835,7 +2837,7 @@ export default function ${componentName}() {
   const queue = useActionQueue();
 
   return (
-    <section className="${tw('mx-auto mt-10 max-w-7xl')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+    <section className="${tw('mx-auto mt-10 max-w-7xl')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
       <h1 className="${tw('text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('actions.queue.title')}</h1>
       <div className="${tw('mt-8 rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}">
         {queue.lines.length === 0 ? (
@@ -2886,7 +2888,7 @@ export default function ${componentName}() {
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}" data-mf-remote="${app.id}">
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.federatedSurface')}</p>
     </section>
@@ -3075,7 +3077,7 @@ const generatedLocaleResources = {
     },
     shell: {
       boundaries: {
-        toggle: 'zobrazit hranice verticalů',
+        toggle: 'zobrazit hranice týmů',
       },
       hero: {
         cardOne:
@@ -3186,7 +3188,7 @@ const generatedLocaleResources = {
     },
     shell: {
       boundaries: {
-        toggle: 'show vertical boundaries',
+        toggle: 'show team boundaries',
       },
       hero: {
         cardOne:
@@ -4096,7 +4098,7 @@ function createTopology(
     })),
     validation: {
       script: 'scripts/validate-ultramodern-workspace.mjs',
-      commands: ['pnpm ultramodern:check'],
+      commands: ['pnpm ultramodern:i18n-boundaries', 'pnpm ultramodern:check'],
     },
   };
 }
@@ -4476,7 +4478,7 @@ function createAppGeneratedContract(
       },
     },
     ssr: {
-      mode: 'stream',
+      mode: 'string',
       moduleFederationAppSSR: true,
     },
     i18n: {
@@ -4701,6 +4703,7 @@ function createTemplateManifest(
       expectedCommands: [
         'mise install',
         'pnpm install',
+        'pnpm run ultramodern:i18n-boundaries',
         'pnpm run ultramodern:check',
       ],
     },
@@ -4781,6 +4784,198 @@ for (const appDir of appDirs) {
     );
   }
 }
+`;
+}
+
+function createWorkspaceI18nBoundaryValidationScript(): string {
+  return `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const sourceRoots = ['apps', 'verticals'];
+const languageConditionalPattern =
+  /\\b(language|locale|lng|currentLanguage)\\s*={0,2}={1,2}\\s*['"][a-z-]+['"]\\s*\\?\\s*([^:;\\n]+)\\s*:\\s*([^;\\n})]+)/gu;
+const allowedLanguageConditionalBranches = new Set([
+  "'page'",
+  '"page"',
+  'undefined',
+  'null',
+  'true',
+  'false',
+]);
+const visibleCopyAttributes = new Set([
+  'alt',
+  'aria-label',
+  'label',
+  'placeholder',
+  'title',
+]);
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function walk(directory, files = []) {
+  if (!fs.existsSync(directory)) {
+    return files;
+  }
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.output') {
+      continue;
+    }
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      walk(entryPath, files);
+    } else {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
+function relative(filePath) {
+  return path.relative(root, filePath).replace(/\\\\/gu, '/');
+}
+
+function isSourceFile(filePath) {
+  return /\\.(?:ts|tsx|js|jsx)$/u.test(filePath);
+}
+
+function isLocaleJson(filePath) {
+  const normalized = relative(filePath);
+  return /\\/locales\\/(en|cs)\\/[^/]+\\.json$/u.test(normalized);
+}
+
+function readText(filePath) {
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function branchIsUserCopy(branch) {
+  const value = branch.trim().replace(/,$/u, '');
+  if (allowedLanguageConditionalBranches.has(value)) {
+    return false;
+  }
+  return /^['"][^'"]{2,}['"]$/u.test(value);
+}
+
+function checkRuntimeResources(filePath, text) {
+  if (!relative(filePath).endsWith('/src/modern.runtime.ts')) {
+    return;
+  }
+  if (/initOptions\\s*:\\s*\\{[\\s\\S]*?\\bresources\\s*:/u.test(text)) {
+    fail(\`\${relative(filePath)} must not inline i18n resources in modern.runtime.ts; use locale JSON files.\`);
+  }
+}
+
+function checkLanguageConditionals(filePath, text) {
+  for (const match of text.matchAll(languageConditionalPattern)) {
+    const [, name, whenTrue = '', whenFalse = ''] = match;
+    if (branchIsUserCopy(whenTrue) || branchIsUserCopy(whenFalse)) {
+      fail(
+        \`\${relative(filePath)} contains manual \${name} copy branching. Put user-facing copy in i18n JSON resources.\`,
+      );
+    }
+  }
+}
+
+function checkLiteralVisibleAttributes(filePath, text) {
+  if (!filePath.endsWith('.tsx') && !filePath.endsWith('.jsx')) {
+    return;
+  }
+  for (const attribute of visibleCopyAttributes) {
+    const pattern = new RegExp(\`\\\\b\${attribute}=["'][^"'{}]*[A-Za-z][^"'{}]*["']\`, 'u');
+    if (pattern.test(text)) {
+      fail(
+        \`\${relative(filePath)} contains literal \${attribute} copy. Use t(...) or route metadata for visible text.\`,
+      );
+    }
+  }
+}
+
+function checkSplitPhraseKeys(filePath, text) {
+  if (/t\\(\\s*['"][^'"]+\\.(?:prefix|suffix|before|after)['"]\\s*\\)/u.test(text)) {
+    fail(
+      \`\${relative(filePath)} uses split phrase translation keys. Keep translator-owned phrases whole.\`,
+    );
+  }
+}
+
+function checkBoundaryAttributes(filePath, text) {
+  if (!filePath.endsWith('.tsx') && !filePath.endsWith('.jsx')) {
+    return;
+  }
+  if (/\\bdata-mf-(?:remote|expose)=/u.test(text)) {
+    fail(
+      \`\${relative(filePath)} uses legacy data-mf-* boundary attributes. Use data-modern-boundary-id and data-modern-mf-expose.\`,
+    );
+  }
+}
+
+function visitLocaleKeys(value, visitor, pathParts = []) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    const nextPath = [...pathParts, key];
+    visitor(key, child, nextPath);
+    visitLocaleKeys(child, visitor, nextPath);
+  }
+}
+
+function checkPluralResources(filePath, json) {
+  const language = relative(filePath).split('/locales/')[1]?.split('/')[0];
+  const requiredSuffixes =
+    language === 'cs' ? ['one', 'few', 'many', 'other'] : ['one', 'other'];
+  const groups = new Map();
+
+  visitLocaleKeys(json, (key, value, pathParts) => {
+    if (typeof value === 'string' && value.includes('{{count}}')) {
+      const suffixMatch = key.match(/^(.*)_(one|few|many|other)$/u);
+      if (!suffixMatch) {
+        fail(
+          \`\${relative(filePath)} key \${pathParts.join('.')} contains {{count}} but is not plural-suffixed.\`,
+        );
+      }
+      const [, base = '', suffix = ''] = suffixMatch;
+      const parentPath = pathParts.slice(0, -1).join('.');
+      const groupKey = \`\${parentPath}.\${base}\`;
+      const existing = groups.get(groupKey) ?? new Set();
+      existing.add(suffix);
+      groups.set(groupKey, existing);
+    }
+  });
+
+  for (const [group, suffixes] of groups) {
+    for (const suffix of requiredSuffixes) {
+      if (!suffixes.has(suffix)) {
+        fail(\`\${relative(filePath)} plural group \${group} is missing _\${suffix}.\`);
+      }
+    }
+  }
+}
+
+const sourceFiles = sourceRoots.flatMap(sourceRoot =>
+  walk(path.join(root, sourceRoot)).filter(filePath => isSourceFile(filePath)),
+);
+for (const filePath of sourceFiles) {
+  const text = readText(filePath);
+  checkRuntimeResources(filePath, text);
+  checkLanguageConditionals(filePath, text);
+  checkLiteralVisibleAttributes(filePath, text);
+  checkSplitPhraseKeys(filePath, text);
+  checkBoundaryAttributes(filePath, text);
+}
+
+const localeFiles = sourceRoots.flatMap(sourceRoot =>
+  walk(path.join(root, sourceRoot)).filter(filePath => isLocaleJson(filePath)),
+);
+for (const filePath of localeFiles) {
+  checkPluralResources(filePath, JSON.parse(readText(filePath)));
+}
+
+console.log('UltraModern i18n and boundary guardrails validated');
 `;
 }
 
@@ -4889,6 +5084,7 @@ const requiredPaths = [
   '.modernjs/ultramodern-generated-contract.json',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/check-ultramodern-i18n-boundaries.mjs',
   'scripts/proof-cloudflare-version.mjs',
   'scripts/setup-agent-reference-repos.mjs',
   'apps/shell-super-app/package.json',
@@ -4972,6 +5168,7 @@ assert(
 );
 assert(rootPackage.scripts?.['cloudflare:build'] === expectedCloudflareBuildScript, 'Root cloudflare:build script is incorrect');
 assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose ultramodern:check');
+assert(rootPackage.scripts?.['ultramodern:i18n-boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose ultramodern:i18n-boundaries');
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
 assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeployScript, 'Root must expose cloudflare:deploy');
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
@@ -5031,7 +5228,7 @@ assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, no
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
-  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy', \`\${vertical.id} must expose cloudflare:deploy\`);
+  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', \`\${vertical.id} must expose cloudflare:deploy\`);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
   assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
   assert(packageJson.exports?.['./effect/client'] === \`./src/effect/\${vertical.stem}-client.ts\`, \`\${vertical.id} must export its Effect client\`);
@@ -5448,6 +5645,11 @@ function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/validate-ultramodern-workspace.mjs',
     createWorkspaceValidationScript(scope, enableTailwind, remotes),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/check-ultramodern-i18n-boundaries.mjs',
+    createWorkspaceI18nBoundaryValidationScript(),
   );
   writeFileReplacing(
     targetDir,

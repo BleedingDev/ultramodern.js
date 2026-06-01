@@ -33,7 +33,13 @@ export const renderString: RenderString = async (
 
   const routerContext = runtimeContext.routerContext as StaticHandlerContext;
 
-  const { htmlTemplate, entryName, loadableStats, routeManifest } = resource;
+  const {
+    htmlTemplate,
+    entryName,
+    loadableStats,
+    routeManifest,
+    moduleFederationCssAssets,
+  } = resource;
 
   const ssrConfig = getSSRConfigByEntry(
     entryName,
@@ -56,6 +62,7 @@ export const renderString: RenderString = async (
       runtimeContext,
       template: htmlTemplate,
       entryName,
+      moduleFederationCssAssets,
       chunkSet,
       config,
     }),

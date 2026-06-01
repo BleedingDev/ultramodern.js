@@ -3,6 +3,7 @@ import { type Chunk, ChunkExtractor } from '@loadable/server';
 import type { ReactElement } from 'react';
 import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../../context';
+import { createFederatedCssLinks } from '../federatedCss';
 import { attributesToString, checkIsNode } from '../utils';
 import type { ChunkSet, Collector } from './types';
 
@@ -61,6 +62,7 @@ export interface LoadableCollectorOptions {
   runtimeContext: TInternalRuntimeContext;
   template: string;
   entryName: string;
+  moduleFederationCssAssets?: string[];
   chunkSet: ChunkSet;
   config: LoadableCollectorConfig;
 }
@@ -121,13 +123,10 @@ export class LoadableCollector implements Collector {
   }
 
   async effect() {
-    if (!this.extractor) {
-      return;
-    }
     const { extractor, options } = this;
     const { entryName, config } = options;
     const asyncChunks = [];
-    if (config.enableAsyncEntry) {
+    if (extractor && config.enableAsyncEntry) {
       try {
         asyncChunks.push(...extractor.getChunkAssets([`async-${entryName}`]));
       } catch (e) {
@@ -137,13 +136,15 @@ export class LoadableCollector implements Collector {
 
     const chunks = ([] as Chunk[])
       .concat(asyncChunks)
-      .concat(extractor.getChunkAssets(extractor.chunks))
+      .concat(extractor ? extractor.getChunkAssets(extractor.chunks) : [])
       .concat(this.getMatchedRouteChunks());
     const scriptChunks = generateChunks(chunks, 'js');
     const styleChunks = generateChunks(chunks, 'css');
 
-    this.emitLoadableScripts(extractor);
-    await this.emitScriptAssets(scriptChunks);
+    if (extractor) {
+      this.emitLoadableScripts(extractor);
+      await this.emitScriptAssets(scriptChunks);
+    }
     await this.emitStyleAssets(styleChunks);
   }
 
@@ -226,7 +227,8 @@ export class LoadableCollector implements Collector {
   }
 
   private async emitStyleAssets(chunks: Chunk[]) {
-    const { template, chunkSet, config, entryName } = this.options;
+    const { template, chunkSet, config, moduleFederationCssAssets } =
+      this.options;
 
     const { inlineStyles } = config;
 
@@ -242,33 +244,41 @@ export class LoadableCollector implements Collector {
       existedLinks.push(match[1]);
     }
 
-    const css = await Promise.all(
-      chunks
-        .filter(chunk => {
-          return (
-            !existedLinks.includes(chunk.url) &&
-            !this.existsAssets?.includes(chunk.path)
-          );
-        })
-        .map(async chunk => {
-          const link = `<link${atrributes} href="${chunk.url}" rel="stylesheet" />`;
+    const emittedChunks = chunks.filter(chunk => {
+      return (
+        !existedLinks.includes(chunk.url) &&
+        !this.existsAssets?.includes(chunk.path)
+      );
+    });
 
-          // only in node read asserts
-          if (checkIsNode() && checkIsInline(chunk, inlineStyles)) {
-            return readAsset(chunk)
-              .then(content => `<style>${content}</style>`)
-              .catch(_ => {
-                // if read file occur error, we should return link to import css assets.
-                return link;
-              });
-          } else {
-            return link;
-          }
-        }),
+    const css = await Promise.all(
+      emittedChunks.map(async chunk => {
+        const link = `<link${atrributes} href="${chunk.url}" rel="stylesheet" />`;
+
+        // only in node read asserts
+        if (checkIsNode() && checkIsInline(chunk, inlineStyles)) {
+          return readAsset(chunk)
+            .then(content => `<style>${content}</style>`)
+            .catch(_ => {
+              // if read file occur error, we should return link to import css assets.
+              return link;
+            });
+        } else {
+          return link;
+        }
+      }),
     );
 
     // filter empty string;
     chunkSet.cssChunk += css.filter(css => Boolean(css)).join('');
+    chunkSet.cssChunk += createFederatedCssLinks(moduleFederationCssAssets, {
+      template,
+      attributes: this.generateAttributes(),
+      existingAssets: [
+        ...existedLinks,
+        ...emittedChunks.map(chunk => chunk.url),
+      ],
+    });
   }
 
   private generateAttributes(

@@ -4,22 +4,22 @@ overview: Strengthen generated i18n and native boundary debugging so new UltraMo
 todos:
   - id: audit-generated-i18n-runtime
     content: "Compare generated i18n runtime, locale JSON files, route metadata, and Tractor's inline resources to identify duplicate, non-extractable, or manually split strings."
-    status: pending
+    status: completed
   - id: standardize-json-i18n-template
     content: "Update the scaffold to generate translation-tool-friendly JSON resources with namespaces, supported languages, full phrases, route labels, and plural-capable examples."
-    status: pending
+    status: completed
   - id: remove-manual-language-logic-patterns
     content: "Add generation and validation rules that prevent manual language ternaries and literal split phrases in scaffolded code."
-    status: pending
+    status: completed
   - id: harden-boundary-debugger-runtime
     content: "Make native boundary debugging persist state across language changes, render nothing visible when disabled, and show clear non-overlapping ownership boundaries when enabled."
-    status: pending
+    status: completed
   - id: expose-boundary-debugger-as-framework-feature
     content: "Ensure generated apps can use boundary debugging through UltraModern runtime metadata without hand-written overlay components."
-    status: pending
+    status: completed
   - id: test-i18n-and-boundaries
     content: "Add scaffold/runtime validation for SSR i18n, language switching, plural-ready copy, and boundary state persistence across routes and locales."
-    status: pending
+    status: completed
 isProject: false
 ---
 

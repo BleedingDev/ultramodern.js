@@ -4,16 +4,16 @@ overview: Prove that the strengthened framework defaults work by scaffolding fre
 todos:
   - id: regenerate-reference-workspaces
     content: "Create fresh UltraModern reference workspaces from local framework code for shell-only and shell-plus-vertical configurations."
-    status: pending
+    status: completed
   - id: validate-monolith-start-path
     content: "Verify users can start with a simple shell app without being forced into multiple verticals from day one."
-    status: pending
+    status: completed
   - id: validate-add-vertical-flow
     content: "Verify the add-vertical command modifies an existing repository, wires topology, MF remotes, i18n, Effect BFF, scripts, and validation correctly."
-    status: pending
+    status: completed
   - id: run-quality-gates
     content: "Run generated format, lint, typecheck, build, ultramodern validation, and targeted framework tests for the changed defaults."
-    status: pending
+    status: in_progress
   - id: run-js-disabled-ssr-proof
     content: "Use browser automation to verify SSR pages render full styled content with JavaScript disabled, including language routes and vertical content."
     status: pending

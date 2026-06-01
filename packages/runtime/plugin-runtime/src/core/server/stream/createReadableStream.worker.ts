@@ -23,6 +23,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       config,
       ssrConfig,
       entryName,
+      moduleFederationCssAssets,
       rscManifest,
       rscRoot,
     } = options;
@@ -34,6 +35,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       request,
       config,
       entryName,
+      moduleFederationCssAssets,
     });
 
     try {

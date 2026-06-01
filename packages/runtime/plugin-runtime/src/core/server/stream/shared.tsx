@@ -29,6 +29,7 @@ export type CreateReadableStreamFromElementOptions = {
   ssrConfig: SSRConfig;
   htmlTemplate: string;
   entryName: string;
+  moduleFederationCssAssets?: string[];
 
   rscClientManifest?: RscClientManifest;
   rscSSRManifest?: RscSSRManifest;
@@ -134,7 +135,7 @@ export function createRenderStreaming(
     const { runtimeContext, config, resource } = options;
     const { onError, onTiming } = options;
 
-    const { htmlTemplate, entryName } = resource;
+    const { htmlTemplate, entryName, moduleFederationCssAssets } = resource;
 
     const ssrConfig = getSSRConfigByEntry(
       entryName,
@@ -170,6 +171,7 @@ export function createRenderStreaming(
       runtimeContext,
       ssrConfig,
       entryName,
+      moduleFederationCssAssets,
       rscClientManifest: options.rscClientManifest,
       rscSSRManifest: options.rscSSRManifest,
       rscServerManifest: options.rscServerManifest,

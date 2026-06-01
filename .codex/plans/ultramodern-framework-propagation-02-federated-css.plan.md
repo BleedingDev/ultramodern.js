@@ -4,16 +4,16 @@ overview: Replace Tractor's hardcoded remote stylesheet workaround with a framew
 todos:
   - id: audit-remote-css-assets
     content: "Inspect generated Modern.js and Module Federation asset metadata for shell and vertical CSS outputs, including hashed and non-hashed builds."
-    status: pending
+    status: completed
   - id: design-topology-driven-css-contract
     content: "Define how shell SSR discovers and emits remote stylesheet links from topology, public URL envs, and build manifests without app-local hardcoded paths."
-    status: pending
+    status: completed
   - id: implement-framework-css-injection
     content: "Implement the chosen framework or generated-template mechanism for remote CSS first paint, avoiding duplicate links and preserving no-JS SSR styling."
-    status: pending
+    status: completed
   - id: remove-filename-hash-requirement
     content: "Eliminate the need for generated apps or Tractor to set output.filenameHash=false by resolving actual CSS asset URLs from reliable metadata."
-    status: pending
+    status: completed
   - id: test-css-isolation-and-no-flicker
     content: "Add validation that prefixed Tailwind v4 classes, remote CSS loading, SSR output, and JS-disabled rendering do not flicker or collide across shell and verticals."
     status: pending

@@ -4,22 +4,22 @@ overview: Move Cloudflare SSR deploy behavior and Worker runtime compatibility o
 todos:
   - id: audit-cloudflare-current-state
     content: "Re-audit app-tools Cloudflare deploy, Worker bundle generation, Effect BFF entry discovery, and generated package scripts against the working Tractor demo behavior."
-    status: pending
+    status: completed
   - id: design-cloudflare-deploy-contract
     content: "Define the framework-owned Cloudflare deploy contract: build output generation, Wrangler deployment command, required public URL envs, proof command, and trusted-publishing constraints."
-    status: pending
+    status: completed
   - id: move-worker-compatibility-into-app-tools
     content: "Implement Cloudflare Worker SSR compatibility in app-tools instead of generated app configs, covering loadable, path, fs/promises, and other Worker-only aliases or fallbacks with tests."
-    status: pending
+    status: completed
   - id: align-ssr-mode-default
     content: "Choose and implement the Cloudflare Module Federation SSR mode default, then make generated config, generated contract, and validators agree."
-    status: pending
+    status: completed
   - id: update-create-cloudflare-scripts
     content: "Update create-generated app and root Cloudflare scripts so deploy performs the validated build plus Wrangler deploy flow without demo-specific shell scripts."
-    status: pending
+    status: completed
   - id: test-cloudflare-ssr-effect-bff
     content: "Add or update unit/integration tests proving Cloudflare SSR route dispatch, static assets, Effect BFF readiness routes, and generated deploy scripts work from framework defaults."
-    status: pending
+    status: completed
 isProject: false
 ---
 

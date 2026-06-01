@@ -17,15 +17,23 @@ export type BoundaryDebugMetadata = {
   schemaVersion: 1;
 };
 
+export type BoundaryDebuggerControlMode =
+  | 'visible'
+  | 'hidden-when-off'
+  | 'hidden';
+
 export type BoundaryDebuggerPluginOptions = {
+  controlMode?: BoundaryDebuggerControlMode;
   enabledByDefault?: boolean;
   labels?: Record<string, { toggle: string }>;
+  legacySelector?: string;
   metadata: BoundaryDebugMetadata;
   storageKey?: string;
 };
 
 type BoundaryBox = {
   color: string;
+  detail?: string;
   height: number;
   id: string;
   label: string;
@@ -35,19 +43,67 @@ type BoundaryBox = {
 };
 
 const defaultStorageKey = 'modernjs:boundary-debugger:enabled';
+const queryParamName = 'modern-boundaries';
+const boundarySelector = '[data-modern-boundary-id]';
 const defaultLabels: Record<string, { toggle: string }> = {
-  cs: { toggle: 'zobrazit hranice verticalů' },
-  en: { toggle: 'show vertical boundaries' },
+  cs: { toggle: 'zobrazit hranice týmů' },
+  en: { toggle: 'show team boundaries' },
 };
 const palette = ['#ff5a5f', '#30e27a', '#f6cf45', '#7c8cff', '#29b6f6'];
 
-const readEnabled = (storageKey: string, fallback: boolean) => {
+const readStoredEnabled = (storageKey: string, fallback: boolean) => {
   if (typeof window === 'undefined') {
     return fallback;
   }
 
-  const stored = window.localStorage.getItem(storageKey);
-  return stored === null ? fallback : stored === 'true';
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    return stored === null ? fallback : stored === 'true';
+  } catch {
+    return fallback;
+  }
+};
+
+const writeStoredEnabled = (storageKey: string, enabled: boolean) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, String(enabled));
+  } catch {
+    // Storage may be blocked in private, embedded, or policy-restricted contexts.
+  }
+};
+
+const parseEnabledOverride = (value: string | null) => {
+  if (value === null) {
+    return undefined;
+  }
+
+  const normalized = value.toLowerCase();
+  if (normalized === '1' || normalized === 'true') {
+    return true;
+  }
+  if (normalized === '0' || normalized === 'false') {
+    return false;
+  }
+
+  return undefined;
+};
+
+const readQueryEnabledOverride = () => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  try {
+    return parseEnabledOverride(
+      new URLSearchParams(window.location.search).get(queryParamName),
+    );
+  } catch {
+    return undefined;
+  }
 };
 
 const detectLanguage = () => {
@@ -60,12 +116,65 @@ const detectLanguage = () => {
     return htmlLanguage.split('-')[0] || 'en';
   }
 
+  if (typeof window === 'undefined') {
+    return 'en';
+  }
+
   return window.location.pathname.split('/').filter(Boolean)[0] || 'en';
 };
 
+const hashBoundaryId = (id: string) => {
+  let hash = 0;
+  for (let index = 0; index < id.length; index++) {
+    hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+};
+
+const formatRectKey = (rect: DOMRect) =>
+  [
+    Math.round(rect.left * 100) / 100,
+    Math.round(rect.top * 100) / 100,
+    Math.round(rect.width * 100) / 100,
+    Math.round(rect.height * 100) / 100,
+  ].join(':');
+
+const getBoundaryId = (element: HTMLElement) =>
+  element.dataset.modernBoundaryId ??
+  element.dataset.mfRemote ??
+  element.getAttribute('data-mf-remote') ??
+  undefined;
+
+const collectBoundaryElements = (legacySelector?: string) => {
+  const elements = new Set<HTMLElement>();
+  for (const element of document.querySelectorAll<HTMLElement>(
+    boundarySelector,
+  )) {
+    elements.add(element);
+  }
+
+  if (!legacySelector) {
+    return Array.from(elements);
+  }
+
+  try {
+    for (const element of document.querySelectorAll<HTMLElement>(
+      legacySelector,
+    )) {
+      elements.add(element);
+    }
+  } catch {
+    // Ignore invalid optional legacy selectors; the standard selector still works.
+  }
+
+  return Array.from(elements);
+};
+
 function BoundaryDebugger({
+  controlMode = 'visible',
   enabledByDefault = false,
   labels = defaultLabels,
+  legacySelector,
   metadata,
   storageKey = defaultStorageKey,
 }: BoundaryDebuggerPluginOptions) {
@@ -91,18 +200,21 @@ function BoundaryDebugger({
     labels[language]?.toggle ??
     labels.en?.toggle ??
     defaultLabels.en?.toggle ??
-    'show vertical boundaries';
+    'show team boundaries';
 
   useEffect(() => {
     setMounted(true);
-    setEnabled(readEnabled(storageKey, enabledByDefault));
+    const queryOverride = readQueryEnabledOverride();
+    setEnabled(
+      queryOverride ?? readStoredEnabled(storageKey, enabledByDefault),
+    );
   }, [enabledByDefault, storageKey]);
 
   useEffect(() => {
     if (!mounted) {
       return;
     }
-    window.localStorage.setItem(storageKey, String(enabled));
+    writeStoredEnabled(storageKey, enabled);
   }, [enabled, mounted, storageKey]);
 
   useEffect(() => {
@@ -112,11 +224,10 @@ function BoundaryDebugger({
     }
 
     const readBoxes = () => {
-      const nextBoxes = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-modern-boundary-id]'),
-      )
-        .map((element, index) => {
-          const boundaryId = element.dataset.modernBoundaryId;
+      const seenBoxes = new Set<string>();
+      const nextBoxes = collectBoundaryElements(legacySelector)
+        .map((element): BoundaryBox | undefined => {
+          const boundaryId = getBoundaryId(element);
           if (!boundaryId) {
             return undefined;
           }
@@ -124,17 +235,35 @@ function BoundaryDebugger({
           if (rect.width <= 0 || rect.height <= 0) {
             return undefined;
           }
+          const rectKey = formatRectKey(rect);
+          const boxKey = `${boundaryId}:${rectKey}`;
+          if (seenBoxes.has(boxKey)) {
+            return undefined;
+          }
+          seenBoxes.add(boxKey);
           const boundary = boundaries.get(boundaryId);
-          const color = boundary?.color ?? palette[index % palette.length];
-          return {
+          const color =
+            boundary?.color ??
+            palette[hashBoundaryId(boundaryId) % palette.length];
+          const label = boundary?.label ?? boundary?.appId ?? boundaryId;
+          const expose = element.dataset.modernMfExpose;
+          const detail =
+            expose && expose !== label && expose !== boundaryId
+              ? expose
+              : undefined;
+          const box: BoundaryBox = {
             color,
             height: rect.height,
-            id: `${boundaryId}-${index}`,
-            label: boundary?.label ?? boundaryId,
+            id: boxKey,
+            label,
             left: rect.left,
             top: rect.top,
             width: rect.width,
           };
+          if (detail) {
+            box.detail = detail;
+          }
+          return box;
         })
         .filter((box): box is BoundaryBox => box !== undefined);
       setBoxes(nextBoxes);
@@ -146,9 +275,7 @@ function BoundaryDebugger({
       typeof ResizeObserver === 'undefined'
         ? undefined
         : new ResizeObserver(readBoxes);
-    for (const element of document.querySelectorAll<HTMLElement>(
-      '[data-modern-boundary-id]',
-    )) {
+    for (const element of collectBoundaryElements(legacySelector)) {
       resizeObserver?.observe(element);
     }
 
@@ -167,39 +294,44 @@ function BoundaryDebugger({
       window.removeEventListener('resize', readBoxes);
       window.removeEventListener('scroll', readBoxes, true);
     };
-  }, [boundaries, enabled]);
+  }, [boundaries, enabled, legacySelector]);
 
   if (!mounted) {
     return null;
   }
 
+  const shouldRenderToggle =
+    controlMode === 'visible' || (controlMode === 'hidden-when-off' && enabled);
+
   return (
     <>
-      <label
-        style={{
-          alignItems: 'center',
-          background: 'rgba(255, 255, 255, 0.96)',
-          border: '1px solid rgba(0, 0, 0, 0.1)',
-          borderRadius: 12,
-          bottom: 20,
-          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.16)',
-          color: '#111827',
-          display: 'flex',
-          font: '600 14px/1.2 system-ui, sans-serif',
-          gap: 8,
-          left: 20,
-          padding: '12px 14px',
-          position: 'fixed',
-          zIndex: 2147483000,
-        }}
-      >
-        <input
-          checked={enabled}
-          onChange={event => setEnabled(event.currentTarget.checked)}
-          type="checkbox"
-        />
-        <span>{toggleLabel}</span>
-      </label>
+      {shouldRenderToggle ? (
+        <label
+          style={{
+            alignItems: 'center',
+            background: 'rgba(255, 255, 255, 0.96)',
+            border: '1px solid rgba(0, 0, 0, 0.1)',
+            borderRadius: 12,
+            bottom: 20,
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.16)',
+            color: '#111827',
+            display: 'flex',
+            font: '600 14px/1.2 system-ui, sans-serif',
+            gap: 8,
+            left: 20,
+            padding: '12px 14px',
+            position: 'fixed',
+            zIndex: 2147483000,
+          }}
+        >
+          <input
+            checked={enabled}
+            onChange={event => setEnabled(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>{toggleLabel}</span>
+        </label>
+      ) : null}
       {enabled ? (
         <div aria-hidden="true">
           {boxes.map(box => (
@@ -223,7 +355,10 @@ function BoundaryDebugger({
                   background: box.color,
                   borderRadius: 999,
                   color: '#111827',
-                  font: '800 11px/1 system-ui, sans-serif',
+                  display: 'grid',
+                  font: '800 11px/1.1 system-ui, sans-serif',
+                  gap: 3,
+                  maxWidth: 'min(280px, calc(100vw - 24px))',
                   padding: '5px 8px',
                   position: 'absolute',
                   right: 4,
@@ -231,7 +366,19 @@ function BoundaryDebugger({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {box.label}
+                <span>{box.label}</span>
+                {box.detail ? (
+                  <span
+                    style={{
+                      font: '700 10px/1.1 system-ui, sans-serif',
+                      opacity: 0.82,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {box.detail}
+                  </span>
+                ) : null}
               </span>
             </div>
           ))}

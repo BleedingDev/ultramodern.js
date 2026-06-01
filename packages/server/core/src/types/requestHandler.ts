@@ -13,6 +13,7 @@ export type Resource = {
   route: ServerRoute;
   htmlTemplate: string;
   entryName: string;
+  moduleFederationCssAssets?: string[];
 };
 
 export type Params = Record<string, any>;
