@@ -35,6 +35,7 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
     recursive: true,
   });
   await fs.writeFile(path.join(distDirectory, 'static/app.js'), 'app();');
+  await fs.writeFile(path.join(distDirectory, 'static/app.css'), 'body{}');
   await fs.writeFile(
     path.join(distDirectory, 'worker/main.js'),
     `module.exports = { requestHandler: async (request, options) => new Response(JSON.stringify({
@@ -55,6 +56,10 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
       dirname: __dirname,
       filename: __filename
     }), { headers: { 'content-type': 'application/json' } }) };`,
+  );
+  await fs.writeFile(
+    path.join(distDirectory, 'worker/html.js'),
+    `module.exports = { requestHandler: async () => new Response('<!doctype html><html><head><title>styled</title></head><body>styled</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/empty.js.map'),
@@ -130,7 +135,8 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
     JSON.stringify({
       routeAssets: {
         main: {
-          assets: ['static/app.js'],
+          assets: ['static/app.js', 'static/app.css'],
+          referenceCssAssets: ['static/app.css'],
         },
       },
     }),
@@ -174,6 +180,13 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
           entryPath: 'html/fallback/index.html',
           isSSR: true,
           worker: 'worker/dirname.js',
+        },
+        {
+          urlPath: '/styled',
+          entryName: 'main',
+          entryPath: 'html/main/index.html',
+          isSSR: true,
+          worker: 'worker/html.js',
         },
         {
           urlPath: '/plain',
@@ -459,6 +472,26 @@ describe('cloudflare deploy preset', () => {
       routeAssetKeys: ['main'],
       loadableName: 'loadable-fixture',
     });
+  });
+
+  it('injects route CSS links into Cloudflare SSR HTML responses', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      '<link rel="stylesheet" href="https://example.com/static/app.css">',
+    );
   });
 
   it('follows same-origin asset redirects when reading SSR templates', async () => {

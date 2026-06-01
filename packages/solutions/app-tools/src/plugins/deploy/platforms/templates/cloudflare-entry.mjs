@@ -217,6 +217,72 @@ function createRequestHandlerOptions({
   };
 }
 
+function collectRouteCssAssets(route, routeManifest) {
+  const routeAssets = routeManifest?.routeAssets || {};
+  const candidateKeys = [route.entryName, `async-${route.entryName}`].filter(
+    Boolean,
+  );
+  const assets = new Set();
+
+  for (const key of candidateKeys) {
+    const routeAsset = routeAssets[key];
+    const cssAssets = [
+      ...(Array.isArray(routeAsset?.referenceCssAssets)
+        ? routeAsset.referenceCssAssets
+        : []),
+      ...(Array.isArray(routeAsset?.assets) ? routeAsset.assets : []),
+    ];
+
+    for (const asset of cssAssets) {
+      if (typeof asset === 'string' && asset.endsWith('.css')) {
+        assets.add(asset);
+      }
+    }
+  }
+
+  return [...assets];
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function withRouteCssLinks(response, route, routeManifest, request) {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.includes('text/html')) {
+    return response;
+  }
+
+  const cssAssets = collectRouteCssAssets(route, routeManifest);
+
+  if (cssAssets.length === 0) {
+    return response;
+  }
+
+  const html = await response.text();
+  const links = cssAssets
+    .filter(asset => !html.includes(asset))
+    .map(asset => {
+      const href = new URL(asset, request.url).toString();
+      return `<link rel="stylesheet" href="${escapeAttribute(href)}">`;
+    });
+
+  if (links.length === 0 || !html.includes('</head>')) {
+    return new Response(html, response);
+  }
+
+  return new Response(html.replace('</head>', `${links.join('')}</head>`), {
+    headers: response.headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
 async function getRequestHandlerOptions(route, request, env) {
   const [htmlTemplate, routeManifest, loadableStats] = await Promise.all([
     readAssetText(route.entryPath, request, env),
@@ -324,7 +390,12 @@ async function dispatchRouteWorker(route, request, env, ctx) {
       env,
     );
 
-    return requestHandler(request, requestHandlerOptions);
+    return withRouteCssLinks(
+      await requestHandler(request, requestHandlerOptions),
+      route,
+      requestHandlerOptions.resource.routeManifest,
+      request,
+    );
   }
 
   return new Response(
