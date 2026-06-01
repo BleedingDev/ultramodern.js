@@ -847,7 +847,7 @@ function createCloudflareDeployContract(
     target: 'cloudflare',
     workerName: createCloudflareWorkerName(scope, app),
     publicUrlEnv: createCloudflarePublicUrlEnv(app),
-    compatibilityFlags: ['nodejs_compat'],
+    compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
     assetsBinding: 'ASSETS',
     routes: createCloudflareProofRoute(app),
     evidence: {
@@ -5203,6 +5203,7 @@ assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent
 assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)", 'Root postinstall must format, bootstrap agent skills, install reference repositories, and enable hooks last');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
+const expectedCloudflareCompatibilityFlags = ['nodejs_compat', 'global_fetch_strictly_public'];
 assert(
   JSON.stringify(generatedContract.apps?.map(app => app.id)) === JSON.stringify(expectedAppIds),
   'Generated contract must contain shell plus the full-stack verticals',
@@ -5232,6 +5233,7 @@ assert(
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
+assert(JSON.stringify(shellContract?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), 'Shell Cloudflare compatibility flags are incorrect');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
 assert(shellContract?.styling?.federation?.owner?.id === 'shell-super-app', 'Shell CSS federation owner is missing');
 assert(shellContract?.styling?.federation?.role === 'shell-base-overlay', 'Shell must own base and overlay CSS');
@@ -5278,6 +5280,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.kind === 'vertical', \`\${vertical.id} generated contract kind is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.workerName === expectedWorkerName(vertical.id), \`\${vertical.id} Cloudflare workerName is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.publicUrlEnv === \`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, \`\${vertical.id} Cloudflare public URL env is incorrect\`);
+  assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), \`\${vertical.id} Cloudflare compatibility flags are incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} MF name is incorrect\`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} MF exposes are incorrect\`);

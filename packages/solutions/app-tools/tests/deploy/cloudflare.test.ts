@@ -263,7 +263,10 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(wranglerConfig.main).toBe('server/index.mjs');
-    expect(wranglerConfig.compatibility_flags).toEqual(['nodejs_compat']);
+    expect(wranglerConfig.compatibility_flags).toEqual([
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+    ]);
     expect(wranglerConfig.assets).toEqual({
       directory: './public',
       binding: 'ASSETS',

@@ -232,7 +232,10 @@ export const createCloudflarePreset: CreatePreset = ({
           name: workerName,
           main: WORKER_ENTRY,
           compatibility_date: getCompatibilityDate(),
-          compatibility_flags: ['nodejs_compat'],
+          compatibility_flags: [
+            'nodejs_compat',
+            'global_fetch_strictly_public',
+          ],
           assets: {
             directory: `./${PUBLIC_ASSETS_DIRECTORY}`,
             binding: ASSETS_BINDING,
