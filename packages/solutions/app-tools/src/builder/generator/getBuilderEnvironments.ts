@@ -15,9 +15,21 @@ import type { AppToolsContext } from '../../types/plugin';
 const BFF_EFFECT_WORKER_ENTRY_NAME = '__modern_bff_effect';
 const BFF_EFFECT_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
 const JS_OR_TS_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR = path.resolve(
+  __dirname,
+  '../../plugins/deploy/platforms/templates',
+);
 
 function findExistingFile(candidates: string[]) {
   return candidates.find(candidate => fs.existsSync(candidate));
+}
+
+function resolvePackageEntry(packageName: string, paths: string[]) {
+  try {
+    return fs.realpathSync(require.resolve(packageName, { paths }));
+  } catch {
+    return undefined;
+  }
 }
 
 function resolvePackageFile(
@@ -46,6 +58,10 @@ function setAliasIfPresent(
   if (value) {
     alias.set(name, value);
   }
+}
+
+function getCloudflareWorkerCompatFile(file: string) {
+  return path.join(CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR, file);
 }
 
 function getEffectBffEntry(
@@ -200,6 +216,21 @@ export function getBuilderEnvironments(
           process.cwd(),
         ])
       : undefined;
+    const loadableComponentFile = useCloudflareModuleWorker
+      ? resolvePackageEntry('@loadable/component', [
+          appContext.appDirectory,
+          process.cwd(),
+        ])
+      : undefined;
+    const loadableServerWorkerFile = useCloudflareModuleWorker
+      ? getCloudflareWorkerCompatFile('cloudflare-worker-loadable-server.mjs')
+      : undefined;
+    const fsPromisesWorkerFile = useCloudflareModuleWorker
+      ? getCloudflareWorkerCompatFile('cloudflare-worker-fs-promises.mjs')
+      : undefined;
+    const pathWorkerFile = useCloudflareModuleWorker
+      ? getCloudflareWorkerCompatFile('cloudflare-worker-path.mjs')
+      : undefined;
     const baseWorkerEntries = useCloudflareModuleWorker
       ? cloudflareWorkerServerEntries
       : serverEntries;
@@ -287,6 +318,32 @@ export function getBuilderEnvironments(
                   'react-dom/server.edge$',
                   reactDomServerEdgeFile,
                 );
+                setAliasIfPresent(
+                  chain.resolve.alias,
+                  '@loadable/component$',
+                  loadableComponentFile,
+                );
+                setAliasIfPresent(
+                  chain.resolve.alias,
+                  '@loadable/server$',
+                  loadableServerWorkerFile,
+                );
+                setAliasIfPresent(
+                  chain.resolve.alias,
+                  'fs/promises$',
+                  fsPromisesWorkerFile,
+                );
+                setAliasIfPresent(
+                  chain.resolve.alias,
+                  'node:fs/promises$',
+                  fsPromisesWorkerFile,
+                );
+                setAliasIfPresent(chain.resolve.alias, 'path$', pathWorkerFile);
+                setAliasIfPresent(
+                  chain.resolve.alias,
+                  'node:path$',
+                  pathWorkerFile,
+                );
                 chain.resolve.alias.set(
                   'react-server-dom-rspack/server.node$',
                   'react-server-dom-rspack/server.edge',
@@ -305,6 +362,8 @@ export function getBuilderEnvironments(
                 );
                 chain.resolve.fallback.set('async_hooks', false);
                 chain.resolve.fallback.set('node:async_hooks', false);
+                chain.resolve.fallback.set('fs', false);
+                chain.resolve.fallback.set('node:fs', false);
               },
             }
           : {}),

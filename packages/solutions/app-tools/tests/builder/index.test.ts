@@ -215,8 +215,26 @@ describe('create builder Options', () => {
       expect(aliases.get('react-dom/server.edge$')).toMatch(
         /react-dom[/\\]server\.edge\.js$/,
       );
+      expect(aliases.get('@loadable/component$')).toMatch(
+        /@loadable[/\\]component[/\\]dist[/\\]cjs[/\\]loadable\.cjs\.js$/,
+      );
+      expect(aliases.get('@loadable/server$')).toMatch(
+        /app-tools[/\\]src[/\\]plugins[/\\]deploy[/\\]platforms[/\\]templates[/\\]cloudflare-worker-loadable-server\.mjs$/,
+      );
+      expect(aliases.get('fs/promises$')).toMatch(
+        /app-tools[/\\]src[/\\]plugins[/\\]deploy[/\\]platforms[/\\]templates[/\\]cloudflare-worker-fs-promises\.mjs$/,
+      );
+      expect(aliases.get('node:fs/promises$')).toBe(
+        aliases.get('fs/promises$'),
+      );
+      expect(aliases.get('path$')).toMatch(
+        /app-tools[/\\]src[/\\]plugins[/\\]deploy[/\\]platforms[/\\]templates[/\\]cloudflare-worker-path\.mjs$/,
+      );
+      expect(aliases.get('node:path$')).toBe(aliases.get('path$'));
       expect(fallbacks.get('async_hooks')).toBe(false);
       expect(fallbacks.get('node:async_hooks')).toBe(false);
+      expect(fallbacks.get('fs')).toBe(false);
+      expect(fallbacks.get('node:fs')).toBe(false);
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
