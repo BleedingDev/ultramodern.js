@@ -19,7 +19,7 @@ todos:
     status: pending
   - id: document-css-propagation-rule
     content: "Document that app demos should use framework federated CSS behavior rather than injecting async-index.css or stylesheet plugins locally."
-    status: pending
+    status: completed
 isProject: false
 ---
 

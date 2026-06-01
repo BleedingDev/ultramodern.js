@@ -156,6 +156,10 @@ CSS federation is explicit:
 - Tailwind CSS v4 is configured per app through `@tailwindcss/postcss`.
 - Duplicate base styles are forbidden; SSR first paint depends on shared token
   CSS plus Modern/Rspack-emitted app CSS.
+- Apps should not inject remote `async-index.css` paths, hardcode remote
+  stylesheet links, or disable filename hashing to make CSS URLs predictable.
+  UltraModern SSR resolves federated CSS from build output and MF manifests so
+  generated shells and demos can keep normal hashed assets.
 
 Version switching evidence must keep UI, Effect API, CSS, i18n JSON, and MF
 manifest markers in lockstep for the same vertical version.
