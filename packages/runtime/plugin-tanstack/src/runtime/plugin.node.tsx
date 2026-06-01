@@ -28,7 +28,7 @@ import {
 } from '@tanstack/react-router';
 import { attachRouterServerSsrUtils } from '@tanstack/router-core/ssr/server';
 import type React from 'react';
-import { Suspense, useContext } from 'react';
+import { useContext } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import {
   modifyRoutes as modifyRoutesHook,
@@ -557,9 +557,7 @@ export const tanstackRouterPlugin = (
             }
 
             const routerWrapper = (
-              <Suspense fallback={null}>
-                <RouterProvider router={router as AnyRouter} />
-              </Suspense>
+              <RouterProvider router={router as AnyRouter} />
             );
 
             return App ? <App>{routerWrapper}</App> : routerWrapper;

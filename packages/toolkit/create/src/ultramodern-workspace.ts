@@ -1136,6 +1136,7 @@ ${bffConfig}      output: {
         i18nPlugin({
           backend: {
             enabled: true,
+            loadPath: '/locales/{{lng}}/{{ns}}.json',
           },
           reactI18next: false,
           localeDetection: {

@@ -16,7 +16,6 @@ import {
   useRouter,
 } from '@tanstack/react-router';
 import { RouterClient } from '@tanstack/react-router/ssr/client';
-import * as React from 'react';
 import { useContext, useMemo } from 'react';
 import type { RuntimePlugin } from '../../../core';
 import {
@@ -346,9 +345,7 @@ export const tanstackRouterPlugin = (
           }
 
           const RouterContent = hasSSRBootstrap ? (
-            <React.Suspense fallback={null}>
-              <RouterClient router={router} />
-            </React.Suspense>
+            <RouterClient router={router} />
           ) : (
             <RouterProvider router={router} />
           );
