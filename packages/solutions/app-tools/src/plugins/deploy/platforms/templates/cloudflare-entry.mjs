@@ -138,6 +138,31 @@ function normalizeRoutePath(pathname) {
   return pathname.replace(/\/+$/u, '');
 }
 
+function getPathExtension(pathname) {
+  const lastSegment = pathname.split('/').pop() || '';
+  const dotIndex = lastSegment.lastIndexOf('.');
+
+  if (dotIndex <= 0 || dotIndex === lastSegment.length - 1) {
+    return '';
+  }
+
+  return lastSegment.slice(dotIndex).toLowerCase();
+}
+
+function isAssetLikePathname(pathname) {
+  const extension = getPathExtension(pathname);
+
+  return extension !== '' && extension !== '.html' && extension !== '.htm';
+}
+
+function routeMatchesExactly(route, pathname) {
+  if (typeof route?.urlPath !== 'string') {
+    return false;
+  }
+
+  return normalizeRoutePath(route.urlPath) === normalizeRoutePath(pathname);
+}
+
 function routeMatches(route, pathname) {
   if (typeof route.urlPath !== 'string') {
     return false;
@@ -705,6 +730,14 @@ export default {
     }
 
     const route = findRoute(request);
+    const { pathname } = new URL(request.url);
+
+    if (
+      isAssetLikePathname(pathname) &&
+      !routeMatchesExactly(route, pathname)
+    ) {
+      return withCorsHeaders(new Response('Not found', { status: 404 }));
+    }
 
     if (route?.worker) {
       return withCorsHeaders(

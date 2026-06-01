@@ -411,6 +411,26 @@ describe('cloudflare deploy preset', () => {
     expect(await response.text()).toBe('app();');
   });
 
+  it('does not send asset-like misses through SSR route fallback', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard/missing.webp'),
+      {
+        ASSETS: createAssetBinding(publicDirectory),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(await response.text()).toBe('Not found');
+  });
+
   it('answers Cloudflare CORS preflight requests for federated assets', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
