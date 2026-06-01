@@ -59,7 +59,7 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/html.js'),
-    `module.exports = { requestHandler: async () => new Response('<!doctype html><html><head><title>styled</title></head><body>styled</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+    `module.exports = { requestHandler: async () => new Response('<!doctype html><html><head><title>styled</title></head><body><header data-modern-boundary-id="explore" data-modern-mf-expose="./Header">Header</header><main data-modern-boundary-id="checkout" data-modern-mf-expose="./CartPage">Cart</main></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/empty.js.map'),
@@ -145,6 +145,23 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
     path.join(distDirectory, 'loadable-stats.json'),
     JSON.stringify({
       name: 'loadable-fixture',
+    }),
+  );
+  await fs.writeFile(
+    path.join(distDirectory, 'mf-manifest.json'),
+    JSON.stringify({
+      remotes: [
+        {
+          alias: 'explore',
+          federationContainerName: 'verticalExplore',
+          entry: 'https://explore.example.com/mf-manifest.json',
+        },
+        {
+          alias: 'checkout',
+          federationContainerName: 'verticalCheckout',
+          entry: 'https://checkout.example.com/mf-manifest.json',
+        },
+      ],
     }),
   );
   await fs.writeFile(
@@ -492,6 +509,100 @@ describe('cloudflare deploy preset', () => {
     expect(await response.text()).toContain(
       '<link rel="stylesheet" href="https://example.com/static/app.css">',
     );
+  });
+
+  it('injects rendered federated remote CSS links into Cloudflare SSR HTML responses', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const originalFetch = globalThis.fetch;
+    const remoteManifests: Record<string, unknown> = {
+      'https://checkout.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: 'https://checkout.example.com/',
+        },
+        exposes: [
+          {
+            name: 'CartPage',
+            path: './CartPage',
+            assets: {
+              css: {
+                async: [],
+                sync: [],
+              },
+            },
+          },
+        ],
+      },
+      'https://checkout.example.com/routes-manifest.json': {
+        routeAssets: {
+          index: {
+            assets: ['static/js/checkout.js', 'static/css/checkout.css'],
+            referenceCssAssets: ['static/css/checkout.css'],
+          },
+        },
+      },
+      'https://explore.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: 'https://explore.example.com/',
+        },
+        exposes: [
+          {
+            name: 'Header',
+            path: './Header',
+            assets: {
+              css: {
+                async: ['static/css/explore.css'],
+                sync: [],
+              },
+            },
+          },
+        ],
+      },
+      'https://explore.example.com/routes-manifest.json': {
+        routeAssets: {},
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const manifest = remoteManifests[url];
+
+      if (manifest) {
+        return new Response(JSON.stringify(manifest), {
+          headers: {
+            'content-type': 'application/json',
+          },
+        });
+      }
+
+      return originalFetch(input);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request('https://example.com/styled'),
+        {
+          ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+        },
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain(
+        '<link rel="stylesheet" href="https://example.com/static/app.css">',
+      );
+      expect(html).toContain(
+        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+      );
+      expect(html).toContain(
+        '<link rel="stylesheet" href="https://checkout.example.com/static/css/checkout.css">',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('follows same-origin asset redirects when reading SSR templates', async () => {
