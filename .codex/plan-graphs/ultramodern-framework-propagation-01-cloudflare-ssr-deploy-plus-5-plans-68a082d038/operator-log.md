@@ -30,6 +30,8 @@ Validation checkpoint:
 - `pnpm --filter @modern-js/create build` passed.
 - Fresh `/tmp/ultramodern-scaffold-proof/proof-app` shell-only scaffold passed `check-ultramodern-i18n-boundaries` and `validate-ultramodern-workspace`.
 - Fresh add-vertical mutation for `catalog` passed the same generated validations and emitted native `data-modern-*` boundary attributes only.
+- Runtime validation attempt 2026-06-01 used fresh `/tmp/ultramodern-runtime-proof-20260601/proof-app`, generated from local `packages/toolkit/create/bin/run.js`, with temp-only workspace globs linking local Modern.js packages. `pnpm ultramodern:i18n-boundaries`, `pnpm ultramodern:check`, `pnpm skills:install`, `pnpm skills:check`, and `pnpm build` passed after adding `catalog`; Playwright evidence and screenshots are under `/tmp/ultramodern-runtime-proof-20260601/evidence`.
+- Blocking evidence: fresh generated `pnpm check` fails at `format:check`; `pnpm lint` reports generated Ultracite violations; `pnpm typecheck` fails in `verticals/catalog` (`DeployUserConfig.target`, Effect diagnostics, and `data.items` possibly undefined). SSR serve returns `x-modernjs-render: server` for `/en` and `/cs`, but raw HTML/browser evidence shows empty `<div id="root"></div>` with JavaScript disabled, so no-JS SSR content is not proven. `pnpm cloudflare:build` fails before `.output` because worker SSR cannot resolve `@loadable/component` from the local `app-tools` Cloudflare template path.
 
 Conflict hotspots:
 - `packages/toolkit/create/src/ultramodern-workspace.ts` is single-owner/local until scout findings are merged.
