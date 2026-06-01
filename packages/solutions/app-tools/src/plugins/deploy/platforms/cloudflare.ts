@@ -95,7 +95,7 @@ const createWorkerManifest = async (
     },
     workerBundles: {
       directory: WORKER_BUNDLE_DIRECTORY,
-      format: 'esm',
+      format: 'commonjs',
       importableFromModuleWorker: true,
       requestHandlerExport: 'requestHandler',
     },
@@ -252,7 +252,7 @@ export const createCloudflarePreset: CreatePreset = ({
         },
       );
       await fse.writeJSON(path.join(outputDirectory, 'package.json'), {
-        type: 'module',
+        type: 'commonjs',
       });
     },
     async genEntry() {

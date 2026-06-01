@@ -246,30 +246,42 @@ async function loadWorkerModule(workerPath) {
   return workerModulePromises.get(workerPath);
 }
 
+function getRuntimeModule(workerModule) {
+  const defaultExport = workerModule.default;
+  const nestedDefaultExport =
+    defaultExport && typeof defaultExport === 'object'
+      ? defaultExport.default
+      : undefined;
+
+  return defaultExport && typeof defaultExport === 'object'
+    ? {
+        ...workerModule,
+        ...defaultExport,
+        ...(nestedDefaultExport && typeof nestedDefaultExport === 'object'
+          ? nestedDefaultExport
+          : {}),
+      }
+    : workerModule;
+}
+
 function getFetchHandler(workerModule) {
   const defaultExport = workerModule.default;
+  const runtime = getRuntimeModule(workerModule);
 
   return (
-    (defaultExport &&
-      typeof defaultExport === 'object' &&
-      typeof defaultExport.fetch === 'function' &&
-      defaultExport.fetch.bind(defaultExport)) ||
-    (typeof workerModule.fetch === 'function' && workerModule.fetch)
+    (typeof runtime.fetch === 'function' && runtime.fetch.bind(runtime)) ||
+    (typeof defaultExport === 'function' &&
+      defaultExport.fetch?.bind?.(defaultExport))
   );
 }
 
 async function getRequestHandler(workerModule) {
   const defaultExport = workerModule.default;
-  const defaultRequestHandler =
-    defaultExport &&
-    typeof defaultExport === 'object' &&
-    'requestHandler' in defaultExport
-      ? defaultExport.requestHandler
-      : undefined;
+  const runtime = getRuntimeModule(workerModule);
 
   return (
     (await workerModule.requestHandler) ||
-    (await defaultRequestHandler) ||
+    (await runtime.requestHandler) ||
     (typeof defaultExport === 'function' ? defaultExport : undefined)
   );
 }
@@ -397,13 +409,7 @@ async function dispatchBffRequest(request, env) {
   const mountedRequest = createRequestForMountedPrefix(request, bff.prefix);
   const effectContext = createEffectContext(request, mountedRequest, env);
   const defaultExport = workerModule.default;
-  const runtime =
-    defaultExport && typeof defaultExport === 'object'
-      ? {
-          ...workerModule,
-          ...defaultExport,
-        }
-      : workerModule;
+  const runtime = getRuntimeModule(workerModule);
   const directHandler =
     (typeof runtime.handler === 'function' && runtime.handler) ||
     (typeof defaultExport === 'function' && defaultExport);

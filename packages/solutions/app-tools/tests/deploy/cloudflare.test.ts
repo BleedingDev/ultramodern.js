@@ -37,21 +37,24 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   await fs.writeFile(path.join(distDirectory, 'static/app.js'), 'app();');
   await fs.writeFile(
     path.join(distDirectory, 'worker/main.js'),
-    `export const requestHandler = async (request, options) => new Response(JSON.stringify({
+    `module.exports = { requestHandler: async (request, options) => new Response(JSON.stringify({
       pathname: new URL(request.url).pathname,
       entryName: options.resource.entryName,
       htmlTemplate: options.resource.htmlTemplate,
       routeAssetKeys: Object.keys(options.resource.routeManifest.routeAssets || {}),
       loadableName: options.resource.loadableStats.name
-    }), { headers: { 'content-type': 'application/json' } });`,
+    }), { headers: { 'content-type': 'application/json' } }) };`,
   );
-  await fs.writeFile(path.join(distDirectory, 'worker/empty.js'), 'export {};');
+  await fs.writeFile(
+    path.join(distDirectory, 'worker/empty.js'),
+    'module.exports = {};',
+  );
   await fs.writeFile(
     path.join(distDirectory, 'worker/dirname.js'),
-    `export const requestHandler = async () => new Response(JSON.stringify({
+    `module.exports = { requestHandler: async () => new Response(JSON.stringify({
       dirname: __dirname,
       filename: __filename
-    }), { headers: { 'content-type': 'application/json' } });`,
+    }), { headers: { 'content-type': 'application/json' } }) };`,
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/empty.js.map'),
@@ -78,14 +81,14 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/promise-default.js'),
-    `export default {
+    `module.exports = { default: {
       requestHandler: Promise.resolve(async (request, options) => new Response(JSON.stringify({
         pathname: new URL(request.url).pathname,
         source: 'promised-default',
         entryName: options.resource.entryName,
         htmlTemplate: options.resource.htmlTemplate
       }), { headers: { 'content-type': 'application/json' } }))
-    };`,
+    } };`,
   );
   await fs.writeFile(
     path.join(distDirectory, 'bundles/main.js'),
@@ -100,15 +103,15 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   );
   await fs.writeFile(
     path.join(distDirectory, 'worker/__modern_bff_effect.js'),
-    `export const createHandler = () => ({
+    `module.exports = { default: {
       handler: async (request, context) => new Response(JSON.stringify({
-        pathname: new URL(request.url).pathname,
-        originalPath: context.path,
-        method: context.method,
-        envValue: context.env.TEST_VALUE
-      }), { headers: { 'content-type': 'application/json' } }),
+          pathname: new URL(request.url).pathname,
+          originalPath: context.path,
+          method: context.method,
+          envValue: context.env.TEST_VALUE
+        }), { headers: { 'content-type': 'application/json' } }),
       dispose: async () => {}
-    });`,
+    } };`,
   );
   await fs.writeFile(
     path.join(distDirectory, 'html/main/index.html'),
@@ -323,7 +326,7 @@ describe('cloudflare deploy preset', () => {
     });
     expect(workerManifest.workerBundles).toMatchObject({
       directory: 'worker',
-      format: 'esm',
+      format: 'commonjs',
       importableFromModuleWorker: true,
       requestHandlerExport: 'requestHandler',
     });
@@ -350,6 +353,9 @@ describe('cloudflare deploy preset', () => {
       prefix: '/commerce-api',
       worker: 'worker/__modern_bff_effect.js',
     });
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'package.json'), 'utf-8'),
+    ).resolves.toBe('{"type":"commonjs"}\n');
   });
 
   it('emits a fetch-based worker entry that serves bound assets', async () => {
@@ -566,10 +572,12 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      dirname: '/',
-      filename: '/index.js',
-    });
+    const body = (await response.json()) as {
+      dirname: string;
+      filename: string;
+    };
+    expect(path.basename(body.dirname)).toBe('worker');
+    expect(path.basename(body.filename)).toBe('dirname.js');
   });
 
   it('dispatches Effect BFF worker modules before SSR route fallback', async () => {
