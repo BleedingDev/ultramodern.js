@@ -238,32 +238,10 @@ export const initializeI18nInstance = async (
       }
     }
 
-    if (mergedBackend && hasOptions(i18nInstance)) {
-      // For chained backend with cacheHitMode: 'refreshAndUpdateStore',
-      // i18next-chained-backend automatically:
-      // 1. Loads from the first backend (HTTP/FS) and displays immediately
-      // 2. Asynchronously loads from the second backend (SDK) and updates the store
-      // 3. Triggers 'loaded' event when SDK resources are loaded, which causes React to re-render
-      //
-      // Note: i18next.init() returns a Promise that resolves when the first backend loads.
-      // For chained backend, it does NOT wait for the second backend (SDK) to load.
-      // The SDK backend loads asynchronously and triggers 'loaded' event automatically.
-      const defaultNS =
-        initOptions.defaultNS || initOptions.ns || 'translation';
-      const ns = Array.isArray(defaultNS) ? defaultNS[0] : defaultNS;
-
-      let retries = 20;
-      while (retries > 0) {
-        // Get the actual i18next instance to access store property
-        const actualInstance = getActualI18nextInstance(i18nInstance);
-        const store = (actualInstance as any).store;
-        if (store?.data?.[finalLanguage]?.[ns]) {
-          break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retries--;
-      }
-    }
+    // i18next.init() is the synchronization boundary for the primary backend.
+    // Chained SDK refreshes update the store through their own loaded events and
+    // must not block SSR HTML, otherwise missing/edge-only resources add fixed
+    // latency to every route render.
   }
 };
 
