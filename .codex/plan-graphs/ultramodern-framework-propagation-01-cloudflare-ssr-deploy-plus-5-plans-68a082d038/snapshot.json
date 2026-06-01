@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T00:12:59.950773+00:00",
+  "generated_at": "2026-06-01T00:44:54.210003+00:00",
   "graph_id": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy-plus-5-plans-68a082d038",
   "plan_set_hash": "c66fbd8f39",
   "selection_hash": "68a082d038",
@@ -47,37 +47,37 @@
         {
           "id": "audit-cloudflare-current-state",
           "content": "Re-audit app-tools Cloudflare deploy, Worker bundle generation, Effect BFF entry discovery, and generated package scripts against the working Tractor demo behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "design-cloudflare-deploy-contract",
           "content": "Define the framework-owned Cloudflare deploy contract: build output generation, Wrangler deployment command, required public URL envs, proof command, and trusted-publishing constraints.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "move-worker-compatibility-into-app-tools",
           "content": "Implement Cloudflare Worker SSR compatibility in app-tools instead of generated app configs, covering loadable, path, fs/promises, and other Worker-only aliases or fallbacks with tests.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "align-ssr-mode-default",
           "content": "Choose and implement the Cloudflare Module Federation SSR mode default, then make generated config, generated contract, and validators agree.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "update-create-cloudflare-scripts",
           "content": "Update create-generated app and root Cloudflare scripts so deploy performs the validated build plus Wrangler deploy flow without demo-specific shell scripts.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "test-cloudflare-ssr-effect-bff",
           "content": "Add or update unit/integration tests proving Cloudflare SSR route dispatch, static assets, Effect BFF readiness routes, and generated deploy scripts work from framework defaults.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         }
       ],
@@ -94,25 +94,25 @@
         {
           "id": "audit-remote-css-assets",
           "content": "Inspect generated Modern.js and Module Federation asset metadata for shell and vertical CSS outputs, including hashed and non-hashed builds.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "design-topology-driven-css-contract",
           "content": "Define how shell SSR discovers and emits remote stylesheet links from topology, public URL envs, and build manifests without app-local hardcoded paths.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "implement-framework-css-injection",
           "content": "Implement the chosen framework or generated-template mechanism for remote CSS first paint, avoiding duplicate links and preserving no-JS SSR styling.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "remove-filename-hash-requirement",
           "content": "Eliminate the need for generated apps or Tractor to set output.filenameHash=false by resolving actual CSS asset URLs from reliable metadata.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
@@ -141,37 +141,37 @@
         {
           "id": "audit-generated-i18n-runtime",
           "content": "Compare generated i18n runtime, locale JSON files, route metadata, and Tractor's inline resources to identify duplicate, non-extractable, or manually split strings.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "standardize-json-i18n-template",
           "content": "Update the scaffold to generate translation-tool-friendly JSON resources with namespaces, supported languages, full phrases, route labels, and plural-capable examples.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "remove-manual-language-logic-patterns",
           "content": "Add generation and validation rules that prevent manual language ternaries and literal split phrases in scaffolded code.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "harden-boundary-debugger-runtime",
           "content": "Make native boundary debugging persist state across language changes, render nothing visible when disabled, and show clear non-overlapping ownership boundaries when enabled.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "expose-boundary-debugger-as-framework-feature",
           "content": "Ensure generated apps can use boundary debugging through UltraModern runtime metadata without hand-written overlay components.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "test-i18n-and-boundaries",
           "content": "Add scaffold/runtime validation for SSR i18n, language switching, plural-ready copy, and boundary state persistence across routes and locales.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         }
       ],
@@ -188,25 +188,25 @@
         {
           "id": "regenerate-reference-workspaces",
           "content": "Create fresh UltraModern reference workspaces from local framework code for shell-only and shell-plus-vertical configurations.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "validate-monolith-start-path",
           "content": "Verify users can start with a simple shell app without being forced into multiple verticals from day one.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "validate-add-vertical-flow",
           "content": "Verify the add-vertical command modifies an existing repository, wires topology, MF remotes, i18n, Effect BFF, scripts, and validation correctly.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "run-quality-gates",
           "content": "Run generated format, lint, typecheck, build, ultramodern validation, and targeted framework tests for the changed defaults.",
-          "status": "pending",
+          "status": "in_progress",
           "ordinal": 4
         },
         {
@@ -341,38 +341,6 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy",
-      "plan_name": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-01-cloudflare-ssr-deploy.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "audit-cloudflare-current-state",
-          "content": "Re-audit app-tools Cloudflare deploy, Worker bundle generation, Effect BFF entry discovery, and generated package scripts against the working Tractor demo behavior.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "design-cloudflare-deploy-contract",
-          "content": "Define the framework-owned Cloudflare deploy contract: build output generation, Wrangler deployment command, required public URL envs, proof command, and trusted-publishing constraints.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "move-worker-compatibility-into-app-tools",
-          "content": "Implement Cloudflare Worker SSR compatibility in app-tools instead of generated app configs, covering loadable, path, fs/promises, and other Worker-only aliases or fallbacks with tests.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 6
-    },
-    {
       "plan_slug": "ultramodern-framework-propagation-02-federated-css",
       "plan_name": "ultramodern-framework-propagation-02-federated-css",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-02-federated-css.plan.md",
@@ -381,95 +349,53 @@
       "blocked_by": [],
       "active": [
         {
-          "id": "audit-remote-css-assets",
-          "content": "Inspect generated Modern.js and Module Federation asset metadata for shell and vertical CSS outputs, including hashed and non-hashed builds.",
+          "id": "test-css-isolation-and-no-flicker",
+          "content": "Add validation that prefixed Tailwind v4 classes, remote CSS loading, SSR output, and JS-disabled rendering do not flicker or collide across shell and verticals.",
           "status": "pending",
-          "ordinal": 1
+          "ordinal": 5
         }
       ],
       "upcoming": [
         {
-          "id": "design-topology-driven-css-contract",
-          "content": "Define how shell SSR discovers and emits remote stylesheet links from topology, public URL envs, and build manifests without app-local hardcoded paths.",
+          "id": "document-css-propagation-rule",
+          "content": "Document that app demos should use framework federated CSS behavior rather than injecting async-index.css or stylesheet plugins locally.",
           "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "implement-framework-css-injection",
-          "content": "Implement the chosen framework or generated-template mechanism for remote CSS first paint, avoiding duplicate links and preserving no-JS SSR styling.",
-          "status": "pending",
-          "ordinal": 3
+          "ordinal": 6
         }
       ],
-      "completed": 0,
-      "total": 6
-    },
-    {
-      "plan_slug": "ultramodern-framework-propagation-03-i18n-boundaries-scaffold",
-      "plan_name": "ultramodern-framework-propagation-03-i18n-boundaries-scaffold",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-03-i18n-boundaries-scaffold.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
-      "blocked_by": [],
-      "active": [
-        {
-          "id": "audit-generated-i18n-runtime",
-          "content": "Compare generated i18n runtime, locale JSON files, route metadata, and Tractor's inline resources to identify duplicate, non-extractable, or manually split strings.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "standardize-json-i18n-template",
-          "content": "Update the scaffold to generate translation-tool-friendly JSON resources with namespaces, supported languages, full phrases, route labels, and plural-capable examples.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "remove-manual-language-logic-patterns",
-          "content": "Add generation and validation rules that prevent manual language ternaries and literal split phrases in scaffolded code.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "completed": 4,
       "total": 6
     },
     {
       "plan_slug": "ultramodern-framework-propagation-04-generated-validation",
       "plan_name": "ultramodern-framework-propagation-04-generated-validation",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-04-generated-validation.plan.md",
-      "plan_status": "pending",
+      "plan_status": "in_progress",
       "state": "blocked",
-      "blocked_by": [
-        "ultramodern-framework-propagation-01-cloudflare-ssr-deploy",
-        "ultramodern-framework-propagation-02-federated-css",
-        "ultramodern-framework-propagation-03-i18n-boundaries-scaffold"
-      ],
+      "blocked_by": ["ultramodern-framework-propagation-02-federated-css"],
       "active": [
         {
-          "id": "regenerate-reference-workspaces",
-          "content": "Create fresh UltraModern reference workspaces from local framework code for shell-only and shell-plus-vertical configurations.",
-          "status": "pending",
-          "ordinal": 1
+          "id": "run-quality-gates",
+          "content": "Run generated format, lint, typecheck, build, ultramodern validation, and targeted framework tests for the changed defaults.",
+          "status": "in_progress",
+          "ordinal": 4
         }
       ],
       "upcoming": [
         {
-          "id": "validate-monolith-start-path",
-          "content": "Verify users can start with a simple shell app without being forced into multiple verticals from day one.",
+          "id": "run-js-disabled-ssr-proof",
+          "content": "Use browser automation to verify SSR pages render full styled content with JavaScript disabled, including language routes and vertical content.",
           "status": "pending",
-          "ordinal": 2
+          "ordinal": 5
         },
         {
-          "id": "validate-add-vertical-flow",
-          "content": "Verify the add-vertical command modifies an existing repository, wires topology, MF remotes, i18n, Effect BFF, scripts, and validation correctly.",
+          "id": "run-cloudflare-output-proof",
+          "content": "Validate Cloudflare build output, Wrangler config, route workers, public asset serving, and Effect BFF readiness for generated apps.",
           "status": "pending",
-          "ordinal": 3
+          "ordinal": 6
         }
       ],
-      "completed": 0,
+      "completed": 3,
       "total": 7
     },
     {
@@ -537,6 +463,30 @@
       ],
       "completed": 0,
       "total": 7
+    },
+    {
+      "plan_slug": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy",
+      "plan_name": "ultramodern-framework-propagation-01-cloudflare-ssr-deploy",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-01-cloudflare-ssr-deploy.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-framework-propagation-03-i18n-boundaries-scaffold",
+      "plan_name": "ultramodern-framework-propagation-03-i18n-boundaries-scaffold",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-framework-propagation-03-i18n-boundaries-scaffold.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
+      "total": 6
     }
   ],
   "errors": [],
