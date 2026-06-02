@@ -513,7 +513,7 @@ function modernLoaderToTanstack<TLoader extends (args: any) => any>(
 
       const href = getLoaderHref(ctx);
 
-      const request = baseRequest
+      const request = baseRequest !== undefined
         ? new Request(baseRequest, { signal })
         : new Request(href, { signal });
 

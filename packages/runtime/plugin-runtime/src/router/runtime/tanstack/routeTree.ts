@@ -394,9 +394,10 @@ function wrapModernLoader(
             ctx?.location?.url?.href ||
             '';
 
-      const request = baseRequest
-        ? new Request(baseRequest, { signal })
-        : createModernRequest(href, signal);
+      const request =
+        baseRequest !== undefined
+          ? new Request(baseRequest, { signal })
+          : createModernRequest(href, signal);
       const params = mapParamsForModernLoader({
         modernRoute,
         params: ctx.params || {},
@@ -505,9 +506,10 @@ function wrapRouteObjectLoader(
             ctx?.location?.url?.href ||
             '';
 
-      const request = baseRequest
-        ? new Request(baseRequest, { signal })
-        : createModernRequest(href, signal);
+      const request =
+        baseRequest !== undefined
+          ? new Request(baseRequest, { signal })
+          : createModernRequest(href, signal);
 
       const params = mapParamsForRouteObjectLoader({
         route,
