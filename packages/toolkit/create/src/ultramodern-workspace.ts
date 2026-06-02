@@ -1323,6 +1323,9 @@ function createModuleFederationRemotesConfig(
   remotes: WorkspaceApp[] = [],
 ): string {
   const remoteEntries = resolveRemoteRefs(app, remotes)
+    .toSorted((left, right) =>
+      remoteDependencyAlias(left).localeCompare(remoteDependencyAlias(right)),
+    )
     .map(remote => {
       const key = remoteDependencyAlias(remote);
       return `    ${key}: createRemoteManifestUrl({
