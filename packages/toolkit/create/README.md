@@ -34,17 +34,13 @@ workspace explicitly when you need independently owned verticals:
 pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
 ```
 
-The workspace is a full-stack reference, not a visual-only commerce boundary
-demo. It generates:
+The workspace starts shell-only so the first commit has no fake business
+domains to delete. It generates:
 
 - `apps/shell-super-app` as the Module Federation host and topology owner.
-- `verticals/explore` for discovery UI plus
-  `/explore-api/effect/explore/*`.
-- `verticals/decide` for product selection UI plus
-  `/decide-api/effect/decide/*`.
-- `verticals/checkout` for cart and checkout UI plus
-  `/checkout-api/effect/checkout/*`.
-- `packages/shared-design-tokens` as the shared CSS token owner.
+- `verticals/*` empty until you add a real domain with `--vertical`.
+- `packages/shared-*` placeholders for shared contracts, tokens, and API
+  support.
 - `.modernjs/ultramodern-generated-contract.json` with MF, Effect, i18n,
   federated CSS, Cloudflare, and Zephyr dependency metadata.
 
@@ -54,7 +50,7 @@ Validate the generated workspace before making application changes:
 cd my-super-app
 mise install
 pnpm install
-pnpm ultramodern:check
+pnpm check
 pnpm build
 ```
 
@@ -142,14 +138,13 @@ UltraModern.js entrypoint. The lower-level `--ultramodern-*` flags remain
 available for release engineering and local package-source testing, but users
 should not need them for normal app creation.
 
-### Tractor Architecture Contracts
+### SuperApp Architecture Contracts
 
-The generated shell owns route assembly and policy. The generated Explore,
-Decide, and Checkout verticals own their own route subtree, MF exposes, Effect BFF
-contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
-Cloudflare Worker output. The shell consumes vertical UI through MF manifests
-and vertical APIs through generated Effect clients exported by the vertical
-packages.
+The generated shell owns route assembly and policy. Each vertical added with
+`--vertical` owns its route subtree, MF exposes, Effect BFF contract, generated
+client, `localisedUrls`, locale JSON, CSS layer, and Cloudflare Worker output.
+The shell consumes vertical UI through MF manifests and vertical APIs through
+generated Effect clients exported by the vertical packages.
 
 Route localization is route-owned. Each app writes
 `src/routes/ultramodern-route-metadata` and passes
@@ -177,7 +172,7 @@ manifest markers in lockstep for the same vertical version.
 
 ### Cloudflare And Zephyr Proof
 
-Each generated app has:
+Each generated workspace app has:
 
 - `cloudflare:build`, `cloudflare:deploy`, `cloudflare:preview`, and
   `cloudflare:proof` scripts.
@@ -185,20 +180,33 @@ Each generated app has:
 - `zephyr:dependencies` for any consumed verticals.
 - `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
 
-Public URL proof is intentionally separate from local build validation:
+Deploy first, then pass each deployed app's generated public URL env key into
+the proof step. Shell-only workspaces only need the shell URL; added verticals
+use the same `ULTRAMODERN_PUBLIC_URL_<APP_ID>` pattern with hyphens converted
+to underscores and uppercased:
 
 ```bash
-ULTRAMODERN_PUBLIC_URL_EXPLORE=https://explore.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_DECIDE=https://decide.example.workers.dev \
-ULTRAMODERN_PUBLIC_URL_CHECKOUT=https://checkout.example.workers.dev \
+pnpm cloudflare:deploy
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
 pnpm cloudflare:proof -- --require-public-urls
 ```
 
-Live Zephyr switching proof requires Zephyr credentials and public runtime,
-manifest, and API URLs for v1 and v2 of Explore, Decide, and Checkout. Without
-public URLs and credentials, use dry-run evidence only; do not claim live
-Zephyr selection has been proven.
+Without public URLs and credentials, use local `pnpm check` and `pnpm build`
+evidence only; do not claim live Cloudflare or Zephyr selection has been
+proven.
+
+### Troubleshooting
+
+| Symptom | Current check | Owner |
+| --- | --- | --- |
+| Package cohort mismatch | Regenerate with one package source strategy, run `mise install`, then rerun `pnpm install` from the activated shell. | Generated workspace package source metadata |
+| Install failure | Check the active Node/pnpm from `mise install`; rerun `pnpm install` after the shell sees the pinned versions. | Toolchain setup |
+| Build failure | Run `pnpm check` before `pnpm build`; fix reported format, lint, type, skill, i18n, or generated-contract failures first. | Owning package or generated contract |
+| Missing public URL | Set the env key from `.modernjs/ultramodern-generated-contract.json`, for example `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP`. | Deployment operator |
+| Cloudflare credentials | Confirm Wrangler credentials before `pnpm cloudflare:deploy`; local checks do not prove live Worker access. | Deployment operator |
+| Asset or CSS 404 | Rebuild with `pnpm build` or `pnpm cloudflare:deploy` and inspect emitted Modern/Rspack asset paths instead of hardcoding CSS URLs. | Framework/runtime asset pipeline |
+| Federation manifest failure | Run the shell and vertical build scripts, then check each deployed `/mf-manifest.json` URL used by the shell. | Module Federation owner |
 
 ### Local Monorepo Testing
 
@@ -209,14 +217,14 @@ workspace protocol dependencies:
 pnpm dlx @bleedingdev/modern-js-create my-app --workspace
 ```
 
-For package-source validation of the full Tractor workspace, generate with the
+For package-source validation of the full SuperApp workspace, generate with the
 workspace package source, then run the generated contract gate:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create tractor-super-app --ultramodern-workspace --ultramodern-package-source workspace
-cd tractor-super-app
+pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace --ultramodern-package-source workspace
+cd my-super-app
 pnpm install
-pnpm ultramodern:check
+pnpm check
 ```
 
 ## Documentation

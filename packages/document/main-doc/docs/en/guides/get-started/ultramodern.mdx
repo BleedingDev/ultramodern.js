@@ -285,14 +285,15 @@ The following are intentionally out of scope for this public V3 preset profile:
 The public BleedingDev create package starts small. The default command creates
 one production-ready UltraModern app with `presetUltramodern(...)`, SSR,
 TanStack Router, Tailwind CSS v4, i18n, Effect BFF, generated quality gates, and
-Cloudflare deploy basics:
+production URL metadata:
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
 cd myapp
 mise install
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+pnpm install
+pnpm run ultramodern:check
+MODERN_PUBLIC_SITE_URL=https://example.com pnpm build
 ```
 
 Create a SuperApp workspace only when independent ownership is useful:
@@ -301,9 +302,15 @@ Create a SuperApp workspace only when independent ownership is useful:
 pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
 cd my-super-app
 mise install
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+pnpm install
+pnpm check
+pnpm build
 ```
+
+The initial SuperApp workspace is shell-only: `apps/shell-super-app` owns route
+assembly and Module Federation host wiring, `verticals/*` starts empty, and
+`packages/shared-*` holds placeholders for contracts, tokens, and API support.
+Add verticals only when a real business domain needs independent ownership.
 
 Add real business MicroVerticals as they become ownership boundaries:
 
@@ -312,7 +319,8 @@ pnpm dlx @bleedingdev/modern-js-create transportation --vertical
 pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
 pnpm dlx @bleedingdev/modern-js-create payments --vertical
 pnpm dlx @bleedingdev/modern-js-create maps --vertical
-mise exec -- pnpm ultramodern:check
+pnpm check
+pnpm build
 ```
 
 The `--vertical` command mutates the current workspace. It creates the vertical
@@ -338,9 +346,34 @@ prefixes, and SSR first paint uses Modern/Rspack assets plus manifest-owned
 vertical CSS.
 
 Generated workspaces include `scripts/proof-cloudflare-version.mjs` for live
-Cloudflare and Zephyr proof. Live proof requires public Worker URLs and Zephyr
-credentials; local checks still validate generated contracts, builds,
-Cloudflare output, dry-run Zephyr evidence plans, and local evidence schemas.
+Cloudflare and Zephyr proof. Deploy first, then pass each deployed app's
+generated public URL env key into the proof step. Shell-only workspaces only
+need the shell URL; added verticals use the same
+`ULTRAMODERN_PUBLIC_URL_<APP_ID>` pattern with hyphens converted to underscores
+and uppercased.
+
+```bash
+pnpm cloudflare:deploy
+ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
+ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
+pnpm cloudflare:proof -- --require-public-urls
+```
+
+Live proof requires public Worker URLs and Zephyr credentials; local checks
+still validate generated contracts, builds, Cloudflare output, dry-run Zephyr
+evidence plans, and local evidence schemas.
+
+## Current Troubleshooting
+
+| Symptom | Current check | Owner |
+| --- | --- | --- |
+| Package cohort mismatch | Regenerate with one package source strategy, run `mise install`, then rerun `pnpm install` from the activated shell. | Generated workspace package source metadata |
+| Install failure | Check the active Node/pnpm from `mise install`; rerun `pnpm install` after the shell sees the pinned versions. | Toolchain setup |
+| Build failure | Run `pnpm check` before `pnpm build`; fix reported format, lint, type, skill, i18n, or generated-contract failures first. | Owning package or generated contract |
+| Missing public URL | Set the env key from `.modernjs/ultramodern-generated-contract.json`, for example `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP`. | Deployment operator |
+| Cloudflare credentials | Confirm Wrangler credentials before `pnpm cloudflare:deploy`; local checks do not prove live Worker access. | Deployment operator |
+| Asset or CSS 404 | Rebuild with `pnpm build` or `pnpm cloudflare:deploy` and inspect emitted Modern/Rspack asset paths instead of hardcoding CSS URLs. | Framework/runtime asset pipeline |
+| Federation manifest failure | Run the shell and vertical build scripts, then check each deployed `/mf-manifest.json` URL used by the shell. | Module Federation owner |
 
 BleedingDev packages are published through GitHub Actions trusted publishing.
 The public workflow is tokenless; do not publish packages manually from a
