@@ -4,25 +4,25 @@ overview: Move critical generated-template, security, and cohort-alignment check
 todos:
   - id: map-current-publish-gates
     content: Map `.github/workflows/publish-bleedingdev.yml`, `scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs`, `scripts/ultramodern-publish/validate-publish-security.mjs`, `scripts/security/validate-github-workflows.mjs`, and `scripts/release-gates` into a single pre-publish gate order with owners and failure messages.
-    status: pending
+    status: completed
   - id: add-source-generated-proof
     content: Add a pre-publish generated-template proof that runs from the current repository source before `npm publish`, verifying scaffold generation, install/check/build, cohort metadata, generated workflow contracts, and browser smoke without depending on already-published `latest`.
-    status: pending
+    status: completed
   - id: enforce-shared-version-policy
     content: Ensure pre-publish checks fail if public UltraModern packages, generated aliases, runtime dependencies, or create-package metadata violate the shared-version policy for the selected package cohort.
-    status: pending
+    status: completed
   - id: integrate-release-contract-evidence
     content: Connect release-candidate evidence requirements from `scripts/release-gates/README.md` and `rc-contract-profile.json` to the publish workflow so missing architecture, validation, test, review, commit, ticket, or workflow metadata blocks production release candidates.
     status: pending
   - id: harden-workflow-validation
     content: Extend workflow/security validation so sensitive publish and production-readiness workflows continue to ban token-based npm publishing, require trusted publishing posture, and validate generated starter/workspace workflow contracts.
-    status: pending
+    status: completed
   - id: attach-publish-artifacts
     content: Upload pre-publish proof artifacts, generated workspace summaries, security validation results, release-gate evidence, and package cohort manifests from the publish workflow for auditability.
-    status: pending
+    status: completed
   - id: test-failing-gate-scenarios
     content: Add tests or fixture-driven checks for failing source proof, package cohort mismatch, missing release evidence, insecure workflow edits, and invalid publish mode so gate failures are deterministic.
-    status: pending
+    status: completed
 isProject: false
 ---
 

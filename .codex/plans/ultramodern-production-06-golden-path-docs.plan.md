@@ -4,19 +4,19 @@ overview: Make the human golden path clear and executable: initialize UltraModer
 todos:
   - id: audit-current-docs-vs-generated-output
     content: Compare `packages/toolkit/create/README.md`, `packages/document/main-doc/docs/en/guides/get-started/ultramodern.mdx`, generated workspace README templates, and current `.82` generated package scripts to identify stale commands, missing environment variables, and duplicated explanations.
-    status: pending
+    status: completed
   - id: define-golden-path-command-set
     content: Define the minimal command sequence for app, SuperApp, add-vertical, local install/check/build, local browser smoke, Cloudflare deploy, Cloudflare proof, and published package verification.
-    status: pending
+    status: completed
   - id: update-main-docs
     content: Update the main UltraModern docs so the first-run and SuperApp flows are linear, version-accurate, and focused on what a human operator should run in order.
-    status: pending
+    status: completed
   - id: update-generated-readmes
     content: Update generated workspace and vertical README templates so every generated project carries the same command vocabulary, environment variable names, proof expectations, and troubleshooting entry points as the main docs.
-    status: pending
+    status: completed
   - id: add-troubleshooting-matrix
     content: Add a concise troubleshooting matrix for common proof failures: package cohort mismatch, install failure, build failure, browser smoke route failure, missing public URL, missing Cloudflare credential, asset 404, and federation manifest failure.
-    status: pending
+    status: completed
   - id: validate-doc-commands
     content: Add or extend docs/snippet validation so the documented golden-path commands exist in generated package scripts and do not drift from the actual proof harness.
     status: pending

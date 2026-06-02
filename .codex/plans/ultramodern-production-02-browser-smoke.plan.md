@@ -4,22 +4,22 @@ overview: Add browser-level smoke validation for freshly generated UltraModern S
 todos:
   - id: research-generated-browser-contracts
     content: Re-read the generated workspace output from `packages/toolkit/create/src/ultramodern-workspace.ts`, the published proof harness in `scripts/ultramodern-production-readiness/run-published-create-proof.mjs`, and the existing portfolio browser tests to define the stable routes, selectors, manifests, asset URLs, and console-error rules that a generated SuperApp must satisfy.
-    status: pending
+    status: completed
   - id: extract-browser-smoke-helper
     content: Add a reusable browser smoke helper under `scripts/ultramodern-production-readiness` that can launch a generated workspace, visit the shell and vertical routes, assert localized navigation works through framework router primitives, capture console/page errors, and verify static store/assets and federation manifests load with 2xx responses.
-    status: pending
+    status: completed
   - id: wire-local-generated-proof
     content: Integrate the browser smoke helper into `run-published-create-proof.mjs` after `pnpm build`, using the generated app's own serve/start scripts and keeping failures actionable with artifacts for logs, screenshots, response failures, and the generated workspace location.
-    status: pending
+    status: completed
   - id: wire-public-url-proof
     content: Extend the optional `--deploy-cloudflare` path so `pnpm cloudflare:proof -- --require-public-urls` also runs the same browser smoke assertions against deployed shell and vertical public URLs when Cloudflare credentials are provided.
-    status: pending
+    status: completed
   - id: add-regression-coverage
     content: Add unit or integration coverage for the smoke runner contract, including success, route failure, missing asset, missing manifest, and browser-console-error cases without relying on app-level shims or generated-file edits.
-    status: pending
+    status: completed
   - id: ci-artifacts-and-docs
     content: Update `.github/workflows/ultramodern-production-readiness.yml` and generated/operator docs so browser proof artifacts are uploaded and failures point maintainers to the exact route, request, or runtime error that broke.
-    status: pending
+    status: completed
 isProject: false
 ---
 

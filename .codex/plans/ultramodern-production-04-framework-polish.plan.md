@@ -4,10 +4,10 @@ overview: Remove framework-owned rough edges that still leak into generated Supe
 todos:
   - id: triage-open-polish-defects
     content: Inspect bead `modernjs-muza`, recent generated build logs, and `rg bridgeRouterAlias` owners to identify exactly where debug output or noisy warnings originate and whether the fix belongs in module federation runtime, router integration, generator code, or release tooling.
-    status: pending
+    status: completed
   - id: remove-bridge-router-debug-leak
     content: Fix the owning framework/runtime/tooling layer so `bridgeRouterAlias` and related router bridge internals are not printed during normal generated app build or proof runs, preserving useful diagnostics behind an explicit debug flag if needed.
-    status: pending
+    status: completed
   - id: improve-cloudflare-env-diagnostics
     content: Rework generated Cloudflare deploy/proof diagnostics in `packages/toolkit/create/src/ultramodern-workspace.ts` so missing environment, account, route, or secret configuration errors are concise, ordered, and tell operators what to set without masking deployment failures.
     status: pending
@@ -16,7 +16,7 @@ todos:
     status: pending
   - id: add-log-regression-tests
     content: Add regression tests that fail if normal scaffold/build/proof output contains known debug dumps, local suppressions, app-level shims, or generated-file patches used to hide framework behavior.
-    status: pending
+    status: completed
   - id: close-polish-beads-with-evidence
     content: Update and close the related beads only after local proof and CI evidence show the noisy output is gone and the generated operator errors remain actionable.
     status: pending

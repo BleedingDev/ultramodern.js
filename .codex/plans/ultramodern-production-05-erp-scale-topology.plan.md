@@ -4,19 +4,19 @@ overview: Prove UltraModern SuperApps can scale from demo-sized compositions to 
 todos:
   - id: define-scale-profiles
     content: Define source and published package scale profiles for 10, 25, and 50 verticals, including expected route count, module federation remote count, shared dependency policy, generated package names, and time/resource budgets for install, check, build, and browser smoke.
-    status: pending
+    status: completed
   - id: generalize-vertical-generation
     content: Extend the generated SuperApp proof path beyond the current fixed ten vertical names in `run-published-create-proof.mjs` so it can generate deterministic ERP-like vertical sets without hand-written fixture code.
-    status: pending
+    status: completed
   - id: connect-existing-erp-fixtures
     content: Reuse lessons and utilities from `tests/integration/superapp-erp` and `tests/integration/superapp-portfolio` to validate large topology contracts, avoiding a parallel bespoke test framework.
     status: pending
   - id: add-scale-certification-script
     content: Add a scale certification script that records topology size, install/build/check/browser timings, memory-sensitive failures, remote-manifest status, and shared-version cohort assertions as structured evidence.
-    status: pending
+    status: completed
   - id: schedule-heavy-ci
     content: Wire small scale proof into regular production readiness and larger ERP-scale proof into scheduled or manually triggered CI so normal publishing remains practical while release candidates get deeper coverage.
-    status: pending
+    status: completed
   - id: document-scale-envelope
     content: Publish the current supported SuperApp scale envelope, known budgets, and escalation path for tens-of-modules ERP adopters in main docs and generated workspace guidance.
     status: pending
