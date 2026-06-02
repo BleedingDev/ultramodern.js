@@ -43,6 +43,7 @@ const makeFixture = ({
   includeUtils = true,
   includeCreate = true,
   stagedDependency = 'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+  externalDependency,
   createFrameworkVersion = '3.2.0-ultramodern.1',
 } = {}) => {
   const repoRoot = makeTempDir();
@@ -75,6 +76,9 @@ const makeFixture = ({
     version: '3.2.0-ultramodern.1',
     dependencies: {
       '@modern-js/utils': stagedDependency,
+      ...(externalDependency
+        ? { '@modern-js/polyfill-lib': externalDependency }
+        : {}),
     },
   });
   packages.push({
@@ -183,6 +187,51 @@ test('validateSourceProof rejects npm latest internal resolution', async () => {
     assert.throws(
       () => validateSourceProof(fixture),
       /must resolve to staged cohort npm:@bleedingdev\/modern-js-utils@3\.2\.0-ultramodern\.1, found latest/,
+    );
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof allows non-workspace external Modern registry dependencies', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture({
+    externalDependency: '^1.0.2',
+  });
+
+  try {
+    const proof = validateSourceProof(fixture);
+    const externalCheck = proof.packages
+      .find(item => item.sourceName === '@modern-js/runtime')
+      .internalDependencyChecks.find(
+        item => item.dependencyName === '@modern-js/polyfill-lib',
+      );
+
+    assert.deepEqual(externalCheck, {
+      blockName: 'dependencies',
+      dependencyName: '@modern-js/polyfill-lib',
+      specifier: '^1.0.2',
+      resolution: 'external-registry',
+    });
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof rejects non-aliased Modern workspace dependencies', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture({
+    externalDependency: 'workspace:*',
+  });
+
+  try {
+    assert.throws(
+      () => validateSourceProof(fixture),
+      /@bleedingdev\/modern-js-runtime dependencies\.@modern-js\/polyfill-lib still uses workspace:\*/,
     );
   } finally {
     removeDir(fixture.repoRoot);

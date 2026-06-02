@@ -182,7 +182,25 @@ function validateInternalDependencyResolution({
         continue;
       }
 
+      const hasAlias = Object.prototype.hasOwnProperty.call(
+        manifest.aliases,
+        dependencyName,
+      );
       const targetName = manifest.aliases[dependencyName];
+      if (!hasAlias) {
+        assert(
+          typeof specifier !== 'string' || !specifier.startsWith('workspace:'),
+          `${packageName} ${blockName}.${dependencyName} has no alias metadata and still uses ${specifier}`,
+        );
+        checks.push({
+          blockName,
+          dependencyName,
+          specifier,
+          resolution: 'external-registry',
+        });
+        continue;
+      }
+
       assertString(
         targetName,
         `${packageName} ${blockName}.${dependencyName} has no alias metadata`,
@@ -205,6 +223,7 @@ function validateInternalDependencyResolution({
         blockName,
         dependencyName,
         specifier,
+        resolution: 'staged-cohort',
       });
     }
   }

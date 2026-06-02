@@ -3,7 +3,13 @@ packages:
   - verticals/*
   - packages/*
 
-minimumReleaseAge: 0
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+minimumReleaseAgeExclude:
+  - '@bleedingdev/modern-js-*'
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 1440
 blockExoticSubdeps: true
 engineStrict: true
 pmOnFail: error
