@@ -80,7 +80,7 @@ pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
 cd my-super-app
 mise install
 mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 workspace 从 shell 和平台契约起步，不强制生成演示业务域。真实业务边界出现后，
@@ -91,7 +91,7 @@ pnpm dlx @bleedingdev/modern-js-create transportation --vertical
 pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
 pnpm dlx @bleedingdev/modern-js-create payments --vertical
 pnpm dlx @bleedingdev/modern-js-create maps --vertical
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 `--vertical` 会修改当前 workspace：创建 vertical 包，并更新 topology 元数据、
@@ -122,10 +122,10 @@ Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这�
 
 ### 校验与部署
 
-本地 gate：
+Workspace 本地 gate：
 
 ```bash
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
 ```
