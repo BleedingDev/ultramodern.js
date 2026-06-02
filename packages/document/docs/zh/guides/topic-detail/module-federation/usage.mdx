@@ -154,7 +154,7 @@ export default Index;
 
 ## 启动应用
 
-现在，生产者应用和消费者应用都已经搭建完毕，我们可以在本地运行 `modern dev` 启动两个应用。
+现在，生产者应用和消费者应用都已经搭建完毕，我们可以在本地运行 `ultramodern dev` 启动两个应用。
 
 启动后，消费者中对生产者模块的引入，不会再出现抛错，类型已经下载到消费者应用中。
 
@@ -164,7 +164,7 @@ export default Index;
 
 访问 `http://localhost:8080/remote`，可以看到页面中已经包含了生产者的远程模块 `Button` 组件。
 
-我们也可以在本地执行 `modern serve` 来模拟生产环境。
+我们也可以在本地执行 `ultramodern serve` 来模拟生产环境。
 
 因为 Module Federation 插件会自动读取 Modern.js 的 `output.assetPrefix` 配置作为远程模块的访问地址，而该值在生产环境下构建后默认是 `/`。如果不做特殊处理，消费者将从自己的域名下拉取远程模块的入口文件。我们可以添加如下配置：
 
@@ -178,7 +178,7 @@ export default defineConfig({
     port: 3051,
   },
   output: {
-    // Now this configuration is only used in the local when you run modern serve command.
+    // Now this configuration is only used in the local when you run ultramodern serve command.
     // If you want to deploy the application to the platform, use your own domain name.
     // Module federation will automatically write it to mf-manifest.json, which influences consumer to fetch remoteEntry.js.
     assetPrefix: 'http://127.0.0.1:3051',
@@ -187,10 +187,10 @@ export default defineConfig({
 });
 ```
 
-现在，在生产者中运行 `modern build && MODERN_MF_AUTO_CORS=true modern serve`，在消费者中运行 `modern build && modern serve`，即可在本地模拟生产环境，访问到远程模块。
+现在，在生产者中运行 `ultramodern build && MODERN_MF_AUTO_CORS=true ultramodern serve`，在消费者中运行 `ultramodern build && ultramodern serve`，即可在本地模拟生产环境，访问到远程模块。
 
 :::tip
-在使用 `modern serve` 命令时，需要在启动生产者项目时携带 `MODERN_MF_AUTO_CORS=true` 环境变量，以自动处理跨域问题，确保消费者可以正常访问生产者的远程模块资源。
+在使用 `ultramodern serve` 命令时，需要在启动生产者项目时携带 `MODERN_MF_AUTO_CORS=true` 环境变量，以自动处理跨域问题，确保消费者可以正常访问生产者的远程模块资源。
 :::
 
 上述用例可以参考：[Modern.js & Module Federation 基础用法示例](https://github.com/web-infra-dev/modern-js-examples/tree/main/examples/module-federation/base)。

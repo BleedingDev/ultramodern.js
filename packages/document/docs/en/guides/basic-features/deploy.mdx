@@ -15,12 +15,12 @@ Currently, Modern.js only supports running in a Node.js environment. Support for
 
 ## Build Deployment Products
 
-Running the `modern deploy` command will automatically produce deployment products. This process includes optimizing Bundler build products and their dependencies, detecting the current deployment platform, and automatically generating deployment products that can run on that platform.
+Running the `ultramodern deploy` command will automatically produce deployment products. This process includes optimizing Bundler build products and their dependencies, detecting the current deployment platform, and automatically generating deployment products that can run on that platform.
 
-If you want to generate and test the output locally for a specific deployment platform, you can specify the platform by setting the environment variable: `modern deploy`:
+If you want to generate and test the output locally for a specific deployment platform, you can specify the platform by setting the environment variable: `ultramodern deploy`:
 
 ```bash
-MODERNJS_DEPLOY=netlify npx modern deploy
+MODERNJS_DEPLOY=netlify npx ultramodern deploy
 ```
 
 :::info
@@ -36,10 +36,10 @@ By default, Modern.js outputs builds that can be run in a Node.js environment wh
 Use the following command to build the project:
 
 ```bash
-npx modern deploy
+npx ultramodern deploy
 ```
 
-When running the `modern deploy` command, Modern.js will generate runnable products and output the following content in terminal:
+When running the `ultramodern deploy` command, UltraModern.js will generate runnable products and output the following content in terminal:
 
 ```bash
 Static directory: `.output/static`
@@ -67,7 +67,7 @@ Assume that the name in the `package.json` of the current project is `app`. Taki
 {
   "scripts": {
     "build:packages": "pnpm --filter 'app^...' run build",
-    "deploy": "pnpm run build:packages && modern deploy"
+    "deploy": "pnpm run build:packages && ultramodern deploy"
   }
 }
 ```
@@ -78,7 +78,7 @@ If you use Rush as your Monorepo management tool, you can add the following comm
 {
   "scripts": {
     "build:packages": "rush rebuild --to-except app",
-    "deploy": "rushx build:packages && modern deploy"
+    "deploy": "rushx build:packages && ultramodern deploy"
   }
 }
 ```
@@ -108,7 +108,7 @@ Add the following content to `netlify.toml`:
 ```toml
 [build]
   publish = "dist"
-  command = "modern deploy"
+  command = "ultramodern deploy"
 ```
 
 :::info
@@ -125,7 +125,7 @@ Full-stack projects refer to projects that use Custom Web Server, SSR or BFF. Th
 ```toml title="netlify.toml"
 [build]
   publish = "dist"
-  command = "modern deploy"
+  command = "ultramodern deploy"
 
 [functions]
   directory = ".netlify/functions"
@@ -173,7 +173,7 @@ Add the following script in `packages/app/package.json`, before executing the de
 {
   "scripts": {
     "build:packages": "pnpm --filter 'app^...' run build",
-    "deploy": "pnpm run build:packages && modern deploy"
+    "deploy": "pnpm run build:packages && ultramodern deploy"
   }
 }
 ```
@@ -213,7 +213,7 @@ Add the following content to `vercel.json`:
 
 ```json title="vercel.json"
 {
-  "buildCommand": "modern deploy",
+  "buildCommand": "ultramodern deploy",
   "outputDirectory": ".vercel/output"
 }
 ```
@@ -281,7 +281,7 @@ Add the following script to `packages/app/package.json` to run `build` command o
 {
   "scripts": {
     "build:packages": "pnpm --filter 'app^...' run build",
-    "deploy": "pnpm run build:packages && modern deploy"
+    "deploy": "pnpm run build:packages && ultramodern deploy"
   }
 }
 ```
@@ -326,7 +326,7 @@ For branch deployment, follow these steps:
 ```
 "scripts": {
   //...
-  "deploy:gh-pages": "MODERNJS_DEPLOY=ghPages modern deploy && gh-pages -d .output"
+  "deploy:gh-pages": "MODERNJS_DEPLOY=ghPages ultramodern deploy && gh-pages -d .output"
 }
 ```
 
@@ -334,7 +334,7 @@ For branch deployment, follow these steps:
 
 :::info
 
-1. Running `MODERNJS_DEPLOY=ghPages modern deploy` will build the production output for GitHub in the .output directory.
+1. Running `MODERNJS_DEPLOY=ghPages ultramodern deploy` will build the production output for GitHub in the .output directory.
 2. You can refer to the [project](https://github.com/web-infra-dev/modern-js-examples/tree/main/examples/modern-js-deploy-csr)
    :::
 

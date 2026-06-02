@@ -4,16 +4,16 @@ sidebar_position: 1
 
 # 命令
 
-Modern.js 内置了一些命令，可以帮助你快速启动开发服务器、构建生产环境代码等。
+UltraModern.js 内置了一些命令，可以帮助你快速启动开发服务器、构建生产环境代码等。
 
-通过本章节，你可以了解到 Modern.js 内置的命令有哪些，以及如何使用这些命令。
+通过本章节，你可以了解到 UltraModern.js 内置的命令有哪些，以及如何使用这些命令。
 
-## modern dev
+## ultramodern dev
 
-`modern dev` 命令用于启动一个本地开发服务器，对源代码进行开发环境编译。
+`ultramodern dev` 命令用于启动一个本地开发服务器，对源代码进行开发环境编译。
 
 ```bash
-Usage: modern dev [options]
+Usage: ultramodern dev [options]
 
 Options:
   -e --entry <entry>    指定入口，只编译特定的页面
@@ -23,10 +23,10 @@ Options:
   --api-only            仅启动 API 接口服务
 ```
 
-运行 `modern dev` 后，Modern.js 会监听源文件变化并进行模块热更新。
+运行 `ultramodern dev` 后，UltraModern.js 会监听源文件变化并进行模块热更新。
 
 ```bash
-$ modern dev
+$ ultramodern dev
 
 info    Starting dev server...
 
@@ -38,10 +38,10 @@ info    Starting dev server...
 
 在多页面（MPA）项目中，可以添加 `--entry` 参数来指定编译其中的一个或多个页面。这样可以只编译项目中的部分代码，从而提升 dev 启动速度。
 
-比如执行 `modern dev --entry`，在命令行界面中会展示入口选择框：
+比如执行 `ultramodern dev --entry`，在命令行界面中会展示入口选择框：
 
 ```bash
-$ modern dev --entry
+$ ultramodern dev --entry
 
 ? 请选择需要构建的入口
 ❯ ◯ foo
@@ -57,22 +57,22 @@ $ modern dev --entry
 
 ```bash
 # 编译 foo 页面
-modern dev --entry foo
+ultramodern dev --entry foo
 
 # 编译 foo 和 bar 页面
-modern dev --entry foo,bar
+ultramodern dev --entry foo,bar
 ```
 
-## modern start
+## ultramodern start
 
-`modern start` 是 `modern dev` 命令的别名，两者的功能和用法完全一致。
+`ultramodern start` 是 `ultramodern dev` 命令的别名，两者的功能和用法完全一致。
 
-## modern build
+## ultramodern build
 
-`modern build` 命令默认会在 `dist/` 目录下构建出可用于生产环境的产物。你可以通过修改配置 [`output.distPath`](/configure/app/output/dist-path) 指定产物的输出目录。
+`ultramodern build` 命令默认会在 `dist/` 目录下构建出可用于生产环境的产物。你可以通过修改配置 [`output.distPath`](/configure/app/output/dist-path) 指定产物的输出目录。
 
 ```bash
-Usage: modern build [options]
+Usage: ultramodern build [options]
 
 Options:
   -c --config <config>  指定配置文件路径，可以为相对路径或绝对路径
@@ -80,14 +80,14 @@ Options:
   -w --watch  开启 watch 模式, 监听文件变更并重新构建
 ```
 
-## modern new
+## ultramodern new
 
-`modern new` 命令用于在已有项目中添加项目元素。
+`ultramodern new` 命令用于在已有项目中添加项目元素。
 
 比如添加应用入口、启用一些可选功能如 BFF、微前端开发模式等。
 
 ```bash
-Usage: modern new [options]
+Usage: ultramodern new [options]
 
 Options:
   --config-file <configFile>  指定配置文件路径，可以为相对路径或绝对路径
@@ -104,7 +104,7 @@ Options:
 在 Modern.js 工程中，执行 `new` 命令添加入口的步骤如下：
 
 ```bash
-$ npx modern new
+$ npx ultramodern new
 ? 请选择你想要的操作 创建工程元素
 ? 请选择创建元素类型 新建「应用入口」
 ? 请填写入口名称 entry
@@ -115,7 +115,7 @@ $ npx modern new
 在 Modern.js 工程中，执行 `new` 命令启用可选能力的步骤如下：
 
 ```bash
-$ npx modern new
+$ npx ultramodern new
 ? 请选择你想要的操作 启用可选功能
 ? 请选择功能名称 (Use arrow keys)
 ❯ 启用「BFF」功能
@@ -133,12 +133,12 @@ import ServeCommand from '@site-docs/components/serve-command';
 
 <ServeCommand />
 
-## modern upgrade
+## ultramodern upgrade
 
-在项目根目录下执行命令 `npx modern upgrade`，会默认将当前执行命令项目的 `package.json` 中的 Modern.js 相关依赖更新至最新版本。
+在项目根目录下执行命令 `npx ultramodern upgrade`，会默认将当前执行命令项目的 `package.json` 中的 UltraModern.js 相关依赖更新至最新版本。
 
 ```bash
-Usage: modern upgrade [options]
+Usage: ultramodern upgrade [options]
 
 Options:
   -c --config <config>  指定配置文件路径，可以为相对路径或绝对路径
@@ -148,12 +148,12 @@ Options:
   -h, --help             display help for command
 ```
 
-## modern inspect
+## ultramodern inspect
 
-`modern inspect` 命令用于查看项目的 Modern.js 配置、[Rsbuild 配置](https://v2.rsbuild.rs/zh/config/index) 以及 Rspack 配置。
+`ultramodern inspect` 命令用于查看项目的 UltraModern.js 配置、[Rsbuild 配置](https://v2.rsbuild.rs/zh/config/index) 以及 Rspack 配置。
 
 ```bash
-Usage: modern inspect [options]
+Usage: ultramodern inspect [options]
 
 Options:
   --env <env>           查看指定环境下的配置 (default: "development")
@@ -163,14 +163,14 @@ Options:
   -h, --help            显示命令帮助
 ```
 
-在项目根目录下执行命令 `npx modern inspect` 后，会在项目的 `dist` 目录生成以下文件：
+在项目根目录下执行命令 `npx ultramodern inspect` 后，会在项目的 `dist` 目录生成以下文件：
 
 - `modern.js.config.mjs`: 表示当前使用的 Modern.js 配置。
 - `rsbuild.config.mjs`: 表示在构建时使用的 Rsbuild 配置。
 - `rspack.config.web.mjs`: 表示在构建时使用的 Rspack 配置。
 
 ```bash
-➜ npx modern inspect
+➜ npx ultramodern inspect
 
 Inspect config succeed, open following files to view the content:
 
@@ -184,7 +184,7 @@ Inspect config succeed, open following files to view the content:
 默认情况下，inspect 命令会输出开发环境的配置，你可以添加 `--env production` 选项来输出生产环境的配置：
 
 ```bash
-modern inspect --env production
+ultramodern inspect --env production
 ```
 
 ### 完整内容
@@ -192,7 +192,7 @@ modern inspect --env production
 默认情况下，inspect 命令会省略配置对象中的函数内容，你可以添加 `--verbose` 选项来输出函数的完整内容：
 
 ```bash
-modern inspect --verbose
+ultramodern inspect --verbose
 ```
 
 ### SSR 构建配置
@@ -200,7 +200,7 @@ modern inspect --verbose
 如果项目开启了 SSR 能力，则在 `dist` 目录会另外生成一份 `rspack.config.node.mjs` 文件，对应 SSR 构建时的 Rspack 配置。
 
 ```bash
-➜ npx modern inspect
+➜ npx ultramodern inspect
 
 Inspect config succeed, open following files to view the content:
 

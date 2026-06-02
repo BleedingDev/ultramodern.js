@@ -56,7 +56,7 @@ micro-vertical-workspace/
 
 ## 3. Scaffold Recipes
 
-Use the existing `@modern-js/create` entrypoint and add MicroVerticals from the
+Use the existing BleedingDev create entrypoint and add MicroVerticals from the
 workspace root with the UltraModern add flow. The add flow derives paths,
 package names, ports, Module Federation names, topology entries, overlays,
 ownership, and root dev scripts from the requested name and kind.
@@ -82,7 +82,7 @@ Reference proof:
 ### 3.2 Remote vertical
 
 ```bash
-npx @modern-js/create catalog --microvertical remote
+pnpm dlx @bleedingdev/modern-js-create catalog --microvertical remote
 ```
 
 Remote requirements:
@@ -100,7 +100,7 @@ Reference proof:
 ### 3.3 Horizontal remote
 
 ```bash
-npx @modern-js/create design-system --microvertical horizontal-remote
+pnpm dlx @bleedingdev/modern-js-create design-system --microvertical horizontal-remote
 ```
 
 Horizontal remote requirements:
@@ -114,13 +114,13 @@ Horizontal remote requirements:
 Effect-first service:
 
 ```bash
-npx @modern-js/create catalog-api --microvertical service
+pnpm dlx @bleedingdev/modern-js-create catalog-api --microvertical service
 ```
 
 Hono compatibility services remain manual lower-level scaffolds:
 
 ```bash
-npx @modern-js/create services/catalog-api --bff-runtime hono --workspace --sub
+pnpm dlx @bleedingdev/modern-js-create services/catalog-api --bff-runtime hono --workspace --sub
 ```
 
 Service requirements:
@@ -139,7 +139,7 @@ Reference proof:
 ### 3.5 Shared package
 
 ```bash
-npx @modern-js/create catalog-contracts --microvertical shared
+pnpm dlx @bleedingdev/modern-js-create catalog-contracts --microvertical shared
 ```
 
 Shared packages are created as normal workspace packages, not app remotes.

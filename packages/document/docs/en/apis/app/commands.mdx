@@ -4,16 +4,16 @@ sidebar_position: 1
 
 # Commands
 
-Modern.js has some built-in commands that can help you quickly start a development server, build production environment code, and more.
+UltraModern.js has some built-in commands that can help you quickly start a development server, build production environment code, and more.
 
-Through this chapter, you can learn about the built-in commands of Modern.js and how to use them.
+Through this chapter, you can learn about the built-in commands of UltraModern.js and how to use them.
 
-## modern dev
+## ultramodern dev
 
-The `modern dev` command is used to start a local development server and compile the source code in the development environment.
+The `ultramodern dev` command is used to start a local development server and compile the source code in the development environment.
 
 ```bash
-Usage: modern dev [options]
+Usage: ultramodern dev [options]
 
 Options:
   -e --entry <entry>    compiler by entry
@@ -23,10 +23,10 @@ Options:
   --api-only            only start API service
 ```
 
-After running `modern dev`, Modern.js will watch source file changes and apply hot module replacement.
+After running `ultramodern dev`, UltraModern.js will watch source file changes and apply hot module replacement.
 
 ```bash
-$ modern dev
+$ ultramodern dev
 
 info    Starting dev server...
 
@@ -38,10 +38,10 @@ info    Starting dev server...
 
 In multi-page (MPA) projects, the `--entry` option can be added to specify one or more pages to compile. In this way, only part of the code in the project will be compiled, and the dev startup speed will be faster.
 
-For example, execute `modern dev --entry`, the entry selector will be displayed in the command line interface:
+For example, execute `ultramodern dev --entry`, the entry selector will be displayed in the command line interface:
 
 ```text
-$ modern dev --entry
+$ ultramodern dev --entry
 
 ? Please select the entry that needs to be built
 ❯ ◯ foo
@@ -57,22 +57,22 @@ You can also specify the page name through parameters after `--entry`, and the n
 
 ```bash
 # Compile foo page
-modern dev --entry foo
+ultramodern dev --entry foo
 
 # Compile foo and bar pages
-modern dev --entry foo,bar
+ultramodern dev --entry foo,bar
 ```
 
-## modern start
+## ultramodern start
 
-`modern start` is an alias of `modern dev` command, the usage of the two are exactly the same.
+`ultramodern start` is an alias of `ultramodern dev` command, the usage of the two are exactly the same.
 
-## modern build
+## ultramodern build
 
-The `modern build` command will build production-ready artifacts in the `dist/` directory by default. You can specify the output directory by modifying the configuration [`output.distPath`](/configure/app/output/dist-path).
+The `ultramodern build` command will build production-ready artifacts in the `dist/` directory by default. You can specify the output directory by modifying the configuration [`output.distPath`](/configure/app/output/dist-path).
 
 ```bash
-Usage: modern build [options]
+Usage: ultramodern build [options]
 
 Options:
   -c --config <config>  specify the configuration file, which can be a relative or absolute path
@@ -80,14 +80,14 @@ Options:
   -w --watch            turn on watch mode, watch for changes and rebuild
 ```
 
-## modern new
+## ultramodern new
 
-The `modern new` command is used to enable features in an existing project.
+The `ultramodern new` command is used to enable features in an existing project.
 
 For example, add application entry, enable some optional features such as BFF, micro frontend, etc.
 
 ```bash
-Usage: modern new [options]
+Usage: ultramodern new [options]
 
 Options:
   --config-file <configFile>  specify the configuration file, which can be a relative or absolute path
@@ -104,7 +104,7 @@ Options:
 In the project, execute the `new` command to add entries as follows:
 
 ```text
-$ npx modern new
+$ npx ultramodern new
 ? Please select the operation you want: Create Element
 ? Please select the type of element to create: New "entry"
 ? Please fill in the entry name: entry
@@ -115,7 +115,7 @@ $ npx modern new
 In the project, execute the `new` command to enable features as follows:
 
 ```text
-$ npx modern new
+$ npx ultramodern new
 ? Please select the operation you want: Enable Features
 ? Please select the feature name: (Use arrow keys)
 ❯ Enable BFF
@@ -133,12 +133,12 @@ import ServeCommand from '@site-docs-en/components/serve-command';
 
 <ServeCommand />
 
-## modern upgrade
+## ultramodern upgrade
 
-Execute the command `npx modern upgrade` in the project, by default, dependencies in the `package.json` are updated to the latest version.
+Execute the command `npx ultramodern upgrade` in the project, by default, dependencies in the `package.json` are updated to the latest version.
 
 ```bash
-Usage: modern upgrade [options]
+Usage: ultramodern upgrade [options]
 
 Options:
   --config <config> specify the configuration file, which can be a relative or absolute path
@@ -148,12 +148,12 @@ Options:
   -h, --help             show command help
 ```
 
-## modern inspect
+## ultramodern inspect
 
-The `modern inspect` command is used to view the Modern.js config, [Rsbuild config](https://v2.rsbuild.rs/config/index) and Rspack config of the project.
+The `ultramodern inspect` command is used to view the UltraModern.js config, [Rsbuild config](https://v2.rsbuild.rs/config/index) and Rspack config of the project.
 
 ```bash
-Usage: modern inspect [options]
+Usage: ultramodern inspect [options]
 
 Options:
   --env <env>           view the configuration in the target environment (default: "development")
@@ -163,14 +163,14 @@ Options:
   -h, --help            show command help
 ```
 
-After executing the command `npx modern inspect` in the project root directory, the following files will be generated in the `dist` directory of the project:
+After executing the command `npx ultramodern inspect` in the project root directory, the following files will be generated in the `dist` directory of the project:
 
 - `modern.js.config.mjs`:The Modern.js configuration currently used.
 - `rsbuild.config.mjs`: The Rsbuild config to use at build time.
 - `rspack.config.web.mjs`: The Rspack config used by to use at build time.
 
 ```bash
-➜ npx modern inspect
+➜ npx ultramodern inspect
 
 Inspect config succeed, open following files to view the content:
 
@@ -184,7 +184,7 @@ Inspect config succeed, open following files to view the content:
 By default, the inspect command will output the development configs, you can use the `--env production` option to output the production configs:
 
 ```bash
-modern inspect --env production
+ultramodern inspect --env production
 ```
 
 ### Verbose content
@@ -192,7 +192,7 @@ modern inspect --env production
 By default, the inspect command will omit the function content in the config object, you can use the `--verbose` option to output the full content of the function:
 
 ```bash
-modern inspect --verbose
+ultramodern inspect --verbose
 ```
 
 ### SSR Configuration
@@ -200,7 +200,7 @@ modern inspect --verbose
 If the project has enabled SSR, an additional `rspack.config.node.mjs` file will be generated in the `dist/`, corresponding to the Rspack configuration at SSR build time.
 
 ```bash
-➜ npx modern inspect
+➜ npx ultramodern inspect
 
 Inspect config succeed, open following files to view the content:
 

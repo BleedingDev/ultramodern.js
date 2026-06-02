@@ -154,7 +154,7 @@ The second part, `remoteExpose`, is the `key` configured in the `exposes` field 
 
 ## Start the Applications
 
-Now, both the producer and consumer applications are set up. You can run `modern dev` locally to start both applications.
+Now, both the producer and consumer applications are set up. You can run `ultramodern dev` locally to start both applications.
 
 Once started, the imports of the producer's modules in the consumer will no longer throw errors, and the types will be downloaded to the consumer application.
 
@@ -164,7 +164,7 @@ After modifying the producer's code, the consumer will automatically fetch the p
 
 Access `http://localhost:8080/remote`, and you will see that the page includes the `Button` component from the producer's remote module.
 
-We can also execute `modern serve` locally to simulate the production environment.
+We can also execute `ultramodern serve` locally to simulate the production environment.
 
 Because the Module Federation plugin will automatically read Modern.js's `output.assetPrefix` configuration as the access address for remote modules, and this value defaults to `/` after building in the production environment.
 
@@ -180,7 +180,7 @@ export default defineConfig({
     port: 3051,
   },
   output: {
-    // Now this configuration is only used in the local when you run modern serve command.
+    // Now this configuration is only used in the local when you run ultramodern serve command.
     // If you want to deploy the application to the platform, use your own domain name.
     // Module federation will automatically write it to mf-manifest.json, which influences consumer to fetch remoteEntry.js.
     assetPrefix: 'http://127.0.0.1:3051',
@@ -189,10 +189,10 @@ export default defineConfig({
 });
 ```
 
-Now, in the producer, run `modern build && MODERN_MF_AUTO_CORS=true  modern serve`, and in the consumer, run `modern build && modern serve` to simulate the production environment locally and access the remote modules.
+Now, in the producer, run `ultramodern build && MODERN_MF_AUTO_CORS=true  ultramodern serve`, and in the consumer, run `ultramodern build && ultramodern serve` to simulate the production environment locally and access the remote modules.
 
 :::tip
-When using the `modern serve` command, you need to set the `MODERN_MF_AUTO_CORS=true` environment variable when starting the producer project to automatically handle CORS issues and ensure that consumers can properly access the producer's remote module resources.
+When using the `ultramodern serve` command, you need to set the `MODERN_MF_AUTO_CORS=true` environment variable when starting the producer project to automatically handle CORS issues and ensure that consumers can properly access the producer's remote module resources.
 :::
 
 You can refer to this example: [Modern.js & Module Federation Basic Example](https://github.com/web-infra-dev/modern-js-examples/tree/main/examples/module-federation/base).
