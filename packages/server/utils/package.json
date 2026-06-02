@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.21"
+    "@swc/helpers": "^0.5.23"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",

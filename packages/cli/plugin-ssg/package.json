@@ -52,7 +52,7 @@
   "dependencies": {
     "@modern-js/prod-server": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/helpers": "^0.5.21",
+    "@swc/helpers": "^0.5.23",
     "node-mocks-http": "^1.17.2",
     "normalize-path": "3.0.0"
   },

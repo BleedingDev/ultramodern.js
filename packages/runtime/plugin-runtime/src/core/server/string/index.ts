@@ -4,7 +4,6 @@ import { time } from '@modern-js/runtime-utils/time';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
 import ReactDomServer from 'react-dom/server';
-import ReactHelmet from 'react-helmet';
 import { RenderLevel } from '../../constants';
 import { getGlobalInternalRuntimeContext } from '../../context';
 import { wrapRuntimeContextProvider } from '../../react/wrapper';
@@ -14,7 +13,7 @@ import {
   HTML_PLACEHOLDER,
   SSR_DATA_PLACEHOLDER,
 } from '../constants';
-import { createReplaceHelemt } from '../helmet';
+import { createReplaceHelemt, getHelmetData } from '../helmet';
 import { type BuildHtmlCb, buildHtml, type RenderString } from '../shared';
 import { SSRErrors, SSRTimings, type Tracer } from '../tracer';
 import { getSSRConfigByEntry, safeReplace } from '../utils';
@@ -128,7 +127,7 @@ async function generateHtml(
       identifierPrefix: SSR_HYDRATION_ID_PREFIX,
     });
     chunkSet.renderLevel = RenderLevel.SERVER_RENDER;
-    helmetData = ReactHelmet.renderStatic();
+    helmetData = getHelmetData(runtimeContext);
 
     const cost = end();
     onTiming(SSRTimings.RENDER_HTML, cost);

@@ -1,10 +1,16 @@
-import { InternalRuntimeContext } from '@modern-js/runtime/context';
+import {
+  InternalRuntimeContext,
+  RuntimeContext,
+} from '@modern-js/runtime/context';
 import type React from 'react';
+import type { ComponentType, PropsWithChildren } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { i18nPlugin } from '../src/runtime';
 import { ModernI18nProvider, useModernI18n } from '../src/runtime/context';
 import { I18nLink } from '../src/runtime/I18nLink';
 import type { I18nInstance } from '../src/runtime/i18n';
+import { getReactI18nextIntegration } from '../src/runtime/i18n/react-i18next';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -72,6 +78,29 @@ function createReactRouterRuntimeContext(router: unknown) {
   return createRuntimeContext(router, 'react-router');
 }
 
+function collectI18nWrapRoot() {
+  let wrapRoot: ((App: ComponentType<any>) => ComponentType<any>) | undefined;
+
+  i18nPlugin({
+    reactI18next: false,
+    localeDetection: {
+      fallbackLanguage: 'en',
+    },
+  }).setup?.({
+    getRuntimeConfig: () => ({}),
+    onBeforeRender: () => undefined,
+    wrapRoot: (callback: (App: ComponentType<any>) => ComponentType<any>) => {
+      wrapRoot = callback;
+    },
+  } as any);
+
+  if (!wrapRoot) {
+    throw new Error('Expected i18n runtime plugin to register wrapRoot');
+  }
+
+  return wrapRoot;
+}
+
 function createTanstackRouter(pathname = '/en/terms-of-service', lang = 'en') {
   const url = new URL(pathname, 'https://modernjs.test');
 
@@ -91,6 +120,31 @@ function createTanstackRouter(pathname = '/en/terms-of-service', lang = 'en') {
         },
       ],
     },
+  };
+}
+
+async function renderI18nRoot(node: React.ReactNode) {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(
+      <RuntimeContext.Provider
+        value={{
+          isBrowser: true,
+          requestContext,
+          context: requestContext,
+        }}
+      >
+        {node}
+      </RuntimeContext.Provider>,
+    );
+  });
+
+  return {
+    container,
+    root,
   };
 }
 
@@ -125,6 +179,56 @@ function cleanup(rendered?: { container: HTMLElement; root: Root }) {
   });
   rendered.container.remove();
 }
+
+describe('i18n runtime wrapRoot', () => {
+  let rendered: { container: HTMLElement; root: Root } | undefined;
+
+  afterEach(() => {
+    cleanup(rendered);
+    rendered = undefined;
+  });
+
+  test('renders children when no root App exists yet', async () => {
+    const wrapRoot = collectI18nWrapRoot();
+    const I18nRoot = wrapRoot(undefined as unknown as ComponentType<any>);
+
+    rendered = await renderI18nRoot(
+      <I18nRoot>
+        <main>router content</main>
+      </I18nRoot>,
+    );
+
+    expect(rendered.container.textContent).toContain('router content');
+  });
+
+  test('preserves App props and children', async () => {
+    const wrapRoot = collectI18nWrapRoot();
+    const App = ({ children, label }: PropsWithChildren<{ label: string }>) => (
+      <main data-label={label}>{children}</main>
+    );
+    const I18nRoot = wrapRoot(App);
+
+    rendered = await renderI18nRoot(
+      <I18nRoot label="root">
+        <span>router content</span>
+      </I18nRoot>,
+    );
+
+    expect(
+      rendered.container.querySelector('main')?.getAttribute('data-label'),
+    ).toBe('root');
+    expect(rendered.container.textContent).toContain('router content');
+  });
+});
+
+describe('i18n react-i18next integration', () => {
+  test('loads the bundled react-i18next integration', async () => {
+    const integration = await getReactI18nextIntegration();
+
+    expect(integration.I18nextProvider).toEqual(expect.any(Function));
+    expect(integration.initReactI18next).toBeDefined();
+  });
+});
 
 describe('i18n router adapter', () => {
   let rendered: { container: HTMLElement; root: Root } | undefined;

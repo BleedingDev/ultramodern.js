@@ -15,7 +15,7 @@
 {{#unless isSubproject}}
     "skills:install": "node ./scripts/bootstrap-agent-skills.mjs",
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
-    "postinstall": "node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)",
+    "postinstall": "oxfmt . && node ./scripts/bootstrap-agent-skills.mjs",
 {{/unless}}
     "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
     "format": "oxfmt .",
@@ -41,7 +41,7 @@
     "@modern-js/app-tools": "{{appToolsVersion}}",
 {{#if enableBff}}    "@modern-js/plugin-bff": "{{pluginBffVersion}}",
 {{/if}}    "@modern-js/tsconfig": "{{tsconfigVersion}}",
-    "@rstest/core": "0.10.2",
+    "@rstest/core": "0.10.3",
 {{#if enableTailwind}}
     "@tailwindcss/postcss": "^{{tailwindPostcssVersion}}",
 {{/if}}

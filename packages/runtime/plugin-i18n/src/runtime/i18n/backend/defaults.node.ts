@@ -1,6 +1,6 @@
 export const DEFAULT_I18NEXT_BACKEND_OPTIONS = {
-  loadPath: './locales/{{lng}}/{{ns}}.json',
-  addPath: './locales/{{lng}}/{{ns}}.json',
+  loadPath: './config/public/locales/{{lng}}/{{ns}}.json',
+  addPath: './config/public/locales/{{lng}}/{{ns}}.json',
 };
 
 function convertPath(path: string | undefined): string | undefined {

@@ -6,6 +6,7 @@ import {
   RuntimeContext,
 } from '../../../src/core/context';
 import { wrapRuntimeContextProvider } from '../../../src/core/react/wrapper';
+import { Helmet } from '../../../src/exports/head';
 
 describe('wrapRuntimeContextProvider', () => {
   it('should keep routerServerSnapshot internal-only', () => {
@@ -45,5 +46,25 @@ describe('wrapRuntimeContextProvider', () => {
     expect(runtimeValue?.routerFramework).toBe('custom-router');
     expect(runtimeValue?.routerInstance).toBeUndefined();
     expect(runtimeValue?.routerServerSnapshot).toBeUndefined();
+  });
+
+  it('should collect head tags in an isolated request context', () => {
+    const context = getInitialContext(false);
+
+    renderToString(
+      wrapRuntimeContextProvider(
+        <Helmet htmlAttributes={{ lang: 'cs' }}>
+          <title>Modern SSR</title>
+        </Helmet>,
+        context as Record<string, unknown> as any,
+      ),
+    );
+
+    expect(context._helmetContext?.helmet?.htmlAttributes.toString()).toBe(
+      'lang="cs"',
+    );
+    expect(context._helmetContext?.helmet?.title.toString()).toBe(
+      '<title data-rh="true">Modern SSR</title>',
+    );
   });
 });

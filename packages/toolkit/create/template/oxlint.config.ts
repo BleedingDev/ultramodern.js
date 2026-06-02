@@ -8,5 +8,12 @@ export default defineConfig({
     node: true,
   },
   extends: [core, react],
-  ignorePatterns: ['dist', 'node_modules', '.modern', '.modernjs', '**/routeTree.gen.ts'],
+  ignorePatterns: [
+    '.agents',
+    'dist',
+    'node_modules',
+    '.modern',
+    '.modernjs',
+    '**/routeTree.gen.ts',
+  ],
 });

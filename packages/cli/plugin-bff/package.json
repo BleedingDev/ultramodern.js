@@ -151,7 +151,7 @@
     "@opentelemetry/sdk-trace-web": "2.7.1",
     "@opentelemetry/semantic-conventions": "1.41.1",
     "@swc/core": "1.15.40",
-    "@swc/helpers": "^0.5.21",
+    "@swc/helpers": "^0.5.23",
     "effect": "4.0.0-beta.66",
     "qs": "^6.15.2",
     "type-is": "^2.1.0"

@@ -121,16 +121,12 @@ const Index = () => {
           <p className="name">{t('home.name')}</p>
         </div>
         <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          {t('home.description.intro')} <code className="code">presetUltramodern(...)</code>{' '}
-          {/* i18n-ignore technical token */}
+          {t('home.description.intro')}{' '}
+          <code className="code">presetUltramodern(...)</code>{' '}
           {t('home.description.afterPreset')}{' '}
-          <code className="code">modern.config.ts</code>
-          {/* i18n-ignore technical token */}
-          {' '}
+          <code className="code">modern.config.ts</code>{' '}
           {t('home.description.afterConfig')}{' '}
-          <code className="code">pnpm run ultramodern:check</code>
-          {/* i18n-ignore technical token */}
-          {' '}
+          <code className="code">pnpm run ultramodern:check</code>{' '}
           {t('home.description.end')}
         </p>
 {{#if useEffectBff}}

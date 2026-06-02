@@ -263,11 +263,12 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
           ],
         );
 
+        const children = (props as React.PropsWithChildren).children;
         const appContent = (
           <>
             {Boolean(htmlLangAttr) && <Helmet htmlAttributes={{ lang }} />}
             <ModernI18nProvider value={contextValue}>
-              <App {...props} />
+              {App ? <App {...props}>{children}</App> : children}
             </ModernI18nProvider>
           </>
         );

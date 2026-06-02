@@ -68,6 +68,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
     });
 
     const chunkVec: Buffer[] = [];
+    let hasStartedPipe = false;
 
     return new Promise(resolve => {
       const { pipe: reactStreamingPipe } = renderToPipeableStream(
@@ -76,6 +77,11 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           nonce: config.nonce,
           identifierPrefix: SSR_HYDRATION_ID_PREFIX,
           [onReady]() {
+            if (hasStartedPipe) {
+              return;
+            }
+            hasStartedPipe = true;
+
             let styledComponentsStyleTags = '';
             extenders.forEach(extender => {
               if (extender.getStyleTags) {

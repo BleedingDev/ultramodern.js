@@ -30,6 +30,13 @@ const collectFiles = (directory) => {
 };
 
 const lineNumberForIndex = (content, index) => content.slice(0, index).split('\n').length;
+const isCodeElementText = (content, index) => {
+  const tagStart = content.lastIndexOf('<', index);
+  if (tagStart === -1) {
+    return false;
+  }
+  return /^<code(?:\s|>)/u.test(content.slice(tagStart, index));
+};
 const isIgnoredLine = (content, index) => {
   const lineStart = content.lastIndexOf('\n', index) + 1;
   const lineEnd = content.indexOf('\n', index);
@@ -58,7 +65,11 @@ for (const filePath of scanRoots.flatMap(collectFiles)) {
 
   for (const match of content.matchAll(jsxTextPattern)) {
     const text = match[1].replaceAll(/\s+/gu, ' ').trim();
-    if (text && !isIgnoredLine(content, match.index ?? 0)) {
+    if (
+      text &&
+      !isIgnoredLine(content, match.index ?? 0) &&
+      !isCodeElementText(content, match.index ?? 0)
+    ) {
       violations.push({
         filePath,
         line: lineNumberForIndex(content, match.index ?? 0),

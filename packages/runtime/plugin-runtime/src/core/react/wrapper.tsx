@@ -1,4 +1,5 @@
 import type React from 'react';
+import { HelmetProvider } from 'react-helmet-async';
 import {
   InternalRuntimeContext,
   RuntimeContext,
@@ -27,8 +28,12 @@ export function wrapRuntimeContextProvider(
     ssrContext,
     _internalContext,
     _internalRouterBaseName,
+    _helmetContext,
     ...rest
   } = contextValue as TInternalRuntimeContext;
+
+  const internalContextValue = contextValue as TInternalRuntimeContext;
+  internalContextValue._helmetContext ??= {};
 
   const runtimeContextValue: TRuntimeContext = {
     isBrowser,
@@ -40,11 +45,11 @@ export function wrapRuntimeContextProvider(
   };
 
   return (
-    <InternalRuntimeContext.Provider
-      value={contextValue as TInternalRuntimeContext}
-    >
+    <InternalRuntimeContext.Provider value={internalContextValue}>
       <RuntimeContext.Provider value={runtimeContextValue}>
-        {App}
+        <HelmetProvider context={internalContextValue._helmetContext}>
+          {App}
+        </HelmetProvider>
       </RuntimeContext.Provider>
     </InternalRuntimeContext.Provider>
   );

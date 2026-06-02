@@ -5,6 +5,7 @@ import type {
 import type { BaseSSRServerContext } from '@modern-js/types';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
 import { createContext, useContext } from 'react';
+import type { HelmetServerState } from 'react-helmet-async';
 import type {
   InternalRouterRuntimeState,
   InternalRouterServerSnapshot,
@@ -41,6 +42,9 @@ export interface TInternalRuntimeContext extends TRuntimeContext {
   ssrContext?: SSRServerContext;
   _internalContext?: any;
   _internalRouterBaseName?: any;
+  _helmetContext?: {
+    helmet?: HelmetServerState | null;
+  };
 }
 
 export const InternalRuntimeContext = createContext<TInternalRuntimeContext>(

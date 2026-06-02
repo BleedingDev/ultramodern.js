@@ -5,10 +5,10 @@ import {
 // Todo: This import will introduce router code, like remix, even if router config is false
 import { time } from '@modern-js/runtime-utils/time';
 import React from 'react';
-import ReactHelmet, { type HelmetData } from 'react-helmet';
+import { HelmetProvider } from 'react-helmet-async';
+import { getHelmetData, helmetReplace } from '../../../core/server/helmet';
 import { serializeErrors } from '../../../router/runtime/utils';
 import prefetch from '../../prefetch';
-import helmetReplace from '../helmet';
 import { SSRErrors, SSRTimings, type SSRTracker } from '../tracker';
 import {
   type ModernSSRReactComponent,
@@ -163,7 +163,7 @@ export default class Entry {
       createReplaceSSRDataScript(ssrDataScripts),
       ...this.htmlModifiers,
     ]);
-    const helmetData: HelmetData = ReactHelmet.renderStatic();
+    const helmetData = getHelmetData(context as any);
 
     return helmetData ? helmetReplace(html, helmetData) : html;
   }
@@ -192,9 +192,14 @@ export default class Entry {
     const { ssrContext } = context;
 
     try {
-      const App = React.createElement(this.App, {
-        context: Object.assign(context, { ssr: true }),
-      });
+      const helmetContext = ((context as any)._helmetContext ??= {});
+      const App = React.createElement(
+        HelmetProvider,
+        { context: helmetContext },
+        React.createElement(this.App, {
+          context: Object.assign(context, { ssr: true }),
+        }),
+      );
 
       html = await createRender(App)
         .addCollector(createStyledCollector(this.result))

@@ -1,6 +1,7 @@
 // @effect-diagnostics strictBooleanExpressions:off unnecessaryArrowBlock:off
 // 用于 react-helmet 正则替换
-import type { HelmetData } from 'react-helmet';
+import type { HelmetServerState } from 'react-helmet-async';
+import type { TInternalRuntimeContext } from '../context';
 import { safeReplace } from './utils';
 
 const EOL = '\n';
@@ -12,14 +13,20 @@ const RE_TITLE = /<title[^>]*>([\s\S\n\r]*?)<\/title>/;
 const TEST_TITLE_CONTENT =
   /(?<=<title[^>]*>)([\s\S\n\r]*?)([.|\S])([\s\S\n\r]*?)(?=<\/title>)/;
 
-export function createReplaceHelemt(helmetData?: HelmetData) {
+export function getHelmetData(
+  runtimeContext: TInternalRuntimeContext,
+): HelmetServerState | undefined {
+  return runtimeContext._helmetContext?.helmet ?? undefined;
+}
+
+export function createReplaceHelemt(helmetData?: HelmetServerState) {
   return helmetData
     ? (template: string) => helmetReplace(template, helmetData)
     : (tempalte: string) => tempalte;
 }
 
 // 通过 react-helmet 修改模板
-export function helmetReplace(content: string, helmetData: HelmetData) {
+export function helmetReplace(content: string, helmetData: HelmetServerState) {
   let result = content;
   const bodyAttributes = helmetData.bodyAttributes.toString();
   if (bodyAttributes) {

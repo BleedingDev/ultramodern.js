@@ -20,7 +20,7 @@
     "@modern-js/app-tools": "workspace:*",
     "@rstest/browser": "0.10.2",
     "@rstest/browser-react": "0.10.2",
-    "@rstest/core": "0.10.2",
+    "@rstest/core": "0.10.3",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",

@@ -19,3 +19,11 @@ allowBuilds:
   msgpackr-extract: true
   sharp: true
   workerd: true
+onlyBuiltDependencies:
+  - '@swc/core'
+  - core-js
+  - esbuild
+  - lefthook
+  - msgpackr-extract
+  - sharp
+  - workerd

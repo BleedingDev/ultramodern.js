@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
-    "@swc/helpers": "^0.5.21",
+    "@swc/helpers": "^0.5.23",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

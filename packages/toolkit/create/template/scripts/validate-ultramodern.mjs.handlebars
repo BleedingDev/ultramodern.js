@@ -9,21 +9,19 @@ const packageSourcePath = path.resolve(
   '.modernjs/ultramodern-package-source.json',
 );
 const readPnpmConfig = (key) => {
-  const env = { ...process.env };
-  for (const envKey of Object.keys(env)) {
-    if (/^(?:npm|pnpm)_config_/i.test(envKey)) {
-      delete env[envKey];
-    }
-  }
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([envKey]) => !/^(?:npm|pnpm)_config_/iu.test(envKey),
+    ),
+  );
   const output = execFileSync('pnpm', ['config', 'get', key, '--json'], {
     cwd: process.cwd(),
-    env,
     encoding: 'utf-8',
+    env,
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
   return output ? JSON.parse(output) : undefined;
 };
-const isSubproject = {{isSubproject}};
 const enableTailwind = {{enableTailwind}};
 const expectedPnpmVersion = '{{pnpmVersion}}';
 const activePnpmVersion = execFileSync('pnpm', ['--version'], {
@@ -131,14 +129,13 @@ if (fs.existsSync(path.resolve(process.cwd(), 'src/routes/page.tsx'))) {
   process.exit(1);
 }
 
-if (!enableTailwind) {
-  if (
-    fs.existsSync(path.resolve(process.cwd(), 'postcss.config.mjs')) ||
-    fs.existsSync(path.resolve(process.cwd(), 'tailwind.config.ts'))
-  ) {
-    console.error('Tailwind config files must not be written when Tailwind is disabled');
-    process.exit(1);
-  }
+if (
+  !enableTailwind &&
+  (fs.existsSync(path.resolve(process.cwd(), 'postcss.config.mjs')) ||
+    fs.existsSync(path.resolve(process.cwd(), 'tailwind.config.ts')))
+) {
+  console.error('Tailwind config files must not be written when Tailwind is disabled');
+  process.exit(1);
 }
 
 {{#unless isSubproject}}
@@ -259,17 +256,19 @@ const skillsLock = JSON.parse(
 );
 {{/unless}}
 const requiredScripts = {
-  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
-  test: 'rstest run',
 {{#unless isSubproject}}
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
+{{/unless}}
+  'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
+{{#unless isSubproject}}
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
+  postinstall: 'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
-  postinstall: 'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)',
 {{/unless}}
+  test: 'rstest run',
 };
 
 for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
@@ -369,8 +368,11 @@ if (
   console.error('pnpm allowBuilds must approve only the generated app build dependencies');
   process.exit(1);
 }
-if (readPnpmConfig('onlyBuiltDependencies') !== undefined) {
-  console.error('pnpm onlyBuiltDependencies must not be set');
+if (
+  JSON.stringify(readPnpmConfig('onlyBuiltDependencies')) !==
+  JSON.stringify(['@swc/core', 'core-js', 'esbuild', 'lefthook', 'msgpackr-extract', 'sharp', 'workerd'])
+) {
+  console.error('pnpm onlyBuiltDependencies must approve only the generated app build dependencies');
   process.exit(1);
 }
 
