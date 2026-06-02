@@ -2543,7 +2543,7 @@ function createRemotePage(app: WorkspaceApp): string {
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { Link, useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
   Effect,
@@ -2553,7 +2553,7 @@ import {
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Helmet } from '@modern-js/runtime/head';\nimport { useLocation } from '@modern-js/plugin-tanstack/runtime';\nimport { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Helmet } from '@modern-js/runtime/head';\nimport { Link, useLocation } from '@modern-js/plugin-tanstack/runtime';\nimport { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
   const effectBffState = appHasEffectApi(app)
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
@@ -2595,21 +2595,20 @@ ${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
 ${effectBffState}  return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
       <LocalizedHead />
       <nav aria-label={t('${app.domain}.language.switcher')} className="${tw('flex gap-3')}">
         {supportedLanguages.map(code => (
-          <a
+          <Link
             aria-current={language === code ? 'page' : undefined}
             className="${tw('rounded-full border border-stone-900/15 bg-white px-4 py-2 text-sm font-bold text-stone-950 no-underline')}"
-            href={\`\${localizedPath(location.pathname, code)}\${suffix}\`}
             key={code}
+            params={{ lang: code }}
+            to="/$lang"
           >
             {t(\`${app.domain}.language.\${code}\`)}
-          </a>
+          </Link>
         ))}
       </nav>
       <h1 className="${tw('mt-10 text-5xl font-black')}">{t('${app.domain}.title')}</h1>
