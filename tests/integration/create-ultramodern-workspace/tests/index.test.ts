@@ -579,6 +579,17 @@ describe('create-ultramodern-workspace', () => {
     });
     expect(shellContract.moduleFederation.remoteRefs ?? []).toEqual([]);
     expect(shellContract.moduleFederation.remotes ?? []).toEqual([]);
+    const shellModuleFederationConfig = readText(
+      workspaceDir,
+      'apps/shell-super-app/module-federation.config.ts',
+    );
+    expect(shellModuleFederationConfig).toContain(`bridge: {
+    enableBridgeRouter: false,
+  },`);
+    expect(shellModuleFederationConfig).not.toContain(
+      'enableBridgeRouter: true',
+    );
+    expect(shellModuleFederationConfig).not.toContain('bridgeRouterAlias');
     expect(shellContract.i18n).toMatchObject({
       backend: {
         enabled: true,
@@ -817,6 +828,17 @@ describe('create-ultramodern-workspace', () => {
       }),
     );
     const catalogContract = getGeneratedAppContract(workspaceDir, 'catalog');
+    const catalogModuleFederationConfig = readText(
+      workspaceDir,
+      'verticals/catalog/module-federation.config.ts',
+    );
+    expect(catalogModuleFederationConfig).toContain(`bridge: {
+    enableBridgeRouter: false,
+  },`);
+    expect(catalogModuleFederationConfig).not.toContain(
+      'enableBridgeRouter: true',
+    );
+    expect(catalogModuleFederationConfig).not.toContain('bridgeRouterAlias');
     expectCssFederationContract(generatedContract, catalogContract, {
       classPrefix: 'catalog:',
       ownedLayers: ['ultramodern-vertical-catalog'],

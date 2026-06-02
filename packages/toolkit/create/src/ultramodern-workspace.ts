@@ -1371,6 +1371,9 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 
 ${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
 export default createModuleFederationConfig({
+  bridge: {
+    enableBridgeRouter: false,
+  },
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
@@ -1443,6 +1446,9 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 
 ${createModuleFederationRemoteUrlHelpers(app, remotes)}
 export default createModuleFederationConfig({
+  bridge: {
+    enableBridgeRouter: false,
+  },
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
