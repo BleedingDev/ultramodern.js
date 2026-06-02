@@ -165,6 +165,18 @@ export type AddUltramodernVerticalOptions = {
 
 export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
 const FIRST_VERTICAL_PORT = 4101;
+const TAILWIND_PREFIX_DIGIT_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+] as const;
 
 function isRecord(value: unknown): value is Record<string, JsonValue> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -1847,19 +1859,10 @@ function createTailwindPrefix(raw: string): string {
     throw new Error(`Cannot derive a Tailwind prefix from ${raw}`);
   }
 
-  const digitWords = [
-    'zero',
-    'one',
-    'two',
-    'three',
-    'four',
-    'five',
-    'six',
-    'seven',
-    'eight',
-    'nine',
-  ];
-  return normalized.replace(/[0-9]/gu, digit => digitWords[Number(digit)]);
+  return normalized.replace(
+    /[0-9]/gu,
+    digit => TAILWIND_PREFIX_DIGIT_WORDS[Number(digit)],
+  );
 }
 
 function tailwindPrefixForApp(app: WorkspaceApp): string {

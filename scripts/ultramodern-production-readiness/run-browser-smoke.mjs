@@ -685,23 +685,24 @@ export async function runUltramodernBrowserSmoke(options) {
   };
   const servers = [];
   let browser;
+  const localStartupOrder =
+    options.mode === 'local' ? orderTargetsForLocalStartup(targets) : undefined;
 
   try {
-    if (options.mode === 'local') {
-      const orderedTargets = orderTargetsForLocalStartup(targets);
-      for (const target of orderedTargets.remotes) {
+    if (localStartupOrder) {
+      for (const target of localStartupOrder.remotes) {
         servers.push(startServer(target, options));
       }
-      for (const target of orderedTargets.remotes) {
+      for (const target of localStartupOrder.remotes) {
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           timeoutMs: options.timeoutMs,
         });
       }
-      for (const target of orderedTargets.shells) {
+      for (const target of localStartupOrder.shells) {
         servers.push(startServer(target, options));
       }
-      for (const target of orderedTargets.shells) {
+      for (const target of localStartupOrder.shells) {
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           timeoutMs: options.timeoutMs,
@@ -716,10 +717,7 @@ export async function runUltramodernBrowserSmoke(options) {
     }
 
     browser = await launchBrowser(options.browserProvider);
-    const validationTargets =
-      options.mode === 'local'
-        ? orderTargetsForLocalStartup(targets).validation
-        : targets;
+    const validationTargets = localStartupOrder?.validation ?? targets;
     for (const target of validationTargets) {
       const httpAssertions = await validateHttpTarget(target, {
         fetchImpl: options.fetchImpl ?? fetch,
