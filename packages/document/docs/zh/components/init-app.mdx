@@ -13,10 +13,10 @@ pnpm dlx @bleedingdev/modern-js-create
 pnpm dlx @bleedingdev/modern-js-create myapp
 ```
 
-初始化 TanStack Router 模板：
+默认会初始化 TanStack Router。如需强制使用 React Router 兼容路径：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --router tanstack
+pnpm dlx @bleedingdev/modern-js-create myapp --router react-router
 ```
 
 默认会初始化 Tailwind CSS v4 模板。如需关闭：
@@ -25,23 +25,7 @@ pnpm dlx @bleedingdev/modern-js-create myapp --router tanstack
 pnpm dlx @bleedingdev/modern-js-create myapp --no-tailwind
 ```
 
-初始化 TanStack Router，并使用默认 Tailwind CSS v4 模板：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --router tanstack
-```
-
-初始化当前默认运行时的 BFF 模板：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --bff
-```
-
-初始化带 Effect HttpApi 运行时的 BFF 模板：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --bff-runtime effect
-```
+默认会初始化 Effect HttpApi BFF 模板。
 
 初始化带 Hono 运行时的 BFF 模板：
 
@@ -52,7 +36,7 @@ pnpm dlx @bleedingdev/modern-js-create myapp --bff-runtime hono
 使用 workspace 协议依赖初始化（用于在本地 monorepo 中联调未发布的 Modern.js 包）：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --router tanstack --bff-runtime effect --workspace
+pnpm dlx @bleedingdev/modern-js-create myapp --workspace
 ```
 
 BleedingDev create 包会直接创建应用，不再提供问答界面：
@@ -103,7 +87,7 @@ BleedingDev create 包会直接创建应用，不再提供问答界面：
 
 默认会生成 Tailwind CSS v4；传入 `--no-tailwind` 时会省略 `postcss.config.mjs`、`tailwind.config.ts` 和 Tailwind 导入。
 
-当启用 `--bff` 或 `--bff-runtime effect` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
+默认会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
 当启用 `--bff-runtime hono` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/lambda/hello.ts`，并将 `bff.runtimeFramework` 设置为 `hono`。
 当启用 `--workspace` 时，`@modern-js/*` 依赖会使用 `workspace:*` 版本，便于本地 monorepo 联调。
 

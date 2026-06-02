@@ -31,7 +31,8 @@ export const EN_LOCALE = {
     optionLang: '  -l, --lang     Set the language (zh or en)',
     optionRouter:
       '  -r, --router   Select router framework (react-router or tanstack)',
-    optionBff: '      --bff      Enable BFF scaffold (default runtime: effect)',
+    optionBff:
+      '      --bff      Keep Effect BFF enabled (default for UltraModern apps)',
     optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
     optionTailwind:
       '      --no-tailwind Disable default Tailwind CSS v4 scaffold',
@@ -55,10 +56,9 @@ export const EN_LOCALE = {
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
     example6: '  create my-app --router tanstack --no-tailwind',
-    example7: '  create my-app --bff',
-    example8: '  create my-app --router tanstack --bff-runtime effect',
-    example9:
-      '  create my-app --router tanstack --bff-runtime effect --workspace',
+    example7: '  create my-app --bff-runtime hono',
+    example8: '  create my-app --workspace',
+    example9: '  create my-app --bff-runtime effect --workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
     example11:
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',

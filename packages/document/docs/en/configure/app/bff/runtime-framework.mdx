@@ -25,4 +25,4 @@ export default defineConfig({
 - Set to `'hono'` to run BFF only from file-convention handlers under `api/lambda/**`.
 
 There is no implicit fallback between runtimes. Choose one runtime mode per app.
-If you want the public UltraModern preset that prefers the Effect lane, configure it explicitly in your app or scaffold with the create template's Effect path.
+Generated UltraModern apps use the Effect lane by default; set `runtimeFramework: 'hono'` only for the compatibility runtime.

@@ -29,7 +29,7 @@ export const ZH_LOCALE = {
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (zh 或 en)',
     optionRouter: '  -r, --router   选择路由框架 (react-router 或 tanstack)',
-    optionBff: '      --bff      启用 BFF 模板（默认运行时：effect）',
+    optionBff: '      --bff      保持启用 Effect BFF（UltraModern 应用默认值）',
     optionBffRuntime: '      --bff-runtime 选择 BFF 运行时（hono 或 effect）',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 模板',
     optionWorkspace:
@@ -52,10 +52,9 @@ export const ZH_LOCALE = {
     example4: '  create --help',
     example5: '  create my-app --router tanstack',
     example6: '  create my-app --router tanstack --no-tailwind',
-    example7: '  create my-app --bff',
-    example8: '  create my-app --router tanstack --bff-runtime effect',
-    example9:
-      '  create my-app --router tanstack --bff-runtime effect --workspace',
+    example7: '  create my-app --bff-runtime hono',
+    example8: '  create my-app --workspace',
+    example9: '  create my-app --bff-runtime effect --workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
     example11:
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',

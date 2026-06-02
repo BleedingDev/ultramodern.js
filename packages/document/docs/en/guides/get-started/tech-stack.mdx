@@ -18,13 +18,13 @@ Rsbuild supports building Vue applications. If you need to use Vue, you can refe
 
 Modern.js provides two first-party routing frameworks:
 
-- [React Router v7](https://reactrouter.com/en/main) (default), via `@modern-js/runtime/router`.
-- [TanStack Router](https://tanstack.com/router), via `@modern-js/plugin-tanstack/runtime`.
+- [TanStack Router](https://tanstack.com/router) (UltraModern default), via `@modern-js/plugin-tanstack/runtime`.
+- [React Router v7](https://reactrouter.com/en/main) (compatibility path), via `@modern-js/runtime/router`.
 
-When creating a project, you can choose TanStack Router by using:
+When creating an UltraModern project, TanStack Router is included by default:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --router tanstack
+pnpm dlx @bleedingdev/modern-js-create myapp
 ```
 
 Modern.js supports conventional routing, self-controlled routing, or other routing schemes. Please refer to ["Routing"](/guides/basic-features/routes/routes) to make your choice.

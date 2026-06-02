@@ -202,7 +202,7 @@ function detectBffRuntime(): BffRuntime {
   const runtimeValue = getOptionValue(args, ['--bff-runtime']);
 
   if (!runtimeValue) {
-    return args.includes('--bff') ? 'effect' : 'none';
+    return 'effect';
   }
 
   if (runtimeValue === 'hono' || runtimeValue === 'effect') {
