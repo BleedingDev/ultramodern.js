@@ -705,8 +705,8 @@ function createRootPackageJson(
       build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
-      lint: 'oxlint .',
-      'lint:fix': 'oxlint . --fix',
+      lint: 'oxlint apps verticals packages',
+      'lint:fix': 'oxlint apps verticals packages --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
@@ -1113,7 +1113,10 @@ if (
 export default defineConfig(
   presetUltramodern(
     {
-${bffConfig}      output: {
+${bffConfig}      html: {
+        outputStructure: 'flat',
+      },
+      output: {
         assetPrefix: siteUrl,
         disableTsChecker: true,
         distPath: {
@@ -1124,12 +1127,9 @@ ${bffConfig}      output: {
       },
       performance: {
         rsdoctor: {
-          enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',
           disableClientServer: true,
+          enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',
         },
-      },
-      html: {
-        outputStructure: 'flat',
       },
       plugins: [
         appTools(),
@@ -1139,12 +1139,8 @@ ${bffConfig}      output: {
             enabled: true,
             loadPath: '/locales/{{lng}}/{{ns}}.json',
           },
-          reactI18next: false,
           localeDetection: {
             fallbackLanguage: 'en',
-            languages: ['en', 'cs'],
-            localePathRedirect: true,
-            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
             ignoreRedirectRoutes: [
               '/@mf-types',
               '/assets',
@@ -1157,7 +1153,11 @@ ${bffConfig}      output: {
               '/static',
               '/zephyr-manifest.json',
             ],
+            languages: ['en', 'cs'],
+            localePathRedirect: true,
+            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
           },
+          reactI18next: false,
         }),
 ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
@@ -1193,10 +1193,10 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         },
       },
       source: {
-        mainEntryName: 'index',
         globalVars: {
           ULTRAMODERN_SITE_URL: siteUrl,
         },
+        mainEntryName: 'index',
       },
     },
     {
@@ -1284,13 +1284,13 @@ const cloudflareWorkersDevSubdomain =
 const requireCloudflarePublicUrls =
   process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true';
 
-function createRemoteManifestUrl(options: {
+const createRemoteManifestUrl = (options: {
   manifestEnv: string;
-  publicUrlEnv: string;
-  workerName: string;
   mfName: string;
   port: number;
-}) {
+  publicUrlEnv: string;
+  workerName: string;
+}) => {
   const configuredManifest = process.env[options.manifestEnv]?.trim();
   if (configuredManifest !== undefined && configuredManifest.length > 0) {
     return configuredManifest;
@@ -1312,7 +1312,7 @@ function createRemoteManifestUrl(options: {
   }
 
   return \`\${options.mfName}@http://localhost:\${options.port}/mf-manifest.json\`;
-}
+};
 
 `;
 }
@@ -1327,10 +1327,10 @@ function createModuleFederationRemotesConfig(
       const key = remoteDependencyAlias(remote);
       return `    ${key}: createRemoteManifestUrl({
       manifestEnv: '${createRemoteManifestEnv(remote)}',
-      publicUrlEnv: '${createCloudflarePublicUrlEnv(remote)}',
-      workerName: '${createCloudflareWorkerName(scope, remote)}',
       mfName: '${remote.mfName}',
       port: ${remote.port},
+      publicUrlEnv: '${createCloudflarePublicUrlEnv(remote)}',
+      workerName: '${createCloudflareWorkerName(scope, remote)}',
     }),`;
     })
     .join('\n');
@@ -1368,7 +1368,6 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 
 ${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
 export default createModuleFederationConfig({
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
@@ -1381,6 +1380,7 @@ export default createModuleFederationConfig({
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
+  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 `;
 }
@@ -1440,7 +1440,6 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 
 ${createModuleFederationRemoteUrlHelpers(app, remotes)}
 export default createModuleFederationConfig({
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
@@ -1454,6 +1453,7 @@ export default createModuleFederationConfig({
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
 ${createModuleFederationRemotesConfig(scope, app, remotes)}${createSharedModuleFederationConfig()},
+  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 `;
 }
@@ -1921,7 +1921,7 @@ function workspaceAssetsForApp(_app: WorkspaceApp): Record<string, string> {
   return {};
 }
 
-function createLocalizedHeadComponent(includeLocationSuffix = true): string {
+function createLocalizedHeadComponent(): string {
   return `const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
@@ -2036,27 +2036,6 @@ const absoluteUrl = (pathname: string) => {
   return \`\${origin}\${pathname}\`;
 };
 
-${
-  includeLocationSuffix
-    ? `const locationSuffix = (location: {
-  hash?: unknown;
-  search?: unknown;
-  searchStr?: unknown;
-}) => {
-  let locationSearch = '';
-  if (typeof location.searchStr === 'string') {
-    locationSearch = location.searchStr;
-  } else if (typeof location.search === 'string') {
-    locationSearch = location.search;
-  }
-  const locationHash = typeof location.hash === 'string' ? location.hash : '';
-
-  return \`\${locationSearch}\${locationHash}\`;
-};
-`
-    : ''
-}
-
 const LocalizedHead = () => {
   const location = useLocation();
   const canonicalPath = localizedPath(location.pathname, fallbackLanguage);
@@ -2095,7 +2074,7 @@ import { VerticalShowcase } from '../vertical-components';
 import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
-${createLocalizedHeadComponent(false)}
+${createLocalizedHeadComponent()}
 export default function ShellHome() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
@@ -3533,11 +3512,11 @@ function createEffectSharedApiContract(service: {
 
   return `export const ${markerSchemaExport} = Schema.Struct({
   appId: Schema.String,
-  packageName: Schema.String,
-  version: Schema.String,
   build: Schema.String,
   deployProfile: Schema.String,
+  packageName: Schema.String,
   surface: Schema.String,
+  version: Schema.String,
 });
 
 export const ${schemaExport} = Schema.Struct({
@@ -3573,13 +3552,13 @@ export const ${notFoundSchemaExport} = ${notFoundErrorExport}.pipe(
   HttpApiSchema.status(404),
 );
 
-export type OperationContext = {
+export interface OperationContext {
+  method: string;
   operationId: string;
   routePath: string;
-  method: string;
   source: string;
   traceId?: string;
-};
+}
 
 export const ${apiExport} = HttpApi.make('${apiName}').add(
   HttpApiGroup.make('${groupName}')
@@ -3600,11 +3579,11 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
     )
     .add(
       HttpApiEndpoint.get('get', '/effect/${stem}/:id', {
+        error: ${notFoundSchemaExport},
         params: {
           id: Schema.String,
         },
         success: ${schemaExport},
-        error: ${notFoundSchemaExport},
       }),
     )
     .add(
@@ -3618,28 +3597,28 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
 );
 
 export const ${groupName}OperationContexts = {
-  list: {
-    operationId: '${apiName}:${groupName}:list',
+  create: {
+    method: 'POST',
+    operationId: '${apiName}:${groupName}:create',
     routePath: '/effect/${stem}',
-    method: 'GET',
-    source: 'generated-client',
-  },
-  readiness: {
-    operationId: '${apiName}:${groupName}:readiness',
-    routePath: '/effect/${stem}/readiness',
-    method: 'GET',
     source: 'generated-client',
   },
   get: {
+    method: 'GET',
     operationId: '${apiName}:${groupName}:get',
     routePath: '/effect/${stem}/:id',
-    method: 'GET',
     source: 'generated-client',
   },
-  create: {
-    operationId: '${apiName}:${groupName}:create',
+  list: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:list',
     routePath: '/effect/${stem}',
-    method: 'POST',
+    source: 'generated-client',
+  },
+  readiness: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:readiness',
+    routePath: '/effect/${stem}/readiness',
     source: 'generated-client',
   },
 } satisfies Record<string, OperationContext>;
@@ -3689,8 +3668,8 @@ import {
   ${apiExport},
   ${groupName}OperationContexts,
   ${notFoundErrorExport},
-  type OperationContext,
 } from '${contractImportPath}';
+import type { OperationContext } from '${contractImportPath}';
 
 const ${groupName}Items = [
   {
@@ -3747,10 +3726,15 @@ const ${groupName}Layer = HttpApiBuilder.group(
         ),
       )
       .handle('get', ({ params }) => {
-        const item = ${groupName}Items.find(item => item.id === params.id);
-        return (item !== undefined
-          ? Effect.succeed(item)
-          : Effect.fail(new ${notFoundErrorExport}({ id: params.id }))).pipe(
+        const matchedItem = ${groupName}Items.find(
+          candidate => candidate.id === params.id,
+        );
+        const result =
+          matchedItem === undefined
+            ? Effect.fail(new ${notFoundErrorExport}({ id: params.id }))
+            : Effect.succeed(matchedItem);
+
+        return result.pipe(
             Effect.withSpan('ultramodern.effect.${groupName}.get', {
               attributes: operationAttributes(${groupName}OperationContexts.get),
               kind: 'server',
@@ -3762,8 +3746,8 @@ const ${groupName}Layer = HttpApiBuilder.group(
           item: {
             id: \`generated-${stem}-\${payload.title
               .toLowerCase()
-              .replaceAll(/[^a-z0-9]+/g, '-')
-              .replaceAll(/^-|-$/g, '')}\`,
+              .replaceAll(/[^a-z0-9]+/gu, '-')
+              .replaceAll(/^-|-$/gu, '')}\`,
             marker: ultramodernApiMarker,
             title: payload.title,
           },

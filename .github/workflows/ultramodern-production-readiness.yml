@@ -1,0 +1,139 @@
+name: UltraModern Production Readiness
+
+on:
+  workflow_run:
+    workflows:
+      - Publish BleedingDev Packages
+    types:
+      - completed
+    branches:
+      - main-ultramodern
+  schedule:
+    - cron: '47 3 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      create_package:
+        description: 'Published create package to prove'
+        required: true
+        default: '@bleedingdev/modern-js-create@latest'
+      vertical_count:
+        description: 'Number of generated SuperApp verticals'
+        required: true
+        default: '5'
+      deploy_cloudflare:
+        description: 'Deploy the generated workspace to Cloudflare and run public proof'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      workers_dev_subdomain:
+        description: 'workers.dev subdomain used for generated public proof'
+        required: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ultramodern-production-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  published-create-superapp:
+    name: Published create package proves a generated SuperApp
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Prove published UltraModern SuperApp scaffold
+        env:
+          CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
+          VERTICAL_COUNT_INPUT: ${{ github.event.inputs.vertical_count || '3' }}
+        run: |
+          node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
+            --create-package "$CREATE_PACKAGE_INPUT" \
+            --project-name ultramodern-ci-superapp \
+            --vertical-count "$VERTICAL_COUNT_INPUT" \
+            --out .modern/production-readiness/published-create-proof.json
+
+      - name: Upload production-readiness evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ultramodern-production-readiness-${{ github.run_id }}
+          path: .modern/production-readiness/
+          if-no-files-found: warn
+
+  cloudflare-generated-deploy:
+    name: Generated SuperApp Cloudflare deploy proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_cloudflare == 'true'
+    environment: cloudflare-production-readiness
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Deploy generated UltraModern SuperApp to Cloudflare
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: ${{ github.event.inputs.workers_dev_subdomain }}
+        run: |
+          node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
+            --create-package "${{ github.event.inputs.create_package }}" \
+            --project-name ultramodern-ci-superapp \
+            --vertical-count "${{ github.event.inputs.vertical_count }}" \
+            --out .modern/production-readiness/cloudflare-deploy-proof.json \
+            --deploy-cloudflare
+
+      - name: Upload Cloudflare deploy evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ultramodern-cloudflare-production-readiness-${{ github.run_id }}
+          path: .modern/production-readiness/
+          if-no-files-found: warn
