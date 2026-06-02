@@ -142,6 +142,21 @@ function validateWorkflowContract() {
     "github.ref == 'refs/heads/main-ultramodern'",
     'publish workflow',
   );
+  requireIncludes(
+    workflow,
+    'ultramodern:prepare-bleedingdev-publish',
+    'publish workflow pre-publish package preparation',
+  );
+  requireIncludes(
+    workflow,
+    'ultramodern:source-create-proof',
+    'publish workflow pre-publish source proof',
+  );
+  requireIncludes(
+    workflow,
+    '.modern/prepublish-release-gates/source-create-proof.json',
+    'publish workflow source proof artifact upload',
+  );
   if (workflow.includes('pull_request_target')) {
     fail('publish workflow must not use pull_request_target');
   }

@@ -72,6 +72,7 @@
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
     "ultramodern:affected-bleedingdev-publish": "node scripts/ultramodern-publish/resolve-affected-packages.mjs",
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
+    "ultramodern:source-create-proof": "node scripts/ultramodern-publish/validate-source-create-proof.mjs",
     "ultramodern:trust-bleedingdev-publish": "node scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs",
     "tsgo:dts": "node scripts/tsgo-dts.mjs",
     "validate:tsgo": "node scripts/tsgo-critical.mjs",

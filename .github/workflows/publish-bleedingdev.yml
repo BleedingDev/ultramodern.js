@@ -140,6 +140,31 @@ jobs:
             echo "Publishing all packages"
           fi
 
+      - name: Prepare pre-publish package manifest
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+          DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
+          PUBLISH_PACKAGES: ${{ steps.package-selection.outputs.packages }}
+          PUBLISH_TAG: ${{ inputs.tag }}
+        run: |
+          args=(
+            --version "$PUBLISH_VERSION"
+            --tag "$PUBLISH_TAG"
+          )
+
+          if [ -n "$DEPENDENCY_VERSION" ]; then
+            args+=(--dependency-version "$DEPENDENCY_VERSION")
+          fi
+
+          if [ -n "$PUBLISH_PACKAGES" ]; then
+            args+=(--packages "$PUBLISH_PACKAGES")
+          fi
+
+          mise exec -- pnpm ultramodern:prepare-bleedingdev-publish -- "${args[@]}"
+
+      - name: Validate pre-publish source proof
+        run: mise exec -- pnpm ultramodern:source-create-proof
+
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
@@ -178,4 +203,12 @@ jobs:
         with:
           name: bleedingdev-publish-manifest
           path: .modern/bleedingdev-publish/manifest.json
+          if-no-files-found: ignore
+
+      - name: Upload pre-publish source proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublish-source-create-proof
+          path: .modern/prepublish-release-gates/source-create-proof.json
           if-no-files-found: ignore
