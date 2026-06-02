@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
@@ -17,7 +19,7 @@ const browserSmokeScript = path.join(
 const browserSmokePlaywrightPackage =
   process.env.ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_PACKAGE ??
   'playwright@1.60.0';
-const verticalNames = [
+const readableErpVerticalNames = [
   'inventory',
   'finance',
   'people',
@@ -29,6 +31,20 @@ const verticalNames = [
   'support',
   'compliance',
 ];
+const scaleProfiles = Object.freeze({
+  'erp-10': Object.freeze({
+    id: 'erp-10',
+    verticalCount: 10,
+  }),
+  'erp-25': Object.freeze({
+    id: 'erp-25',
+    verticalCount: 25,
+  }),
+  'erp-50': Object.freeze({
+    id: 'erp-50',
+    verticalCount: 50,
+  }),
+});
 const modernPackages = [
   '@modern-js/app-tools',
   '@modern-js/adapter-rstest',
@@ -51,7 +67,8 @@ function parseArgs(argv) {
     createPackage: defaultCreatePackage,
     projectName: defaultProjectName,
     singleAppProjectName: defaultSingleAppProjectName,
-    verticalCount: 3,
+    scaleProfile: undefined,
+    verticalCount: undefined,
     out: defaultOut,
     deployCloudflare: false,
   };
@@ -64,6 +81,8 @@ function parseArgs(argv) {
       options.projectName = argv[++index];
     } else if (arg === '--single-app-project-name') {
       options.singleAppProjectName = argv[++index];
+    } else if (arg === '--scale-profile') {
+      options.scaleProfile = argv[++index];
     } else if (arg === '--vertical-count') {
       options.verticalCount = Number.parseInt(argv[++index], 10);
     } else if (arg === '--out') {
@@ -75,26 +94,80 @@ function parseArgs(argv) {
     }
   }
 
-  if (!Number.isInteger(options.verticalCount) || options.verticalCount < 0) {
+  if (
+    options.verticalCount !== undefined &&
+    (!Number.isInteger(options.verticalCount) || options.verticalCount < 0)
+  ) {
     throw new Error('--vertical-count must be a non-negative integer');
   }
-  if (options.verticalCount > verticalNames.length) {
-    throw new Error(`--vertical-count cannot exceed ${verticalNames.length}`);
+  if (
+    options.scaleProfile !== undefined &&
+    !Object.hasOwn(scaleProfiles, options.scaleProfile)
+  ) {
+    throw new Error(
+      `--scale-profile must be one of ${Object.keys(scaleProfiles).join(', ')}`,
+    );
   }
   assertSafeName(options.projectName, '--project-name');
   assertSafeName(options.singleAppProjectName, '--single-app-project-name');
 
+  const selectedProfile = selectScaleProfile(options);
+
   return {
     ...options,
+    selectedProfile,
+    scaleProfile: selectedProfile.id,
+    verticalCount: selectedProfile.verticalCount,
     out: path.resolve(repoRoot, options.out),
-    verticals: verticalNames.slice(0, options.verticalCount),
+    verticals: generateVerticalNames(selectedProfile.verticalCount),
   };
+}
+
+function selectScaleProfile(options) {
+  if (options.scaleProfile !== undefined) {
+    const profile = scaleProfiles[options.scaleProfile];
+    if (
+      options.verticalCount !== undefined &&
+      options.verticalCount !== profile.verticalCount
+    ) {
+      throw new Error(
+        `--vertical-count ${String(
+          options.verticalCount,
+        )} does not match --scale-profile ${profile.id}`,
+      );
+    }
+    return profile;
+  }
+
+  if (options.verticalCount !== undefined) {
+    return {
+      id: `custom-${options.verticalCount}`,
+      verticalCount: options.verticalCount,
+    };
+  }
+
+  return scaleProfiles['erp-10'];
 }
 
 function assertSafeName(value, optionName) {
   if (!/^[a-z][a-z0-9-]*$/u.test(value)) {
     throw new Error(`${optionName} must match /^[a-z][a-z0-9-]*$/`);
   }
+}
+
+function generatedVerticalName(index) {
+  return `erp-vertical-${String(index + 1).padStart(3, '0')}`;
+}
+
+function generateVerticalNames(count) {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error('vertical count must be a non-negative integer');
+  }
+  return Array.from({ length: count }, (_, index) =>
+    index < readableErpVerticalNames.length
+      ? readableErpVerticalNames[index]
+      : generatedVerticalName(index),
+  );
 }
 
 function packageNameFromSpecifier(specifier) {
@@ -132,6 +205,44 @@ function readJson(filePath) {
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  return readJson(filePath);
+}
+
+function roundDurationMs(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function timedStep(summary, id, action) {
+  const startedAt = performance.now();
+  try {
+    const value = action();
+    summary.timings[id] = {
+      status: 'pass',
+      durationMs: roundDurationMs(performance.now() - startedAt),
+    };
+    return value;
+  } catch (error) {
+    summary.timings[id] = {
+      status: 'fail',
+      durationMs: roundDurationMs(performance.now() - startedAt),
+      error: error instanceof Error ? error.message : String(error),
+    };
+    throw error;
+  }
+}
+
+function skippedTiming(reason) {
+  return {
+    status: 'skipped',
+    durationMs: 0,
+    reason,
+  };
 }
 
 function resolveCreatePackage(specifier) {
@@ -239,6 +350,11 @@ function assertGeneratedCohort(
   if (errors.length > 0) {
     throw new Error(errors.map(error => `- ${error}`).join('\n'));
   }
+}
+
+function packageScriptExists(projectDir, scriptName) {
+  const packageJson = readJson(path.join(projectDir, 'package.json'));
+  return typeof packageJson.scripts?.[scriptName] === 'string';
 }
 
 function createWorkspace(workDir, projectName, createPackage) {
@@ -357,9 +473,93 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
   return readJson(path.resolve(repoRoot, out));
 }
 
+function createSharedContractVersionAssertion({ topology, generatedContract }) {
+  const versions = [
+    topology?.shell?.moduleFederation?.sharedContractVersion,
+    ...(topology?.verticals ?? []).map(
+      vertical => vertical.moduleFederation?.sharedContractVersion,
+    ),
+    ...(generatedContract?.apps ?? []).map(
+      app => app.moduleFederation?.sharedContractVersion,
+    ),
+  ].filter(value => typeof value === 'string' && value.length > 0);
+  const uniqueVersions = [...new Set(versions)].sort();
+
+  if (uniqueVersions.length === 0) {
+    return {
+      status: 'unknown',
+      versions: [],
+      message: 'No MF sharedContractVersion values found in topology/contract.',
+    };
+  }
+
+  return {
+    status: uniqueVersions.length === 1 ? 'pass' : 'fail',
+    versions: uniqueVersions,
+  };
+}
+
+function createTopologyEvidence({
+  selectedProfile,
+  verticalNames,
+  topology,
+  generatedContract,
+  packageCohortAssertion,
+}) {
+  const topologyVerticals = topology?.verticals ?? [];
+  const contractApps = generatedContract?.apps ?? [];
+  const contractVerticals = contractApps.filter(app => app.kind === 'vertical');
+  const topologyShellRemoteCount =
+    topology?.shell?.moduleFederation?.remotes?.length;
+  const contractShellRemoteCount = contractApps.find(
+    app => app.kind === 'shell',
+  )?.moduleFederation?.remotes?.length;
+  const mfRemoteCount =
+    topologyShellRemoteCount ??
+    contractShellRemoteCount ??
+    contractVerticals.length;
+
+  return {
+    selectedProfile: selectedProfile.id,
+    verticalCount: verticalNames.length,
+    verticalNames,
+    mfRemoteCount,
+    contractCounts: {
+      topologyVerticals: topologyVerticals.length,
+      topologySharedPackages: topology?.sharedPackages?.length ?? 0,
+      generatedContractApps: contractApps.length,
+      generatedContractVerticals: contractVerticals.length,
+    },
+    sharedVersionAssertions: {
+      packageCohort: packageCohortAssertion,
+      moduleFederationSharedContract: createSharedContractVersionAssertion({
+        topology,
+        generatedContract,
+      }),
+    },
+  };
+}
+
+function readGeneratedTopologyEvidence(
+  projectDir,
+  options,
+  packageCohortAssertion,
+) {
+  return createTopologyEvidence({
+    selectedProfile: options.selectedProfile,
+    verticalNames: options.verticals,
+    topology: readJsonIfExists(
+      path.join(projectDir, 'topology/reference-topology.json'),
+    ),
+    generatedContract: readJsonIfExists(
+      path.join(projectDir, '.modernjs/ultramodern-generated-contract.json'),
+    ),
+    packageCohortAssertion,
+  });
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
-  const createPackage = resolveCreatePackage(options.createPackage);
   const workDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-production-readiness-'),
   );
@@ -367,56 +567,136 @@ function main() {
   const singleAppDir = path.join(workDir, options.singleAppProjectName);
   const summary = {
     schemaVersion: 1,
-    createPackage,
+    createPackage: undefined,
     projectDir,
     singleAppDir,
+    scaleProfile: options.scaleProfile,
     verticals: options.verticals,
+    verticalCount: options.verticalCount,
     checks: [],
+    timings: {},
   };
 
   try {
-    createSingleApp(workDir, options.singleAppProjectName, createPackage);
-    assertGeneratedCohort(singleAppDir, createPackage.version, {
-      manifestPath: '.modernjs/mv-template-manifest.json',
-      modernPackageNames: modernPackages,
-    });
+    const createPackage = timedStep(summary, 'createResolution', () =>
+      resolveCreatePackage(options.createPackage),
+    );
+    summary.createPackage = createPackage;
+
+    timedStep(summary, 'singleAppCreation', () =>
+      createSingleApp(workDir, options.singleAppProjectName, createPackage),
+    );
+    timedStep(summary, 'singleAppCohortAssertion', () =>
+      assertGeneratedCohort(singleAppDir, createPackage.version, {
+        manifestPath: '.modernjs/mv-template-manifest.json',
+        modernPackageNames: modernPackages,
+      }),
+    );
     summary.checks.push('single-app-published-cohort-alignment');
 
-    createWorkspace(workDir, options.projectName, createPackage);
-    for (const vertical of options.verticals) {
-      addVertical(projectDir, vertical, createPackage);
-    }
-
-    assertGeneratedCohort(projectDir, createPackage.version, {
-      manifestPath: '.modernjs/ultramodern-workspace-template-manifest.json',
-      modernPackageNames: workspaceModernPackages,
-      workspaceManifest: true,
+    timedStep(summary, 'workspaceCreation', () =>
+      createWorkspace(workDir, options.projectName, createPackage),
+    );
+    summary.verticalAddTimings = [];
+    timedStep(summary, 'addVerticals', () => {
+      for (const vertical of options.verticals) {
+        const startedAt = performance.now();
+        addVertical(projectDir, vertical, createPackage);
+        summary.verticalAddTimings.push({
+          vertical,
+          status: 'pass',
+          durationMs: roundDurationMs(performance.now() - startedAt),
+        });
+      }
     });
+
+    let packageCohortAssertion;
+    try {
+      packageCohortAssertion = timedStep(
+        summary,
+        'sharedVersionAssertion',
+        () => {
+          assertGeneratedCohort(projectDir, createPackage.version, {
+            manifestPath:
+              '.modernjs/ultramodern-workspace-template-manifest.json',
+            modernPackageNames: workspaceModernPackages,
+            workspaceManifest: true,
+          });
+          return {
+            status: 'pass',
+            expectedVersion: createPackage.version,
+          };
+        },
+      );
+    } catch (error) {
+      packageCohortAssertion = {
+        status: 'fail',
+        expectedVersion: createPackage.version,
+        error: error instanceof Error ? error.message : String(error),
+      };
+      summary.topologyEvidence = readGeneratedTopologyEvidence(
+        projectDir,
+        options,
+        packageCohortAssertion,
+      );
+      throw error;
+    }
+    summary.topologyEvidence = readGeneratedTopologyEvidence(
+      projectDir,
+      options,
+      packageCohortAssertion,
+    );
     summary.checks.push('workspace-published-cohort-alignment');
 
-    run('pnpm', ['install'], { cwd: projectDir });
+    timedStep(summary, 'install', () =>
+      run('pnpm', ['install'], { cwd: projectDir }),
+    );
     summary.checks.push('install');
 
-    run('pnpm', ['check'], { cwd: projectDir });
+    timedStep(summary, 'check', () =>
+      run('pnpm', ['check'], { cwd: projectDir }),
+    );
     summary.checks.push('check');
 
-    run('pnpm', ['build'], { cwd: projectDir });
+    if (packageScriptExists(projectDir, 'ultramodern:check')) {
+      timedStep(summary, 'ultramodernCheck', () =>
+        run('pnpm', ['ultramodern:check'], { cwd: projectDir }),
+      );
+      summary.checks.push('ultramodern-check');
+    } else {
+      summary.timings.ultramodernCheck = skippedTiming(
+        'package.json does not define ultramodern:check',
+      );
+    }
+
+    timedStep(summary, 'build', () =>
+      run('pnpm', ['build'], { cwd: projectDir }),
+    );
     summary.checks.push('build');
 
     summary.browserSmoke = {
-      local: runBrowserSmoke(projectDir, { mode: 'local' }),
+      local: timedStep(summary, 'browserSmokeLocal', () =>
+        runBrowserSmoke(projectDir, { mode: 'local' }),
+      ),
     };
     summary.checks.push('browser-smoke-local');
 
     if (options.deployCloudflare) {
-      run('pnpm', ['cloudflare:deploy'], { cwd: projectDir });
-      run('pnpm', ['cloudflare:proof', '--', '--require-public-urls'], {
-        cwd: projectDir,
+      timedStep(summary, 'cloudflareDeploy', () => {
+        run('pnpm', ['cloudflare:deploy'], { cwd: projectDir });
+        run('pnpm', ['cloudflare:proof', '--', '--require-public-urls'], {
+          cwd: projectDir,
+        });
       });
-      summary.browserSmoke.public = runBrowserSmoke(projectDir, {
-        mode: 'public',
-        requirePublicUrls: true,
-      });
+      summary.browserSmoke.public = timedStep(
+        summary,
+        'browserSmokePublic',
+        () =>
+          runBrowserSmoke(projectDir, {
+            mode: 'public',
+            requirePublicUrls: true,
+          }),
+      );
       summary.checks.push('cloudflare-deploy-proof');
       summary.checks.push('browser-smoke-public');
     }
@@ -434,4 +714,16 @@ function main() {
   }
 }
 
-main();
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
+  main();
+}
+
+export {
+  createTopologyEvidence,
+  generateVerticalNames,
+  parseArgs,
+  scaleProfiles,
+};

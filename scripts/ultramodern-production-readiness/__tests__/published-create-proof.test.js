@@ -1,0 +1,187 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const test = require('node:test');
+
+async function loadProof() {
+  return import('../run-published-create-proof.mjs');
+}
+
+test('defines ERP scale profiles for 10, 25, and 50 verticals', async () => {
+  const { scaleProfiles } = await loadProof();
+
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(scaleProfiles).map(([id, profile]) => [
+        id,
+        profile.verticalCount,
+      ]),
+    ),
+    {
+      'erp-10': 10,
+      'erp-25': 25,
+      'erp-50': 50,
+    },
+  );
+});
+
+test('generates readable first-ten verticals and deterministic safe names above ten', async () => {
+  const { generateVerticalNames } = await loadProof();
+  const verticals = generateVerticalNames(25);
+
+  assert.deepEqual(verticals.slice(0, 10), [
+    'inventory',
+    'finance',
+    'people',
+    'analytics',
+    'orders',
+    'procurement',
+    'billing',
+    'logistics',
+    'support',
+    'compliance',
+  ]);
+  assert.deepEqual(verticals.slice(10, 13), [
+    'erp-vertical-011',
+    'erp-vertical-012',
+    'erp-vertical-013',
+  ]);
+  assert.equal(verticals[24], 'erp-vertical-025');
+  assert.equal(new Set(verticals).size, verticals.length);
+  assert.equal(
+    verticals.every(name => /^[a-z][a-z0-9-]*$/u.test(name)),
+    true,
+  );
+});
+
+test('parses scale profile and legacy custom vertical count requests', async () => {
+  const { parseArgs } = await loadProof();
+
+  const profiled = parseArgs([
+    '--scale-profile',
+    'erp-25',
+    '--out',
+    '.modern/example.json',
+  ]);
+  assert.equal(profiled.scaleProfile, 'erp-25');
+  assert.equal(profiled.verticalCount, 25);
+  assert.equal(path.isAbsolute(profiled.out), true);
+
+  const custom = parseArgs(['--vertical-count', '3']);
+  assert.equal(custom.scaleProfile, 'custom-3');
+  assert.deepEqual(custom.verticals, ['inventory', 'finance', 'people']);
+
+  assert.throws(
+    () => parseArgs(['--scale-profile', 'erp-25', '--vertical-count', '10']),
+    /does not match --scale-profile erp-25/,
+  );
+});
+
+test('summarizes topology and generated contract evidence', async () => {
+  const { createTopologyEvidence, generateVerticalNames } = await loadProof();
+  const verticalNames = generateVerticalNames(3);
+
+  const evidence = createTopologyEvidence({
+    selectedProfile: {
+      id: 'custom-3',
+      verticalCount: 3,
+    },
+    verticalNames,
+    packageCohortAssertion: {
+      status: 'pass',
+      expectedVersion: '1.2.3',
+    },
+    topology: {
+      shell: {
+        moduleFederation: {
+          remotes: [{ id: 'inventory' }, { id: 'finance' }, { id: 'people' }],
+          sharedContractVersion: 'mf-ssr-contract-v1',
+        },
+      },
+      verticals: verticalNames.map(id => ({
+        id,
+        moduleFederation: {
+          sharedContractVersion: 'mf-ssr-contract-v1',
+        },
+      })),
+      sharedPackages: [{ id: 'shared-contracts' }],
+    },
+    generatedContract: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          moduleFederation: {
+            remotes: [{ id: 'inventory' }],
+            sharedContractVersion: 'mf-ssr-contract-v1',
+          },
+        },
+        ...verticalNames.map(id => ({
+          id,
+          kind: 'vertical',
+          moduleFederation: {
+            sharedContractVersion: 'mf-ssr-contract-v1',
+          },
+        })),
+      ],
+    },
+  });
+
+  assert.equal(evidence.selectedProfile, 'custom-3');
+  assert.equal(evidence.verticalCount, 3);
+  assert.deepEqual(evidence.verticalNames, verticalNames);
+  assert.equal(evidence.mfRemoteCount, 3);
+  assert.deepEqual(evidence.contractCounts, {
+    topologyVerticals: 3,
+    topologySharedPackages: 1,
+    generatedContractApps: 4,
+    generatedContractVerticals: 3,
+  });
+  assert.equal(evidence.sharedVersionAssertions.packageCohort.status, 'pass');
+  assert.equal(
+    evidence.sharedVersionAssertions.moduleFederationSharedContract.status,
+    'pass',
+  );
+});
+
+test('marks mismatched MF shared contract versions as failed evidence', async () => {
+  const { createTopologyEvidence } = await loadProof();
+
+  const evidence = createTopologyEvidence({
+    selectedProfile: {
+      id: 'custom-1',
+      verticalCount: 1,
+    },
+    verticalNames: ['inventory'],
+    packageCohortAssertion: {
+      status: 'pass',
+      expectedVersion: '1.2.3',
+    },
+    topology: {
+      shell: {
+        moduleFederation: {
+          sharedContractVersion: 'mf-ssr-contract-v1',
+        },
+      },
+      verticals: [
+        {
+          id: 'inventory',
+          moduleFederation: {
+            sharedContractVersion: 'mf-ssr-contract-v2',
+          },
+        },
+      ],
+    },
+    generatedContract: {
+      apps: [],
+    },
+  });
+
+  assert.equal(
+    evidence.sharedVersionAssertions.moduleFederationSharedContract.status,
+    'fail',
+  );
+  assert.deepEqual(
+    evidence.sharedVersionAssertions.moduleFederationSharedContract.versions,
+    ['mf-ssr-contract-v1', 'mf-ssr-contract-v2'],
+  );
+});

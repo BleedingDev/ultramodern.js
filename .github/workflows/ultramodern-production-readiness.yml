@@ -16,10 +16,15 @@ on:
         description: 'Published create package to prove'
         required: true
         default: '@bleedingdev/modern-js-create@latest'
-      vertical_count:
-        description: 'Number of generated SuperApp verticals'
+      scale_profile:
+        description: 'Generated SuperApp ERP scale profile'
         required: true
-        default: '5'
+        default: 'erp-10'
+        type: choice
+        options:
+          - 'erp-10'
+          - 'erp-25'
+          - 'erp-50'
       deploy_cloudflare:
         description: 'Deploy the generated workspace to Cloudflare and run public proof'
         required: true
@@ -78,12 +83,18 @@ jobs:
       - name: Prove published UltraModern SuperApp scaffold
         env:
           CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
-          VERTICAL_COUNT_INPUT: ${{ github.event.inputs.vertical_count || '3' }}
+          SCALE_PROFILE_INPUT: ${{ github.event.inputs.scale_profile }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            SCALE_PROFILE="${SCALE_PROFILE_INPUT:-erp-25}"
+          else
+            SCALE_PROFILE="${SCALE_PROFILE_INPUT:-erp-10}"
+          fi
           node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
             --create-package "$CREATE_PACKAGE_INPUT" \
             --project-name ultramodern-ci-superapp \
-            --vertical-count "$VERTICAL_COUNT_INPUT" \
+            --scale-profile "$SCALE_PROFILE" \
             --out .modern/production-readiness/published-create-proof.json
 
       - name: Upload production-readiness evidence
@@ -132,7 +143,7 @@ jobs:
           node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
             --create-package "${{ github.event.inputs.create_package }}" \
             --project-name ultramodern-ci-superapp \
-            --vertical-count "${{ github.event.inputs.vertical_count }}" \
+            --scale-profile "${{ github.event.inputs.scale_profile }}" \
             --out .modern/production-readiness/cloudflare-deploy-proof.json \
             --deploy-cloudflare
 
