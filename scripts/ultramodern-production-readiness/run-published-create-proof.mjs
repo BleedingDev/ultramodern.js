@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,13 @@ const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
 const defaultProjectName = 'ultramodern-ci-superapp';
 const defaultSingleAppProjectName = 'ultramodern-ci-single-app';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
+const browserSmokeScript = path.join(
+  repoRoot,
+  'scripts/ultramodern-production-readiness/run-browser-smoke.mjs',
+);
+const browserSmokePlaywrightPackage =
+  process.env.ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_PACKAGE ??
+  'playwright@1.60.0';
 const verticalNames = [
   'inventory',
   'finance',
@@ -105,6 +113,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd || repoRoot,
     env: {
       ...process.env,
+      ...options.env,
       FORCE_COLOR: '0',
     },
     encoding: 'utf-8',
@@ -280,6 +289,74 @@ function addVertical(projectDir, vertical, createPackage) {
   );
 }
 
+function playwrightRuntimeDir() {
+  const digest = crypto
+    .createHash('sha256')
+    .update(browserSmokePlaywrightPackage)
+    .digest('hex')
+    .slice(0, 12);
+  return path.join(os.tmpdir(), `ultramodern-browser-smoke-${digest}`);
+}
+
+function ensureBrowserSmokeRuntime() {
+  const runtimeDir = playwrightRuntimeDir();
+  const packageJsonPath = path.join(
+    runtimeDir,
+    'node_modules/playwright/package.json',
+  );
+  if (fs.existsSync(packageJsonPath)) {
+    return runtimeDir;
+  }
+
+  fs.rmSync(runtimeDir, { recursive: true, force: true });
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(runtimeDir, 'package.json'),
+    `${JSON.stringify({ private: true, type: 'module' }, null, 2)}\n`,
+  );
+  run(
+    'npm',
+    [
+      'install',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      browserSmokePlaywrightPackage,
+    ],
+    { cwd: runtimeDir },
+  );
+  return runtimeDir;
+}
+
+function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
+  const artifactDir = `.modern/production-readiness/browser-smoke/${mode}`;
+  const out = `.modern/production-readiness/browser-smoke/${mode}-summary.json`;
+  const runtimeDir = ensureBrowserSmokeRuntime();
+  const args = [
+    'node',
+    browserSmokeScript,
+    '--project-dir',
+    projectDir,
+    '--artifact-dir',
+    artifactDir,
+    '--out',
+    out,
+    '--mode',
+    mode,
+  ];
+
+  if (requirePublicUrls) {
+    args.push('--require-public-urls');
+  }
+
+  run(args[0], args.slice(1), {
+    env: {
+      ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT: runtimeDir,
+    },
+  });
+  return readJson(path.resolve(repoRoot, out));
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const createPackage = resolveCreatePackage(options.createPackage);
@@ -326,12 +403,22 @@ function main() {
     run('pnpm', ['build'], { cwd: projectDir });
     summary.checks.push('build');
 
+    summary.browserSmoke = {
+      local: runBrowserSmoke(projectDir, { mode: 'local' }),
+    };
+    summary.checks.push('browser-smoke-local');
+
     if (options.deployCloudflare) {
       run('pnpm', ['cloudflare:deploy'], { cwd: projectDir });
       run('pnpm', ['cloudflare:proof', '--', '--require-public-urls'], {
         cwd: projectDir,
       });
+      summary.browserSmoke.public = runBrowserSmoke(projectDir, {
+        mode: 'public',
+        requirePublicUrls: true,
+      });
       summary.checks.push('cloudflare-deploy-proof');
+      summary.checks.push('browser-smoke-public');
     }
 
     summary.ok = true;

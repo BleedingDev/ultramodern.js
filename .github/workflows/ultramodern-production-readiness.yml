@@ -72,6 +72,9 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
 
+      - name: Install browser smoke runtime
+        run: npx --yes playwright@1.60.0 install --with-deps chromium
+
       - name: Prove published UltraModern SuperApp scaffold
         env:
           CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
@@ -116,6 +119,9 @@ jobs:
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Install browser smoke runtime
+        run: npx --yes playwright@1.60.0 install --with-deps chromium
 
       - name: Deploy generated UltraModern SuperApp to Cloudflare
         env:
