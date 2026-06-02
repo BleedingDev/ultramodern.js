@@ -213,7 +213,7 @@ UltraModern add flow:
 2. `--microvertical horizontal-remote` for independently deployed horizontal remotes.
 3. `--microvertical service` for Effect-first service packages.
 4. `--microvertical shared` for shared workspace packages.
-5. `--router tanstack`, `--bff-runtime effect`, `--bff-runtime hono`, `--workspace`, and `--sub` remain available as low-level manual scaffolding primitives.
+5. TanStack Router and Effect BFF are the default low-level app scaffold; `--router react-router`, `--bff-runtime hono`, `--workspace`, and `--sub` remain available as explicit compatibility/manual scaffolding primitives.
 
 New CLI flags should be added only when they produce materially different files
 or eliminate repeated, error-prone workspace metadata edits. `--microvertical`

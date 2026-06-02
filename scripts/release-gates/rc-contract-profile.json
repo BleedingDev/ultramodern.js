@@ -408,9 +408,9 @@
         "id": "ultramodern-create-readme-contract",
         "path": "packages/toolkit/create/README.md",
         "includes": [
-          "current default runtime",
+          "Effect BFF",
+          "pnpm dlx @bleedingdev/modern-js-create .",
           "presetUltramodern(...)",
-          "--bff-runtime effect",
           "--bff-runtime hono"
         ]
       },
@@ -418,10 +418,9 @@
         "id": "ultramodern-init-app-doc-contract",
         "path": "packages/document/docs/en/components/init-app.mdx",
         "includes": [
-          "current default runtime",
-          "public UltraModern.js SuperApp path",
+          "Effect HttpApi BFF is scaffolded by default",
+          "pnpm dlx @bleedingdev/modern-js-create .",
           "@bleedingdev/modern-js-create",
-          "--bff-runtime effect",
           "--bff-runtime hono"
         ]
       },

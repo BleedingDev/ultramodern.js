@@ -21,6 +21,12 @@ BleedingDev package aliases:
 pnpm dlx @bleedingdev/modern-js-create my-app
 ```
 
+To initialize the empty directory you are already in, pass `.` explicitly:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create .
+```
+
 Create a full SuperApp workspace only when you need independently owned
 verticals:
 

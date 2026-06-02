@@ -100,7 +100,7 @@ function checkRootPackage(workspace) {
         file: 'package.json',
         message: 'Root package.json is missing.',
         suggestion:
-          'Generate the workspace with @modern-js/create --ultramodern-workspace.',
+          'Generate the workspace with pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace.',
       }),
     ];
   }

@@ -12,7 +12,7 @@ export const ZH_LOCALE = {
     createFailed: '创建项目时出错:',
   },
   message: {
-    welcome: '🚀 欢迎使用 Modern.js',
+    welcome: '🚀 欢迎使用 UltraModern.js',
     success: '✨ 创建成功！',
     nextSteps: '📋 下一步：',
     step1: 'cd {projectName}',
@@ -20,10 +20,11 @@ export const ZH_LOCALE = {
     step3: 'pnpm dev',
   },
   help: {
-    title: '🚀 Modern.js 项目创建工具',
-    description: '快速创建一个新的 Modern.js 项目',
+    title: '🚀 UltraModern.js 项目创建工具',
+    description:
+      '创建默认包含 TanStack Router 和 Effect BFF 的 UltraModern.js 应用',
     usage: '📖 用法:',
-    usageExample: '  create [项目名称] [选项]',
+    usageExample: '  pnpm dlx @bleedingdev/modern-js-create [项目名称] [选项]',
     options: '⚙️  选项:',
     optionHelp: '  -h, --help     显示帮助信息',
     optionVersion: '  -v, --version  显示版本信息',
@@ -46,22 +47,25 @@ export const ZH_LOCALE = {
       '      --vertical 修改当前已有的 UltraModern 工作区，并接入名为 <项目名称> 的 MicroVertical',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
-    example1: '  create my-app',
-    example2: '  create my-app --lang zh',
-    example3: '  create my-app --sub',
-    example4: '  create --help',
-    example5: '  create my-app --router tanstack',
-    example6: '  create my-app --router tanstack --no-tailwind',
-    example7: '  create my-app --bff-runtime hono',
-    example8: '  create my-app --workspace',
-    example9: '  create my-app --bff-runtime effect --workspace',
-    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
-    example11:
+    example1: '  pnpm dlx @bleedingdev/modern-js-create my-app',
+    example2: '  pnpm dlx @bleedingdev/modern-js-create my-app --lang zh',
+    example3: '  pnpm dlx @bleedingdev/modern-js-create my-app --sub',
+    example4: '  pnpm dlx @bleedingdev/modern-js-create --help',
+    example5: '  pnpm dlx @bleedingdev/modern-js-create .',
+    example6:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router --no-tailwind',
+    example7:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --bff-runtime hono',
+    example8: '  pnpm dlx @bleedingdev/modern-js-create my-app --workspace',
+    example9:
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
-    example12: '  create catalog --vertical',
+    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app --no-tailwind',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router',
+    example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {
-    message: '@modern-js/create 版本: {version}',
+    message: '@bleedingdev/modern-js-create 版本: {version}',
   },
 };

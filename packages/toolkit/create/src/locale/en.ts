@@ -13,7 +13,7 @@ export const EN_LOCALE = {
     createFailed: 'Error creating project:',
   },
   message: {
-    welcome: '🚀 Welcome to Modern.js',
+    welcome: '🚀 Welcome to UltraModern.js',
     success: '✨ Created successfully!',
     nextSteps: '📋 Next steps:',
     step1: 'cd {projectName}',
@@ -21,10 +21,12 @@ export const EN_LOCALE = {
     step3: 'pnpm dev',
   },
   help: {
-    title: '🚀 Modern.js Project Creator',
-    description: 'Create a new Modern.js project with ease',
+    title: '🚀 UltraModern.js Project Creator',
+    description:
+      'Create a new UltraModern.js app with TanStack Router and Effect BFF by default',
     usage: '📖 Usage:',
-    usageExample: '  create [project-name] [options]',
+    usageExample:
+      '  pnpm dlx @bleedingdev/modern-js-create [project-name] [options]',
     options: '⚙️  Options:',
     optionHelp: '  -h, --help     Display this help message',
     optionVersion: '  -v, --version  Display version information',
@@ -50,22 +52,25 @@ export const EN_LOCALE = {
       '      --vertical Mutate the current existing UltraModern workspace and wire a MicroVertical named <project-name>',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
-    example1: '  create my-app',
-    example2: '  create my-app --lang zh',
-    example3: '  create my-app --sub',
-    example4: '  create --help',
-    example5: '  create my-app --router tanstack',
-    example6: '  create my-app --router tanstack --no-tailwind',
-    example7: '  create my-app --bff-runtime hono',
-    example8: '  create my-app --workspace',
-    example9: '  create my-app --bff-runtime effect --workspace',
-    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app',
-    example11:
+    example1: '  pnpm dlx @bleedingdev/modern-js-create my-app',
+    example2: '  pnpm dlx @bleedingdev/modern-js-create my-app --lang zh',
+    example3: '  pnpm dlx @bleedingdev/modern-js-create my-app --sub',
+    example4: '  pnpm dlx @bleedingdev/modern-js-create --help',
+    example5: '  pnpm dlx @bleedingdev/modern-js-create .',
+    example6:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router --no-tailwind',
+    example7:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --bff-runtime hono',
+    example8: '  pnpm dlx @bleedingdev/modern-js-create my-app --workspace',
+    example9:
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
-    example12: '  create catalog --vertical',
+    example10: '  pnpm dlx @bleedingdev/modern-js-create my-app --no-tailwind',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router',
+    example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {
-    message: '@modern-js/create version: {version}',
+    message: '@bleedingdev/modern-js-create version: {version}',
   },
 };

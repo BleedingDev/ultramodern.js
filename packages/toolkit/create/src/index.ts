@@ -1122,6 +1122,9 @@ async function getProjectName(): Promise<{
   const projectNameArg = positionalArgs[0];
 
   if (projectNameArg) {
+    if (projectNameArg === '.') {
+      return { name: path.basename(process.cwd()), useCurrentDir: true };
+    }
     return { name: projectNameArg, useCurrentDir: false };
   }
 
