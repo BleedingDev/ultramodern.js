@@ -188,7 +188,7 @@ function expectAppConfigContract(
     expect(contractEntry.config.bff).toBeUndefined();
   }
   expect(contractEntry.ssr).toMatchObject({
-    mode: 'stream',
+    mode: 'string',
     moduleFederationAppSSR: true,
   });
 }
@@ -389,8 +389,16 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['cloudflare:proof']).toBe(
       'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
-    expect(rootPackage.scripts.format).toBe('oxfmt .');
-    expect(rootPackage.scripts['format:check']).toBe('oxfmt --check .');
+    expect(
+      fs.readFileSync(
+        path.join(workspaceDir, 'scripts/proof-cloudflare-version.mjs'),
+        'utf8',
+      ),
+    ).toContain('css-preload-link-header');
+    expect(rootPackage.scripts.format).toBe("oxfmt . '!repos/**'");
+    expect(rootPackage.scripts['format:check']).toBe(
+      "oxfmt --check . '!repos/**'",
+    );
     expect(rootPackage.scripts.lint).toBe('oxlint .');
     expect(rootPackage.scripts['lint:fix']).toBe('oxlint . --fix');
     expect(rootPackage.scripts['skills:install']).toBe(
@@ -400,7 +408,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/bootstrap-agent-skills.mjs --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true) && node ./scripts/setup-agent-reference-repos.mjs',
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)",
     );
     expect(
       Object.keys(rootPackage.scripts).every(
@@ -510,7 +518,7 @@ describe('create-ultramodern-workspace', () => {
         'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       );
       expect(packageJson.scripts['cloudflare:deploy']).toBe(
-        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
       );
       expect(packageJson.scripts['cloudflare:preview']).toBe(
         'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
@@ -644,6 +652,7 @@ describe('create-ultramodern-workspace', () => {
     expect(manifest.validation.expectedCommands).toEqual([
       'mise install',
       'pnpm install',
+      'pnpm run ultramodern:i18n-boundaries',
       'pnpm run ultramodern:check',
     ]);
     expect(manifest.validation.postMaterializationValidation).toEqual([

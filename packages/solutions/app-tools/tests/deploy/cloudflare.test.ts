@@ -37,6 +37,10 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   await fs.writeFile(path.join(distDirectory, 'static/app.js'), 'app();');
   await fs.writeFile(path.join(distDirectory, 'static/app.css'), 'body{}');
   await fs.writeFile(
+    path.join(distDirectory, 'static/app.1234abcd.css'),
+    'body{}',
+  );
+  await fs.writeFile(
     path.join(distDirectory, 'worker/main.js'),
     `module.exports = { requestHandler: async (request, options) => new Response(JSON.stringify({
       pathname: new URL(request.url).pathname,
@@ -529,6 +533,9 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('link')).toContain(
+      '<https://example.com/static/app.css>; rel=preload; as=style',
+    );
     expect(await response.text()).toContain(
       '<link rel="stylesheet" href="https://example.com/static/app.css">',
     );
@@ -612,8 +619,18 @@ describe('cloudflare deploy preset', () => {
         },
       );
       const html = await response.text();
+      const linkHeader = response.headers.get('link');
 
       expect(response.status).toBe(200);
+      expect(linkHeader).toContain(
+        '<https://example.com/static/app.css>; rel=preload; as=style',
+      );
+      expect(linkHeader).toContain(
+        '<https://explore.example.com/static/css/explore.css>; rel=preload; as=style',
+      );
+      expect(linkHeader).toContain(
+        '<https://checkout.example.com/static/css/checkout.css>; rel=preload; as=style',
+      );
       expect(html).toContain(
         '<link rel="stylesheet" href="https://example.com/static/app.css">',
       );
@@ -626,6 +643,27 @@ describe('cloudflare deploy preset', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('serves fingerprinted Cloudflare assets with immutable cache headers', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/static/app.1234abcd.css'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe(
+      'public, max-age=31536000, immutable',
+    );
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
   });
 
   it('retries transient remote manifest misses before injecting federated CSS', async () => {

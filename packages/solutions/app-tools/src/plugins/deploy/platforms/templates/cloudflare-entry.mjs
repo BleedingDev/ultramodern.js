@@ -28,6 +28,28 @@ function withCorsHeaders(response) {
   });
 }
 
+function isFingerprintedAssetPathname(pathname) {
+  return /(?:^|\/)[^/]+\.[a-f0-9]{8,}\.(?:css|js|mjs|json|svg|png|jpe?g|webp|avif|gif|woff2?|ttf)$/iu.test(
+    pathname,
+  );
+}
+
+function withAssetHeaders(response, request) {
+  const corsResponse = withCorsHeaders(response);
+  const headers = new Headers(corsResponse.headers);
+  const { pathname } = new URL(request.url);
+
+  if (isFingerprintedAssetPathname(pathname)) {
+    headers.set('cache-control', 'public, max-age=31536000, immutable');
+  }
+
+  return new Response(corsResponse.body, {
+    headers,
+    status: corsResponse.status,
+    statusText: corsResponse.statusText,
+  });
+}
+
 function createCorsPreflightResponse(request) {
   if (request.method !== 'OPTIONS') {
     return null;
@@ -52,7 +74,7 @@ async function fetchAsset(request, env) {
     return null;
   }
 
-  return withCorsHeaders(response);
+  return withAssetHeaders(response, request);
 }
 
 async function fetchAssetByPath(pathname, request, env) {
@@ -468,16 +490,27 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
     return response;
   }
 
-  const links = [...new Set(cssHrefs)]
+  const uniqueCssHrefs = [...new Set(cssHrefs)];
+  const headers = new Headers(response.headers);
+
+  for (const href of uniqueCssHrefs) {
+    headers.append('link', `<${href}>; rel=preload; as=style`);
+  }
+
+  const links = uniqueCssHrefs
     .filter(href => !html.includes(href))
     .map(href => `<link rel="stylesheet" href="${escapeAttribute(href)}">`);
 
   if (links.length === 0 || !html.includes('</head>')) {
-    return new Response(html, response);
+    return new Response(html, {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
   }
 
   return new Response(html.replace('</head>', `${links.join('')}</head>`), {
-    headers: response.headers,
+    headers,
     status: response.status,
     statusText: response.statusText,
   });

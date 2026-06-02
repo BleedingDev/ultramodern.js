@@ -702,9 +702,8 @@ function createRootPackageJson(
       build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
-      lint: 'oxlint apps/*/src verticals/*/src packages/*/src --ignore-pattern "**/modern-tanstack/**"',
-      'lint:fix':
-        'oxlint apps/*/src verticals/*/src packages/*/src --ignore-pattern "**/modern-tanstack/**" --fix',
+      lint: 'oxlint .',
+      'lint:fix': 'oxlint . --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
@@ -910,7 +909,6 @@ function createPackageTsConfig(
   return {
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
     include,
-    exclude: ['src/modern-tanstack'],
   };
 }
 
@@ -5412,6 +5410,7 @@ async function fetchText(url) {
     status: response.status,
     accessControlAllowOrigin: response.headers.get('access-control-allow-origin'),
     contentType: response.headers.get('content-type'),
+    link: response.headers.get('link'),
     body: await response.text(),
   };
 }
@@ -5505,6 +5504,21 @@ async function validateApp(app, publicUrl) {
   assert(
     expectedAppId && ssr.body.includes(\`data-app-id="\${expectedAppId}"\`),
     \`\${app.id} SSR response is missing CSS root marker \${cssRootSelector}\`,
+  );
+  const cssPreloadLinkHeader = ssr.link ?? '';
+  evidence.assertions.push({
+    type: 'css-preload-link-header',
+    actual: cssPreloadLinkHeader,
+    status:
+      cssPreloadLinkHeader.includes('rel=preload') &&
+      cssPreloadLinkHeader.includes('as=style')
+        ? 'pass'
+        : 'fail',
+  });
+  assert(
+    cssPreloadLinkHeader.includes('rel=preload') &&
+      cssPreloadLinkHeader.includes('as=style'),
+    \`\${app.id} SSR response is missing CSS preload Link headers\`,
   );
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
