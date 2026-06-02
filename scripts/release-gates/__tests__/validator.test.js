@@ -112,6 +112,61 @@ test('validateEvidence rejects placeholder metadata values', () => {
   }
 });
 
+test('validateEvidence rejects missing required evidence files', () => {
+  const dir = makeTempDir();
+  try {
+    assert.throws(
+      () =>
+        validateEvidence({
+          evidenceDir: dir,
+          requiredFiles: ['test-evidence.md'],
+          requiredMetadataFields: [
+            'author',
+            'timestamp',
+            'ticket_id',
+            'commit_sha',
+            'workflow_run_url',
+          ],
+          minimumReviewers: 2,
+          allowMissingEvidence: false,
+        }),
+      /Missing required evidence file "test-evidence\.md"/,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateEvidence rejects incomplete evidence metadata', () => {
+  const dir = makeTempDir();
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'test-evidence.md'),
+      'author: test\ntimestamp: now\nticket_id: id\ncommit_sha: sha\n',
+    );
+
+    assert.throws(
+      () =>
+        validateEvidence({
+          evidenceDir: dir,
+          requiredFiles: ['test-evidence.md'],
+          requiredMetadataFields: [
+            'author',
+            'timestamp',
+            'ticket_id',
+            'commit_sha',
+            'workflow_run_url',
+          ],
+          minimumReviewers: 2,
+          allowMissingEvidence: false,
+        }),
+      /Missing metadata field "workflow_run_url"/,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
 test('validateMigrationContracts checks snippets', () => {
   const dir = makeTempDir();
   try {

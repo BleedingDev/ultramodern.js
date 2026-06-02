@@ -44,6 +44,10 @@ on:
         required: true
         type: boolean
         default: true
+      release_candidate_evidence_dir:
+        description: "Release-candidate evidence directory required before publishing"
+        required: true
+        default: docs/super-app-rfc-adr/evidence/release-candidate/current
 
 permissions:
   contents: read
@@ -165,6 +169,23 @@ jobs:
       - name: Validate pre-publish source proof
         run: mise exec -- pnpm ultramodern:source-create-proof
 
+      - name: Validate release-candidate evidence gate
+        env:
+          RELEASE_CANDIDATE_EVIDENCE_DIR: ${{ inputs.release_candidate_evidence_dir }}
+        run: |
+          mise exec -- node scripts/release-gates/validate-release-candidate-gates.js \
+            --profile scripts/release-gates/rc-contract-profile.json \
+            --evidence-dir "$RELEASE_CANDIDATE_EVIDENCE_DIR" \
+            --skip-commands \
+            --skip-migration-validation \
+            --gate-name release-candidate-evidence-gate
+
+      - name: Validate release-candidate evidence snapshot
+        run: |
+          mise exec -- node scripts/release-gates/validate-gate-snapshot.js \
+            --snapshot-path .modern/contract-gates.json \
+            --required-gate release-candidate-evidence-gate
+
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
@@ -211,4 +232,17 @@ jobs:
         with:
           name: prepublish-source-create-proof
           path: .modern/prepublish-release-gates/source-create-proof.json
+          if-no-files-found: ignore
+
+      - name: Upload release-candidate evidence gate
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-candidate-evidence-gate
+          path: |
+            .modern/contract-gates.json
+            ${{ inputs.release_candidate_evidence_dir }}/architecture-evidence.md
+            ${{ inputs.release_candidate_evidence_dir }}/validation-evidence.md
+            ${{ inputs.release_candidate_evidence_dir }}/test-evidence.md
+            ${{ inputs.release_candidate_evidence_dir }}/review-evidence.md
           if-no-files-found: ignore
