@@ -32,7 +32,7 @@ export const EN_LOCALE = {
     optionVersion: '  -v, --version  Display version information',
     optionLang: '  -l, --lang     Set the language (zh or en)',
     optionRouter:
-      '  -r, --router   Select router framework (react-router or tanstack)',
+      '  -r, --router   Select router framework (tanstack default; react-router is compatibility mode)',
     optionBff:
       '      --bff      Keep Effect BFF enabled (default for UltraModern apps)',
     optionBffRuntime: '      --bff-runtime Select BFF runtime (hono or effect)',
@@ -41,7 +41,7 @@ export const EN_LOCALE = {
     optionWorkspace:
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionUltramodernWorkspace:
-      '      --ultramodern-workspace Generate an UltraModern SuperApp workspace (explicit opt-in; default is a simple app)',
+      '      --ultramodern-workspace Generate an UltraModern SuperApp workspace (default is a full UltraModern single app)',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source Select UltraModern package source (workspace or install; BleedingDev defaults to install aliases)',
     optionUltramodernPackageScope:
@@ -66,7 +66,7 @@ export const EN_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-app --no-tailwind',
     example11:
-      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router',
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router # compatibility mode',
     example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },

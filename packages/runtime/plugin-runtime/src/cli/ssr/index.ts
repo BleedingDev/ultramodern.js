@@ -288,11 +288,6 @@ const ssrBuilderPlugin = (
       }
       const isModuleFederationAppSSR =
         hasServerRendering && hasExplicitMfSsrFlag && !isCloudflareWorkerSSR;
-      const useModuleFederationNodeOutput =
-        hasServerRendering &&
-        isModuleFederationAppSSR &&
-        isNodeEnvironmentTarget(config.output.target);
-
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =
         userConfig.deploy?.worker?.ssr || userConfig.server?.rsc
@@ -302,20 +297,6 @@ const ssrBuilderPlugin = (
       const appContext = modernAPI.getAppContext();
       const { appDirectory, entrypoints } = appContext;
 
-      const serverBundlerChain: ((chain: RspackChain) => void) | undefined =
-        useModuleFederationNodeOutput
-          ? (chain: RspackChain) => {
-              chain.target('async-node');
-              chain.output.module(false);
-              chain.output.chunkFormat('commonjs');
-              chain.output.chunkLoading('async-node');
-              chain.output.library({
-                ...(chain.output.get('library') || {}),
-                type: 'commonjs-module',
-              });
-            }
-          : undefined;
-
       const useLoadablePlugin =
         isUseSSRBundle(userConfig) &&
         !isServerEnvironment &&
@@ -324,7 +305,6 @@ const ssrBuilderPlugin = (
       const outputConfig = {
         module:
           isServerEnvironment &&
-          !useModuleFederationNodeOutput &&
           (outputModule ||
             (name === 'workerSSR' &&
               userConfig.deploy?.target === 'cloudflare')),
@@ -348,17 +328,15 @@ const ssrBuilderPlugin = (
         },
         output: outputConfig,
         tools: {
-          bundlerChain:
-            serverBundlerChain ||
-            (useLoadablePlugin
-              ? (chain: RspackChain) => {
-                  chain
-                    .plugin('loadable')
-                    .use(LoadableBundlerPlugin, [
-                      { filename: LOADABLE_STATS_FILE },
-                    ]);
-                }
-              : undefined),
+          bundlerChain: useLoadablePlugin
+            ? (chain: RspackChain) => {
+                chain
+                  .plugin('loadable')
+                  .use(LoadableBundlerPlugin, [
+                    { filename: LOADABLE_STATS_FILE },
+                  ]);
+              }
+            : undefined,
           swc: useLoadableComponents
             ? {
                 jsc: {

@@ -2413,26 +2413,20 @@ function createShellRemoteComponents(
       return `const ${componentName} = createHydratedRemote(${componentName}Server, '${remoteDependencyAlias(remote)}/Widget');`;
     })
     .join('\n');
-  const showcaseItems = widgetRemotes
-    .map(remote => {
-      const componentName = `${toPascalCase(remote.id)}Widget`;
-      return `          <${componentName} key="${remote.id}" />`;
-    })
-    .join('\n');
-  const remoteCount = String(widgetRemotes.length);
-
-  return `import { createLazyComponent } from '@module-federation/bridge-react';
+  const federationImports =
+    widgetRemotes.length > 0
+      ? `import { createLazyComponent } from '@module-federation/bridge-react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
-import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 ${serverImports}
-
-interface RemoteComponentModule {
+`
+      : '';
+  const federationHelpers =
+    widgetRemotes.length > 0
+      ? `interface RemoteComponentModule {
   default: ComponentType;
 }
-
-const widgetCount = Number('${remoteCount}');
 
 const loadRemoteComponent = (specifier: string) =>
   loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
@@ -2480,10 +2474,24 @@ const createHydratedRemote =
       </Suspense>
     );
   };
+`
+      : '';
+  const showcaseItems = widgetRemotes
+    .map(remote => {
+      const componentName = `${toPascalCase(remote.id)}Widget`;
+      return `          <${componentName} key="${remote.id}" />`;
+    })
+    .join('\n');
+  const remoteCount = String(widgetRemotes.length);
 
-${hydratedExports}
+  return `${federationImports}import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
-export const Header = () => {
+	const widgetCount = Number('${remoteCount}');
+
+	${federationHelpers}
+	${hydratedExports}
+
+	export const Header = () => {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 

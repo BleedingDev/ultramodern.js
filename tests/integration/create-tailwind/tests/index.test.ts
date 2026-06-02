@@ -6,6 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
+const expectedPnpmVersion = '11.5.0';
 
 function expectNoHandlebarsArtifacts(content: string) {
   expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
@@ -84,9 +85,21 @@ function expectSingleAppContract(appDir: string) {
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
   );
+  const packageSource = JSON.parse(
+    fs.readFileSync(
+      path.join(appDir, '.modernjs/ultramodern-package-source.json'),
+      'utf-8',
+    ),
+  );
+  const templateManifest = JSON.parse(
+    fs.readFileSync(
+      path.join(appDir, '.modernjs/mv-template-manifest.json'),
+      'utf-8',
+    ),
+  );
   expect(packageJson.private).toBe(true);
-  expect(packageJson.packageManager).toBe('pnpm@11.4.0');
-  expect(packageJson.engines.pnpm).toBe('>=11.4.0 <11.5.0');
+  expect(packageJson.packageManager).toBe(`pnpm@${expectedPnpmVersion}`);
+  expect(packageJson.engines.pnpm).toBe(`>=${expectedPnpmVersion} <11.6.0`);
   expect(fs.existsSync(path.join(appDir, '.mise.toml'))).toBe(true);
   expect(packageJson.pnpm).toBeUndefined();
   expect(packageJson.scripts.test).toBe('rstest run');
@@ -112,6 +125,11 @@ function expectSingleAppContract(appDir: string) {
       path.join(appDir, '.modernjs/ultramodern-package-source.json'),
     ),
   ).toBe(true);
+  if (packageSource.strategy === 'install') {
+    expect(packageSource.modernPackages.specifier).toBe(
+      templateManifest.template.version,
+    );
+  }
   expect(fs.existsSync(path.join(appDir, 'pnpm-workspace.yaml'))).toBe(true);
   expectPnpm11Policy(appDir);
   expect(fs.existsSync(path.join(appDir, 'src/routes/page.tsx'))).toBe(false);

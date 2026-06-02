@@ -7,6 +7,7 @@ import path from 'node:path';
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
 const defaultProjectName = 'ultramodern-ci-superapp';
+const defaultSingleAppProjectName = 'ultramodern-ci-single-app';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
 const verticalNames = [
   'inventory',
@@ -22,6 +23,15 @@ const verticalNames = [
 ];
 const modernPackages = [
   '@modern-js/app-tools',
+  '@modern-js/adapter-rstest',
+  '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/runtime',
+  '@modern-js/tsconfig',
+];
+const workspaceModernPackages = [
+  '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
@@ -32,6 +42,7 @@ function parseArgs(argv) {
   const options = {
     createPackage: defaultCreatePackage,
     projectName: defaultProjectName,
+    singleAppProjectName: defaultSingleAppProjectName,
     verticalCount: 3,
     out: defaultOut,
     deployCloudflare: false,
@@ -43,6 +54,8 @@ function parseArgs(argv) {
       options.createPackage = argv[++index];
     } else if (arg === '--project-name') {
       options.projectName = argv[++index];
+    } else if (arg === '--single-app-project-name') {
+      options.singleAppProjectName = argv[++index];
     } else if (arg === '--vertical-count') {
       options.verticalCount = Number.parseInt(argv[++index], 10);
     } else if (arg === '--out') {
@@ -61,6 +74,7 @@ function parseArgs(argv) {
     throw new Error(`--vertical-count cannot exceed ${verticalNames.length}`);
   }
   assertSafeName(options.projectName, '--project-name');
+  assertSafeName(options.singleAppProjectName, '--single-app-project-name');
 
   return {
     ...options,
@@ -154,17 +168,20 @@ function packageJsonFiles(root) {
   return files.sort();
 }
 
-function assertGeneratedCohort(projectDir, expectedVersion) {
+function assertGeneratedCohort(
+  projectDir,
+  expectedVersion,
+  { manifestPath, modernPackageNames, workspaceManifest = false } = {
+    manifestPath: '.modernjs/mv-template-manifest.json',
+    modernPackageNames: modernPackages,
+    workspaceManifest: false,
+  },
+) {
   const errors = [];
   const packageSource = readJson(
     path.join(projectDir, '.modernjs/ultramodern-package-source.json'),
   );
-  const manifest = readJson(
-    path.join(
-      projectDir,
-      '.modernjs/ultramodern-workspace-template-manifest.json',
-    ),
-  );
+  const manifest = readJson(path.join(projectDir, manifestPath));
 
   if (packageSource.strategy !== 'install') {
     errors.push(`package source strategy is ${packageSource.strategy}`);
@@ -177,13 +194,16 @@ function assertGeneratedCohort(projectDir, expectedVersion) {
   if (manifest.template?.version !== expectedVersion) {
     errors.push(`template version is ${manifest.template?.version}`);
   }
-  if (manifest.packageSource?.modernPackageSpecifier !== expectedVersion) {
+  if (
+    workspaceManifest &&
+    manifest.packageSource?.modernPackageSpecifier !== expectedVersion
+  ) {
     errors.push(
       `manifest package specifier is ${manifest.packageSource?.modernPackageSpecifier}`,
     );
   }
 
-  for (const modernPackageName of modernPackages) {
+  for (const modernPackageName of modernPackageNames) {
     const alias = packageSource.modernPackages?.aliases?.[modernPackageName];
     const expectedAlias = bleedingdevAlias(modernPackageName);
     if (alias !== expectedAlias) {
@@ -195,7 +215,7 @@ function assertGeneratedCohort(projectDir, expectedVersion) {
     const relative = path.relative(projectDir, packageJsonPath);
     const packageJson = readJson(packageJsonPath);
     for (const section of ['dependencies', 'devDependencies']) {
-      for (const modernPackageName of modernPackages) {
+      for (const modernPackageName of modernPackageNames) {
         const actual = packageJson[section]?.[modernPackageName];
         const expected = expectedSpecifier(modernPackageName, expectedVersion);
         if (actual !== undefined && actual !== expected) {
@@ -227,6 +247,24 @@ function createWorkspace(workDir, projectName, createPackage) {
   );
 }
 
+function createSingleApp(workDir, projectName, createPackage) {
+  run(
+    'pnpm',
+    [
+      'dlx',
+      createPackage.exactSpecifier,
+      projectName,
+      '--router',
+      'tanstack',
+      '--bff-runtime',
+      'effect',
+      '--lang',
+      'en',
+    ],
+    { cwd: workDir },
+  );
+}
+
 function addVertical(projectDir, vertical, createPackage) {
   run(
     'pnpm',
@@ -249,22 +287,35 @@ function main() {
     path.join(os.tmpdir(), 'ultramodern-production-readiness-'),
   );
   const projectDir = path.join(workDir, options.projectName);
+  const singleAppDir = path.join(workDir, options.singleAppProjectName);
   const summary = {
     schemaVersion: 1,
     createPackage,
     projectDir,
+    singleAppDir,
     verticals: options.verticals,
     checks: [],
   };
 
   try {
+    createSingleApp(workDir, options.singleAppProjectName, createPackage);
+    assertGeneratedCohort(singleAppDir, createPackage.version, {
+      manifestPath: '.modernjs/mv-template-manifest.json',
+      modernPackageNames: modernPackages,
+    });
+    summary.checks.push('single-app-published-cohort-alignment');
+
     createWorkspace(workDir, options.projectName, createPackage);
     for (const vertical of options.verticals) {
       addVertical(projectDir, vertical, createPackage);
     }
 
-    assertGeneratedCohort(projectDir, createPackage.version);
-    summary.checks.push('published-cohort-alignment');
+    assertGeneratedCohort(projectDir, createPackage.version, {
+      manifestPath: '.modernjs/ultramodern-workspace-template-manifest.json',
+      modernPackageNames: workspaceModernPackages,
+      workspaceManifest: true,
+    });
+    summary.checks.push('workspace-published-cohort-alignment');
 
     run('pnpm', ['install'], { cwd: projectDir });
     summary.checks.push('install');

@@ -399,8 +399,10 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['format:check']).toBe(
       "oxfmt --check . '!repos/**'",
     );
-    expect(rootPackage.scripts.lint).toBe('oxlint .');
-    expect(rootPackage.scripts['lint:fix']).toBe('oxlint . --fix');
+    expect(rootPackage.scripts.lint).toBe('oxlint apps verticals packages');
+    expect(rootPackage.scripts['lint:fix']).toBe(
+      'oxlint apps verticals packages --fix',
+    );
     expect(rootPackage.scripts['skills:install']).toBe(
       'node ./scripts/bootstrap-agent-skills.mjs',
     );

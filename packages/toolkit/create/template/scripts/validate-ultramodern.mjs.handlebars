@@ -420,6 +420,15 @@ if (typeof expectedModernSpecifier !== 'string' || expectedModernSpecifier.lengt
   console.error('Package source metadata must provide a Modern package specifier');
   process.exit(1);
 }
+if (
+  packageSource.strategy === 'install' &&
+  expectedModernSpecifier !== templateManifest.template?.version
+) {
+  console.error(
+    `Package source Modern specifier ${expectedModernSpecifier} must match template version ${templateManifest.template?.version}`,
+  );
+  process.exit(1);
+}
 
 const expectedModernDependency = (packageName) => {
   const alias = packageSource.modernPackages?.aliases?.[packageName];

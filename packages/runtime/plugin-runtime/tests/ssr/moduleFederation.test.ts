@@ -296,7 +296,7 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.target).toBe('node');
   });
 
-  it('enables module federation node output when app-level mf ssr stable flag is enabled', () => {
+  it('keeps esm node output when app-level mf ssr stable flag is enabled', () => {
     const transform = createEnvironmentConfigTransformer({
       normalizedConfig: {
         server: {
@@ -314,15 +314,15 @@ describe('module federation SSR output compatibility', () => {
       },
     });
 
-    expect(result.output.module).toBe(false);
+    expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
       'true',
     );
-    expect(typeof result.tools?.bundlerChain).toBe('function');
+    expect(result.tools?.bundlerChain).toBeUndefined();
   });
 
-  it('enables module federation node output when stable flag is set via ssrByEntries', () => {
+  it('keeps esm node output when stable flag is set via ssrByEntries', () => {
     const transform = createEnvironmentConfigTransformer({
       normalizedConfig: {
         server: {
@@ -342,11 +342,11 @@ describe('module federation SSR output compatibility', () => {
       },
     });
 
-    expect(result.output.module).toBe(false);
+    expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
       'true',
     );
-    expect(typeof result.tools?.bundlerChain).toBe('function');
+    expect(result.tools?.bundlerChain).toBeUndefined();
   });
 });

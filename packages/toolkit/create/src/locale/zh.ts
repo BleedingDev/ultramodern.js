@@ -29,14 +29,15 @@ export const ZH_LOCALE = {
     optionHelp: '  -h, --help     显示帮助信息',
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (zh 或 en)',
-    optionRouter: '  -r, --router   选择路由框架 (react-router 或 tanstack)',
+    optionRouter:
+      '  -r, --router   选择路由框架（默认 tanstack；react-router 为兼容模式）',
     optionBff: '      --bff      保持启用 Effect BFF（UltraModern 应用默认值）',
     optionBffRuntime: '      --bff-runtime 选择 BFF 运行时（hono 或 effect）',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 模板',
     optionWorkspace:
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionUltramodernWorkspace:
-      '      --ultramodern-workspace 生成 UltraModern SuperApp 工作区（显式选择；默认创建简单应用）',
+      '      --ultramodern-workspace 生成 UltraModern SuperApp 工作区（默认创建完整 UltraModern 单应用）',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install；BleedingDev 默认使用 install alias）',
     optionUltramodernPackageScope:
@@ -61,7 +62,7 @@ export const ZH_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace',
     example10: '  pnpm dlx @bleedingdev/modern-js-create my-app --no-tailwind',
     example11:
-      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router',
+      '  pnpm dlx @bleedingdev/modern-js-create my-app --router react-router # 兼容模式',
     example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
