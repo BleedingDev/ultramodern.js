@@ -816,13 +816,15 @@ describe('create-ultramodern-workspace', () => {
       'shell-super-app',
     );
     const generatedContract = readGeneratedContract(workspaceDir);
+    const baseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
+    expect(baseTsConfig.compilerOptions.allowImportingTsExtensions).toBe(true);
     expect(shellContract.moduleFederation.remotes).toContainEqual(
       expect.objectContaining({
         id: 'catalog',
         alias: 'catalog',
         name: 'verticalCatalog',
         manifestEnv: 'VERTICAL_CATALOG_MF_MANIFEST',
-        manifestUrl: 'http://localhost:3031/mf-manifest.json',
+        manifestUrl: 'http://localhost:4101/mf-manifest.json',
       }),
     );
     const catalogContract = getGeneratedAppContract(workspaceDir, 'catalog');
@@ -830,6 +832,19 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'verticals/catalog/module-federation.config.ts',
     );
+    const catalogModernConfig = readText(
+      workspaceDir,
+      'verticals/catalog/modern.config.ts',
+    );
+    const catalogEffectEntry = readText(
+      workspaceDir,
+      'verticals/catalog/api/effect/index.ts',
+    );
+    expect(catalogModernConfig).toContain("entry: './api/effect/index'");
+    expect(catalogEffectEntry).toContain(
+      "from '../../src/ultramodern-build.ts'",
+    );
+    expect(catalogEffectEntry).toContain("from '../../shared/effect/api.ts'");
     expect(catalogModuleFederationConfig).toContain(`bridge: {
     enableBridgeRouter: false,
   },`);
@@ -870,7 +885,7 @@ describe('create-ultramodern-workspace', () => {
         },
       },
       moduleFederation: {
-        manifestUrl: 'http://localhost:3031/mf-manifest.json',
+        manifestUrl: 'http://localhost:4101/mf-manifest.json',
       },
     });
     expect(
@@ -889,12 +904,78 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'topology/local-overlays/development.json',
     );
-    expect(overlay.ports.catalog).toBe(3031);
+    expect(overlay.ports.catalog).toBe(4101);
     expect(overlay.manifests.catalog).toBe(
-      'http://localhost:3031/mf-manifest.json',
+      'http://localhost:4101/mf-manifest.json',
     );
-    expect(overlay.apis.catalog).toBe('http://localhost:3031/catalog-api');
+    expect(overlay.apis.catalog).toBe('http://localhost:4101/catalog-api');
     expect(overlay.services?.['service-catalog-effect']).toBeUndefined();
+  });
+
+  test('keeps numbered vertical Tailwind prefixes unique', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-numbered-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreateInWorkspace(workspaceDir, [
+      'erp-vertical-011',
+      '--vertical',
+      '--lang',
+      'en',
+    ]);
+    runCreateInWorkspace(workspaceDir, [
+      'erp-vertical-012',
+      '--vertical',
+      '--lang',
+      'en',
+    ]);
+
+    const generatedContract = readGeneratedContract(workspaceDir);
+    expectCssFederationContract(
+      generatedContract,
+      getGeneratedAppContract(workspaceDir, 'erp-vertical-011'),
+      {
+        classPrefix: 'erpverticalzerooneone:',
+        ownedLayers: ['ultramodern-vertical-erp-vertical-011'],
+        role: 'vertical-css',
+        rootSelector: '[data-app-id="erp-vertical-011"]',
+      },
+    );
+    expectCssFederationContract(
+      generatedContract,
+      getGeneratedAppContract(workspaceDir, 'erp-vertical-012'),
+      {
+        classPrefix: 'erpverticalzeroonetwo:',
+        ownedLayers: ['ultramodern-vertical-erp-vertical-012'],
+        role: 'vertical-css',
+        rootSelector: '[data-app-id="erp-vertical-012"]',
+      },
+    );
+    expect(
+      readText(workspaceDir, 'verticals/erp-vertical-011/src/routes/index.css'),
+    ).toContain('prefix(erpverticalzerooneone)');
+    expect(
+      readText(workspaceDir, 'verticals/erp-vertical-012/src/routes/index.css'),
+    ).toContain('prefix(erpverticalzeroonetwo)');
+
+    const shellPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    expect(shellPackage['zephyr:dependencies']).toMatchObject({
+      erpVertical011: '@ultra-numbered-workspace/erp-vertical-011@workspace:*',
+      erpVertical012: '@ultra-numbered-workspace/erp-vertical-012@workspace:*',
+    });
+    const validationOutput = execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern-workspace.mjs'],
+      {
+        cwd: workspaceDir,
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(validationOutput.trim()).toBe(
+      'UltraModern workspace scaffold validated',
+    );
   });
 
   test('rejects the removed legacy microvertical flag', () => {

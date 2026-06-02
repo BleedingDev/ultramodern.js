@@ -121,6 +121,34 @@ test('creates local and public smoke targets from the generated contract', async
   );
 });
 
+test('orders local smoke startup so remotes are ready before shell', async () => {
+  const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
+  const contract = createContract();
+  contract.apps.push({
+    ...contract.apps[0],
+    id: 'inventory',
+    kind: 'vertical',
+    package: '@demo/inventory',
+  });
+  contract.apps[0].moduleFederation.verticalRefs = ['inventory'];
+
+  const { targets } = createSmokeTargets(contract);
+  const ordered = orderTargetsForLocalStartup(targets);
+
+  assert.deepEqual(
+    ordered.remotes.map(target => target.app.id),
+    ['inventory'],
+  );
+  assert.deepEqual(
+    ordered.shells.map(target => target.app.id),
+    ['shell-super-app'],
+  );
+  assert.deepEqual(
+    ordered.validation.map(target => target.app.id),
+    ['inventory', 'shell-super-app'],
+  );
+});
+
 test('passes route, marker, manifest, and locale HTTP assertions', async () => {
   const { createSmokeTargets, validateHttpTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;

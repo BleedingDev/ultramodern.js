@@ -232,6 +232,12 @@ export function createSmokeTargets(
   return { skipped, targets };
 }
 
+export function orderTargetsForLocalStartup(targets) {
+  const remotes = targets.filter(target => target.app.kind !== 'shell');
+  const shells = targets.filter(target => target.app.kind === 'shell');
+  return { remotes, shells, validation: [...remotes, ...shells] };
+}
+
 function assertion(type, status, details = {}) {
   return {
     status,
@@ -682,10 +688,20 @@ export async function runUltramodernBrowserSmoke(options) {
 
   try {
     if (options.mode === 'local') {
-      for (const target of targets) {
+      const orderedTargets = orderTargetsForLocalStartup(targets);
+      for (const target of orderedTargets.remotes) {
         servers.push(startServer(target, options));
       }
-      for (const target of targets) {
+      for (const target of orderedTargets.remotes) {
+        await waitForTarget(target, {
+          fetchImpl: options.fetchImpl ?? fetch,
+          timeoutMs: options.timeoutMs,
+        });
+      }
+      for (const target of orderedTargets.shells) {
+        servers.push(startServer(target, options));
+      }
+      for (const target of orderedTargets.shells) {
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           timeoutMs: options.timeoutMs,
@@ -700,7 +716,11 @@ export async function runUltramodernBrowserSmoke(options) {
     }
 
     browser = await launchBrowser(options.browserProvider);
-    for (const target of targets) {
+    const validationTargets =
+      options.mode === 'local'
+        ? orderTargetsForLocalStartup(targets).validation
+        : targets;
+    for (const target of validationTargets) {
       const httpAssertions = await validateHttpTarget(target, {
         fetchImpl: options.fetchImpl ?? fetch,
       });

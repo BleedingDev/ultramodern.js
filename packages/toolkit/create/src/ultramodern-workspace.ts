@@ -164,6 +164,7 @@ export type AddUltramodernVerticalOptions = {
 };
 
 export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
+const FIRST_VERTICAL_PORT = 4101;
 
 function isRecord(value: unknown): value is Record<string, JsonValue> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -873,6 +874,7 @@ function createTsConfigBase(): JsonValue {
       verbatimModuleSyntax: true,
       strict: true,
       noEmit: true,
+      allowImportingTsExtensions: true,
       allowJs: true,
       esModuleInterop: true,
       noUncheckedIndexedAccess: true,
@@ -1029,6 +1031,7 @@ function createAppModernConfig(scope: string, app: WorkspaceApp): string {
   const bffConfig = appHasEffectApi(app)
     ? `      bff: {
         effect: {
+          entry: './api/effect/index',
           openapi: {
             path: '/openapi.json',
           },
@@ -1838,13 +1841,25 @@ function createCssTokenImport(scope: string): string {
 }
 
 function createTailwindPrefix(raw: string): string {
-  const prefix = raw.toLowerCase().replace(/[^a-z]/gu, '');
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]/gu, '');
 
-  if (!prefix) {
+  if (!normalized) {
     throw new Error(`Cannot derive a Tailwind prefix from ${raw}`);
   }
 
-  return prefix;
+  const digitWords = [
+    'zero',
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+  ];
+  return normalized.replace(/[0-9]/gu, digit => digitWords[Number(digit)]);
 }
 
 function tailwindPrefixForApp(app: WorkspaceApp): string {
@@ -3680,7 +3695,7 @@ function createEffectServiceEntry(
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-edge';
-import { ultramodernApiMarker } from '../../src/ultramodern-build';
+import { ultramodernApiMarker } from '../../src/ultramodern-build.ts';
 import {
   ${apiExport},
   ${groupName}OperationContexts,
@@ -5013,6 +5028,7 @@ function createWorkspaceValidationScript(
     mfName: remote.mfName,
     apiPrefix: remote.effectApi.prefix,
     tailwindPrefix: tailwindPrefixForApp(remote),
+    zephyrAlias: remoteDependencyAlias(remote),
     packageName: packageName(scope, remote.packageSuffix),
     exposes: Object.keys(remote.exposes ?? {}),
     componentPaths: Object.keys(remote.exposes ?? {})
@@ -5215,7 +5231,7 @@ assert(generatedContract.cssFederation?.sharedDesignTokens?.ssr?.firstPaintRequi
 const shellPackage = readJson('apps/shell-super-app/package.json');
 const expectedZephyrDependencies = Object.fromEntries(
   fullStackVerticals.map(vertical => [
-    vertical.domain,
+    vertical.zephyrAlias,
     \`\${vertical.packageName}@workspace:*\`,
   ]),
 );
@@ -5259,7 +5275,7 @@ for (const vertical of fullStackVerticals) {
     fullStackVerticals
       .filter(candidate => vertical.verticalRefs.includes(candidate.id))
       .map(candidate => [
-        candidate.domain,
+        candidate.zephyrAlias,
         \`\${candidate.packageName}@workspace:*\`,
       ]),
   );
@@ -5302,7 +5318,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
   assert(contractEntry?.styling?.federation?.role === 'vertical-css', \`\${vertical.id} must own only vertical CSS\`);
   assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);
-  assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.domain}:\`, \`\${vertical.id} CSS class prefix is incorrect\`);
+  assert(contractEntry?.styling?.federation?.classPrefix === \`\${vertical.tailwindPrefix}:\`, \`\${vertical.id} CSS class prefix is incorrect\`);
   assert(contractEntry?.styling?.federation?.layers?.owned?.includes(\`ultramodern-vertical-\${vertical.domain}\`), \`\${vertical.id} vertical CSS layer is missing\`);
   assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), \`\${vertical.id} must not own shell base CSS\`);
   assert(contractEntry?.styling?.federation?.entrypoints?.federationEntry === 'src/federation-entry.tsx', \`\${vertical.id} CSS contract must include federation entry\`);
@@ -5841,7 +5857,11 @@ function writeApp(
     writeFile(
       targetDir,
       `${resolvedApp.directory}/api/effect/index.ts`,
-      createEffectServiceEntry(scope, resolvedApp, '../../shared/effect/api'),
+      createEffectServiceEntry(
+        scope,
+        resolvedApp,
+        '../../shared/effect/api.ts',
+      ),
     );
     writeFile(
       targetDir,
@@ -6088,7 +6108,7 @@ function nextAvailablePort(ports: Record<string, unknown>): number {
     (value): value is number =>
       typeof value === 'number' && Number.isFinite(value),
   );
-  return Math.max(3030, ...numericPorts) + 1;
+  return Math.max(FIRST_VERTICAL_PORT - 1, ...numericPorts) + 1;
 }
 
 function assertCanCreate(workspaceRoot: string, relativePath: string) {
