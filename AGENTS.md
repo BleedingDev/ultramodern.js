@@ -2,6 +2,7 @@
 
 1. Default publish/push remote is the user's fork: `bleedingdev`.
 2. Do not push or publish to upstream `origin` (`web-infra-dev/modern.js`) unless the user explicitly requests it.
+3. Hacks that hide framework defects in an app or demo are forbidden. Do not add app-level shims, custom navigation wrappers, manual click interception, synthetic `<a>` handlers, local config suppressions, generated-file edits, hook bypasses, or one-off patches to make a broken framework behavior look fixed. Use native framework/router primitives directly in apps, and fix broken behavior in the owning framework/runtime/tooling layer.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
