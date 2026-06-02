@@ -330,8 +330,11 @@ if (readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') !== false) {
   console.error('pnpm minimumReleaseAgeIgnoreMissingTime must be false');
   process.exit(1);
 }
-if (readPnpmConfig('minimumReleaseAgeExclude') !== undefined) {
-  console.error('pnpm minimumReleaseAgeExclude must stay unset');
+if (
+  JSON.stringify(readPnpmConfig('minimumReleaseAgeExclude')) !==
+  JSON.stringify(['@bleedingdev/modern-js-*'])
+) {
+  console.error('pnpm minimumReleaseAgeExclude must allow just-published BleedingDev Modern cohorts only');
   process.exit(1);
 }
 if (readPnpmConfig('trustPolicy') !== 'no-downgrade') {

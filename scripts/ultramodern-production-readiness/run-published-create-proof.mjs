@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -186,8 +187,8 @@ function run(command, args, options = {}) {
     cwd: options.cwd || repoRoot,
     env: {
       ...process.env,
-      ...options.env,
       FORCE_COLOR: '0',
+      ...(options.env || {}),
     },
     encoding: 'utf-8',
     stdio: options.stdio || 'inherit',
@@ -196,6 +197,233 @@ function run(command, args, options = {}) {
     throw new Error(`Command failed: ${[command, ...args].join(' ')}`);
   }
   return result.stdout?.trim() ?? '';
+}
+
+function reservePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => {
+          reject(new Error('Failed to reserve an available TCP port'));
+        });
+        return;
+      }
+      const { port } = address;
+      server.close(error => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
+function startServe(projectDir, port) {
+  const output = {
+    stderr: '',
+    stdout: '',
+  };
+  const child = spawn('pnpm', ['serve'], {
+    cwd: projectDir,
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+      MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS: 'false',
+      MODERN_PUBLIC_SITE_URL: `http://localhost:${port}`,
+      NODE_ENV: 'production',
+      PORT: String(port),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const ready = new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(
+        new Error(`modern serve did not become ready.\n${serveOutput(output)}`),
+      );
+    }, 60_000);
+
+    const settleReady = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+
+    const onData = key => chunk => {
+      const message = chunk.toString();
+      output[key] += message;
+      if (/> Local:/i.test(`${output.stdout}\n${output.stderr}`)) {
+        settleReady();
+      }
+    };
+
+    child.stdout.on('data', onData('stdout'));
+    child.stderr.on('data', onData('stderr'));
+    child.on('error', error => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      error.stdout = output.stdout;
+      error.stderr = output.stderr;
+      reject(error);
+    });
+    child.on('close', code => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      reject(
+        new Error(
+          `modern serve exited before readiness marker with code ${
+            code ?? 'unknown'
+          }.\n${serveOutput(output)}`,
+        ),
+      );
+    });
+  });
+
+  return { child, output, ready };
+}
+
+function serveOutput(output) {
+  return [output.stdout.trim(), output.stderr.trim()]
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function stopServe(server) {
+  if (!server?.child || server.child.killed) {
+    return;
+  }
+
+  await new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      if (!server.child.killed) {
+        server.child.kill('SIGKILL');
+      }
+      resolve();
+    }, 5_000);
+
+    server.child.once('close', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    server.child.kill('SIGTERM');
+  });
+}
+
+async function fetchHtml(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'text/html',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+    redirect: 'follow',
+  });
+  const text = await response.text();
+  return { response, text };
+}
+
+function assertSingleAppSsrHtml(route, response, text) {
+  const trimmed = text.trim();
+  const failures = [];
+
+  if (response.status !== 200) {
+    failures.push(`${route} returned ${response.status}`);
+  }
+  if (trimmed.length === 0) {
+    failures.push(`${route} returned an empty HTML body`);
+  }
+  if (!/<html[\s>]/iu.test(text)) {
+    failures.push(`${route} HTML is missing <html>`);
+  }
+  if (!/<body[\s>]/iu.test(text)) {
+    failures.push(`${route} HTML is missing <body>`);
+  }
+  if (!text.includes('id="$tsr-stream-barrier"')) {
+    failures.push(`${route} HTML is missing TanStack SSR stream barrier`);
+  }
+  if (!text.includes('$_TSR')) {
+    failures.push(`${route} HTML is missing TanStack SSR bootstrap`);
+  }
+  if (!text.includes('UltraModern.js Starter')) {
+    failures.push(`${route} HTML is missing generated page content`);
+  }
+  if (text.includes('__modern_ssr_fallback_reason__')) {
+    failures.push(`${route} HTML contains Modern SSR fallback marker`);
+  }
+  if (/<div id="root"><\/div>/iu.test(text)) {
+    failures.push(`${route} HTML contains an empty root`);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(failures.map(failure => `- ${failure}`).join('\n'));
+  }
+}
+
+function assertNoSsrRenderErrors(output) {
+  const combined = serveOutput(output);
+  const fatalPatterns = [
+    /Element type is invalid/iu,
+    /Hydration failed/iu,
+    /Minified React error/iu,
+    /Objects are not valid as a React child/iu,
+    /ReferenceError:\s+require is not defined/iu,
+    /TelemetryStartupHealthError/iu,
+    /__modern_ssr_fallback_reason__/iu,
+    /renderTo(?:String|PipeableStream|ReadableStream)[\s\S]{0,160}(?:failed|error|exception)/iu,
+    /(?:failed|error|exception)[\s\S]{0,160}renderTo(?:String|PipeableStream|ReadableStream)/iu,
+  ];
+
+  const matchedPattern = fatalPatterns.find(pattern => pattern.test(combined));
+  if (matchedPattern) {
+    throw new Error(
+      `modern serve emitted an SSR/render failure matching ${matchedPattern}.\n${combined}`,
+    );
+  }
+}
+
+async function runSingleAppSsrProof(singleAppDir) {
+  run('pnpm', ['install'], { cwd: singleAppDir });
+
+  const port = await reservePort();
+  const env = {
+    MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS: 'false',
+    MODERN_PUBLIC_SITE_URL: `http://localhost:${port}`,
+  };
+  run('pnpm', ['build'], { cwd: singleAppDir, env });
+
+  const server = startServe(singleAppDir, port);
+  try {
+    await server.ready;
+    const routes = ['/', '/en'];
+    for (const route of routes) {
+      const { response, text } = await fetchHtml(
+        `http://localhost:${port}${route}`,
+      );
+      assertSingleAppSsrHtml(route, response, text);
+    }
+    assertNoSsrRenderErrors(server.output);
+  } finally {
+    await stopServe(server);
+  }
 }
 
 function readJson(filePath) {
@@ -222,6 +450,25 @@ function timedStep(summary, id, action) {
   const startedAt = performance.now();
   try {
     const value = action();
+    summary.timings[id] = {
+      status: 'pass',
+      durationMs: roundDurationMs(performance.now() - startedAt),
+    };
+    return value;
+  } catch (error) {
+    summary.timings[id] = {
+      status: 'fail',
+      durationMs: roundDurationMs(performance.now() - startedAt),
+      error: error instanceof Error ? error.message : String(error),
+    };
+    throw error;
+  }
+}
+
+async function timedStepAsync(summary, id, action) {
+  const startedAt = performance.now();
+  try {
+    const value = await action();
     summary.timings[id] = {
       status: 'pass',
       durationMs: roundDurationMs(performance.now() - startedAt),
@@ -558,7 +805,7 @@ function readGeneratedTopologyEvidence(
   });
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   const workDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-production-readiness-'),
@@ -593,6 +840,13 @@ function main() {
       }),
     );
     summary.checks.push('single-app-published-cohort-alignment');
+
+    await timedStepAsync(summary, 'singleAppSsrServeProof', () =>
+      runSingleAppSsrProof(singleAppDir),
+    );
+    summary.checks.push('single-app-install');
+    summary.checks.push('single-app-build');
+    summary.checks.push('single-app-ssr-serve');
 
     timedStep(summary, 'workspaceCreation', () =>
       createWorkspace(workDir, options.projectName, createPackage),
@@ -718,7 +972,7 @@ if (
   process.argv[1] &&
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 ) {
-  main();
+  await main();
 }
 
 export {

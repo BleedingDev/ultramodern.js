@@ -59,9 +59,9 @@ function expectPnpm11Policy(projectDir: string) {
   expect(readPnpmConfig(projectDir, 'minimumReleaseAgeIgnoreMissingTime')).toBe(
     false,
   );
-  expect(
-    readPnpmConfig(projectDir, 'minimumReleaseAgeExclude'),
-  ).toBeUndefined();
+  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
+    '@bleedingdev/modern-js-*',
+  ]);
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
   expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);

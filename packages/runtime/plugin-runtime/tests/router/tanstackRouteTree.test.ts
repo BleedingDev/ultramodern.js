@@ -1,7 +1,10 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute } from '@modern-js/types';
 import { createMemoryHistory } from '@tanstack/history';
-import { createRouter } from '@tanstack/react-router';
+import { createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
+import type { ComponentType } from 'react';
+import { createElement, lazy } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
@@ -22,6 +25,7 @@ type TestRouteObject = RouteObject & {
   hasLoader?: boolean;
   inValidSSRRoute?: boolean;
   isClientComponent?: boolean;
+  lazyImport?: () => Promise<unknown>;
 };
 
 type TestNestedRoute = NestedRoute & {
@@ -302,6 +306,40 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(loaderData?.immediate).toBe('ok');
     await expect(loaderData?.later).resolves.toBe('done');
+  });
+
+  test('unwraps nested ESM route module defaults before server rendering', async () => {
+    const LazyRouteComponent = () =>
+      createElement('main', null, 'Nested lazy child route ready');
+    const lazyImport = rstest.fn(async () => ({
+      default: {
+        default: LazyRouteComponent,
+      },
+    }));
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => createElement('section', null, createElement(Outlet)),
+        children: [
+          {
+            id: 'lazy',
+            path: 'lazy',
+            Component: lazy(
+              lazyImport as () => Promise<{ default: ComponentType }>,
+            ),
+            lazyImport,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/lazy');
+
+    expect(
+      renderToStaticMarkup(createElement(RouterProvider, { router } as never)),
+    ).toContain('Nested lazy child route ready');
   });
 
   test('merges Modern generated route handle into TanStack static data', () => {

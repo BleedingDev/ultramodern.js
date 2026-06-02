@@ -231,6 +231,7 @@ function normalizeModernLoaderResponse(result: unknown): unknown {
 
 function pickRouteModuleComponent(
   routeModule: unknown,
+  seen: Set<unknown> = new Set(),
 ): ElementType<Record<string, unknown>> | undefined {
   if (
     typeof routeModule === 'function' ||
@@ -244,14 +245,17 @@ function pickRouteModuleComponent(
   if (!routeModule || typeof routeModule !== 'object') {
     return undefined;
   }
+  if (seen.has(routeModule)) {
+    return undefined;
+  }
+  seen.add(routeModule);
 
   const module = routeModule as ModernRouteModule;
-  const component = module.default || module.Component;
-  if (
-    typeof component === 'function' ||
-    (component && typeof component === 'object' && '$$typeof' in component)
-  ) {
-    return component as ElementType<Record<string, unknown>>;
+  for (const candidate of [module.default, module.Component]) {
+    const component = pickRouteModuleComponent(candidate, seen);
+    if (component) {
+      return component;
+    }
   }
 
   return undefined;

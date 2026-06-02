@@ -26,7 +26,7 @@ type TestRouteObject = RouteObject & {
   hasLoader?: boolean;
   inValidSSRRoute?: boolean;
   isClientComponent?: boolean;
-  lazyImport?: () => Promise<{ default: ComponentType }>;
+  lazyImport?: () => Promise<unknown>;
 };
 
 type TestNestedRoute = NestedRoute & {
@@ -303,6 +303,40 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(
       renderToStaticMarkup(createElement(RouterProvider, { router } as never)),
     ).toContain('Lazy child route ready');
+  });
+
+  test('unwraps nested ESM route module defaults before server rendering', async () => {
+    const LazyRouteComponent = () =>
+      createElement('main', null, 'Nested lazy child route ready');
+    const lazyImport = rstest.fn(async () => ({
+      default: {
+        default: LazyRouteComponent,
+      },
+    }));
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => createElement('section', null, createElement(Outlet)),
+        children: [
+          {
+            id: 'lazy',
+            path: 'lazy',
+            Component: lazy(
+              lazyImport as () => Promise<{ default: ComponentType }>,
+            ),
+            lazyImport,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/lazy');
+
+    expect(
+      renderToStaticMarkup(createElement(RouterProvider, { router } as never)),
+    ).toContain('Nested lazy child route ready');
   });
 
   test('preserves route handle and maps shouldRevalidate to shouldReload', async () => {
