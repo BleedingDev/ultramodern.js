@@ -378,7 +378,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/assert-mf-types.mjs',
     );
     expect(rootPackage.scripts.build).toBe(
-      'pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+      'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
     );
     expect(rootPackage.scripts['cloudflare:build']).toBe(
       'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
@@ -513,7 +513,9 @@ describe('create-ultramodern-workspace', () => {
       );
       expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
       expect(packageJson.scripts.dev).toBe('modern dev');
-      expect(packageJson.scripts.build).toBe('modern build');
+      expect(packageJson.scripts.build).toBe(
+        'ULTRAMODERN_ZEPHYR=false modern build',
+      );
       expect(packageJson.scripts['cloudflare:build']).toBe(
         'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       );
@@ -761,7 +763,8 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(remotePackage.scripts).toMatchObject({
       dev: 'modern dev',
-      build: 'modern build && node ../../scripts/assert-mf-types.mjs',
+      build:
+        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/assert-mf-types.mjs',
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(

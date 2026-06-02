@@ -672,7 +672,9 @@ function createRootPackageJson(
     remote => `--filter ${packageName(scope, remote.packageSuffix)}`,
   );
   const remoteBuildPrefix =
-    remotes.length > 0 ? 'pnpm -r --filter "./verticals/*" run build && ' : '';
+    remotes.length > 0
+      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && '
+      : '';
   const remoteCloudflareBuildPrefix =
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && '
@@ -700,7 +702,7 @@ function createRootPackageJson(
           `pnpm --filter ${packageName(scope, remote.packageSuffix)} dev`,
         ]),
       ),
-      build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
+      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint .',
@@ -933,8 +935,8 @@ function createAppPackage(
     scripts: {
       dev: 'modern dev',
       build: app.exposes
-        ? `modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
-        : 'modern build',
+        ? `ULTRAMODERN_ZEPHYR=false modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
+        : 'ULTRAMODERN_ZEPHYR=false modern build',
       'cloudflare:build':
         'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
       'cloudflare:deploy':
@@ -5028,8 +5030,8 @@ function createWorkspaceValidationScript(
   const oldRemotePaths = ['apps/remotes'];
   const expectedBuildScript =
     remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run build && pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types'
-      : 'pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types';
+      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types'
+      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types';
   const expectedCloudflareBuildScript =
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types'
