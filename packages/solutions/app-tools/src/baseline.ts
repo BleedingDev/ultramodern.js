@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import type { AppUserConfig } from './types';
 
@@ -44,6 +46,49 @@ export interface AppBaselineOptions {
    */
   enableModuleFederationSSR?: boolean;
 }
+
+const resolveReactRouterPackageDir = () => {
+  const localRequire = createRequire(path.join(process.cwd(), 'package.json'));
+  try {
+    const reactRouterDomPackageJson = localRequire.resolve(
+      'react-router-dom/package.json',
+      { paths: [process.cwd()] },
+    );
+    const reactRouterPackageJson = localRequire.resolve(
+      'react-router/package.json',
+      { paths: [path.dirname(reactRouterDomPackageJson)] },
+    );
+    return path.dirname(reactRouterPackageJson);
+  } catch {
+    return undefined;
+  }
+};
+
+const setReactRouterBridgeSafeAliases = (chain: any) => {
+  const reactRouterPackageDir = resolveReactRouterPackageDir();
+  if (!reactRouterPackageDir) {
+    return;
+  }
+
+  const productionEntry = path.join(
+    reactRouterPackageDir,
+    'dist/production/index.mjs',
+  );
+  const developmentEntry = path.join(
+    reactRouterPackageDir,
+    'dist/development/index.mjs',
+  );
+
+  chain.resolve.alias.set('react-router$', productionEntry);
+  chain.resolve.alias.set(
+    'react-router/dist/production/index.js',
+    productionEntry,
+  );
+  chain.resolve.alias.set(
+    'react-router/dist/development/index.js',
+    developmentEntry,
+  );
+};
 
 export const createAppBaselineConfig = (
   options: AppBaselineOptions = {},
@@ -103,6 +148,9 @@ export const createAppBaselineConfig = (
       },
     },
     server,
+    tools: {
+      bundlerChain: setReactRouterBridgeSafeAliases,
+    },
   };
 
   if (enableBffRequestId) {

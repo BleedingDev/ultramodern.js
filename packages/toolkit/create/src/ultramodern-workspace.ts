@@ -596,6 +596,7 @@ function appDependencies(
       '@modern-js/runtime',
       packageSource,
     ),
+    '@module-federation/bridge-react': MODULE_FEDERATION_VERSION,
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
@@ -2430,7 +2431,7 @@ function createShellRemoteComponents(
     .join('\n');
   const remoteCount = String(widgetRemotes.length);
 
-  return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
+  return `import { createLazyComponent } from '@module-federation/bridge-react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -2945,7 +2946,7 @@ function createRecordsRemoteComponents(
 ): string {
   const tw = createTw(tailwindPrefixForApp(app));
 
-  return `import { createLazyComponent } from '@module-federation/modern-js-v3/react';
+  return `import { createLazyComponent } from '@module-federation/bridge-react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
