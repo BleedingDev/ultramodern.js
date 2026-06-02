@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -74,6 +76,45 @@ test('parses scale profile and legacy custom vertical count requests', async () 
     () => parseArgs(['--scale-profile', 'erp-25', '--vertical-count', '10']),
     /does not match --scale-profile erp-25/,
   );
+});
+
+test('runs generated-project pnpm commands through mise when the project pins a toolchain', async t => {
+  const { commandExists, generatedPnpmCommand } = await loadProof();
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-proof-'));
+  t.after(() => fs.rmSync(projectDir, { force: true, recursive: true }));
+
+  const plainCommand = generatedPnpmCommand(projectDir, ['install']);
+  assert.deepEqual(plainCommand, {
+    args: ['install'],
+    command: 'pnpm',
+    cwd: projectDir,
+  });
+
+  fs.writeFileSync(
+    path.join(projectDir, '.mise.toml'),
+    '[tools]\npnpm = "11.5.0"\n',
+  );
+  const pinnedCommand = generatedPnpmCommand(projectDir, ['build']);
+
+  if (commandExists('mise')) {
+    assert.equal(pinnedCommand.command, 'mise');
+    assert.equal(pinnedCommand.cwd, path.resolve(__dirname, '../../..'));
+    assert.deepEqual(pinnedCommand.args, [
+      'exec',
+      '-y',
+      '-C',
+      projectDir,
+      '--',
+      'pnpm',
+      'build',
+    ]);
+  } else {
+    assert.deepEqual(pinnedCommand, {
+      args: ['build'],
+      command: 'pnpm',
+      cwd: projectDir,
+    });
+  }
 });
 
 test('summarizes topology and generated contract evidence', async () => {
@@ -184,4 +225,60 @@ test('marks mismatched MF shared contract versions as failed evidence', async ()
     evidence.sharedVersionAssertions.moduleFederationSharedContract.versions,
     ['mf-ssr-contract-v1', 'mf-ssr-contract-v2'],
   );
+});
+
+test('normalizes duplicate diagnostic log lines without hiding unique output', async () => {
+  const { normalizeDiagnosticLines } = await loadProof();
+
+  const summary = normalizeDiagnosticLines(
+    [
+      '\u001b[33mWARN\u001b[39m Cloudflare public URL is missing',
+      'WARN Cloudflare public URL is missing',
+      'Run pnpm cloudflare:proof -- --require-public-urls',
+      'WARN Cloudflare public URL is missing',
+    ].join('\n'),
+  );
+
+  assert.deepEqual(summary.lines, [
+    'WARN Cloudflare public URL is missing',
+    'Run pnpm cloudflare:proof -- --require-public-urls',
+  ]);
+  assert.equal(summary.duplicateCount, 2);
+  assert.equal(summary.truncatedCount, 0);
+});
+
+test('formats Cloudflare command failures with concise actionable diagnostics', async () => {
+  const { createCommandDiagnostics, formatCommandFailure } = await loadProof();
+
+  const diagnostic = createCommandDiagnostics({
+    args: ['cloudflare:proof', '--', '--require-public-urls'],
+    command: 'pnpm',
+    cwd: '/tmp/example-workspace',
+    durationMs: 123.456,
+    logPath:
+      '.modern/production-readiness/cloudflare-diagnostics/cloudflare-proof.log',
+    result: {
+      signal: null,
+      status: 1,
+      stdout: [
+        'checking shell-super-app',
+        'checking shell-super-app',
+        'checking inventory',
+      ].join('\n'),
+      stderr: [
+        'shell-super-app requires ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+        'shell-super-app requires ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+      ].join('\n'),
+    },
+  });
+
+  assert.equal(diagnostic.status, 'fail');
+  assert.equal(diagnostic.stderr.duplicateCount, 1);
+  assert.equal(diagnostic.stdout.duplicateCount, 1);
+
+  const message = formatCommandFailure(diagnostic);
+  assert.match(message, /Command failed: pnpm cloudflare:proof/);
+  assert.match(message, /requires ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP/);
+  assert.match(message, /omitted 1 duplicate log line/);
+  assert.match(message, /full log: \.modern\/production-readiness/);
 });

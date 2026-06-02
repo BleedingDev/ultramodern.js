@@ -168,6 +168,11 @@ function validateWorkflowContract() {
 function validatePublishScriptContract() {
   const publishScript = readText(publishScriptPath);
   requireIncludes(publishScript, "args.push('--provenance')", 'publish script');
+  requireIncludes(
+    publishScript,
+    "'dist-tag', 'add'",
+    'publish script skipped package tag promotion',
+  );
   requireIncludes(publishScript, "'--access',\n    'public'", 'publish script');
   requireIncludes(
     publishScript,

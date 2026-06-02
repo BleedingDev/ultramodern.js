@@ -7,12 +7,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import {
+  commandExists,
+  generatedPnpmCommand,
+} from './generated-pnpm-command.mjs';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
 const defaultProjectName = 'ultramodern-ci-superapp';
 const defaultSingleAppProjectName = 'ultramodern-ci-single-app';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
+const diagnosticLineLimit = 25;
+const commandLogDir = '.modern/production-readiness/cloudflare-diagnostics';
 const browserSmokeScript = path.join(
   repoRoot,
   'scripts/ultramodern-production-readiness/run-browser-smoke.mjs',
@@ -199,6 +205,187 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
+function runGeneratedPnpm(projectDir, args, options = {}) {
+  const command = generatedPnpmCommand(projectDir, args);
+  return run(command.command, command.args, {
+    ...options,
+    cwd: command.cwd,
+  });
+}
+
+function runGeneratedPnpmWithDiagnostics(projectDir, args, options) {
+  const command = generatedPnpmCommand(projectDir, args);
+  return runWithDiagnostics(command.command, command.args, {
+    ...options,
+    cwd: command.cwd,
+  });
+}
+
+function stripAnsi(value) {
+  return value.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/gu, '');
+}
+
+function normalizeDiagnosticLines(
+  value,
+  { lineLimit = diagnosticLineLimit } = {},
+) {
+  const lines = stripAnsi(value)
+    .split(/\r?\n/u)
+    .map(line => line.trim())
+    .filter(Boolean);
+  const normalized = [];
+  const seen = new Set();
+  let duplicateCount = 0;
+
+  for (const line of lines) {
+    if (seen.has(line)) {
+      duplicateCount += 1;
+      continue;
+    }
+    seen.add(line);
+    normalized.push(line);
+  }
+
+  const truncatedCount = Math.max(0, normalized.length - lineLimit);
+  return {
+    duplicateCount,
+    lineCount: normalized.length,
+    lines: normalized.slice(-lineLimit),
+    truncatedCount,
+  };
+}
+
+function formatDiagnosticLines(summary) {
+  const lines = [...summary.lines];
+  if (summary.duplicateCount > 0) {
+    lines.push(
+      `... omitted ${summary.duplicateCount} duplicate log line${
+        summary.duplicateCount === 1 ? '' : 's'
+      }`,
+    );
+  }
+  if (summary.truncatedCount > 0) {
+    lines.push(
+      `... omitted ${summary.truncatedCount} earlier log line${
+        summary.truncatedCount === 1 ? '' : 's'
+      }`,
+    );
+  }
+  return lines;
+}
+
+function createCommandDiagnostics({
+  args,
+  command,
+  cwd,
+  durationMs,
+  logPath,
+  result,
+}) {
+  return {
+    command: [command, ...args].join(' '),
+    cwd,
+    durationMs: roundDurationMs(durationMs),
+    exitCode: result.status,
+    signal: result.signal,
+    spawnError:
+      result.error instanceof Error ? result.error.message : undefined,
+    status: result.status === 0 ? 'pass' : 'fail',
+    logPath,
+    stderr: normalizeDiagnosticLines(result.stderr ?? ''),
+    stdout: normalizeDiagnosticLines(result.stdout ?? ''),
+  };
+}
+
+function formatCommandFailure(diagnostic) {
+  const sections = [];
+  for (const [label, summary] of [
+    ['stderr', diagnostic.stderr],
+    ['stdout', diagnostic.stdout],
+  ]) {
+    const lines = formatDiagnosticLines(summary);
+    if (lines.length > 0) {
+      sections.push(`${label}:\n${lines.map(line => `  ${line}`).join('\n')}`);
+    }
+  }
+
+  const exitReason =
+    diagnostic.spawnError ??
+    (diagnostic.exitCode === null
+      ? `signal ${diagnostic.signal ?? 'unknown'}`
+      : `exit code ${diagnostic.exitCode}`);
+
+  return [
+    `Command failed: ${diagnostic.command}`,
+    `cwd: ${diagnostic.cwd}`,
+    `result: ${exitReason}`,
+    diagnostic.logPath ? `full log: ${diagnostic.logPath}` : undefined,
+    ...sections,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function runWithDiagnostics(command, args, options = {}) {
+  process.stdout.write(
+    `[ultramodern-production-readiness] ${options.id ?? command} start\n`,
+  );
+  const startedAt = performance.now();
+  const result = spawnSync(command, args, {
+    cwd: options.cwd || repoRoot,
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+      ...(options.env || {}),
+    },
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+  const durationMs = performance.now() - startedAt;
+  const logPath =
+    options.logPath ??
+    path.resolve(
+      repoRoot,
+      commandLogDir,
+      `${options.id ?? command}-${Date.now()}.log`,
+    );
+  const combinedOutput = [
+    `$ ${[command, ...args].join(' ')}`,
+    `cwd: ${options.cwd || repoRoot}`,
+    '',
+    '[stdout]',
+    result.stdout ?? '',
+    '',
+    '[stderr]',
+    result.stderr ?? '',
+  ].join('\n');
+
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  fs.writeFileSync(logPath, combinedOutput);
+
+  const diagnostic = createCommandDiagnostics({
+    args,
+    command,
+    cwd: options.cwd || repoRoot,
+    durationMs,
+    logPath: path.relative(repoRoot, logPath),
+    result,
+  });
+
+  if (result.status !== 0) {
+    const error = new Error(formatCommandFailure(diagnostic));
+    error.diagnostic = diagnostic;
+    throw error;
+  }
+
+  process.stdout.write(
+    `[ultramodern-production-readiness] ${options.id ?? command} pass: ${
+      diagnostic.logPath
+    }\n`,
+  );
+  return diagnostic;
+}
+
 function reservePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -229,8 +416,9 @@ function startServe(projectDir, port) {
     stderr: '',
     stdout: '',
   };
-  const child = spawn('pnpm', ['serve'], {
-    cwd: projectDir,
+  const command = generatedPnpmCommand(projectDir, ['serve']);
+  const child = spawn(command.command, command.args, {
+    cwd: command.cwd,
     env: {
       ...process.env,
       FORCE_COLOR: '0',
@@ -401,14 +589,14 @@ function assertNoSsrRenderErrors(output) {
 }
 
 async function runSingleAppSsrProof(singleAppDir) {
-  run('pnpm', ['install'], { cwd: singleAppDir });
+  runGeneratedPnpm(singleAppDir, ['install']);
 
   const port = await reservePort();
   const env = {
     MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS: 'false',
     MODERN_PUBLIC_SITE_URL: `http://localhost:${port}`,
   };
-  run('pnpm', ['build'], { cwd: singleAppDir, env });
+  runGeneratedPnpm(singleAppDir, ['build'], { env });
 
   const server = startServe(singleAppDir, port);
   try {
@@ -903,18 +1091,16 @@ async function main() {
     summary.checks.push('workspace-published-cohort-alignment');
 
     timedStep(summary, 'install', () =>
-      run('pnpm', ['install'], { cwd: projectDir }),
+      runGeneratedPnpm(projectDir, ['install']),
     );
     summary.checks.push('install');
 
-    timedStep(summary, 'check', () =>
-      run('pnpm', ['check'], { cwd: projectDir }),
-    );
+    timedStep(summary, 'check', () => runGeneratedPnpm(projectDir, ['check']));
     summary.checks.push('check');
 
     if (packageScriptExists(projectDir, 'ultramodern:check')) {
       timedStep(summary, 'ultramodernCheck', () =>
-        run('pnpm', ['ultramodern:check'], { cwd: projectDir }),
+        runGeneratedPnpm(projectDir, ['ultramodern:check']),
       );
       summary.checks.push('ultramodern-check');
     } else {
@@ -923,9 +1109,7 @@ async function main() {
       );
     }
 
-    timedStep(summary, 'build', () =>
-      run('pnpm', ['build'], { cwd: projectDir }),
-    );
+    timedStep(summary, 'build', () => runGeneratedPnpm(projectDir, ['build']));
     summary.checks.push('build');
 
     summary.browserSmoke = {
@@ -936,11 +1120,18 @@ async function main() {
     summary.checks.push('browser-smoke-local');
 
     if (options.deployCloudflare) {
+      summary.cloudflareDiagnostics = {};
       timedStep(summary, 'cloudflareDeploy', () => {
-        run('pnpm', ['cloudflare:deploy'], { cwd: projectDir });
-        run('pnpm', ['cloudflare:proof', '--', '--require-public-urls'], {
-          cwd: projectDir,
-        });
+        summary.cloudflareDiagnostics.deploy = runGeneratedPnpmWithDiagnostics(
+          projectDir,
+          ['cloudflare:deploy'],
+          { id: 'cloudflare-deploy' },
+        );
+        summary.cloudflareDiagnostics.proof = runGeneratedPnpmWithDiagnostics(
+          projectDir,
+          ['cloudflare:proof', '--', '--require-public-urls'],
+          { id: 'cloudflare-proof' },
+        );
       });
       summary.browserSmoke.public = timedStep(
         summary,
@@ -961,6 +1152,9 @@ async function main() {
   } catch (error) {
     summary.ok = false;
     summary.error = error instanceof Error ? error.message : String(error);
+    if (error?.diagnostic) {
+      summary.errorDiagnostic = error.diagnostic;
+    }
     writeJson(options.out, summary);
     throw error;
   } finally {
@@ -976,8 +1170,13 @@ if (
 }
 
 export {
+  commandExists,
+  createCommandDiagnostics,
   createTopologyEvidence,
+  formatCommandFailure,
+  generatedPnpmCommand,
   generateVerticalNames,
+  normalizeDiagnosticLines,
   parseArgs,
   scaleProfiles,
 };

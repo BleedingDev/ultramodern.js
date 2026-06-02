@@ -55,6 +55,33 @@ The expected passing result has:
 - five planned local-control-plane processes
 - process roles `shell`, `remote`, `design-system-remote`, and `effect-service`
 
+## Published ERP Scale Envelope
+
+The measured published-package envelope for the UltraModern SuperApp generator is
+ERP-50 on `@bleedingdev/modern-js-create@3.2.0-ultramodern.84`. The persisted
+proof artifact is
+`.modern/production-readiness/erp-50-canary-84-proof.json`, produced by:
+
+```bash
+node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
+  --create-package @bleedingdev/modern-js-create@3.2.0-ultramodern.84 \
+  --project-name ultramodern-ci-erp50-superapp \
+  --single-app-project-name ultramodern-ci-erp50-app \
+  --scale-profile erp-50 \
+  --out .modern/production-readiness/erp-50-canary-84-proof.json
+```
+
+The passing proof covers a single-app SSR scaffold plus a generated ERP-50
+workspace with 50 verticals, 51 generated contract apps, install, `pnpm check`,
+`pnpm ultramodern:check`, production build, and local browser smoke across all
+51 apps.
+
+Current limitation: the npm `latest` dist-tag still resolves to
+`3.2.0-ultramodern.83`, which failed the single-app SSR content proof with an
+empty root. Promote `3.2.0-ultramodern.84` through the trusted
+`publish-bleedingdev.yml` workflow before treating `@bleedingdev/modern-js-create@latest`
+as the production-ready published entrypoint.
+
 ## Current Boundary
 
 The local control plane defaults to a deterministic dry-run process plan in this

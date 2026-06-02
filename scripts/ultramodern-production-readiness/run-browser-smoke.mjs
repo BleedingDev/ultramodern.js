@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { generatedPnpmCommand } from './generated-pnpm-command.mjs';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
@@ -610,15 +611,17 @@ function startServer(target, { artifactDir, projectDir }) {
   if (target.publicUrlEnv) {
     env[target.publicUrlEnv] = target.baseUrl;
   }
-  const child = spawn(
-    'pnpm',
-    ['--filter', target.app.package, 'run', 'serve'],
-    {
-      cwd: projectDir,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
+  const command = generatedPnpmCommand(projectDir, [
+    '--filter',
+    target.app.package,
+    'run',
+    'serve',
+  ]);
+  const child = spawn(command.command, command.args, {
+    cwd: command.cwd,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
   return {

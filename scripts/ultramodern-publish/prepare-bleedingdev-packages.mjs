@@ -591,6 +591,37 @@ function verifyRegistryPackage(packageName, version) {
   );
 }
 
+function verifyRegistryDistTag(packageName, tag, version) {
+  const result = spawnSync(
+    'npm',
+    ['view', `${packageName}@${tag}`, 'version', '--json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Package ${packageName}@${tag} was not visible on npm: ${
+        result.stderr || result.stdout
+      }`,
+    );
+  }
+
+  const taggedVersion = JSON.parse(result.stdout);
+  if (taggedVersion !== version) {
+    throw new Error(
+      `Package ${packageName}@${tag} resolved ${taggedVersion}, expected ${version}`,
+    );
+  }
+}
+
+function tagRegistryPackage(packageName, version, tag) {
+  run('npm', ['dist-tag', 'add', `${packageName}@${version}`, tag]);
+  verifyRegistryDistTag(packageName, tag, version);
+}
+
 function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
   const block = packageJson[blockName];
   if (!block || typeof block !== 'object') {
@@ -731,6 +762,12 @@ function main() {
     ) {
       console.log(`Skipping existing ${item.targetName}@${options.version}`);
       verifyRegistryPackage(item.targetName, options.version);
+      if (!options.dryRun) {
+        tagRegistryPackage(item.targetName, options.version, options.tag);
+        console.log(
+          `Tagged existing ${item.targetName}@${options.version} as ${options.tag}`,
+        );
+      }
       continue;
     }
     const publishedName = publishPackage(packageDir, options);
