@@ -4815,9 +4815,8 @@ function createWorkspaceI18nBoundaryValidationScript(): string {
   return `#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const root = path.resolve(import.meta.dirname, '..');
 const sourceRoots = ['apps', 'verticals'];
 const languageConditionalPattern =
   /\\b(language|locale|lng|currentLanguage)\\s*={0,2}={1,2}\\s*['"][a-z-]+['"]\\s*\\?\\s*([^:;\\n]+)\\s*:\\s*([^;\\n})]+)/gu;
@@ -4837,11 +4836,11 @@ const visibleCopyAttributes = new Set([
   'title',
 ]);
 
-function fail(message) {
+const fail = (message) => {
   throw new Error(message);
-}
+};
 
-function walk(directory, files = []) {
+const walk = (directory, files = []) => {
   if (!fs.existsSync(directory)) {
     return files;
   }
@@ -4857,43 +4856,37 @@ function walk(directory, files = []) {
     }
   }
   return files;
-}
+};
 
-function relative(filePath) {
-  return path.relative(root, filePath).replace(/\\\\/gu, '/');
-}
+const relative = (filePath) => path.relative(root, filePath).replaceAll('\\\\', '/');
 
-function isSourceFile(filePath) {
-  return /\\.(?:ts|tsx|js|jsx)$/u.test(filePath);
-}
+const isSourceFile = (filePath) => /\\.(?:ts|tsx|js|jsx)$/u.test(filePath);
 
-function isLocaleJson(filePath) {
+const isLocaleJson = (filePath) => {
   const normalized = relative(filePath);
   return /\\/locales\\/(en|cs)\\/[^/]+\\.json$/u.test(normalized);
-}
+};
 
-function readText(filePath) {
-  return fs.readFileSync(filePath, 'utf8');
-}
+const readText = (filePath) => fs.readFileSync(filePath, 'utf-8');
 
-function branchIsUserCopy(branch) {
+const branchIsUserCopy = (branch) => {
   const value = branch.trim().replace(/,$/u, '');
   if (allowedLanguageConditionalBranches.has(value)) {
     return false;
   }
   return /^['"][^'"]{2,}['"]$/u.test(value);
-}
+};
 
-function checkRuntimeResources(filePath, text) {
+const checkRuntimeResources = (filePath, text) => {
   if (!relative(filePath).endsWith('/src/modern.runtime.ts')) {
     return;
   }
   if (/initOptions\\s*:\\s*\\{[\\s\\S]*?\\bresources\\s*:/u.test(text)) {
     fail(\`\${relative(filePath)} must not inline i18n resources in modern.runtime.ts; use locale JSON files.\`);
   }
-}
+};
 
-function checkLanguageConditionals(filePath, text) {
+const checkLanguageConditionals = (filePath, text) => {
   for (const match of text.matchAll(languageConditionalPattern)) {
     const [, name, whenTrue = '', whenFalse = ''] = match;
     if (branchIsUserCopy(whenTrue) || branchIsUserCopy(whenFalse)) {
@@ -4902,9 +4895,9 @@ function checkLanguageConditionals(filePath, text) {
       );
     }
   }
-}
+};
 
-function checkLiteralVisibleAttributes(filePath, text) {
+const checkLiteralVisibleAttributes = (filePath, text) => {
   if (!filePath.endsWith('.tsx') && !filePath.endsWith('.jsx')) {
     return;
   }
@@ -4916,17 +4909,17 @@ function checkLiteralVisibleAttributes(filePath, text) {
       );
     }
   }
-}
+};
 
-function checkSplitPhraseKeys(filePath, text) {
+const checkSplitPhraseKeys = (filePath, text) => {
   if (/t\\(\\s*['"][^'"]+\\.(?:prefix|suffix|before|after)['"]\\s*\\)/u.test(text)) {
     fail(
       \`\${relative(filePath)} uses split phrase translation keys. Keep translator-owned phrases whole.\`,
     );
   }
-}
+};
 
-function checkBoundaryAttributes(filePath, text) {
+const checkBoundaryAttributes = (filePath, text) => {
   if (!filePath.endsWith('.tsx') && !filePath.endsWith('.jsx')) {
     return;
   }
@@ -4935,9 +4928,9 @@ function checkBoundaryAttributes(filePath, text) {
       \`\${relative(filePath)} uses legacy data-mf-* boundary attributes. Use data-modern-boundary-id and data-modern-mf-expose.\`,
     );
   }
-}
+};
 
-function visitLocaleKeys(value, visitor, pathParts = []) {
+const visitLocaleKeys = (value, visitor, pathParts = []) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return;
   }
@@ -4946,9 +4939,9 @@ function visitLocaleKeys(value, visitor, pathParts = []) {
     visitor(key, child, nextPath);
     visitLocaleKeys(child, visitor, nextPath);
   }
-}
+};
 
-function checkPluralResources(filePath, json) {
+const checkPluralResources = (filePath, json) => {
   const language = relative(filePath).split('/locales/')[1]?.split('/')[0];
   const requiredSuffixes =
     language === 'cs' ? ['one', 'few', 'many', 'other'] : ['one', 'other'];
@@ -4978,7 +4971,7 @@ function checkPluralResources(filePath, json) {
       }
     }
   }
-}
+};
 
 const sourceFiles = sourceRoots.flatMap(sourceRoot =>
   walk(path.join(root, sourceRoot)).filter(filePath => isSourceFile(filePath)),
