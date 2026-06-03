@@ -34,6 +34,9 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   await fs.mkdir(path.join(distDirectory, 'html/fallback'), {
     recursive: true,
   });
+  await fs.mkdir(path.join(distDirectory, 'worker/(lang)/cart'), {
+    recursive: true,
+  });
   await fs.writeFile(path.join(distDirectory, 'static/app.js'), 'app();');
   await fs.writeFile(path.join(distDirectory, 'static/app.css'), 'body{}');
   await fs.writeFile(
@@ -76,6 +79,18 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
   await fs.writeFile(
     path.join(distDirectory, 'worker/main.js.br'),
     'compressed',
+  );
+  await fs.writeFile(
+    path.join(distDirectory, 'worker/(lang)/page.js'),
+    'module.exports = {};',
+  );
+  await fs.writeFile(
+    path.join(distDirectory, 'worker/(lang)/cart/page.mjs'),
+    'export default {};',
+  );
+  await fs.writeFile(
+    path.join(distDirectory, 'worker/(lang)/cart/page.js.map'),
+    '{"version":3}',
   );
   await fs.mkdir(path.join(distDirectory, 'worker/.rsdoctor'), {
     recursive: true,
@@ -323,6 +338,15 @@ describe('cloudflare deploy preset', () => {
     await expect(
       fs.access(path.join(outputDirectory, 'worker/main.js')),
     ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(outputDirectory, 'worker/(lang)/page.js')),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(outputDirectory, 'worker/(lang)/cart/page.mjs')),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(outputDirectory, 'worker/(lang)/cart/page.js.map')),
+    ).rejects.toThrow();
     await expect(
       fs.access(path.join(outputDirectory, 'worker/empty.js.map')),
     ).rejects.toThrow();

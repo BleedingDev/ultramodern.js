@@ -192,9 +192,17 @@ describe('create builder Options', () => {
       const aliases = new Map<string, string>();
       const fallbacks = new Map<string, false>();
       const deletedPlugins = new Set<string>();
+      const chunkFormat = rstest.fn().mockReturnThis();
+      const chunkLoading = rstest.fn().mockReturnThis();
+      const workerChunkLoading = rstest.fn().mockReturnThis();
       const chain = {
         merge: rstest.fn(),
         externalsPresets: rstest.fn(),
+        output: {
+          chunkFormat,
+          chunkLoading,
+          workerChunkLoading,
+        },
         plugins: {
           delete: (name: string) => {
             deletedPlugins.add(name);
@@ -227,6 +235,9 @@ describe('create builder Options', () => {
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).toHaveBeenCalledWith('webworker');
+      expect(chunkFormat).toHaveBeenCalledWith('module');
+      expect(chunkLoading).toHaveBeenCalledWith('import');
+      expect(workerChunkLoading).toHaveBeenCalledWith('import');
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
       expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(
         /runtime[/\\]plugin-runtime[/\\]dist[/\\]esm[/\\]rsc[/\\]server\.worker\.mjs$/,

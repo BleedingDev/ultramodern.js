@@ -177,6 +177,10 @@ const shouldCopyToWorkerBundle = (
     return false;
   }
 
+  if (fse.statSync(src).isDirectory()) {
+    return true;
+  }
+
   return ['.cjs', '.js', '.mjs'].includes(path.extname(normalizedRelativePath));
 };
 

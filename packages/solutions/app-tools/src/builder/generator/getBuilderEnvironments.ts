@@ -269,6 +269,10 @@ export function getBuilderEnvironments(
                     outputModule: true,
                   },
                 });
+                chain.output
+                  .chunkFormat('module')
+                  .chunkLoading('import')
+                  .workerChunkLoading('import');
                 chain.target('webworker');
                 chain.plugins.delete('plugin-module-federation');
                 if (tanstackRouterSsrServerFile) {
