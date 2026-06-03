@@ -946,6 +946,7 @@ function createAppPackage(
     private: true,
     name: packageName(scope, app.packageSuffix),
     version: '0.1.0',
+    type: 'module',
     scripts: {
       dev: 'modern dev',
       build: app.exposes
@@ -5243,6 +5244,7 @@ assert(
     JSON.stringify(expectedZephyrDependencies),
   'Shell Zephyr dependencies must reference every vertical package',
 );
+assert(shellPackage.type === 'module', 'Shell package must use ESM module mode');
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
@@ -5269,6 +5271,7 @@ assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, no
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
+  assert(packageJson.type === 'module', \`\${vertical.id} package must use ESM module mode\`);
   assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', \`\${vertical.id} must expose cloudflare:deploy\`);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
   assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
