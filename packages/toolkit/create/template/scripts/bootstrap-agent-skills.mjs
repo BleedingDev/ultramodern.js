@@ -96,15 +96,34 @@ const removeTree = (dir) =>
   });
 
 const cloneSource = (source, targetDir) => {
+  if (source.commit) {
+    run('git', ['init', targetDir]);
+    run('git', ['remote', 'add', 'origin', source.repository], {
+      cwd: targetDir,
+    });
+    run('git', ['fetch', '--depth', '1', '--quiet', 'origin', source.commit], {
+      cwd: targetDir,
+    });
+    run(
+      'git',
+      [
+        '-c',
+        'advice.detachedHead=false',
+        'checkout',
+        '--detach',
+        '--quiet',
+        'FETCH_HEAD',
+      ],
+      { cwd: targetDir },
+    );
+    return;
+  }
+
   const repo = source.repository.replace(/^https:\/\/github.com\//u, '');
   try {
-    run('gh', ['repo', 'clone', repo, targetDir, '--', '--depth', '1'], {
-      stdio: 'inherit',
-    });
+    run('gh', ['repo', 'clone', repo, targetDir, '--', '--depth', '1', '--quiet']);
   } catch {
-    run('git', ['clone', '--depth', '1', source.repository, targetDir], {
-      stdio: 'inherit',
-    });
+    run('git', ['clone', '--depth', '1', '--quiet', source.repository, targetDir]);
   }
 };
 

@@ -4,18 +4,29 @@
   Layer,
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
+import type { HttpApi, HttpApiGroup } from '@modern-js/plugin-bff/effect-server';
 import { bffEffectApi } from '../../shared/effect/api';
 
-const greetingsLayer = HttpApiBuilder.group(bffEffectApi, 'greetings', (handlers) =>
-  handlers.handle('hello', () =>
-    Effect.succeed({
-      message: 'Hello from Effect HttpApi',
-      runtime: 'effect' as const,
-    }),
-  ),
+type ApiGroups<TApi> = TApi extends HttpApi.HttpApi<string, infer TGroups> ? TGroups : never;
+type GreetingsHandlers = HttpApiBuilder.Handlers.FromGroup<
+  HttpApiGroup.WithName<ApiGroups<typeof bffEffectApi>, 'greetings'>
+>;
+
+const greetingsLayer = HttpApiBuilder.group(
+  bffEffectApi,
+  'greetings',
+  (handlers: GreetingsHandlers) =>
+    handlers.handle('hello', () =>
+      Effect.succeed({
+        message: 'Hello from Effect HttpApi',
+        runtime: 'effect' as const,
+      }),
+    ),
 );
 
-const layer = HttpApiBuilder.layer(bffEffectApi).pipe(Layer.provide(greetingsLayer));
+const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
+  Layer.provide(greetingsLayer),
+);
 
 export default defineEffectBff({
   api: bffEffectApi,

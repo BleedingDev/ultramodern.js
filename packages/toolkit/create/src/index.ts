@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1039,6 +1040,90 @@ function writeSingleAppPackageSourceEvidence(
   );
 }
 
+function runSetupCommand(
+  command: string,
+  args: string[],
+  options: { cwd?: string; stdio?: 'ignore' | 'inherit' } = {},
+) {
+  return execFileSync(command, args, {
+    cwd: options.cwd,
+    encoding: 'utf-8',
+    stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function commandExists(command: string): boolean {
+  try {
+    runSetupCommand(command, ['--version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function installGitForGeneratedProject() {
+  if (commandExists('git')) {
+    return;
+  }
+
+  const runShell = (script: string) =>
+    runSetupCommand('sh', ['-lc', script], { stdio: 'inherit' });
+  const sudo =
+    typeof process.getuid === 'function' && process.getuid() === 0
+      ? ''
+      : 'sudo ';
+
+  if (commandExists('brew')) {
+    runSetupCommand('brew', ['install', 'git'], { stdio: 'inherit' });
+  } else if (process.platform === 'linux' && commandExists('apt-get')) {
+    runShell(`${sudo}apt-get update && ${sudo}apt-get install -y git`);
+  } else if (process.platform === 'linux' && commandExists('dnf')) {
+    runShell(`${sudo}dnf install -y git`);
+  } else if (process.platform === 'linux' && commandExists('yum')) {
+    runShell(`${sudo}yum install -y git`);
+  } else if (process.platform === 'linux' && commandExists('apk')) {
+    runShell('apk add --no-cache git');
+  }
+
+  if (!commandExists('git')) {
+    throw new Error(
+      'Git is required for UltraModern setup. Install git and rerun create, or run pnpm skills:install after installing git.',
+    );
+  }
+}
+
+function isInsideGitWorkTree(targetDir: string): boolean {
+  try {
+    return (
+      runSetupCommand('git', ['rev-parse', '--is-inside-work-tree'], {
+        cwd: targetDir,
+      }).trim() === 'true'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function initializeGeneratedGitRepository(targetDir: string) {
+  installGitForGeneratedProject();
+  if (isInsideGitWorkTree(targetDir)) {
+    return;
+  }
+
+  try {
+    runSetupCommand('git', ['init', '-b', 'main'], {
+      cwd: targetDir,
+      stdio: 'inherit',
+    });
+  } catch {
+    runSetupCommand('git', ['init'], { cwd: targetDir, stdio: 'inherit' });
+    runSetupCommand('git', ['branch', '-M', 'main'], {
+      cwd: targetDir,
+      stdio: 'inherit',
+    });
+  }
+}
+
 function isDirectoryEmpty(dirPath: string): boolean {
   if (!fs.existsSync(dirPath)) {
     return false;
@@ -1223,6 +1308,7 @@ async function main() {
         createPackage,
       ),
     });
+    initializeGeneratedGitRepository(targetDir);
 
     const dim = '\x1b[2m\x1b[3m';
     const reset = '\x1b[0m';
@@ -1352,6 +1438,9 @@ async function main() {
     packageSource,
     useWorkspaceProtocol,
   );
+  if (!isSubproject) {
+    initializeGeneratedGitRepository(targetDir);
+  }
 
   // ANSI escape codes: \x1b[2m = dim, \x1b[3m = italic, \x1b[0m = reset
   const dim = '\x1b[2m\x1b[3m';

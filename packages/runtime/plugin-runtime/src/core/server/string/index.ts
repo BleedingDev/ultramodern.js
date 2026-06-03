@@ -5,6 +5,7 @@ import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
 import ReactDomServer from 'react-dom/server';
 import { RenderLevel } from '../../constants';
+import type { TInternalRuntimeContext } from '../../context';
 import { getGlobalInternalRuntimeContext } from '../../context';
 import { wrapRuntimeContextProvider } from '../../react/wrapper';
 import {
@@ -99,6 +100,7 @@ export const renderString: RenderString = async (
     chunkSet,
     collectors,
     runtimeContext.ssrContext?.htmlModifiers || [],
+    runtimeContext,
     tracer,
   );
 
@@ -111,6 +113,7 @@ async function generateHtml(
   chunkSet: ChunkSet,
   collectors: Collector[],
   htmlModifiers: BuildHtmlCb[],
+  runtimeContext: TInternalRuntimeContext,
   { onError, onTiming }: Tracer,
 ): Promise<string> {
   let html = '';

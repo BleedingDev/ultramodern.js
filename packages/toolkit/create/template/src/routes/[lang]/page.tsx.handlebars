@@ -7,6 +7,9 @@ import { useEffect, useState } from 'react';
 {{/if}}
 import { useTranslation } from 'react-i18next';
 
+{{#if useEffectBff}}type GreetingResponse = Awaited<ReturnType<typeof effectBff.client.greetings.hello>>;
+
+{{/if}}
 const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
@@ -62,7 +65,7 @@ const Index = () => {
     let mounted = true;
     Effect.runFork(
       Effect.promise(() => effectBff.client.greetings.hello({})).pipe(
-        Effect.tap((data) =>
+        Effect.tap((data: GreetingResponse) =>
           Effect.sync(() => {
             if (mounted) {
               setEffectMessage(data.message);

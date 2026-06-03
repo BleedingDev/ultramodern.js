@@ -735,7 +735,7 @@ function createRootPackageJson(
       'ultramodern:i18n-boundaries':
         'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
-        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)",
+        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:i18n-boundaries && pnpm ultramodern:check',
     },
@@ -5213,7 +5213,7 @@ assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeploySc
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)", 'Root postinstall must format, bootstrap agent skills, install reference repositories, and enable hooks last');
+assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs", 'Root postinstall must format, bootstrap agent skills, initialize git/hooks, and install reference repositories');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 const expectedCloudflareCompatibilityFlags = ['nodejs_compat', 'global_fetch_strictly_public'];

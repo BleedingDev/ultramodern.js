@@ -17,6 +17,85 @@ const run = (command, args, options = {}) =>
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
   });
 
+const commandExists = command => {
+  try {
+    run(command, ['--version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const runShell = script =>
+  run('sh', ['-lc', script], {
+    stdio: 'inherit',
+  });
+
+const installGit = () => {
+  if (commandExists('git')) {
+    return;
+  }
+
+  if (commandExists('brew')) {
+    run('brew', ['install', 'git'], { stdio: 'inherit' });
+  } else if (process.platform === 'linux' && commandExists('apt-get')) {
+    const sudo =
+      typeof process.getuid === 'function' && process.getuid() === 0
+        ? ''
+        : 'sudo ';
+    runShell(`${sudo}apt-get update && ${sudo}apt-get install -y git`);
+  } else if (process.platform === 'linux' && commandExists('dnf')) {
+    const sudo =
+      typeof process.getuid === 'function' && process.getuid() === 0
+        ? ''
+        : 'sudo ';
+    runShell(`${sudo}dnf install -y git`);
+  } else if (process.platform === 'linux' && commandExists('yum')) {
+    const sudo =
+      typeof process.getuid === 'function' && process.getuid() === 0
+        ? ''
+        : 'sudo ';
+    runShell(`${sudo}yum install -y git`);
+  } else if (process.platform === 'linux' && commandExists('apk')) {
+    runShell('apk add --no-cache git');
+  }
+
+  if (!commandExists('git')) {
+    throw new Error(
+      'Git is required for UltraModern setup. Install git and run pnpm skills:install again.',
+    );
+  }
+};
+
+const isInsideGitWorkTree = () => {
+  try {
+    return run('git', ['rev-parse', '--is-inside-work-tree']).trim() === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const initializeGitRepository = () => {
+  if (isInsideGitWorkTree()) {
+    return;
+  }
+
+  try {
+    run('git', ['init', '-b', 'main'], { stdio: 'inherit' });
+  } catch {
+    run('git', ['init'], { stdio: 'inherit' });
+    run('git', ['branch', '-M', 'main'], { stdio: 'inherit' });
+  }
+};
+
+const installLefthook = () => {
+  try {
+    run('lefthook', ['install'], { stdio: 'inherit' });
+  } catch (error) {
+    console.warn(`Unable to install lefthook hooks: ${error.message}`);
+  }
+};
+
 const removeTree = dir =>
   fs.rmSync(dir, {
     force: true,
@@ -26,32 +105,50 @@ const removeTree = dir =>
   });
 
 const cloneSource = (source, targetDir) => {
+  if (source.commit) {
+    run('git', ['init', targetDir]);
+    run('git', ['remote', 'add', 'origin', source.repository], {
+      cwd: targetDir,
+    });
+    run('git', ['fetch', '--depth', '1', '--quiet', 'origin', source.commit], {
+      cwd: targetDir,
+    });
+    run(
+      'git',
+      [
+        '-c',
+        'advice.detachedHead=false',
+        'checkout',
+        '--detach',
+        '--quiet',
+        'FETCH_HEAD',
+      ],
+      { cwd: targetDir },
+    );
+    return;
+  }
+
   const repo = source.repository.replace(/^https:\/\/github.com\//u, '');
   try {
-    run('gh', ['repo', 'clone', repo, targetDir, '--', '--depth', '1'], {
-      stdio: 'inherit',
-    });
+    run('gh', [
+      'repo',
+      'clone',
+      repo,
+      targetDir,
+      '--',
+      '--depth',
+      '1',
+      '--quiet',
+    ]);
   } catch {
-    run('git', ['clone', '--depth', '1', source.repository, targetDir], {
-      stdio: 'inherit',
-    });
-  }
-  if (source.commit) {
-    try {
-      run('git', ['checkout', source.commit], {
-        cwd: targetDir,
-        stdio: 'inherit',
-      });
-    } catch {
-      run('git', ['fetch', '--depth', '1', 'origin', source.commit], {
-        cwd: targetDir,
-        stdio: 'inherit',
-      });
-      run('git', ['checkout', source.commit], {
-        cwd: targetDir,
-        stdio: 'inherit',
-      });
-    }
+    run('git', [
+      'clone',
+      '--depth',
+      '1',
+      '--quiet',
+      source.repository,
+      targetDir,
+    ]);
   }
 };
 
@@ -124,6 +221,8 @@ if (checkOnly) {
 }
 
 fs.mkdirSync(installDir, { recursive: true });
+installGit();
+initializeGitRepository();
 
 for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-skills-'));
@@ -161,3 +260,5 @@ for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
     removeTree(tempDir);
   }
 }
+
+installLefthook();

@@ -1,5 +1,12 @@
 export * from '@tanstack/react-router';
-export { useMatch } from '@tanstack/react-router';
+export {
+  Outlet,
+  useLocation,
+  useMatch,
+  useMatches,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router';
 export type {
   Fetcher,
   FetcherState,
