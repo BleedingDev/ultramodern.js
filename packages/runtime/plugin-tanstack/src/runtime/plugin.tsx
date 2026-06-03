@@ -43,7 +43,10 @@ import {
 import { Link } from './prefetchLink';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
-import type { RouterConfig } from './types';
+import {
+  getModernTanstackRouterFastDefaults,
+  type RouterConfig,
+} from './types';
 import { createRouteObjectsFromConfig, urlJoin } from './utils';
 
 const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
@@ -322,6 +325,7 @@ export const tanstackRouterPlugin = (
               : undefined;
 
             cachedRouter = createRouter({
+              ...getModernTanstackRouterFastDefaults(mergedConfig),
               routeTree,
               basepath: '/',
               rewrite,

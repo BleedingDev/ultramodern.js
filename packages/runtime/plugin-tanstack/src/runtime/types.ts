@@ -20,8 +20,21 @@ export type RouterConfig = {
   future?: Partial<{
     v7_startTransition: boolean;
   }>;
+  defaultStructuralSharing?: boolean;
   unstable_reloadOnURLMismatch?: boolean;
 };
+
+export const modernTanstackRouterFastDefaults = {
+  defaultStructuralSharing: true,
+} as const;
+
+export const getModernTanstackRouterFastDefaults = (
+  config: Partial<Pick<RouterConfig, 'defaultStructuralSharing'>> = {},
+) => ({
+  defaultStructuralSharing:
+    config.defaultStructuralSharing ??
+    modernTanstackRouterFastDefaults.defaultStructuralSharing,
+});
 
 export interface RouterRouteMatchSnapshot {
   routeId: string;

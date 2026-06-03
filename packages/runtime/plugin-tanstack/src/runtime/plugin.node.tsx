@@ -52,7 +52,11 @@ import {
   createTanstackRscServerPayload,
   handleTanstackRscRedirect,
 } from './rsc/payloadRouter';
-import type { InternalRouterServerSnapshot, RouterConfig } from './types';
+import {
+  getModernTanstackRouterFastDefaults,
+  type InternalRouterServerSnapshot,
+  type RouterConfig,
+} from './types';
 import { createRouteObjectsFromConfig, urlJoin } from './utils';
 
 type ModernTanstackRouterContext = {
@@ -439,6 +443,7 @@ export const tanstackRouterPlugin = (
         hooks.onBeforeCreateRouter.call(routerLifecycleContext);
 
         const tanstackRouter = createRouter({
+          ...getModernTanstackRouterFastDefaults(mergedConfig),
           routeTree,
           history,
           basepath: '/',

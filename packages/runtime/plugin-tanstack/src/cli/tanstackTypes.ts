@@ -363,6 +363,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
 import {
   createMemoryHistory,
+  modernTanstackRouterFastDefaults,
   createRootRouteWithContext,
   createRoute,
   createRouter,
@@ -552,6 +553,7 @@ ${statements.join('\n\n')}
 export const routeTree = rootRoute.addChildren([${topLevelVars.join(', ')}]);
 
 export const router = createRouter({
+  ...modernTanstackRouterFastDefaults,
   routeTree,
   history: createMemoryHistory({
     initialEntries: ['/'],

@@ -4,22 +4,22 @@ overview: Make the Modern-owned TanStack Router runtime fast by default by enabl
 todos:
   - id: define-router-fast-default-contract
     content: Extend the TanStack `RouterConfig`/runtime config surface with an explicit fast-default policy for `defaultStructuralSharing`, documented as the UltraModern default and overridable only through the framework-owned router config path.
-    status: pending
+    status: completed
   - id: apply-client-router-defaults
     content: Update the browser runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.tsx` so cached client routers are created with the fast-default options alongside the existing `routeTree`, rewrite, history, context, and RSC serialization adapters.
-    status: pending
+    status: completed
   - id: apply-ssr-router-defaults
     content: Update the SSR runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.node.tsx` with the same fast-default options, preserving `attachRouterServerSsrUtils`, loader timing, redirect handling, status propagation, and hydration script capture.
-    status: pending
+    status: completed
   - id: apply-generated-router-defaults
     content: Update `packages/runtime/plugin-tanstack/src/cli/tanstackTypes.ts` so generated `router.gen.ts` files include the same router defaults for type-test and app-authored route API usage.
-    status: pending
+    status: completed
   - id: add-router-default-regression-tests
     content: Add focused tests that prove browser runtime, SSR runtime, and generated router output include the fast defaults without changing route ids, staticData, loader wrapping, RSC serialization, or basepath rewrite behavior.
-    status: pending
+    status: completed
   - id: patch-tanstack-version-drift
     content: Evaluate and, if compatible with the new tests, bump the pinned TanStack patch versions from `@tanstack/react-router` 1.170.8 / `@tanstack/router-core` 1.171.6 to the current patch line, updating the create package constants and lockfile together.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -34,7 +34,7 @@ Local evidence:
 - `packages/runtime/plugin-tanstack/src/runtime/plugin.tsx:221` caches route objects and `:251` caches the route tree/router, but the client `createRouter` call at `:324` does not pass `defaultStructuralSharing`.
 - `packages/runtime/plugin-tanstack/src/runtime/plugin.node.tsx:441` creates the SSR router without the same default.
 - `packages/runtime/plugin-tanstack/src/cli/tanstackTypes.ts:554` emits a generated `createRouter` call without fast defaults.
-- The repo currently pins `@tanstack/react-router` 1.170.8 in `packages/runtime/plugin-tanstack/package.json:97` and `packages/toolkit/create/src/ultramodern-workspace.ts:13`; npm reported 1.170.11 on 2026-06-02.
+- This implementation aligns the repo to `@tanstack/react-router` 1.170.11 and `@tanstack/router-core` 1.171.9 while keeping `@tanstack/history` at 1.162.0.
 
 External evidence:
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-02T21:50:41.224699+00:00",
+  "generated_at": "2026-06-03T21:35:22.443776+00:00",
   "graph_id": "ultramodern-tanstack-fast-defaults-01-router-runtime-plus-3-plans-c1c0b9da41",
   "plan_set_hash": "75c79fc800",
   "selection_hash": "c1c0b9da41",
@@ -37,37 +37,37 @@
         {
           "id": "define-router-fast-default-contract",
           "content": "Extend the TanStack `RouterConfig`/runtime config surface with an explicit fast-default policy for `defaultStructuralSharing`, documented as the UltraModern default and overridable only through the framework-owned router config path.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "apply-client-router-defaults",
           "content": "Update the browser runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.tsx` so cached client routers are created with the fast-default options alongside the existing `routeTree`, rewrite, history, context, and RSC serialization adapters.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "apply-ssr-router-defaults",
           "content": "Update the SSR runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.node.tsx` with the same fast-default options, preserving `attachRouterServerSsrUtils`, loader timing, redirect handling, status propagation, and hydration script capture.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "apply-generated-router-defaults",
           "content": "Update `packages/runtime/plugin-tanstack/src/cli/tanstackTypes.ts` so generated `router.gen.ts` files include the same router defaults for type-test and app-authored route API usage.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "add-router-default-regression-tests",
           "content": "Add focused tests that prove browser runtime, SSR runtime, and generated router output include the fast defaults without changing route ids, staticData, loader wrapping, RSC serialization, or basepath rewrite behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "patch-tanstack-version-drift",
           "content": "Evaluate and, if compatible with the new tests, bump the pinned TanStack patch versions from `@tanstack/react-router` 1.170.8 / `@tanstack/router-core` 1.171.6 to the current patch line, updating the create package constants and lockfile together.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         }
       ],
@@ -231,32 +231,38 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-tanstack-fast-defaults-01-router-runtime",
-      "plan_name": "ultramodern-tanstack-fast-defaults-01-router-runtime",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-fast-defaults-01-router-runtime.plan.md",
+      "plan_slug": "ultramodern-tanstack-fast-defaults-02-search-contracts",
+      "plan_name": "ultramodern-tanstack-fast-defaults-02-search-contracts",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-fast-defaults-02-search-contracts.plan.md",
       "plan_status": "pending",
       "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "define-router-fast-default-contract",
-          "content": "Extend the TanStack `RouterConfig`/runtime config surface with an explicit fast-default policy for `defaultStructuralSharing`, documented as the UltraModern default and overridable only through the framework-owned router config path.",
+          "id": "trace-route-module-search-surface",
+          "content": "Trace the Modern route generation pipeline to identify where route module exports or route config metadata can carry `validateSearch`, `loaderDeps`, and related TanStack search options into `NestedRouteForCli`, `PageRoute`, and `RouteObject` without generated-file edits.",
           "status": "pending",
           "ordinal": 1
         }
       ],
       "upcoming": [
         {
-          "id": "apply-client-router-defaults",
-          "content": "Update the browser runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.tsx` so cached client routers are created with the fast-default options alongside the existing `routeTree`, rewrite, history, context, and RSC serialization adapters.",
+          "id": "extend-route-type-contracts",
+          "content": "Extend the relevant Modern route metadata/types so TanStack route records can represent `validateSearch` and optional `loaderDeps` while React Router compatibility paths ignore unsupported TanStack-only fields safely.",
           "status": "pending",
           "ordinal": 2
         },
         {
-          "id": "apply-ssr-router-defaults",
-          "content": "Update the SSR runtime `createRouter` call in `packages/runtime/plugin-tanstack/src/runtime/plugin.node.tsx` with the same fast-default options, preserving `attachRouterServerSsrUtils`, loader timing, redirect handling, status propagation, and hydration script capture.",
+          "id": "pass-search-options-to-route-tree",
+          "content": "Update `packages/runtime/plugin-tanstack/src/runtime/routeTree.ts` so root, Modern generated routes, and RouteObject routes pass validated search options into `createRootRoute`/`createRoute` along with existing loader, staticData, SSR, and shouldReload options.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "emit-search-options-in-router-gen",
+          "content": "Update `packages/runtime/plugin-tanstack/src/cli/tanstackTypes.ts` so generated `router.gen.ts` imports and emits route-level search validators/deps, keeping route variable names, register augmentation, and loader/action imports stable.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
       "completed": 0,
@@ -289,42 +295,16 @@
           "content": "Design a framework-owned UltraModern TanStack Rsbuild profile that specifies client/server environment contracts, asset/basepath handling, SSR bootstrap assets, manifest ownership, and performance defaults while keeping Modern.js runtime and deployment semantics intact.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "plan-rspack-route-splitting",
+          "content": "Plan Rspack-backed TanStack route generation/code-splitting integration, including whether UltraModern should use `@tanstack/router-plugin/rspack`, how it interacts with `output.splitRouteChunks`, and how generated route artifacts preserve SSR/RSC behavior.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
       "completed": 0,
       "total": 8
-    },
-    {
-      "plan_slug": "ultramodern-tanstack-fast-defaults-02-search-contracts",
-      "plan_name": "ultramodern-tanstack-fast-defaults-02-search-contracts",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-fast-defaults-02-search-contracts.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-tanstack-fast-defaults-01-router-runtime"],
-      "active": [
-        {
-          "id": "trace-route-module-search-surface",
-          "content": "Trace the Modern route generation pipeline to identify where route module exports or route config metadata can carry `validateSearch`, `loaderDeps`, and related TanStack search options into `NestedRouteForCli`, `PageRoute`, and `RouteObject` without generated-file edits.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "extend-route-type-contracts",
-          "content": "Extend the relevant Modern route metadata/types so TanStack route records can represent `validateSearch` and optional `loaderDeps` while React Router compatibility paths ignore unsupported TanStack-only fields safely.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "pass-search-options-to-route-tree",
-          "content": "Update `packages/runtime/plugin-tanstack/src/runtime/routeTree.ts` so root, Modern generated routes, and RouteObject routes pass validated search options into `createRootRoute`/`createRoute` along with existing loader, staticData, SSR, and shouldReload options.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 6
     },
     {
       "plan_slug": "ultramodern-tanstack-fast-defaults-03-scaffold-render-budget",
@@ -333,7 +313,6 @@
       "plan_status": "pending",
       "state": "blocked",
       "blocked_by": [
-        "ultramodern-tanstack-fast-defaults-01-router-runtime",
         "ultramodern-tanstack-fast-defaults-04-rsbuild-start-alignment"
       ],
       "active": [
@@ -356,13 +335,31 @@
           "content": "Replace generated broad `useLocation()` reads with selector-based location reads for `pathname`, `searchStr`/`search`, and `hash` where supported by the runtime export, so unrelated router state does not rerender generated shell surfaces.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "harden-i18n-tanstack-adapter-selectors",
+          "content": "Review `packages/runtime/plugin-i18n/src/runtime/routerAdapter.tsx` subscriptions and params/location derivation, then use TanStack store selectors or stable snapshots where possible instead of manual version bumps on broad router events.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
       "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-tanstack-fast-defaults-01-router-runtime",
+      "plan_name": "ultramodern-tanstack-fast-defaults-01-router-runtime",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tanstack-fast-defaults-01-router-runtime.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
       "total": 6
     }
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "generated-selection"
+  "graph_source": "explicit"
 }

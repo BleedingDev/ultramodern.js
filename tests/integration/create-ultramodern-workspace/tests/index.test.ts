@@ -87,7 +87,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
-    '@tanstack/react-router': '1.170.8',
+    '@tanstack/react-router': '1.170.11',
     'node-fetch': '^3.3.2',
   });
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
@@ -406,7 +406,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/bootstrap-agent-skills.mjs --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)",
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
     );
     expect(
       Object.keys(rootPackage.scripts).every(
@@ -535,7 +535,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson['zephyr:dependencies']).toEqual({});
       expect(typeof packageJson.scripts.typecheck).toBe('string');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.8',
+        '1.170.11',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.5.0',
@@ -777,7 +777,7 @@ describe('create-ultramodern-workspace', () => {
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.8',
+      '1.170.11',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.0',

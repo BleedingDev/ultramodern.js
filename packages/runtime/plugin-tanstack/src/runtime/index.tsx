@@ -35,3 +35,8 @@ export type {
   CompositeComponentProps,
 } from './rsc/client';
 export { CompositeComponent } from './rsc/client';
+export type { RouterConfig } from './types';
+export {
+  getModernTanstackRouterFastDefaults,
+  modernTanstackRouterFastDefaults,
+} from './types';

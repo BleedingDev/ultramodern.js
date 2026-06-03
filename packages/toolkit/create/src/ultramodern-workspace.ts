@@ -10,7 +10,7 @@ const workspaceTemplateDir = path.resolve(
   'template-workspace',
 );
 
-const TANSTACK_ROUTER_VERSION = '1.170.8';
+const TANSTACK_ROUTER_VERSION = '1.170.11';
 const MODULE_FEDERATION_VERSION = '2.5.0';
 const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const ZEPHYR_AGENT_VERSION = '1.1.1';

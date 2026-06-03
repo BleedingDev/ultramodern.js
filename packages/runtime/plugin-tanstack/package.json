@@ -94,8 +94,8 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
-    "@tanstack/react-router": "1.170.8",
-    "@tanstack/router-core": "1.171.6"
+    "@tanstack/react-router": "1.170.11",
+    "@tanstack/router-core": "1.171.9"
   },
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.2.0",

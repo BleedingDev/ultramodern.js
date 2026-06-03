@@ -78,7 +78,15 @@ function expectPnpm11Policy(projectDir: string) {
     sharp: true,
     workerd: true,
   });
-  expect(readPnpmConfig(projectDir, 'onlyBuiltDependencies')).toBeUndefined();
+  expect(readPnpmConfig(projectDir, 'onlyBuiltDependencies')).toEqual([
+    '@swc/core',
+    'core-js',
+    'esbuild',
+    'lefthook',
+    'msgpackr-extract',
+    'sharp',
+    'workerd',
+  ]);
 }
 
 function expectSingleAppContract(appDir: string) {
@@ -107,7 +115,7 @@ function expectSingleAppContract(appDir: string) {
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
-  expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.2');
+  expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.9.0');
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
@@ -179,12 +187,12 @@ describe('create-tailwind', () => {
     expect(
       packageJson.dependencies['@modern-js/plugin-tanstack'],
     ).toBeDefined();
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.8');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.11');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
     expect(packageJson.scripts.postinstall).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs && (git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true)',
+      'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
     );
     expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(true);
     expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(true);

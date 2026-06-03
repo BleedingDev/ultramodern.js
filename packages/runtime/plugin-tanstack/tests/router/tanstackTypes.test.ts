@@ -62,6 +62,8 @@ describe('tanstack router type generation', () => {
     expect(routerGenTs).toContain(
       "} from '@modern-js/plugin-tanstack/runtime';",
     );
+    expect(routerGenTs).toContain('modernTanstackRouterFastDefaults,');
+    expect(routerGenTs).toContain('...modernTanstackRouterFastDefaults,');
   });
 
   test('preserves typed child trees for localized nested route aliases', async () => {
