@@ -36,7 +36,7 @@ function parseArgs(argv) {
     publish: false,
     dryRun: false,
     skipExisting: true,
-    publishConcurrency: 4,
+    publishConcurrency: 8,
   };
 
   for (let index = 0; index < argv.length; index += 1) {

@@ -48,7 +48,7 @@ on:
         description: "Maximum npm publish processes to run at once"
         required: true
         type: choice
-        default: "4"
+        default: "8"
         options:
           - "1"
           - "2"
