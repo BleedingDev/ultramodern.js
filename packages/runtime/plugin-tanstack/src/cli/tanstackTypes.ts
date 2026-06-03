@@ -86,6 +86,17 @@ function pickModernLoaderModule(route: NestedRouteForCli | PageRoute) {
   return { loaderPath, inline };
 }
 
+function pickRouteSearchContractModules(route: NestedRouteForCli | PageRoute) {
+  const validateSearchPath = (route as any).validateSearch;
+  const loaderDepsPath = (route as any).loaderDeps;
+
+  return {
+    validateSearchPath:
+      typeof validateSearchPath === 'string' ? validateSearchPath : null,
+    loaderDepsPath: typeof loaderDepsPath === 'string' ? loaderDepsPath : null,
+  };
+}
+
 function isPathlessLayout(route: NestedRouteForCli | PageRoute) {
   return (
     (route as any).type === 'nested' &&
@@ -182,9 +193,28 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   const statements: string[] = [];
 
   const loaderImportMap = new Map<string, string>();
+  const searchContractImportMap = new Map<string, string>();
   const usedRouteVarNames = new Set<string>();
   let loaderIndex = 0;
+  let validateSearchIndex = 0;
+  let loaderDepsIndex = 0;
   let routeIndex = 0;
+
+  const resolveRouteModuleNoExt = async (aliasedNoExtPath: string) => {
+    const prefix = `${appContext.internalSrcAlias}/`;
+    let absNoExt: string;
+    if (aliasedNoExtPath.startsWith(prefix)) {
+      const rel = aliasedNoExtPath.slice(prefix.length);
+      absNoExt = path.join(appContext.srcDirectory, rel);
+    } else if (path.isAbsolute(aliasedNoExtPath)) {
+      absNoExt = aliasedNoExtPath;
+    } else {
+      // Unknown format; treat as already relative to src.
+      absNoExt = path.join(appContext.srcDirectory, aliasedNoExtPath);
+    }
+
+    return resolveFileNoExt(absNoExt);
+  };
 
   const getImportNamesForLoader = async (
     aliasedNoExtPath: string,
@@ -202,19 +232,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       };
     }
 
-    const prefix = `${appContext.internalSrcAlias}/`;
-    let absNoExt: string;
-    if (aliasedNoExtPath.startsWith(prefix)) {
-      const rel = aliasedNoExtPath.slice(prefix.length);
-      absNoExt = path.join(appContext.srcDirectory, rel);
-    } else if (path.isAbsolute(aliasedNoExtPath)) {
-      absNoExt = aliasedNoExtPath;
-    } else {
-      // Unknown format; treat as already relative to src.
-      absNoExt = path.join(appContext.srcDirectory, aliasedNoExtPath);
-    }
-
-    const resolvedNoExt = await resolveFileNoExt(absNoExt);
+    const resolvedNoExt = await resolveRouteModuleNoExt(aliasedNoExtPath);
     if (!resolvedNoExt) {
       return null;
     }
@@ -241,6 +259,35 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
     loaderImportMap.set(key, importName);
     return { loaderName: importName, actionName };
+  };
+
+  const getImportNameForSearchContract = async (
+    aliasedNoExtPath: string,
+    exportName: 'validateSearch' | 'loaderDeps',
+  ) => {
+    const key = `${exportName}:${aliasedNoExtPath}`;
+    const existing = searchContractImportMap.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const resolvedNoExt = await resolveRouteModuleNoExt(aliasedNoExtPath);
+    if (!resolvedNoExt) {
+      return null;
+    }
+
+    const relImport = normalizeRelativeImport(
+      path.relative(outDir, resolvedNoExt),
+    );
+    const importName =
+      exportName === 'validateSearch'
+        ? `validateSearch_${validateSearchIndex++}`
+        : `loaderDeps_${loaderDepsIndex++}`;
+    imports.push(
+      `import { ${exportName} as ${importName} } from ${quote(relImport)};`,
+    );
+    searchContractImportMap.set(key, importName);
+    return importName;
   };
 
   const reserveRouteVarName = (preferred: string) => {
@@ -278,6 +325,19 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       : null;
     const loaderName = loaderImports?.loaderName || null;
     const actionName = loaderImports?.actionName || null;
+    const searchContractInfo = pickRouteSearchContractModules(route);
+    const validateSearchName = searchContractInfo.validateSearchPath
+      ? await getImportNameForSearchContract(
+          searchContractInfo.validateSearchPath,
+          'validateSearch',
+        )
+      : null;
+    const loaderDepsName = searchContractInfo.loaderDepsPath
+      ? await getImportNameForSearchContract(
+          searchContractInfo.loaderDepsPath,
+          'loaderDeps',
+        )
+      : null;
 
     const rawPath = (route as any).path as string | undefined;
     const hasSplat = typeof rawPath === 'string' && rawPath.includes('*');
@@ -296,6 +356,12 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       routeOpts.push(
         `loader: modernLoaderToTanstack({ hasSplat: ${hasSplat} }, ${loaderName}),`,
       );
+    }
+    if (validateSearchName) {
+      routeOpts.push(`validateSearch: ${validateSearchName},`);
+    }
+    if (loaderDepsName) {
+      routeOpts.push(`loaderDeps: ${loaderDepsName},`);
     }
 
     const staticDataSnippet = createRouteStaticDataSnippet({
@@ -346,6 +412,21 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     : null;
   const rootLoaderName = rootLoaderImports?.loaderName || null;
   const rootActionName = rootLoaderImports?.actionName || null;
+  const rootSearchContractInfo = rootModern
+    ? pickRouteSearchContractModules(rootModern)
+    : null;
+  const rootValidateSearchName = rootSearchContractInfo?.validateSearchPath
+    ? await getImportNameForSearchContract(
+        rootSearchContractInfo.validateSearchPath,
+        'validateSearch',
+      )
+    : null;
+  const rootLoaderDepsName = rootSearchContractInfo?.loaderDepsPath
+    ? await getImportNameForSearchContract(
+        rootSearchContractInfo.loaderDepsPath,
+        'loaderDeps',
+      )
+    : null;
 
   const topLevelVars = await Promise.all(
     topLevel.map(route => buildRoute({ parentVar: 'rootRoute', route })),
@@ -356,6 +437,12 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     rootOpts.push(
       `loader: modernLoaderToTanstack({ hasSplat: false }, ${rootLoaderName}),`,
     );
+  }
+  if (rootValidateSearchName) {
+    rootOpts.push(`validateSearch: ${rootValidateSearchName},`);
+  }
+  if (rootLoaderDepsName) {
+    rootOpts.push(`loaderDeps: ${rootLoaderDepsName},`);
   }
 
   const routerGenTs = `/* eslint-disable */

@@ -62,9 +62,11 @@ export interface Route {
   path?: string;
   id?: string;
   loader?: any;
+  loaderDeps?: any;
   action?: any;
   hasErrorBoundary?: boolean;
   shouldRevalidate?: any;
+  validateSearch?: any;
   handle?: any;
   index?: boolean;
   children?: Route[] | undefined;

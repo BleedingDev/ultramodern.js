@@ -76,8 +76,10 @@ type ModernRouteObject = RouteObject & {
   isClientComponent?: boolean;
   lazyImport?: () => unknown;
   loader?: ModernLoader;
+  loaderDeps?: unknown;
   pendingComponent?: unknown;
   shouldRevalidate?: ModernShouldRevalidate;
+  validateSearch?: unknown;
 };
 
 type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
@@ -102,10 +104,12 @@ type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
   isRoot?: boolean;
   lazyImport?: () => unknown;
   loader?: ModernLoader;
+  loaderDeps?: unknown;
   loading?: unknown;
   pendingComponent?: unknown;
   path?: string;
   shouldRevalidate?: ModernShouldRevalidate;
+  validateSearch?: unknown;
 };
 
 type MutableTanstackRoute = AnyRoute & {
@@ -735,6 +739,8 @@ function createRouteFromRouteObject(opts: {
     component: toRouteComponent(routeObject),
     pendingComponent: toPendingComponent(routeObject),
     errorComponent: toErrorComponent(routeObject),
+    validateSearch: modernRouteObject.validateSearch,
+    loaderDeps: modernRouteObject.loaderDeps,
     wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: routeObject.id,
@@ -827,6 +833,8 @@ function createRouteFromModernRoute(opts: {
     component: component || undefined,
     pendingComponent: pendingComponent || undefined,
     errorComponent: errorComponent || undefined,
+    validateSearch: route.validateSearch,
+    loaderDeps: route.loaderDeps,
     wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: modernId,
@@ -910,6 +918,8 @@ export function createRouteTreeFromModernRoutes(
     component: rootComponent || undefined,
     pendingComponent: pendingComponent || undefined,
     errorComponent: errorComponent || undefined,
+    validateSearch: rootModern?.validateSearch,
+    loaderDeps: rootModern?.loaderDeps,
     wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({
@@ -981,6 +991,8 @@ export function createRouteTreeFromRouteObjects(
       ? toPendingComponent(rootLikeRoute)
       : undefined,
     errorComponent: rootLikeRoute ? toErrorComponent(rootLikeRoute) : undefined,
+    validateSearch: rootLikeRoute?.validateSearch,
+    loaderDeps: rootLikeRoute?.loaderDeps,
     wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({

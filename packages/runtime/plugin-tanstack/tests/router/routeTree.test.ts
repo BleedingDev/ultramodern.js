@@ -27,6 +27,8 @@ type TestRouteObject = RouteObject & {
   inValidSSRRoute?: boolean;
   isClientComponent?: boolean;
   lazyImport?: () => Promise<unknown>;
+  loaderDeps?: unknown;
+  validateSearch?: unknown;
 };
 
 type TestNestedRoute = NestedRoute & {
@@ -34,6 +36,8 @@ type TestNestedRoute = NestedRoute & {
   hasAction?: boolean;
   hasClientLoader?: boolean;
   hasLoader?: boolean;
+  loaderDeps?: unknown;
+  validateSearch?: unknown;
 };
 
 type ShouldRevalidateArgs = {
@@ -55,6 +59,8 @@ type TestRoute = {
     shouldReload?: (args: ShouldReloadArgs) => boolean | undefined;
     ssr?: boolean;
     staticData: Record<string, unknown>;
+    loaderDeps?: unknown;
+    validateSearch?: unknown;
   };
 };
 
@@ -147,6 +153,46 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('preserves TanStack search contracts from RouteObject routes', () => {
+    const rootValidateSearch = (search: unknown) => ({ root: search });
+    const rootLoaderDeps = ({ search }: { search: unknown }) => ({ search });
+    const childValidateSearch = (search: unknown) => ({ child: search });
+    const childLoaderDeps = ({ search }: { search: unknown }) => ({ search });
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        validateSearch: rootValidateSearch,
+        loaderDeps: rootLoaderDeps,
+        Component: () => null,
+        children: [
+          {
+            id: 'search',
+            path: 'search',
+            validateSearch: childValidateSearch,
+            loaderDeps: childLoaderDeps,
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({
+        initialEntries: ['/search'],
+      }),
+      context: {},
+    }) as unknown as TestRouter;
+    const searchRoute = getLooseRoute(router, '/search');
+
+    expect(routeTree.options.validateSearch).toBe(rootValidateSearch);
+    expect(routeTree.options.loaderDeps).toBe(rootLoaderDeps);
+    expect(searchRoute.options.validateSearch).toBe(childValidateSearch);
+    expect(searchRoute.options.loaderDeps).toBe(childLoaderDeps);
   });
 
   test('uses TanStack route ids when loading RSC payload route data', async () => {
@@ -520,6 +566,47 @@ describe('tanstack route tree from RouteObject[]', () => {
       section: 'analytics',
       role: 'admin',
     });
+  });
+
+  test('preserves TanStack search contracts from Modern generated routes', () => {
+    const rootValidateSearch = (search: unknown) => ({ root: search });
+    const rootLoaderDeps = ({ search }: { search: unknown }) => ({ search });
+    const childValidateSearch = (search: unknown) => ({ child: search });
+    const childLoaderDeps = ({ search }: { search: unknown }) => ({ search });
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        validateSearch: rootValidateSearch,
+        loaderDeps: rootLoaderDeps,
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'search',
+            path: 'search',
+            validateSearch: childValidateSearch,
+            loaderDeps: childLoaderDeps,
+          },
+        ],
+      },
+    ];
+    const routeTree = createRouteTreeFromModernRoutes(modernRoutes);
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({
+        initialEntries: ['/search'],
+      }),
+      context: {},
+    }) as unknown as TestRouter;
+    const searchRoute = getLooseRouteByModernRouteId(router, 'search');
+
+    expect(routeTree.options.validateSearch).toBe(rootValidateSearch);
+    expect(routeTree.options.loaderDeps).toBe(rootLoaderDeps);
+    expect(searchRoute.options.validateSearch).toBe(childValidateSearch);
+    expect(searchRoute.options.loaderDeps).toBe(childLoaderDeps);
   });
 
   test('preserves Modern generated client route metadata', () => {
