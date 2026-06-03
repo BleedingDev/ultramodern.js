@@ -44,6 +44,20 @@ on:
         required: true
         type: boolean
         default: true
+      publish_concurrency:
+        description: "Maximum npm publish processes to run at once"
+        required: true
+        type: choice
+        default: "4"
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
+          - "8"
 
 permissions:
   contents: read
@@ -99,6 +113,7 @@ jobs:
           PUBLISH_TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_EXISTING: ${{ inputs.skip_existing }}
+          PUBLISH_CONCURRENCY: ${{ inputs.publish_concurrency }}
           AFFECTED_BASE: ${{ inputs.affected_base }}
           AFFECTED_HEAD: ${{ inputs.affected_head }}
         run: node scripts/ultramodern-publish/validate-publish-security.mjs
@@ -173,6 +188,7 @@ jobs:
           PUBLISH_TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_EXISTING: ${{ inputs.skip_existing }}
+          PUBLISH_CONCURRENCY: ${{ inputs.publish_concurrency }}
         run: |
           args=(
             --version "$PUBLISH_VERSION"
@@ -194,6 +210,8 @@ jobs:
           if [ "$SKIP_EXISTING" != "true" ]; then
             args+=(--no-skip-existing)
           fi
+
+          args+=(--publish-concurrency "$PUBLISH_CONCURRENCY")
 
           mise exec -- node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish "${args[@]}"
 

@@ -1,10 +1,25 @@
 #!/usr/bin/env node
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+const execFileAsync = promisify(execFile);
+
+function parsePublishConcurrency(value) {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new Error('--publish-concurrency must be an integer from 1 to 8');
+  }
+
+  const concurrency = Number(value);
+  if (concurrency > 8) {
+    throw new Error('--publish-concurrency must be an integer from 1 to 8');
+  }
+
+  return concurrency;
+}
 
 function parseArgs(argv) {
   const options = {
@@ -21,6 +36,7 @@ function parseArgs(argv) {
     publish: false,
     dryRun: false,
     skipExisting: true,
+    publishConcurrency: 4,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -67,6 +83,8 @@ function parseArgs(argv) {
       options.dryRun = true;
     } else if (arg === '--no-skip-existing') {
       options.skipExisting = false;
+    } else if (arg === '--publish-concurrency') {
+      options.publishConcurrency = parsePublishConcurrency(readValue());
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -79,6 +97,14 @@ function parseArgs(argv) {
   }
 
   options.dependencyVersion ??= options.version;
+
+  if (
+    !Number.isInteger(options.publishConcurrency) ||
+    options.publishConcurrency < 1 ||
+    options.publishConcurrency > 8
+  ) {
+    throw new Error('--publish-concurrency must be an integer from 1 to 8');
+  }
 
   return options;
 }
@@ -509,6 +535,29 @@ function run(command, args, options = {}) {
   }
 }
 
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? repoRoot,
+      stdio: options.stdio ?? 'inherit',
+      env: {
+        ...process.env,
+        FORCE_COLOR: '0',
+      },
+    });
+
+    child.on('error', reject);
+    child.on('close', status => {
+      if (status === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`${command} ${args.join(' ')} failed with ${status}`));
+    });
+  });
+}
+
 function packSourcePackage(packageName, packDir) {
   const before = new Set(fs.readdirSync(packDir));
   run(
@@ -537,52 +586,55 @@ function extractTarball(tarball, targetDir) {
   return path.join(targetDir, 'package');
 }
 
-function packageExists(packageName, version) {
-  const result = spawnSync(
-    'npm',
-    ['view', `${packageName}@${version}`, 'version'],
-    {
-      cwd: repoRoot,
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    },
-  );
-  return result.status === 0;
+async function packageExists(packageName, version) {
+  try {
+    await execFileAsync(
+      'npm',
+      ['view', `${packageName}@${version}`, 'version'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf-8',
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function verifyRegistryPackage(packageName, version) {
+async function verifyRegistryPackage(packageName, version) {
   const attempts = 12;
   const retryDelayMs = 5000;
   let lastError = '';
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const result = spawnSync(
-      'npm',
-      ['view', `${packageName}@${version}`, 'version', '--json'],
-      {
-        cwd: repoRoot,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      },
-    );
-    if (result.status === 0) {
-      const publishedVersion = JSON.parse(result.stdout);
+    try {
+      const { stdout } = await execFileAsync(
+        'npm',
+        ['view', `${packageName}@${version}`, 'version', '--json'],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+        },
+      );
+      const publishedVersion = JSON.parse(stdout);
       if (publishedVersion !== version) {
         throw new Error(
           `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
         );
       }
       return;
+    } catch (error) {
+      lastError =
+        error instanceof Error && 'stderr' in error
+          ? String(error.stderr)
+          : error instanceof Error
+            ? error.message
+            : String(error);
     }
 
-    lastError = result.stderr || result.stdout;
     if (attempt < attempts) {
-      Atomics.wait(
-        new Int32Array(new SharedArrayBuffer(4)),
-        0,
-        0,
-        retryDelayMs,
-      );
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
   }
 
@@ -635,7 +687,7 @@ function validatePublishManifest(manifest) {
   }
 }
 
-function publishPackage(packageDir, options) {
+async function publishPackage(packageDir, options) {
   const packageJson = readJson(path.join(packageDir, 'package.json'));
   const args = [
     'publish',
@@ -652,11 +704,66 @@ function publishPackage(packageDir, options) {
     args.push('--provenance');
   }
 
-  run('npm', args);
+  await runAsync('npm', args);
   return packageJson.name;
 }
 
-function main() {
+async function publishManifestPackages(manifest, options) {
+  let nextIndex = 0;
+  const concurrency = Math.min(
+    options.publishConcurrency,
+    manifest.packages.length,
+  );
+
+  const publishOne = async item => {
+    const packageDir = path.join(repoRoot, item.packageDir);
+    if (
+      options.skipExisting &&
+      (await packageExists(item.targetName, options.version))
+    ) {
+      console.log(`Skipping existing ${item.targetName}@${options.version}`);
+      await verifyRegistryPackage(item.targetName, options.version);
+      return;
+    }
+
+    const publishedName = await publishPackage(packageDir, options);
+    console.log(`Published ${publishedName}@${options.version}`);
+    if (!options.dryRun) {
+      await verifyRegistryPackage(publishedName, options.version);
+    }
+  };
+
+  const failures = [];
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (nextIndex < manifest.packages.length && failures.length === 0) {
+      const item = manifest.packages[nextIndex];
+      nextIndex += 1;
+      try {
+        await publishOne(item);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+  });
+
+  console.log(
+    `Publishing ${manifest.packages.length} package(s) with concurrency ${concurrency}`,
+  );
+  await Promise.all(workers);
+
+  if (failures.length === 1) {
+    throw failures[0];
+  }
+  if (failures.length > 1) {
+    throw new Error(
+      failures
+        .map(error => (error instanceof Error ? error.message : String(error)))
+        .join('\n'),
+    );
+  }
+}
+
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   const { allPackages, packages, sourceNames, aliases } =
     collectModernPackages(options);
@@ -722,27 +829,11 @@ function main() {
   }
 
   assertTrustedPublishContext();
-
-  for (const item of manifest.packages) {
-    const packageDir = path.join(repoRoot, item.packageDir);
-    if (
-      options.skipExisting &&
-      packageExists(item.targetName, options.version)
-    ) {
-      console.log(`Skipping existing ${item.targetName}@${options.version}`);
-      verifyRegistryPackage(item.targetName, options.version);
-      continue;
-    }
-    const publishedName = publishPackage(packageDir, options);
-    console.log(`Published ${publishedName}@${options.version}`);
-    if (!options.dryRun) {
-      verifyRegistryPackage(publishedName, options.version);
-    }
-  }
+  await publishManifestPackages(manifest, options);
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);

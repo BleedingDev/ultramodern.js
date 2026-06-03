@@ -66,6 +66,7 @@ function validateInputs() {
   const mode = process.env.PACKAGE_MODE ?? '';
   const explicitPackages = process.env.EXPLICIT_PACKAGES ?? '';
   const tag = process.env.PUBLISH_TAG ?? '';
+  const publishConcurrency = process.env.PUBLISH_CONCURRENCY ?? '';
   const affectedBase = process.env.AFFECTED_BASE ?? '';
   const affectedHead = process.env.AFFECTED_HEAD ?? '';
 
@@ -82,6 +83,9 @@ function validateInputs() {
   }
   if (!allowedTags.has(tag)) {
     fail(`dist-tag must be one of ${Array.from(allowedTags).join(', ')}`);
+  }
+  if (!/^[1-8]$/.test(publishConcurrency)) {
+    fail('publish_concurrency must be an integer from 1 to 8');
   }
   if (mode === 'explicit' && explicitPackages.trim() === '') {
     fail('package_mode=explicit requires a non-empty package list');
@@ -156,6 +160,11 @@ function validateWorkflowContract() {
     workflow,
     '.modern/prepublish-release-gates/source-create-proof.json',
     'publish workflow source proof artifact upload',
+  );
+  requireIncludes(
+    workflow,
+    '--publish-concurrency "$PUBLISH_CONCURRENCY"',
+    'publish workflow package concurrency',
   );
   if (workflow.includes('pull_request_target')) {
     fail('publish workflow must not use pull_request_target');
