@@ -38,16 +38,46 @@ function resolvePackageFile(
   paths: string[],
 ) {
   try {
-    const packageJsonPath = require.resolve(`${packageName}/package.json`, {
-      paths,
-    });
-    const packageFile = path.join(path.dirname(packageJsonPath), filePath);
-    return fs.existsSync(packageFile)
+    return fs.realpathSync(
+      require.resolve(`${packageName}/${filePath}`, {
+        paths,
+      }),
+    );
+  } catch {
+    const packageEntry = resolvePackageEntry(packageName, paths);
+    if (!packageEntry) {
+      return undefined;
+    }
+
+    const packageRoot = findPackageRoot(packageEntry, packageName);
+    const packageFile = packageRoot
+      ? path.join(packageRoot, filePath)
+      : undefined;
+
+    return packageFile && fs.existsSync(packageFile)
       ? fs.realpathSync(packageFile)
       : undefined;
-  } catch {
-    return undefined;
   }
+}
+
+function findPackageRoot(entryFile: string, packageName: string) {
+  let directory = path.dirname(entryFile);
+
+  while (directory !== path.dirname(directory)) {
+    const packageJsonPath = path.join(directory, 'package.json');
+
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      if (packageJson.name === packageName) {
+        return directory;
+      }
+    } catch {}
+
+    directory = path.dirname(directory);
+  }
+
+  return undefined;
 }
 
 function setAliasIfPresent(
@@ -224,7 +254,7 @@ export function getBuilderEnvironments(
         ])
       : undefined;
     const loadableComponentFile = useCloudflareModuleWorker
-      ? resolvePackageEntry('@loadable/component', [
+      ? resolvePackageFile('@loadable/component', 'dist/esm/loadable.esm.mjs', [
           appContext.appDirectory,
           process.cwd(),
           CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR,

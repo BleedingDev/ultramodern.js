@@ -4,7 +4,20 @@ exports[`fileSystemRoutes > generate code 1`] = `
 
     
     import { lazy } from "react";
-    import loadable, { lazy as loadableLazy } from "@modern-js/runtime/loadable"
+    import * as loadableModule from "@modern-js/runtime/loadable"
+
+    const resolveLoadableExport = module => {
+      const candidates = [module, module.default, module.default?.default];
+      const loadable = candidates.find(candidate => typeof candidate === 'function');
+
+      if (!loadable) {
+        throw new TypeError('Modern.js runtime loadable export must resolve to a function');
+      }
+
+      return loadable;
+    };
+    const loadable = resolveLoadableExport(loadableModule);
+    const loadableLazy = loadableModule.lazy || loadableModule.default?.lazy || loadable.lazy;
   
     
     
@@ -76,7 +89,20 @@ exports[`fileSystemRoutes > generate code for legacy router 1`] = `
 
     
     import { lazy } from "react";
-    import loadable, { lazy as loadableLazy } from "@modern-js/runtime/loadable"
+    import * as loadableModule from "@modern-js/runtime/loadable"
+
+    const resolveLoadableExport = module => {
+      const candidates = [module, module.default, module.default?.default];
+      const loadable = candidates.find(candidate => typeof candidate === 'function');
+
+      if (!loadable) {
+        throw new TypeError('Modern.js runtime loadable export must resolve to a function');
+      }
+
+      return loadable;
+    };
+    const loadable = resolveLoadableExport(loadableModule);
+    const loadableLazy = loadableModule.lazy || loadableModule.default?.lazy || loadable.lazy;
   
     
     

@@ -266,7 +266,7 @@ describe('create builder Options', () => {
         /react-dom[/\\]server\.edge\.js$/,
       );
       expect(aliases.get('@loadable/component$')).toMatch(
-        /@loadable[/\\]component[/\\]dist[/\\]cjs[/\\]loadable\.cjs\.js$/,
+        /@loadable[/\\]component[/\\]dist[/\\]esm[/\\]loadable\.esm\.mjs$/,
       );
       expect(aliases.get('@loadable/server$')).toMatch(
         /app-tools[/\\]src[/\\]plugins[/\\]deploy[/\\]platforms[/\\]templates[/\\]cloudflare-worker-loadable-server\.mjs$/,

@@ -231,7 +231,20 @@ export const fileSystemRoutes = async ({
 
   const importLazyCode = `
     import { lazy } from "react";
-    import loadable, { lazy as loadableLazy } from "@${metaName}/runtime/loadable"
+    import * as loadableModule from "@${metaName}/runtime/loadable"
+
+    const resolveLoadableExport = module => {
+      const candidates = [module, module.default, module.default?.default];
+      const loadable = candidates.find(candidate => typeof candidate === 'function');
+
+      if (!loadable) {
+        throw new TypeError('Modern.js runtime loadable export must resolve to a function');
+      }
+
+      return loadable;
+    };
+    const loadable = resolveLoadableExport(loadableModule);
+    const loadableLazy = loadableModule.lazy || loadableModule.default?.lazy || loadable.lazy;
   `;
 
   let rootLayoutCode = ``;
