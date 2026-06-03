@@ -192,6 +192,8 @@ describe('create builder Options', () => {
       const aliases = new Map<string, string>();
       const fallbacks = new Map<string, false>();
       const deletedPlugins = new Set<string>();
+      const module = rstest.fn().mockReturnThis();
+      const library = rstest.fn().mockReturnThis();
       const chunkFormat = rstest.fn().mockReturnThis();
       const chunkLoading = rstest.fn().mockReturnThis();
       const workerChunkLoading = rstest.fn().mockReturnThis();
@@ -199,6 +201,8 @@ describe('create builder Options', () => {
         merge: rstest.fn(),
         externalsPresets: rstest.fn(),
         output: {
+          module,
+          library,
           chunkFormat,
           chunkLoading,
           workerChunkLoading,
@@ -235,6 +239,8 @@ describe('create builder Options', () => {
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).toHaveBeenCalledWith('webworker');
+      expect(module).toHaveBeenCalledWith(true);
+      expect(library).toHaveBeenCalledWith({ type: 'module' });
       expect(chunkFormat).toHaveBeenCalledWith('module');
       expect(chunkLoading).toHaveBeenCalledWith('import');
       expect(workerChunkLoading).toHaveBeenCalledWith('import');
