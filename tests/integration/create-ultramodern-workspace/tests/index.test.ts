@@ -146,7 +146,7 @@ function expectAppConfigContract(
         html: './',
       },
       polyfill: 'off',
-      splitRouteChunks: false,
+      splitRouteChunks: true,
     },
     html: {
       outputStructure: 'flat',

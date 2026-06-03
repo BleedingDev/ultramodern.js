@@ -44,6 +44,24 @@ const readFixture = (relativePath: string) =>
 const readFixtureJson = (relativePath: string) =>
   JSON.parse(readFixture(relativePath));
 
+const listDistJsFiles = (appName: string) => {
+  const distDir = path.join(tanstackMfRoot, appName, 'dist');
+  const files: string[] = [];
+  const visit = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.js')) {
+        files.push(path.relative(distDir, fullPath));
+      }
+    }
+  };
+
+  visit(distDir);
+  return files;
+};
+
 type PackageJsonWithDependencies = {
   dependencies?: Record<string, string>;
 };
@@ -230,7 +248,7 @@ describe('tanstack + module federation contracts', () => {
             expect(config).toContain("mode: 'stream'");
             expect(config).toContain('moduleFederationAppSSR: true');
           }
-          expect(hostConfig).toContain('splitRouteChunks: false');
+          expect(listDistJsFiles('mf-host').length).toBeGreaterThan(1);
         },
       },
       {

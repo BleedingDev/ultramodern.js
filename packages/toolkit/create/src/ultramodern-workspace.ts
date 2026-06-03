@@ -1138,7 +1138,7 @@ ${bffConfig}      html: {
           html: './',
         },
         polyfill: 'off',
-        splitRouteChunks: false,
+        splitRouteChunks: true,
       },
       performance: {
         rsdoctor: {
@@ -4312,7 +4312,7 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
         html: './',
       },
       polyfill: 'off',
-      splitRouteChunks: false,
+      splitRouteChunks: true,
     },
     performance: {
       rsdoctor: {

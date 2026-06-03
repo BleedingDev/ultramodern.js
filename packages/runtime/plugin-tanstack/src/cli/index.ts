@@ -19,10 +19,23 @@ import {
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
 import {
+  createTanstackRsbuildRouteSplittingProfile,
+  type TanstackRouteCodeSplittingOption,
+} from './routeSplitting';
+import {
   generateTanstackRouterTypesSourceForEntry,
   isTanstackRouterFrameworkEnabled,
 } from './tanstackTypes';
 
+export type {
+  TanstackRouteCodeSplittingOption,
+  TanstackRsbuildRouteSplittingProfile,
+} from './routeSplitting';
+export {
+  createTanstackRsbuildRouteSplittingProfile,
+  isTanstackStartRouteModuleSource,
+  resolveTanstackRouteCodeSplittingEnabled,
+} from './routeSplitting';
 export {
   generateTanstackRouterTypesSourceForEntry,
   isTanstackRouterFrameworkEnabled,
@@ -35,6 +48,7 @@ const ENTRYPOINTS_KEY = '@modern-js/plugin-tanstack';
 export type TanstackRouterPluginOptions = {
   routesDir?: string;
   generatedDirName?: string;
+  routeCodeSplitting?: TanstackRouteCodeSplittingOption;
 };
 
 type RuntimeRouterCliHelpers = {
@@ -224,6 +238,8 @@ export function tanstackRouterPlugin(
   const routesDir = options.routesDir || DEFAULT_ROUTES_DIR;
   const generatedDirName =
     options.generatedDirName || DEFAULT_GENERATED_DIR_NAME;
+  const routeSplittingProfile =
+    createTanstackRsbuildRouteSplittingProfile(options);
 
   return {
     name: '@modern-js/plugin-tanstack',
@@ -265,6 +281,7 @@ export function tanstackRouterPlugin(
       }));
 
       api.config(() => ({
+        ...routeSplittingProfile.defaultConfig,
         source: {
           include: [
             /[\\/]node_modules[\\/]@tanstack[\\/]react-router[\\/]/,

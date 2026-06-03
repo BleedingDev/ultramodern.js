@@ -1,9 +1,12 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { mergeConfig } from '@modern-js/plugin/cli';
 import type { Entrypoint } from '@modern-js/types';
 import { fs, NESTED_ROUTE_SPEC_FILE } from '@modern-js/utils';
 import {
+  createTanstackRsbuildRouteSplittingProfile,
+  isTanstackStartRouteModuleSource,
   tanstackRouterPlugin,
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
@@ -192,6 +195,12 @@ describe('tanstack router cli plugin', () => {
         config: { serverBase: ['/dashboard'] },
       },
     ]);
+
+    expect(taps.config()).toMatchObject({
+      output: {
+        splitRouteChunks: true,
+      },
+    });
 
     const specPath = path.join(distDirectory, NESTED_ROUTE_SPEC_FILE);
     await fs.outputJSON(specPath, {
@@ -382,5 +391,235 @@ describe('tanstack router cli plugin', () => {
         entrypointsKey: '@modern-js/plugin-tanstack',
       }),
     );
+  });
+
+  test('can opt out of Modern-owned route code splitting', async () => {
+    const taps: Record<string, any> = {};
+    const api = {
+      getAppContext: () => ({
+        srcDirectory: '/tmp/app/src',
+        serverRoutes: [],
+      }),
+      _internalRuntimePlugins: () => {},
+      checkEntryPoint: () => {},
+      config: (tap: any) => {
+        taps.config = tap;
+      },
+      modifyEntrypoints: () => {},
+      generateEntryCode: () => {},
+      onFileChanged: () => {},
+      modifyFileSystemRoutes: () => {},
+      onBeforeGenerateRoutes: () => {},
+    };
+
+    tanstackRouterPlugin({ routeCodeSplitting: false }).setup!(api as any);
+
+    expect(taps.config()).toMatchObject({
+      output: {
+        splitRouteChunks: false,
+      },
+    });
+  });
+
+  test('documents why TanStack Start Rspack splitter is not registered for Modern routes', () => {
+    const profile = createTanstackRsbuildRouteSplittingProfile({});
+
+    expect(profile).toMatchObject({
+      defaultConfig: {
+        output: {
+          splitRouteChunks: true,
+        },
+      },
+      modernRouteChunks: {
+        enabled: true,
+        owner: 'modern',
+      },
+      builderChunkSplit: {
+        owner: 'modern-rsbuild',
+        preserved: true,
+      },
+      tanstackStartRspackSplitter: {
+        compatible: false,
+        clientDeleteNodes: ['ssr', 'server', 'headers'],
+      },
+    });
+    expect(
+      isTanstackStartRouteModuleSource(
+        "export const Route = createFileRoute('/dashboard')({ component })",
+      ),
+    ).toBe(true);
+    expect(
+      isTanstackStartRouteModuleSource(
+        'export const route = createRoute({ getParentRoute, path })',
+      ),
+    ).toBe(false);
+  });
+
+  test('preserves user-selected route and builder chunk splitting modes', () => {
+    const pluginDefaults = createTanstackRsbuildRouteSplittingProfile(
+      {},
+    ).defaultConfig;
+    const chunkSplits = [
+      { strategy: 'split-by-module' },
+      { strategy: 'split-by-experience' },
+      { strategy: 'all-in-one' },
+      { strategy: 'single-vendor' },
+      { strategy: 'split-by-size', minSize: 10_000, maxSize: 60_000 },
+      {
+        strategy: 'custom',
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            tractors: {
+              name: 'tractors',
+              test: /tractors/u,
+            },
+          },
+        },
+      },
+    ];
+
+    for (const chunkSplit of chunkSplits) {
+      expect(
+        mergeConfig([
+          pluginDefaults,
+          {
+            output: {
+              splitRouteChunks: false,
+            },
+            performance: {
+              chunkSplit,
+            },
+            splitChunks: false,
+          },
+        ]),
+      ).toMatchObject({
+        output: {
+          splitRouteChunks: false,
+        },
+        performance: {
+          chunkSplit,
+        },
+        splitChunks: false,
+      });
+    }
+
+    const pageSplitWithManualAsyncChunks = mergeConfig([
+      pluginDefaults,
+      {
+        performance: {
+          chunkSplit: {
+            strategy: 'custom',
+            splitChunks: {
+              chunks: 'async',
+            },
+          },
+        },
+      },
+    ]);
+
+    expect(pageSplitWithManualAsyncChunks).toMatchObject({
+      output: {
+        splitRouteChunks: true,
+      },
+      performance: {
+        chunkSplit: {
+          strategy: 'custom',
+          splitChunks: {
+            chunks: 'async',
+          },
+        },
+      },
+    });
+  });
+
+  test('keeps custom cache group details intact', () => {
+    const pluginDefaults = createTanstackRsbuildRouteSplittingProfile(
+      {},
+    ).defaultConfig;
+
+    const mergedConfig = mergeConfig([
+      pluginDefaults,
+      {
+        performance: {
+          chunkSplit: {
+            strategy: 'custom',
+            splitChunks: {
+              chunks: 'all',
+              cacheGroups: {
+                tractors: {
+                  name: 'tractors',
+                  test: /tractors/u,
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    expect(
+      (
+        mergedConfig as {
+          performance?: {
+            chunkSplit?: {
+              splitChunks?: {
+                cacheGroups?: {
+                  tractors?: {
+                    test?: RegExp;
+                  };
+                };
+              };
+            };
+          };
+        }
+      ).performance?.chunkSplit?.splitChunks?.cacheGroups?.tractors?.test,
+    ).toEqual(/tractors/u);
+    expect(mergedConfig).toMatchObject({
+      output: {
+        splitRouteChunks: true,
+      },
+      performance: {
+        chunkSplit: {
+          strategy: 'custom',
+          splitChunks: {
+            chunks: 'all',
+            cacheGroups: {
+              tractors: {
+                name: 'tractors',
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  test('plugin opt-out can still combine with manual builder chunking', () => {
+    const pluginDefaults = createTanstackRsbuildRouteSplittingProfile({
+      routeCodeSplitting: false,
+    }).defaultConfig;
+
+    expect(
+      mergeConfig([
+        pluginDefaults,
+        {
+          performance: {
+            chunkSplit: {
+              strategy: 'single-vendor',
+            },
+          },
+        },
+      ]),
+    ).toMatchObject({
+      output: {
+        splitRouteChunks: false,
+      },
+      performance: {
+        chunkSplit: {
+          strategy: 'single-vendor',
+        },
+      },
+    });
   });
 });
