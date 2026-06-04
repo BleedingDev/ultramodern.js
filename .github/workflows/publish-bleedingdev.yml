@@ -75,11 +75,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish @bleedingdev packages
+  publish-security:
+    name: Validate publish security
     runs-on: ubuntu-latest
-    environment: npm-publish
-    timeout-minutes: 90
+    timeout-minutes: 15
     if: github.ref == 'refs/heads/main-ultramodern'
     steps:
       - name: Harden Runner
@@ -100,9 +99,6 @@ jobs:
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
-
-      - name: Install Dependencies
-        run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Validate publish security posture
         env:
@@ -125,6 +121,36 @@ jobs:
           mise exec -- pnpm --version
           node -e "const version = process.versions.node.split('.').map(Number); if (version[0] < 22 || (version[0] === 22 && version[1] < 14)) throw new Error('npm trusted publishing requires Node.js 22.14.0 or newer');"
           node -e "const { execFileSync } = require('node:child_process'); const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (version[0] < 11 || (version[0] === 11 && version[1] < 5) || (version[0] === 11 && version[1] === 5 && version[2] < 1)) throw new Error('npm trusted publishing requires npm 11.5.1 or newer');"
+
+  prepare-packages:
+    name: Build and stage @bleedingdev packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.ref == 'refs/heads/main-ultramodern'
+    outputs:
+      packages: ${{ steps.package-selection.outputs.packages }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Install Dependencies
+        run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Build Packages
         run: mise exec -- pnpm ultramodern:build-bleedingdev-publish
@@ -180,11 +206,57 @@ jobs:
       - name: Validate pre-publish source proof
         run: mise exec -- pnpm ultramodern:source-create-proof
 
+      - name: Upload staged publish package tree
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bleedingdev-publish-staged-packages
+          path: .modern/bleedingdev-publish/
+          if-no-files-found: error
+
+      - name: Upload pre-publish source proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepublish-source-create-proof
+          path: .modern/prepublish-release-gates/source-create-proof.json
+          if-no-files-found: error
+
+  publish:
+    name: Publish @bleedingdev packages
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    timeout-minutes: 45
+    if: github.ref == 'refs/heads/main-ultramodern'
+    needs:
+      - publish-security
+      - prepare-packages
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Download staged publish package tree
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-publish-staged-packages
+          path: .modern/bleedingdev-publish
+
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
-          PUBLISH_PACKAGES: ${{ steps.package-selection.outputs.packages }}
+          PUBLISH_PACKAGES: ${{ needs.prepare-packages.outputs.packages }}
           PUBLISH_TAG: ${{ inputs.tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_EXISTING: ${{ inputs.skip_existing }}
@@ -213,7 +285,7 @@ jobs:
 
           args+=(--publish-concurrency "$PUBLISH_CONCURRENCY")
 
-          mise exec -- node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish "${args[@]}"
+          node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish-existing "${args[@]}"
 
       - name: Upload publish manifest
         if: always()
@@ -221,12 +293,4 @@ jobs:
         with:
           name: bleedingdev-publish-manifest
           path: .modern/bleedingdev-publish/manifest.json
-          if-no-files-found: ignore
-
-      - name: Upload pre-publish source proof
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: prepublish-source-create-proof
-          path: .modern/prepublish-release-gates/source-create-proof.json
           if-no-files-found: ignore

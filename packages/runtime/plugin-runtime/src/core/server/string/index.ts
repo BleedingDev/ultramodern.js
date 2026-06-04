@@ -15,6 +15,7 @@ import {
   SSR_DATA_PLACEHOLDER,
 } from '../constants';
 import { createReplaceHelemt, getHelmetData } from '../helmet';
+import { injectBeforeHydrationEntryScript } from '../scriptOrder';
 import { type BuildHtmlCb, buildHtml, type RenderString } from '../shared';
 import { SSRErrors, SSRTimings, type Tracer } from '../tracer';
 import { getSSRConfigByEntry, safeReplace } from '../utils';
@@ -101,6 +102,7 @@ export const renderString: RenderString = async (
     collectors,
     runtimeContext.ssrContext?.htmlModifiers || [],
     runtimeContext,
+    entryName,
     tracer,
   );
 
@@ -114,6 +116,7 @@ async function generateHtml(
   collectors: Collector[],
   htmlModifiers: BuildHtmlCb[],
   runtimeContext: TInternalRuntimeContext,
+  entryName: string,
   { onError, onTiming }: Tracer,
 ): Promise<string> {
   let html = '';
@@ -146,7 +149,7 @@ async function generateHtml(
 
   const finalHtml = await buildHtml(htmlTemplate, [
     createReplaceHtml(html),
-    createReplaceChunkJs(jsChunk),
+    createReplaceChunkJs(jsChunk, entryName),
     createReplaceChunkCss(cssChunk),
     createReplaceSSRDataScript(ssrScripts),
     createReplaceHelemt(helmetData),
@@ -165,8 +168,25 @@ function createReplaceSSRDataScript(data: string): BuildHtmlCb {
     safeReplace(template, SSR_DATA_PLACEHOLDER, data);
 }
 
-function createReplaceChunkJs(js: string): BuildHtmlCb {
-  return (template: string) => safeReplace(template, CHUNK_JS_PLACEHOLDER, js);
+function createReplaceChunkJs(js: string, entryName?: string): BuildHtmlCb {
+  return (template: string) => {
+    if (!js) {
+      return safeReplace(template, CHUNK_JS_PLACEHOLDER, '');
+    }
+
+    const withoutPlaceholder = safeReplace(template, CHUNK_JS_PLACEHOLDER, '');
+    const withEarlyScripts = injectBeforeHydrationEntryScript(
+      withoutPlaceholder,
+      js,
+      entryName,
+    );
+
+    if (withEarlyScripts !== withoutPlaceholder) {
+      return withEarlyScripts;
+    }
+
+    return safeReplace(template, CHUNK_JS_PLACEHOLDER, js);
+  };
 }
 
 function createReplaceChunkCss(css: string): BuildHtmlCb {

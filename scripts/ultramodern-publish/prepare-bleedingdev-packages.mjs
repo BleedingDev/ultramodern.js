@@ -34,6 +34,7 @@ function parseArgs(argv) {
     homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
     bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
     publish: false,
+    publishExisting: false,
     dryRun: false,
     skipExisting: true,
     publishConcurrency: 8,
@@ -78,6 +79,9 @@ function parseArgs(argv) {
     } else if (arg === '--bugs-url') {
       options.bugsUrl = readValue();
     } else if (arg === '--publish') {
+      options.publish = true;
+    } else if (arg === '--publish-existing') {
+      options.publishExisting = true;
       options.publish = true;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
@@ -765,6 +769,20 @@ async function publishManifestPackages(manifest, options) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+
+  if (options.publishExisting) {
+    const manifest = readJson(path.join(options.out, 'manifest.json'));
+    if (manifest.version !== options.version) {
+      throw new Error(
+        `Publish manifest version ${manifest.version} does not match --version ${options.version}`,
+      );
+    }
+    validatePublishManifest(manifest);
+    assertTrustedPublishContext();
+    await publishManifestPackages(manifest, options);
+    return;
+  }
+
   const { allPackages, packages, sourceNames, aliases } =
     collectModernPackages(options);
   enforceSingleVersionPolicy(options, packages, allPackages);

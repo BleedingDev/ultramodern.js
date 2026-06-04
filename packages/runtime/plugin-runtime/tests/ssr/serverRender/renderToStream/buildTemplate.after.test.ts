@@ -3,6 +3,11 @@ import { SSR_DATA_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { buildShellAfterTemplate } from '../../../../src/core/server/stream/afterTemplate';
 import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
 
+const scriptSrcs = (html: string) =>
+  Array.from(
+    html.matchAll(/<script\b[^>]*\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/g),
+  ).map(match => match[1] ?? match[2] ?? match[3]);
+
 describe('SSRDataCollector (stream parity)', () => {
   it('should strip denylisted headers from serialized SSR data script', () => {
     const chunkSet = {
@@ -237,5 +242,56 @@ describe('SSRDataCollector (stream parity)', () => {
     expect(html).toContain('<script src=/assets/product.js></script>');
     expect(html).toContain('<script src=/assets/main.js></script>');
     expect(html).not.toContain('/assets/product.css');
+  });
+
+  it('should move matched route scripts before the hydration entry script', async () => {
+    const html = await buildShellAfterTemplate(
+      '<script defer src="/static/js/index.js"></script><!--<?- chunksMap.js ?>-->',
+      {
+        entryName: 'index',
+        renderLevel: RenderLevel.SERVER_RENDER,
+        request: new Request('http://localhost/products/shoe'),
+        runtimeContext: {
+          routerServerSnapshot: {
+            matchedRouteIds: ['products/$slug'],
+          },
+          routeManifest: {
+            routeAssets: {
+              'products/$slug': {
+                assets: [
+                  '/static/js/async/products/shared.js',
+                  '/static/js/async/products/$slug.js',
+                ],
+              },
+              'async-index': {
+                assets: ['/static/js/async/async-index.js'],
+              },
+            },
+          },
+          initialData: {},
+          __i18nData__: {},
+          ssrContext: {
+            request: {
+              params: {},
+              query: {},
+              pathname: '/products/shoe',
+              host: 'localhost',
+              url: 'http://localhost/products/shoe',
+              headers: {},
+            },
+            reporter: { sessionId: 'session-1' },
+          },
+        } as any,
+        ssrConfig: {} as any,
+        config: {} as any,
+      },
+    );
+
+    expect(scriptSrcs(html)).toEqual([
+      '/static/js/async/products/shared.js',
+      '/static/js/async/products/$slug.js',
+      '/static/js/async/async-index.js',
+      '/static/js/index.js',
+    ]);
   });
 });

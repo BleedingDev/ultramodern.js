@@ -27,6 +27,62 @@ const generateChunks = (chunks: Chunk[], ext: string) =>
     .filter(chunk => Boolean(chunk.url))
     .filter(chunk => extname(chunk.url).slice(1) === ext);
 
+const dedupeChunksByUrl = (chunks: Chunk[]) => {
+  const seen = new Set<string>();
+  return chunks.filter(chunk => {
+    if (!chunk.url || seen.has(chunk.url)) {
+      return false;
+    }
+    seen.add(chunk.url);
+    return true;
+  });
+};
+
+const isAsyncEntryScriptChunk = (chunk: Chunk, entryName: string) => {
+  if (!chunk.url?.endsWith('.js')) {
+    return false;
+  }
+
+  const asyncEntryName = `async-${entryName}`;
+  const filename = chunk.filename || chunk.url;
+  const basename = filename.split('/').pop() || filename;
+  return (
+    basename === `${asyncEntryName}.js` ||
+    basename.startsWith(`${asyncEntryName}.`) ||
+    basename.startsWith(`${asyncEntryName}-`)
+  );
+};
+
+export const orderHydrationScriptChunks = ({
+  asyncEntryChunks,
+  collectedChunks,
+  matchedRouteChunks,
+  entryName,
+}: {
+  asyncEntryChunks: Chunk[];
+  collectedChunks: Chunk[];
+  matchedRouteChunks: Chunk[];
+  entryName: string;
+}) => {
+  const asyncEntryScriptChunks: Chunk[] = [];
+  const asyncEntryDependencyChunks: Chunk[] = [];
+
+  for (const chunk of asyncEntryChunks) {
+    if (isAsyncEntryScriptChunk(chunk, entryName)) {
+      asyncEntryScriptChunks.push(chunk);
+    } else {
+      asyncEntryDependencyChunks.push(chunk);
+    }
+  }
+
+  return dedupeChunksByUrl([
+    ...asyncEntryDependencyChunks,
+    ...collectedChunks,
+    ...matchedRouteChunks,
+    ...asyncEntryScriptChunks,
+  ]);
+};
+
 const checkIsInline = (
   chunk: Chunk,
   enableInline: boolean | RegExp | undefined,
@@ -134,11 +190,21 @@ export class LoadableCollector implements Collector {
       }
     }
 
+    const collectedChunks = extractor
+      ? extractor.getChunkAssets(extractor.chunks)
+      : [];
+    const matchedRouteChunks = this.getMatchedRouteChunks();
+    const orderedScriptChunks = orderHydrationScriptChunks({
+      asyncEntryChunks: asyncChunks,
+      collectedChunks,
+      matchedRouteChunks,
+      entryName,
+    });
     const chunks = ([] as Chunk[])
       .concat(asyncChunks)
-      .concat(extractor ? extractor.getChunkAssets(extractor.chunks) : [])
-      .concat(this.getMatchedRouteChunks());
-    const scriptChunks = generateChunks(chunks, 'js');
+      .concat(collectedChunks)
+      .concat(matchedRouteChunks);
+    const scriptChunks = generateChunks(orderedScriptChunks, 'js');
     const styleChunks = generateChunks(chunks, 'css');
 
     if (extractor) {

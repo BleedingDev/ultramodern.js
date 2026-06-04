@@ -11,6 +11,7 @@ import type { TInternalRuntimeContext } from '../../context';
 import type { SSRContainer } from '../../types';
 import { SSR_DATA_PLACEHOLDER } from '../constants';
 import type { HandleRequestConfig } from '../requestHandler';
+import { injectBeforeHydrationEntryScript } from '../scriptOrder';
 import { type BuildHtmlCb, buildHtml, type SSRConfig } from '../shared';
 import { attributesToString, safeReplace } from '../utils';
 
@@ -65,7 +66,19 @@ export function buildShellAfterTemplate(
       .map(asset => `<script src=${asset}${nonceAttr}></script>`)
       .join(' ');
     if (jsChunkStr) {
-      return safeReplace(template, '<!--<?- chunksMap.js ?>-->', jsChunkStr);
+      const withoutPlaceholder = safeReplace(
+        template,
+        '<!--<?- chunksMap.js ?>-->',
+        '',
+      );
+      const withEarlyScripts = injectBeforeHydrationEntryScript(
+        withoutPlaceholder,
+        jsChunkStr,
+        entryName,
+      );
+      return withEarlyScripts !== withoutPlaceholder
+        ? withEarlyScripts
+        : safeReplace(template, '<!--<?- chunksMap.js ?>-->', jsChunkStr);
     }
     return template;
   }
