@@ -1,7 +1,5 @@
 declare module '@tanstack/react-router/ssr/client' {
-  export function RouterClient(props: {
-    router: unknown;
-  }): import('react').JSX.Element;
+  export function hydrate(router: unknown): Promise<unknown>;
 }
 
 declare module '@tanstack/react-router/ssr/server' {

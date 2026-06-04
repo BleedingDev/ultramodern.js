@@ -11,9 +11,11 @@ import {
   createRoute,
   notFound,
   redirect,
+  rootRouteId,
 } from '@tanstack/react-router';
 import { createElement, type ElementType } from 'react';
 import { DefaultNotFound } from './DefaultNotFound';
+import { withModernRouteMatchContext } from './outlet';
 import {
   isTanstackRscPayloadNavigationEnabled,
   loadTanstackRscRouteData,
@@ -114,6 +116,10 @@ type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
 
 type MutableTanstackRoute = AnyRoute & {
   addChildren: (children: AnyRoute[]) => void;
+  id?: string;
+  options: {
+    component?: unknown;
+  };
 };
 
 type TanstackRouteOptions = Record<string, unknown>;
@@ -146,6 +152,20 @@ function createTanstackRootRoute(
   options: TanstackRootRouteOptions,
 ): MutableTanstackRoute {
   return createRootRoute(options as never) as unknown as MutableTanstackRoute;
+}
+
+function wrapRouteComponentWithModernContext(
+  route: MutableTanstackRoute,
+  component: unknown,
+  routeId?: string,
+) {
+  const routeMatchId = routeId || route.id;
+  if (component && routeMatchId) {
+    route.options.component = withModernRouteMatchContext(
+      component,
+      routeMatchId,
+    );
+  }
 }
 
 function toTanstackPath(pathname: string): string {
@@ -734,9 +754,10 @@ function createRouteFromRouteObject(opts: {
   const stableFallbackId =
     routeObject.id || modernRouteObject.file || routeObject.path || 'pathless';
 
+  const component = toRouteComponent(routeObject);
   const base: TanstackRouteOptions = {
     getParentRoute: () => parent,
-    component: toRouteComponent(routeObject),
+    component,
     pendingComponent: toPendingComponent(routeObject),
     errorComponent: toErrorComponent(routeObject),
     validateSearch: modernRouteObject.validateSearch,
@@ -775,6 +796,7 @@ function createRouteFromRouteObject(opts: {
   }
 
   const route = createTanstackRoute(base);
+  wrapRouteComponentWithModernContext(route, component, routeObject.id);
 
   const children = routeObject.children;
   if (children && children.length > 0) {
@@ -870,6 +892,7 @@ function createRouteFromModernRoute(opts: {
   }
 
   const tanstackRoute = createTanstackRoute(base);
+  wrapRouteComponentWithModernContext(tanstackRoute, component, modernId);
 
   const children = route.children as Array<NestedRoute | PageRoute> | undefined;
   if (children && children.length > 0) {
@@ -947,6 +970,12 @@ export function createRouteTreeFromModernRoutes(
   }
 
   const rootRoute = createTanstackRootRoute(rootRouteOptions);
+  if (rootComponent) {
+    rootRoute.options.component = withModernRouteMatchContext(
+      rootComponent,
+      rootRouteId,
+    );
+  }
 
   const topLevel = rootModern
     ? (rootModern.children as Array<NestedRoute | PageRoute>) || []
@@ -982,8 +1011,11 @@ export function createRouteTreeFromRouteObjects(
     rootRevalidationState,
   );
 
+  const rootComponent = rootLikeRoute
+    ? toRouteComponent(rootLikeRoute)
+    : undefined;
   const rootRouteOptions: TanstackRootRouteOptions = {
-    component: rootLikeRoute ? toRouteComponent(rootLikeRoute) : undefined,
+    component: rootComponent,
     pendingComponent: rootLikeRoute
       ? toPendingComponent(rootLikeRoute)
       : undefined,
@@ -1020,6 +1052,12 @@ export function createRouteTreeFromRouteObjects(
   }
 
   const rootRoute = createTanstackRootRoute(rootRouteOptions);
+  if (rootComponent) {
+    rootRoute.options.component = withModernRouteMatchContext(
+      rootComponent,
+      rootRouteId,
+    );
+  }
 
   const topLevel = rootLikeRoute
     ? [

@@ -12,6 +12,7 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

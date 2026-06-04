@@ -27,7 +27,7 @@ Each run directory includes:
 
 ## Optional Flags
 
-- `--max-lanes <n>`: max parallel lanes (default `4`)
+- `--max-lanes <n>`: max parallel lanes (default `8`)
 - `--timeout-default-ms <n>`: default script timeout (default `420000`)
 - `--timeout-heavy-ms <n>`: timeout for heavy suites (default `900000`)
 - `--timeout-runaway-ms <n>`: timeout for scripts explicitly marked with `test-orchestrator-runaway` (default `180000`)

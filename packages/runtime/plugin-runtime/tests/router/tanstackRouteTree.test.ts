@@ -4,7 +4,9 @@ import { createMemoryHistory } from '@tanstack/history';
 import { createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
 import type { ComponentType } from 'react';
 import { createElement, lazy } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup, renderToString } from 'react-dom/server';
+import { Outlet as PublicOutlet } from '../../src/exports/tanstack-router';
+import { Outlet as ModernOutlet } from '../../src/router/runtime/tanstack/outlet';
 import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
@@ -52,10 +54,16 @@ type ShouldReloadArgs = {
 
 type TestRoute = {
   options: {
+    component?: unknown;
     shouldReload?: (args: ShouldReloadArgs) => boolean | undefined;
     ssr?: boolean;
     staticData: Record<string, unknown>;
   };
+};
+
+type PreloadableTestComponent = {
+  load?: () => Promise<unknown>;
+  preload?: () => Promise<unknown>;
 };
 
 type TestRouter = {
@@ -111,6 +119,16 @@ function getLooseRouteByModernRouteId(
   return route;
 }
 
+function countCompletedSuspenseBoundaries(markup: string) {
+  return markup.match(/<!--\$-->/g)?.length || 0;
+}
+
+describe('tanstack runtime public exports', () => {
+  test('exports the Modern Outlet implementation from the runtime entrypoint', () => {
+    expect(PublicOutlet).toBe(ModernOutlet);
+  });
+});
+
 describe('tanstack route tree from RouteObject[]', () => {
   test('maps root loader and dynamic params', async () => {
     const routes: RouteObject[] = [
@@ -142,6 +160,34 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('renders Modern Outlet through TanStack native outlet', async () => {
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () =>
+          createElement('section', null, createElement(ModernOutlet)),
+        children: [
+          {
+            id: 'plain',
+            path: 'plain',
+            Component: () => createElement('main', null, 'Plain child route'),
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/plain');
+    const markup = renderToString(
+      createElement(RouterProvider, { router } as never),
+    );
+    const suspenseBoundaryCount = countCompletedSuspenseBoundaries(markup);
+
+    expect(markup).toContain('Plain child route');
+    expect(suspenseBoundaryCount).toBe(1);
   });
 
   test('resolves matched Modern route ids from TanStack route registry fallback', () => {
@@ -389,10 +435,51 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/lazy');
+    const lazyRoute = getLooseRoute(router, '/lazy');
+    const lazyComponent = lazyRoute.options
+      .component as PreloadableTestComponent;
 
     expect(
       renderToStaticMarkup(createElement(RouterProvider, { router } as never)),
     ).toContain('Nested lazy child route ready');
+    expect(typeof lazyComponent.load).toBe('function');
+    expect(typeof lazyComponent.preload).toBe('function');
+  });
+
+  test('exposes load-only Modern route components through TanStack preload', async () => {
+    const load = rstest.fn(async () => 'route chunk loaded');
+    const LoadOnlyRouteComponent = (() =>
+      createElement('main', null, 'Load-only route ready')) as ComponentType & {
+      load?: () => Promise<unknown>;
+      preload?: () => Promise<unknown>;
+    };
+    LoadOnlyRouteComponent.load = load;
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => createElement('section', null, createElement(Outlet)),
+        children: [
+          {
+            id: 'load-only',
+            path: 'load-only',
+            Component: LoadOnlyRouteComponent,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/load-only');
+    const loadOnlyRoute = getLooseRoute(router, '/load-only');
+    const loadOnlyComponent = loadOnlyRoute.options
+      .component as PreloadableTestComponent;
+
+    expect(typeof loadOnlyComponent.load).toBe('function');
+    expect(typeof loadOnlyComponent.preload).toBe('function');
+    expect(load).toHaveBeenCalledTimes(1);
+    await loadOnlyComponent.preload?.();
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   test('merges Modern generated route handle into TanStack static data', () => {
@@ -442,6 +529,38 @@ describe('tanstack route tree from RouteObject[]', () => {
       section: 'analytics',
       role: 'admin',
     });
+  });
+
+  test('renders Modern generated Outlet through TanStack native outlet', async () => {
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        component: () =>
+          createElement('section', null, createElement(ModernOutlet)),
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'plain',
+            path: 'plain',
+            component: () => createElement('main', null, 'Plain child route'),
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromModernRoutes(modernRoutes);
+    const router = await loadRouteTree(routeTree, '/plain');
+    const markup = renderToString(
+      createElement(RouterProvider, { router } as never),
+    );
+    const suspenseBoundaryCount = countCompletedSuspenseBoundaries(markup);
+
+    expect(markup).toContain('Plain child route');
+    expect(suspenseBoundaryCount).toBe(1);
   });
 
   test('preserves Modern generated client route metadata', () => {

@@ -14,7 +14,7 @@ const parseArgs = argv => {
     mode: 'run',
     outputDir: DEFAULT_OUTPUT_DIR,
     runDir: undefined,
-    maxLanes: 4,
+    maxLanes: 8,
     timeoutDefaultMs: 7 * 60 * 1000,
     timeoutHeavyMs: 15 * 60 * 1000,
     timeoutRunawayMs: 3 * 60 * 1000,

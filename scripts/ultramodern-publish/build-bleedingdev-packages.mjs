@@ -90,7 +90,7 @@ function main() {
     'build',
     '-p',
     packages.join(','),
-    '--maxParallel=4',
+    '--maxParallel=8',
   ]);
 }
 

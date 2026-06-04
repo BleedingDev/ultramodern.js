@@ -32,6 +32,7 @@ export default defineConfig(
     {
 {{#if enableBff}}      bff: {
 {{#if useEffectBff}}        effect: {
+          entry: './api/effect/index',
           openapi: true,
         },
 

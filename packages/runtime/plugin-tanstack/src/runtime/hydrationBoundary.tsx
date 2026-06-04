@@ -4,9 +4,9 @@ export function wrapTanstackSsrHydrationBoundary(
   routerContent: ReactElement,
   shouldWrap: boolean,
 ) {
-  return shouldWrap ? (
-    <Suspense fallback={null}>{routerContent}</Suspense>
-  ) : (
-    routerContent
-  );
+  if (shouldWrap) {
+    return <Suspense fallback={null}>{routerContent}</Suspense>;
+  }
+
+  return routerContent;
 }

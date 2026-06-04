@@ -5,7 +5,7 @@
   defineEffectBff,
 } from '@modern-js/plugin-bff/effect-server';
 import type { HttpApi, HttpApiGroup } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect/api';
+import { bffEffectApi } from '../../shared/effect/api.ts';
 
 type ApiGroups<TApi> = TApi extends HttpApi.HttpApi<string, infer TGroups> ? TGroups : never;
 type GreetingsHandlers = HttpApiBuilder.Handlers.FromGroup<
