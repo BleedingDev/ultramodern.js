@@ -604,6 +604,19 @@ async function resolveRegistryPackageVersion(packageName, version) {
   return JSON.parse(stdout);
 }
 
+async function resolveRegistryDistTag(packageName, tag) {
+  const { stdout } = await execFileAsync(
+    'npm',
+    ['view', packageName, 'dist-tags', '--json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    },
+  );
+  const distTags = JSON.parse(stdout);
+  return typeof distTags?.[tag] === 'string' ? distTags[tag] : undefined;
+}
+
 async function verifyRegistryPackage(packageName, version) {
   const attempts = 12;
   const retryDelayMs = 5000;
@@ -640,8 +653,13 @@ async function verifyRegistryPackage(packageName, version) {
   );
 }
 
-function stagingDistTag(options) {
-  return `${options.tag}-staging`;
+async function verifyRegistryDistTag(packageName, tag, version) {
+  const resolvedVersion = await resolveRegistryDistTag(packageName, tag);
+  if (resolvedVersion !== version) {
+    throw new Error(
+      `${packageName} dist-tag ${tag} points at ${resolvedVersion ?? '<missing>'}, expected ${version}`,
+    );
+  }
 }
 
 function validateFullCohortManifest(manifest) {
@@ -716,14 +734,13 @@ function validatePublishManifest(manifest) {
 
 async function publishPackage(packageDir, options) {
   const packageJson = readJson(path.join(packageDir, 'package.json'));
-  const publishTag = options.dryRun ? options.tag : stagingDistTag(options);
   const args = [
     'publish',
     packageDir,
     '--access',
     'public',
     '--tag',
-    publishTag,
+    options.tag,
   ];
 
   if (options.dryRun) {
@@ -739,7 +756,7 @@ async function publishPackage(packageDir, options) {
 async function validateRegistryCohort(
   manifest,
   options,
-  registry = { verifyRegistryPackage },
+  registry = { verifyRegistryDistTag, verifyRegistryPackage },
 ) {
   if (options.dryRun) {
     console.log('Skipping registry cohort validation for dry-run publish');
@@ -750,6 +767,11 @@ async function validateRegistryCohort(
   for (const item of manifest.packages) {
     try {
       await registry.verifyRegistryPackage(item.targetName, manifest.version);
+      await registry.verifyRegistryDistTag(
+        item.targetName,
+        options.tag,
+        manifest.version,
+      );
     } catch (error) {
       failures.push(
         `${item.targetName}@${manifest.version}: ${
@@ -763,42 +785,29 @@ async function validateRegistryCohort(
     throw new Error(
       [
         `Registry cohort validation failed for ${manifest.version}.`,
-        'The final dist-tag was not promoted.',
+        `The ${options.tag} dist-tag is not coherent for the full cohort.`,
         ...failures,
       ].join('\n'),
     );
   }
 }
 
-async function promoteManifestDistTag(
-  manifest,
-  options,
-  runner = { runAsync },
-) {
-  if (options.dryRun) {
-    console.log(`Skipping final ${options.tag} dist-tag promotion for dry-run`);
-    return;
-  }
-
-  for (const item of manifest.packages) {
-    await runner.runAsync('npm', [
-      'dist-tag',
-      'add',
-      `${item.targetName}@${manifest.version}`,
-      options.tag,
-    ]);
-    console.log(
-      `Promoted ${item.targetName}@${manifest.version} to ${options.tag}`,
-    );
-  }
+function orderPublishItems(packages) {
+  return [...packages].sort((left, right) => {
+    if (left.sourceName === '@modern-js/create') {
+      return 1;
+    }
+    if (right.sourceName === '@modern-js/create') {
+      return -1;
+    }
+    return left.sourceName.localeCompare(right.sourceName);
+  });
 }
 
 async function publishManifestPackages(manifest, options) {
   let nextIndex = 0;
-  const concurrency = Math.min(
-    options.publishConcurrency,
-    manifest.packages.length,
-  );
+  const publishItems = orderPublishItems(manifest.packages);
+  const concurrency = Math.min(options.publishConcurrency, publishItems.length);
 
   const publishOne = async item => {
     const packageDir = path.join(repoRoot, item.packageDir);
@@ -810,6 +819,11 @@ async function publishManifestPackages(manifest, options) {
         `Reusing existing ${item.targetName}@${options.version} for full-cohort publish`,
       );
       await verifyRegistryPackage(item.targetName, options.version);
+      await verifyRegistryDistTag(
+        item.targetName,
+        options.tag,
+        options.version,
+      );
       return;
     }
 
@@ -822,8 +836,8 @@ async function publishManifestPackages(manifest, options) {
 
   const failures = [];
   const workers = Array.from({ length: concurrency }, async () => {
-    while (nextIndex < manifest.packages.length && failures.length === 0) {
-      const item = manifest.packages[nextIndex];
+    while (nextIndex < publishItems.length && failures.length === 0) {
+      const item = publishItems[nextIndex];
       nextIndex += 1;
       try {
         await publishOne(item);
@@ -850,7 +864,6 @@ async function publishManifestPackages(manifest, options) {
   }
 
   await validateRegistryCohort(manifest, options);
-  await promoteManifestDistTag(manifest, options);
 }
 
 async function main() {
@@ -952,9 +965,8 @@ if (isDirectRun()) {
 }
 
 export {
+  orderPublishItems,
   parseArgs,
-  promoteManifestDistTag,
-  stagingDistTag,
   validateFullCohortManifest,
   validateRegistryCohort,
 };

@@ -196,7 +196,7 @@ test('validateFullCohortManifest rejects missing aliases', async () => {
   );
 });
 
-test('validateRegistryCohort blocks final tag promotion when any package is absent', async () => {
+test('validateRegistryCohort blocks success when any package is absent', async () => {
   const { validateRegistryCohort } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -206,8 +206,9 @@ test('validateRegistryCohort blocks final tag promotion when any package is abse
     () =>
       validateRegistryCohort(
         manifest,
-        { dryRun: false },
+        { dryRun: false, tag: 'latest' },
         {
+          verifyRegistryDistTag: async () => {},
           verifyRegistryPackage: async packageName => {
             if (packageName === '@bleedingdev/modern-js-runtime') {
               throw new Error('not found');
@@ -215,47 +216,65 @@ test('validateRegistryCohort blocks final tag promotion when any package is abse
           },
         },
       ),
-    /The final dist-tag was not promoted/,
+    /The latest dist-tag is not coherent for the full cohort/,
   );
 });
 
-test('promoteManifestDistTag promotes the final tag for every package after cohort validation', async () => {
-  const { promoteManifestDistTag } = await import(
+test('validateRegistryCohort requires every package latest tag to point at the published version', async () => {
+  const { validateRegistryCohort } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
   const manifest = makeManifest();
-  const calls = [];
 
-  await promoteManifestDistTag(
+  await assert.rejects(
+    () =>
+      validateRegistryCohort(
+        manifest,
+        { dryRun: false, tag: 'latest' },
+        {
+          verifyRegistryPackage: async () => {},
+          verifyRegistryDistTag: async packageName => {
+            if (packageName === '@bleedingdev/modern-js-runtime') {
+              throw new Error(
+                '@bleedingdev/modern-js-runtime dist-tag latest points at 3.2.0-ultramodern.89, expected 3.2.0-ultramodern.1',
+              );
+            }
+          },
+        },
+      ),
+    /dist-tag latest points at 3\.2\.0-ultramodern\.89/,
+  );
+});
+
+test('orderPublishItems publishes create last so users do not see an incomplete cohort', async () => {
+  const { orderPublishItems } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+
+  assert.deepEqual(
+    orderPublishItems(manifest.packages).map(item => item.sourceName),
+    ['@modern-js/runtime', '@modern-js/create'],
+  );
+});
+
+test('validateRegistryCohort accepts a coherent latest-tagged full cohort', async () => {
+  const { validateRegistryCohort } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+
+  await validateRegistryCohort(
     manifest,
     { dryRun: false, tag: 'latest' },
     {
-      runAsync: async (command, args) => {
-        calls.push([command, args]);
+      verifyRegistryPackage: async () => {},
+      verifyRegistryDistTag: async (_packageName, tag, version) => {
+        assert.equal(tag, 'latest');
+        assert.equal(version, '3.2.0-ultramodern.1');
       },
     },
   );
-
-  assert.deepEqual(calls, [
-    [
-      'npm',
-      [
-        'dist-tag',
-        'add',
-        '@bleedingdev/modern-js-create@3.2.0-ultramodern.1',
-        'latest',
-      ],
-    ],
-    [
-      'npm',
-      [
-        'dist-tag',
-        'add',
-        '@bleedingdev/modern-js-runtime@3.2.0-ultramodern.1',
-        'latest',
-      ],
-    ],
-  ]);
 });
 
 test('publish-existing accepts create packages with hidden template files before trusted publish check', () => {

@@ -193,11 +193,6 @@ function validatePublishScriptContract() {
     'await validateRegistryCohort(manifest, options);',
     'publish script registry cohort gate',
   );
-  requireIncludes(
-    publishScript,
-    'await promoteManifestDistTag(manifest, options);',
-    'publish script final dist-tag promotion',
-  );
 }
 
 function main() {
