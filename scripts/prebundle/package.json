@@ -9,7 +9,7 @@
     "start": "pnpm build && node ./dist/index.js"
   },
   "dependencies": {
-    "@babel/core": "^7.29.0",
+    "@babel/core": "^7.29.7",
     "@modern-js/tsconfig": "workspace:*",
     "@types/node": "^25.9.1",
     "@typescript/native-preview": "7.0.0-dev.20260527.2",

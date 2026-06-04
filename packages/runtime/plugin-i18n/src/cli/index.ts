@@ -13,6 +13,7 @@ import {
 } from '../shared/localisedUrls';
 import type { BackendOptions, LocaleDetectionOptions } from '../shared/type';
 import { getBackendOptions, getLocaleDetectionOptions } from '../shared/utils';
+import '../runtime/types';
 
 export type TransformRuntimeConfigFn = (
   extendedConfig: Record<string, any>,
