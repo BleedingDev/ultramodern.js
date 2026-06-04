@@ -961,18 +961,38 @@ export function createRouteTreeFromRouteObjects(
 
 export function getModernRouteIdsFromMatches(router: AnyRouter): string[] {
   const matches = router.state.matches || [];
-  const ids = matches
-    .map(match => {
-      const route = (
-        match as {
-          route?: {
-            options?: {
-              staticData?: { modernRouteId?: unknown };
-            };
+  const routesById = (
+    router as AnyRouter & {
+      routesById?: Record<
+        string,
+        {
+          options?: {
+            staticData?: { modernRouteId?: unknown };
           };
         }
-      ).route;
-      return route?.options?.staticData?.modernRouteId;
+      >;
+    }
+  ).routesById;
+  const ids = matches
+    .map(match => {
+      const normalizedMatch = match as {
+        route?: {
+          options?: {
+            staticData?: { modernRouteId?: unknown };
+          };
+        };
+        routeId?: unknown;
+      };
+      const routeId =
+        typeof normalizedMatch.routeId === 'string'
+          ? normalizedMatch.routeId
+          : undefined;
+      return (
+        normalizedMatch.route?.options?.staticData?.modernRouteId ??
+        (routeId
+          ? routesById?.[routeId]?.options?.staticData?.modernRouteId
+          : undefined)
+      );
     })
     .filter((id): id is string => typeof id === 'string');
   return Array.from(new Set(ids));

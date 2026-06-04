@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
+  getModernRouteIdsFromMatches,
 } from '../../src/runtime/routeTree';
 import { __setTanstackRscPayloadDecoderForTests } from '../../src/runtime/rsc/payloadRouter';
 import { createRouteObjectsFromConfig } from '../../src/runtime/utils';
@@ -179,6 +180,58 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(
       getLooseRoute(router, '/plain').options.wrapInSuspense,
     ).toBeUndefined();
+  });
+
+  test('resolves matched Modern route ids from TanStack route registry fallback', () => {
+    const router = {
+      state: {
+        matches: [
+          { routeId: '__root__' },
+          { routeId: '/$lang' },
+          { routeId: '/$lang/tractors' },
+          {
+            route: {
+              options: {
+                staticData: {
+                  modernRouteId: '(lang)/stores/page',
+                },
+              },
+            },
+            routeId: '/$lang/stores',
+          },
+        ],
+      },
+      routesById: {
+        __root__: {
+          options: {
+            staticData: {
+              modernRouteId: 'layout',
+            },
+          },
+        },
+        '/$lang': {
+          options: {
+            staticData: {
+              modernRouteId: '(lang)/page',
+            },
+          },
+        },
+        '/$lang/tractors': {
+          options: {
+            staticData: {
+              modernRouteId: '(lang)/tractors/page',
+            },
+          },
+        },
+      },
+    };
+
+    expect(getModernRouteIdsFromMatches(router as never)).toEqual([
+      'layout',
+      '(lang)/page',
+      '(lang)/tractors/page',
+      '(lang)/stores/page',
+    ]);
   });
 
   test('preserves TanStack search contracts from RouteObject routes', () => {

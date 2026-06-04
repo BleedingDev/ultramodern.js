@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   createRouteTreeFromModernRoutes,
   createRouteTreeFromRouteObjects,
+  getModernRouteIdsFromMatches,
 } from '../../src/router/runtime/tanstack/routeTree';
 import { createRouteObjectsFromConfig } from '../../src/router/runtime/utils';
 
@@ -141,6 +142,58 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('resolves matched Modern route ids from TanStack route registry fallback', () => {
+    const router = {
+      state: {
+        matches: [
+          { routeId: '__root__' },
+          { routeId: '/$lang' },
+          { routeId: '/$lang/tractors' },
+          {
+            route: {
+              options: {
+                staticData: {
+                  modernRouteId: '(lang)/stores/page',
+                },
+              },
+            },
+            routeId: '/$lang/stores',
+          },
+        ],
+      },
+      routesById: {
+        __root__: {
+          options: {
+            staticData: {
+              modernRouteId: 'layout',
+            },
+          },
+        },
+        '/$lang': {
+          options: {
+            staticData: {
+              modernRouteId: '(lang)/page',
+            },
+          },
+        },
+        '/$lang/tractors': {
+          options: {
+            staticData: {
+              modernRouteId: '(lang)/tractors/page',
+            },
+          },
+        },
+      },
+    };
+
+    expect(getModernRouteIdsFromMatches(router as never)).toEqual([
+      'layout',
+      '(lang)/page',
+      '(lang)/tractors/page',
+      '(lang)/stores/page',
+    ]);
   });
 
   test('maps splat params', async () => {
