@@ -7,6 +7,24 @@ import { promisify } from 'node:util';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const execFileAsync = promisify(execFile);
+const createTemplateRequiredFiles = [
+  'template/.agents/skills-lock.json',
+  'template/.browserslistrc',
+  'template/.codex/hooks.json',
+  'template/.github/renovate.json',
+  'template/.github/workflows/ultramodern-gates.yml.handlebars',
+  'template/.gitignore.handlebars',
+  'template/.mise.toml.handlebars',
+  'template/.nvmrc',
+  'template-workspace/.agents/agent-reference-repos.json',
+  'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
+  'template-workspace/.agents/skills-lock.json',
+  'template-workspace/.codex/hooks.json',
+  'template-workspace/.github/renovate.json',
+  'template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
+  'template-workspace/.gitignore.handlebars',
+  'template-workspace/.mise.toml.handlebars',
+];
 
 function parsePublishConcurrency(value) {
   if (!/^[1-9]\d*$/.test(value)) {
@@ -522,6 +540,20 @@ function validateStagedTypeFiles(packageDir, packageJson) {
   }
 }
 
+function validateCreateTemplateFiles(packageDir, packageName) {
+  const missing = createTemplateRequiredFiles.filter(
+    relativePath => !fs.existsSync(path.join(packageDir, relativePath)),
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `${packageName} staged package is missing required create template file(s): ${missing.join(
+        ', ',
+      )}`,
+    );
+  }
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
@@ -687,6 +719,12 @@ function validatePublishManifest(manifest) {
       'peerDependencies',
     ]) {
       validateNoWorkspaceProtocol(packageJson, item.targetName, blockName);
+    }
+    if (item.sourceName === '@modern-js/create') {
+      validateCreateTemplateFiles(
+        path.join(repoRoot, item.packageDir),
+        item.targetName,
+      );
     }
   }
 }
