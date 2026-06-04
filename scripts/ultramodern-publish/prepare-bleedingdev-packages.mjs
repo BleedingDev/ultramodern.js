@@ -45,7 +45,7 @@ function parseArgs(argv) {
     scope: 'bleedingdev',
     prefix: 'modern-js-',
     version: undefined,
-    tag: 'ultramodern-canary',
+    tag: 'latest',
     out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
     repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
     homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',

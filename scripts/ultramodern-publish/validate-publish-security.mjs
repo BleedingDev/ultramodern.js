@@ -14,7 +14,7 @@ const publishScriptPath = path.join(
 );
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const enforcedPublishTag = 'ultramodern-canary';
+const enforcedPublishTag = 'latest';
 const enforcedPublishConcurrency = '8';
 
 function fail(message) {

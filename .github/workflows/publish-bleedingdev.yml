@@ -23,7 +23,7 @@ defaults:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   BLEEDINGDEV_PUBLISH_CONCURRENCY: "8"
-  BLEEDINGDEV_PUBLISH_TAG: ultramodern-canary
+  BLEEDINGDEV_PUBLISH_TAG: latest
 
 concurrency:
   group: publish-bleedingdev-${{ inputs.version }}

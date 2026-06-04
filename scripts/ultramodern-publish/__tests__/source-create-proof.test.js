@@ -134,7 +134,7 @@ const makeFixture = ({
     prefix: 'modern-js-',
     version: '3.2.0-ultramodern.1',
     dependencyVersion,
-    tag: 'ultramodern-canary',
+    tag: 'latest',
     aliases,
     packages,
   });

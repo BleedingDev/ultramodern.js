@@ -16,7 +16,7 @@ const runSecurityValidation = env =>
     env: {
       ...process.env,
       PUBLISH_VERSION: '3.2.0-ultramodern.1',
-      PUBLISH_TAG: 'ultramodern-canary',
+      PUBLISH_TAG: 'latest',
       PUBLISH_CONCURRENCY: '8',
       ...env,
     },

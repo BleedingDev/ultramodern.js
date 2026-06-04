@@ -70,7 +70,7 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
     prefix: 'modern-js-',
     version: '3.2.0-ultramodern.1',
     dependencyVersion: '3.2.0-ultramodern.1',
-    tag: 'ultramodern-canary',
+    tag: 'latest',
     aliases: {
       '@modern-js/create': '@bleedingdev/modern-js-create',
     },
@@ -111,7 +111,7 @@ const makeManifest = () => ({
   prefix: 'modern-js-',
   version: '3.2.0-ultramodern.1',
   dependencyVersion: '3.2.0-ultramodern.1',
-  tag: 'ultramodern-canary',
+  tag: 'latest',
   aliases: {
     '@modern-js/create': '@bleedingdev/modern-js-create',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
@@ -228,7 +228,7 @@ test('promoteManifestDistTag promotes the final tag for every package after coho
 
   await promoteManifestDistTag(
     manifest,
-    { dryRun: false, tag: 'ultramodern-canary' },
+    { dryRun: false, tag: 'latest' },
     {
       runAsync: async (command, args) => {
         calls.push([command, args]);
@@ -243,7 +243,7 @@ test('promoteManifestDistTag promotes the final tag for every package after coho
         'dist-tag',
         'add',
         '@bleedingdev/modern-js-create@3.2.0-ultramodern.1',
-        'ultramodern-canary',
+        'latest',
       ],
     ],
     [
@@ -252,7 +252,7 @@ test('promoteManifestDistTag promotes the final tag for every package after coho
         'dist-tag',
         'add',
         '@bleedingdev/modern-js-runtime@3.2.0-ultramodern.1',
-        'ultramodern-canary',
+        'latest',
       ],
     ],
   ]);
