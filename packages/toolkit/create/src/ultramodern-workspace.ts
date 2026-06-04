@@ -1827,10 +1827,30 @@ import csResource from '../locales/cs/${appI18nNamespace(app)}.json';
 import enResource from '../locales/en/${appI18nNamespace(app)}.json';
 import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
 
+type LocaleResource = string | { readonly [key: string]: LocaleResource };
+
+const flattenLocaleResource = (
+  resource: LocaleResource,
+  prefix = '',
+): Record<string, string> => {
+  if (typeof resource === 'string') {
+    return prefix.length > 0 ? { [prefix]: resource } : {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(resource).flatMap(([key, value]) => {
+      const nextKey = prefix.length > 0 ? \`\${prefix}.\${key}\` : key;
+      return typeof value === 'string'
+        ? [[nextKey, value]]
+        : Object.entries(flattenLocaleResource(value, nextKey));
+    }),
+  );
+};
+
 const i18nInstance = createInstance();
 const resources = {
-  cs: { [ultramodernRouteNamespace]: csResource },
-  en: { [ultramodernRouteNamespace]: enResource },
+  cs: { [ultramodernRouteNamespace]: flattenLocaleResource(csResource) },
+  en: { [ultramodernRouteNamespace]: flattenLocaleResource(enResource) },
 } as const;
 
 export default defineRuntimeConfig({
@@ -5100,16 +5120,35 @@ const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), \`Unexpected \${relativePath}\`);
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
+const parseSemver = version => {
+  const match = /^(\\d+)\\.(\\d+)\\.(\\d+)/u.exec(version);
+  assert(match, \`Unable to parse pnpm version: \${version}\`);
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+};
+const compareSemver = (left, right) =>
+  left.major - right.major || left.minor - right.minor || left.patch - right.patch;
 
-const activePnpmVersion = execFileSync('pnpm', ['--version'], {
+const activePnpmVersion = execFileSync('pnpm', ['--pm-on-fail=ignore', '--version'], {
   cwd: root,
   encoding: 'utf-8',
   stdio: ['ignore', 'pipe', 'pipe'],
 }).trim();
+const minimumPnpmVersion = parseSemver(expectedPnpmVersion);
+const maximumPnpmVersion = {
+  major: minimumPnpmVersion.major,
+  minor: minimumPnpmVersion.minor + 1,
+  patch: 0,
+};
+const currentPnpmVersion = parseSemver(activePnpmVersion);
 
 assert(
-  activePnpmVersion === expectedPnpmVersion,
-  \`Generated workspace requires pnpm \${expectedPnpmVersion}; active pnpm is \${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell.\`,
+  compareSemver(currentPnpmVersion, minimumPnpmVersion) >= 0 &&
+    compareSemver(currentPnpmVersion, maximumPnpmVersion) < 0,
+  \`Generated workspace requires pnpm >=\${expectedPnpmVersion} <\${maximumPnpmVersion.major}.\${maximumPnpmVersion.minor}.\${maximumPnpmVersion.patch}; active pnpm is \${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell.\`,
 );
 
 const requiredPaths = [

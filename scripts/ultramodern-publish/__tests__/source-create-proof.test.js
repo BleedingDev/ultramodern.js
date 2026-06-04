@@ -256,7 +256,7 @@ test('validateSourceProof rejects partial single-version cohorts', async () => {
   }
 });
 
-test('validateSourceProof allows subset cohort against external baseline version', async () => {
+test('validateSourceProof rejects subset cohort against external baseline version', async () => {
   const { validateSourceProof } = await import(
     '../validate-source-create-proof.mjs'
   );
@@ -267,10 +267,10 @@ test('validateSourceProof allows subset cohort against external baseline version
   });
 
   try {
-    const proof = validateSourceProof(fixture);
-
-    assert.equal(proof.passed, true);
-    assert.equal(proof.checks.singleVersionCohort, 'external-baseline');
+    assert.throws(
+      () => validateSourceProof(fixture),
+      /Publish manifest dependencyVersion must equal version for full BleedingDev cohorts/,
+    );
   } finally {
     removeDir(fixture.repoRoot);
   }

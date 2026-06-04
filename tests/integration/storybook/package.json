@@ -28,8 +28,8 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
+    "@modern-js/plugin": "workspace:*",
     "@rsbuild/core": "2.0.7",
-    "@rsbuild/plugin-node-polyfill": "^1.4.4",
     "@storybook/addon-docs": "^10.4.1",
     "@storybook/addon-onboarding": "^10.4.1",
     "@storybook/react": "^10.4.1",

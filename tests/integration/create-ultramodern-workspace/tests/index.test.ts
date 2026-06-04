@@ -725,6 +725,38 @@ describe('create-ultramodern-workspace', () => {
       'UltraModern workspace scaffold validated',
     );
 
+    const fakeBinDir = path.join(tempRoot, 'fake-pnpm-bin');
+    fs.mkdirSync(fakeBinDir, { recursive: true });
+    const fakePnpmPath = path.join(fakeBinDir, 'pnpm');
+    fs.writeFileSync(
+      fakePnpmPath,
+      `#!/usr/bin/env node
+if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
+  console.log('11.5.1');
+  process.exit(0);
+}
+console.error('pmOnFail rejected active pnpm before version discovery');
+process.exit(1);
+`,
+      'utf-8',
+    );
+    fs.chmodSync(fakePnpmPath, 0o755);
+    const patchVersionValidationOutput = execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern-workspace.mjs'],
+      {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        },
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(patchVersionValidationOutput.trim()).toBe(
+      'UltraModern workspace scaffold validated',
+    );
+
     const mfTypesHelp = execFileSync(
       process.execPath,
       ['scripts/assert-mf-types.mjs', '--help'],

@@ -6,58 +6,11 @@ on:
       version:
         description: "Package version to publish, for example 3.2.0-ultramodern.1"
         required: true
-      dependency_version:
-        description: "Version to use for internal @bleedingdev dependencies; defaults to version"
-        required: false
-      packages:
-        description: "Comma-separated source/target packages to publish; empty publishes all"
-        required: false
-      package_mode:
-        description: "Package selection mode: changed, affected, explicit, or all"
-        required: true
-        default: all
-        type: choice
-        options:
-          - changed
-          - explicit
-          - affected
-          - all
-      affected_base:
-        description: "Base ref for package_mode=affected"
-        required: false
-        default: HEAD~1
-      affected_head:
-        description: "Head ref for package_mode=affected"
-        required: false
-        default: HEAD
-      tag:
-        description: "npm dist-tag"
-        required: true
-        default: ultramodern-canary
       dry_run:
         description: "Run npm publish --dry-run"
         required: true
         type: boolean
         default: false
-      skip_existing:
-        description: "Skip packages whose exact version already exists on npm"
-        required: true
-        type: boolean
-        default: true
-      publish_concurrency:
-        description: "Maximum npm publish processes to run at once"
-        required: true
-        type: choice
-        default: "8"
-        options:
-          - "1"
-          - "2"
-          - "3"
-          - "4"
-          - "5"
-          - "6"
-          - "7"
-          - "8"
 
 permissions:
   contents: read
@@ -69,6 +22,8 @@ defaults:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BLEEDINGDEV_PUBLISH_CONCURRENCY: "8"
+  BLEEDINGDEV_PUBLISH_TAG: ultramodern-canary
 
 concurrency:
   group: publish-bleedingdev-${{ inputs.version }}
@@ -103,15 +58,9 @@ jobs:
       - name: Validate publish security posture
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
-          DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
-          PACKAGE_MODE: ${{ inputs.package_mode }}
-          EXPLICIT_PACKAGES: ${{ inputs.packages }}
-          PUBLISH_TAG: ${{ inputs.tag }}
+          PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           DRY_RUN: ${{ inputs.dry_run }}
-          SKIP_EXISTING: ${{ inputs.skip_existing }}
-          PUBLISH_CONCURRENCY: ${{ inputs.publish_concurrency }}
-          AFFECTED_BASE: ${{ inputs.affected_base }}
-          AFFECTED_HEAD: ${{ inputs.affected_head }}
+          PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
         run: node scripts/ultramodern-publish/validate-publish-security.mjs
 
       - name: Verify publish toolchain
@@ -127,8 +76,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: github.ref == 'refs/heads/main-ultramodern'
-    outputs:
-      packages: ${{ steps.package-selection.outputs.packages }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -155,51 +102,15 @@ jobs:
       - name: Build Packages
         run: mise exec -- pnpm ultramodern:build-bleedingdev-publish
 
-      - name: Resolve package selection
-        id: package-selection
-        env:
-          PACKAGE_MODE: ${{ inputs.package_mode }}
-          EXPLICIT_PACKAGES: ${{ inputs.packages }}
-          AFFECTED_BASE: ${{ inputs.affected_base }}
-          AFFECTED_HEAD: ${{ inputs.affected_head }}
-        run: |
-          packages="$EXPLICIT_PACKAGES"
-
-          if [ "$PACKAGE_MODE" = "changed" ] || [ "$PACKAGE_MODE" = "affected" ]; then
-            packages="$(mise exec -- pnpm ultramodern:affected-bleedingdev-publish -- --mode "$PACKAGE_MODE" --base "$AFFECTED_BASE" --head "$AFFECTED_HEAD")"
-          elif [ "$PACKAGE_MODE" = "all" ]; then
-            packages=""
-          elif [ "$PACKAGE_MODE" != "explicit" ]; then
-            echo "Unsupported package_mode: $PACKAGE_MODE" >&2
-            exit 1
-          fi
-
-          echo "packages=$packages" >> "$GITHUB_OUTPUT"
-          if [ -n "$packages" ]; then
-            echo "Publishing package selection: $packages"
-          else
-            echo "Publishing all packages"
-          fi
-
       - name: Prepare pre-publish package manifest
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
-          DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
-          PUBLISH_PACKAGES: ${{ steps.package-selection.outputs.packages }}
-          PUBLISH_TAG: ${{ inputs.tag }}
+          PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
         run: |
           args=(
             --version "$PUBLISH_VERSION"
             --tag "$PUBLISH_TAG"
           )
-
-          if [ -n "$DEPENDENCY_VERSION" ]; then
-            args+=(--dependency-version "$DEPENDENCY_VERSION")
-          fi
-
-          if [ -n "$PUBLISH_PACKAGES" ]; then
-            args+=(--packages "$PUBLISH_PACKAGES")
-          fi
 
           mise exec -- pnpm ultramodern:prepare-bleedingdev-publish -- "${args[@]}"
 
@@ -256,32 +167,17 @@ jobs:
       - name: Publish Packages
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
-          DEPENDENCY_VERSION: ${{ inputs.dependency_version }}
-          PUBLISH_PACKAGES: ${{ needs.prepare-packages.outputs.packages }}
-          PUBLISH_TAG: ${{ inputs.tag }}
+          PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           DRY_RUN: ${{ inputs.dry_run }}
-          SKIP_EXISTING: ${{ inputs.skip_existing }}
-          PUBLISH_CONCURRENCY: ${{ inputs.publish_concurrency }}
+          PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
         run: |
           args=(
             --version "$PUBLISH_VERSION"
             --tag "$PUBLISH_TAG"
           )
 
-          if [ -n "$DEPENDENCY_VERSION" ]; then
-            args+=(--dependency-version "$DEPENDENCY_VERSION")
-          fi
-
-          if [ -n "$PUBLISH_PACKAGES" ]; then
-            args+=(--packages "$PUBLISH_PACKAGES")
-          fi
-
           if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)
-          fi
-
-          if [ "$SKIP_EXISTING" != "true" ]; then
-            args+=(--no-skip-existing)
           fi
 
           args+=(--publish-concurrency "$PUBLISH_CONCURRENCY")

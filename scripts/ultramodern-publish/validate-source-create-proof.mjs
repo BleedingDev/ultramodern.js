@@ -255,6 +255,10 @@ function validateManifestShape(manifest) {
     Array.isArray(manifest.packages) && manifest.packages.length > 0,
     'Publish manifest packages must be a non-empty array',
   );
+  assert(
+    manifest.dependencyVersion === manifest.version,
+    `Publish manifest dependencyVersion must equal version for full BleedingDev cohorts, found ${manifest.dependencyVersion}`,
+  );
 }
 
 function validateSelectedCohort(manifest) {
@@ -283,18 +287,16 @@ function validateSelectedCohort(manifest) {
     selectedSources.add(item.sourceName);
   }
 
-  if (manifest.dependencyVersion === manifest.version) {
-    const missing = Object.keys(manifest.aliases)
-      .filter(sourceName => !selectedSources.has(sourceName))
-      .sort((a, b) => a.localeCompare(b));
-    assert(
-      missing.length === 0,
-      [
-        `Single-version source proof requires every aliased public package in the staged cohort for ${manifest.version}.`,
-        `Missing packages: ${missing.join(', ')}`,
-      ].join('\n'),
-    );
-  }
+  const missing = Object.keys(manifest.aliases)
+    .filter(sourceName => !selectedSources.has(sourceName))
+    .sort((a, b) => a.localeCompare(b));
+  assert(
+    missing.length === 0,
+    [
+      `Single-version source proof requires every aliased public package in the staged cohort for ${manifest.version}.`,
+      `Missing packages: ${missing.join(', ')}`,
+    ].join('\n'),
+  );
 
   return selectedSources;
 }
@@ -418,10 +420,7 @@ function validateSourceProof({ repoRoot, manifestPath, outPath, now = Date }) {
       stagedPackageMetadata: true,
       noWorkspaceProtocol: true,
       noNpmLatestInternalResolution: true,
-      singleVersionCohort:
-        manifest.dependencyVersion === manifest.version
-          ? 'all-aliases'
-          : 'external-baseline',
+      singleVersionCohort: 'all-aliases',
     },
     packages,
     createPackageProof,

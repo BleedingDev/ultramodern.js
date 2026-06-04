@@ -3,6 +3,7 @@ import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
@@ -44,9 +45,7 @@ function parseArgs(argv) {
     scope: 'bleedingdev',
     prefix: 'modern-js-',
     version: undefined,
-    dependencyVersion: undefined,
     tag: 'ultramodern-canary',
-    packages: undefined,
     out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
     repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
     homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
@@ -54,7 +53,6 @@ function parseArgs(argv) {
     publish: false,
     publishExisting: false,
     dryRun: false,
-    skipExisting: true,
     publishConcurrency: 8,
   };
 
@@ -80,14 +78,15 @@ function parseArgs(argv) {
     } else if (arg === '--version') {
       options.version = readValue();
     } else if (arg === '--dependency-version') {
-      options.dependencyVersion = readValue();
+      throw new Error(
+        '--dependency-version is forbidden; BleedingDev publishes a single full framework cohort per version',
+      );
     } else if (arg === '--tag') {
       options.tag = readValue();
     } else if (arg === '--packages') {
-      options.packages = readValue()
-        .split(',')
-        .map(value => value.trim())
-        .filter(Boolean);
+      throw new Error(
+        '--packages is forbidden; BleedingDev publishes every public @modern-js/* package together',
+      );
     } else if (arg === '--out') {
       options.out = path.resolve(readValue());
     } else if (arg === '--repository-url') {
@@ -104,7 +103,9 @@ function parseArgs(argv) {
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     } else if (arg === '--no-skip-existing') {
-      options.skipExisting = false;
+      throw new Error(
+        '--no-skip-existing is forbidden; exact-version reuse is controlled by the full-cohort registry gate',
+      );
     } else if (arg === '--publish-concurrency') {
       options.publishConcurrency = parsePublishConcurrency(readValue());
     } else {
@@ -118,7 +119,7 @@ function parseArgs(argv) {
     );
   }
 
-  options.dependencyVersion ??= options.version;
+  options.dependencyVersion = options.version;
 
   if (
     !Number.isInteger(options.publishConcurrency) ||
@@ -232,27 +233,6 @@ function rewritePackageMetadata(packageJson, options) {
   };
 }
 
-function matchesPackageFilter(item, options) {
-  if (!options.packages) {
-    return true;
-  }
-
-  const sourceName = item.packageJson.name;
-  const targetName = targetPackageName(sourceName, options);
-  const unscopedSourceName = sourceName.split('/').at(-1);
-  const unscopedTargetName = targetName.split('/').at(-1);
-  return options.packages.some(packageName =>
-    [
-      sourceName,
-      targetName,
-      unscopedSourceName,
-      unscopedTargetName,
-      sourceName.replace('@modern-js/', ''),
-      targetName.replace(`@${options.scope}/`, ''),
-    ].includes(packageName),
-  );
-}
-
 function collectModernPackages(options) {
   const allPackages = collectPackageJsonFiles(path.join(repoRoot, 'packages'))
     .map(packageJsonPath => {
@@ -274,30 +254,10 @@ function collectModernPackages(options) {
       targetPackageName(item.packageJson.name, options),
     ]),
   );
-  const packages = allPackages.filter(item =>
-    matchesPackageFilter(item, options),
-  );
-
-  if (options.packages && packages.length !== options.packages.length) {
-    const matchedNames = new Set(
-      packages.flatMap(item => [
-        item.packageJson.name,
-        targetPackageName(item.packageJson.name, options),
-        item.packageJson.name.split('/').at(-1),
-        targetPackageName(item.packageJson.name, options).split('/').at(-1),
-      ]),
-    );
-    const unmatched = options.packages.filter(
-      packageName => !matchedNames.has(packageName),
-    );
-    if (unmatched.length > 0) {
-      throw new Error(`Unknown --packages value(s): ${unmatched.join(', ')}`);
-    }
-  }
 
   return {
     allPackages,
-    packages,
+    packages: allPackages,
     sourceNames,
     aliases,
   };
@@ -321,7 +281,7 @@ function enforceSingleVersionPolicy(options, packages, allPackages) {
     [
       `Single-version policy violation for ${options.version}.`,
       'When dependencyVersion equals version, every public @modern-js/* package must be published together so generated projects cannot reference a partially published framework version.',
-      'Use package_mode=all, or pass --dependency-version to intentionally publish a subset against an already coherent framework version.',
+      'BleedingDev package publishing does not support subset releases.',
       `Missing packages: ${missing.join(', ')}`,
     ].join('\n'),
   );
@@ -624,18 +584,24 @@ function extractTarball(tarball, targetDir) {
 
 async function packageExists(packageName, version) {
   try {
-    await execFileAsync(
-      'npm',
-      ['view', `${packageName}@${version}`, 'version'],
-      {
-        cwd: repoRoot,
-        encoding: 'utf-8',
-      },
+    return (
+      (await resolveRegistryPackageVersion(packageName, version)) === version
     );
-    return true;
   } catch {
     return false;
   }
+}
+
+async function resolveRegistryPackageVersion(packageName, version) {
+  const { stdout } = await execFileAsync(
+    'npm',
+    ['view', `${packageName}@${version}`, 'version', '--json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    },
+  );
+  return JSON.parse(stdout);
 }
 
 async function verifyRegistryPackage(packageName, version) {
@@ -645,15 +611,10 @@ async function verifyRegistryPackage(packageName, version) {
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const { stdout } = await execFileAsync(
-        'npm',
-        ['view', `${packageName}@${version}`, 'version', '--json'],
-        {
-          cwd: repoRoot,
-          encoding: 'utf-8',
-        },
+      const publishedVersion = await resolveRegistryPackageVersion(
+        packageName,
+        version,
       );
-      const publishedVersion = JSON.parse(stdout);
       if (publishedVersion !== version) {
         throw new Error(
           `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
@@ -679,6 +640,29 @@ async function verifyRegistryPackage(packageName, version) {
   );
 }
 
+function stagingDistTag(options) {
+  return `${options.tag}-staging`;
+}
+
+function validateFullCohortManifest(manifest) {
+  const selectedSources = new Set(
+    manifest.packages.map(item => item.sourceName),
+  );
+  const missing = Object.keys(manifest.aliases)
+    .filter(sourceName => !selectedSources.has(sourceName))
+    .sort((a, b) => a.localeCompare(b));
+
+  if (missing.length > 0) {
+    throw new Error(
+      [
+        `BleedingDev publish manifest is missing ${missing.length} public package(s).`,
+        'Every public @modern-js/* package must be in the exact-version cohort before any final dist-tag promotion.',
+        `Missing packages: ${missing.join(', ')}`,
+      ].join('\n'),
+    );
+  }
+}
+
 function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
   const block = packageJson[blockName];
   if (!block || typeof block !== 'object') {
@@ -695,6 +679,7 @@ function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
 }
 
 function validatePublishManifest(manifest) {
+  validateFullCohortManifest(manifest);
   for (const item of manifest.packages) {
     const packageJson = readJson(
       path.join(repoRoot, item.packageDir, 'package.json'),
@@ -731,13 +716,14 @@ function validatePublishManifest(manifest) {
 
 async function publishPackage(packageDir, options) {
   const packageJson = readJson(path.join(packageDir, 'package.json'));
+  const publishTag = options.dryRun ? options.tag : stagingDistTag(options);
   const args = [
     'publish',
     packageDir,
     '--access',
     'public',
     '--tag',
-    options.tag,
+    publishTag,
   ];
 
   if (options.dryRun) {
@@ -750,6 +736,63 @@ async function publishPackage(packageDir, options) {
   return packageJson.name;
 }
 
+async function validateRegistryCohort(
+  manifest,
+  options,
+  registry = { verifyRegistryPackage },
+) {
+  if (options.dryRun) {
+    console.log('Skipping registry cohort validation for dry-run publish');
+    return;
+  }
+
+  const failures = [];
+  for (const item of manifest.packages) {
+    try {
+      await registry.verifyRegistryPackage(item.targetName, manifest.version);
+    } catch (error) {
+      failures.push(
+        `${item.targetName}@${manifest.version}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      [
+        `Registry cohort validation failed for ${manifest.version}.`,
+        'The final dist-tag was not promoted.',
+        ...failures,
+      ].join('\n'),
+    );
+  }
+}
+
+async function promoteManifestDistTag(
+  manifest,
+  options,
+  runner = { runAsync },
+) {
+  if (options.dryRun) {
+    console.log(`Skipping final ${options.tag} dist-tag promotion for dry-run`);
+    return;
+  }
+
+  for (const item of manifest.packages) {
+    await runner.runAsync('npm', [
+      'dist-tag',
+      'add',
+      `${item.targetName}@${manifest.version}`,
+      options.tag,
+    ]);
+    console.log(
+      `Promoted ${item.targetName}@${manifest.version} to ${options.tag}`,
+    );
+  }
+}
+
 async function publishManifestPackages(manifest, options) {
   let nextIndex = 0;
   const concurrency = Math.min(
@@ -760,10 +803,12 @@ async function publishManifestPackages(manifest, options) {
   const publishOne = async item => {
     const packageDir = path.join(repoRoot, item.packageDir);
     if (
-      options.skipExisting &&
+      !options.dryRun &&
       (await packageExists(item.targetName, options.version))
     ) {
-      console.log(`Skipping existing ${item.targetName}@${options.version}`);
+      console.log(
+        `Reusing existing ${item.targetName}@${options.version} for full-cohort publish`,
+      );
       await verifyRegistryPackage(item.targetName, options.version);
       return;
     }
@@ -803,6 +848,9 @@ async function publishManifestPackages(manifest, options) {
         .join('\n'),
     );
   }
+
+  await validateRegistryCohort(manifest, options);
+  await promoteManifestDistTag(manifest, options);
 }
 
 async function main() {
@@ -888,9 +936,25 @@ async function main() {
   await publishManifestPackages(manifest, options);
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+function isDirectRun() {
+  return process.argv[1]
+    ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+    : false;
 }
+
+if (isDirectRun()) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+export {
+  parseArgs,
+  promoteManifestDistTag,
+  stagingDistTag,
+  validateFullCohortManifest,
+  validateRegistryCohort,
+};

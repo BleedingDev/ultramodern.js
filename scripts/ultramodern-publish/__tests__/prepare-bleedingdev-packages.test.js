@@ -104,6 +104,34 @@ const runPublishExisting = outDir =>
     },
   );
 
+const makeManifest = () => ({
+  schemaVersion: 1,
+  generatedAt: '2026-06-04T00:00:00.000Z',
+  scope: 'bleedingdev',
+  prefix: 'modern-js-',
+  version: '3.2.0-ultramodern.1',
+  dependencyVersion: '3.2.0-ultramodern.1',
+  tag: 'ultramodern-canary',
+  aliases: {
+    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+  },
+  packages: [
+    {
+      sourceName: '@modern-js/create',
+      targetName: '@bleedingdev/modern-js-create',
+      version: '3.2.0-ultramodern.1',
+      packageDir: '.modern/bleedingdev-publish/packages/create',
+    },
+    {
+      sourceName: '@modern-js/runtime',
+      targetName: '@bleedingdev/modern-js-runtime',
+      version: '3.2.0-ultramodern.1',
+      packageDir: '.modern/bleedingdev-publish/packages/runtime',
+    },
+  ],
+});
+
 test('publish-existing rejects create packages missing hidden template files', () => {
   const outDir = makeCreateFixture({ includeTemplateDotFiles: false });
 
@@ -122,6 +150,112 @@ test('publish-existing rejects create packages missing hidden template files', (
   } finally {
     removeDir(outDir);
   }
+});
+
+test('parseArgs rejects partial publish controls', async () => {
+  const { parseArgs } = await import('../prepare-bleedingdev-packages.mjs');
+
+  assert.throws(
+    () =>
+      parseArgs([
+        '--version',
+        '3.2.0-ultramodern.1',
+        '--packages',
+        '@modern-js/create',
+      ]),
+    /--packages is forbidden/,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        '--version',
+        '3.2.0-ultramodern.1',
+        '--dependency-version',
+        '3.2.0-ultramodern.0',
+      ]),
+    /--dependency-version is forbidden/,
+  );
+  assert.throws(
+    () => parseArgs(['--version', '3.2.0-ultramodern.1', '--no-skip-existing']),
+    /--no-skip-existing is forbidden/,
+  );
+});
+
+test('validateFullCohortManifest rejects missing aliases', async () => {
+  const { validateFullCohortManifest } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+  manifest.packages = manifest.packages.filter(
+    item => item.sourceName !== '@modern-js/runtime',
+  );
+
+  assert.throws(
+    () => validateFullCohortManifest(manifest),
+    /BleedingDev publish manifest is missing 1 public package/,
+  );
+});
+
+test('validateRegistryCohort blocks final tag promotion when any package is absent', async () => {
+  const { validateRegistryCohort } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+
+  await assert.rejects(
+    () =>
+      validateRegistryCohort(
+        manifest,
+        { dryRun: false },
+        {
+          verifyRegistryPackage: async packageName => {
+            if (packageName === '@bleedingdev/modern-js-runtime') {
+              throw new Error('not found');
+            }
+          },
+        },
+      ),
+    /The final dist-tag was not promoted/,
+  );
+});
+
+test('promoteManifestDistTag promotes the final tag for every package after cohort validation', async () => {
+  const { promoteManifestDistTag } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+  const calls = [];
+
+  await promoteManifestDistTag(
+    manifest,
+    { dryRun: false, tag: 'ultramodern-canary' },
+    {
+      runAsync: async (command, args) => {
+        calls.push([command, args]);
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    [
+      'npm',
+      [
+        'dist-tag',
+        'add',
+        '@bleedingdev/modern-js-create@3.2.0-ultramodern.1',
+        'ultramodern-canary',
+      ],
+    ],
+    [
+      'npm',
+      [
+        'dist-tag',
+        'add',
+        '@bleedingdev/modern-js-runtime@3.2.0-ultramodern.1',
+        'ultramodern-canary',
+      ],
+    ],
+  ]);
 });
 
 test('publish-existing accepts create packages with hidden template files before trusted publish check', () => {

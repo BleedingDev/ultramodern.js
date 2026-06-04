@@ -12,13 +12,10 @@ const publishScriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',
 );
-const allowedTags = new Set(['latest', 'next', 'ultramodern-canary']);
-const allowedModes = new Set(['changed', 'affected', 'explicit', 'all']);
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const refPattern = /^[A-Za-z0-9._/@:+~-]+$/;
-const packageTokenPattern =
-  /^(?:@modern-js\/[a-z0-9._-]+|@bleedingdev\/modern-js-[a-z0-9._-]+|[a-z0-9._-]+)$/;
+const enforcedPublishTag = 'ultramodern-canary';
+const enforcedPublishConcurrency = '8';
 
 function fail(message) {
   throw new Error(`Publish security validation failed: ${message}`);
@@ -62,52 +59,33 @@ function validateGitHubContext() {
 
 function validateInputs() {
   const version = process.env.PUBLISH_VERSION ?? '';
-  const dependencyVersion = process.env.DEPENDENCY_VERSION ?? '';
-  const mode = process.env.PACKAGE_MODE ?? '';
-  const explicitPackages = process.env.EXPLICIT_PACKAGES ?? '';
   const tag = process.env.PUBLISH_TAG ?? '';
   const publishConcurrency = process.env.PUBLISH_CONCURRENCY ?? '';
-  const affectedBase = process.env.AFFECTED_BASE ?? '';
-  const affectedHead = process.env.AFFECTED_HEAD ?? '';
 
   if (!semverPattern.test(version)) {
     fail(`version must be a semver value, found "${version}"`);
   }
-  if (dependencyVersion && !semverPattern.test(dependencyVersion)) {
+  if (tag !== enforcedPublishTag) {
+    fail(`dist-tag must be ${enforcedPublishTag}, found "${tag}"`);
+  }
+  if (publishConcurrency !== enforcedPublishConcurrency) {
     fail(
-      `dependency_version must be a semver value, found "${dependencyVersion}"`,
+      `publish_concurrency must be fixed at ${enforcedPublishConcurrency}, found "${publishConcurrency}"`,
     );
   }
-  if (!allowedModes.has(mode)) {
-    fail(`package_mode must be one of ${Array.from(allowedModes).join(', ')}`);
-  }
-  if (!allowedTags.has(tag)) {
-    fail(`dist-tag must be one of ${Array.from(allowedTags).join(', ')}`);
-  }
-  if (!/^[1-8]$/.test(publishConcurrency)) {
-    fail('publish_concurrency must be an integer from 1 to 8');
-  }
-  if (mode === 'explicit' && explicitPackages.trim() === '') {
-    fail('package_mode=explicit requires a non-empty package list');
-  }
-  if (
-    (mode === 'changed' || mode === 'affected') &&
-    (!affectedBase || !affectedHead)
-  ) {
-    fail('changed and affected modes require affected_base and affected_head');
-  }
-  for (const ref of [affectedBase, affectedHead].filter(Boolean)) {
-    if (!refPattern.test(ref)) {
-      fail(`affected ref contains unsupported characters: ${ref}`);
-    }
-  }
-  for (const packageName of explicitPackages
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean)) {
-    if (!packageTokenPattern.test(packageName)) {
-      fail(`package selector contains unsupported characters: ${packageName}`);
-    }
+
+  const forbiddenInputs = [
+    'DEPENDENCY_VERSION',
+    'PACKAGE_MODE',
+    'EXPLICIT_PACKAGES',
+    'AFFECTED_BASE',
+    'AFFECTED_HEAD',
+    'SKIP_EXISTING',
+  ].filter(envName => process.env[envName]);
+  if (forbiddenInputs.length > 0) {
+    fail(
+      `partial publish controls are forbidden: ${forbiddenInputs.join(', ')}`,
+    );
   }
 }
 
@@ -166,6 +144,23 @@ function validateWorkflowContract() {
     '--publish-concurrency "$PUBLISH_CONCURRENCY"',
     'publish workflow package concurrency',
   );
+  for (const forbiddenToken of [
+    'dependency_version',
+    'package_mode',
+    'affected_base',
+    'affected_head',
+    'skip_existing',
+    'EXPLICIT_PACKAGES',
+    'PUBLISH_PACKAGES',
+    'PACKAGE_MODE',
+    'AFFECTED_BASE',
+    'AFFECTED_HEAD',
+    'SKIP_EXISTING',
+  ]) {
+    if (workflow.includes(forbiddenToken)) {
+      fail(`publish workflow must not expose ${forbiddenToken}`);
+    }
+  }
   if (workflow.includes('pull_request_target')) {
     fail('publish workflow must not use pull_request_target');
   }
@@ -192,6 +187,16 @@ function validatePublishScriptContract() {
     publishScript,
     "repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git'",
     'publish script',
+  );
+  requireIncludes(
+    publishScript,
+    'await validateRegistryCohort(manifest, options);',
+    'publish script registry cohort gate',
+  );
+  requireIncludes(
+    publishScript,
+    'await promoteManifestDistTag(manifest, options);',
+    'publish script final dist-tag promotion',
   );
 }
 
