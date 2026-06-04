@@ -39,6 +39,7 @@ import {
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
   type RouterExtendsHooks,
 } from './hooks';
+import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterServerPrepareResult,
   createRouterServerSnapshot,
@@ -564,8 +565,9 @@ export const tanstackRouterPlugin = (
               return App ? <App {...props} /> : null;
             }
 
-            const routerWrapper = (
-              <RouterProvider router={router as AnyRouter} />
+            const routerWrapper = wrapTanstackSsrHydrationBoundary(
+              <RouterProvider router={router as AnyRouter} />,
+              true,
             );
 
             return App ? <App>{routerWrapper}</App> : routerWrapper;

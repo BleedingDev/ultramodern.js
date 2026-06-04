@@ -36,6 +36,7 @@ import {
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
   type RouterExtendsHooks,
 } from './hooks';
+import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
@@ -377,6 +378,10 @@ export const tanstackRouterPlugin = (
           ) : (
             <RouterProvider router={router} />
           );
+          const HydratableRouterContent = wrapTanstackSsrHydrationBoundary(
+            RouterContent,
+            hasSSRBootstrap,
+          );
           if (hasSSRBootstrap) {
             hooks.onAfterHydrateRouter.call({
               ...lifecycleContext,
@@ -386,7 +391,11 @@ export const tanstackRouterPlugin = (
             });
           }
 
-          return App ? <App>{RouterContent}</App> : RouterContent;
+          return App ? (
+            <App>{HydratableRouterContent}</App>
+          ) : (
+            HydratableRouterContent
+          );
         };
 
         return RouterWrapper;

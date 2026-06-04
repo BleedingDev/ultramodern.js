@@ -35,6 +35,7 @@ import {
 import type { InternalRouterServerSnapshot, RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
+import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   createRouteTreeFromRouteObjects,
   getModernRouteIdsFromMatches,
@@ -431,8 +432,9 @@ export const tanstackRouterPlugin = (
               return App ? <App {...props} /> : null;
             }
 
-            const routerWrapper = (
-              <RouterProvider router={router as AnyRouter} />
+            const routerWrapper = wrapTanstackSsrHydrationBoundary(
+              <RouterProvider router={router as AnyRouter} />,
+              true,
             );
 
             return App ? <App>{routerWrapper}</App> : routerWrapper;

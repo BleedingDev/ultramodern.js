@@ -39,6 +39,7 @@ import {
 import type { RouterConfig } from '../types';
 import { createRouteObjectsFromConfig, urlJoin } from '../utils';
 import { createModernBasepathRewrite } from './basepathRewrite';
+import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import { Link } from './prefetchLink';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
@@ -349,6 +350,10 @@ export const tanstackRouterPlugin = (
           ) : (
             <RouterProvider router={router} />
           );
+          const HydratableRouterContent = wrapTanstackSsrHydrationBoundary(
+            RouterContent,
+            hasSSRBootstrap,
+          );
           if (hasSSRBootstrap) {
             hooks.onAfterHydrateRouter.call({
               ...lifecycleContext,
@@ -358,7 +363,11 @@ export const tanstackRouterPlugin = (
             });
           }
 
-          return App ? <App>{RouterContent}</App> : RouterContent;
+          return App ? (
+            <App>{HydratableRouterContent}</App>
+          ) : (
+            HydratableRouterContent
+          );
         };
 
         return RouterWrapper;
