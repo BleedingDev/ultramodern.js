@@ -61,6 +61,7 @@ type TestRoute = {
     staticData: Record<string, unknown>;
     loaderDeps?: unknown;
     validateSearch?: unknown;
+    wrapInSuspense?: unknown;
   };
 };
 
@@ -153,6 +154,31 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('does not force Suspense wrappers for ordinary generated routes', async () => {
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => createElement(Outlet),
+        children: [
+          {
+            id: 'plain',
+            path: 'plain',
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/plain');
+
+    expect(routeTree.options.wrapInSuspense).toBeUndefined();
+    expect(
+      getLooseRoute(router, '/plain').options.wrapInSuspense,
+    ).toBeUndefined();
   });
 
   test('preserves TanStack search contracts from RouteObject routes', () => {
@@ -607,6 +633,34 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(routeTree.options.loaderDeps).toBe(rootLoaderDeps);
     expect(searchRoute.options.validateSearch).toBe(childValidateSearch);
     expect(searchRoute.options.loaderDeps).toBe(childLoaderDeps);
+  });
+
+  test('does not force Suspense wrappers for ordinary Modern routes', async () => {
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        component: () => createElement(Outlet),
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'plain',
+            path: 'plain',
+            component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromModernRoutes(modernRoutes);
+    const router = await loadRouteTree(routeTree, '/plain');
+    const plain = getLooseRouteByModernRouteId(router, 'plain');
+
+    expect(routeTree.options.wrapInSuspense).toBeUndefined();
+    expect(plain.options.wrapInSuspense).toBeUndefined();
   });
 
   test('preserves Modern generated client route metadata', () => {

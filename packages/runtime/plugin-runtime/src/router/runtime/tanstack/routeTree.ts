@@ -690,7 +690,6 @@ function createRouteFromRouteObject(opts: {
     component: toRouteComponent(routeObject),
     pendingComponent: toPendingComponent(routeObject),
     errorComponent: toErrorComponent(routeObject),
-    wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: routeObject.id,
       modernRouteAction: modernRouteObject.action,
@@ -777,7 +776,6 @@ function createRouteFromModernRoute(opts: {
     component: component || undefined,
     pendingComponent: pendingComponent || undefined,
     errorComponent: errorComponent || undefined,
-    wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: modernId,
       modernRouteAction: modernAction,
@@ -850,7 +848,6 @@ export function createRouteTreeFromModernRoutes(
     component: rootComponent || undefined,
     pendingComponent: pendingComponent || undefined,
     errorComponent: errorComponent || undefined,
-    wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({
       modernRouteId: rootModernId,
@@ -916,7 +913,6 @@ export function createRouteTreeFromRouteObjects(
       ? toPendingComponent(rootLikeRoute)
       : undefined,
     errorComponent: rootLikeRoute ? toErrorComponent(rootLikeRoute) : undefined,
-    wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({
       modernRouteId: rootLikeRoute?.id,

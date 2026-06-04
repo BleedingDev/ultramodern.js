@@ -741,7 +741,6 @@ function createRouteFromRouteObject(opts: {
     errorComponent: toErrorComponent(routeObject),
     validateSearch: modernRouteObject.validateSearch,
     loaderDeps: modernRouteObject.loaderDeps,
-    wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: routeObject.id,
       modernRouteAction: modernRouteObject.action,
@@ -835,7 +834,6 @@ function createRouteFromModernRoute(opts: {
     errorComponent: errorComponent || undefined,
     validateSearch: route.validateSearch,
     loaderDeps: route.loaderDeps,
-    wrapInSuspense: true,
     staticData: createRouteStaticData({
       modernRouteId: modernId,
       modernRouteAction: modernAction,
@@ -920,7 +918,6 @@ export function createRouteTreeFromModernRoutes(
     errorComponent: errorComponent || undefined,
     validateSearch: rootModern?.validateSearch,
     loaderDeps: rootModern?.loaderDeps,
-    wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({
       modernRouteId: rootModernId,
@@ -993,7 +990,6 @@ export function createRouteTreeFromRouteObjects(
     errorComponent: rootLikeRoute ? toErrorComponent(rootLikeRoute) : undefined,
     validateSearch: rootLikeRoute?.validateSearch,
     loaderDeps: rootLikeRoute?.loaderDeps,
-    wrapInSuspense: true,
     notFoundComponent: DefaultNotFound,
     staticData: createRouteStaticData({
       modernRouteId: rootLikeRoute?.id,
