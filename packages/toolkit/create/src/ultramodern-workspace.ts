@@ -530,6 +530,14 @@ function toEnvSegment(value: string): string {
   return toKebabCase(value).replace(/-/g, '_').toUpperCase();
 }
 
+function createRspackUniqueName(app: WorkspaceApp): string {
+  return app.mfName;
+}
+
+function createRspackChunkLoadingGlobal(app: WorkspaceApp): string {
+  return `__ULTRAMODERN_${toEnvSegment(app.mfName)}_LOADED_CHUNKS__`;
+}
+
 function packageName(scope: string, suffix: string): string {
   return `@${scope}/${suffix}`;
 }
@@ -1182,6 +1190,9 @@ ${bffPluginEntry}        moduleFederationPlugin(),
           overrideBrowserslist: ['defaults'],
         },
         bundlerChain: chain => {
+          chain.output
+            .uniqueName('${createRspackUniqueName(app)}')
+            .chunkLoadingGlobal('${createRspackChunkLoadingGlobal(app)}');
           chain.ignoreWarnings([
             {
               message: /the request of a dependency is an expression/u,
@@ -4347,6 +4358,12 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
         disableClientServer: true,
       },
     },
+    rspack: {
+      output: {
+        uniqueName: createRspackUniqueName(app),
+        chunkLoadingGlobal: createRspackChunkLoadingGlobal(app),
+      },
+    },
     html: {
       outputStructure: 'flat',
     },
@@ -5120,6 +5137,12 @@ const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), \`Unexpected \${relativePath}\`);
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
+const expectedChunkLoadingGlobal = mfName =>
+  \`__ULTRAMODERN_\${mfName
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase()}_LOADED_CHUNKS__\`;
 const parseSemver = version => {
   const match = /^(\\d+)\\.(\\d+)\\.(\\d+)/u.exec(version);
   assert(match, \`Unable to parse pnpm version: \${version}\`);
@@ -5296,6 +5319,8 @@ const shellContract = generatedContract.apps?.find(app => app.id === 'shell-supe
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), 'Shell Cloudflare compatibility flags are incorrect');
+assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
+assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
 assert(shellContract?.styling?.federation?.owner?.id === 'shell-super-app', 'Shell CSS federation owner is missing');
 assert(shellContract?.styling?.federation?.role === 'shell-base-overlay', 'Shell must own base and overlay CSS');
@@ -5344,6 +5369,8 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.deploy?.cloudflare?.publicUrlEnv === \`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, \`\${vertical.id} Cloudflare public URL env is incorrect\`);
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), \`\${vertical.id} Cloudflare compatibility flags are incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
+  assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, \`\${vertical.id} Rspack uniqueName is incorrect\`);
+  assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} MF name is incorrect\`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} MF exposes are incorrect\`);
   assert(contractEntry?.moduleFederation?.dts?.compilerInstance === '--package typescript -- tsc', \`\${vertical.id} must keep mandatory DTS compiler\`);

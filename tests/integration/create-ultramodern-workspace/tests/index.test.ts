@@ -135,7 +135,11 @@ function getGeneratedAppContract(workspaceDir: string, appId: string) {
 }
 
 function expectAppConfigContract(
-  contractEntry: { config: Record<string, any>; ssr?: Record<string, any> },
+  contractEntry: {
+    config: Record<string, any>;
+    moduleFederation: Record<string, any>;
+    ssr?: Record<string, any>;
+  },
   expected: { apiPrefix?: string; hasEffect?: boolean },
 ) {
   expect(contractEntry.config).toMatchObject({
@@ -147,6 +151,16 @@ function expectAppConfigContract(
       },
       polyfill: 'off',
       splitRouteChunks: true,
+    },
+    rspack: {
+      output: {
+        uniqueName: contractEntry.moduleFederation.name,
+        chunkLoadingGlobal: `__ULTRAMODERN_${contractEntry.moduleFederation.name
+          .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .toUpperCase()}_LOADED_CHUNKS__`,
+      },
     },
     html: {
       outputStructure: 'flat',

@@ -805,6 +805,18 @@ function readGeneratedTopologyEvidence(
   });
 }
 
+function writeStream(stream, message) {
+  return new Promise((resolve, reject) => {
+    stream.write(message, error => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const workDir = fs.mkdtempSync(
@@ -957,12 +969,20 @@ async function main() {
 
     summary.ok = true;
     writeJson(options.out, summary);
-    console.log(`[ultramodern-production-readiness] pass: ${options.out}`);
+    await writeStream(
+      process.stdout,
+      `[ultramodern-production-readiness] pass: ${options.out}\n`,
+    );
+    return 0;
   } catch (error) {
     summary.ok = false;
     summary.error = error instanceof Error ? error.message : String(error);
     writeJson(options.out, summary);
-    throw error;
+    await writeStream(
+      process.stderr,
+      `[ultramodern-production-readiness] ${summary.error}\n`,
+    );
+    return 1;
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
@@ -972,7 +992,18 @@ if (
   process.argv[1] &&
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 ) {
-  await main();
+  let exitCode = 1;
+  try {
+    exitCode = await main();
+  } catch (error) {
+    await writeStream(
+      process.stderr,
+      `[ultramodern-production-readiness] ${
+        error instanceof Error ? error.message : String(error)
+      }\n`,
+    );
+  }
+  process.exit(exitCode);
 }
 
 export {
