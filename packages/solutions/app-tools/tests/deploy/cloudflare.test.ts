@@ -69,6 +69,22 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
     `module.exports = { requestHandler: async () => new Response('<!doctype html><html><head><title>styled</title></head><body><header data-modern-boundary-id="explore" data-modern-mf-expose="./Header">Header</header><main data-modern-boundary-id="checkout" data-modern-mf-expose="./CartPage">Cart</main></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
   );
   await fs.writeFile(
+    path.join(distDirectory, 'worker/head.js'),
+    `module.exports = { requestHandler: async request => {
+      if (request.method !== 'GET') {
+        return new Response('unexpected method', { status: 500 });
+      }
+
+      return new Response('<!doctype html><html><head><title>head</title></head><body>ok</body></html>', {
+        headers: {
+          'content-length': '77',
+          'content-type': 'text/html; charset=utf-8',
+          'x-render-method': request.method
+        }
+      });
+    } };`,
+  );
+  await fs.writeFile(
     path.join(distDirectory, 'worker/empty.js.map'),
     '{"version":3}',
   );
@@ -223,6 +239,13 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
           entryPath: 'html/main/index.html',
           isSSR: true,
           worker: 'worker/html.js',
+        },
+        {
+          urlPath: '/head-check',
+          entryName: 'main',
+          entryPath: 'html/main/index.html',
+          isSSR: true,
+          worker: 'worker/head.js',
         },
         {
           urlPath: '/plain',
@@ -540,6 +563,29 @@ describe('cloudflare deploy preset', () => {
       routeAssetKeys: ['main'],
       loadableName: 'loadable-fixture',
     });
+  });
+
+  it('renders Cloudflare SSR HEAD requests as GET and returns headers without a body', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/head-check', {
+        method: 'HEAD',
+      }),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-render-method')).toBe('GET');
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('content-length')).toBeNull();
+    await expect(response.text()).resolves.toBe('');
   });
 
   it('injects route CSS links into Cloudflare SSR HTML responses', async () => {

@@ -28,6 +28,29 @@ function withCorsHeaders(response) {
   });
 }
 
+function createRenderableRequest(request) {
+  if (request.method !== 'HEAD') {
+    return request;
+  }
+
+  return new Request(request, { method: 'GET' });
+}
+
+function finalizeResponseForRequest(response, request) {
+  if (request.method !== 'HEAD') {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+
+  return new Response(null, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
 function isFingerprintedAssetPathname(pathname) {
   return /(?:^|\/)[^/]+\.[a-f0-9]{8,}\.(?:css|js|mjs|json|svg|png|jpe?g|webp|avif|gif|woff2?|ttf)$/iu.test(
     pathname,
@@ -753,13 +776,13 @@ export default {
     const assetResponse = await fetchAsset(request, env);
 
     if (assetResponse) {
-      return assetResponse;
+      return finalizeResponseForRequest(assetResponse, request);
     }
 
     const bffResponse = await dispatchBffRequest(request, env);
 
     if (bffResponse) {
-      return withCorsHeaders(bffResponse);
+      return finalizeResponseForRequest(withCorsHeaders(bffResponse), request);
     }
 
     const route = findRoute(request);
@@ -769,21 +792,32 @@ export default {
       isAssetLikePathname(pathname) &&
       !routeMatchesExactly(route, pathname)
     ) {
-      return withCorsHeaders(new Response('Not found', { status: 404 }));
+      return finalizeResponseForRequest(
+        withCorsHeaders(new Response('Not found', { status: 404 })),
+        request,
+      );
     }
 
     if (route?.worker) {
-      return withCorsHeaders(
-        await dispatchRouteWorker(route, request, env, ctx),
+      const renderableRequest = createRenderableRequest(request);
+
+      return finalizeResponseForRequest(
+        withCorsHeaders(
+          await dispatchRouteWorker(route, renderableRequest, env, ctx),
+        ),
+        request,
       );
     }
 
     const htmlResponse = await fetchRouteHtml(route, request, env);
 
     if (htmlResponse) {
-      return htmlResponse;
+      return finalizeResponseForRequest(htmlResponse, request);
     }
 
-    return withCorsHeaders(new Response('Not found', { status: 404 }));
+    return finalizeResponseForRequest(
+      withCorsHeaders(new Response('Not found', { status: 404 })),
+      request,
+    );
   },
 };
