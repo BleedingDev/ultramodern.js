@@ -755,9 +755,13 @@ export async function runUltramodernBrowserSmoke(options) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const report = await runUltramodernBrowserSmoke(options);
-  process.stdout.write(
-    `[ultramodern-browser-smoke] ${report.status}: ${options.out}\n`,
-  );
+  await new Promise(resolve => {
+    process.stdout.write(
+      `[ultramodern-browser-smoke] ${report.status}: ${options.out}\n`,
+      resolve,
+    );
+  });
+  process.exit(report.status === 'pass' || report.status === 'skipped' ? 0 : 1);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
