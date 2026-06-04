@@ -26,7 +26,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rslib build",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build --watch",
     "test": "rstest run",
     "test:watch": "rstest watch"
@@ -45,7 +45,7 @@
     "@rsbuild/plugin-svgr": "2.0.3",
     "@rsbuild/plugin-type-check": "1.3.5",
     "@rsbuild/plugin-typed-css-modules": "1.2.3",
-    "@rsdoctor/rspack-plugin": "^1.5.11",
+    "@rsdoctor/rspack-plugin": "^1.5.12",
     "@swc/core": "1.15.40",
     "@swc/helpers": "^0.5.23",
     "autoprefixer": "10.5.0",

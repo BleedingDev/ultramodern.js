@@ -28,7 +28,11 @@ export {
 export type { BaseEnv, ProdServerOptions } from './types';
 export { loadServerPlugins };
 
-export const createProdServer = async (options: ProdServerOptions) => {
+export type ProdServerInstance = Awaited<ReturnType<typeof createNodeServer>>;
+
+export const createProdServer = async (
+  options: ProdServerOptions,
+): Promise<ProdServerInstance> => {
   await loadServerEnv(options);
 
   const serverBaseOptions = options;

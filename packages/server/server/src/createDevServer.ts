@@ -9,10 +9,15 @@ import { devPlugin } from './dev';
 import { getDevAssetPrefix, getDevOptions } from './helpers';
 import type { ApplyPlugins, ModernDevServerOptions } from './types';
 
+export interface CreateDevServerResult {
+  server: Awaited<ReturnType<typeof createNodeServer>>;
+  afterListen: () => Promise<void>;
+}
+
 export async function createDevServer(
   options: ModernDevServerOptions,
   applyPlugins: ApplyPlugins,
-) {
+): Promise<CreateDevServerResult> {
   const { config, pwd, serverConfigPath, builder } = options;
   const dev = getDevOptions(options.dev);
 
