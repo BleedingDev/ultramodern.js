@@ -106,9 +106,11 @@ export interface BackendOptions extends Omit<BaseBackendOptions, 'enabled'> {
   [key: string]: any;
 }
 
+export type ResourceValue = string | { [key: string]: ResourceValue };
+
 export interface Resources {
   [lng: string]: {
-    [source: string]: string | Record<string, string>;
+    [source: string]: ResourceValue;
   };
 }
 

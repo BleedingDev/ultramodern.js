@@ -1823,9 +1823,15 @@ function createAppRuntimeConfig(
 
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
 ${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import { createInstance } from 'i18next';
+import csResource from '../locales/cs/${appI18nNamespace(app)}.json';
+import enResource from '../locales/en/${appI18nNamespace(app)}.json';
 import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
 
 const i18nInstance = createInstance();
+const resources = {
+  cs: { [ultramodernRouteNamespace]: csResource },
+  en: { [ultramodernRouteNamespace]: enResource },
+} as const;
 
 export default defineRuntimeConfig({
   i18n: {
@@ -1837,6 +1843,7 @@ export default defineRuntimeConfig({
         escapeValue: false,
       },
       ns: [ultramodernRouteNamespace, 'translation'],
+      resources,
       supportedLngs: ['en', 'cs'],
     },
   },
@@ -4902,8 +4909,11 @@ const checkRuntimeResources = (filePath, text) => {
   if (!relative(filePath).endsWith('/src/modern.runtime.ts')) {
     return;
   }
-  if (/initOptions\\s*:\\s*\\{[\\s\\S]*?\\bresources\\s*:/u.test(text)) {
-    fail(\`\${relative(filePath)} must not inline i18n resources in modern.runtime.ts; use locale JSON files.\`);
+  const importsLocaleResources =
+    /import\\s+csResource\\s+from\\s+['"]\\.\\.\\/locales\\/cs\\/[^'"]+\\.json['"]/u.test(text) &&
+    /import\\s+enResource\\s+from\\s+['"]\\.\\.\\/locales\\/en\\/[^'"]+\\.json['"]/u.test(text);
+  if (!importsLocaleResources || !/initOptions\\s*:\\s*\\{[\\s\\S]*?\\bresources\\s*,/u.test(text)) {
+    fail(\`\${relative(filePath)} must register locale JSON resources in modern.runtime.ts so Worker SSR and hydration use the same first-render translations.\`);
   }
 };
 
