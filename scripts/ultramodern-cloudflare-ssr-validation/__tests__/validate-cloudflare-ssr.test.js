@@ -22,6 +22,24 @@ function writeJson(filePath, value) {
   writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+const cloudflareSecurity = {
+  enabled: true,
+  headers: {
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    contentTypeOptions: 'nosniff',
+    permissionsPolicy:
+      'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+  },
+  contentSecurityPolicy: {
+    mode: 'report-only',
+    directives: {
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https:'],
+      'style-src': ["'self'", "'unsafe-inline'", 'https:'],
+      'connect-src': ["'self'", 'https:', 'wss:'],
+    },
+  },
+};
+
 function writeFixture(rootDir, { bffBuild = 'build-123' } = {}) {
   const outputDir = path.join(rootDir, '.output');
   writeJson(path.join(outputDir, 'wrangler.json'), {
@@ -37,6 +55,7 @@ function writeFixture(rootDir, { bffBuild = 'build-123' } = {}) {
       prefix: '/explore-api',
       worker: 'worker/__modern_bff_effect.js',
     },
+    security: cloudflareSecurity,
   });
   writeFile(path.join(outputDir, 'public/mf-manifest.json'), '{}\n');
   writeJson(path.join(outputDir, 'public/locales/en/translation.json'), {
@@ -52,26 +71,44 @@ function writeFixture(rootDir, { bffBuild = 'build-123' } = {}) {
     path.join(outputDir, 'server/index.mjs'),
     `export default {
       async fetch(request, env) {
+        const security = ${JSON.stringify(cloudflareSecurity)};
+        const renderCsp = directives => Object.entries(directives)
+          .map(([name, values]) => \`\${name} \${values.join(' ')}\`)
+          .join('; ');
+        const secure = response => {
+          const headers = new Headers(response.headers);
+          headers.set('referrer-policy', security.headers.referrerPolicy);
+          headers.set('x-content-type-options', security.headers.contentTypeOptions);
+          headers.set('permissions-policy', security.headers.permissionsPolicy);
+          if ((headers.get('content-type') || '').includes('text/html')) {
+            headers.set('content-security-policy-report-only', renderCsp(security.contentSecurityPolicy.directives));
+          }
+          return new Response(response.body, {
+            headers,
+            status: response.status,
+            statusText: response.statusText
+          });
+        };
         const pathname = new URL(request.url).pathname;
         if (pathname === '/mf-manifest.json' || pathname === '/locales/en/translation.json') {
-          return env.ASSETS.fetch(request);
+          return secure(await env.ASSETS.fetch(request));
         }
         if (pathname === '/en') {
-          return new Response('<html data-build-marker="build-123">Explore Remote</html>', {
+          return secure(new Response('<html data-build-marker="build-123">Explore Remote</html>', {
             headers: { 'content-type': 'text/html; charset=utf-8' },
-          });
+          }));
         }
         if (pathname === '/cs') {
-          return new Response('<html data-build-marker="build-123">Průzkumný remote</html>', {
+          return secure(new Response('<html data-build-marker="build-123">Průzkumný remote</html>', {
             headers: { 'content-type': 'text/html; charset=utf-8' },
-          });
+          }));
         }
         if (pathname === '/explore-api/effect/explore/readiness') {
-          return new Response(JSON.stringify({
+          return secure(new Response(JSON.stringify({
             items: [{ marker: { build: '${bffBuild}' } }],
           }), {
             headers: { 'content-type': 'application/json; charset=utf-8' },
-          });
+          }));
         }
         return new Response('Not found', { status: 404 });
       },
@@ -103,6 +140,19 @@ test('validates Worker SSR, assets, BFF JSON, and marker lockstep', async () => 
     assert.equal(report.responses.cs.status, 200);
     assert.equal(report.responses.locale.json.explore.title, 'Explore Remote');
     assert.equal(report.responses.bff.json.items[0].marker.build, 'build-123');
+    assert.equal(
+      report.responses.en.headers.referrerPolicy,
+      'strict-origin-when-cross-origin',
+    );
+    assert.equal(report.responses.en.headers.xContentTypeOptions, 'nosniff');
+    assert.match(
+      report.responses.en.headers.contentSecurityPolicyReportOnly,
+      /script-src/u,
+    );
+    assert.equal(
+      report.responses.mfManifest.headers.xContentTypeOptions,
+      'nosniff',
+    );
     assert.equal(report.markers.match, true);
     assert.equal(written.status, report.status);
     assert.equal(written.markers.uiBuildMarker, report.markers.uiBuildMarker);

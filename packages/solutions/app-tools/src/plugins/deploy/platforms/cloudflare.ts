@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
+import type { CloudflareWorkerSecurityConfig } from '../../../types/config/deploy';
 import { readTemplate } from '../utils';
 import type { CreatePreset } from './platform';
 
@@ -14,8 +15,52 @@ const PUBLIC_ASSETS_DIRECTORY = 'public';
 const WORKER_BUNDLE_DIRECTORY = 'worker';
 const SERVER_BUNDLE_DIRECTORY = 'bundles';
 const BFF_EFFECT_WORKER_ENTRY = `${WORKER_BUNDLE_DIRECTORY}/__modern_bff_effect.js`;
+const DEFAULT_COMPATIBILITY_DATE = '2026-06-02';
+const COMPATIBILITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+const DEFAULT_SECURITY_HEADERS = {
+  referrerPolicy: 'strict-origin-when-cross-origin',
+  contentTypeOptions: 'nosniff',
+  permissionsPolicy:
+    'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+} as const;
+const DEFAULT_CSP_DIRECTIVES: Record<string, string[]> = {
+  'base-uri': [`'self'`],
+  'connect-src': [`'self'`, 'https:', 'http:', 'wss:', 'ws:'],
+  'default-src': [`'self'`],
+  'font-src': [`'self'`, 'data:', 'https:', 'http:'],
+  'form-action': [`'self'`],
+  'frame-ancestors': [`'self'`],
+  'img-src': [`'self'`, 'data:', 'blob:', 'https:', 'http:'],
+  'manifest-src': [`'self'`, 'https:', 'http:'],
+  'object-src': [`'none'`],
+  'script-src': [
+    `'self'`,
+    `'unsafe-inline'`,
+    `'unsafe-eval'`,
+    'https:',
+    'http:',
+    'blob:',
+  ],
+  'style-src': [`'self'`, `'unsafe-inline'`, 'https:', 'http:'],
+  'worker-src': [`'self'`, 'blob:'],
+};
 
-const getCompatibilityDate = () => new Date().toISOString().slice(0, 10);
+const getCompatibilityDate = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  const configuredDate = modernConfig.deploy?.worker?.compatibilityDate?.trim();
+  const compatibilityDate = configuredDate || DEFAULT_COMPATIBILITY_DATE;
+
+  if (!COMPATIBILITY_DATE_PATTERN.test(compatibilityDate)) {
+    throw new Error(
+      `deploy.worker.compatibilityDate must use YYYY-MM-DD, received ${JSON.stringify(
+        compatibilityDate,
+      )}.`,
+    );
+  }
+
+  return compatibilityDate;
+};
 
 const getWorkerName = (appDirectory: string) => {
   const basename = path.basename(appDirectory);
@@ -28,6 +73,149 @@ const getConfiguredWorkerName = (
 ) => {
   const configuredName = modernConfig.deploy?.worker?.name?.trim();
   return configuredName || getWorkerName(appDirectory);
+};
+
+const normalizeDirectiveValues = (value: string[] | string) => {
+  const values = Array.isArray(value) ? value : [value];
+
+  return [...new Set(values.map(entry => entry.trim()).filter(Boolean))];
+};
+
+const appendDirectiveValues = (
+  directives: Record<string, string[]>,
+  name: string,
+  values: string[] | undefined,
+) => {
+  if (!values?.length) {
+    return;
+  }
+
+  directives[name] = normalizeDirectiveValues([
+    ...(directives[name] ?? []),
+    ...values,
+  ]);
+};
+
+const createContentSecurityPolicy = (
+  config?: CloudflareWorkerSecurityConfig['contentSecurityPolicy'],
+) => {
+  const mode = config?.mode ?? 'report-only';
+
+  if (mode === 'off') {
+    return {
+      mode,
+      directives: {},
+      reason: config?.reason,
+    };
+  }
+
+  const directives = Object.fromEntries(
+    Object.entries(DEFAULT_CSP_DIRECTIVES).map(([name, values]) => [
+      name,
+      [...values],
+    ]),
+  );
+
+  for (const [name, value] of Object.entries(config?.directives ?? {})) {
+    if (value === false) {
+      delete directives[name];
+    } else {
+      directives[name] = normalizeDirectiveValues(value);
+    }
+  }
+
+  if (config?.frameAncestors === false) {
+    delete directives['frame-ancestors'];
+  } else if (config?.frameAncestors) {
+    directives['frame-ancestors'] = normalizeDirectiveValues(
+      config.frameAncestors,
+    );
+  }
+
+  appendDirectiveValues(directives, 'script-src', config?.additionalScriptSrc);
+  appendDirectiveValues(directives, 'style-src', config?.additionalStyleSrc);
+  appendDirectiveValues(
+    directives,
+    'connect-src',
+    config?.additionalConnectSrc,
+  );
+  appendDirectiveValues(directives, 'img-src', config?.additionalImgSrc);
+
+  if (config?.reportUri) {
+    directives['report-uri'] = [config.reportUri];
+  }
+
+  return {
+    mode,
+    directives,
+    reason: config?.reason,
+  };
+};
+
+const createNoindexPolicy = (
+  noindex: CloudflareWorkerSecurityConfig['noindex'],
+) => {
+  if (noindex === false) {
+    return {
+      workersDev: false,
+      localhost: false,
+      previewHostnames: [],
+    };
+  }
+
+  if (noindex === true || noindex === undefined) {
+    return {
+      workersDev: true,
+      localhost: true,
+      previewHostnames: [],
+    };
+  }
+
+  return {
+    workersDev: noindex.workersDev ?? true,
+    localhost: noindex.localhost ?? true,
+    previewHostnames: noindex.previewHostnames ?? [],
+    reason: noindex.reason,
+  };
+};
+
+const createCloudflareWorkerSecurityPolicy = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  const security = modernConfig.deploy?.worker?.security;
+
+  if (security?.enabled === false) {
+    return {
+      enabled: false,
+      reason: security.reason,
+    };
+  }
+
+  return {
+    enabled: true,
+    headers: {
+      referrerPolicy:
+        security?.headers?.referrerPolicy ??
+        DEFAULT_SECURITY_HEADERS.referrerPolicy,
+      contentTypeOptions:
+        security?.headers?.contentTypeOptions ??
+        DEFAULT_SECURITY_HEADERS.contentTypeOptions,
+      permissionsPolicy:
+        security?.headers?.permissionsPolicy ??
+        DEFAULT_SECURITY_HEADERS.permissionsPolicy,
+    },
+    contentSecurityPolicy: createContentSecurityPolicy(
+      security?.contentSecurityPolicy,
+    ),
+    noindex: createNoindexPolicy(security?.noindex),
+    cookies: {
+      mutateSetCookie: false,
+      reason:
+        security?.cookies?.reason ??
+        'Cloudflare worker does not own application Set-Cookie headers.',
+    },
+    reason: security?.reason,
+  };
 };
 
 const readRouteSpec = async (outputDirectory: string) => {
@@ -103,6 +291,7 @@ const createWorkerManifest = async (
       loadableStats: LOADABLE_STATS_FILE,
       routeManifest: ROUTE_MANIFEST_FILE,
     },
+    security: createCloudflareWorkerSecurityPolicy(modernConfig),
     bff:
       isEffectBff && primaryBffPrefix && effectBffWorkerExists
         ? {
@@ -235,7 +424,7 @@ export const createCloudflarePreset: CreatePreset = ({
           $schema: 'node_modules/wrangler/config-schema.json',
           name: workerName,
           main: WORKER_ENTRY,
-          compatibility_date: getCompatibilityDate(),
+          compatibility_date: getCompatibilityDate(modernConfig),
           compatibility_flags: [
             'nodejs_compat',
             'global_fetch_strictly_public',

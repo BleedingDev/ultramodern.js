@@ -399,12 +399,12 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['cloudflare:proof']).toBe(
       'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
-    expect(
-      fs.readFileSync(
-        path.join(workspaceDir, 'scripts/proof-cloudflare-version.mjs'),
-        'utf8',
-      ),
-    ).toContain('css-preload-link-header');
+    const cloudflareProofScript = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/proof-cloudflare-version.mjs'),
+      'utf8',
+    );
+    expect(cloudflareProofScript).toContain('css-preload-link-header');
+    expect(cloudflareProofScript).toContain('security-csp');
     expect(rootPackage.scripts.format).toBe("oxfmt . '!repos/**'");
     expect(rootPackage.scripts['format:check']).toBe(
       "oxfmt --check . '!repos/**'",
@@ -595,6 +595,15 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'apps/shell-super-app/module-federation.config.ts',
     );
+    const shellModernConfig = readText(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    expect(shellModernConfig).toContain('security: {');
+    expect(shellModernConfig).toContain("compatibilityDate: '2026-06-02'");
+    expect(shellModernConfig).toContain('"mode": "report-only"');
+    expect(shellModernConfig).toContain('"script-src"');
+    expect(shellModernConfig).toContain('"connect-src"');
     expect(shellModuleFederationConfig).toContain(`bridge: {
     enableBridgeRouter: false,
   },`);
@@ -636,7 +645,50 @@ describe('create-ultramodern-workspace', () => {
       cloudflare: {
         workerName: 'ultra-workspace-shell-super-app',
         publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+        compatibilityDate: '2026-06-02',
         assetsBinding: 'ASSETS',
+        security: {
+          enabled: true,
+          headers: {
+            referrerPolicy: 'strict-origin-when-cross-origin',
+            contentTypeOptions: 'nosniff',
+            permissionsPolicy:
+              'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+          },
+          contentSecurityPolicy: {
+            mode: 'report-only',
+            directives: {
+              'script-src': expect.arrayContaining([
+                "'self'",
+                "'unsafe-inline'",
+                "'unsafe-eval'",
+                'https:',
+                'http:',
+                'blob:',
+              ]),
+              'style-src': expect.arrayContaining([
+                "'self'",
+                "'unsafe-inline'",
+                'https:',
+                'http:',
+              ]),
+              'connect-src': expect.arrayContaining([
+                "'self'",
+                'https:',
+                'http:',
+                'wss:',
+                'ws:',
+              ]),
+            },
+          },
+          noindex: {
+            workersDev: true,
+            localhost: true,
+          },
+          cookies: {
+            mutateSetCookie: false,
+          },
+        },
         routes: {
           ssr: '/en',
           mfManifest: '/mf-manifest.json',
@@ -644,7 +696,14 @@ describe('create-ultramodern-workspace', () => {
         },
       },
       worker: {
+        compatibilityDate: '2026-06-02',
         name: 'ultra-workspace-shell-super-app',
+        security: {
+          enabled: true,
+          contentSecurityPolicy: {
+            mode: 'report-only',
+          },
+        },
         ssr: true,
       },
     });

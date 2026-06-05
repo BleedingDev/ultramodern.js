@@ -162,6 +162,22 @@ async function importWorker(workerEntry) {
   return worker;
 }
 
+function captureResponseHeaders(response) {
+  return {
+    accessControlAllowOrigin: response.headers.get(
+      'access-control-allow-origin',
+    ),
+    contentSecurityPolicy: response.headers.get('content-security-policy'),
+    contentSecurityPolicyReportOnly: response.headers.get(
+      'content-security-policy-report-only',
+    ),
+    permissionsPolicy: response.headers.get('permissions-policy'),
+    referrerPolicy: response.headers.get('referrer-policy'),
+    xContentTypeOptions: response.headers.get('x-content-type-options'),
+    xRobotsTag: response.headers.get('x-robots-tag'),
+  };
+}
+
 async function fetchWorkerRoute({
   worker,
   publicDir,
@@ -178,6 +194,7 @@ async function fetchWorkerRoute({
     path: urlPath,
     status: response.status,
     contentType: response.headers.get('content-type'),
+    headers: captureResponseHeaders(response),
     body,
   };
 }
@@ -197,6 +214,7 @@ async function fetchHttpRoute({
     path: urlPath,
     status: response.status,
     contentType: response.headers.get('content-type'),
+    headers: captureResponseHeaders(response),
     body,
   };
 }
@@ -245,6 +263,68 @@ function extractUiBuildMarker(html) {
 function assertSuccessfulResponse(result, label) {
   if (result.status < 200 || result.status >= 300) {
     throw new Error(`${label} returned HTTP ${result.status}`);
+  }
+}
+
+function assertSecurityHeader(result, expected, field, headerName, label) {
+  if (expected === false || expected === undefined) {
+    return;
+  }
+
+  if (result.headers?.[field] !== expected) {
+    throw new Error(
+      `${label} missing ${headerName}: expected ${expected}, received ${result.headers?.[field]}`,
+    );
+  }
+}
+
+function assertCloudflareSecurity(result, label, security) {
+  if (!security || security.enabled === false) {
+    return;
+  }
+
+  const headers = security.headers || {};
+  assertSecurityHeader(
+    result,
+    headers.referrerPolicy,
+    'referrerPolicy',
+    'referrer-policy',
+    label,
+  );
+  assertSecurityHeader(
+    result,
+    headers.contentTypeOptions,
+    'xContentTypeOptions',
+    'x-content-type-options',
+    label,
+  );
+  assertSecurityHeader(
+    result,
+    headers.permissionsPolicy,
+    'permissionsPolicy',
+    'permissions-policy',
+    label,
+  );
+
+  if (
+    result.contentType?.includes('text/html') &&
+    security.contentSecurityPolicy?.mode !== 'off'
+  ) {
+    const mode = security.contentSecurityPolicy?.mode ?? 'report-only';
+    const headerName =
+      mode === 'enforce'
+        ? 'contentSecurityPolicy'
+        : 'contentSecurityPolicyReportOnly';
+    const headerValue = result.headers?.[headerName];
+    const missingDirectives = ['script-src', 'style-src', 'connect-src'].filter(
+      directive => !headerValue?.includes(directive),
+    );
+
+    if (!headerValue || missingDirectives.length > 0) {
+      throw new Error(
+        `${label} CSP is missing ${missingDirectives.join(', ') || mode}`,
+      );
+    }
   }
 }
 
@@ -304,9 +384,11 @@ async function validateCloudflareSsr({
           urlPath,
         });
     assertSuccessfulResponse(result, label);
+    assertCloudflareSecurity(result, label, manifest?.security);
     responses[label] = {
       status: result.status,
       contentType: result.contentType,
+      headers: result.headers,
       bodyLength: result.body.length,
       bodySample: result.body.slice(0, 500),
       body: result.body,

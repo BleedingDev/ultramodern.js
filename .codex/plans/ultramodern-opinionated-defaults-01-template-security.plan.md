@@ -4,22 +4,22 @@ overview: Harden UltraModern Cloudflare Module Federation SSR security defaults 
 todos:
   - id: inspect-cloudflare-security-surfaces
     content: Map generated Cloudflare SSR output, Worker response paths, Module Federation manifests/assets, locale JSON/public assets, proof scripts, and existing security.nonce config to identify exactly where the framework/deploy layer owns security headers and where it must not mutate app behavior.
-    status: pending
+    status: completed
   - id: define-cloudflare-security-policy-contract
     content: Define the Cloudflare MF SSR security policy and typed escape hatches for Referrer-Policy, X-Content-Type-Options, Permissions-Policy, CSP including frame-ancestors, non-production noindex, secure production cookie handling where owned, report-only/disable modes, embedded apps, enterprise SSO, legacy widgets, and additional script/connect origins.
-    status: pending
+    status: completed
   - id: implement-cloudflare-security-adapter
     content: Implement a Cloudflare-focused adapter that renders the policy into Worker SSR/static/MF response headers without app-level shims, preserving remote manifest/script/style/connect loading and existing trust/telemetry behavior.
-    status: pending
+    status: completed
   - id: wire-generated-cloudflare-defaults
     content: Wire the Cloudflare security policy into UltraModern generated workspace config/contracts/proof metadata for MODERNJS_DEPLOY=cloudflare, keeping Node, Netlify, and other deployment platforms unchanged and out of scope.
-    status: pending
+    status: completed
   - id: add-cloudflare-mf-ssr-security-tests
     content: Add tests/proofs for Worker SSR headers, MF manifest/assets, locale JSON, CSP allowances, frame embedding escape hatches, non-production noindex, report-only/disable behavior, explicit reasons for escape hatches, and no breakage of Cloudflare MF SSR remote loading.
-    status: pending
+    status: completed
   - id: document-cloudflare-security-boundary
     content: Document the Cloudflare-only scope, defaults, escape hatches, unsupported platform boundary, and validation commands without introducing webSpec/profile config or generated app suppressions.
-    status: pending
+    status: completed
 isProject: false
 ---
 

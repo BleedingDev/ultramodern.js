@@ -21,6 +21,28 @@ The script checks the Worker entry, Wrangler ASSETS binding, MF manifest, locale
 asset, optional Effect BFF worker bundle, SSR route responses, BFF JSON response,
 and UI/API build-marker lockstep.
 
+## Security Boundary
+
+UltraModern Cloudflare output includes Worker-owned response hardening for
+Cloudflare Module Federation SSR only. The generated Worker manifest records
+the active policy, and the Worker applies it after SSR/static/BFF routing so
+CORS, asset cache headers, and app-owned response headers stay intact.
+
+Defaults are conservative and compatibility-first:
+
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-Content-Type-Options: nosniff`
+- a restrictive `Permissions-Policy`
+- HTML-only CSP in report-only mode with MF-compatible script/style/connect
+  allowances
+- `X-Robots-Tag: noindex, nofollow` on localhost and `*.workers.dev`
+- no mutation of application `Set-Cookie` headers
+
+Apps that need embedding, enterprise SSO, custom reporting, legacy widgets, or
+additional remote origins should configure `deploy.worker.security` explicitly.
+Node, Netlify, Vercel, and other deploy targets are not changed by this
+Cloudflare adapter.
+
 ## Tractor Route Examples
 
 Each generated vertical owns its Effect readiness route:

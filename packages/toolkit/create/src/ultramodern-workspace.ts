@@ -15,6 +15,7 @@ const MODULE_FEDERATION_VERSION = '2.5.0';
 const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const ZEPHYR_AGENT_VERSION = '1.1.1';
 const WRANGLER_VERSION = '4.95.0';
+const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const EFFECT_TSGO_VERSION = '0.13.0';
@@ -870,6 +871,61 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
   };
 }
 
+function createCloudflareSecurityContract(): JsonValue {
+  return {
+    enabled: true,
+    headers: {
+      referrerPolicy: 'strict-origin-when-cross-origin',
+      contentTypeOptions: 'nosniff',
+      permissionsPolicy:
+        'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+    },
+    contentSecurityPolicy: {
+      mode: 'report-only',
+      directives: {
+        'base-uri': [`'self'`],
+        'connect-src': [`'self'`, 'https:', 'http:', 'wss:', 'ws:'],
+        'default-src': [`'self'`],
+        'font-src': [`'self'`, 'data:', 'https:', 'http:'],
+        'form-action': [`'self'`],
+        'frame-ancestors': [`'self'`],
+        'img-src': [`'self'`, 'data:', 'blob:', 'https:', 'http:'],
+        'manifest-src': [`'self'`, 'https:', 'http:'],
+        'object-src': [`'none'`],
+        'script-src': [
+          `'self'`,
+          `'unsafe-inline'`,
+          `'unsafe-eval'`,
+          'https:',
+          'http:',
+          'blob:',
+        ],
+        'style-src': [`'self'`, `'unsafe-inline'`, 'https:', 'http:'],
+        'worker-src': [`'self'`, 'blob:'],
+      },
+      reason:
+        'Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement.',
+    },
+    noindex: {
+      workersDev: true,
+      localhost: true,
+      previewHostnames: [],
+    },
+    cookies: {
+      mutateSetCookie: false,
+      reason:
+        'Generated Cloudflare worker does not own application Set-Cookie headers.',
+    },
+  };
+}
+
+function formatTsJsonValue(value: JsonValue, indent: number): string {
+  return JSON.stringify(value, null, 2).replaceAll(
+    '\n',
+    `\n${' '.repeat(indent)}`,
+  );
+}
+
 function createCloudflareDeployContract(
   scope: string,
   app: WorkspaceApp,
@@ -878,9 +934,11 @@ function createCloudflareDeployContract(
     target: 'cloudflare',
     workerName: createCloudflareWorkerName(scope, app),
     publicUrlEnv: createCloudflarePublicUrlEnv(app),
+    compatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
     compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
     assetsBinding: 'ASSETS',
     routes: createCloudflareProofRoute(app),
+    security: createCloudflareSecurityContract(),
     evidence: {
       proofScript: 'scripts/proof-cloudflare-version.mjs',
       reportDefault:
@@ -1213,6 +1271,8 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         ? {
             deploy: {
               worker: {
+                compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
+                security: ${formatTsJsonValue(createCloudflareSecurityContract(), 16)},
                 ssr: true,
               },
             },
@@ -4600,7 +4660,9 @@ function createAppGeneratedContract(
       target: 'cloudflare',
       cloudflare: createCloudflareDeployContract(scope, app),
       worker: {
+        compatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
         name: createCloudflareWorkerName(scope, app),
+        security: createCloudflareSecurityContract(),
         ssr: true,
       },
       output: {
@@ -5152,6 +5214,7 @@ function createWorkspaceValidationScript(
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy'
       : 'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy';
+  const expectedCloudflareSecurity = createCloudflareSecurityContract();
 
   return `import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -5167,6 +5230,7 @@ const oldRemotePaths = ${JSON.stringify(oldRemotePaths, null, 2)};
 const expectedBuildScript = ${JSON.stringify(expectedBuildScript)};
 const expectedCloudflareBuildScript = ${JSON.stringify(expectedCloudflareBuildScript)};
 const expectedCloudflareDeployScript = ${JSON.stringify(expectedCloudflareDeployScript)};
+const expectedCloudflareSecurity = ${JSON.stringify(expectedCloudflareSecurity, null, 2)};
 
 const readText = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = relativePath => JSON.parse(readText(relativePath));
@@ -5333,6 +5397,7 @@ assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent
 assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs", 'Root postinstall must format, bootstrap agent skills, initialize git/hooks, and install reference repositories');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
+const expectedCloudflareCompatibilityDate = '${CLOUDFLARE_COMPATIBILITY_DATE}';
 const expectedCloudflareCompatibilityFlags = ['nodejs_compat', 'global_fetch_strictly_public'];
 assert(
   JSON.stringify(generatedContract.apps?.map(app => app.id)) === JSON.stringify(expectedAppIds),
@@ -5363,7 +5428,10 @@ assert(
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
+assert(shellContract?.deploy?.cloudflare?.compatibilityDate === expectedCloudflareCompatibilityDate, 'Shell Cloudflare compatibilityDate is incorrect');
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), 'Shell Cloudflare compatibility flags are incorrect');
+assert(JSON.stringify(shellContract?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), 'Shell Cloudflare security contract is incorrect');
+assert(shellContract?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, 'Shell worker compatibilityDate is incorrect');
 assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
 assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
@@ -5419,7 +5487,10 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.kind === 'vertical', \`\${vertical.id} generated contract kind is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.workerName === expectedWorkerName(vertical.id), \`\${vertical.id} Cloudflare workerName is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.publicUrlEnv === \`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, \`\${vertical.id} Cloudflare public URL env is incorrect\`);
+  assert(contractEntry?.deploy?.cloudflare?.compatibilityDate === expectedCloudflareCompatibilityDate, \`\${vertical.id} Cloudflare compatibilityDate is incorrect\`);
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), \`\${vertical.id} Cloudflare compatibility flags are incorrect\`);
+  assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), \`\${vertical.id} Cloudflare security contract is incorrect\`);
+  assert(contractEntry?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, \`\${vertical.id} worker compatibilityDate is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, \`\${vertical.id} Rspack uniqueName is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);
@@ -5559,8 +5630,14 @@ async function fetchText(url) {
     ok: response.ok,
     status: response.status,
     accessControlAllowOrigin: response.headers.get('access-control-allow-origin'),
+    contentSecurityPolicy: response.headers.get('content-security-policy'),
+    contentSecurityPolicyReportOnly: response.headers.get('content-security-policy-report-only'),
     contentType: response.headers.get('content-type'),
     link: response.headers.get('link'),
+    permissionsPolicy: response.headers.get('permissions-policy'),
+    referrerPolicy: response.headers.get('referrer-policy'),
+    xContentTypeOptions: response.headers.get('x-content-type-options'),
+    xRobotsTag: response.headers.get('x-robots-tag'),
     body: await response.text(),
   };
 }
@@ -5611,6 +5688,139 @@ function assert(condition, message) {
   }
 }
 
+function matchesPreviewHostname(hostname, pattern) {
+  const normalizedHostname = hostname.toLowerCase();
+  const normalizedPattern = String(pattern || '').toLowerCase();
+
+  if (!normalizedPattern) {
+    return false;
+  }
+
+  if (normalizedPattern.startsWith('*.')) {
+    return normalizedHostname.endsWith(normalizedPattern.slice(1));
+  }
+
+  return normalizedHostname === normalizedPattern;
+}
+
+function shouldNoindexUrl(publicUrl, noindex) {
+  if (!noindex || noindex === false) {
+    return false;
+  }
+
+  const { hostname } = new URL(publicUrl);
+  const normalizedHostname = hostname.toLowerCase();
+
+  if (
+    noindex.localhost !== false &&
+    (normalizedHostname === 'localhost' ||
+      normalizedHostname === '127.0.0.1' ||
+      normalizedHostname === '[::1]')
+  ) {
+    return true;
+  }
+
+  if (
+    noindex.workersDev !== false &&
+    normalizedHostname.endsWith('.workers.dev')
+  ) {
+    return true;
+  }
+
+  return (noindex.previewHostnames || []).some(pattern =>
+    matchesPreviewHostname(normalizedHostname, pattern),
+  );
+}
+
+function assertHeader(evidence, response, expected, options) {
+  if (expected === false || expected === undefined) {
+    return;
+  }
+
+  const actual = response[options.field];
+  evidence.assertions.push({
+    type: 'security-header',
+    header: options.header,
+    route: options.route,
+    expected,
+    actual,
+    status: actual === expected ? 'pass' : 'fail',
+  });
+  assert(actual === expected, \`\${options.appId} \${options.route} is missing \${options.header}\`);
+}
+
+function assertCloudflareSecurity(evidence, app, response, route, publicUrl, options = {}) {
+  const security = app.deploy?.cloudflare?.security;
+
+  if (!security || security.enabled === false) {
+    return;
+  }
+
+  const headers = security.headers || {};
+  assertHeader(evidence, response, headers.referrerPolicy, {
+    appId: app.id,
+    field: 'referrerPolicy',
+    header: 'referrer-policy',
+    route,
+  });
+  assertHeader(evidence, response, headers.contentTypeOptions, {
+    appId: app.id,
+    field: 'xContentTypeOptions',
+    header: 'x-content-type-options',
+    route,
+  });
+  assertHeader(evidence, response, headers.permissionsPolicy, {
+    appId: app.id,
+    field: 'permissionsPolicy',
+    header: 'permissions-policy',
+    route,
+  });
+
+  const csp = security.contentSecurityPolicy;
+  if (options.html && csp?.mode !== 'off') {
+    const header =
+      csp?.mode === 'enforce'
+        ? 'content-security-policy'
+        : 'content-security-policy-report-only';
+    const actual =
+      csp?.mode === 'enforce'
+        ? response.contentSecurityPolicy
+        : response.contentSecurityPolicyReportOnly;
+    const expectedDirectives = ['script-src', 'style-src', 'connect-src'];
+    const missingDirectives = expectedDirectives.filter(
+      directive => !actual?.includes(directive),
+    );
+
+    evidence.assertions.push({
+      type: 'security-csp',
+      header,
+      route,
+      mode: csp?.mode ?? 'report-only',
+      actual,
+      missingDirectives,
+      status: actual && missingDirectives.length === 0 ? 'pass' : 'fail',
+    });
+    assert(actual, \`\${app.id} \${route} is missing \${header}\`);
+    assert(
+      missingDirectives.length === 0,
+      \`\${app.id} \${route} CSP is missing \${missingDirectives.join(', ')}\`,
+    );
+  }
+
+  if (shouldNoindexUrl(publicUrl, security.noindex)) {
+    evidence.assertions.push({
+      type: 'security-noindex',
+      route,
+      actual: response.xRobotsTag,
+      status: response.xRobotsTag === 'noindex, nofollow' ? 'pass' : 'fail',
+    });
+    assert(
+      response.xRobotsTag === 'noindex, nofollow',
+      \`\${app.id} \${route} is missing noindex X-Robots-Tag\`,
+    );
+  }
+}
+
 async function validateApp(app, publicUrl) {
   const cloudflare = app.deploy?.cloudflare;
   const routes = cloudflare?.routes ?? {};
@@ -5631,6 +5841,9 @@ async function validateApp(app, publicUrl) {
     statusCode: ssr.status,
   });
   assert(ssr.ok, \`\${app.id} SSR route returned HTTP \${ssr.status}\`);
+  assertCloudflareSecurity(evidence, app, ssr, ssrRoute, publicUrl, {
+    html: true,
+  });
 
   const uiMarker = extractUiMarker(ssr.body);
   evidence.assertions.push({
@@ -5684,6 +5897,7 @@ async function validateApp(app, publicUrl) {
     manifest.ok,
     \`\${app.id} MF manifest returned HTTP \${manifest.status}\`,
   );
+  assertCloudflareSecurity(evidence, app, manifest, manifestRoute, publicUrl);
   evidence.assertions.push({
     type: 'mf-manifest-cors',
     route: manifestRoute,
@@ -5723,6 +5937,7 @@ async function validateApp(app, publicUrl) {
     statusCode: locale.status,
   });
   assert(locale.ok, \`\${app.id} locale JSON returned HTTP \${locale.status}\`);
+  assertCloudflareSecurity(evidence, app, locale, localeRoute, publicUrl);
   evidence.assertions.push({
     type: 'i18n-cors',
     route: localeRoute,

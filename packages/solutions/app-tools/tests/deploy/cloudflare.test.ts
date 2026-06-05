@@ -19,7 +19,15 @@ const createAssetBinding = (publicDirectory: string) => ({
   },
 });
 
-async function createFixture({ workerName }: { workerName?: string } = {}) {
+async function createFixture({
+  compatibilityDate,
+  workerName,
+  workerSecurity,
+}: {
+  compatibilityDate?: string;
+  workerName?: string;
+  workerSecurity?: Record<string, unknown>;
+} = {}) {
   const appDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'modern-cloudflare-deploy-'),
   );
@@ -269,7 +277,9 @@ async function createFixture({ workerName }: { workerName?: string } = {}) {
       },
       deploy: {
         worker: {
+          compatibilityDate,
           name: workerName,
+          security: workerSecurity,
         },
       },
     } as any,
@@ -298,6 +308,136 @@ afterEach(async () => {
 });
 
 describe('cloudflare deploy preset', () => {
+  it('emits Cloudflare worker security defaults in the worker manifest', async () => {
+    const { outputDirectory } = await createFixture();
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(workerManifest.security).toMatchObject({
+      enabled: true,
+      headers: {
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        contentTypeOptions: 'nosniff',
+        permissionsPolicy:
+          'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+      },
+      contentSecurityPolicy: {
+        mode: 'report-only',
+        directives: {
+          'script-src': expect.arrayContaining([
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            'https:',
+            'http:',
+            'blob:',
+          ]),
+          'style-src': expect.arrayContaining([
+            "'self'",
+            "'unsafe-inline'",
+            'https:',
+            'http:',
+          ]),
+          'connect-src': expect.arrayContaining([
+            "'self'",
+            'https:',
+            'http:',
+            'wss:',
+            'ws:',
+          ]),
+          'frame-ancestors': ["'self'"],
+        },
+      },
+      noindex: {
+        workersDev: true,
+        localhost: true,
+        previewHostnames: [],
+      },
+      cookies: {
+        mutateSetCookie: false,
+      },
+    });
+  });
+
+  it('supports typed Cloudflare worker security escape hatches', async () => {
+    const { outputDirectory } = await createFixture({
+      workerSecurity: {
+        contentSecurityPolicy: {
+          mode: 'enforce',
+          additionalConnectSrc: ['https://api.example.com'],
+          additionalScriptSrc: ['https://cdn.example.com'],
+          frameAncestors: ["'self'", 'https://portal.example.com'],
+          reason: 'embedded portal uses a remote CDN and API',
+        },
+        headers: {
+          permissionsPolicy: 'camera=(), geolocation=()',
+        },
+        noindex: {
+          workersDev: false,
+          localhost: false,
+          previewHostnames: ['preview.example.com'],
+          reason: 'custom preview host',
+        },
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://preview.example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+    const csp = response.headers.get('content-security-policy');
+
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toBeNull();
+    expect(csp).toContain('connect-src');
+    expect(csp).toContain('https://api.example.com');
+    expect(csp).toContain('script-src');
+    expect(csp).toContain('https://cdn.example.com');
+    expect(csp).toContain("frame-ancestors 'self' https://portal.example.com");
+    expect(response.headers.get('permissions-policy')).toBe(
+      'camera=(), geolocation=()',
+    );
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+  });
+
+  it('can disable Cloudflare worker security defaults for explicit legacy escapes', async () => {
+    const { outputDirectory } = await createFixture({
+      workerSecurity: {
+        enabled: false,
+        reason: 'legacy integration validated separately',
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.headers.get('referrer-policy')).toBeNull();
+    expect(response.headers.get('x-content-type-options')).toBeNull();
+    expect(response.headers.get('permissions-policy')).toBeNull();
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toBeNull();
+  });
+
   it('emits a wrangler config with an ASSETS binding and module worker main', async () => {
     const { outputDirectory } = await createFixture();
     const wranglerConfig = JSON.parse(
@@ -314,7 +454,18 @@ describe('cloudflare deploy preset', () => {
       binding: 'ASSETS',
       run_worker_first: true,
     });
-    expect(wranglerConfig.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(wranglerConfig.compatibility_date).toBe('2026-06-02');
+  });
+
+  it('uses configured Cloudflare compatibility dates when provided', async () => {
+    const { outputDirectory } = await createFixture({
+      compatibilityDate: '2026-05-27',
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+
+    expect(wranglerConfig.compatibility_date).toBe('2026-05-27');
   });
 
   it('uses configured Cloudflare worker names when provided', async () => {
@@ -459,6 +610,13 @@ describe('cloudflare deploy preset', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('referrer-policy')).toBe(
+      'strict-origin-when-cross-origin',
+    );
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toBeNull();
     expect(await response.text()).toBe('app();');
   });
 
@@ -479,6 +637,7 @@ describe('cloudflare deploy preset', () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await response.text()).toBe('Not found');
   });
 
@@ -504,6 +663,7 @@ describe('cloudflare deploy preset', () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('access-control-allow-methods')).toContain(
       'GET',
     );
@@ -585,6 +745,9 @@ describe('cloudflare deploy preset', () => {
     expect(response.headers.get('x-render-method')).toBe('GET');
     expect(response.headers.get('content-type')).toContain('text/html');
     expect(response.headers.get('content-length')).toBeNull();
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toContain('script-src');
     await expect(response.text()).resolves.toBe('');
   });
 
@@ -603,11 +766,39 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('referrer-policy')).toBe(
+      'strict-origin-when-cross-origin',
+    );
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('permissions-policy')).toBe(
+      'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+    );
+    expect(response.headers.get('content-security-policy')).toBeNull();
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toContain('script-src');
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toContain('style-src');
+    expect(
+      response.headers.get('content-security-policy-report-only'),
+    ).toContain('connect-src');
     expect(response.headers.get('link')).toContain(
       '<https://example.com/static/app.css>; rel=preload; as=style',
     );
     expect(await response.text()).toContain(
       '<link rel="stylesheet" href="https://example.com/static/app.css">',
+    );
+
+    const workersDevResponse = await worker.fetch(
+      new Request('https://commerce.example.workers.dev/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(workersDevResponse.headers.get('x-robots-tag')).toBe(
+      'noindex, nofollow',
     );
   });
 
@@ -692,6 +883,12 @@ describe('cloudflare deploy preset', () => {
       const linkHeader = response.headers.get('link');
 
       expect(response.status).toBe(200);
+      expect(
+        response.headers.get('content-security-policy-report-only'),
+      ).toContain('https:');
+      expect(
+        response.headers.get('content-security-policy-report-only'),
+      ).toContain('http:');
       expect(linkHeader).toContain(
         '<https://example.com/static/app.css>; rel=preload; as=style',
       );

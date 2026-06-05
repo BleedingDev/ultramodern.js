@@ -28,6 +28,125 @@ function withCorsHeaders(response) {
   });
 }
 
+function setHeaderIfEnabled(headers, name, value) {
+  if (value === false || typeof value !== 'string' || value.trim() === '') {
+    return;
+  }
+
+  if (!headers.has(name)) {
+    headers.set(name, value);
+  }
+}
+
+function renderContentSecurityPolicy(directives) {
+  return Object.entries(directives || {})
+    .filter(([, values]) => Array.isArray(values) && values.length > 0)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, values]) => `${name} ${values.join(' ')}`)
+    .join('; ');
+}
+
+function isHtmlResponse(response) {
+  return (response.headers.get('content-type') || '').includes('text/html');
+}
+
+function matchesPreviewHostname(hostname, pattern) {
+  const normalizedHostname = hostname.toLowerCase();
+  const normalizedPattern = String(pattern || '').toLowerCase();
+
+  if (!normalizedPattern) {
+    return false;
+  }
+
+  if (normalizedPattern.startsWith('*.')) {
+    return normalizedHostname.endsWith(normalizedPattern.slice(1));
+  }
+
+  return normalizedHostname === normalizedPattern;
+}
+
+function shouldNoindex(request, noindex) {
+  if (!noindex || noindex === false) {
+    return false;
+  }
+
+  const { hostname } = new URL(request.url);
+  const normalizedHostname = hostname.toLowerCase();
+
+  if (
+    noindex.localhost !== false &&
+    (normalizedHostname === 'localhost' ||
+      normalizedHostname === '127.0.0.1' ||
+      normalizedHostname === '[::1]')
+  ) {
+    return true;
+  }
+
+  if (
+    noindex.workersDev !== false &&
+    normalizedHostname.endsWith('.workers.dev')
+  ) {
+    return true;
+  }
+
+  return (noindex.previewHostnames || []).some(pattern =>
+    matchesPreviewHostname(normalizedHostname, pattern),
+  );
+}
+
+function withCloudflareSecurityHeaders(response, request) {
+  const security = MODERN_WORKER_MANIFEST.security;
+
+  if (!security || security.enabled === false) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  const configuredHeaders = security.headers || {};
+
+  setHeaderIfEnabled(
+    headers,
+    'referrer-policy',
+    configuredHeaders.referrerPolicy,
+  );
+  setHeaderIfEnabled(
+    headers,
+    'x-content-type-options',
+    configuredHeaders.contentTypeOptions,
+  );
+  setHeaderIfEnabled(
+    headers,
+    'permissions-policy',
+    configuredHeaders.permissionsPolicy,
+  );
+
+  const csp = security.contentSecurityPolicy;
+  const cspHeader =
+    csp?.mode === 'enforce'
+      ? 'content-security-policy'
+      : 'content-security-policy-report-only';
+  const cspValue = renderContentSecurityPolicy(csp?.directives);
+
+  if (
+    isHtmlResponse(response) &&
+    csp?.mode !== 'off' &&
+    cspValue &&
+    !headers.has(cspHeader)
+  ) {
+    headers.set(cspHeader, cspValue);
+  }
+
+  if (shouldNoindex(request, security.noindex)) {
+    headers.set('x-robots-tag', 'noindex, nofollow');
+  }
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
 function createRenderableRequest(request) {
   if (request.method !== 'HEAD') {
     return request;
@@ -37,17 +156,19 @@ function createRenderableRequest(request) {
 }
 
 function finalizeResponseForRequest(response, request) {
+  const securedResponse = withCloudflareSecurityHeaders(response, request);
+
   if (request.method !== 'HEAD') {
-    return response;
+    return securedResponse;
   }
 
-  const headers = new Headers(response.headers);
+  const headers = new Headers(securedResponse.headers);
   headers.delete('content-length');
 
   return new Response(null, {
     headers,
-    status: response.status,
-    statusText: response.statusText,
+    status: securedResponse.status,
+    statusText: securedResponse.statusText,
   });
 }
 
@@ -770,7 +891,7 @@ export default {
     const corsPreflightResponse = createCorsPreflightResponse(request);
 
     if (corsPreflightResponse) {
-      return corsPreflightResponse;
+      return finalizeResponseForRequest(corsPreflightResponse, request);
     }
 
     const assetResponse = await fetchAsset(request, env);
