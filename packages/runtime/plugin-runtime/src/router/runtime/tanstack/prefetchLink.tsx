@@ -28,7 +28,7 @@ function resolvePreloadFromPrefetch(
     return prefetch;
   }
 
-  return preload;
+  return 'viewport';
 }
 
 export type LinkProps<

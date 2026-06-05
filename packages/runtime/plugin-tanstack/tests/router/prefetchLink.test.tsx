@@ -21,23 +21,43 @@ describe('tanstack prefetch link adapter', () => {
     capturedPreloads = [];
   });
 
-  it('maps viewport prefetch to TanStack preload', () => {
-    render(
-      <Link to="/settings" prefetch="viewport">
-        Settings
-      </Link>,
-    );
+  it('defaults TanStack preload to viewport', () => {
+    render(<Link to="/settings">Settings</Link>);
 
     expect(capturedPreloads).toEqual(['viewport']);
   });
 
-  it('does not override explicit preload', () => {
+  it('preserves explicit preload', () => {
     render(
-      <Link to="/settings" prefetch="viewport" preload="intent">
+      <Link to="/settings" prefetch="render" preload="intent">
         Settings
       </Link>,
     );
 
     expect(capturedPreloads).toEqual(['intent']);
+  });
+
+  it('maps none prefetch to disabled TanStack preload', () => {
+    render(
+      <Link to="/settings" prefetch="none">
+        Settings
+      </Link>,
+    );
+
+    expect(capturedPreloads).toEqual([false]);
+  });
+
+  it.each([
+    'intent',
+    'render',
+    'viewport',
+  ] as const)('maps %s prefetch to TanStack preload', prefetch => {
+    render(
+      <Link to="/settings" prefetch={prefetch}>
+        Settings
+      </Link>,
+    );
+
+    expect(capturedPreloads).toEqual([prefetch]);
   });
 });
