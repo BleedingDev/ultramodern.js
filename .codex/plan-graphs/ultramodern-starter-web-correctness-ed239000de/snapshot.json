@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T20:26:29.220889+00:00",
+  "generated_at": "2026-06-05T20:28:24.543251+00:00",
   "graph_id": "ultramodern-starter-web-correctness-ed239000de",
   "plan_set_hash": "05f69f2e24",
   "selection_hash": "ed239000de",
@@ -118,6 +118,42 @@
           "content": "Update the starter to emit meaningful localized title and description metadata, preserve existing canonical and hreflang behavior, and set html lang/dir through the existing head/Helmet mechanism where supported.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "correct-starter-markup-semantics",
+          "content": "Replace the visual title container with semantic starter markup, including a real h1, main landmark structure, accessible language navigation, and no extra wrapper elements that exist only for styling.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "harden-starter-css-defaults",
+          "content": "Update starter CSS to avoid fixed-width overflow, provide clear focus-visible treatment, keep hover/focus motion modest, add reduced-motion handling, and preserve Tailwind compatibility in the handlebars template.",
+          "status": "pending",
+          "ordinal": 6
+        },
+        {
+          "id": "update-i18n-and-copy-fixtures",
+          "content": "Add or adjust localized starter strings needed for title, description, logo alt text, language navigation, and any semantic headings without hard-coded per-language UI branches.",
+          "status": "pending",
+          "ordinal": 7
+        },
+        {
+          "id": "add-template-validation-checks",
+          "content": "Extend the generated starter validator and contract tests to catch remote default assets, missing metadata tokens, missing semantic h1/main structure, fixed-width starter grid regressions, and missing focus/reduced-motion CSS.",
+          "status": "pending",
+          "ordinal": 8
+        },
+        {
+          "id": "validate-generated-starter-output",
+          "content": "Generate a fresh UltraModern starter and run the focused generated-project checks to prove the template materializes correctly in the supported option combinations touched by this plan.",
+          "status": "pending",
+          "ordinal": 9
+        },
+        {
+          "id": "document-template-defaults",
+          "content": "Update starter documentation to describe the defaults and their escape hatches without presenting them as a broad Website Spec compliance layer.",
+          "status": "pending",
+          "ordinal": 10
         }
       ],
       "completed": 0,
