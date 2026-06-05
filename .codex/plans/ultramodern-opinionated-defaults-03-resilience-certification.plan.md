@@ -1,6 +1,6 @@
 ---
 name: ultramodern-opinionated-defaults-03-resilience-certification
-overview: Add resilience, i18n metadata, and optional accessibility/performance certification gates after the core defaults are in place, without making arbitrary product UI audits default build blockers.
+overview: Add resilience, i18n metadata, and cautious optional performance certification after the core defaults are in place, without making arbitrary product UI audits default build blockers.
 todos:
   - id: audit-error-status-paths
     content: Audit app-tools, runtime, server, Cloudflare, and generated workspace paths for 404, 500, 503, maintenance, preview, and MF remote fallback status behavior.
@@ -10,9 +10,6 @@ todos:
     status: pending
   - id: add-localized-metadata-defaults
     content: Add localized metadata and hreflang generation for public routes using existing i18n/localized route metadata without forcing private app screens to define public SEO metadata.
-    status: pending
-  - id: add-accessibility-certification
-    content: Add optional accessibility certification checks for generated starters and teams that opt into strict CI, while leaving arbitrary product UI as certification-only rather than default build failure.
     status: pending
   - id: add-performance-certification
     content: Add optional performance certification for navigation warmup telemetry, Core Web Vitals/RUM readiness, cache policy checks, BFCache diagnostics, and wasted warmup ratio.
@@ -29,13 +26,14 @@ isProject: false
 
 Beads issue: `modernjs-a6d4`.
 
-This lane follows after template/security and public surfaces because i18n metadata, generated files, and certification gates need stable route publicness and starter defaults.
+This lane follows after template/security and public surfaces because i18n metadata, generated files, and performance gates need stable route publicness and starter defaults.
 
-Certification should be intentionally more brutal than default builds. The framework should prevent objective defects by default, while certification can evaluate broader accessibility and performance quality.
+Performance certification should be intentionally more cautious than default builds. The framework should prevent objective defects by default, while certification can evaluate navigation warmup waste, cache policy, BFCache, and RUM readiness for teams that explicitly opt in.
 
 ## Constraints
 
-- Do not make arbitrary product UI accessibility/performance certification a default build blocker.
+- Do not add accessibility certification to this roadmap.
+- Do not make arbitrary product UI performance certification a default build blocker.
 - Do not expose private route metadata while adding hreflang or localized metadata.
 - Do not change MF fallback behavior without preserving existing trust, compatibility, and telemetry contracts.
 - Do not add app-level shims to paper over framework/runtime defects.
