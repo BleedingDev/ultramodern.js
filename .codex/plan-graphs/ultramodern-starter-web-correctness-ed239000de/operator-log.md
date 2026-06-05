@@ -15,14 +15,14 @@
 - Status: launch design prepared; no subagents launched yet.
 - Critical path owner: primary agent owns `define-starter-correctness-contract` and `audit-template-metadata-ownership`.
 - Wave 1 sidecars after the contract is stable:
-  - `starter-assets`: write-capable, owns template asset files and icon/logo references only.
-  - `starter-semantics-css`: write-capable, owns starter route markup and CSS only.
+  - `starter-assets`: write-capable for new template asset files only; page-template reference edits wait for the primary merge point.
+  - `starter-semantics-css`: write-capable for CSS first; page-template semantic edits are serialized by the primary agent because `[lang]/page.tsx.handlebars` is a hotspot.
   - `starter-validation`: initially read-only, designs generated-output validator/test assertions, then becomes write-capable after implementation files settle.
 - Merge point: primary agent integrates metadata ownership, assets, markup, CSS, i18n strings, validator checks, generated starter validation, and README updates.
 
 ## Conflict Map
 
-- `packages/toolkit/create/template/src/routes/[lang]/page.tsx.handlebars`: single-owner during each phase; assets, metadata, and semantic markup all touch this file.
+- `packages/toolkit/create/template/src/routes/[lang]/page.tsx.handlebars`: primary-owned merge hotspot; assets, metadata, and semantic markup must not be edited concurrently by different workers.
 - `packages/toolkit/create/template/src/routes/index.css.handlebars`: single-owner for CSS lane.
 - `packages/toolkit/create/template/scripts/validate-ultramodern.mjs.handlebars`: validation lane only.
 - `packages/toolkit/create/template/tests/ultramodern.contract.test.ts.handlebars`: validation lane only.
