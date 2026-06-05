@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-06-05T22:49:47.333329+00:00",
+  "graph_id": "modernjs-fikq-cloudflare-mf-ssr-security",
+  "plan_set_hash": "29ba99f78a",
+  "selection_hash": "fbd621205f",
+  "plan_count": 1,
+  "edge_count": 0,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-opinionated-defaults-01-template-security.plan.md"
+  ],
+  "edges": [],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-opinionated-defaults-01-template-security.plan.md",
+      "slug": "ultramodern-opinionated-defaults-01-template-security",
+      "name": "ultramodern-opinionated-defaults-01-template-security",
+      "overview": "Harden UltraModern Cloudflare Module Federation SSR security defaults with a typed Cloudflare-first policy contract, response-header adapter, CSP/MF compatibility proof, production cookie/noindex boundaries where owned, and explicit escape hatches. Node, Netlify, and other deployment platforms are out of scope for this lane.",
+      "todos": [
+        {
+          "id": "inspect-cloudflare-security-surfaces",
+          "content": "Map generated Cloudflare SSR output, Worker response paths, Module Federation manifests/assets, locale JSON/public assets, proof scripts, and existing security.nonce config to identify exactly where the framework/deploy layer owns security headers and where it must not mutate app behavior.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "define-cloudflare-security-policy-contract",
+          "content": "Define the Cloudflare MF SSR security policy and typed escape hatches for Referrer-Policy, X-Content-Type-Options, Permissions-Policy, CSP including frame-ancestors, non-production noindex, secure production cookie handling where owned, report-only/disable modes, embedded apps, enterprise SSO, legacy widgets, and additional script/connect origins.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "implement-cloudflare-security-adapter",
+          "content": "Implement a Cloudflare-focused adapter that renders the policy into Worker SSR/static/MF response headers without app-level shims, preserving remote manifest/script/style/connect loading and existing trust/telemetry behavior.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "wire-generated-cloudflare-defaults",
+          "content": "Wire the Cloudflare security policy into UltraModern generated workspace config/contracts/proof metadata for MODERNJS_DEPLOY=cloudflare, keeping Node, Netlify, and other deployment platforms unchanged and out of scope.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "add-cloudflare-mf-ssr-security-tests",
+          "content": "Add tests/proofs for Worker SSR headers, MF manifest/assets, locale JSON, CSP allowances, frame embedding escape hatches, non-production noindex, report-only/disable behavior, explicit reasons for escape hatches, and no breakage of Cloudflare MF SSR remote loading.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "document-cloudflare-security-boundary",
+          "content": "Document the Cloudflare-only scope, defaults, escape hatches, unsupported platform boundary, and validation commands without introducing webSpec/profile config or generated app suppressions.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-opinionated-defaults-01-template-security",
+      "plan_name": "ultramodern-opinionated-defaults-01-template-security",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-opinionated-defaults-01-template-security.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "inspect-cloudflare-security-surfaces",
+          "content": "Map generated Cloudflare SSR output, Worker response paths, Module Federation manifests/assets, locale JSON/public assets, proof scripts, and existing security.nonce config to identify exactly where the framework/deploy layer owns security headers and where it must not mutate app behavior.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "define-cloudflare-security-policy-contract",
+          "content": "Define the Cloudflare MF SSR security policy and typed escape hatches for Referrer-Policy, X-Content-Type-Options, Permissions-Policy, CSP including frame-ancestors, non-production noindex, secure production cookie handling where owned, report-only/disable modes, embedded apps, enterprise SSO, legacy widgets, and additional script/connect origins.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "implement-cloudflare-security-adapter",
+          "content": "Implement a Cloudflare-focused adapter that renders the policy into Worker SSR/static/MF response headers without app-level shims, preserving remote manifest/script/style/connect loading and existing trust/telemetry behavior.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
