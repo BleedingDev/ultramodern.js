@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T19:59:07.054881+00:00",
+  "generated_at": "2026-06-05T20:48:32.766042+00:00",
   "graph_id": "ultramodern-navigation-warmup-defaults-08ce108913",
   "plan_set_hash": "a97b7caccd",
   "selection_hash": "08ce108913",
@@ -16,11 +16,11 @@
       "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-navigation-warmup-defaults.plan.md",
       "slug": "ultramodern-navigation-warmup-defaults",
       "name": "ultramodern-navigation-warmup-defaults",
-      "overview": "Implement UltraModern navigation warmup defaults so generated apps can prefetch links on render and preload links on viewport without broad hidden data fetching, app-level shims, or opaque project-specific performance guesses.",
+      "overview": "Implement only the accepted UltraModern navigation warmup defaults: prefetch on render, preload on viewport, same-origin only, no private data by default, Save-Data/slow-network guardrails, concurrency caps, and explicit override preservation.",
       "todos": [
         {
           "id": "define-navigation-warmup-contract",
-          "content": "Define the framework-owned navigation warmup contract, including the exact semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup, network guardrails, and explicit opt-outs.",
+          "content": "Define the navigation-only contract and API semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup opt-in, network guardrails, concurrency caps, and explicit opt-outs.",
           "status": "pending",
           "ordinal": 1
         },
@@ -31,8 +31,8 @@
           "ordinal": 2
         },
         {
-          "id": "implement-shared-warmup-scheduler",
-          "content": "Implement or extract a shared browser warmup scheduler with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and telemetry hooks.",
+          "id": "implement-safe-warmup-policy",
+          "content": "Implement or extract a browser warmup policy with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and no app-level navigation interception.",
           "status": "pending",
           "ordinal": 3
         },
@@ -49,8 +49,8 @@
           "ordinal": 5
         },
         {
-          "id": "propagate-i18n-and-template-defaults",
-          "content": "Ensure i18n links forward the warmup props correctly and update UltraModern generated starters to use the accepted defaults only on safe internal navigation links.",
+          "id": "preserve-i18n-forwarding",
+          "content": "Ensure I18nLink forwards warmup props to the active router Link and add coverage for localized URLs without changing unrelated starter markup, metadata, security, or public-surface behavior.",
           "status": "pending",
           "ordinal": 6
         },
@@ -61,22 +61,16 @@
           "ordinal": 7
         },
         {
-          "id": "add-navigation-warmup-telemetry",
-          "content": "Emit lightweight diagnostics for scheduled, skipped, aborted, completed, and wasted warmups using the existing telemetry envelope without adding app boilerplate.",
+          "id": "add-runtime-and-starter-tests",
+          "content": "Add focused tests for render, viewport, intent, none, explicit override preservation, external URL skips, Save-Data/slow-network skips, concurrency caps, private data guardrails, and i18n forwarding.",
           "status": "pending",
           "ordinal": 8
         },
         {
-          "id": "add-runtime-and-starter-tests",
-          "content": "Add focused tests for render, viewport, intent, none, explicit override preservation, external URL skips, network guard skips, i18n forwarding, and generated starter behavior.",
+          "id": "document-defaults-and-escape-hatches",
+          "content": "Document only the navigation warmup defaults, opt-outs, data-safety rules, and SuperApp/MF timing caveats so teams can tune warmup without app-level click interception or custom wrappers.",
           "status": "pending",
           "ordinal": 9
-        },
-        {
-          "id": "document-defaults-and-escape-hatches",
-          "content": "Document the defaults, opt-outs, data-safety rules, and SuperApp/MF guidance so teams understand how to tune navigation warmup without app-level click interception or custom wrappers.",
-          "status": "pending",
-          "ordinal": 10
         }
       ],
       "is_project": false,
@@ -95,7 +89,7 @@
       "active": [
         {
           "id": "define-navigation-warmup-contract",
-          "content": "Define the framework-owned navigation warmup contract, including the exact semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup, network guardrails, and explicit opt-outs.",
+          "content": "Define the navigation-only contract and API semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup opt-in, network guardrails, concurrency caps, and explicit opt-outs.",
           "status": "pending",
           "ordinal": 1
         }
@@ -108,17 +102,17 @@
           "ordinal": 2
         },
         {
-          "id": "implement-shared-warmup-scheduler",
-          "content": "Implement or extract a shared browser warmup scheduler with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and telemetry hooks.",
+          "id": "implement-safe-warmup-policy",
+          "content": "Implement or extract a browser warmup policy with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and no app-level navigation interception.",
           "status": "pending",
           "ordinal": 3
         }
       ],
       "completed": 0,
-      "total": 10
+      "total": 9
     }
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "generated-selection"
+  "graph_source": "matched-plan-set"
 }
