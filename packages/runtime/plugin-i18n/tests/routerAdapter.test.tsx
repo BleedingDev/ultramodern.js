@@ -28,11 +28,18 @@ const requestContext = {
   response: {},
 };
 
-const TanstackLink = ({ to, children, ...props }: any) => (
-  <a href={to} data-router-link="tanstack" {...props}>
-    {children}
-  </a>
-);
+const capturedTanstackLinkProps: any[] = [];
+
+const TanstackLink = ({ to, children, ...props }: any) => {
+  capturedTanstackLinkProps.push({ to, ...props });
+  const { prefetch: _prefetch, preload: _preload, ...anchorProps } = props;
+
+  return (
+    <a href={to} data-router-link="tanstack" {...anchorProps}>
+      {children}
+    </a>
+  );
+};
 
 function createI18nInstance(language = 'en'): I18nInstance {
   return {
@@ -236,6 +243,7 @@ describe('i18n router adapter', () => {
   afterEach(() => {
     cleanup(rendered);
     rendered = undefined;
+    capturedTanstackLinkProps.length = 0;
     window.history.replaceState(null, '', '/');
   });
 
@@ -263,6 +271,68 @@ describe('i18n router adapter', () => {
     );
     expect(link?.getAttribute('href')).toBe('/cs/podminky-pouzivani');
     expect(link?.getAttribute('data-router-link')).toBe('tanstack');
+  });
+
+  test('forwards warmup props through I18nLink with a localized string target', async () => {
+    const router = createTanstackRouter('/cs/podminky-pouzivani', 'cs');
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider
+        value={{
+          language: 'cs',
+          i18nInstance: createI18nInstance('cs'),
+          languages: ['en', 'cs'],
+          localePathRedirect: true,
+          localisedUrls,
+        }}
+      >
+        <I18nLink
+          to="/terms-of-service"
+          data-testid="terms-link"
+          prefetch="viewport"
+          preload="intent"
+        >
+          Terms
+        </I18nLink>
+      </ModernI18nProvider>,
+      createTanstackRuntimeContext(router),
+    );
+
+    const linkProps = capturedTanstackLinkProps.at(-1);
+    expect(linkProps).toMatchObject({
+      to: '/cs/podminky-pouzivani',
+      prefetch: 'viewport',
+      preload: 'intent',
+    });
+  });
+
+  test('does not leak warmup props to fallback anchors', async () => {
+    rendered = await renderI18nRoot(
+      <ModernI18nProvider
+        value={{
+          language: 'cs',
+          i18nInstance: createI18nInstance('cs'),
+          languages: ['en', 'cs'],
+          localePathRedirect: true,
+          localisedUrls,
+        }}
+      >
+        <I18nLink
+          to="/terms-of-service"
+          data-testid="terms-link"
+          prefetch="none"
+          preload={false}
+        >
+          Terms
+        </I18nLink>
+      </ModernI18nProvider>,
+    );
+
+    const link = rendered.container.querySelector<HTMLAnchorElement>(
+      '[data-testid="terms-link"]',
+    );
+    expect(link?.getAttribute('href')).toBe('/cs/podminky-pouzivani');
+    expect(link?.hasAttribute('prefetch')).toBe(false);
+    expect(link?.hasAttribute('preload')).toBe(false);
   });
 
   test('uses TanStack-shaped replacement when changeLanguage updates the URL', async () => {

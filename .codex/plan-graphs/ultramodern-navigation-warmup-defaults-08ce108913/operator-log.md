@@ -53,3 +53,20 @@ Focused existing tests passed before implementation:
 - `pnpm --filter @modern-js/runtime test -- --run tests/router/prefetch.test.tsx tests/router/tanstackPrefetchLink.test.tsx`
 - `pnpm --filter @modern-js/plugin-tanstack test -- --run tests/router/prefetchLink.test.tsx`
 - `pnpm --filter @modern-js/plugin-i18n test -- --run tests/routerAdapter.test.tsx`
+
+## Implementation Run
+
+- Resolved limits: `max_threads=50`, `max_depth=3`; graph intentionally used three sidecars plus primary critical-path ownership.
+- Primary lane: classic runtime contract, safe warmup policy, tests, docs, graph integration.
+- Agent `019e9992-94b4-7030-8053-0a16f5a40ad6` (`Raman`): TanStack adapter sync; landed commit `14a33e149b` and kept both adapter copies behaviorally aligned.
+- Agent `019e9992-beb7-7f12-a8e5-9f48088eebc1` (`Galileo`): i18n forwarding coverage; primary integrated the test-only useful subset and kept i18n target semantics scoped.
+- Agent `019e9992-fef7-7480-9d89-6191d0f2d28d` (`Meitner`): read-only verification checklist; primary used it to add coverage for opt-outs, network gates, private data guardrails, concurrency, and forwarding.
+
+## Final Verification
+
+- `pnpm exec biome check packages/runtime/plugin-runtime/src/router/runtime/PrefetchLink.tsx packages/runtime/plugin-runtime/tests/router/prefetch.test.tsx packages/runtime/plugin-runtime/tests/router/tanstackPrefetchLink.test.tsx packages/runtime/plugin-tanstack/tests/router/prefetchLink.test.tsx packages/runtime/plugin-i18n/src/runtime/I18nLink.tsx packages/runtime/plugin-i18n/tests/routerAdapter.test.tsx`
+- `pnpm --filter @modern-js/runtime test -- --run tests/router/prefetch.test.tsx tests/router/tanstackPrefetchLink.test.tsx`
+- `pnpm --filter @modern-js/plugin-tanstack test -- --run tests/router/prefetchLink.test.tsx`
+- `pnpm --filter @modern-js/plugin-i18n test -- --run tests/routerAdapter.test.tsx`
+
+Result: navigation-only graph completed, 9/9 todos done. Starter correctness, SEO/indexing, headers, JSON-LD, public-surface, certification, and agent-readiness work remained out of scope.

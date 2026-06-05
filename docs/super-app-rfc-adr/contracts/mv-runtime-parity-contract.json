@@ -321,7 +321,7 @@
     {
       "id": "prefetch-and-routing-timing",
       "title": "Prefetch and routing timing",
-      "description": "Route discovery, prefetch timing, and mount timing may differ even when final rendered output matches.",
+      "description": "Route discovery, render prefetch, viewport preload, and mount timing may differ even when final rendered output matches; warmup remains an optimization and must not bypass navigation trust, fallback, or telemetry contracts.",
       "mustDocumentInEvidence": true
     },
     {

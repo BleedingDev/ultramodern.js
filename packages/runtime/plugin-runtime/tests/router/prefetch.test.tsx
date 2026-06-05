@@ -1,12 +1,13 @@
 import {
   createMemoryRouter,
   type LoaderFunctionArgs,
+  type RouteObject,
   RouterProvider,
 } from '@modern-js/runtime-utils/router';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import React, { act } from 'react';
 import { InternalRuntimeContext } from '../../src/core/context';
-import { Link } from '../../src/router';
+import { Link, NavLink } from '../../src/router';
 
 declare global {
   var __webpack_chunk_load_test__:
@@ -15,19 +16,37 @@ declare global {
   var _SSR_DATA: unknown;
 }
 
-const mockRoutes = [
-  {
-    id: 'root',
-    path: '/',
-    element: <Link {...{ to: 'aa', prefetch: 'intent' }} />,
-  },
-  {
-    id: 'aa',
-    path: 'aa',
-    loader: ({ request }: LoaderFunctionArgs) => null,
-    element: <h1>idk</h1>,
-  },
-];
+let mockRoutes: RouteObject[] = [];
+let mockRouteManifest = {
+  routeAssets: {} as Record<string, { chunkIds: string[]; assets: string[] }>,
+};
+
+class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+
+  private callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  observe = rstest.fn();
+  disconnect = rstest.fn();
+  unobserve = rstest.fn();
+  takeRecords = () => [];
+
+  trigger(isIntersecting = true) {
+    this.callback(
+      [
+        {
+          isIntersecting,
+        } as IntersectionObserverEntry,
+      ],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
 
 rstest.mock('react', () => {
   const originalModule = rstest.requireActual('react');
@@ -58,17 +77,62 @@ rstest.mock('react', () => {
   };
 });
 
-const mockRouteManifest = {
-  routeAssets: {
-    root: {
-      chunkIds: ['root'],
-      assets: ['root'],
-    },
-    aa: {
-      chunkIds: ['aa'],
-      assets: ['aa'],
-    },
-  },
+const createRouteAssets = (routes: RouteObject[]) => {
+  const routeAssets: Record<string, { chunkIds: string[]; assets: string[] }> =
+    {};
+
+  for (const route of routes) {
+    if (route.id) {
+      routeAssets[route.id] = {
+        chunkIds: [route.id],
+        assets: [route.id],
+      };
+    }
+  }
+
+  return {
+    routeAssets,
+  };
+};
+
+const setRoutes = (routes: RouteObject[]) => {
+  mockRoutes = routes;
+  mockRouteManifest = createRouteAssets(routes);
+};
+
+const renderRouter = (routes: RouteObject[]) => {
+  setRoutes(routes);
+
+  let router;
+  act(() => {
+    router = createMemoryRouter(routes);
+  });
+
+  return render(<RouterProvider router={router as any} />);
+};
+
+const createTargetRoute = (
+  id: string,
+  options: Partial<RouteObject> = {},
+): RouteObject => ({
+  id,
+  path: id,
+  loader: ({ request }: LoaderFunctionArgs) => null,
+  element: <h1>{id}</h1>,
+  ...options,
+});
+
+const removePrefetchLinks = () => {
+  document
+    .querySelectorAll('link[rel="prefetch"][as="fetch"]')
+    .forEach(link => link.remove());
+};
+
+const setConnection = (connection: unknown) => {
+  Object.defineProperty(global.navigator, 'connection', {
+    configurable: true,
+    value: connection,
+  });
 };
 
 describe('prefetch', () => {
@@ -77,21 +141,45 @@ describe('prefetch', () => {
     rstest.useFakeTimers();
     rstest.resetModules();
     rstest.clearAllMocks();
-    global.__webpack_chunk_load_test__ = rstest.fn();
+    removePrefetchLinks();
+    MockIntersectionObserver.instances = [];
+    Object.defineProperty(global, 'IntersectionObserver', {
+      configurable: true,
+      value: MockIntersectionObserver,
+    });
+    setConnection(undefined);
+    global.__webpack_chunk_load_test__ = rstest.fn(() => Promise.resolve());
     global._SSR_DATA = {};
+  });
+
+  afterEach(() => {
+    removePrefetchLinks();
+    setConnection(undefined);
+    delete (global as { IntersectionObserver?: unknown }).IntersectionObserver;
+    rstest.useRealTimers();
   });
 
   intentEvents.forEach(event => {
     test(`support intent on ${event}`, async () => {
-      let router;
-      act(() => {
-        router = createMemoryRouter(mockRoutes);
-      });
-      const { container, unmount } = render(
-        <RouterProvider router={router as any} />,
-      );
+      const id = `intent-${event}`;
+      const routes = [
+        {
+          id: `root-${id}`,
+          path: '/',
+          element: <Link {...{ to: id, prefetch: 'intent' }} />,
+        },
+        createTargetRoute(id, {
+          handle: {
+            navigationWarmup: {
+              data: true,
+            },
+          },
+        }),
+      ];
 
-      fireEvent.mouseEnter(container.firstChild!);
+      const { container, unmount } = renderRouter(routes);
+
+      fireEvent[event](container.firstChild!);
 
       act(() => {
         rstest.runAllTimers();
@@ -102,34 +190,54 @@ describe('prefetch', () => {
         .querySelector('link[rel="prefetch"][as="fetch"]')
         ?.getAttribute('href');
       expect(
-        dataHref?.includes('aa?__loader=aa&__ssrDirect=true'),
+        dataHref?.includes(`${id}?__loader=${id}&__ssrDirect=true`),
       ).toBeTruthy();
       unmount();
     });
   });
 
-  test('support render', async () => {
-    const mockRoutes = [
+  test('supports render by default without private data prefetch', async () => {
+    const id = 'default-render';
+    const routes = [
       {
-        id: 'root',
+        id: `root-${id}`,
         path: '/',
-        element: <Link {...{ to: 'aa', prefetch: 'render' }} />,
+        element: <Link to={id}>Default render</Link>,
       },
-      {
-        id: 'aa',
-        path: 'aa',
-        loader: ({ request }: LoaderFunctionArgs) => null,
-        element: <h1>idk</h1>,
-      },
+      createTargetRoute(id),
     ];
 
-    let router;
-    act(() => {
-      router = createMemoryRouter(mockRoutes);
+    const { unmount } = renderRouter(routes);
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(1);
     });
-    const { container, unmount } = render(
-      <RouterProvider router={router as any} />,
-    );
+
+    expect(
+      document.head.querySelector('link[rel="prefetch"][as="fetch"]'),
+    ).toBeNull();
+    unmount();
+  });
+
+  test('supports render data prefetch when the route opts in', async () => {
+    const id = 'render-data';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link {...{ to: id, prefetch: 'render' }} />,
+      },
+      createTargetRoute(id, {
+        handle: {
+          navigationWarmup: {
+            data: true,
+          },
+        },
+      }),
+    ];
+
+    const { unmount } = renderRouter(routes);
 
     act(() => {
       rstest.runAllTimers();
@@ -143,8 +251,221 @@ describe('prefetch', () => {
         .querySelector('link[rel="prefetch"][as="fetch"]')
         ?.getAttribute('href');
       expect(
-        dataHref?.includes('aa?__loader=aa&__ssrDirect=true'),
+        dataHref?.includes(`${id}?__loader=${id}&__ssrDirect=true`),
       ).toBeTruthy();
+    });
+    unmount();
+  });
+
+  test('supports viewport preload without data prefetch', async () => {
+    const id = 'viewport-preload';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: (
+          <Link to={id} prefetch="none" preload="viewport">
+            Viewport
+          </Link>
+        ),
+      },
+      createTargetRoute(id, {
+        handle: {
+          navigationWarmup: {
+            data: true,
+          },
+        },
+      }),
+    ];
+
+    const { unmount } = renderRouter(routes);
+
+    expect(global.__webpack_chunk_load_test__).toBeCalledTimes(0);
+    expect(MockIntersectionObserver.instances).toHaveLength(1);
+
+    act(() => {
+      MockIntersectionObserver.instances[0].trigger();
+    });
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(1);
+    });
+    expect(
+      document.head.querySelector('link[rel="prefetch"][as="fetch"]'),
+    ).toBeNull();
+    unmount();
+  });
+
+  test('prefetch none disables default render and viewport warmup', () => {
+    const id = 'no-prefetch';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: (
+          <Link to={id} prefetch="none">
+            No prefetch
+          </Link>
+        ),
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+
+    act(() => {
+      rstest.runAllTimers();
+    });
+
+    expect(global.__webpack_chunk_load_test__).toBeCalledTimes(0);
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+    unmount();
+  });
+
+  test('skips warmup for external absolute URLs', async () => {
+    const id = 'external-link';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: (
+          <Link to="https://example.com/settings">External settings</Link>
+        ),
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+
+    act(() => {
+      rstest.runAllTimers();
+    });
+
+    expect(global.__webpack_chunk_load_test__).toBeCalledTimes(0);
+    unmount();
+  });
+
+  test('skips warmup when Save-Data is enabled', async () => {
+    const id = 'save-data';
+    setConnection({
+      saveData: true,
+    });
+
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link to={id}>Save data</Link>,
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+
+    act(() => {
+      rstest.runAllTimers();
+    });
+
+    expect(global.__webpack_chunk_load_test__).toBeCalledTimes(0);
+    unmount();
+  });
+
+  test('skips warmup on slow effective connection types', async () => {
+    const id = 'slow-network';
+    setConnection({
+      effectiveType: '2g',
+    });
+
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link to={id}>Slow network</Link>,
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+
+    act(() => {
+      rstest.runAllTimers();
+    });
+
+    expect(global.__webpack_chunk_load_test__).toBeCalledTimes(0);
+    unmount();
+  });
+
+  test('caps concurrent route module warmups', async () => {
+    const ids = Array.from({ length: 6 }, (_, index) => `concurrent-${index}`);
+    const resolvers: Array<() => void> = [];
+    global.__webpack_chunk_load_test__ = rstest.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolvers.push(resolve);
+        }),
+    );
+
+    const routes = [
+      {
+        id: 'root-concurrent',
+        path: '/',
+        element: (
+          <>
+            {ids.map(id => (
+              <Link key={id} to={id}>
+                {id}
+              </Link>
+            ))}
+          </>
+        ),
+      },
+      ...ids.map(id => createTargetRoute(id)),
+    ];
+
+    const { unmount } = renderRouter(routes);
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(4);
+    });
+
+    await act(async () => {
+      resolvers.shift()?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(5);
+    });
+
+    await act(async () => {
+      while (resolvers.length > 0) {
+        const pendingResolvers = resolvers.splice(0);
+        pendingResolvers.forEach(resolve => resolve());
+        await Promise.resolve();
+      }
+    });
+
+    unmount();
+  });
+
+  test('NavLink uses the same default render warmup', async () => {
+    const id = 'navlink-render';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <NavLink to={id}>Navigation</NavLink>,
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(1);
     });
     unmount();
   });

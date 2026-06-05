@@ -464,7 +464,7 @@ When defining a `loading.tsx`, if the route transitions from `/` to `/blog` or f
 
 ## Prefetching
 
-Most white screens during route transitions can be optimized by defining a `<Loading>` component. Modern.js also supports preloading static resources and data with the `prefetch` attribute on `<Link>` components.
+Most white screens during route transitions can be optimized by defining a `<Loading>` component. Modern.js also supports navigation warmup with the `prefetch` and `preload` attributes on `<Link>` components.
 
 For applications with higher performance requirements, prefetching can further enhance the user experience by reducing the time spent displaying the `<Loading>` component:
 
@@ -474,21 +474,36 @@ For applications with higher performance requirements, prefetching can further e
 
 :::tip
 
-Data preloading currently only preloads data returned by the [Data Loader](/guides/basic-features/data/data-fetch) in SSR projects.
+Route data warmup is opt-in. In SSR projects, data returned by the [Data Loader](/guides/basic-features/data/data-fetch) is only prefetched when the matched route explicitly enables it with `handle.navigationWarmup.data`.
 
 :::
 
-The `prefetch` attribute has three optional values:
+By default, same-origin links prefetch the route module when the `<Link>` renders and preload when the link enters the viewport. Modern.js skips these automatic warmups on Save-Data or slow network connections.
 
-- `none`: The default value. No prefetching, no additional behavior.
-- `intent`: This is the recommended value for most scenarios. When you hover over the Link, it will automatically start loading the corresponding chunk and the data defined in the Data Loader. If the mouse moves away, the loading is automatically canceled. In our tests, even quick clicks can reduce load time by approximately 200ms.
-- `render`: When the `<Link>` component is rendered, it begins loading the corresponding chunk and data defined in the Data Loader.
+The `prefetch` attribute has four optional values:
+
+- `render`: The default value. When the `<Link>` component is rendered, it begins warming the corresponding route module.
+- `intent`: When users focus, hover, or touch the link, it starts warming the corresponding route module. If the intent is canceled before warmup starts, the warmup is canceled.
+- `viewport`: When the `<Link>` component enters the viewport, it begins warming the corresponding route module.
+- `none`: Disables automatic render prefetching. It also disables the default viewport preload unless an explicit `preload` value is provided.
+
+The `preload` attribute accepts the same timing values and defaults to `viewport`. Explicit `preload` values always win, and `preload={false}` disables preload behavior.
+
+To opt a route into SSR data warmup:
+
+```ts title="routes/page.config.ts"
+export const handle = {
+  navigationWarmup: {
+    data: true,
+  },
+};
+```
 
 :::details Difference Between "render" and Not Using Route Splitting
 
-- `render` allows you to control the timing of route splitting, triggering only when the `<Link>` component enters the viewport. You can control the loading timing of the split by adjusting the rendering position of the `<Link>` component.
-- `render` loads static resources only during idle times, thus not occupying the loading time of critical modules.
-- Besides preloading route splits, `render` will also initiate data prefetching in SSR projects.
+- `render` allows you to control route-module warmup with the position of the `<Link>` component in the tree.
+- `viewport` lets you defer module warmup until the link is close to becoming actionable.
+- SSR data prefetching is not enabled by default; use `handle.navigationWarmup.data` only for routes whose loader data is safe and useful to fetch before navigation.
 
 :::
 

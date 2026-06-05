@@ -466,7 +466,7 @@ Modern.js 支持通过 `loading.tsx` 文件来解决这个问题，`routes/` 下
 
 ## 预加载
 
-大多数切换路由时白屏的情况，都可以通过定义 `<Loading>` 组件来优化体验。Modern.js 也支持在 `<Link>` 组件上定义 `prefetch` 属性，提前对静态资源和数据进行加载。
+大多数切换路由时白屏的情况，都可以通过定义 `<Loading>` 组件来优化体验。Modern.js 也支持在 `<Link>` 组件上定义 `prefetch` 和 `preload` 属性，提前对导航进行预热。
 
 对于有更高性能要求的应用，预加载可以进一步提升用户体验，减少展示 `<Loading>` 组件的时间：
 
@@ -476,21 +476,36 @@ Modern.js 支持通过 `loading.tsx` 文件来解决这个问题，`routes/` 下
 
 :::tip
 
-对数据的预加载目前只会预加载 SSR 项目中 [Data Loader](/guides/basic-features/data/data-fetch) 中返回的数据。
+路由数据预热需要显式开启。在 SSR 项目中，只有匹配到的路由通过 `handle.navigationWarmup.data` 开启后，才会预取 [Data Loader](/guides/basic-features/data/data-fetch) 返回的数据。
 
 :::
 
-`prefetch` 属性有三个可选值：
+默认情况下，同源链接会在 `<Link>` 渲染时预取路由模块，并在链接进入视窗时进行预加载。当用户开启 Save-Data 或处于慢速网络时，Modern.js 会跳过这些自动预热。
 
-- `none`， 默认值，不会做 prefetch，没有任何额外的行为。
-- `intent`，这是我们推荐大多数场景下使用的值，当你把鼠标放在 Link 上时，会自动开始加载对应的分片和 Data Loader 中定义的数据，当鼠标移开时，会自动取消加载。在我们的测试中，即使是快速点击，也能减少大约 200ms 的加载时间。
-- `render`，当 `<Link>` 组件渲染时，就会加载对应的分片和 Data Loader 中定义的数据。
+`prefetch` 属性有四个可选值：
+
+- `render`，默认值。当 `<Link>` 组件渲染时，就会预热对应的路由模块。
+- `intent`，当用户聚焦、悬停或触摸链接时，会开始预热对应的路由模块。如果意图在预热开始前取消，预热也会取消。
+- `viewport`，当 `<Link>` 组件进入视窗时，会开始预热对应的路由模块。
+- `none`，关闭自动 render prefetch。如果没有显式设置 `preload`，也会关闭默认的 viewport preload。
+
+`preload` 属性接受同样的时机值，默认值为 `viewport`。显式设置的 `preload` 总是优先生效，`preload={false}` 会关闭 preload 行为。
+
+如果要让某个路由开启 SSR 数据预热：
+
+```ts title="routes/page.config.ts"
+export const handle = {
+  navigationWarmup: {
+    data: true,
+  },
+};
+```
 
 :::details 值为 render 和不做路由分片的区别
 
-- `render` 加载路由分片的时机是可控的，只有在 `<Link>` 组件进入视窗时才触发，可以通过控制 `<Link>` 组件的渲染位置来控制分片加载时机。
-- `render` 仅在空闲时对静态资源进行加载，不占用重要模块的加载时间。
-- 除了预加载路由分片，`render` 在 SSR 项目中还会发起数据预取。
+- `render` 可以通过 `<Link>` 组件在组件树中的位置控制路由模块预热时机。
+- `viewport` 可以把模块预热推迟到链接接近可操作时再触发。
+- SSR 数据预取默认不开启；只有当路由的 loader 数据适合在导航前获取时，才应该使用 `handle.navigationWarmup.data`。
 
 :::
 

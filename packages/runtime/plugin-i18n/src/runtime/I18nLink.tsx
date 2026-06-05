@@ -53,8 +53,10 @@ export const I18nLink: React.FC<I18nLinkProps> = ({
   }
 
   if (!hasRouter || !Link) {
+    const { prefetch: _prefetch, preload: _preload, ...anchorProps } = props;
+
     return (
-      <a href={localizedTo} {...props}>
+      <a href={localizedTo} {...anchorProps}>
         {children}
       </a>
     );

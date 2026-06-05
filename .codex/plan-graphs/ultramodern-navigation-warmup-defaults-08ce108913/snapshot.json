@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T20:48:32.766042+00:00",
+  "generated_at": "2026-06-05T21:10:04.260280+00:00",
   "graph_id": "ultramodern-navigation-warmup-defaults-08ce108913",
   "plan_set_hash": "a97b7caccd",
   "selection_hash": "08ce108913",
@@ -21,55 +21,55 @@
         {
           "id": "define-navigation-warmup-contract",
           "content": "Define the navigation-only contract and API semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup opt-in, network guardrails, concurrency caps, and explicit opt-outs.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "audit-existing-link-surfaces",
           "content": "Audit the classic runtime Link/NavLink, TanStack runtime adapters, plugin-tanstack duplicate surface, i18n Link forwarding, route manifest assets, and generated starter links so all affected entrypoints are identified before implementation.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "implement-safe-warmup-policy",
           "content": "Implement or extract a browser warmup policy with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and no app-level navigation interception.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "align-classic-runtime-link",
           "content": "Update the classic Modern runtime Link/NavLink prefetch implementation to support render prefetch plus viewport preload semantics while preserving intent and none behavior and avoiding absolute/external URL warmups.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "align-tanstack-link-adapters",
           "content": "Update both TanStack link adapter surfaces so prefetch and preload defaults can coexist, explicit user preload props are never overridden, and viewport behavior remains compatible with TanStack Router.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "preserve-i18n-forwarding",
           "content": "Ensure I18nLink forwards warmup props to the active router Link and add coverage for localized URLs without changing unrelated starter markup, metadata, security, or public-surface behavior.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         },
         {
           "id": "add-private-data-guardrails",
           "content": "Add route/data guardrails so render prefetch does not fetch credentialed private loader data unless the route explicitly declares data warmup as safe.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 7
         },
         {
           "id": "add-runtime-and-starter-tests",
-          "content": "Add focused tests for render, viewport, intent, none, explicit override preservation, external URL skips, Save-Data/slow-network skips, concurrency caps, private data guardrails, and i18n forwarding.",
-          "status": "pending",
+          "content": "Add focused runtime and forwarding tests for render, viewport, intent, none, explicit override preservation, external URL skips, Save-Data/slow-network skips, concurrency caps, private data guardrails, and i18n forwarding.",
+          "status": "completed",
           "ordinal": 8
         },
         {
           "id": "document-defaults-and-escape-hatches",
           "content": "Document only the navigation warmup defaults, opt-outs, data-safety rules, and SuperApp/MF timing caveats so teams can tune warmup without app-level click interception or custom wrappers.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 9
         }
       ],
@@ -83,32 +83,12 @@
       "plan_slug": "ultramodern-navigation-warmup-defaults",
       "plan_name": "ultramodern-navigation-warmup-defaults",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-navigation-warmup-defaults.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
+      "plan_status": "completed",
+      "state": "done",
       "blocked_by": [],
-      "active": [
-        {
-          "id": "define-navigation-warmup-contract",
-          "content": "Define the navigation-only contract and API semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup opt-in, network guardrails, concurrency caps, and explicit opt-outs.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "audit-existing-link-surfaces",
-          "content": "Audit the classic runtime Link/NavLink, TanStack runtime adapters, plugin-tanstack duplicate surface, i18n Link forwarding, route manifest assets, and generated starter links so all affected entrypoints are identified before implementation.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "implement-safe-warmup-policy",
-          "content": "Implement or extract a browser warmup policy with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and no app-level navigation interception.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "active": [],
+      "upcoming": [],
+      "completed": 9,
       "total": 9
     }
   ],

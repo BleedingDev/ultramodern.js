@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import React from 'react';
-import { Link } from '../../src/runtime/prefetchLink';
+import { Link, NavLink } from '../../src/runtime/prefetchLink';
 
 type MockLinkProps = {
   children?: React.ReactNode;
@@ -37,6 +37,16 @@ describe('tanstack prefetch link adapter', () => {
     expect(capturedPreloads).toEqual(['intent']);
   });
 
+  it('preserves explicit disabled preload', () => {
+    render(
+      <Link to="/settings" prefetch="render" preload={false}>
+        Settings
+      </Link>,
+    );
+
+    expect(capturedPreloads).toEqual([false]);
+  });
+
   it('maps none prefetch to disabled TanStack preload', () => {
     render(
       <Link to="/settings" prefetch="none">
@@ -59,5 +69,11 @@ describe('tanstack prefetch link adapter', () => {
     );
 
     expect(capturedPreloads).toEqual([prefetch]);
+  });
+
+  it('defaults NavLink preload to viewport', () => {
+    render(<NavLink to="/settings">Settings</NavLink>);
+
+    expect(capturedPreloads).toEqual(['viewport']);
   });
 });

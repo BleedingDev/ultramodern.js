@@ -4,31 +4,31 @@ overview: Implement only the accepted UltraModern navigation warmup defaults: pr
 todos:
   - id: define-navigation-warmup-contract
     content: Define the navigation-only contract and API semantics for render prefetch, viewport preload, intent warmup, click load, code/module warmup, data warmup opt-in, network guardrails, concurrency caps, and explicit opt-outs.
-    status: pending
+    status: completed
   - id: audit-existing-link-surfaces
     content: Audit the classic runtime Link/NavLink, TanStack runtime adapters, plugin-tanstack duplicate surface, i18n Link forwarding, route manifest assets, and generated starter links so all affected entrypoints are identified before implementation.
-    status: pending
+    status: completed
   - id: implement-safe-warmup-policy
     content: Implement or extract a browser warmup policy with same-origin checks, Save-Data and slow-network gates, concurrency caps, dedupe, cancellation, bounded TTL, and no app-level navigation interception.
-    status: pending
+    status: completed
   - id: align-classic-runtime-link
     content: Update the classic Modern runtime Link/NavLink prefetch implementation to support render prefetch plus viewport preload semantics while preserving intent and none behavior and avoiding absolute/external URL warmups.
-    status: pending
+    status: completed
   - id: align-tanstack-link-adapters
     content: Update both TanStack link adapter surfaces so prefetch and preload defaults can coexist, explicit user preload props are never overridden, and viewport behavior remains compatible with TanStack Router.
-    status: pending
+    status: completed
   - id: preserve-i18n-forwarding
     content: Ensure I18nLink forwards warmup props to the active router Link and add coverage for localized URLs without changing unrelated starter markup, metadata, security, or public-surface behavior.
-    status: pending
+    status: completed
   - id: add-private-data-guardrails
     content: Add route/data guardrails so render prefetch does not fetch credentialed private loader data unless the route explicitly declares data warmup as safe.
-    status: pending
+    status: completed
   - id: add-runtime-and-starter-tests
-    content: Add focused tests for render, viewport, intent, none, explicit override preservation, external URL skips, Save-Data/slow-network skips, concurrency caps, private data guardrails, and i18n forwarding.
-    status: pending
+    content: Add focused runtime and forwarding tests for render, viewport, intent, none, explicit override preservation, external URL skips, Save-Data/slow-network skips, concurrency caps, private data guardrails, and i18n forwarding.
+    status: completed
   - id: document-defaults-and-escape-hatches
     content: Document only the navigation warmup defaults, opt-outs, data-safety rules, and SuperApp/MF timing caveats so teams can tune warmup without app-level click interception or custom wrappers.
-    status: pending
+    status: completed
 isProject: false
 ---
 

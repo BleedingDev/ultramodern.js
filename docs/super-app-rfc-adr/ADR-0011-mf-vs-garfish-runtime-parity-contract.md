@@ -149,6 +149,8 @@ The contract explicitly records non-equivalences that must be dispositioned befo
 8. style and global side effects.
 9. telemetry timing.
 
+For navigation warmup, parity evidence should treat render prefetch and viewport preload as optimizations only. A remote route may warm earlier or later across runtimes, but click navigation remains authoritative and warmup must not bypass trust, fallback, or telemetry contracts.
+
 These differences are not automatic blockers. They are blockers only when evidence fails to show an acceptable host-visible outcome or an approved degradation path.
 
 ## 9. Canonicality Rule
