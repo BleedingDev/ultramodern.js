@@ -1,5 +1,4 @@
-import { renderString } from '@modern-js/codesmith-api-handlebars';
-import { fs } from '@modern-js/codesmith-utils/fs-extra';
+import fs from 'node:fs';
 import { createRequire } from 'module';
 import path from 'path';
 import recursive from 'recursive-readdir';
@@ -13,6 +12,80 @@ const IgnoreFiles = [
   '.husky/pre-commit',
   'README.md',
 ];
+
+function renderTemplate(
+  template: string,
+  data: Record<string, unknown>,
+): string {
+  type ConditionalKind = 'if' | 'unless';
+  const tagRegex = /\{\{(~?)(#if|#unless|\/if|\/unless)(?:\s+(\w+))?(~?)\}\}/g;
+
+  function renderConditionals(
+    startIndex: number,
+    expectedClose?: ConditionalKind,
+  ): {
+    rendered: string;
+    nextIndex: number;
+  } {
+    let rendered = '';
+    let cursor = startIndex;
+    tagRegex.lastIndex = startIndex;
+
+    while (true) {
+      const match = tagRegex.exec(template);
+      if (!match) {
+        return {
+          rendered: rendered + template.slice(cursor),
+          nextIndex: template.length,
+        };
+      }
+
+      const [raw, , tag, condition, rightTrim] = match;
+      const tagIndex = match.index;
+      rendered += template.slice(cursor, tagIndex);
+      cursor = tagIndex + raw.length;
+
+      if (tag === '#if' || tag === '#unless') {
+        const kind: ConditionalKind = tag === '#if' ? 'if' : 'unless';
+        const innerResult = renderConditionals(cursor, kind);
+        cursor = innerResult.nextIndex;
+        tagRegex.lastIndex = cursor;
+
+        const conditionValue = Boolean(data[condition ?? '']);
+        const shouldInclude = kind === 'if' ? conditionValue : !conditionValue;
+        if (shouldInclude) {
+          rendered += innerResult.rendered;
+        }
+        continue;
+      }
+
+      if (tag === '/if' || tag === '/unless') {
+        const kind: ConditionalKind = tag === '/if' ? 'if' : 'unless';
+        if (expectedClose === kind) {
+          let nextIndex = cursor;
+          if (rightTrim === '~') {
+            const trailingWhitespace = /^\s*/u.exec(template.slice(nextIndex));
+            nextIndex += trailingWhitespace?.[0].length ?? 0;
+          }
+          return {
+            rendered,
+            nextIndex,
+          };
+        }
+        rendered += raw;
+      }
+    }
+  }
+
+  let result = renderConditionals(0).rendered;
+  const varRegex = /\{\{(\w+)\}\}/g;
+  result = result.replace(varRegex, (match, key) => {
+    const value = data[key];
+    return value !== undefined && value !== null ? String(value) : match;
+  });
+
+  return result;
+}
 
 export async function handleTemplate(
   templatePath: string,
@@ -35,7 +108,7 @@ export async function handleTemplate(
           `${routerPrefix}${file
             .replace('.handlebars', fileExtra)
             .replace('npmrc', '.npmrc')}`.replace('language', 'ts')
-        ] = `${renderString(fs.readFileSync(filePath, 'utf-8'), data)}`;
+        ] = renderTemplate(fs.readFileSync(filePath, 'utf-8'), data);
       } else {
         files[`${routerPrefix}${file}`] = `${fs.readFileSync(
           filePath,
@@ -70,6 +143,25 @@ async function handleCreateTemplate() {
 
   const files = await handleTemplate(templateDir, {
     packageName: 'modern-app',
+    adapterRstestVersion: version,
+    appToolsVersion: version,
+    bffRuntime: 'effect',
+    enableBff: true,
+    enableTailwind: true,
+    isSubproject: false,
+    isTanstackRouter: true,
+    pluginBffVersion: version,
+    pluginI18nVersion: version,
+    pluginTanstackVersion: version,
+    pnpmVersion: '11.5.0',
+    routerRuntimeImport: '@modern-js/plugin-tanstack/runtime',
+    runtimeVersion: version,
+    tailwindPostcssVersion: '4.3.0',
+    tailwindVersion: '4.3.0',
+    tanstackRouterVersion: '1.170.11',
+    tsconfigVersion: version,
+    useEffectBff: true,
+    useHonoBff: false,
     version,
   });
 
