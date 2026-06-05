@@ -131,6 +131,11 @@ type Ownership = {
 
 type SupportedWorkspaceLanguage = 'en' | 'cs';
 
+type RoutePublicSurface =
+  | 'private-app-screen'
+  | 'generated-public-surface'
+  | 'explicit-public-input';
+
 type RouteOwnedI18nPath = {
   id: string;
   canonicalPath: string;
@@ -139,6 +144,9 @@ type RouteOwnedI18nPath = {
   ownerAppId: string;
   mfBoundaryId: string;
   namespace: string;
+  public: boolean;
+  indexable: boolean;
+  publicSurface: RoutePublicSurface;
 };
 
 export type UltramodernWorkspaceOptions = {
@@ -1501,12 +1509,19 @@ function appI18nNamespace(app: WorkspaceApp): string {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
+const privateAppRoutePublicness = {
+  indexable: false,
+  public: false,
+  publicSurface: 'private-app-screen',
+} as const;
+
 function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
   const namespace = appI18nNamespace(app);
   const base = {
     mfBoundaryId: app.mfName,
     namespace,
     ownerAppId: app.id,
+    ...privateAppRoutePublicness,
   };
 
   if (app.kind === 'shell') {
@@ -1693,9 +1708,15 @@ function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
   ];
 }
 
-function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
+function isPublicIndexableRoute(route: RouteOwnedI18nPath): boolean {
+  return route.public && route.indexable;
+}
+
+function createLocalisedUrlsMapFromRoutes(
+  routes: RouteOwnedI18nPath[],
+): Record<string, JsonValue> {
   return Object.fromEntries(
-    createRouteOwnedI18nPaths(app).flatMap(route => {
+    routes.flatMap(route => {
       if (route.canonicalPath === '/') {
         return [];
       }
@@ -1707,9 +1728,27 @@ function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
   );
 }
 
+function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
+  return createLocalisedUrlsMapFromRoutes(createRouteOwnedI18nPaths(app));
+}
+
+function createPublicRouteMetadata(app: WorkspaceApp): JsonValue[] {
+  return createRouteOwnedI18nPaths(app)
+    .filter(isPublicIndexableRoute)
+    .map(route => ({
+      canonicalPath: route.canonicalPath,
+      id: route.id,
+      localisedPaths: route.localisedPaths,
+      namespace: route.namespace,
+      ownerAppId: route.ownerAppId,
+      titleKey: route.titleKey,
+    }));
+}
+
 function createRouteMetadataModule(app: WorkspaceApp): string {
   const routes = sortJsonValue(createRouteOwnedI18nPaths(app));
   const localisedUrls = sortJsonValue(createLocalisedUrlsMap(app));
+  const publicRoutes = sortJsonValue(createPublicRouteMetadata(app));
   const namespace = appI18nNamespace(app);
 
   return `export const ultramodernRouteNamespace = '${namespace}' as const;
@@ -1718,9 +1757,12 @@ export const ultramodernRouteMetadata = ${JSON.stringify(routes, null, 2)} as co
 
 export const ultramodernLocalisedUrls = ${JSON.stringify(localisedUrls, null, 2)} as const;
 
+export const ultramodernPublicRoutes = ${JSON.stringify(publicRoutes, null, 2)} as const;
+
 export const ultramodernRouteConfig = {
   localisedUrls: ultramodernLocalisedUrls,
   namespace: ultramodernRouteNamespace,
+  publicRoutes: ultramodernPublicRoutes,
   routes: ultramodernRouteMetadata,
   source: 'route-owned',
 } as const;
@@ -4594,6 +4636,9 @@ function createAppGeneratedContract(
       metadataExport: './src/routes/ultramodern-route-metadata',
       localisedUrls: createLocalisedUrlsMap(app),
       owned: createRouteOwnedI18nPaths(app),
+      publicRoutes: createPublicRouteMetadata(app),
+      privateByDefault: true,
+      publicnessDefault: 'private-app-screen',
       generatedRouteMap: true,
       manualOverrides: [],
     },
@@ -5332,6 +5377,13 @@ assert(shellContract?.styling?.federation?.entrypoints?.css?.includes('src/route
 assert(shellContract?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), 'Shell must import the shared design token CSS asset');
 assert(shellContract?.styling?.federation?.dedupe?.duplicateBaseStylesAllowed === false, 'Shell CSS contract must forbid duplicated base styles');
 assert(shellContract?.styling?.federation?.ssr?.firstPaintRequired === true, 'Shell CSS must be required for SSR first paint');
+assert(shellContract?.routes?.privateByDefault === true, 'Shell routes must be private by default');
+assert(shellContract?.routes?.publicnessDefault === 'private-app-screen', 'Shell route publicness default is incorrect');
+assert(JSON.stringify(shellContract?.routes?.publicRoutes ?? []) === '[]', 'Shell must not expose generated public routes by default');
+assert(
+  (shellContract?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
+  'Shell owned routes must be non-indexable private app screens by default',
+);
 assert(
   topology.shell?.verticalRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
   'Topology shell verticalRefs must match generated verticals',
@@ -5394,6 +5446,13 @@ for (const vertical of fullStackVerticals) {
   );
   assert(contractEntry?.routes?.source === 'route-owned', \`\${vertical.id} routes must be route-owned\`);
   assert(contractEntry?.routes?.metadataExport === './src/routes/ultramodern-route-metadata', \`\${vertical.id} route metadata export is incorrect\`);
+  assert(contractEntry?.routes?.privateByDefault === true, \`\${vertical.id} routes must be private by default\`);
+  assert(contractEntry?.routes?.publicnessDefault === 'private-app-screen', \`\${vertical.id} route publicness default is incorrect\`);
+  assert(JSON.stringify(contractEntry?.routes?.publicRoutes ?? []) === '[]', \`\${vertical.id} must not expose generated public routes by default\`);
+  assert(
+    (contractEntry?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
+    \`\${vertical.id} owned routes must be non-indexable private app screens by default\`,
+  );
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
   assert(contractEntry?.styling?.federation?.role === 'vertical-css', \`\${vertical.id} must own only vertical CSS\`);
   assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);

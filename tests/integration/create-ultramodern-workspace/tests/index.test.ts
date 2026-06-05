@@ -619,7 +619,18 @@ describe('create-ultramodern-workspace', () => {
       source: 'route-owned',
       metadataExport: './src/routes/ultramodern-route-metadata',
       generatedRouteMap: true,
+      privateByDefault: true,
+      publicnessDefault: 'private-app-screen',
+      publicRoutes: [],
     });
+    expect(shellContract.routes.owned).toEqual([
+      expect.objectContaining({
+        id: 'shell-home',
+        public: false,
+        indexable: false,
+        publicSurface: 'private-app-screen',
+      }),
+    ]);
     expect(shellContract.deploy).toMatchObject({
       target: 'cloudflare',
       cloudflare: {
@@ -904,6 +915,19 @@ process.exit(1);
       role: 'vertical-css',
       rootSelector: '[data-app-id="catalog"]',
     });
+    expect(catalogContract.routes).toMatchObject({
+      privateByDefault: true,
+      publicnessDefault: 'private-app-screen',
+      publicRoutes: [],
+    });
+    expect(catalogContract.routes.owned).toEqual([
+      expect.objectContaining({
+        id: 'catalog-home',
+        public: false,
+        indexable: false,
+        publicSurface: 'private-app-screen',
+      }),
+    ]);
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     expect(topology.shell.verticalRefs).toEqual(['catalog']);
