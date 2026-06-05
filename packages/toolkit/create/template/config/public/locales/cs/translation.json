@@ -33,7 +33,12 @@
       "switcher": "Jazyk"
     },
     "logoAlt": "Logo UltraModern.js",
+    "meta": {
+      "description": "Lokalizovany starter aplikace UltraModern.js se silnymi vychozimi hodnotami pro komplexni produkty.",
+      "title": "UltraModern.js Starter"
+    },
     "name": "Jednoduchy starter aplikace",
+    "skipLink": "Preskocit na obsah",
     "title": "UltraModern.js Starter"
   }
 }

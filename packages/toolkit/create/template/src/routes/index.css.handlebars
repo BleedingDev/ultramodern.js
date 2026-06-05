@@ -1,129 +1,266 @@
 {{#if enableTailwind}}@import 'tailwindcss';
 
-{{/if}}html,
+{{/if}}:root {
+  color-scheme: light;
+  --starter-bg: #f3f6f4;
+  --starter-surface: #ffffff;
+  --starter-text: #14201b;
+  --starter-muted: #52625b;
+  --starter-border: #cfdad4;
+  --starter-accent: #087f5b;
+  --starter-accent-strong: #075f48;
+  --starter-focus: #0b7285;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  padding: 0;
   margin: 0;
   font-family:
-    PingFang SC,
-    Hiragino Sans GB,
-    Microsoft YaHei,
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    Segoe UI,
     Arial,
     sans-serif;
-  background: linear-gradient(to bottom, transparent, #fff) #eceeef;
+  color: var(--starter-text);
+  background: linear-gradient(180deg, #ffffff 0%, var(--starter-bg) 100%);
 }
 
 p {
   margin: 0;
 }
 
-* {
+.container-box,
+.container-box *,
+.container-box *::before,
+.container-box *::after {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   box-sizing: border-box;
 }
 
 .container-box {
-  min-height: 100vh;
-  max-width: 100%;
+  min-block-size: 100dvh;
+  inline-size: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding-top: 10px;
+  padding: 1.25rem;
 }
 
-main {
-  flex: 1;
+.skip-link {
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline-start: 1rem;
+  z-index: 1;
+  padding: 0.65rem 0.9rem;
+  color: #ffffff;
+  background: var(--starter-accent-strong);
+  border-radius: 6px;
+  transform: translateY(-150%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.starter-header {
+  inline-size: min(100%, 72rem);
+  margin-inline: auto;
+}
+
+.language-switcher {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.language-switcher a {
+  min-block-size: 2.25rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--starter-muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.language-switcher a:hover {
+  color: var(--starter-text);
+  border-color: var(--starter-border);
+}
+
+.language-switcher a[aria-current='page'] {
+  color: var(--starter-accent-strong);
+  background: rgb(8 127 91 / 10%);
+  border-color: rgb(8 127 91 / 24%);
+}
+
+.starter-main {
+  flex: 1;
+  inline-size: min(100%, 72rem);
+  margin-inline: auto;
+  padding-block: 4rem 2rem;
+  display: grid;
+  gap: 3rem;
+  align-content: center;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.5rem;
   align-items: center;
 }
 
 .title {
-  display: flex;
-  margin: 4rem 0 4rem;
-  align-items: center;
-  font-size: 4rem;
-  font-weight: 600;
+  margin: 0.35rem 0 0;
+  font-size: 3.5rem;
+  line-height: 1;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .logo {
-  width: 6rem;
-  margin: 7px 0 0 1rem;
+  inline-size: 6rem;
+  block-size: 6rem;
+  border-radius: 1.25rem;
+  filter: drop-shadow(0 1rem 1.5rem rgb(17 24 39 / 18%));
 }
 
 .name {
-  color: #4ecaff;
+  color: var(--starter-accent-strong);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .description {
-  text-align: center;
   line-height: 1.5;
-  font-size: 1.3rem;
-  color: #1b3a42;
-  margin-bottom: 5rem;
+  font-size: 1.15rem;
+  color: var(--starter-muted);
+  max-inline-size: 54rem;
+  margin-block-start: 1rem;
+  text-wrap: pretty;
+}
+
+.effect-message {
+  padding: 1rem;
+  background: var(--starter-surface);
+  border: 1px solid var(--starter-border);
+  border-radius: 8px;
 }
 
 .code {
-  background: #fafafa;
-  border-radius: 12px;
-  padding: 0.6rem 0.9rem;
-  font-size: 1.05rem;
+  display: inline-block;
+  padding: 0.15rem 0.35rem;
+  color: var(--starter-accent-strong);
+  background: rgb(8 127 91 / 10%);
+  border-radius: 6px;
+  font-size: 0.95em;
   font-family:
+    ui-monospace,
+    SFMono-Regular,
     Menlo,
     Monaco,
-    Lucida Console,
-    Liberation Mono,
-    DejaVu Sans Mono,
-    Bitstream Vera Sans Mono,
-    Courier New,
     monospace;
 }
 
 .container-box .grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   align-items: center;
-  justify-content: center;
-  width: 1100px;
-  margin-top: 3rem;
+  gap: 1rem;
 }
 
 .card {
-  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  height: 100px;
+  gap: 0.75rem;
+  min-block-size: 9rem;
+  padding: 1.25rem;
   color: inherit;
   text-decoration: none;
-  transition: 0.15s ease;
-  width: 45%;
+  background: var(--starter-surface);
+  border: 1px solid var(--starter-border);
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
-.card:hover,
-.card:focus {
-  transform: scale(1.05);
+.card:hover {
+  border-color: rgb(8 127 91 / 45%);
+  transform: translateY(-0.125rem);
+}
+
+.skip-link:focus-visible,
+.language-switcher a:focus-visible,
+.card:focus-visible {
+  outline: 3px solid var(--starter-focus);
+  outline-offset: 3px;
 }
 
 .card h2 {
   display: flex;
   align-items: center;
-  font-size: 1.5rem;
+  gap: 0.55rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
   margin: 0;
   padding: 0;
 }
 
 .card p {
-  opacity: 0.6;
+  opacity: 0.7;
   font-size: 0.9rem;
   line-height: 1.5;
-  margin-top: 1rem;
 }
 
 .arrow-right {
-  width: 1.3rem;
-  margin-left: 0.5rem;
-  margin-top: 3px;
+  flex: none;
+  inline-size: 0.65rem;
+  block-size: 0.65rem;
+  border-block-start: 2px solid currentColor;
+  border-inline-end: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+@media (max-width: 44rem) {
+  .container-box {
+    padding: 1rem;
+  }
+
+  .starter-main {
+    padding-block: 2rem 1rem;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .title {
+    font-size: 2.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .skip-link,
+  .card {
+    transition: none;
+  }
+
+  .card:hover {
+    transform: none;
+  }
 }

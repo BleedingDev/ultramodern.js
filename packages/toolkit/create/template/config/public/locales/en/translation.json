@@ -33,7 +33,12 @@
       "switcher": "Language"
     },
     "logoAlt": "UltraModern.js Logo",
+    "meta": {
+      "description": "A localized UltraModern.js app starter with strong defaults for complex products.",
+      "title": "UltraModern.js Starter"
+    },
     "name": "Simple app starter",
+    "skipLink": "Skip to content",
     "title": "UltraModern.js Starter"
   }
 }

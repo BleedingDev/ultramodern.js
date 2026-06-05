@@ -13,6 +13,10 @@ import { useTranslation } from 'react-i18next';
 const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
+const languageDirections: Record<SupportedLanguage, 'ltr'> = {
+  cs: 'ltr',
+  en: 'ltr',
+};
 
 const isSupportedLanguage = (value: string): value is SupportedLanguage =>
   supportedLanguages.includes(value as SupportedLanguage);
@@ -52,6 +56,8 @@ const Index = () => {
   const { language } = useModernI18n();
   const location = useLocation();
   const currentLanguage = isSupportedLanguage(language) ? language : fallbackLanguage;
+  const pageTitle = t('home.meta.title');
+  const pageDescription = t('home.meta.description');
   const canonicalPath = localizedPath(location.pathname, currentLanguage);
   const suffix = locationSuffix(location);
   const languageOptions = supportedLanguages.map((code) => ({
@@ -81,12 +87,9 @@ const Index = () => {
 {{/if}}
   return (
     <div className="container-box">
-      <Helmet>
-        <link
-          rel="icon"
-          type="image/x-icon"
-          href="https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico"
-        />
+      <Helmet htmlAttributes={{ dir: languageDirections[currentLanguage], lang: currentLanguage }}>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
         <link rel="canonical" href={absoluteUrl(canonicalPath)} />
         {supportedLanguages.map((code) => (
           <link
@@ -102,7 +105,10 @@ const Index = () => {
           rel="alternate"
         />
       </Helmet>
-      <main>
+      <a className="skip-link" href="#starter-main">
+        {t('home.skipLink')}
+      </a>
+      <header className="starter-header">
         <nav className="language-switcher" aria-label={t('home.language.switcher')}>
           {languageOptions.map((option) => (
             <a
@@ -114,24 +120,32 @@ const Index = () => {
             </a>
           ))}
         </nav>
-        <div className="title">
-          {t('home.title')}
+      </header>
+      <main id="starter-main" className="starter-main">
+        <section className="hero" aria-labelledby="starter-heading">
           <img
             alt={t('home.logoAlt')}
             className="logo"
-            src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/modern-js-logo.svg"
+            height={96}
+            src="/assets/ultramodern-logo.svg"
+            width={96}
           />
-          <p className="name">{t('home.name')}</p>
-        </div>
-        <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
-          {t('home.description.intro')}{' '}
-          <code className="code">presetUltramodern(...)</code>{' '}
-          {t('home.description.afterPreset')}{' '}
-          <code className="code">modern.config.ts</code>{' '}
-          {t('home.description.afterConfig')}{' '}
-          <code className="code">pnpm run ultramodern:check</code>{' '}
-          {t('home.description.end')}
-        </p>
+          <div className="hero-copy">
+            <p className="name">{t('home.name')}</p>
+            <h1 id="starter-heading" className="title">
+              {t('home.title')}
+            </h1>
+            <p className="description{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
+              {t('home.description.intro')}{' '}
+              <code className="code">presetUltramodern(...)</code>{' '}
+              {t('home.description.afterPreset')}{' '}
+              <code className="code">modern.config.ts</code>{' '}
+              {t('home.description.afterConfig')}{' '}
+              <code className="code">pnpm run ultramodern:check</code>{' '}
+              {t('home.description.end')}
+            </p>
+          </div>
+        </section>
 {{#if useEffectBff}}
         <p className="description effect-message{{#if enableTailwind}} text-emerald-700 font-semibold{{/if}}">
           {t('home.bff.response')} <code className="code">{effectMessage}</code>
@@ -146,11 +160,7 @@ const Index = () => {
           >
             <h2>
               {t('home.cards.guide.title')}
-              <img
-                alt=""
-                className="arrow-right"
-                src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-              />
+              <span aria-hidden="true" className="arrow-right" />
             </h2>
             <p>{t('home.cards.guide.body')}</p>
           </a>
@@ -162,11 +172,7 @@ const Index = () => {
           >
             <h2>
               {t('home.cards.config.title')}
-              <img
-                alt=""
-                className="arrow-right"
-                src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-              />
+              <span aria-hidden="true" className="arrow-right" />
             </h2>
             <p>{t('home.cards.config.body')}</p>
           </a>
@@ -178,11 +184,7 @@ const Index = () => {
           >
             <h2>
               {t('home.cards.gates.title')}
-              <img
-                alt=""
-                className="arrow-right"
-                src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-              />
+              <span aria-hidden="true" className="arrow-right" />
             </h2>
             <p>{t('home.cards.gates.body')}</p>
           </a>
@@ -194,11 +196,7 @@ const Index = () => {
           >
             <h2>
               {t('home.cards.bff.title')}
-              <img
-                alt=""
-                className="arrow-right"
-                src="https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/arrow-right.svg"
-              />
+              <span aria-hidden="true" className="arrow-right" />
             </h2>
             <p>{t('home.cards.bff.body')}</p>
           </a>

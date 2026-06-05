@@ -8,6 +8,9 @@ const packageSourcePath = path.resolve(
   process.cwd(),
   '.modernjs/ultramodern-package-source.json',
 );
+const readText = (relativePath) =>
+  fs.readFileSync(path.resolve(process.cwd(), relativePath), 'utf-8');
+const readJson = (relativePath) => JSON.parse(readText(relativePath));
 const readPnpmConfig = (key) => {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -109,6 +112,8 @@ const requiredPaths = [
 {{/if}}
   'config/public/locales/en/translation.json',
   'config/public/locales/cs/translation.json',
+  'config/favicon.svg',
+  'config/public/assets/ultramodern-logo.svg',
   'src/modern-app-env.d.ts',
   'src/routes/index.css',
   'src/routes/layout.tsx',
@@ -241,6 +246,11 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
 const packageSource = JSON.parse(fs.readFileSync(packageSourcePath, 'utf-8'));
+const routePage = readText('src/routes/[lang]/page.tsx');
+const routeCss = readText('src/routes/index.css');
+const modernConfig = readText('modern.config.ts');
+const enLocale = readJson('config/public/locales/en/translation.json');
+const csLocale = readJson('config/public/locales/cs/translation.json');
 const unresolvedTemplateMarker = String.fromCodePoint(123, 123);
 if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
   console.error('package.json contains unresolved template markers');
@@ -249,6 +259,89 @@ if (JSON.stringify(packageJson).includes(unresolvedTemplateMarker)) {
 if (JSON.stringify(packageSource).includes(unresolvedTemplateMarker)) {
   console.error('package source metadata contains unresolved template markers');
   process.exit(1);
+}
+
+for (const [fileName, text] of [
+  ['src/routes/[lang]/page.tsx', routePage],
+  ['src/routes/index.css', routeCss],
+  ['modern.config.ts', modernConfig],
+]) {
+  if (text.includes('lf3-static.bytednsdoc.com')) {
+    console.error(`${fileName} must not depend on remote starter assets`);
+    process.exit(1);
+  }
+}
+
+for (const requiredSnippet of [
+  '<Helmet',
+  'htmlAttributes={{',
+  'dir: languageDirections[currentLanguage]',
+  'lang: currentLanguage',
+  '<title>{pageTitle}</title>',
+  '<meta name="description" content={pageDescription} />',
+  '<main id="starter-main" className="starter-main">',
+  '<h1 id="starter-heading" className="title">',
+  'src="/assets/ultramodern-logo.svg"',
+  'height={96}',
+  'width={96}',
+  '<span aria-hidden="true" className="arrow-right" />',
+]) {
+  if (!routePage.includes(requiredSnippet)) {
+    console.error(`Generated route page must retain starter correctness snippet: ${requiredSnippet}`);
+    process.exit(1);
+  }
+}
+
+for (const forbiddenSnippet of ['src="https://', '<div className="title">']) {
+  if (routePage.includes(forbiddenSnippet)) {
+    console.error(`Generated route page must not contain ${forbiddenSnippet}`);
+    process.exit(1);
+  }
+}
+
+for (const requiredSnippet of [
+  'width=device-width, initial-scale=1.0, viewport-fit=cover',
+  "title: 'UltraModern.js Starter'",
+]) {
+  if (!modernConfig.includes(requiredSnippet)) {
+    console.error(`modern.config.ts must retain ${requiredSnippet}`);
+    process.exit(1);
+  }
+}
+if (modernConfig.includes('user-scalable=no') || modernConfig.includes('maximum-scale')) {
+  console.error('modern.config.ts must not disable user zoom');
+  process.exit(1);
+}
+
+for (const requiredSnippet of [
+  'min-block-size: 100dvh',
+  'grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr))',
+  ':focus-visible',
+  '@media (prefers-reduced-motion: reduce)',
+  '.skip-link',
+]) {
+  if (!routeCss.includes(requiredSnippet)) {
+    console.error(`Starter CSS must retain ${requiredSnippet}`);
+    process.exit(1);
+  }
+}
+if (routeCss.includes('width: 1100px') || /\.card:focus(?!-visible)/u.test(routeCss)) {
+  console.error('Starter CSS must not reintroduce fixed grid width or focus transform styling');
+  process.exit(1);
+}
+
+for (const [localeName, locale] of [
+  ['en', enLocale],
+  ['cs', csLocale],
+]) {
+  if (
+    typeof locale.home?.meta?.title !== 'string' ||
+    typeof locale.home?.meta?.description !== 'string' ||
+    typeof locale.home?.skipLink !== 'string'
+  ) {
+    console.error(`${localeName} locale must include starter metadata and skip-link copy`);
+    process.exit(1);
+  }
 }
 {{#unless isSubproject}}
 const skillsLock = JSON.parse(

@@ -49,6 +49,7 @@ The default app is intentionally monolith-friendly:
 | --- | --- |
 | App routes | Locale-prefixed pages under `src/routes/[lang]` |
 | Copy | English and Czech resources in `config/public/locales` |
+| Web defaults | Local favicon/logo assets, localized metadata, semantic starter markup |
 | Styling | App-local CSS, with Tailwind files only when selected |
 | Server logic | Optional BFF entrypoints under `api/` |
 | Tests | Rstest smoke coverage in `tests/` |
@@ -65,6 +66,11 @@ Start with the generated page and replace the placeholder cards with your first
 real routes, actions, and API calls. Put user-visible text in
 `config/public/locales/<lang>/translation.json`, then render it through
 `react-i18next` or `@modern-js/plugin-i18n/runtime`.
+
+The starter keeps favicon and logo assets local in `config/favicon.svg` and
+`config/public/assets/ultramodern-logo.svg`. Replace those files when your app
+has product branding. The localized page title and description live in the same
+translation resources as the visible UI copy.
 
 Tune the preset in `modern.config.ts`. Production builds require
 `MODERN_PUBLIC_SITE_URL` so canonical and `hreflang` URLs use your deployed

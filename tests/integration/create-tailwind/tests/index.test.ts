@@ -144,6 +144,40 @@ function expectSingleAppContract(appDir: string) {
   const page = readGeneratedPage(appDir);
   expect(page).toContain('@modern-js/plugin-tanstack/runtime');
   expect(page).not.toContain('@modern-js/runtime/tanstack-router');
+  expect(fs.existsSync(path.join(appDir, 'config/favicon.svg'))).toBe(true);
+  expect(
+    fs.existsSync(
+      path.join(appDir, 'config/public/assets/ultramodern-logo.svg'),
+    ),
+  ).toBe(true);
+  expect(page).not.toContain('lf3-static.bytednsdoc.com');
+  expect(page).toContain('<Helmet');
+  expect(page).toContain('htmlAttributes={{');
+  expect(page).toContain('dir: languageDirections[currentLanguage]');
+  expect(page).toContain('lang: currentLanguage');
+  expect(page).toContain('<title>{pageTitle}</title>');
+  expect(page).toContain(
+    '<meta name="description" content={pageDescription} />',
+  );
+  expect(page).toContain('<h1 id="starter-heading" className="title">');
+  expect(page).toContain('src="/assets/ultramodern-logo.svg"');
+  expect(page).toContain('<span aria-hidden="true" className="arrow-right" />');
+  const css = fs.readFileSync(
+    path.join(appDir, 'src/routes/index.css'),
+    'utf-8',
+  );
+  expect(css).toContain('min-block-size: 100dvh');
+  expect(css).toContain(':focus-visible');
+  expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+  expect(css).not.toContain('width: 1100px');
+  const modernConfig = fs.readFileSync(
+    path.join(appDir, 'modern.config.ts'),
+    'utf-8',
+  );
+  expect(modernConfig).toContain(
+    'width=device-width, initial-scale=1.0, viewport-fit=cover',
+  );
+  expect(modernConfig).not.toContain('user-scalable=no');
 }
 
 function runCreate(projectDir: string, args: string[]) {
