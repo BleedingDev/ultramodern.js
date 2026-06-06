@@ -37,6 +37,7 @@ This order is intentional:
 | How do we scaffold shell, remote, and service packages? | `packages/toolkit/create/README.md` and `packages/toolkit/create/template/README.md` |
 | When should we extract a remote or service? | `GOVERNANCE-0001-micro-vertical-extraction-governance.md` |
 | How do we migrate an existing app? | `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md` |
+| How do we migrate generated source checks? | `MIGRATION-PLAYBOOK-0002-ultramodern-shared-checks.md` |
 | How do we certify production readiness? | `OPERATIONS-0001-micro-vertical-certification-and-operations.md` |
 | Which contracts are machine-readable? | `docs/super-app-rfc-adr/contracts/` |
 | Which gates prove the package still works? | `CI-GATES-0001-check-and-artifact-map.md` |
@@ -75,6 +76,7 @@ Run these gates for a generated Tractor workspace:
 
 ```bash
 mise exec -- pnpm install
+mise exec -- pnpm ultramodern:i18n-boundaries
 mise exec -- pnpm ultramodern:check
 mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
