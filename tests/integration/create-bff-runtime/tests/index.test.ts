@@ -6,10 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const ultramodernChecksPackageDir = path.resolve(
-  repoRoot,
-  'packages/toolkit/ultramodern-checks',
-);
+const createPackageDir = path.resolve(repoRoot, 'packages/toolkit/create');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 
 type ExecSyncError = Error & {
@@ -50,7 +47,7 @@ function runCreate(projectDir: string, args: string[]) {
 }
 
 function runGeneratedI18nCheck(appDir: string) {
-  linkWorkspaceUltramodernChecks(appDir);
+  linkWorkspaceCreatePackage(appDir);
   return execFileSync(process.execPath, ['scripts/check-i18n-strings.mjs'], {
     cwd: appDir,
     encoding: 'utf-8',
@@ -58,12 +55,12 @@ function runGeneratedI18nCheck(appDir: string) {
   }).trim();
 }
 
-function linkWorkspaceUltramodernChecks(projectDir: string) {
+function linkWorkspaceCreatePackage(projectDir: string) {
   const scopeDir = path.join(projectDir, 'node_modules/@modern-js');
-  const packageLink = path.join(scopeDir, 'ultramodern-checks');
+  const packageLink = path.join(scopeDir, 'create');
   fs.mkdirSync(scopeDir, { recursive: true });
   if (!fs.existsSync(packageLink)) {
-    fs.symlinkSync(ultramodernChecksPackageDir, packageLink, 'dir');
+    fs.symlinkSync(createPackageDir, packageLink, 'dir');
   }
 }
 

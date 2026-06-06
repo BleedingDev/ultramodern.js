@@ -371,10 +371,10 @@ for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
 
 const i18nCheckScript = readText('scripts/check-i18n-strings.mjs');
 if (
-  !i18nCheckScript.includes("from '@modern-js/ultramodern-checks'") ||
+  !i18nCheckScript.includes("from '@modern-js/create/ultramodern-checks'") ||
   !i18nCheckScript.includes('runSingleAppI18nCheck')
 ) {
-  console.error('i18n:check must call @modern-js/ultramodern-checks');
+  console.error('i18n:check must call @modern-js/create/ultramodern-checks');
   process.exit(1);
 }
 
@@ -582,10 +582,10 @@ for (const section of ['dependencies', 'devDependencies']) {
 }
 
 if (
-  packageJson.devDependencies?.['@modern-js/ultramodern-checks'] !==
-  expectedModernDependency('@modern-js/ultramodern-checks')
+  packageJson.devDependencies?.['@modern-js/create'] !==
+  expectedModernDependency('@modern-js/create')
 ) {
-  console.error('devDependencies.@modern-js/ultramodern-checks must match package source metadata');
+  console.error('devDependencies.@modern-js/create must match package source metadata');
   process.exit(1);
 }
 
@@ -599,7 +599,7 @@ for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next'])
 for (const dependency of [
   '@effect/tsgo',
   '@modern-js/adapter-rstest',
-  '@modern-js/ultramodern-checks',
+  '@modern-js/create',
   '@rstest/core',
   '@typescript/native-preview',
   'happy-dom',

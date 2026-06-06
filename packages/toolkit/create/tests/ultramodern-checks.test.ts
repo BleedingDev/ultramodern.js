@@ -5,7 +5,7 @@ import {
   oxlintPlugin,
   runSingleAppI18nCheck,
   runWorkspaceSourceCheck,
-} from '../src';
+} from '../src/ultramodern-checks';
 
 type CapturedConsole = {
   readonly exitCode: number;
@@ -66,7 +66,7 @@ const captureConsole = (callback: () => number): CapturedConsole => {
 const combinedOutput = ({ errors, logs }: CapturedConsole): string =>
   [...errors, ...logs].join('\n');
 
-describe('@modern-js/ultramodern-checks', () => {
+describe('@modern-js/create/ultramodern-checks', () => {
   const tempRoots: string[] = [];
 
   afterEach(() => {

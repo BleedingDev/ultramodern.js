@@ -758,8 +758,8 @@ function createRootPackageJson(
     },
     devDependencies: {
       '@effect/tsgo': EFFECT_TSGO_VERSION,
-      '@modern-js/ultramodern-checks': modernPackageSpecifier(
-        '@modern-js/ultramodern-checks',
+      '@modern-js/create': modernPackageSpecifier(
+        '@modern-js/create',
         packageSource,
       ),
       '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -5175,7 +5175,7 @@ for (const appDir of appDirs) {
 function createWorkspaceI18nBoundaryValidationScript(): string {
   return `#!/usr/bin/env node
 import path from 'node:path';
-import { runWorkspaceSourceCheck } from '@modern-js/ultramodern-checks';
+import { runWorkspaceSourceCheck } from '@modern-js/create/ultramodern-checks';
 
 const root = path.resolve(import.meta.dirname, '..');
 process.exitCode = runWorkspaceSourceCheck({
@@ -5434,9 +5434,9 @@ const expectedModernDependency = packageName => {
   return typeof alias === 'string' ? \`npm:\${alias}@\${specifier}\` : specifier;
 };
 assert(
-  rootPackage.devDependencies?.['@modern-js/ultramodern-checks'] ===
-    expectedModernDependency('@modern-js/ultramodern-checks'),
-  'Root must depend on @modern-js/ultramodern-checks through package source metadata',
+  rootPackage.devDependencies?.['@modern-js/create'] ===
+    expectedModernDependency('@modern-js/create'),
+  'Root must depend on @modern-js/create through package source metadata',
 );
 if (packageSource.strategy === 'install') {
   const installSpecifier = packageSource.modernPackages?.specifier;
@@ -5454,7 +5454,7 @@ if (packageSource.strategy === 'install') {
       '@modern-js/plugin-i18n',
       '@modern-js/plugin-tanstack',
       '@modern-js/runtime',
-      '@modern-js/ultramodern-checks',
+      '@modern-js/create',
     ]) {
       assert(
         /^@[^/]+\\/.+/.test(modernAliases[modernPackageName] ?? ''),
@@ -5473,9 +5473,9 @@ assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-u
 assert(rootPackage.scripts?.['ultramodern:i18n-boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose ultramodern:i18n-boundaries');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mjs');
 assert(
-  i18nBoundaryScript.includes("from '@modern-js/ultramodern-checks'") &&
+  i18nBoundaryScript.includes("from '@modern-js/create/ultramodern-checks'") &&
     i18nBoundaryScript.includes('runWorkspaceSourceCheck'),
-  'Root i18n boundary script must call @modern-js/ultramodern-checks',
+  'Root i18n boundary script must call @modern-js/create/ultramodern-checks',
 );
 assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
 assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeployScript, 'Root must expose cloudflare:deploy');

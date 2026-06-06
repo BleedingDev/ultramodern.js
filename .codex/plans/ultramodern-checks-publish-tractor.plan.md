@@ -1,15 +1,15 @@
 ---
 name: ultramodern-checks-publish-tractor
-overview: Publish the shared UltraModern checks package in the BleedingDev cohort, migrate Tractor to consume it, and prove the live deployment still works.
+overview: Publish the shared UltraModern checks through the already trusted @modern-js/create package, migrate Tractor to consume it, and prove the live deployment still works.
 todos:
   - id: include-checks-in-publish-cohort
-    content: Add @modern-js/ultramodern-checks to the Modern workspace publish cohort with the @bleedingdev/modern-js-ultramodern-checks alias and a changeset.
+    content: Expose the source-backed shared checks at @modern-js/create/ultramodern-checks, remove the new @modern-js/ultramodern-checks publish identity, and keep a create changeset.
     status: completed
   - id: publish-and-verify-latest
-    content: Publish the next BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, and verify @bleedingdev/modern-js-ultramodern-checks exists for that exact cohort.
+    content: Publish a fresh BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, verify @modern-js/create/ultramodern-checks installs, and verify the removed checks alias is absent from the cohort.
     status: pending
   - id: migrate-tractor-dependency
-    content: Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/ultramodern-checks from the published alias.
+    content: Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/create/ultramodern-checks from the published create alias.
     status: pending
   - id: remove-copied-checkers
     content: Remove copied/generated regex checker logic from Tractor once the shared dependency is wired, keeping only thin wrapper scripts if the public script contract requires them.
@@ -30,7 +30,7 @@ isProject: false
 
 ## Execution Notes
 
-This lane handles `modernjs-0rlh` and unblocks/closes `modernjs-9yiv`. It must run after the Oxlint AST implementation, because publishing the alias before the shared checker is source-backed and semantically correct would lock Tractor onto the wrong behavior.
+This lane handles `modernjs-0rlh` and unblocks/closes `modernjs-9yiv`. It must run after the Oxlint AST implementation, because publishing before the shared checker is source-backed and semantically correct would lock Tractor onto the wrong behavior.
 
 The remembered release rule applies here: every BleedingDev Modern publish must update Tractor to the new latest cohort, rebuild it, deploy/prove Workers when applicable, visually check the live app, then commit and push Tractor before closing the Modern bead.
 

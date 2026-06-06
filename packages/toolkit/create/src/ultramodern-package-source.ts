@@ -6,6 +6,7 @@ export const BLEEDINGDEV_FRAMEWORK_VERSION_ENV =
   'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 
 export const ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES = [
+  '@modern-js/create',
   '@modern-js/runtime',
   '@modern-js/app-tools',
   '@modern-js/tsconfig',
@@ -13,16 +14,15 @@ export const ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES = [
   '@modern-js/plugin-tanstack',
   '@modern-js/plugin-bff',
   '@modern-js/adapter-rstest',
-  '@modern-js/ultramodern-checks',
 ] as const;
 
 export const ULTRAMODERN_WORKSPACE_MODERN_PACKAGES = [
+  '@modern-js/create',
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/plugin-i18n',
   '@modern-js/plugin-tanstack',
   '@modern-js/runtime',
-  '@modern-js/ultramodern-checks',
 ] as const;
 
 export type UltramodernPackageSourceStrategy = 'workspace' | 'install';

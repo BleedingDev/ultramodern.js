@@ -1,6 +1,5 @@
 ---
 '@modern-js/create': patch
-'@modern-js/ultramodern-checks': patch
 ---
 
-Publish the shared UltraModern checks package and make generated apps call it through stable validation wrapper scripts.
+Expose shared UltraModern checks from `@modern-js/create/ultramodern-checks` and make generated apps call that package-owned validation subpath through stable wrapper scripts.

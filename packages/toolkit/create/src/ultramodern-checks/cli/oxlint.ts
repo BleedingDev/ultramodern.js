@@ -40,6 +40,11 @@ const ignoredDirectories = new Set([
   'node_modules',
 ]);
 
+const packageNames = new Set([
+  '@modern-js/create',
+  '@bleedingdev/modern-js-create',
+]);
+
 const resolveExistingPath = (
   candidates: readonly string[],
 ): string | undefined => candidates.find(candidate => fs.existsSync(candidate));
@@ -54,7 +59,7 @@ const findPackageRoot = (): string => {
         const packageJson = JSON.parse(
           fs.readFileSync(packageJsonPath, 'utf-8'),
         );
-        if (packageJson.name === '@modern-js/ultramodern-checks') {
+        if (packageNames.has(packageJson.name)) {
           return directory;
         }
       } catch {
@@ -64,27 +69,28 @@ const findPackageRoot = (): string => {
     directory = path.dirname(directory);
   }
 
-  throw new Error(
-    'Unable to resolve @modern-js/ultramodern-checks package root.',
-  );
+  throw new Error('Unable to resolve @modern-js/create package root.');
 };
 
 const resolvePluginPath = (): string => {
   const root = findPackageRoot();
-  const sourcePluginPath = path.join(root, 'src/oxlint-plugin.ts');
+  const sourcePluginPath = path.join(
+    root,
+    'src/ultramodern-checks/oxlint-plugin.ts',
+  );
   const pluginPath = resolveExistingPath([
-    path.join(root, 'dist/esm-node/oxlint-plugin.mjs'),
-    path.join(root, 'dist/esm-node/oxlint-plugin.js'),
-    path.join(root, 'dist/esm/oxlint-plugin.mjs'),
-    path.join(root, 'dist/esm/oxlint-plugin.js'),
-    path.join(root, 'dist/cjs/oxlint-plugin.js'),
-    path.join(root, 'dist/cjs/oxlint-plugin.cjs'),
+    path.join(root, 'dist/esm-node/ultramodern-checks/oxlint-plugin.mjs'),
+    path.join(root, 'dist/esm-node/ultramodern-checks/oxlint-plugin.js'),
+    path.join(root, 'dist/esm/ultramodern-checks/oxlint-plugin.mjs'),
+    path.join(root, 'dist/esm/ultramodern-checks/oxlint-plugin.js'),
+    path.join(root, 'dist/cjs/ultramodern-checks/oxlint-plugin.js'),
+    path.join(root, 'dist/cjs/ultramodern-checks/oxlint-plugin.cjs'),
     sourcePluginPath,
   ]);
 
   if (!pluginPath) {
     throw new Error(
-      'Unable to resolve @modern-js/ultramodern-checks Oxlint plugin.',
+      'Unable to resolve @modern-js/create UltraModern Oxlint plugin.',
     );
   }
 

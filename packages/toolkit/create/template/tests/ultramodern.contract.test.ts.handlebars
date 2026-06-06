@@ -129,10 +129,10 @@ describe('generated UltraModern contract', () => {
       packageJson.devDependencies?.['@modern-js/adapter-rstest'],
     ).toBeTruthy();
     expect(
-      packageJson.devDependencies?.['@modern-js/ultramodern-checks'],
+      packageJson.devDependencies?.['@modern-js/create'],
     ).toBeTruthy();
     expect(readText('scripts/check-i18n-strings.mjs')).toContain(
-      "from '@modern-js/ultramodern-checks'",
+      "from '@modern-js/create/ultramodern-checks'",
     );
     expect(packageJson.scripts?.format).toBe('oxfmt .');
     expect(packageJson.scripts?.['format:check']).toBe('oxfmt --check .');

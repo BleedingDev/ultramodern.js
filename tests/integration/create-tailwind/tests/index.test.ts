@@ -12,12 +12,12 @@ const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 const expectedBleedingDevAliases = {
   '@modern-js/adapter-rstest': '@bleedingdev/modern-js-adapter-rstest',
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+  '@modern-js/create': '@bleedingdev/modern-js-create',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
   '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
-  '@modern-js/ultramodern-checks': '@bleedingdev/modern-js-ultramodern-checks',
 };
 
 function expectNoHandlebarsArtifacts(content: string) {
@@ -172,9 +172,7 @@ function expectSingleAppContract(appDir: string) {
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
-  expect(
-    packageJson.devDependencies['@modern-js/ultramodern-checks'],
-  ).toBeDefined();
+  expect(packageJson.devDependencies['@modern-js/create']).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
   expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
@@ -185,7 +183,7 @@ function expectSingleAppContract(appDir: string) {
       path.join(appDir, 'scripts/check-i18n-strings.mjs'),
       'utf-8',
     ),
-  ).toContain("from '@modern-js/ultramodern-checks'");
+  ).toContain("from '@modern-js/create/ultramodern-checks'");
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {
@@ -551,8 +549,8 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies['@modern-js/adapter-rstest']).toBe(
       'npm:@bleedingdev/modern-js-adapter-rstest@3.2.0-ultramodern.5',
     );
-    expect(packageJson.devDependencies['@modern-js/ultramodern-checks']).toBe(
-      'npm:@bleedingdev/modern-js-ultramodern-checks@3.2.0-ultramodern.5',
+    expect(packageJson.devDependencies['@modern-js/create']).toBe(
+      'npm:@bleedingdev/modern-js-create@3.2.0-ultramodern.5',
     );
 
     const packageSource = JSON.parse(

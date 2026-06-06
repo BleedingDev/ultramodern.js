@@ -3,7 +3,7 @@ name: ultramodern-i18n-oxlint-rule
 overview: Replace generated regex i18n scanning with a source-backed Oxlint AST rule and shared runner that can be published and reused by generated apps and Tractor.
 todos:
   - id: audit-checks-package-shape
-    content: Audit packages/toolkit/ultramodern-checks and remove reliance on ignored dist-only artifacts; ensure the package has tracked source, package metadata, build scripts, and publish config.
+    content: Audit the UltraModern checks implementation and remove reliance on ignored dist-only artifacts; ensure the owning published surface has tracked source, package metadata, build scripts, and publish config.
     status: completed
   - id: define-rule-contract
     content: Define the exact AST rule contract for hardcoded JSX text, visible literal attributes, ignore comments, technical-token attributes, and TypeScript generic/effect helper non-regressions.
@@ -27,9 +27,9 @@ isProject: false
 
 ## Execution Notes
 
-Yes: `modernjs-9rcl` is the Oxlint AST scanner work. The wrapper may remain named `scripts/check-i18n-strings.mjs`, but the scanner must stop parsing TSX with regex. The owning implementation should live in a publishable `@modern-js/ultramodern-checks` package, not copied into generated apps.
+Yes: `modernjs-9rcl` is the Oxlint AST scanner work. The wrapper may remain named `scripts/check-i18n-strings.mjs`, but the scanner must stop parsing TSX with regex. The owning implementation should live in a framework-owned published subpath (`@modern-js/create/ultramodern-checks` in the BleedingDev recovery path), not copied into generated apps.
 
-The first task is deliberately a prefactor. The current checkout has `packages/toolkit/ultramodern-checks` with ignored `dist/` and `node_modules/` artifacts, so an implementation agent must first make the package source-backed and publishable before adding rule logic.
+The first task is deliberately a prefactor. The old standalone checks directory had ignored `dist/` and `node_modules/` artifacts, so the implementation had to make the checker source-backed and publishable before adding rule logic. The publish recovery path now hosts that source-backed checker under the already trusted create package.
 
 ## Constraints
 

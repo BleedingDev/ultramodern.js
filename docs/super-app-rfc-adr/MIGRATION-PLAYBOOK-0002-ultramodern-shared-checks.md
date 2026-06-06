@@ -2,20 +2,20 @@
 
 - Status: Proposed
 - Date: 2026-06-06
-- Related Package: `@modern-js/ultramodern-checks`
+- Related Package: `@modern-js/create/ultramodern-checks`
 - Related Gate: `pnpm ultramodern:i18n-boundaries`
 - Related Playbook: `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
 
 ## 1. Purpose
 
 This playbook upgrades generated UltraModern.js repositories from copied source
-guardrail scripts to the shared `@modern-js/ultramodern-checks` package.
+guardrail scripts to the shared `@modern-js/create/ultramodern-checks`
+subpath.
 
 The immediate trigger is the Tractor reference workspace. Its source already
-passes the shared Oxlint-backed checks, but install-strategy repositories cannot
-complete the dependency migration until the matching
-`@bleedingdev/modern-js-ultramodern-checks` alias is published in the same
-UltraModern cohort as the rest of the Modern packages.
+passes the shared Oxlint-backed checks, but install-strategy repositories need
+the matching `@bleedingdev/modern-js-create` package from the same UltraModern
+cohort as the rest of the Modern packages.
 
 ## 2. Preconditions
 
@@ -24,9 +24,8 @@ UltraModern cohort as the rest of the Modern packages.
 3. Do not remove Oxlint, oxfmt, or Ultracite from subprojects.
 4. Do not depend on `repos/` reference checkouts. They are agent reference
    material, not application source.
-5. For install-strategy repositories, publish the checks package alias before
-   changing `package.json`:
-   `@bleedingdev/modern-js-ultramodern-checks@<cohort>`.
+5. For install-strategy repositories, publish the create package alias before
+   changing `package.json`: `@bleedingdev/modern-js-create@<cohort>`.
 6. For workspace-strategy repositories generated from a local Modern.js
    monorepo, use `workspace:*`.
 
@@ -36,7 +35,7 @@ The shared workspace source check was run against both local Tractor workspace
 copies:
 
 ```bash
-node /Users/satan/side/experiments/modernjs/packages/toolkit/ultramodern-checks/dist/esm-node/cli/workspace-source-check.js
+node /Users/satan/side/experiments/modernjs/packages/toolkit/create/dist/esm-node/ultramodern-checks/cli/workspace-source-check.js
 ```
 
 Run from:
@@ -45,8 +44,8 @@ Run from:
 2. `/Users/satan/side/experiments/tractor-store-vertical-demo`
 
 Both runs exited `0`. This proves the Tractor source passes the AST-based shared
-rules. It does not prove npm installability until the checks package alias is
-published.
+rules. It does not prove npm installability until the create package alias is
+published with the `./ultramodern-checks` export.
 
 ## 4. Workspace Migration
 
@@ -54,7 +53,7 @@ Use this for Tractor-style SuperApp workspaces.
 
 ### Package Source
 
-Add `@modern-js/ultramodern-checks` to
+Add `@modern-js/create` to
 `.modernjs/ultramodern-package-source.json`.
 
 For install strategy:
@@ -68,11 +67,11 @@ For install strategy:
       "@modern-js/plugin-i18n",
       "@modern-js/plugin-tanstack",
       "@modern-js/runtime",
-      "@modern-js/ultramodern-checks"
+      "@modern-js/create"
     ],
     "specifier": "<cohort>",
     "aliases": {
-      "@modern-js/ultramodern-checks": "@bleedingdev/modern-js-ultramodern-checks"
+      "@modern-js/create": "@bleedingdev/modern-js-create"
     }
   }
 }
@@ -95,7 +94,7 @@ Add the root devDependency using the package source strategy:
 ```json
 {
   "devDependencies": {
-    "@modern-js/ultramodern-checks": "npm:@bleedingdev/modern-js-ultramodern-checks@<cohort>"
+    "@modern-js/create": "npm:@bleedingdev/modern-js-create@<cohort>"
   }
 }
 ```
@@ -105,7 +104,7 @@ For workspace strategy:
 ```json
 {
   "devDependencies": {
-    "@modern-js/ultramodern-checks": "workspace:*"
+    "@modern-js/create": "workspace:*"
   }
 }
 ```
@@ -128,7 +127,7 @@ Create `scripts/check-ultramodern-i18n-boundaries.mjs`:
 
 ```js
 #!/usr/bin/env node
-import { runWorkspaceSourceCheck } from '@modern-js/ultramodern-checks';
+import { runWorkspaceSourceCheck } from '@modern-js/create/ultramodern-checks';
 
 process.exitCode = runWorkspaceSourceCheck({ cwd: process.cwd() });
 ```
@@ -141,10 +140,10 @@ requires:
 1. `scripts/check-ultramodern-i18n-boundaries.mjs` in `requiredPaths`.
 2. `rootPackage.scripts['ultramodern:i18n-boundaries']` equals
    `node ./scripts/check-ultramodern-i18n-boundaries.mjs`.
-3. `rootPackage.devDependencies['@modern-js/ultramodern-checks']` equals
-   `expectedModernPackageSpecifier('@modern-js/ultramodern-checks')`.
+3. `rootPackage.devDependencies['@modern-js/create']` equals
+   `expectedModernPackageSpecifier('@modern-js/create')`.
 4. install-strategy package-source aliases include
-   `@modern-js/ultramodern-checks`.
+   `@modern-js/create`.
 
 ## 5. Single-App Migration
 
@@ -155,7 +154,7 @@ replace `scripts/check-i18n-strings.mjs` with:
 
 ```js
 #!/usr/bin/env node
-import { runSingleAppI18nCheck } from '@modern-js/ultramodern-checks';
+import { runSingleAppI18nCheck } from '@modern-js/create/ultramodern-checks';
 
 process.exitCode = runSingleAppI18nCheck({ cwd: process.cwd() });
 ```
@@ -192,9 +191,10 @@ pnpm i18n:check
 pnpm ultramodern:check
 ```
 
-If install fails because `@bleedingdev/modern-js-ultramodern-checks` is missing,
-stop and publish the matching UltraModern cohort. Do not replace the dependency
-with a local `file:` or `link:` dependency in a shared repository.
+If install fails because `@bleedingdev/modern-js-create` is missing or does not
+export `./ultramodern-checks`, stop and publish the matching UltraModern cohort.
+Do not replace the dependency with a local `file:` or `link:` dependency in a
+shared repository.
 
 ## 7. Rule Semantics
 
@@ -218,7 +218,7 @@ boundary IDs.
 A migrated repository is done when:
 
 1. the generated app or workspace imports checks from
-   `@modern-js/ultramodern-checks`.
+   `@modern-js/create/ultramodern-checks`.
 2. no copied regex i18n scanner remains.
 3. package-source metadata, root dependencies, wrapper scripts, and generated
    validators agree.

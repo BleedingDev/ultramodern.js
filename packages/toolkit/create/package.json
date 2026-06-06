@@ -20,13 +20,52 @@
     "node": ">=20"
   },
   "version": "3.2.1",
-  "types": "./src/index.ts",
-  "main": "./dist/index.js",
+  "types": "./dist/types/index.d.ts",
+  "main": "./dist/esm-node/index.js",
   "bin": {
     "create": "./bin/run.js"
   },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts"
+      ],
+      "ultramodern-checks": [
+        "./dist/types/ultramodern-checks/index.d.ts"
+      ],
+      "ultramodern-checks/oxlint-plugin": [
+        "./dist/types/ultramodern-checks/oxlint-plugin.d.ts"
+      ]
+    }
+  },
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "modern:source": "./src/index.ts",
+        "import": "./dist/esm-node/index.js",
+        "require": "./dist/cjs/index.cjs"
+      },
+      "default": "./dist/esm-node/index.js"
+    },
+    "./ultramodern-checks": {
+      "types": "./dist/types/ultramodern-checks/index.d.ts",
+      "node": {
+        "modern:source": "./src/ultramodern-checks/index.ts",
+        "import": "./dist/esm-node/ultramodern-checks/index.js",
+        "require": "./dist/cjs/ultramodern-checks/index.cjs"
+      },
+      "default": "./dist/esm-node/ultramodern-checks/index.js"
+    },
+    "./ultramodern-checks/oxlint-plugin": {
+      "types": "./dist/types/ultramodern-checks/oxlint-plugin.d.ts",
+      "node": {
+        "modern:source": "./src/ultramodern-checks/oxlint-plugin.ts",
+        "import": "./dist/esm-node/ultramodern-checks/oxlint-plugin.js",
+        "require": "./dist/cjs/ultramodern-checks/oxlint-plugin.cjs"
+      },
+      "default": "./dist/esm-node/ultramodern-checks/oxlint-plugin.js"
+    }
   },
   "files": [
     "template",
@@ -35,23 +74,54 @@
     "bin.js"
   ],
   "scripts": {
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
-    "dev": "rslib build -w",
-    "start": "node ./dist/index.js"
+    "build": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\"",
+    "dev": "rslib build -c rslibconfig.mts -w",
+    "start": "node ./dist/esm-node/index.js",
+    "test": "rm -rf dist && rslib build -c rslibconfig.mts && rstest --passWithNoTests"
+  },
+  "dependencies": {
+    "oxlint": "1.68.0"
   },
   "devDependencies": {
     "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.21.5",
+    "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.1",
     "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "tsx": "^4.22.3"
   },
   "publishConfig": {
-    "main": "./dist/index.js",
+    "main": "./dist/esm-node/index.js",
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "types": "./dist/types/index.d.ts"
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/types/index.d.ts",
+        "node": {
+          "import": "./dist/esm-node/index.js",
+          "require": "./dist/cjs/index.cjs"
+        },
+        "default": "./dist/esm-node/index.js"
+      },
+      "./ultramodern-checks": {
+        "types": "./dist/types/ultramodern-checks/index.d.ts",
+        "node": {
+          "import": "./dist/esm-node/ultramodern-checks/index.js",
+          "require": "./dist/cjs/ultramodern-checks/index.cjs"
+        },
+        "default": "./dist/esm-node/ultramodern-checks/index.js"
+      },
+      "./ultramodern-checks/oxlint-plugin": {
+        "types": "./dist/types/ultramodern-checks/oxlint-plugin.d.ts",
+        "node": {
+          "import": "./dist/esm-node/ultramodern-checks/oxlint-plugin.js",
+          "require": "./dist/cjs/ultramodern-checks/oxlint-plugin.cjs"
+        },
+        "default": "./dist/esm-node/ultramodern-checks/oxlint-plugin.js"
+      }
+    }
   },
   "modern:source": "./src/index.ts"
 }

@@ -5,19 +5,16 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const ultramodernChecksPackageDir = path.resolve(
-  repoRoot,
-  'packages/toolkit/ultramodern-checks',
-);
+const createPackageDir = path.resolve(repoRoot, 'packages/toolkit/create');
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 const bleedingDevAliases = {
+  '@modern-js/create': '@bleedingdev/modern-js-create',
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
   '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-  '@modern-js/ultramodern-checks': '@bleedingdev/modern-js-ultramodern-checks',
 };
 
 function expectedBleedingDevSpecifier(
@@ -96,12 +93,12 @@ function writeText(root: string, relativePath: string, content: string) {
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-function linkWorkspaceUltramodernChecks(projectDir: string) {
+function linkWorkspaceCreatePackage(projectDir: string) {
   const scopeDir = path.join(projectDir, 'node_modules/@modern-js');
-  const packageLink = path.join(scopeDir, 'ultramodern-checks');
+  const packageLink = path.join(scopeDir, 'create');
   fs.mkdirSync(scopeDir, { recursive: true });
   if (!fs.existsSync(packageLink)) {
-    fs.symlinkSync(ultramodernChecksPackageDir, packageLink, 'dir');
+    fs.symlinkSync(createPackageDir, packageLink, 'dir');
   }
 }
 
@@ -529,9 +526,7 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.14.0',
-      '@modern-js/ultramodern-checks': expectedBleedingDevSpecifier(
-        '@modern-js/ultramodern-checks',
-      ),
+      '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
       '@typescript/native-preview': '7.0.0-dev.20260606.1',
       lefthook: '^2.1.9',
       oxlint: '1.68.0',
@@ -943,7 +938,7 @@ describe('create-ultramodern-workspace', () => {
         'data-mf-boundary=',
       ),
     );
-    linkWorkspaceUltramodernChecks(workspaceDir);
+    linkWorkspaceCreatePackage(workspaceDir);
     try {
       execFileSync(
         process.execPath,
@@ -1347,7 +1342,7 @@ process.exit(1);
       strategy: 'install',
       config: './.modernjs/ultramodern-package-source.json',
     });
-    expect(rootPackage.devDependencies['@modern-js/ultramodern-checks']).toBe(
+    expect(rootPackage.devDependencies['@modern-js/create']).toBe(
       '3.2.0-ultramodern.0',
     );
 
@@ -1440,13 +1435,12 @@ process.exit(1);
       '.modernjs/ultramodern-package-source.json',
     );
     expect(packageSource.modernPackages.aliases).toMatchObject({
+      '@modern-js/create': '@bleedingdev/modern-js-create',
       '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
       '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
       '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
       '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
       '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-      '@modern-js/ultramodern-checks':
-        '@bleedingdev/modern-js-ultramodern-checks',
     });
 
     const shellPackage = readJson(
@@ -1466,8 +1460,8 @@ process.exit(1);
       'npm:@bleedingdev/modern-js-app-tools@3.2.0-ultramodern.0',
     );
     const rootPackage = readJson(workspaceDir, 'package.json');
-    expect(rootPackage.devDependencies['@modern-js/ultramodern-checks']).toBe(
-      'npm:@bleedingdev/modern-js-ultramodern-checks@3.2.0-ultramodern.0',
+    expect(rootPackage.devDependencies['@modern-js/create']).toBe(
+      'npm:@bleedingdev/modern-js-create@3.2.0-ultramodern.0',
     );
 
     const validationOutput = execFileSync(

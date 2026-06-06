@@ -98,9 +98,25 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+function supportsTrustAllowPublishFlag() {
+  const result = spawnSync('npm', ['trust', 'github', '--help'], {
+    cwd: repoRoot,
+    encoding: 'utf-8',
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+    },
+  });
+
+  return `${result.stdout ?? ''}\n${result.stderr ?? ''}`.includes(
+    '--allow-publish',
+  );
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const manifest = readManifest(options.manifest);
+  const includeAllowPublish = supportsTrustAllowPublishFlag();
   const packages = manifest.packages
     .map(item => item.targetName)
     .filter(Boolean)
@@ -123,6 +139,9 @@ function main() {
       options.file,
     ];
 
+    if (includeAllowPublish) {
+      args.push('--allow-publish');
+    }
     if (options.environment) {
       args.push('--env', options.environment);
     }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-06T14:31:17.721969+00:00",
+  "generated_at": "2026-06-06T15:01:56.177587+00:00",
   "graph_id": "ultramodern-checks-publish-tractor-plus-2-plans-c82ffdb30b",
   "plan_set_hash": "98df7870dd",
   "selection_hash": "c82ffdb30b",
@@ -27,23 +27,23 @@
       "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-checks-publish-tractor.plan.md",
       "slug": "ultramodern-checks-publish-tractor",
       "name": "ultramodern-checks-publish-tractor",
-      "overview": "Publish the shared UltraModern checks package in the BleedingDev cohort, migrate Tractor to consume it, and prove the live deployment still works.",
+      "overview": "Publish the shared UltraModern checks through the already trusted @modern-js/create package, migrate Tractor to consume it, and prove the live deployment still works.",
       "todos": [
         {
           "id": "include-checks-in-publish-cohort",
-          "content": "Add @modern-js/ultramodern-checks to the Modern workspace publish cohort with the @bleedingdev/modern-js-ultramodern-checks alias and a changeset.",
+          "content": "Expose the source-backed shared checks at @modern-js/create/ultramodern-checks, remove the new @modern-js/ultramodern-checks publish identity, and keep a create changeset.",
           "status": "completed",
           "ordinal": 1
         },
         {
           "id": "publish-and-verify-latest",
-          "content": "Publish the next BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, and verify @bleedingdev/modern-js-ultramodern-checks exists for that exact cohort.",
+          "content": "Publish a fresh BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, verify @modern-js/create/ultramodern-checks installs, and verify the removed checks alias is absent from the cohort.",
           "status": "pending",
           "ordinal": 2
         },
         {
           "id": "migrate-tractor-dependency",
-          "content": "Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/ultramodern-checks from the published alias.",
+          "content": "Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/create/ultramodern-checks from the published create alias.",
           "status": "pending",
           "ordinal": 3
         },
@@ -84,7 +84,7 @@
       "todos": [
         {
           "id": "audit-checks-package-shape",
-          "content": "Audit packages/toolkit/ultramodern-checks and remove reliance on ignored dist-only artifacts; ensure the package has tracked source, package metadata, build scripts, and publish config.",
+          "content": "Audit the UltraModern checks implementation and remove reliance on ignored dist-only artifacts; ensure the owning published surface has tracked source, package metadata, build scripts, and publish config.",
           "status": "completed",
           "ordinal": 1
         },
@@ -164,7 +164,7 @@
       "active": [
         {
           "id": "publish-and-verify-latest",
-          "content": "Publish the next BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, and verify @bleedingdev/modern-js-ultramodern-checks exists for that exact cohort.",
+          "content": "Publish a fresh BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, verify @modern-js/create/ultramodern-checks installs, and verify the removed checks alias is absent from the cohort.",
           "status": "pending",
           "ordinal": 2
         }
@@ -172,7 +172,7 @@
       "upcoming": [
         {
           "id": "migrate-tractor-dependency",
-          "content": "Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/ultramodern-checks from the published alias.",
+          "content": "Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/create/ultramodern-checks from the published create alias.",
           "status": "pending",
           "ordinal": 3
         },
@@ -181,6 +181,18 @@
           "content": "Remove copied/generated regex checker logic from Tractor once the shared dependency is wired, keeping only thin wrapper scripts if the public script contract requires them.",
           "status": "pending",
           "ordinal": 4
+        },
+        {
+          "id": "validate-tractor",
+          "content": "Run Tractor install, ultramodern:i18n-boundaries, ultramodern:check, pnpm check, build, and cloudflare:build with the pinned repo pnpm.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "deploy-and-prove-tractor",
+          "content": "Deploy Tractor Workers, prove public CSS/style output and package cohort, capture visual/browser evidence, then commit and push Tractor.",
+          "status": "pending",
+          "ordinal": 6
         }
       ],
       "completed": 1,
