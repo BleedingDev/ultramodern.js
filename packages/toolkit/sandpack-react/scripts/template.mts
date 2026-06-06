@@ -129,9 +129,29 @@ async function handleCodesandboxTemplate() {
   return files;
 }
 
+function resolvePackageRoot(entryPath: string, packageName: string): string {
+  let directory = path.dirname(entryPath);
+
+  while (directory !== path.dirname(directory)) {
+    const packageJsonPath = path.join(directory, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      if (packageJson.name === packageName) {
+        return directory;
+      }
+    }
+    directory = path.dirname(directory);
+  }
+
+  throw new Error(`Unable to resolve package root for ${packageName}.`);
+}
+
 async function handleCreateTemplate() {
   const createPackageMainPath = require.resolve('@modern-js/create');
-  const createPackagePath = path.dirname(path.dirname(createPackageMainPath));
+  const createPackagePath = resolvePackageRoot(
+    createPackageMainPath,
+    '@modern-js/create',
+  );
   const createPackageJsonPath = path.join(createPackagePath, 'package.json');
 
   const templateDir = path.join(createPackagePath, 'template');
