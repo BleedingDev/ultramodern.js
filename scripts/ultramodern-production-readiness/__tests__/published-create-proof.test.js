@@ -1,9 +1,17 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
 async function loadProof() {
   return import('../run-published-create-proof.mjs');
+}
+
+function writeJson(root, relativePath, value) {
+  const filePath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 test('defines ERP scale profiles for 10, 25, and 50 verticals', async () => {
@@ -74,6 +82,63 @@ test('parses scale profile and legacy custom vertical count requests', async () 
     () => parseArgs(['--scale-profile', 'erp-25', '--vertical-count', '10']),
     /does not match --scale-profile erp-25/,
   );
+});
+
+test('asserts generated cohorts from package source metadata and framework version', async () => {
+  const { assertGeneratedCohort } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'published-create-cohort-'),
+  );
+
+  try {
+    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+      schemaVersion: 1,
+      strategy: 'install',
+      modernPackages: {
+        packages: ['@modern-js/runtime'],
+        specifier: '3.2.0-framework.1',
+        aliases: {
+          '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+        },
+      },
+    });
+    writeJson(root, '.modernjs/mv-template-manifest.json', {
+      template: {
+        version: '3.2.0-create.1',
+      },
+    });
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime':
+          'npm:@bleedingdev/modern-js-runtime@3.2.0-framework.1',
+      },
+    });
+
+    assert.doesNotThrow(() =>
+      assertGeneratedCohort(root, '3.2.0-framework.1', {
+        expectedTemplateVersion: '3.2.0-create.1',
+      }),
+    );
+
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime':
+          'npm:@bleedingdev/modern-js-runtime@3.2.0-framework.1',
+        '@modern-js/app-tools':
+          'npm:@bleedingdev/modern-js-app-tools@3.2.0-framework.1',
+      },
+    });
+
+    assert.throws(
+      () =>
+        assertGeneratedCohort(root, '3.2.0-framework.1', {
+          expectedTemplateVersion: '3.2.0-create.1',
+        }),
+      /declares @modern-js\/app-tools outside package source metadata/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('summarizes topology and generated contract evidence', async () => {

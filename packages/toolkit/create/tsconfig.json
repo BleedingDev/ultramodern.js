@@ -3,10 +3,9 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "isolatedModules": true,
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
     "paths": {},
     "rootDir": "./src"
   },

@@ -4,13 +4,8 @@ const path = require('node:path');
 
 const EXPECTED_TANSTACK_ROUTER = '1.170.8';
 const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
-const MODERN_PACKAGES = [
-  '@modern-js/app-tools',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-];
+const MISSING_PACKAGE_SOURCE_DECLARATION =
+  '<missing from package source metadata>';
 const DEPRECATED_TANSTACK_MARKERS = [
   '@modern-js/runtime/tanstack-router',
   'tanstackRouter',
@@ -131,9 +126,12 @@ function readPackageSource(workspace) {
       strategy: 'workspace',
       modernPackageSpecifier: WORKSPACE_PACKAGE_VERSION,
       file: undefined,
+      packages: [],
+      hasModernPackagesList: false,
     };
   }
   const packageSource = readJson(packageSourceFile);
+  const packages = packageSource.modernPackages?.packages;
   return {
     strategy: packageSource.strategy,
     modernPackageSpecifier:
@@ -141,12 +139,17 @@ function readPackageSource(workspace) {
         ? packageSource.modernPackages?.specifier
         : WORKSPACE_PACKAGE_VERSION,
     file: relative(workspace, packageSourceFile),
-    packages: packageSource.modernPackages?.packages || [],
+    packages: Array.isArray(packages) ? packages : [],
+    hasModernPackagesList: Array.isArray(packages),
     aliases: packageSource.modernPackages?.aliases || {},
   };
 }
 
 function expectedModernDependency(packageSource, packageName) {
+  if (packageSource.file && !packageSource.packages.includes(packageName)) {
+    return MISSING_PACKAGE_SOURCE_DECLARATION;
+  }
+
   const specifier =
     packageSource.modernPackageSpecifier || WORKSPACE_PACKAGE_VERSION;
   const alias = packageSource.aliases?.[packageName];
@@ -229,18 +232,22 @@ function checkPackageSource(workspace) {
     checks.push(
       createCheck(
         'package-source-modern-packages',
-        MODERN_PACKAGES.every(packageName =>
-          packageSource.packages.includes(packageName),
-        ),
+        packageSource.hasModernPackagesList &&
+          packageSource.packages.length > 0 &&
+          packageSource.packages.every(
+            packageName =>
+              typeof packageName === 'string' &&
+              packageName.startsWith('@modern-js/'),
+          ),
         {
           file: packageSource.file,
           path: 'modernPackages.packages',
           message:
-            'Package source lists all Modern runtime/tooling packages used by the workspace.',
-          expected: MODERN_PACKAGES,
+            'Package source declares the Modern runtime/tooling package cohort consumed by the doctor.',
+          expected: 'non-empty @modern-js package list',
           actual: packageSource.packages,
           suggestion:
-            'Include app-tools, runtime, plugin-bff, plugin-i18n, and plugin-tanstack in modernPackages.packages.',
+            'Keep modernPackages.packages aligned with generated package.json Modern dependencies.',
         },
       ),
     );

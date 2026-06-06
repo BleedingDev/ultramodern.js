@@ -2,6 +2,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createModernPackagesMetadata,
+  modernAliasPackageName,
+  modernPackageSpecifier,
+  modernPackageVersion,
+  type ResolvedUltramodernPackageSource,
+  ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+  type UltramodernPackageSourceStrategy,
+  WORKSPACE_PACKAGE_VERSION,
+} from './ultramodern-package-source';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workspaceTemplateDir = path.resolve(
@@ -30,7 +40,6 @@ const REACT_VERSION = '^19.2.6';
 const REACT_DOM_VERSION = '^19.2.6';
 const REACT_ROUTER_DOM_VERSION = '7.16.0';
 const PNPM_VERSION = '11.5.0';
-const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
 const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
@@ -54,14 +63,6 @@ const privateAgentSkills = [
 ];
 const effectTsgoTypecheckCommand =
   "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"";
-const modernPackageNames = [
-  '@modern-js/app-tools',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-];
-
 type JsonValue =
   | string
   | number
@@ -108,15 +109,7 @@ type WorkspaceEffectApi = {
   consumedBy: string[];
 };
 
-type UltramodernPackageSourceStrategy = 'workspace' | 'install';
-
-type ResolvedPackageSource = {
-  strategy: UltramodernPackageSourceStrategy;
-  modernPackageVersion: string;
-  registry?: string;
-  aliasScope?: string;
-  aliasPackageNamePrefix?: string;
-};
+type ResolvedPackageSource = ResolvedUltramodernPackageSource;
 
 type Ownership = {
   team: string;
@@ -579,42 +572,6 @@ function resolvePackageSource(
     aliasScope: options.packageSource?.aliasScope,
     aliasPackageNamePrefix: options.packageSource?.aliasPackageNamePrefix,
   };
-}
-
-function modernPackageVersion(packageSource: ResolvedPackageSource): string {
-  return packageSource.strategy === 'install'
-    ? packageSource.modernPackageVersion
-    : WORKSPACE_PACKAGE_VERSION;
-}
-
-function modernAliasPackageName(
-  packageName: string,
-  packageSource: ResolvedPackageSource,
-): string {
-  if (!packageSource.aliasScope) {
-    return packageName;
-  }
-
-  const scope = packageSource.aliasScope.replace(/^@/, '');
-  const unscopedName = packageName.split('/').at(-1);
-  return `@${scope}/${packageSource.aliasPackageNamePrefix ?? ''}${unscopedName}`;
-}
-
-function modernPackageSpecifier(
-  packageName: string,
-  packageSource: ResolvedPackageSource,
-): string {
-  if (packageSource.strategy !== 'install') {
-    return WORKSPACE_PACKAGE_VERSION;
-  }
-
-  if (!packageSource.aliasScope) {
-    return packageSource.modernPackageVersion;
-  }
-
-  return `npm:${modernAliasPackageName(packageName, packageSource)}@${
-    packageSource.modernPackageVersion
-  }`;
 }
 
 function appDependencies(
@@ -4565,33 +4522,13 @@ function createPackageSourceMetadata(
   scope: string,
   packageSource: ResolvedPackageSource,
 ): JsonValue {
-  const modernPackages: {
-    packages: string[];
-    specifier: string;
-    registry?: string;
-    aliases?: Record<string, string>;
-  } = {
-    packages: modernPackageNames,
-    specifier: modernPackageVersion(packageSource),
-  };
-
-  if (packageSource.registry) {
-    modernPackages.registry = packageSource.registry;
-  }
-
-  if (packageSource.aliasScope) {
-    modernPackages.aliases = Object.fromEntries(
-      modernPackageNames.map(packageName => [
-        packageName,
-        modernAliasPackageName(packageName, packageSource),
-      ]),
-    );
-  }
-
   return {
     schemaVersion: 1,
     strategy: packageSource.strategy,
-    modernPackages,
+    modernPackages: createModernPackagesMetadata(
+      ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+      packageSource,
+    ),
     generatedWorkspacePackages: {
       packages: sharedPackages.map(sharedPackage =>
         packageName(scope, sharedPackage.id),

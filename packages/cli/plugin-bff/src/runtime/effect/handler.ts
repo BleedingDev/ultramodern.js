@@ -26,7 +26,6 @@ import {
   validateSelectionPlan,
 } from '../data-platform';
 
-export * as OpenTelemetry from '@effect/opentelemetry';
 export * as Config from 'effect/Config';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';

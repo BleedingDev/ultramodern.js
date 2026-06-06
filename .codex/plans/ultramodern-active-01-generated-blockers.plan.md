@@ -4,19 +4,19 @@ overview: Remove the current blockers to fresh UltraModern generated-app validat
 todos:
   - id: consolidate-generated-package-policy
     content: "Map package-source, generated dependency, and proof-script policy across packages/toolkit/create/src/ultramodern-workspace.ts, packages/toolkit/create/src/index.ts, packages/toolkit/create/template/package.json.handlebars, packages/toolkit/create/template-workspace, and scripts/ultramodern-production-readiness/run-published-create-proof.mjs; extract or reuse a single policy source where it removes drift, and delete duplicate constants or assertions instead of adding another special case."
-    status: pending
+    status: completed
   - id: make-effect-tsgo-primary
     content: "Fix modernjs-zum6 by making tsgo/effect-tsgo the create-package source of truth: remove tsconfig options rejected by the active native checker, align @effect/tsgo versions where required, and avoid legacy TypeScript 6 compatibility shims, suppressions, or fallback check paths."
-    status: pending
+    status: completed
   - id: align-install-backed-cohort
     content: "Fix modernjs-3z51 by making install-backed single-app and workspace generation use a published, installable BleedingDev cohort consistently in generated manifests, dependency specifiers, package-source metadata, and published-create proof expectations."
-    status: pending
+    status: completed
   - id: settle-effect-dependency-contract
     content: "Fix modernjs-zhaq by tracing generated Effect BFF imports through @modern-js/plugin-bff/effect-* and the plugin-bff package boundary; add a direct generated effect dependency only if generated app packages own that runtime import, keep the version aligned with framework policy, and validate both single-app and workspace output."
-    status: pending
+    status: completed
   - id: fix-shell-mf-browser-smoke
     content: "Fix modernjs-41je.1 by reproducing the shell-super-app page errors from remoteEntry.js and the runtimeContext ReferenceError, then landing the fix in the Modern MF/runtime/template owner rather than browser-smoke suppressions, generated-app shims, custom navigation wrappers, or demo-local patches."
-    status: pending
+    status: completed
   - id: run-blocker-gates
     content: "Run the targeted blocker gates: pnpm validate:tsgo; node --test scripts/ultramodern-production-readiness/__tests__/browser-smoke.test.js scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js; node --test scripts/ultramodern-publish/__tests__/source-create-proof.test.js scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js; and the focused create/BFF/MF integration suites touched by the fixes."
     status: pending
@@ -28,6 +28,7 @@ isProject: false
 ## Execution Notes
 
 Beads issues: `modernjs-3z51`, `modernjs-zhaq`, `modernjs-zum6`, `modernjs-41je.1`.
+Follow-up Bead: `modernjs-9kxf` tracks the broader `pnpm validate:tsgo` critical-list failures found while running the blocker gates.
 
 This lane exists to make the generated-validation lane boring. Do not start by widening generated proof scripts or relaxing validators. First remove policy drift: package-source mapping currently appears in generator code, CLI code, templates, and proof scripts; checker policy is also split between root scripts, create package config, and generated template scripts.
 

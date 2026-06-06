@@ -7,6 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { i18n, localeKeys } from './locale';
 import {
+  createModernPackagesMetadata,
+  modernPackageSpecifier,
+  type ResolvedUltramodernPackageSource,
+  ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
+  WORKSPACE_PACKAGE_VERSION,
+} from './ultramodern-package-source';
+import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
   ULTRAMODERN_WORKSPACE_FLAG,
@@ -17,13 +24,7 @@ const templateDir = path.resolve(__dirname, '..', 'template');
 type RouterFramework = 'react-router' | 'tanstack';
 type BffRuntime = 'none' | 'hono' | 'effect';
 type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
-type UltramodernPackageSource = {
-  strategy: 'workspace' | 'install';
-  modernPackageVersion: string;
-  registry?: string;
-  aliasScope?: string;
-  aliasPackageNamePrefix?: string;
-};
+type UltramodernPackageSource = ResolvedUltramodernPackageSource;
 type CreatePackageJson = {
   name?: string;
   version?: string;
@@ -930,15 +931,17 @@ function detectUltramodernPackageSource(
     );
     process.exit(1);
   }
+  const packageSourceStrategy =
+    strategy as UltramodernPackageSource['strategy'];
   return {
-    strategy,
+    strategy: packageSourceStrategy,
     modernPackageVersion:
       getOptionValue(args, ['--ultramodern-package-version']) ??
       defaultPackageVersion,
     registry: getOptionValue(args, ['--ultramodern-package-registry']),
     aliasScope:
       getOptionValue(args, ['--ultramodern-package-scope']) ??
-      (bleedingDevDefaults && strategy === 'install'
+      (bleedingDevDefaults && packageSourceStrategy === 'install'
         ? 'bleedingdev'
         : undefined),
     aliasPackageNamePrefix:
@@ -947,17 +950,21 @@ function detectUltramodernPackageSource(
   };
 }
 
-function modernAliasPackageName(
-  packageName: string,
+function singleAppInstallPackageSource(
   packageSource: UltramodernPackageSource,
-): string {
-  if (!packageSource.aliasScope) {
-    return packageName;
+): UltramodernPackageSource {
+  if (packageSource.strategy === 'install') {
+    return packageSource;
   }
 
-  const scope = packageSource.aliasScope.replace(/^@/, '');
-  const unscopedName = packageName.split('/').at(-1);
-  return `@${scope}/${packageSource.aliasPackageNamePrefix ?? ''}${unscopedName}`;
+  return {
+    strategy: 'install',
+    modernPackageVersion: packageSource.modernPackageVersion,
+    ...(packageSource.registry ? { registry: packageSource.registry } : {}),
+    ...(packageSource.aliasPackageNamePrefix
+      ? { aliasPackageNamePrefix: packageSource.aliasPackageNamePrefix }
+      : {}),
+  };
 }
 
 function singleAppModernPackageSpecifier(
@@ -966,56 +973,38 @@ function singleAppModernPackageSpecifier(
   useWorkspaceProtocol: boolean,
 ): string {
   if (useWorkspaceProtocol) {
-    return 'workspace:*';
+    return WORKSPACE_PACKAGE_VERSION;
   }
 
-  if (packageSource.strategy !== 'install' || !packageSource.aliasScope) {
-    return packageSource.modernPackageVersion;
-  }
-
-  return `npm:${modernAliasPackageName(packageName, packageSource)}@${
-    packageSource.modernPackageVersion
-  }`;
+  return modernPackageSpecifier(
+    packageName,
+    singleAppInstallPackageSource(packageSource),
+  );
 }
-
-const singleAppModernPackages = [
-  '@modern-js/runtime',
-  '@modern-js/app-tools',
-  '@modern-js/tsconfig',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/plugin-bff',
-  '@modern-js/adapter-rstest',
-];
 
 function createSingleAppPackageSourceEvidence(
   packageSource: UltramodernPackageSource,
   useWorkspaceProtocol: boolean,
 ) {
-  const strategy = useWorkspaceProtocol ? 'workspace' : 'install';
-  const specifier = useWorkspaceProtocol
-    ? 'workspace:*'
-    : packageSource.modernPackageVersion;
-  const aliases =
-    strategy === 'install' && packageSource.aliasScope
-      ? Object.fromEntries(
-          singleAppModernPackages.map(packageName => [
-            packageName,
-            modernAliasPackageName(packageName, packageSource),
-          ]),
-        )
-      : undefined;
+  const resolvedPackageSource: UltramodernPackageSource = useWorkspaceProtocol
+    ? {
+        ...packageSource,
+        strategy: 'workspace',
+        modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
+      }
+    : singleAppInstallPackageSource(packageSource);
 
   return {
     schemaVersion: 1,
     preset: 'presetUltramodern',
-    strategy,
-    modernPackages: {
-      specifier,
-      packages: singleAppModernPackages,
-      ...(packageSource.registry ? { registry: packageSource.registry } : {}),
-      ...(aliases ? { aliases } : {}),
-    },
+    strategy: resolvedPackageSource.strategy,
+    modernPackages: createModernPackagesMetadata(
+      ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
+      resolvedPackageSource,
+      {
+        includeAliases: resolvedPackageSource.strategy === 'install',
+      },
+    ),
   };
 }
 

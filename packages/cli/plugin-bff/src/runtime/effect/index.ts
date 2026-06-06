@@ -1,3 +1,4 @@
+export * as OpenTelemetry from '@effect/opentelemetry';
 export {
   type CreateEffectOperationContextOptions,
   createEffectOperationContext,

@@ -457,6 +457,60 @@ test('accepts an install-backed UltraModern package source strategy', () => {
   }
 });
 
+test('uses package source metadata as the Modern package cohort contract', () => {
+  const root = createWorkspace();
+  try {
+    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+      schemaVersion: 1,
+      strategy: 'workspace',
+      modernPackages: {
+        packages: [
+          '@modern-js/app-tools',
+          '@modern-js/plugin-bff',
+          '@modern-js/plugin-i18n',
+          '@modern-js/plugin-tanstack',
+        ],
+        specifier: 'workspace:*',
+      },
+      generatedWorkspacePackages: {
+        packages: ['@test/shared-contracts'],
+        specifier: 'workspace:*',
+      },
+    });
+    writeJson(root, 'package.json', {
+      modernjs: {
+        preset: 'presetUltramodern',
+        packageSource: {
+          strategy: 'workspace',
+          config: './.modernjs/ultramodern-package-source.json',
+        },
+      },
+    });
+
+    const result = runUltramodernContractDoctor({ workspace: root });
+
+    assert.equal(result.status, 'fail');
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'package-source-modern-packages' &&
+          check.status === 'pass',
+      ),
+    );
+    assert.ok(
+      result.checks.some(
+        check =>
+          check.id === 'modern-runtime-shell-super-app' &&
+          check.status === 'fail' &&
+          check.expected === '<missing from package source metadata>' &&
+          check.actual === 'workspace:*',
+      ),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects root package source strategy drift', () => {
   const root = createWorkspace();
   try {

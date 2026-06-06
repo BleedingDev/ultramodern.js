@@ -27,6 +27,14 @@ function expectWorkspaceModernVersions(packageJson: {
   });
 }
 
+function expectNoDirectEffectDependency(packageJson: {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}) {
+  expect(packageJson.dependencies?.effect).toBeUndefined();
+  expect(packageJson.devDependencies?.effect).toBeUndefined();
+}
+
 function readGeneratedPage(appDir: string) {
   return fs.readFileSync(
     path.join(appDir, 'src/routes/[lang]/page.tsx'),
@@ -106,6 +114,7 @@ function expectSingleAppContract(appDir: string) {
     ),
   );
   expect(packageJson.private).toBe(true);
+  expectNoDirectEffectDependency(packageJson);
   expect(packageJson.packageManager).toBe(`pnpm@${expectedPnpmVersion}`);
   expect(packageJson.engines.pnpm).toBe(`>=${expectedPnpmVersion} <11.6.0`);
   expect(fs.existsSync(path.join(appDir, '.mise.toml'))).toBe(true);

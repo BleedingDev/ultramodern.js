@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   createEffectBffEdgeHandler,
   dispatchEffectBffRequest,
@@ -244,5 +247,115 @@ describe('effect edge runtime', () => {
     const edgeRuntime = await import('../src/runtime/effect/edge');
     expect('useEffectContext' in edgeRuntime).toBe(false);
     expect('useOperationContext' in edgeRuntime).toBe(false);
+  });
+
+  test('worker consumer builds through plugin-bff without a direct effect dependency', async () => {
+    const { createRsbuild } = await import('@rsbuild/core');
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-edge-consumer-'),
+    );
+
+    try {
+      const srcDir = path.join(appDir, 'src');
+      await fs.promises.mkdir(srcDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify(
+          {
+            private: true,
+            name: 'effect-edge-consumer-no-direct-effect',
+            dependencies: {
+              '@modern-js/plugin-bff': 'workspace:*',
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      await fs.promises.writeFile(
+        path.join(srcDir, 'worker.ts'),
+        `import {
+  createEffectBffEdgeHandler,
+  defineEffectBff,
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+} from '@modern-js/plugin-bff/effect-edge';
+
+const api = HttpApi.make('GeneratedEdgeApi').add(
+  HttpApiGroup.make('status').add(
+    HttpApiEndpoint.get('readiness', '/effect/readiness', {
+      success: Schema.Struct({
+        ok: Schema.Boolean,
+      }),
+    }),
+  ),
+);
+
+const statusLayer = HttpApiBuilder.group(api, 'status', handlers =>
+  handlers.handle('readiness', () => Effect.succeed({ ok: true })),
+);
+const layer = HttpApiBuilder.layer(api).pipe(Layer.provide(statusLayer));
+const module = defineEffectBff({ api, layer });
+
+export default {
+  async fetch(request: Request) {
+    const edge = await createEffectBffEdgeHandler({
+      module,
+      prefix: '/api',
+    });
+    return edge.handler(request);
+  },
+};
+`,
+      );
+
+      const appPackageJson = JSON.parse(
+        await fs.promises.readFile(path.join(appDir, 'package.json'), 'utf8'),
+      );
+      expect(appPackageJson.dependencies).not.toHaveProperty('effect');
+      await expect(
+        fs.promises.stat(path.join(appDir, 'node_modules', 'effect')),
+      ).rejects.toThrow();
+
+      const rsbuild = await createRsbuild({
+        cwd: appDir,
+        rsbuildConfig: {
+          source: {
+            entry: {
+              worker: path.join(srcDir, 'worker.ts'),
+            },
+          },
+          output: {
+            distPath: {
+              root: path.join(appDir, 'dist'),
+            },
+            target: 'web-worker',
+          },
+          performance: {
+            chunkSplit: {
+              strategy: 'all-in-one',
+            },
+          },
+          tools: {
+            bundlerChain: chain => {
+              chain.resolve.alias.set(
+                '@modern-js/plugin-bff/effect-edge$',
+                path.resolve(__dirname, '../src/runtime/effect/edge.ts'),
+              );
+            },
+            htmlPlugin: false,
+          },
+        },
+      });
+
+      await expect(rsbuild.build()).resolves.toBeDefined();
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
   });
 });

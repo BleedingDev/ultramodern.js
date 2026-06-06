@@ -51,3 +51,20 @@ Conflict hotspots:
 | blocker-mf-smoke-map | `019e9a80-1706-7c61-a59a-f54875ffb126` Erdos | read-only | shell MF browser smoke failure | completed | Repro map returned: shell-only page errors from remoteEntry consume runtime; all vertical standalone checks pass; fresh run must confirm whether `runtimeContext` is still live. |
 | generated-proof-map | `019e9a80-2c04-7f92-8db8-afec276fcb1f` Goodall | read-only | generated proof commands/artifacts | completed | Proof matrix returned: keep `41je` open until four blockers close; clear stale artifacts; archive source/browser/cloudflare/published evidence; add separate no-JS SSR proof. |
 | tractor-cleanup-map | `019e9a80-41ba-7da2-a0ea-a55ae853c68d` McClintock | read-only | Tractor demo cleanup | completed | Cleanup sequence returned: wait for generated proof; clear stale artifacts; refresh exact cohort; remove shims/CSS/boundary/i18n hacks only when framework proof is green; return failures to Modern.js. |
+
+## Wave 2
+
+Public surfaces are complete and committed in `f90d5527ba`; `ultramodern-active-01-generated-blockers` is now ready.
+
+| Lane | Agent | Mode | Scope | Status | Next action |
+| --- | --- | --- | --- | --- | --- |
+| generated-policy-writer | `019e9a8f-1db5-7a52-b03d-b52606dfc379` Copernicus | write-capable | create package-source policy, generated validators/proofs/doctor only | completed | Integrated shared package-source policy helper; proofs/doctor/generated validators now consume `.modernjs/ultramodern-package-source.json`, and published-create proof uses `ultramodern.frameworkVersion`. |
+| create-tsgo-writer | `019e9a8f-4549-7bb2-8c14-4d14d7d59abc` Descartes | write-capable | `packages/toolkit/create/tsconfig.json` and minimal create-package tsgo gate only | completed | Removed `baseUrl` and switched create package `moduleResolution` to `Bundler`; native checker reaches source diagnostics with no TS5102/TS5108. |
+| plugin-bff-effect-writer | `019e9a8f-67c1-7c82-aee4-ab4c092d402b` Anscombe | write-capable | `packages/cli/plugin-bff/**` only | completed | Moved OpenTelemetry off the edge export path; added plugin-bff worker consumer regression and generated negative assertions for no direct `effect` dependency. |
+| mf-smoke-verifier | `019e9a8f-8441-7f70-aa5f-fc5360efffc7` Rawls | verification-only | smoke artifacts and MF/runtime evidence only | completed | Fresh 10-vertical browser smoke passed with no shell page errors or `runtimeContext`; archived failure is stale and likely fixed by prior per-app Rspack runtime identity work. |
+
+## Gate Notes
+
+Targeted gates passed for the integrated blocker fixes: Biome on edited files, create build, create Tailwind and UltraModern workspace integration suites, proof/doctor/publish unit suites, plugin-bff tests, browser-smoke unit tests, and `git diff --check`.
+
+`pnpm validate:tsgo` still fails in the broader critical list across plugin-bff, plugin-tanstack, plugin-runtime, and generated superapp fixtures. This is filed as `modernjs-9kxf` and blocks the full `run-blocker-gates` todo.

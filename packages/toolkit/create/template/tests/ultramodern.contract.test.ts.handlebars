@@ -89,6 +89,7 @@ describe('generated UltraModern contract', () => {
       modernjs?: {
         packageSource?: {
           config?: string;
+          strategy?: string;
         };
         preset?: string;
       };
@@ -105,15 +106,20 @@ describe('generated UltraModern contract', () => {
     expect(packageJson.modernjs?.packageSource?.config).toBe(
       './.modernjs/ultramodern-package-source.json',
     );
+    expect(packageJson.modernjs?.packageSource?.strategy).toBe(
+      packageSource.strategy,
+    );
     expect(packageSource.strategy).toMatch(/^(workspace|install)$/u);
-    expect(packageSource.modernPackages?.packages).toContain(
-      '@modern-js/runtime',
-    );
-    expect(packageSource.modernPackages?.packages).toContain(
-      '@modern-js/app-tools',
-    );
-    expect(packageSource.modernPackages?.packages).toContain(
-      '@modern-js/adapter-rstest',
+    const generatedModernDependencies = [
+      ...new Set(
+        (['dependencies', 'devDependencies'] as const).flatMap(section =>
+          Object.keys(packageJson[section] ?? {}),
+        ),
+      ),
+    ].filter(packageName => packageName.startsWith('@modern-js/'));
+    expect(packageSource.modernPackages?.packages?.length).toBeGreaterThan(0);
+    expect(packageSource.modernPackages?.packages).toEqual(
+      expect.arrayContaining(generatedModernDependencies),
     );
     expect(packageSource.modernPackages?.specifier).toBeTruthy();
     expect(

@@ -46,22 +46,6 @@ const scaleProfiles = Object.freeze({
     verticalCount: 50,
   }),
 });
-const modernPackages = [
-  '@modern-js/app-tools',
-  '@modern-js/adapter-rstest',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-  '@modern-js/tsconfig',
-];
-const workspaceModernPackages = [
-  '@modern-js/app-tools',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-];
 
 function parseArgs(argv) {
   const options = {
@@ -494,15 +478,29 @@ function skippedTiming(reason) {
 
 function resolveCreatePackage(specifier) {
   const packageName = packageNameFromSpecifier(specifier);
-  const version = JSON.parse(
-    run('npm', ['view', specifier, 'version', '--json'], { stdio: 'pipe' }),
+  const packageMetadata = JSON.parse(
+    run('npm', ['view', specifier, '--json'], { stdio: 'pipe' }),
   );
+  const version = packageMetadata.version;
   if (typeof version !== 'string' || version.length === 0) {
     throw new Error(`Could not resolve npm version for ${specifier}`);
+  }
+  const frameworkVersion = packageMetadata.ultramodern?.frameworkVersion;
+  if (
+    packageName === '@bleedingdev/modern-js-create' &&
+    (typeof frameworkVersion !== 'string' || frameworkVersion.length === 0)
+  ) {
+    throw new Error(
+      `${packageName}@${version} must declare ultramodern.frameworkVersion`,
+    );
   }
   return {
     packageName,
     version,
+    frameworkVersion:
+      typeof frameworkVersion === 'string' && frameworkVersion.length > 0
+        ? frameworkVersion
+        : version,
     exactSpecifier: `${packageName}@${version}`,
   };
 }
@@ -513,6 +511,41 @@ function bleedingdevAlias(modernPackageName) {
 
 function expectedSpecifier(modernPackageName, version) {
   return `npm:${bleedingdevAlias(modernPackageName)}@${version}`;
+}
+
+function generatedModernPackages(packageSource, errors) {
+  const packageNames = packageSource.modernPackages?.packages;
+  if (!Array.isArray(packageNames) || packageNames.length === 0) {
+    errors.push('package source Modern package cohort is missing');
+    return [];
+  }
+
+  const invalidPackageNames = packageNames.filter(
+    packageName =>
+      typeof packageName !== 'string' || !packageName.startsWith('@modern-js/'),
+  );
+  if (invalidPackageNames.length > 0) {
+    errors.push(
+      `package source Modern package cohort contains invalid entries: ${invalidPackageNames.join(
+        ', ',
+      )}`,
+    );
+  }
+
+  return packageNames.filter(
+    packageName =>
+      typeof packageName === 'string' && packageName.startsWith('@modern-js/'),
+  );
+}
+
+function modernDependencyNames(packageJson) {
+  return [
+    ...new Set(
+      ['dependencies', 'devDependencies']
+        .flatMap(section => Object.keys(packageJson[section] ?? {}))
+        .filter(packageName => packageName.startsWith('@modern-js/')),
+    ),
+  ];
 }
 
 function packageJsonFiles(root) {
@@ -537,33 +570,35 @@ function packageJsonFiles(root) {
 
 function assertGeneratedCohort(
   projectDir,
-  expectedVersion,
-  { manifestPath, modernPackageNames, workspaceManifest = false } = {
-    manifestPath: '.modernjs/mv-template-manifest.json',
-    modernPackageNames: modernPackages,
-    workspaceManifest: false,
-  },
+  expectedFrameworkVersion,
+  {
+    expectedTemplateVersion = expectedFrameworkVersion,
+    manifestPath = '.modernjs/mv-template-manifest.json',
+    workspaceManifest = false,
+  } = {},
 ) {
   const errors = [];
   const packageSource = readJson(
     path.join(projectDir, '.modernjs/ultramodern-package-source.json'),
   );
   const manifest = readJson(path.join(projectDir, manifestPath));
+  const modernPackageNames = generatedModernPackages(packageSource, errors);
+  const modernPackageNameSet = new Set(modernPackageNames);
 
   if (packageSource.strategy !== 'install') {
     errors.push(`package source strategy is ${packageSource.strategy}`);
   }
-  if (packageSource.modernPackages?.specifier !== expectedVersion) {
+  if (packageSource.modernPackages?.specifier !== expectedFrameworkVersion) {
     errors.push(
       `package source specifier is ${packageSource.modernPackages?.specifier}`,
     );
   }
-  if (manifest.template?.version !== expectedVersion) {
+  if (manifest.template?.version !== expectedTemplateVersion) {
     errors.push(`template version is ${manifest.template?.version}`);
   }
   if (
     workspaceManifest &&
-    manifest.packageSource?.modernPackageSpecifier !== expectedVersion
+    manifest.packageSource?.modernPackageSpecifier !== expectedFrameworkVersion
   ) {
     errors.push(
       `manifest package specifier is ${manifest.packageSource?.modernPackageSpecifier}`,
@@ -581,10 +616,20 @@ function assertGeneratedCohort(
   for (const packageJsonPath of packageJsonFiles(projectDir)) {
     const relative = path.relative(projectDir, packageJsonPath);
     const packageJson = readJson(packageJsonPath);
+    for (const modernPackageName of modernDependencyNames(packageJson)) {
+      if (!modernPackageNameSet.has(modernPackageName)) {
+        errors.push(
+          `${relative} declares ${modernPackageName} outside package source metadata`,
+        );
+      }
+    }
     for (const section of ['dependencies', 'devDependencies']) {
       for (const modernPackageName of modernPackageNames) {
         const actual = packageJson[section]?.[modernPackageName];
-        const expected = expectedSpecifier(modernPackageName, expectedVersion);
+        const expected = expectedSpecifier(
+          modernPackageName,
+          expectedFrameworkVersion,
+        );
         if (actual !== undefined && actual !== expected) {
           errors.push(
             `${relative} ${section}.${modernPackageName} is ${actual}`,
@@ -846,9 +891,9 @@ async function main() {
       createSingleApp(workDir, options.singleAppProjectName, createPackage),
     );
     timedStep(summary, 'singleAppCohortAssertion', () =>
-      assertGeneratedCohort(singleAppDir, createPackage.version, {
+      assertGeneratedCohort(singleAppDir, createPackage.frameworkVersion, {
+        expectedTemplateVersion: createPackage.version,
         manifestPath: '.modernjs/mv-template-manifest.json',
-        modernPackageNames: modernPackages,
       }),
     );
     summary.checks.push('single-app-published-cohort-alignment');
@@ -882,22 +927,22 @@ async function main() {
         summary,
         'sharedVersionAssertion',
         () => {
-          assertGeneratedCohort(projectDir, createPackage.version, {
+          assertGeneratedCohort(projectDir, createPackage.frameworkVersion, {
+            expectedTemplateVersion: createPackage.version,
             manifestPath:
               '.modernjs/ultramodern-workspace-template-manifest.json',
-            modernPackageNames: workspaceModernPackages,
             workspaceManifest: true,
           });
           return {
             status: 'pass',
-            expectedVersion: createPackage.version,
+            expectedVersion: createPackage.frameworkVersion,
           };
         },
       );
     } catch (error) {
       packageCohortAssertion = {
         status: 'fail',
-        expectedVersion: createPackage.version,
+        expectedVersion: createPackage.frameworkVersion,
         error: error instanceof Error ? error.message : String(error),
       };
       summary.topologyEvidence = readGeneratedTopologyEvidence(
@@ -1007,8 +1052,10 @@ if (
 }
 
 export {
+  assertGeneratedCohort,
   createTopologyEvidence,
   generateVerticalNames,
   parseArgs,
+  resolveCreatePackage,
   scaleProfiles,
 };

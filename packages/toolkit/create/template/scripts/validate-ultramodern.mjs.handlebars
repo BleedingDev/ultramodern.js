@@ -481,6 +481,11 @@ if (
   process.exit(1);
 }
 
+if (packageJson.modernjs?.packageSource?.strategy !== packageSource.strategy) {
+  console.error('package.json package source strategy must match package source metadata');
+  process.exit(1);
+}
+
 if (packageSource.schemaVersion !== 1) {
   console.error('Package source metadata must use schemaVersion 1');
   process.exit(1);
@@ -496,21 +501,33 @@ if (packageSource.strategy !== 'workspace' && packageSource.strategy !== 'instal
   process.exit(1);
 }
 
-const expectedModernPackages = [
-  '@modern-js/runtime',
-  '@modern-js/app-tools',
-  '@modern-js/tsconfig',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/plugin-bff',
-  '@modern-js/adapter-rstest',
-];
+const declaredModernPackages = packageSource.modernPackages?.packages;
+if (!Array.isArray(declaredModernPackages) || declaredModernPackages.length === 0) {
+  console.error('Package source metadata must declare the generated Modern package cohort');
+  process.exit(1);
+}
 
-for (const packageName of expectedModernPackages) {
-  if (!packageSource.modernPackages?.packages?.includes(packageName)) {
-    console.error(`Package source metadata must include ${packageName}`);
-    process.exit(1);
-  }
+const invalidModernPackages = declaredModernPackages.filter(
+  (packageName) => typeof packageName !== 'string' || !packageName.startsWith('@modern-js/'),
+);
+if (invalidModernPackages.length > 0) {
+  console.error(`Package source metadata contains invalid Modern packages: ${invalidModernPackages.join(', ')}`);
+  process.exit(1);
+}
+
+const packageJsonModernDependencies = [
+  ...new Set(
+    ['dependencies', 'devDependencies']
+      .flatMap((section) => Object.keys(packageJson[section] ?? {}))
+      .filter((packageName) => packageName.startsWith('@modern-js/')),
+  ),
+];
+const missingMetadataPackages = packageJsonModernDependencies.filter(
+  (packageName) => !declaredModernPackages.includes(packageName),
+);
+if (missingMetadataPackages.length > 0) {
+  console.error(`Package source metadata must include package.json Modern dependencies: ${missingMetadataPackages.join(', ')}`);
+  process.exit(1);
 }
 
 const expectedModernSpecifier = packageSource.modernPackages?.specifier;
@@ -535,32 +552,15 @@ const expectedModernDependency = (packageName) => {
     : expectedModernSpecifier;
 };
 
-for (const packageName of [
-  '@modern-js/runtime',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-]) {
-  if (
-    packageJson.dependencies?.[packageName] &&
-    packageJson.dependencies[packageName] !== expectedModernDependency(packageName)
-  ) {
-    console.error(`Dependency ${packageName} must match package source metadata`);
-    process.exit(1);
-  }
-}
-
-for (const packageName of [
-  '@modern-js/app-tools',
-  '@modern-js/adapter-rstest',
-  '@modern-js/tsconfig',
-  '@modern-js/plugin-bff',
-]) {
-  if (
-    packageJson.devDependencies?.[packageName] &&
-    packageJson.devDependencies[packageName] !== expectedModernDependency(packageName)
-  ) {
-    console.error(`Dev dependency ${packageName} must match package source metadata`);
-    process.exit(1);
+for (const section of ['dependencies', 'devDependencies']) {
+  for (const packageName of declaredModernPackages) {
+    if (
+      packageJson[section]?.[packageName] &&
+      packageJson[section][packageName] !== expectedModernDependency(packageName)
+    ) {
+      console.error(`${section}.${packageName} must match package source metadata`);
+      process.exit(1);
+    }
   }
 }
 

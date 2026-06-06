@@ -109,6 +109,14 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'onlyBuiltDependencies')).toBeUndefined();
 }
 
+function expectNoDirectEffectDependency(packageJson: {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}) {
+  expect(packageJson.dependencies?.effect).toBeUndefined();
+  expect(packageJson.devDependencies?.effect).toBeUndefined();
+}
+
 function readGeneratedContract(workspaceDir: string) {
   return readJson<{
     cssFederation: Record<string, any>;
@@ -521,6 +529,7 @@ describe('create-ultramodern-workspace', () => {
 
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
+      expectNoDirectEffectDependency(packageJson);
       expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
         'workspace:*',
       );
@@ -918,6 +927,7 @@ process.exit(1);
       workspaceDir,
       'verticals/catalog/package.json',
     );
+    expectNoDirectEffectDependency(remotePackage);
     expect(remotePackage.scripts).toMatchObject({
       dev: 'modern dev',
       build:
