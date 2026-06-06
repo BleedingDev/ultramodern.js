@@ -97,12 +97,12 @@ const requiredPaths = [
   '.github/renovate.json',
   '.github/workflows/ultramodern-gates.yml',
   'lefthook.yml',
-  'oxlint.config.ts',
-  'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
 {{/unless}}
   '.mise.toml',
   '.modernjs/ultramodern-package-source.json',
+  'oxlint.config.ts',
+  'oxfmt.config.ts',
   'pnpm-workspace.yaml',
   'rstest.config.mts',
   'scripts/check-i18n-strings.mjs',
@@ -349,14 +349,12 @@ const skillsLock = JSON.parse(
 );
 {{/unless}}
 const requiredScripts = {
-{{#unless isSubproject}}
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
-{{/unless}}
   'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
-{{#unless isSubproject}}
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
+{{#unless isSubproject}}
   postinstall: 'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
@@ -371,6 +369,15 @@ for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
   }
 }
 
+const i18nCheckScript = readText('scripts/check-i18n-strings.mjs');
+if (
+  !i18nCheckScript.includes("from '@modern-js/ultramodern-checks'") ||
+  !i18nCheckScript.includes('runSingleAppI18nCheck')
+) {
+  console.error('i18n:check must call @modern-js/ultramodern-checks');
+  process.exit(1);
+}
+
 if (
   !packageJson.scripts?.typecheck?.includes('effect-tsgo') ||
   !packageJson.scripts.typecheck.includes('get-exe-path')
@@ -379,8 +386,10 @@ if (
   process.exit(1);
 }
 
-if (!packageJson.scripts?.['ultramodern:check']?.includes('pnpm test')) {
-  console.error('ultramodern:check must run the generated Rstest suite');
+const expectedUltramodernCheck =
+  'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs';
+if (packageJson.scripts?.['ultramodern:check'] !== expectedUltramodernCheck) {
+  console.error('ultramodern:check must run format, lint, typecheck, i18n, tests, and contract validation');
   process.exit(1);
 }
 
@@ -572,6 +581,14 @@ for (const section of ['dependencies', 'devDependencies']) {
   }
 }
 
+if (
+  packageJson.devDependencies?.['@modern-js/ultramodern-checks'] !==
+  expectedModernDependency('@modern-js/ultramodern-checks')
+) {
+  console.error('devDependencies.@modern-js/ultramodern-checks must match package source metadata');
+  process.exit(1);
+}
+
 for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next']) {
   if (!packageJson.dependencies?.[dependency]) {
     console.error(`Missing dependency: ${dependency}`);
@@ -582,6 +599,7 @@ for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next'])
 for (const dependency of [
   '@effect/tsgo',
   '@modern-js/adapter-rstest',
+  '@modern-js/ultramodern-checks',
   '@rstest/core',
   '@typescript/native-preview',
   'happy-dom',
@@ -590,11 +608,11 @@ for (const dependency of [
   'postcss',
   'tailwindcss',
 {{/if}}
-{{#unless isSubproject}}
-  'lefthook',
   'oxlint',
   'oxfmt',
   'ultracite',
+{{#unless isSubproject}}
+  'lefthook',
 {{/unless}}
 ]) {
   if (!packageJson.devDependencies?.[dependency]) {

@@ -6,9 +6,14 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.103';
+const ultramodernChecksPackageDir = path.resolve(
+  repoRoot,
+  'packages/toolkit/ultramodern-checks',
+);
+const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 
 type ExecSyncError = Error & {
+  stdout?: Buffer | string;
   stderr?: Buffer | string;
 };
 
@@ -45,11 +50,21 @@ function runCreate(projectDir: string, args: string[]) {
 }
 
 function runGeneratedI18nCheck(appDir: string) {
+  linkWorkspaceUltramodernChecks(appDir);
   return execFileSync(process.execPath, ['scripts/check-i18n-strings.mjs'], {
     cwd: appDir,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
+}
+
+function linkWorkspaceUltramodernChecks(projectDir: string) {
+  const scopeDir = path.join(projectDir, 'node_modules/@modern-js');
+  const packageLink = path.join(scopeDir, 'ultramodern-checks');
+  fs.mkdirSync(scopeDir, { recursive: true });
+  if (!fs.existsSync(packageLink)) {
+    fs.symlinkSync(ultramodernChecksPackageDir, packageLink, 'dir');
+  }
 }
 
 describe('create-bff-runtime', () => {
@@ -167,11 +182,15 @@ describe('create-bff-runtime', () => {
       throw new Error('Expected generated i18n checker to fail');
     } catch (error) {
       const execError = error as ExecSyncError;
+      const stdout =
+        typeof execError.stdout === 'string'
+          ? execError.stdout
+          : execError.stdout?.toString() || '';
       const stderr =
         typeof execError.stderr === 'string'
           ? execError.stderr
           : execError.stderr?.toString() || '';
-      expect(stderr).toContain('Visible hardcoded copy');
+      expect(`${stdout}\n${stderr}`).toContain('Visible hardcoded copy');
     }
 
     const tsConfig = fs.readFileSync(

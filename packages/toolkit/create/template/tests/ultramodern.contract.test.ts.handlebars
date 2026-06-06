@@ -15,6 +15,8 @@ describe('generated UltraModern contract', () => {
     );
     expect(fs.existsSync(path.join(root, 'src/routes/page.tsx'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'src/routes/layout.tsx'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'oxlint.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'oxfmt.config.ts'))).toBe(true);
 {{#if enableTailwind}}
     expect(fs.existsSync(path.join(root, 'postcss.config.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'tailwind.config.ts'))).toBe(true);
@@ -86,6 +88,7 @@ describe('generated UltraModern contract', () => {
     const packageJson = readJson<{
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
       modernjs?: {
         packageSource?: {
           config?: string;
@@ -125,6 +128,22 @@ describe('generated UltraModern contract', () => {
     expect(
       packageJson.devDependencies?.['@modern-js/adapter-rstest'],
     ).toBeTruthy();
+    expect(
+      packageJson.devDependencies?.['@modern-js/ultramodern-checks'],
+    ).toBeTruthy();
+    expect(readText('scripts/check-i18n-strings.mjs')).toContain(
+      "from '@modern-js/ultramodern-checks'",
+    );
+    expect(packageJson.scripts?.format).toBe('oxfmt .');
+    expect(packageJson.scripts?.['format:check']).toBe('oxfmt --check .');
+    expect(packageJson.scripts?.lint).toBe('oxlint .');
+    expect(packageJson.scripts?.['lint:fix']).toBe('oxlint . --fix');
+    expect(packageJson.scripts?.['ultramodern:check']).toContain(
+      'pnpm format:check && pnpm lint',
+    );
+    expect(packageJson.devDependencies?.oxfmt).toBe('0.53.0');
+    expect(packageJson.devDependencies?.oxlint).toBe('1.68.0');
+    expect(packageJson.devDependencies?.ultracite).toBe('7.8.1');
 {{#if enableTailwind}}
     expect(packageJson.devDependencies?.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies?.['@tailwindcss/postcss']).toBe(

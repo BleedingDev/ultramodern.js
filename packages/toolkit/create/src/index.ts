@@ -1452,6 +1452,10 @@ async function main() {
       '@modern-js/adapter-rstest',
       packageSource,
     ),
+    ultramodernChecksVersion: modernPackageSpecifier(
+      '@modern-js/ultramodern-checks',
+      packageSource,
+    ),
     tsconfigVersion: modernPackageSpecifier(
       '@modern-js/tsconfig',
       packageSource,
@@ -1510,10 +1514,6 @@ async function main() {
     delete packageJson['simple-git-hooks'];
     if (packageJson.scripts) {
       delete packageJson.scripts.prepare;
-      delete packageJson.scripts.format;
-      delete packageJson.scripts['format:check'];
-      delete packageJson.scripts.lint;
-      delete packageJson.scripts['lint:fix'];
       delete packageJson.scripts['skills:install'];
       delete packageJson.scripts['skills:check'];
       delete packageJson.scripts.postinstall;
@@ -1522,9 +1522,6 @@ async function main() {
       delete packageJson.devDependencies['lint-staged'];
       delete packageJson.devDependencies.lefthook;
       delete packageJson.devDependencies['simple-git-hooks'];
-      delete packageJson.devDependencies.oxlint;
-      delete packageJson.devDependencies.oxfmt;
-      delete packageJson.devDependencies.ultracite;
     }
     fs.rmSync(path.join(targetDir, '.codex'), { recursive: true, force: true });
     fs.rmSync(path.join(targetDir, 'lefthook.yml'), { force: true });
@@ -1564,6 +1561,7 @@ function copyTemplate(
     runtimeVersion: string;
     appToolsVersion: string;
     adapterRstestVersion: string;
+    ultramodernChecksVersion: string;
     tsconfigVersion: string;
     pluginTanstackVersion: string;
     pluginBffVersion: string;
@@ -1602,8 +1600,6 @@ function copyTemplate(
     'AGENTS.md',
     '.npmrc',
     '.nvmrc',
-    'oxfmt.config.ts',
-    'oxlint.config.ts',
   ];
 
   function copyRecursive(srcDir: string, destDir: string) {
@@ -1645,6 +1641,7 @@ function copyTemplate(
             runtimeVersion: options.runtimeVersion,
             appToolsVersion: options.appToolsVersion,
             adapterRstestVersion: options.adapterRstestVersion,
+            ultramodernChecksVersion: options.ultramodernChecksVersion,
             tsconfigVersion: options.tsconfigVersion,
             pluginTanstackVersion: options.pluginTanstackVersion,
             pluginBffVersion: options.pluginBffVersion,

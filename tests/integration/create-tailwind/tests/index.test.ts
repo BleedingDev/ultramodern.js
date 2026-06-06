@@ -7,7 +7,7 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedPnpmVersion = '11.5.0';
-const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.103';
+const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 
 const expectedBleedingDevAliases = {
   '@modern-js/adapter-rstest': '@bleedingdev/modern-js-adapter-rstest',
@@ -17,6 +17,7 @@ const expectedBleedingDevAliases = {
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
+  '@modern-js/ultramodern-checks': '@bleedingdev/modern-js-ultramodern-checks',
 };
 
 function expectNoHandlebarsArtifacts(content: string) {
@@ -44,6 +45,30 @@ function expectNoDirectEffectDependency(packageJson: {
 }) {
   expect(packageJson.dependencies?.effect).toBeUndefined();
   expect(packageJson.devDependencies?.effect).toBeUndefined();
+}
+
+function expectSubprojectRepoLevelBehaviorRemoved(
+  appDir: string,
+  packageJson: {
+    'lint-staged'?: unknown;
+    'simple-git-hooks'?: unknown;
+    devDependencies?: Record<string, string>;
+    scripts?: Record<string, string>;
+  },
+) {
+  expect(packageJson['lint-staged']).toBeUndefined();
+  expect(packageJson['simple-git-hooks']).toBeUndefined();
+  expect(fs.existsSync(path.join(appDir, '.agents'))).toBe(false);
+  expect(fs.existsSync(path.join(appDir, '.github'))).toBe(false);
+  expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(false);
+  expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(false);
+  expect(packageJson.scripts?.['skills:install']).toBeUndefined();
+  expect(packageJson.scripts?.['skills:check']).toBeUndefined();
+  expect(packageJson.scripts?.postinstall).toBeUndefined();
+  expect(packageJson.scripts?.prepare).toBeUndefined();
+  expect(packageJson.devDependencies?.['lint-staged']).toBeUndefined();
+  expect(packageJson.devDependencies?.lefthook).toBeUndefined();
+  expect(packageJson.devDependencies?.['simple-git-hooks']).toBeUndefined();
 }
 
 function readGeneratedPage(appDir: string) {
@@ -137,11 +162,30 @@ function expectSingleAppContract(appDir: string) {
   expect(packageJson.pnpm).toBeUndefined();
   expect(packageJson.scripts.test).toBe('rstest run');
   expect(packageJson.scripts['ultramodern:check']).toContain('pnpm test');
+  expect(packageJson.scripts['ultramodern:check']).toContain(
+    'pnpm format:check && pnpm lint',
+  );
+  expect(packageJson.scripts.format).toBe('oxfmt .');
+  expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
+  expect(packageJson.scripts.lint).toBe('oxlint .');
+  expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
+  expect(
+    packageJson.devDependencies['@modern-js/ultramodern-checks'],
+  ).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
+  expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
+  expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
+  expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+  expect(
+    fs.readFileSync(
+      path.join(appDir, 'scripts/check-i18n-strings.mjs'),
+      'utf-8',
+    ),
+  ).toContain("from '@modern-js/ultramodern-checks'");
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {
@@ -167,6 +211,8 @@ function expectSingleAppContract(appDir: string) {
     );
   }
   expect(fs.existsSync(path.join(appDir, 'pnpm-workspace.yaml'))).toBe(true);
+  expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
+  expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
   expectPnpm11Policy(appDir);
   expect(fs.existsSync(path.join(appDir, 'src/routes/page.tsx'))).toBe(false);
   const page = readGeneratedPage(appDir);
@@ -350,28 +396,73 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
 
-    expect(packageJson['lint-staged']).toBeUndefined();
-    expect(packageJson['simple-git-hooks']).toBeUndefined();
-    expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(false);
-    expect(packageJson.scripts.lint).toBeUndefined();
-    expect(packageJson.scripts['lint:fix']).toBeUndefined();
-    expect(packageJson.scripts.format).toBeUndefined();
-    expect(packageJson.scripts['format:check']).toBeUndefined();
-    expect(packageJson.scripts['skills:install']).toBeUndefined();
-    expect(packageJson.scripts['skills:check']).toBeUndefined();
-    expect(packageJson.scripts.postinstall).toBeUndefined();
-    expect(packageJson.scripts.prepare).toBeUndefined();
-    expect(packageJson.devDependencies.oxlint).toBeUndefined();
-    expect(packageJson.devDependencies.oxfmt).toBeUndefined();
-    expect(packageJson.devDependencies.ultracite).toBeUndefined();
-    expect(packageJson.devDependencies['lint-staged']).toBeUndefined();
-    expect(packageJson.devDependencies.lefthook).toBeUndefined();
-    expect(packageJson.devDependencies['simple-git-hooks']).toBeUndefined();
+    expectSubprojectRepoLevelBehaviorRemoved(appDir, packageJson);
+    expect(packageJson.scripts.format).toBe('oxfmt .');
+    expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
+    expect(packageJson.scripts.lint).toBe('oxlint .');
+    expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
+    expect(packageJson.scripts['ultramodern:check']).toBe(
+      'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
+    );
+    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
+    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
+    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
     expectSingleAppContract(appDir);
 
     expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
+    expectNoHandlebarsArtifacts(
+      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
+    );
+    expectNoHandlebarsArtifacts(readGeneratedPage(appDir));
+    const validationOutput = execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern.mjs'],
+      {
+        cwd: appDir,
+        stdio: 'pipe',
+      },
+    ).toString();
+    expect(validationOutput).toContain('Ultramodern contract check passed.');
+  });
+
+  test('keeps lint and format tooling with --sub --no-tailwind', () => {
+    const appDir = path.join(tempRoot, 'without-tailwind-sub');
+    runCreate(appDir, [
+      '--router',
+      'tanstack',
+      '--sub',
+      '--no-tailwind',
+      '--lang',
+      'en',
+    ]);
+
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+    );
+
+    expectSubprojectRepoLevelBehaviorRemoved(appDir, packageJson);
+    expect(packageJson.devDependencies.tailwindcss).toBeUndefined();
+    expect(packageJson.devDependencies.postcss).toBeUndefined();
+    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBeUndefined();
+    expect(packageJson.scripts.format).toBe('oxfmt .');
+    expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
+    expect(packageJson.scripts.lint).toBe('oxlint .');
+    expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
+    expect(packageJson.scripts['ultramodern:check']).toBe(
+      'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
+    );
+    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
+    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
+    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+
+    expectSingleAppContract(appDir);
+    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
     expectNoHandlebarsArtifacts(
       fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
     );
@@ -459,6 +550,9 @@ describe('create-tailwind', () => {
     );
     expect(packageJson.devDependencies['@modern-js/adapter-rstest']).toBe(
       'npm:@bleedingdev/modern-js-adapter-rstest@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.devDependencies['@modern-js/ultramodern-checks']).toBe(
+      'npm:@bleedingdev/modern-js-ultramodern-checks@3.2.0-ultramodern.5',
     );
 
     const packageSource = JSON.parse(

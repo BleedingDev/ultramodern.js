@@ -4,22 +4,22 @@ overview: Replace generated regex i18n scanning with a source-backed Oxlint AST 
 todos:
   - id: audit-checks-package-shape
     content: Audit packages/toolkit/ultramodern-checks and remove reliance on ignored dist-only artifacts; ensure the package has tracked source, package metadata, build scripts, and publish config.
-    status: pending
+    status: completed
   - id: define-rule-contract
     content: Define the exact AST rule contract for hardcoded JSX text, visible literal attributes, ignore comments, technical-token attributes, and TypeScript generic/effect helper non-regressions.
-    status: pending
+    status: completed
   - id: implement-oxlint-runner
     content: Implement the Oxlint-backed shared rule/runner exported as single-app and workspace check APIs without app-specific regex allowlists.
-    status: pending
+    status: completed
   - id: wire-generated-templates
     content: Update generated single-app and workspace templates so i18n checks call the shared package through stable wrapper scripts while preserving public script names.
-    status: pending
+    status: completed
   - id: add-regression-tests
     content: Add tests for real JSX copy violations, visible literal attributes, localized t(...) passes, ignore comments, technical-token elements, and TypeScript generic/effect helper false positives.
-    status: pending
+    status: completed
   - id: run-modern-gates
     content: Run focused create tests, ultramodern workspace tests, package build checks, check-dependencies, and diff hygiene for the Oxlint rule changes.
-    status: pending
+    status: completed
 isProject: false
 ---
 

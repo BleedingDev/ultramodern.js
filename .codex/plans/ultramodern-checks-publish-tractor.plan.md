@@ -4,7 +4,7 @@ overview: Publish the shared UltraModern checks package in the BleedingDev cohor
 todos:
   - id: include-checks-in-publish-cohort
     content: Add @modern-js/ultramodern-checks to the Modern workspace publish cohort with the @bleedingdev/modern-js-ultramodern-checks alias and a changeset.
-    status: pending
+    status: completed
   - id: publish-and-verify-latest
     content: Publish the next BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, and verify @bleedingdev/modern-js-ultramodern-checks exists for that exact cohort.
     status: pending

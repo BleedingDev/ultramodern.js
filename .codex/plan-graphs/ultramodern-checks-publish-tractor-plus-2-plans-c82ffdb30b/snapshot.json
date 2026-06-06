@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-06T13:24:11.976204+00:00",
+  "generated_at": "2026-06-06T14:31:17.721969+00:00",
   "graph_id": "ultramodern-checks-publish-tractor-plus-2-plans-c82ffdb30b",
   "plan_set_hash": "98df7870dd",
   "selection_hash": "c82ffdb30b",
@@ -32,7 +32,7 @@
         {
           "id": "include-checks-in-publish-cohort",
           "content": "Add @modern-js/ultramodern-checks to the Modern workspace publish cohort with the @bleedingdev/modern-js-ultramodern-checks alias and a changeset.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
@@ -85,37 +85,37 @@
         {
           "id": "audit-checks-package-shape",
           "content": "Audit packages/toolkit/ultramodern-checks and remove reliance on ignored dist-only artifacts; ensure the package has tracked source, package metadata, build scripts, and publish config.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "define-rule-contract",
           "content": "Define the exact AST rule contract for hardcoded JSX text, visible literal attributes, ignore comments, technical-token attributes, and TypeScript generic/effect helper non-regressions.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "implement-oxlint-runner",
           "content": "Implement the Oxlint-backed shared rule/runner exported as single-app and workspace check APIs without app-specific regex allowlists.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         },
         {
           "id": "wire-generated-templates",
           "content": "Update generated single-app and workspace templates so i18n checks call the shared package through stable wrapper scripts while preserving public script names.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 4
         },
         {
           "id": "add-regression-tests",
           "content": "Add tests for real JSX copy violations, visible literal attributes, localized t(...) passes, ignore comments, technical-token elements, and TypeScript generic/effect helper false positives.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 5
         },
         {
           "id": "run-modern-gates",
           "content": "Run focused create tests, ultramodern workspace tests, package build checks, check-dependencies, and diff hygiene for the Oxlint rule changes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         }
       ],
@@ -132,19 +132,19 @@
         {
           "id": "audit-xh9x-evidence",
           "content": "Audit existing docs and generated templates for the visible-attribute i18n explanation and subproject Oxlint/Ultracite policy required by modernjs-xh9x.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 1
         },
         {
           "id": "close-xh9x-or-file-delta",
           "content": "Close modernjs-xh9x if the evidence is sufficient, or update it with one concrete missing delta that must be handled by the Oxlint AST rule lane.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 2
         },
         {
           "id": "audit-u3xw-umbrella",
           "content": "Recheck modernjs-u3xw dependencies and latest Tractor proof, then close the umbrella if modernjs-41je and modernjs-u3xw.1 fully satisfy it.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 3
         }
       ],
@@ -155,103 +155,63 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-tracking-closeout",
-      "plan_name": "ultramodern-tracking-closeout",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tracking-closeout.plan.md",
+      "plan_slug": "ultramodern-checks-publish-tractor",
+      "plan_name": "ultramodern-checks-publish-tractor",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-checks-publish-tractor.plan.md",
       "plan_status": "pending",
       "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "audit-xh9x-evidence",
-          "content": "Audit existing docs and generated templates for the visible-attribute i18n explanation and subproject Oxlint/Ultracite policy required by modernjs-xh9x.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "close-xh9x-or-file-delta",
-          "content": "Close modernjs-xh9x if the evidence is sufficient, or update it with one concrete missing delta that must be handled by the Oxlint AST rule lane.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "audit-u3xw-umbrella",
-          "content": "Recheck modernjs-u3xw dependencies and latest Tractor proof, then close the umbrella if modernjs-41je and modernjs-u3xw.1 fully satisfy it.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
-      "total": 3
-    },
-    {
-      "plan_slug": "ultramodern-checks-publish-tractor",
-      "plan_name": "ultramodern-checks-publish-tractor",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-checks-publish-tractor.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-i18n-oxlint-rule"],
-      "active": [
-        {
-          "id": "include-checks-in-publish-cohort",
-          "content": "Add @modern-js/ultramodern-checks to the Modern workspace publish cohort with the @bleedingdev/modern-js-ultramodern-checks alias and a changeset.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
           "id": "publish-and-verify-latest",
           "content": "Publish the next BleedingDev UltraModern cohort, verify npm latest/version/frameworkVersion, and verify @bleedingdev/modern-js-ultramodern-checks exists for that exact cohort.",
           "status": "pending",
           "ordinal": 2
-        },
+        }
+      ],
+      "upcoming": [
         {
           "id": "migrate-tractor-dependency",
           "content": "Update Tractor package-source metadata, root dependency, wrapper script, validator, package manifests, and lockfile to consume @modern-js/ultramodern-checks from the published alias.",
           "status": "pending",
           "ordinal": 3
+        },
+        {
+          "id": "remove-copied-checkers",
+          "content": "Remove copied/generated regex checker logic from Tractor once the shared dependency is wired, keeping only thin wrapper scripts if the public script contract requires them.",
+          "status": "pending",
+          "ordinal": 4
         }
       ],
-      "completed": 0,
+      "completed": 1,
       "total": 7
     },
     {
       "plan_slug": "ultramodern-i18n-oxlint-rule",
       "plan_name": "ultramodern-i18n-oxlint-rule",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-i18n-oxlint-rule.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-tracking-closeout"],
-      "active": [
-        {
-          "id": "audit-checks-package-shape",
-          "content": "Audit packages/toolkit/ultramodern-checks and remove reliance on ignored dist-only artifacts; ensure the package has tracked source, package metadata, build scripts, and publish config.",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
-      "upcoming": [
-        {
-          "id": "define-rule-contract",
-          "content": "Define the exact AST rule contract for hardcoded JSX text, visible literal attributes, ignore comments, technical-token attributes, and TypeScript generic/effect helper non-regressions.",
-          "status": "pending",
-          "ordinal": 2
-        },
-        {
-          "id": "implement-oxlint-runner",
-          "content": "Implement the Oxlint-backed shared rule/runner exported as single-app and workspace check APIs without app-specific regex allowlists.",
-          "status": "pending",
-          "ordinal": 3
-        }
-      ],
-      "completed": 0,
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
       "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-tracking-closeout",
+      "plan_name": "ultramodern-tracking-closeout",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-tracking-closeout.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 3,
+      "total": 3
     }
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "matched-plan-set"
+  "graph_source": "explicit"
 }

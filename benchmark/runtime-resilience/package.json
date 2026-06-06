@@ -1,5 +1,6 @@
 {
   "name": "@modern-js/runtime-resilience-benchmark",
+  "version": "3.2.1",
   "private": true,
   "scripts": {
     "run": "node run.js",

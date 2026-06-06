@@ -4,13 +4,13 @@ overview: Close or update Beads that are now tracking stale state before startin
 todos:
   - id: audit-xh9x-evidence
     content: Audit existing docs and generated templates for the visible-attribute i18n explanation and subproject Oxlint/Ultracite policy required by modernjs-xh9x.
-    status: pending
+    status: completed
   - id: close-xh9x-or-file-delta
     content: Close modernjs-xh9x if the evidence is sufficient, or update it with one concrete missing delta that must be handled by the Oxlint AST rule lane.
-    status: pending
+    status: completed
   - id: audit-u3xw-umbrella
     content: Recheck modernjs-u3xw dependencies and latest Tractor proof, then close the umbrella if modernjs-41je and modernjs-u3xw.1 fully satisfy it.
-    status: pending
+    status: completed
 isProject: false
 ---
 
