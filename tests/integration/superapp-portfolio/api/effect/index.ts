@@ -2,7 +2,6 @@
 import {
   defineEffectBff,
   Effect,
-  type EffectRuntimeLayer,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
@@ -380,7 +379,7 @@ function createPilotRun(input: {
     tenant: string;
     actor: string;
     requestId: string;
-    modules: PilotModuleId[];
+    modules: readonly PilotModuleId[];
     chaos?: PilotChaosMode;
   };
 }) {
@@ -537,14 +536,14 @@ function createPilotRun(input: {
 const portfolioLayer = HttpApiBuilder.group(
   portfolioApi,
   'portfolio',
-  (handlers: any) => {
+  handlers => {
     const withBootstrap = handlers.handle('bootstrap', () =>
       Effect.succeed(cloneState()),
     );
 
     const withWorkflow = withBootstrap.handle(
       'runWorkflow',
-      ({ params, payload }: any) =>
+      ({ params, payload }) =>
         Effect.sync(() => {
           const app = state.apps.find(item => item.id === params.appId);
           if (!app) {
@@ -595,7 +594,7 @@ const portfolioLayer = HttpApiBuilder.group(
 
     const withPilotRun = withWorkflow.handle(
       'runPilot',
-      ({ params, payload }: any) =>
+      ({ params, payload }) =>
         Effect.sync(() =>
           createPilotRun({
             scenario: params.scenario,
@@ -615,7 +614,7 @@ const portfolioLayer = HttpApiBuilder.group(
 
     const withSecurityProbe = withPilotRun.handle(
       'securityProbe',
-      ({ headers, payload }: any) =>
+      ({ headers, payload }) =>
         Effect.sync(() => {
           const decision = createSecurityDecision({ headers, payload });
           if (!decision.allowed) {
@@ -637,7 +636,7 @@ const portfolioLayer = HttpApiBuilder.group(
 
     const withFailure = withSecurityProbe.handle(
       'injectFailure',
-      ({ params, payload }: any) =>
+      ({ params, payload }) =>
         Effect.sync(() => {
           const mode = String(params.mode);
           eventCounter += 1;
@@ -707,7 +706,7 @@ const portfolioLayer = HttpApiBuilder.group(
 
 const layer = HttpApiBuilder.layer(portfolioApi).pipe(
   Layer.provide(portfolioLayer),
-) as EffectRuntimeLayer;
+);
 
 const runtime = defineEffectBff({
   api: portfolioApi,

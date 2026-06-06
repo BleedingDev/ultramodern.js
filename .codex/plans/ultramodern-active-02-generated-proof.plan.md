@@ -4,22 +4,22 @@ overview: Prove that fresh UltraModern generated apps work from the cleaned fram
 todos:
   - id: regenerate-clean-reference-workspaces
     content: "Generate clean references from current local source into fresh temp dirs only: single-app tanstack/effect, react-router/hono, --no-tailwind, --sub, workspace source mode, install-backed alias mode, workspace shell-only, and workspace shell-plus-vertical; remove stale .output, dist, .mf, @mf-types, lockfile, and generated artifacts before each proof run."
-    status: pending
+    status: completed
   - id: run-generated-quality-gates
     content: "Run repo-level pnpm validate:tsgo and focused create integration suites, then run mise install, pnpm install, generated pnpm ultramodern:check or pnpm check, and MODERN_PUBLIC_SITE_URL=http://localhost:8080 pnpm build inside each regenerated app/workspace."
-    status: pending
+    status: completed
   - id: prove-browser-ssr-mf-css
     content: "Run run-browser-smoke local proof for shell and vertical routes, add an explicit javaScriptEnabled=false no-JS SSR browser check, verify SSR content/styles before hydration, and prove shell composition has no remoteEntry page errors, failed same-origin responses, bridgeRouterAlias output, or runtimeContext ReferenceError."
-    status: pending
+    status: completed
   - id: prove-cloudflare-output
     content: "Run generated Cloudflare build/output validation and wrangler-based checks where credentials and public URL envs are available: Worker SSR shape, asset serving, public URL enforcement, Effect BFF readiness routes, cloudflare:proof -- --require-public-urls, and no local Worker shim dependencies."
-    status: pending
+    status: completed
   - id: prove-published-create-cohort
     content: "After a trusted BleedingDev npm cohort exists, run run-published-create-proof.mjs against the exact @bleedingdev/modern-js-create version, at least erp-10 and broader erp-25/erp-50 when time allows, and confirm generated metadata, package-source records, lockfile dependencies, topology evidence, and validation scripts agree with the published cohort."
-    status: pending
+    status: completed
   - id: capture-evidence-and-close-generated-umbrella
     content: "Archive command outputs, browser artifacts, Cloudflare proof files, and scaffold comparison notes; update Beads with the evidence and close modernjs-41je only after all blockers and generated proof are green."
-    status: pending
+    status: completed
 isProject: false
 ---
 

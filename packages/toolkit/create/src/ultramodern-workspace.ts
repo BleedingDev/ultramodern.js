@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  BLEEDINGDEV_PACKAGE_NAME_PREFIX,
+  BLEEDINGDEV_PACKAGE_SCOPE,
   createModernPackagesMetadata,
   modernAliasPackageName,
   modernPackageSpecifier,
@@ -561,16 +563,31 @@ function relativeRootFor(packageDir: string): string {
 function resolvePackageSource(
   options: UltramodernWorkspaceOptions,
 ): ResolvedPackageSource {
-  const strategy = options.packageSource?.strategy ?? 'workspace';
+  const strategy = options.packageSource?.strategy ?? 'install';
+  if (strategy === 'workspace') {
+    return {
+      strategy,
+      modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
+      registry: options.packageSource?.registry,
+      aliasScope: options.packageSource?.aliasScope,
+      aliasPackageNamePrefix: options.packageSource?.aliasPackageNamePrefix,
+    };
+  }
+
+  const registry = options.packageSource?.registry;
+  const aliasScope =
+    options.packageSource?.aliasScope ??
+    (registry ? undefined : BLEEDINGDEV_PACKAGE_SCOPE);
+
   return {
     strategy,
     modernPackageVersion:
-      strategy === 'install'
-        ? (options.packageSource?.modernPackageVersion ?? options.modernVersion)
-        : WORKSPACE_PACKAGE_VERSION,
-    registry: options.packageSource?.registry,
-    aliasScope: options.packageSource?.aliasScope,
-    aliasPackageNamePrefix: options.packageSource?.aliasPackageNamePrefix,
+      options.packageSource?.modernPackageVersion ?? options.modernVersion,
+    registry,
+    aliasScope,
+    aliasPackageNamePrefix:
+      options.packageSource?.aliasPackageNamePrefix ??
+      (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined),
   };
 }
 
@@ -1169,7 +1186,19 @@ if (
 export default defineConfig(
   presetUltramodern(
     {
-${bffConfig}      html: {
+${bffConfig}      ...(cloudflareDeployEnabled
+        ? {
+            deploy: {
+              worker: {
+                compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
+                name: cloudflareWorkerName,
+                security: ${formatTsJsonValue(sortJsonValue(createCloudflareSecurityContract()), 16)},
+                ssr: true,
+              },
+            },
+          }
+        : {}),
+      html: {
         outputStructure: 'flat',
       },
       output: {
@@ -1221,6 +1250,20 @@ ${bffConfig}      html: {
 ${bffPluginEntry}        moduleFederationPlugin(),
         zephyrRspackPlugin(),
       ],
+      server: {
+        port,
+        publicDir: ['./locales', './assets'],
+        ssr: {
+          mode: 'string',
+          moduleFederationAppSSR: true,
+        },
+      },
+      source: {
+        globalVars: {
+          ULTRAMODERN_SITE_URL: siteUrl,
+        },
+        mainEntryName: 'index',
+      },
       tools: {
         autoprefixer: {
           overrideBrowserslist: ['defaults'],
@@ -1236,31 +1279,6 @@ ${bffPluginEntry}        moduleFederationPlugin(),
             },
           ]);
         },
-      },
-      ...(cloudflareDeployEnabled
-        ? {
-            deploy: {
-              worker: {
-                compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
-                security: ${formatTsJsonValue(createCloudflareSecurityContract(), 16)},
-                ssr: true,
-              },
-            },
-          }
-        : {}),
-      server: {
-        port,
-        publicDir: ['./locales', './assets'],
-        ssr: {
-          mode: 'string',
-          moduleFederationAppSSR: true,
-        },
-      },
-      source: {
-        globalVars: {
-          ULTRAMODERN_SITE_URL: siteUrl,
-        },
-        mainEntryName: 'index',
       },
     },
     {
@@ -2040,8 +2058,7 @@ function createPostcssConfig(): string {
 function createTailwindConfig(): string {
   return `import type { Config } from 'tailwindcss';
 
-export default {
-} satisfies Config;
+export default {} satisfies Config;
 `;
 }
 
@@ -5400,6 +5417,15 @@ const expectedCloudflareDeployScript = ${JSON.stringify(expectedCloudflareDeploy
 const expectedCloudflareSecurity = ${JSON.stringify(expectedCloudflareSecurity, null, 2)};
 const publicSurfaceRequiredAssetPaths = ${JSON.stringify([...publicSurfaceRequiredAssetPaths], null, 2)};
 const publicSurfaceOptionalAssetPaths = ${JSON.stringify([...publicSurfaceOptionalAssetPaths], null, 2)};
+const expectedModernPackageSpecifier = packageName => {
+  if (packageSource.strategy === 'workspace') {
+    return 'workspace:*';
+  }
+  const aliases = packageSource.modernPackages?.aliases ?? {};
+  const alias = aliases[packageName];
+  const specifier = packageSource.modernPackages?.specifier;
+  return typeof alias === 'string' ? \`npm:\${alias}@\${specifier}\` : specifier;
+};
 
 const readText = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = relativePath => JSON.parse(readText(relativePath));
@@ -5571,6 +5597,31 @@ assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare 
 assert(rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json', 'Root must point at package source metadata');
 assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy, 'Root package source strategy must match metadata');
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
+assert(packageSource.strategy === 'install' || packageSource.modernPackages?.specifier === 'workspace:*', 'Workspace package source must be explicitly backed by workspace:*');
+if (packageSource.strategy === 'install') {
+  const installSpecifier = packageSource.modernPackages?.specifier;
+  assert(
+    typeof installSpecifier === 'string' &&
+      /^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$/.test(installSpecifier) &&
+      installSpecifier.includes('ultramodern'),
+    'Install package source must use a semver UltraModern published cohort',
+  );
+  const modernAliases = packageSource.modernPackages?.aliases ?? {};
+  if (Object.keys(modernAliases).length > 0) {
+    for (const modernPackageName of [
+      '@modern-js/app-tools',
+      '@modern-js/plugin-bff',
+      '@modern-js/plugin-i18n',
+      '@modern-js/plugin-tanstack',
+      '@modern-js/runtime',
+    ]) {
+      assert(
+        /^@[^/]+\\/.+/.test(modernAliases[modernPackageName] ?? ''),
+        \`Install package source alias for \${modernPackageName} must be a scoped npm package\`,
+      );
+    }
+  }
+}
 assert(packageSource.generatedWorkspacePackages?.specifier === 'workspace:*', 'Generated workspace packages must keep workspace:* links');
 assert(
   rootPackage.scripts?.build === expectedBuildScript,
@@ -5604,6 +5655,7 @@ assert(generatedContract.cssFederation?.sharedDesignTokens?.dedupe?.duplicateBas
 assert(generatedContract.cssFederation?.sharedDesignTokens?.ssr?.firstPaintRequired === true, 'Shared design token CSS must be required for SSR first paint');
 
 const shellPackage = readJson('apps/shell-super-app/package.json');
+const shellModernConfig = readText('apps/shell-super-app/modern.config.ts');
 const expectedZephyrDependencies = Object.fromEntries(
   fullStackVerticals.map(vertical => [
     vertical.zephyrAlias,
@@ -5615,6 +5667,11 @@ assert(
     JSON.stringify(expectedZephyrDependencies),
   'Shell Zephyr dependencies must reference every vertical package',
 );
+assert(shellPackage.devDependencies?.['@modern-js/app-tools'] === expectedModernPackageSpecifier('@modern-js/app-tools'), 'Shell app-tools dependency must match package source metadata');
+assert(shellPackage.dependencies?.['@modern-js/plugin-bff'] === expectedModernPackageSpecifier('@modern-js/plugin-bff'), 'Shell plugin-bff dependency must match package source metadata');
+assert(shellPackage.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), 'Shell plugin-i18n dependency must match package source metadata');
+assert(shellPackage.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), 'Shell plugin-tanstack dependency must match package source metadata');
+assert(shellPackage.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), 'Shell runtime dependency must match package source metadata');
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
@@ -5622,6 +5679,9 @@ assert(shellContract?.deploy?.cloudflare?.compatibilityDate === expectedCloudfla
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), 'Shell Cloudflare compatibility flags are incorrect');
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), 'Shell Cloudflare security contract is incorrect');
 assert(shellContract?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, 'Shell worker compatibilityDate is incorrect');
+assert(shellContract?.deploy?.worker?.name === expectedWorkerName('shell-super-app'), 'Shell worker name is incorrect');
+assert(shellModernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName('shell-super-app') + "'"), 'Shell modern.config.ts must define the Cloudflare worker name');
+assert(shellModernConfig.includes('name: cloudflareWorkerName'), 'Shell modern.config.ts must wire deploy.worker.name');
 assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
 assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
@@ -5653,10 +5713,15 @@ assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, no
 
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
+  const modernConfig = readText(\`\${vertical.path}/modern.config.ts\`);
   assert(packageJson.name === vertical.packageName, \`\${vertical.id} package name is incorrect\`);
   assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', \`\${vertical.id} must expose cloudflare:deploy\`);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(\`--app \${vertical.id}\`), \`\${vertical.id} must expose cloudflare:proof\`);
-  assert(packageJson.dependencies?.['@modern-js/plugin-bff'], \`\${vertical.id} must depend on plugin-bff\`);
+  assert(packageJson.devDependencies?.['@modern-js/app-tools'] === expectedModernPackageSpecifier('@modern-js/app-tools'), \`\${vertical.id} app-tools dependency must match package source metadata\`);
+  assert(packageJson.dependencies?.['@modern-js/plugin-bff'] === expectedModernPackageSpecifier('@modern-js/plugin-bff'), \`\${vertical.id} plugin-bff dependency must match package source metadata\`);
+  assert(packageJson.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), \`\${vertical.id} plugin-i18n dependency must match package source metadata\`);
+  assert(packageJson.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), \`\${vertical.id} plugin-tanstack dependency must match package source metadata\`);
+  assert(packageJson.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), \`\${vertical.id} runtime dependency must match package source metadata\`);
   assert(packageJson.exports?.['./effect/client'] === \`./src/effect/\${vertical.stem}-client.ts\`, \`\${vertical.id} must export its Effect client\`);
   assert(packageJson.exports?.['./shared/effect/api'] === './shared/effect/api.ts', \`\${vertical.id} must export its Effect API contract\`);
   const expectedVerticalZephyrDependencies = Object.fromEntries(
@@ -5682,6 +5747,9 @@ for (const vertical of fullStackVerticals) {
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), \`\${vertical.id} Cloudflare compatibility flags are incorrect\`);
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), \`\${vertical.id} Cloudflare security contract is incorrect\`);
   assert(contractEntry?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, \`\${vertical.id} worker compatibilityDate is incorrect\`);
+  assert(contractEntry?.deploy?.worker?.name === expectedWorkerName(vertical.id), \`\${vertical.id} worker name is incorrect\`);
+  assert(modernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName(vertical.id) + "'"), \`\${vertical.id} modern.config.ts must define the Cloudflare worker name\`);
+  assert(modernConfig.includes('name: cloudflareWorkerName'), \`\${vertical.id} modern.config.ts must wire deploy.worker.name\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, \`\${vertical.id} Rspack uniqueName is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);

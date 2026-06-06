@@ -1,8 +1,16 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
+
+import type { FileSystem, Path } from 'effect';
 import * as Context from 'effect/Context';
 import type * as EffectType from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
+import {
+  Etag,
+  HttpPlatform,
+  HttpRouter,
+  HttpServer,
+  HttpServerResponse,
+} from 'effect/unstable/http';
 import {
   type HttpApi,
   type HttpApiClient,
@@ -39,11 +47,15 @@ export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
 
 export type EffectRuntimeRequirements =
+  | Etag.Generator
+  | FileSystem.FileSystem
+  | HttpPlatform.HttpPlatform
   | HttpRouter.HttpRouter
   | HttpRouter.Request<'Error', any>
   | HttpRouter.Request<'GlobalError', any>
   | HttpRouter.Request<'GlobalRequires', any>
-  | HttpRouter.Request<'Requires', any>;
+  | HttpRouter.Request<'Requires', any>
+  | Path.Path;
 export type EffectRuntimeLayer = Layer.Layer<
   never,
   never,
@@ -754,7 +766,7 @@ export function createHttpApiHandler<
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
 }) {
-  const apiLayer = options.layer;
+  const apiLayer = options.layer.pipe(Layer.provide(HttpServer.layerServices));
   const openApiLayer = createOpenApiLayer(options.api, options.openapi);
   const mergedLayer = openApiLayer
     ? Layer.mergeAll(apiLayer, openApiLayer)

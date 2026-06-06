@@ -441,6 +441,100 @@ async function maybeScreenshot(page, filePath) {
   }
 }
 
+async function validateNoJavaScriptSsrTarget(
+  target,
+  browser,
+  { appArtifactDir },
+) {
+  const app = target.app;
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    viewport: {
+      height: 900,
+      width: 1440,
+    },
+  });
+  const page = await context.newPage();
+  const failedResponses = [];
+
+  page.on('response', response => {
+    const status = response.status();
+    const url = response.url();
+    if (status >= 400 && isSameOriginAsset(target, url)) {
+      failedResponses.push({ status, url });
+    }
+  });
+
+  const assertions = [];
+  try {
+    await page.goto(joinUrl(target.baseUrl, target.routes.ssr), {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
+      timeout: 15_000,
+    });
+    const marker = await page
+      .locator('[data-testid="ultramodern-ui-marker"]')
+      .getAttribute('data-build-marker');
+    assertions.push(
+      assertion(
+        'no-js-ssr-ui-marker',
+        marker === app.marker?.build ? 'pass' : 'fail',
+        {
+          actual: marker,
+          expected: app.marker?.build,
+        },
+      ),
+    );
+    assertPass(
+      marker === app.marker?.build,
+      `${app.id} no-JS SSR UI marker mismatch`,
+    );
+
+    const rootSelector = app.styling?.federation?.rootSelector;
+    if (rootSelector) {
+      const rootCount = await page.locator(rootSelector).count();
+      assertions.push(
+        assertion(
+          'no-js-ssr-css-root-marker',
+          rootCount > 0 ? 'pass' : 'fail',
+          {
+            expected: rootSelector,
+          },
+        ),
+      );
+      assertPass(
+        rootCount > 0,
+        `${app.id} no-JS SSR CSS root marker is missing`,
+      );
+    }
+
+    assertions.push(
+      assertion(
+        'no-js-ssr-failed-responses',
+        failedResponses.length === 0 ? 'pass' : 'fail',
+        {
+          failedResponseCount: failedResponses.length,
+        },
+      ),
+    );
+    assertPass(
+      failedResponses.length === 0,
+      `${app.id} loaded failed no-JS SSR responses`,
+      { failedResponses },
+    );
+
+    await maybeScreenshot(page, path.join(appArtifactDir, 'no-js-ssr.png'));
+    return assertions;
+  } finally {
+    writeJson(
+      path.join(appArtifactDir, 'no-js-failed-responses.json'),
+      failedResponses,
+    );
+    await context.close();
+  }
+}
+
 export async function validateBrowserTarget(target, browser, { artifactDir }) {
   const app = target.app;
   const appArtifactDir = path.join(artifactDir, app.id);
@@ -584,6 +678,11 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     );
 
     await maybeScreenshot(page, path.join(appArtifactDir, 'screenshot.png'));
+    assertions.push(
+      ...(await validateNoJavaScriptSsrTarget(target, browser, {
+        appArtifactDir,
+      })),
+    );
     return assertions;
   } finally {
     writeJson(path.join(appArtifactDir, 'console.json'), consoleMessages);

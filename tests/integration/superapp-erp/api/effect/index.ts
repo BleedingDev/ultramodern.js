@@ -2,7 +2,6 @@
 import {
   defineEffectBff,
   Effect,
-  type EffectRuntimeLayer,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
@@ -27,14 +26,14 @@ function cloneState() {
   };
 }
 
-const erpLayer = HttpApiBuilder.group(superAppApi, 'erp', (handlers: any) => {
+const erpLayer = HttpApiBuilder.group(superAppApi, 'erp', handlers => {
   const withBootstrap = handlers.handle('bootstrap', () =>
     Effect.succeed(cloneState()),
   );
 
   const withApprovalDecision = withBootstrap.handle(
     'decideApproval',
-    ({ params, payload }: any) =>
+    ({ params, payload }) =>
       Effect.sync(() => {
         const approval = state.approvals.find(item => item.id === params.id);
         if (!approval) {
@@ -59,7 +58,7 @@ const erpLayer = HttpApiBuilder.group(superAppApi, 'erp', (handlers: any) => {
       ),
   );
 
-  const withChat = withApprovalDecision.handle('sendChat', ({ payload }: any) =>
+  const withChat = withApprovalDecision.handle('sendChat', ({ payload }) =>
     Effect.sync(() => {
       messageCounter += 1;
       const message: ChatMessage = {
@@ -98,9 +97,7 @@ const erpLayer = HttpApiBuilder.group(superAppApi, 'erp', (handlers: any) => {
   );
 });
 
-const layer = HttpApiBuilder.layer(superAppApi).pipe(
-  Layer.provide(erpLayer),
-) as EffectRuntimeLayer;
+const layer = HttpApiBuilder.layer(superAppApi).pipe(Layer.provide(erpLayer));
 
 export default defineEffectBff({
   api: superAppApi,

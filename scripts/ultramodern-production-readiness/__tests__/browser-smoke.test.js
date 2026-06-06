@@ -208,6 +208,7 @@ test('fails when the MF manifest is missing', async () => {
 
 function createFakeBrowser({ consoleError = false } = {}) {
   const handlers = {};
+  const contextOptions = [];
   const page = {
     locator(selector) {
       return {
@@ -238,8 +239,10 @@ function createFakeBrowser({ consoleError = false } = {}) {
     async screenshot() {},
     async waitForSelector() {},
   };
-  return {
-    async newContext() {
+  const browser = {
+    contextOptions,
+    async newContext(options = {}) {
+      contextOptions.push(options);
       return {
         async close() {},
         async newPage() {
@@ -248,6 +251,7 @@ function createFakeBrowser({ consoleError = false } = {}) {
       };
     },
   };
+  return browser;
 }
 
 test('fails when the browser emits a console error', async () => {
@@ -269,6 +273,38 @@ test('fails when the browser emits a console error', async () => {
     );
     assert.equal(
       fs.existsSync(path.join(root, 'shell-super-app/console.json')),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('checks SSR output with JavaScript disabled', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const browser = createFakeBrowser();
+
+  try {
+    const assertions = await validateBrowserTarget(target, browser, {
+      artifactDir: root,
+    });
+
+    assert.equal(
+      browser.contextOptions.some(
+        options => options.javaScriptEnabled === false,
+      ),
+      true,
+    );
+    assert.equal(
+      assertions.some(item => item.type === 'no-js-ssr-ui-marker'),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(root, 'shell-super-app/no-js-failed-responses.json'),
+      ),
       true,
     );
   } finally {

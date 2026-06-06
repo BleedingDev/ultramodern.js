@@ -7,6 +7,97 @@ const ignoredDirectories = new Set(['.modern', '.modernjs', 'dist', 'node_module
 const visibleAttributePattern =
   /\s(?:aria-label|alt|placeholder|title)=["']([^"']*[A-Za-z][^"']*)["']/gu;
 const jsxTextPattern = />([^<>{}]*[A-Za-z][^<>{}]*)</gu;
+const jsxIntrinsicTags = new Set([
+  'a',
+  'abbr',
+  'address',
+  'area',
+  'article',
+  'aside',
+  'audio',
+  'b',
+  'blockquote',
+  'body',
+  'br',
+  'button',
+  'canvas',
+  'caption',
+  'cite',
+  'code',
+  'col',
+  'colgroup',
+  'data',
+  'datalist',
+  'dd',
+  'del',
+  'details',
+  'dfn',
+  'dialog',
+  'div',
+  'dl',
+  'dt',
+  'em',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'head',
+  'header',
+  'hr',
+  'html',
+  'i',
+  'iframe',
+  'img',
+  'input',
+  'label',
+  'legend',
+  'li',
+  'link',
+  'main',
+  'mark',
+  'menu',
+  'meta',
+  'meter',
+  'nav',
+  'ol',
+  'option',
+  'p',
+  'picture',
+  'pre',
+  'progress',
+  'q',
+  'script',
+  'section',
+  'select',
+  'small',
+  'source',
+  'span',
+  'strong',
+  'style',
+  'summary',
+  'svg',
+  'table',
+  'tbody',
+  'td',
+  'template',
+  'textarea',
+  'tfoot',
+  'th',
+  'thead',
+  'time',
+  'title',
+  'tr',
+  'u',
+  'ul',
+  'video',
+]);
 
 const collectFiles = (directory) => {
   if (!fs.existsSync(directory)) {
@@ -37,6 +128,24 @@ const isCodeElementText = (content, index) => {
   }
   return /^<code(?:\s|>)/u.test(content.slice(tagStart, index));
 };
+const isJsxTagEnd = (content, index) => {
+  const tagStart = content.lastIndexOf('<', index);
+  if (tagStart === -1 || content.slice(tagStart + 1, index).includes('<')) {
+    return false;
+  }
+  const match = content
+    .slice(tagStart, index + 1)
+    .match(/^<\/?\s*([A-Za-z][\w:.-]*)\b[^<>]*>$/u);
+  if (!match) {
+    return false;
+  }
+  const [, tagName] = match;
+  return (
+    /^[A-Z]/u.test(tagName) ||
+    tagName.includes('-') ||
+    jsxIntrinsicTags.has(tagName)
+  );
+};
 const isIgnoredLine = (content, index) => {
   const lineStart = content.lastIndexOf('\n', index) + 1;
   const lineEnd = content.indexOf('\n', index);
@@ -54,20 +163,23 @@ const violations = [];
 for (const filePath of scanRoots.flatMap(collectFiles)) {
   const content = fs.readFileSync(filePath, 'utf-8');
   for (const match of content.matchAll(visibleAttributePattern)) {
+    const [, visibleText] = match;
     if (!isIgnoredLine(content, match.index ?? 0)) {
       violations.push({
         filePath,
         line: lineNumberForIndex(content, match.index ?? 0),
-        text: match[1].trim(),
+        text: visibleText.trim(),
       });
     }
   }
 
   for (const match of content.matchAll(jsxTextPattern)) {
-    const text = match[1].replaceAll(/\s+/gu, ' ').trim();
+    const [, jsxText] = match;
+    const text = jsxText.replaceAll(/\s+/gu, ' ').trim();
     if (
       text &&
       !isIgnoredLine(content, match.index ?? 0) &&
+      isJsxTagEnd(content, match.index ?? 0) &&
       !isCodeElementText(content, match.index ?? 0)
     ) {
       violations.push({

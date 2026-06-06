@@ -7,6 +7,17 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedPnpmVersion = '11.5.0';
+const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.103';
+
+const expectedBleedingDevAliases = {
+  '@modern-js/adapter-rstest': '@bleedingdev/modern-js-adapter-rstest',
+  '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+  '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
+  '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
+  '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
+  '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+  '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
+};
 
 function expectNoHandlebarsArtifacts(content: string) {
   expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
@@ -146,6 +157,9 @@ function expectSingleAppContract(appDir: string) {
     expect(packageSource.modernPackages.specifier).toBe(
       templateManifest.template.version,
     );
+    expect(packageSource.modernPackages.aliases).toMatchObject(
+      expectedBleedingDevAliases,
+    );
   }
   expect(fs.existsSync(path.join(appDir, 'pnpm-workspace.yaml'))).toBe(true);
   expectPnpm11Policy(appDir);
@@ -195,6 +209,8 @@ function runCreate(projectDir: string, args: string[]) {
     env: {
       ...process.env,
       FORCE_COLOR: '0',
+      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
+        expectedBleedingDevFrameworkVersion,
     },
     stdio: 'pipe',
   });
@@ -227,9 +243,15 @@ describe('create-tailwind', () => {
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
     expect(packageJson.name).toBe('with-tailwind');
-    expect(
-      packageJson.dependencies['@modern-js/plugin-tanstack'],
-    ).toBeDefined();
+    expect(packageJson.dependencies['@modern-js/runtime']).toBe(
+      `npm:@bleedingdev/modern-js-runtime@${expectedBleedingDevFrameworkVersion}`,
+    );
+    expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
+      `npm:@bleedingdev/modern-js-plugin-tanstack@${expectedBleedingDevFrameworkVersion}`,
+    );
+    expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
+      `npm:@bleedingdev/modern-js-app-tools@${expectedBleedingDevFrameworkVersion}`,
+    );
     expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.11');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
@@ -440,15 +462,9 @@ describe('create-tailwind', () => {
         'utf-8',
       ),
     );
-    expect(packageSource.modernPackages.aliases).toMatchObject({
-      '@modern-js/adapter-rstest': '@bleedingdev/modern-js-adapter-rstest',
-      '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
-      '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
-      '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
-      '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
-      '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-      '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
-    });
+    expect(packageSource.modernPackages.aliases).toMatchObject(
+      expectedBleedingDevAliases,
+    );
   });
 
   test('keeps Tailwind default-on with --workspace and effect runtime', () => {

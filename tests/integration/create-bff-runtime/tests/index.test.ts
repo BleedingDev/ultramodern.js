@@ -6,6 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
+const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.103';
 
 type ExecSyncError = Error & {
   stderr?: Buffer | string;
@@ -36,9 +37,19 @@ function runCreate(projectDir: string, args: string[]) {
     env: {
       ...process.env,
       FORCE_COLOR: '0',
+      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
+        expectedBleedingDevFrameworkVersion,
     },
     stdio: 'pipe',
   });
+}
+
+function runGeneratedI18nCheck(appDir: string) {
+  return execFileSync(process.execPath, ['scripts/check-i18n-strings.mjs'], {
+    cwd: appDir,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
 }
 
 describe('create-bff-runtime', () => {
@@ -143,6 +154,25 @@ describe('create-bff-runtime', () => {
     expect(fs.readFileSync(routePage, 'utf-8')).toContain(
       'effectBff.client.greetings.hello',
     );
+    expect(runGeneratedI18nCheck(appDir)).toBe(
+      'No hardcoded user-visible JSX strings found.',
+    );
+
+    fs.writeFileSync(
+      path.join(appDir, 'src/routes/[lang]/i18n-violation.tsx'),
+      'export default function I18nViolation() { return <div>Visible hardcoded copy</div>; }\n',
+    );
+    try {
+      runGeneratedI18nCheck(appDir);
+      throw new Error('Expected generated i18n checker to fail');
+    } catch (error) {
+      const execError = error as ExecSyncError;
+      const stderr =
+        typeof execError.stderr === 'string'
+          ? execError.stderr
+          : execError.stderr?.toString() || '';
+      expect(stderr).toContain('Visible hardcoded copy');
+    }
 
     const tsConfig = fs.readFileSync(
       path.join(appDir, 'tsconfig.json'),

@@ -5,12 +5,44 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
+const testFrameworkVersion = '3.2.0-ultramodern.103';
+const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
+const bleedingDevAliases = {
+  '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+  '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
+  '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
+  '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
+  '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+};
+
+function expectedBleedingDevSpecifier(
+  packageName: string,
+  version = testFrameworkVersion,
+) {
+  const unscopedName = packageName.split('/').at(-1);
+  return `npm:@bleedingdev/modern-js-${unscopedName}@${version}`;
+}
+
+function expectBleedingDevModernDependency(
+  packageJson: {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  },
+  section: 'dependencies' | 'devDependencies',
+  packageName: string,
+  version?: string,
+) {
+  expect(packageJson[section]?.[packageName]).toBe(
+    expectedBleedingDevSpecifier(packageName, version),
+  );
+}
 
 function runCreate(projectDir: string, args: string[]) {
   execFileSync(process.execPath, [createBin, projectDir, ...args], {
     cwd: repoRoot,
     env: {
       ...process.env,
+      [frameworkVersionEnv]: testFrameworkVersion,
       FORCE_COLOR: '0',
     },
     stdio: 'pipe',
@@ -22,6 +54,7 @@ function runCreateInWorkspace(workspaceDir: string, args: string[]) {
     cwd: workspaceDir,
     env: {
       ...process.env,
+      [frameworkVersionEnv]: testFrameworkVersion,
       FORCE_COLOR: '0',
     },
     stdio: 'pipe',
@@ -413,7 +446,7 @@ describe('create-ultramodern-workspace', () => {
     expectPnpm11Policy(workspaceDir);
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
-      strategy: 'workspace',
+      strategy: 'install',
       config: './.modernjs/ultramodern-package-source.json',
     });
     expect(rootPackage.scripts['ultramodern:check']).toBe(
@@ -530,20 +563,28 @@ describe('create-ultramodern-workspace', () => {
     for (const packagePath of appPackagePaths) {
       const packageJson = readJson(workspaceDir, packagePath);
       expectNoDirectEffectDependency(packageJson);
-      expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
-        'workspace:*',
+      expectBleedingDevModernDependency(
+        packageJson,
+        'dependencies',
+        '@modern-js/plugin-tanstack',
       );
-      expect(packageJson.dependencies['@modern-js/plugin-i18n']).toBe(
-        'workspace:*',
+      expectBleedingDevModernDependency(
+        packageJson,
+        'dependencies',
+        '@modern-js/plugin-i18n',
       );
-      expect(packageJson.dependencies['@modern-js/runtime']).toBe(
-        'workspace:*',
+      expectBleedingDevModernDependency(
+        packageJson,
+        'dependencies',
+        '@modern-js/runtime',
       );
       expect(packageJson.dependencies.i18next).toBe('26.2.0');
       expect(packageJson.dependencies['react-i18next']).toBeUndefined();
       expect(packageJson.dependencies['node-fetch']).toBe('^3.3.2');
-      expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
-        'workspace:*',
+      expectBleedingDevModernDependency(
+        packageJson,
+        'devDependencies',
+        '@modern-js/app-tools',
       );
       expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.13.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
@@ -590,8 +631,10 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.5.0',
       );
-      expect(packageJson.dependencies['@modern-js/plugin-bff']).toBe(
-        'workspace:*',
+      expectBleedingDevModernDependency(
+        packageJson,
+        'dependencies',
+        '@modern-js/plugin-bff',
       );
       expect(packageJson.exports).toMatchObject({
         './effect/clients': './src/effect/vertical-clients.ts',
@@ -797,7 +840,7 @@ describe('create-ultramodern-workspace', () => {
       'pnpm-11-policy-enforced',
       'template-manifest-retained',
     ]);
-    expect(manifest.packageSource.strategy).toBe('workspace');
+    expect(manifest.packageSource.strategy).toBe('install');
     expect(manifest.agentSkills.source.commit).toBe(
       '61c948b42512e223bad44b83af4080eba48b2677',
     );
@@ -832,8 +875,11 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       '.modernjs/ultramodern-package-source.json',
     );
-    expect(packageSource.strategy).toBe('workspace');
-    expect(packageSource.modernPackages.specifier).toBe('workspace:*');
+    expect(packageSource.strategy).toBe('install');
+    expect(packageSource.modernPackages.specifier).toBe(testFrameworkVersion);
+    expect(packageSource.modernPackages.aliases).toMatchObject(
+      bleedingDevAliases,
+    );
     expect(packageSource.generatedWorkspacePackages.specifier).toBe(
       'workspace:*',
     );
@@ -940,8 +986,25 @@ process.exit(1);
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.0',
     );
-    expect(remotePackage.dependencies['@modern-js/plugin-i18n']).toBe(
-      'workspace:*',
+    expectBleedingDevModernDependency(
+      remotePackage,
+      'dependencies',
+      '@modern-js/plugin-i18n',
+    );
+    expectBleedingDevModernDependency(
+      remotePackage,
+      'dependencies',
+      '@modern-js/plugin-tanstack',
+    );
+    expectBleedingDevModernDependency(
+      remotePackage,
+      'dependencies',
+      '@modern-js/runtime',
+    );
+    expectBleedingDevModernDependency(
+      remotePackage,
+      'devDependencies',
+      '@modern-js/app-tools',
     );
     expect(remotePackage.dependencies.i18next).toBe('26.2.0');
     expect(remotePackage.dependencies['react-i18next']).toBeUndefined();
@@ -952,8 +1015,10 @@ process.exit(1);
     ).toBeUndefined();
     expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(remotePackage['zephyr:dependencies']).toEqual({});
-    expect(remotePackage.dependencies['@modern-js/plugin-bff']).toBe(
-      'workspace:*',
+    expectBleedingDevModernDependency(
+      remotePackage,
+      'dependencies',
+      '@modern-js/plugin-bff',
     );
     expect(remotePackage.exports).toMatchObject({
       './effect/client': './src/effect/catalog-client.ts',

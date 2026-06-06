@@ -1,4 +1,9 @@
 export const WORKSPACE_PACKAGE_VERSION = 'workspace:*';
+export const BLEEDINGDEV_CREATE_PACKAGE = '@bleedingdev/modern-js-create';
+export const BLEEDINGDEV_PACKAGE_SCOPE = 'bleedingdev';
+export const BLEEDINGDEV_PACKAGE_NAME_PREFIX = 'modern-js-';
+export const BLEEDINGDEV_FRAMEWORK_VERSION_ENV =
+  'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 
 export const ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES = [
   '@modern-js/runtime',

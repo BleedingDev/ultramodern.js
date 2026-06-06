@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { i18n, localeKeys } from './locale';
 import {
+  BLEEDINGDEV_CREATE_PACKAGE,
+  BLEEDINGDEV_FRAMEWORK_VERSION_ENV,
+  BLEEDINGDEV_PACKAGE_NAME_PREFIX,
+  BLEEDINGDEV_PACKAGE_SCOPE,
   createModernPackagesMetadata,
   modernPackageSpecifier,
   type ResolvedUltramodernPackageSource,
@@ -756,7 +760,7 @@ function readCreatePackageJson(): CreatePackageJson {
 }
 
 function isBleedingDevCreatePackage(createPackage: CreatePackageJson): boolean {
-  return createPackage.name === '@bleedingdev/modern-js-create';
+  return createPackage.name === BLEEDINGDEV_CREATE_PACKAGE;
 }
 
 function getBleedingDevFrameworkVersion(
@@ -933,76 +937,153 @@ function detectUltramodernPackageSource(
   }
   const packageSourceStrategy =
     strategy as UltramodernPackageSource['strategy'];
+  const explicitRegistry = getOptionValue(args, [
+    '--ultramodern-package-registry',
+  ]);
+  const aliasScope =
+    getOptionValue(args, ['--ultramodern-package-scope']) ??
+    (bleedingDevDefaults &&
+    packageSourceStrategy === 'install' &&
+    !explicitRegistry
+      ? BLEEDINGDEV_PACKAGE_SCOPE
+      : undefined);
   return {
     strategy: packageSourceStrategy,
     modernPackageVersion:
       getOptionValue(args, ['--ultramodern-package-version']) ??
       defaultPackageVersion,
-    registry: getOptionValue(args, ['--ultramodern-package-registry']),
-    aliasScope:
-      getOptionValue(args, ['--ultramodern-package-scope']) ??
-      (bleedingDevDefaults && packageSourceStrategy === 'install'
-        ? 'bleedingdev'
-        : undefined),
+    registry: explicitRegistry,
+    aliasScope,
     aliasPackageNamePrefix:
       getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
-      'modern-js-',
+      (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined),
   };
 }
 
-function singleAppInstallPackageSource(
+function hasExplicitUltramodernPackageSource(
+  args: string[],
+  value?: UltramodernPackageSource['strategy'],
+): boolean {
+  const configuredValue = getOptionValue(args, [
+    '--ultramodern-package-source',
+  ]);
+  return value ? configuredValue === value : configuredValue !== undefined;
+}
+
+function readBleedingDevFrameworkVersionFromRegistry(): string {
+  const envVersion = process.env[BLEEDINGDEV_FRAMEWORK_VERSION_ENV]?.trim();
+  if (envVersion) {
+    if (!semverPattern.test(envVersion)) {
+      console.error(
+        `${BLEEDINGDEV_FRAMEWORK_VERSION_ENV} must be a valid semver version`,
+      );
+      process.exit(1);
+    }
+    return envVersion;
+  }
+
+  try {
+    const rawVersion = runSetupCommand('npm', [
+      'view',
+      `${BLEEDINGDEV_CREATE_PACKAGE}@latest`,
+      'ultramodern.frameworkVersion',
+      '--json',
+    ]).trim();
+    const version = JSON.parse(rawVersion);
+    if (typeof version === 'string' && semverPattern.test(version)) {
+      return version;
+    }
+  } catch {
+    // Fall through to the actionable error below.
+  }
+
+  console.error(
+    [
+      `Could not resolve ${BLEEDINGDEV_CREATE_PACKAGE}@latest ultramodern.frameworkVersion.`,
+      'Pass --workspace to use local workspace protocol dependencies,',
+      'or pass --ultramodern-package-version with the exact BleedingDev framework cohort.',
+    ].join(' '),
+  );
+  process.exit(1);
+}
+
+function resolveInstallBackedPackageSource(
+  args: string[],
+  createPackage: CreatePackageJson,
   packageSource: UltramodernPackageSource,
 ): UltramodernPackageSource {
-  if (packageSource.strategy === 'install') {
-    return packageSource;
-  }
+  const explicitVersion = getOptionValue(args, [
+    '--ultramodern-package-version',
+  ]);
+  const explicitRegistry = getOptionValue(args, [
+    '--ultramodern-package-registry',
+  ]);
+  const aliasScope =
+    getOptionValue(args, ['--ultramodern-package-scope']) ??
+    packageSource.aliasScope ??
+    (explicitRegistry ? undefined : BLEEDINGDEV_PACKAGE_SCOPE);
 
   return {
+    ...packageSource,
     strategy: 'install',
-    modernPackageVersion: packageSource.modernPackageVersion,
-    ...(packageSource.registry ? { registry: packageSource.registry } : {}),
-    ...(packageSource.aliasPackageNamePrefix
-      ? { aliasPackageNamePrefix: packageSource.aliasPackageNamePrefix }
-      : {}),
+    modernPackageVersion:
+      explicitVersion ??
+      (isBleedingDevCreatePackage(createPackage)
+        ? packageSource.modernPackageVersion
+        : readBleedingDevFrameworkVersionFromRegistry()),
+    aliasScope,
+    aliasPackageNamePrefix:
+      getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
+      packageSource.aliasPackageNamePrefix ??
+      (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined),
   };
 }
 
-function singleAppModernPackageSpecifier(
-  packageName: string,
+function resolveSingleAppPackageSource(
+  args: string[],
+  createPackage: CreatePackageJson,
   packageSource: UltramodernPackageSource,
   useWorkspaceProtocol: boolean,
-): string {
+): UltramodernPackageSource {
   if (useWorkspaceProtocol) {
-    return WORKSPACE_PACKAGE_VERSION;
+    return {
+      ...packageSource,
+      strategy: 'workspace',
+      modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
+    };
   }
 
-  return modernPackageSpecifier(
-    packageName,
-    singleAppInstallPackageSource(packageSource),
-  );
+  return resolveInstallBackedPackageSource(args, createPackage, packageSource);
+}
+
+function resolveWorkspacePackageSource(
+  args: string[],
+  createPackage: CreatePackageJson,
+  packageSource: UltramodernPackageSource,
+): UltramodernPackageSource {
+  if (hasExplicitUltramodernPackageSource(args, 'workspace')) {
+    return {
+      ...packageSource,
+      strategy: 'workspace',
+      modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
+    };
+  }
+
+  return resolveInstallBackedPackageSource(args, createPackage, packageSource);
 }
 
 function createSingleAppPackageSourceEvidence(
   packageSource: UltramodernPackageSource,
-  useWorkspaceProtocol: boolean,
 ) {
-  const resolvedPackageSource: UltramodernPackageSource = useWorkspaceProtocol
-    ? {
-        ...packageSource,
-        strategy: 'workspace',
-        modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
-      }
-    : singleAppInstallPackageSource(packageSource);
-
   return {
     schemaVersion: 1,
     preset: 'presetUltramodern',
-    strategy: resolvedPackageSource.strategy,
+    strategy: packageSource.strategy,
     modernPackages: createModernPackagesMetadata(
       ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
-      resolvedPackageSource,
+      packageSource,
       {
-        includeAliases: resolvedPackageSource.strategy === 'install',
+        includeAliases: packageSource.strategy === 'install',
       },
     ),
   };
@@ -1011,7 +1092,6 @@ function createSingleAppPackageSourceEvidence(
 function writeSingleAppPackageSourceEvidence(
   targetDir: string,
   packageSource: UltramodernPackageSource,
-  useWorkspaceProtocol: boolean,
 ) {
   const evidencePath = path.join(
     targetDir,
@@ -1022,7 +1102,7 @@ function writeSingleAppPackageSourceEvidence(
   fs.writeFileSync(
     evidencePath,
     `${JSON.stringify(
-      createSingleAppPackageSourceEvidence(packageSource, useWorkspaceProtocol),
+      createSingleAppPackageSourceEvidence(packageSource),
       null,
       2,
     )}\n`,
@@ -1286,16 +1366,21 @@ async function main() {
   const generateWorkspace = detectUltramodernWorkspaceFlag();
 
   if (generateWorkspace) {
+    const packageSource = resolveWorkspacePackageSource(
+      args,
+      createPackage,
+      detectUltramodernPackageSource(
+        args,
+        ultramodernPackageVersion,
+        createPackage,
+      ),
+    );
     generateUltramodernWorkspace({
       targetDir,
       packageName: generatedPackageName,
       modernVersion: version,
       enableTailwind: detectTailwindFlag(),
-      packageSource: detectUltramodernPackageSource(
-        args,
-        ultramodernPackageVersion,
-        createPackage,
-      ),
+      packageSource,
     });
     initializeGeneratedGitRepository(targetDir);
 
@@ -1321,53 +1406,53 @@ async function main() {
   const bffRuntime = detectBffRuntime();
   const enableTailwind = detectTailwindFlag();
   const useWorkspaceProtocol = detectWorkspaceProtocolFlag();
-  const packageSource = detectUltramodernPackageSource(
+  const packageSource = resolveSingleAppPackageSource(
     args,
-    ultramodernPackageVersion,
     createPackage,
+    detectUltramodernPackageSource(
+      args,
+      ultramodernPackageVersion,
+      createPackage,
+    ),
+    useWorkspaceProtocol,
   );
-  const templateManifest = createBuiltinTemplateManifest(version);
+  const templateManifest = createBuiltinTemplateManifest(
+    packageSource.strategy === 'install'
+      ? packageSource.modernPackageVersion
+      : version,
+  );
   validateTemplateManifest(templateManifest);
 
   copyTemplate(templateDir, targetDir, {
     packageName: generatedPackageName,
-    version: useWorkspaceProtocol
-      ? 'workspace:*'
-      : packageSource.modernPackageVersion,
-    runtimeVersion: singleAppModernPackageSpecifier(
-      '@modern-js/runtime',
-      packageSource,
-      useWorkspaceProtocol,
-    ),
-    appToolsVersion: singleAppModernPackageSpecifier(
+    version:
+      packageSource.strategy === 'workspace'
+        ? WORKSPACE_PACKAGE_VERSION
+        : packageSource.modernPackageVersion,
+    runtimeVersion: modernPackageSpecifier('@modern-js/runtime', packageSource),
+    appToolsVersion: modernPackageSpecifier(
       '@modern-js/app-tools',
       packageSource,
-      useWorkspaceProtocol,
     ),
-    adapterRstestVersion: singleAppModernPackageSpecifier(
+    adapterRstestVersion: modernPackageSpecifier(
       '@modern-js/adapter-rstest',
       packageSource,
-      useWorkspaceProtocol,
     ),
-    tsconfigVersion: singleAppModernPackageSpecifier(
+    tsconfigVersion: modernPackageSpecifier(
       '@modern-js/tsconfig',
       packageSource,
-      useWorkspaceProtocol,
     ),
-    pluginTanstackVersion: singleAppModernPackageSpecifier(
+    pluginTanstackVersion: modernPackageSpecifier(
       '@modern-js/plugin-tanstack',
       packageSource,
-      useWorkspaceProtocol,
     ),
-    pluginBffVersion: singleAppModernPackageSpecifier(
+    pluginBffVersion: modernPackageSpecifier(
       '@modern-js/plugin-bff',
       packageSource,
-      useWorkspaceProtocol,
     ),
-    pluginI18nVersion: singleAppModernPackageSpecifier(
+    pluginI18nVersion: modernPackageSpecifier(
       '@modern-js/plugin-i18n',
       packageSource,
-      useWorkspaceProtocol,
     ),
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
     tailwindVersion: TAILWIND_VERSION,
@@ -1387,7 +1472,7 @@ async function main() {
     ...(packageJson.modernjs ?? {}),
     preset: 'presetUltramodern',
     packageSource: {
-      strategy: useWorkspaceProtocol ? 'workspace' : 'install',
+      strategy: packageSource.strategy,
       config: './.modernjs/ultramodern-package-source.json',
     },
   };
@@ -1422,11 +1507,7 @@ async function main() {
     `${JSON.stringify(packageJson, null, 2)}\n`,
   );
   writeTemplateManifestEvidence(targetDir, templateManifest);
-  writeSingleAppPackageSourceEvidence(
-    targetDir,
-    packageSource,
-    useWorkspaceProtocol,
-  );
+  writeSingleAppPackageSourceEvidence(targetDir, packageSource);
   if (!isSubproject) {
     initializeGeneratedGitRepository(targetDir);
   }

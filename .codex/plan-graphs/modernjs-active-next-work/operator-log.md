@@ -77,3 +77,55 @@ Targeted gates passed for the integrated blocker fixes: Biome on edited files, c
 - `ultramodern-active-03-tractor-cleanup`: blocked by generated proof; owns `modernjs-u3xw.1` cleanup and then `modernjs-u3xw` umbrella closure.
 
 Keep `modernjs-a6d4` and JSON-LD follow-ups outside this active graph; ADR-0016 and Beads keep resilience/performance and structured-data policy as later work.
+
+## Wave 3
+
+Generated proof is active for `modernjs-41je`. All Wave 3 agents are leaf agents; none may commit, push, close Beads, or add app/demo shims.
+
+| Lane | Agent | Mode | Scope | Status | Next action |
+| --- | --- | --- | --- | --- | --- |
+| single-app-generated-proof | `019e9c58-ccd8-7f31-81e6-fd71761b09c5` Erdos | verification-only | fresh local-source single-app variants in temp dirs | completed | Local source single-app defaults generate, but install/check/build fail unless generated dependencies use the coherent BleedingDev UltraModern cohort; React Router/Hono also exposed single-app `modern.config.ts` sort-key churn. |
+| workspace-mf-generated-proof | `019e9c58-cd97-7613-9fd5-571ce52c5a08` Chandrasekhar | verification-only | fresh local-source shell-only and shell-plus-vertical workspaces in temp dirs | completed | Generated workspace validators pass; real install fails because `workspace:*` Modern.js package deps are emitted into a generated workspace that does not contain repo packages. |
+| cloudflare-wrangler-proof | `019e9c58-ce52-7c23-a161-ae3d85e8d0c4` Dirac | verification-only | generated Cloudflare output, wrangler capability, public URL proof | completed | Wrangler `deploy --dry-run` and `wrangler dev` pass for shell and transportation; public deployed URL proof remains env-blocked, and generated worker names must match `createCloudflareWorkerName`. |
+| generated-quality-gates | `019e9c58-cf0b-7aa2-9e63-031ded584acb` Gibbs | verification-only | repo `validate:tsgo`, focused create/proof test gates | completed | Initial tsgo and MF contract failures reproduced; integrated fixes now make `pnpm validate:tsgo` pass and update the TanStack MF contract to `ModernRouterClient`. |
+| published-create-cohort-proof | `019e9c58-cfc5-7181-8496-236c9f7bcfb9` Avicenna | verification-only | current published BleedingDev cohort readiness/proof | completed | Published `@bleedingdev/modern-js-create@3.2.0-ultramodern.103` erp-10 proof passed install, check, build, browser smoke, and no-JS SSR assertions with the exact pinned pnpm. |
+
+## Wave 4
+
+Wave 4 owns the source-mode generator fixes uncovered by Wave 3. The primary agent owns runtime/proof integration and final Beads/push. All agents are leaf agents and may not commit, push, publish, or update Beads.
+
+| Lane | Agent | Mode | Scope | Status | Next action |
+| --- | --- | --- | --- | --- | --- |
+| single-app-create-source-fix | `019e9c64-92ed-74b0-84ff-ee3d748c5835` Huygens | write-capable | `packages/toolkit/create/src/index.ts`, `ultramodern-package-source.ts`, single-app templates/tests only | completed | Integrated locally: default source create now resolves an install-backed BleedingDev UltraModern framework cohort, while explicit `--workspace` still emits `workspace:*`. |
+| workspace-cloudflare-source-fix | `019e9c64-93e6-7cc3-9327-90ee3a8c9a91` Mencius | write-capable | `packages/toolkit/create/src/ultramodern-workspace.ts` only | completed | Integrated locally: generated workspaces default to install-backed Modern package aliases, keep generated internal packages on `workspace:*`, emit strict Cloudflare worker names, and validate package-source parity. |
+| generated-proof-verification-plan | `019e9c64-94ae-7750-9071-69c70ec7c73a` Mill | verification-only | generated proof commands and artifacts only | completed | Closeout matrix executed: create integration, no-JS SSR unit proof, MF contract, `validate:tsgo`, fresh single-app, fresh shell-plus-vertical workspace, Cloudflare build, and Wrangler dry-runs. |
+
+## Wave 5
+
+Final generated proof for `modernjs-41je` is complete. No agents may commit, push, publish, or update Beads except the primary agent.
+
+| Lane | Agent | Mode | Scope | Status | Result |
+| --- | --- | --- | --- | --- | --- |
+| npm-cohort-audit | `019e9c70-b435-7d71-81e4-6b85e06d0e8f` | read-only | BleedingDev npm cohort | completed | `@bleedingdev/modern-js-create@latest` resolves to `3.2.0-ultramodern.103`; checked Modern package aliases exist at the same cohort. |
+| generated-artifact-hygiene | `019e9c77-201e-7800-8206-2bc6a36ab766` | read-only | git diff scope and formatting | completed | Keep `mwa.ts`; lockfile and generated common snapshot churn are clean; Biome and `git diff --check` are the final formatting checks. |
+| cloudflare-wrangler-closeout | `019e9c7e-2dc0-7082-ac9b-e0a7cd3950c3` Darwin | verification-only | temp CF MF SSR workspace | completed | Fresh workspace plus vertical passed install, `ultramodern:check`, `cloudflare:build`, shell and vertical `wrangler deploy --dry-run`, and local `wrangler dev` proof with `cloudflare:proof --require-public-urls`. |
+
+## Closeout Evidence
+
+Local source proof:
+
+- `pnpm --dir tests exec rstest run integration/create-ultramodern-workspace/tests/index.test.ts integration/create-tailwind/tests/index.test.ts integration/create-bff-runtime/tests/index.test.ts`: 17 tests passed.
+- `node --test scripts/ultramodern-production-readiness/__tests__/browser-smoke.test.js scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js`: 14 tests passed, including no-JS SSR browser proof.
+- `pnpm --dir tests exec rstest run -c rstest.superapp-contracts.config.mts integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts`: 5 tests passed.
+- `pnpm validate:tsgo`: 12 critical configs passed.
+- Fresh single app from local create using `MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION=3.2.0-ultramodern.103`: generated, installed through generated `mise`/pnpm, passed `pnpm ultramodern:check`, and built successfully.
+- Fresh shell-plus-vertical workspace from local create using the same framework version: generated, installed through generated `mise`/pnpm, passed `pnpm ultramodern:check`, built shell plus vertical, and passed MF type assertions.
+
+Cloudflare proof:
+
+- Fresh local workspace `cloudflare:build` passed for shell and vertical.
+- Generated Wrangler configs use names `ultra-workspace-shell-super-app` and `ultra-workspace-catalog`, compatibility date `2026-06-02`, flags `nodejs_compat` and `global_fetch_strictly_public`, `main: server/index.mjs`, and ASSETS binding with `run_worker_first`.
+- `wrangler deploy --dry-run` passed for shell and vertical in the local source workspace.
+- Independent Darwin temp workspace passed local `wrangler dev` for shell and vertical plus `cloudflare:proof --require-public-urls`. Primary duplicate `wrangler dev` attempt hit local inspector port `127.0.0.1:9229` while starting the shell; spawned processes were killed and the independent proof covers the runtime claim.
+
+`modernjs-41je` is closed in Beads. Current npm latest remains `@bleedingdev/modern-js-create@3.2.0-ultramodern.103`; the next external proof lane is `.104` publishing and Tractor cleanup under `modernjs-u3xw.1`.

@@ -39,7 +39,13 @@ export default defineConfig(
 {{/if}}        runtimeFramework: '{{bffRuntime}}',
       },
 
-{{/if}}      plugins: [
+{{/if}}      html: {
+        meta: {
+          viewport: 'width=device-width, initial-scale=1.0, viewport-fit=cover',
+        },
+        title: 'UltraModern.js Starter',
+      },
+      plugins: [
         appTools(),
         i18nPlugin({
           localeDetection: {
@@ -53,12 +59,6 @@ export default defineConfig(
 {{/if}}{{#if enableBff}}
         bffPlugin(),
 {{/if}}      ],
-      html: {
-        title: 'UltraModern.js Starter',
-        meta: {
-          viewport: 'width=device-width, initial-scale=1.0, viewport-fit=cover',
-        },
-      },
       source: {
         globalVars: {
           ULTRAMODERN_SITE_URL: siteUrl,
@@ -70,8 +70,8 @@ export default defineConfig(
       enableBffRequestId,
       enableModuleFederationSSR,
       enableTelemetryExporters,
-      telemetryFailLoudStartup,
       ...(typeof otlpEndpoint === 'string' ? { otlpEndpoint } : {}),
+      telemetryFailLoudStartup,
       ...(typeof victoriaMetricsEndpoint === 'string' ? { victoriaMetricsEndpoint } : {}),
     },
   ),

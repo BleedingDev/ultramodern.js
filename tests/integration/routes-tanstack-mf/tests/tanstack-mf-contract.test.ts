@@ -271,7 +271,7 @@ describe('tanstack + module federation contracts', () => {
             'Boolean((window as WindowWithTanstackSsr).$_TSR)',
           );
           expect(tanstackClientRuntime).toContain(
-            '<RouterClient router={router} />',
+            '<ModernRouterClient router={router} />',
           );
         },
       },
