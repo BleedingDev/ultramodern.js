@@ -8,7 +8,7 @@ export const createFederatedCssLinks = (
     existingAssets?: Iterable<string>;
   },
 ) => {
-  if (!assets?.length) {
+  if (assets === undefined || assets.length === 0) {
     return '';
   }
 
@@ -17,7 +17,7 @@ export const createFederatedCssLinks = (
   const links: string[] = [];
 
   for (const asset of assets) {
-    if (!asset || seen.has(asset) || options.template.includes(asset)) {
+    if (asset === '' || seen.has(asset) || options.template.includes(asset)) {
       continue;
     }
 

@@ -112,7 +112,7 @@ const detectLanguage = () => {
   }
 
   const htmlLanguage = document.documentElement.lang;
-  if (htmlLanguage) {
+  if (htmlLanguage !== '') {
     return htmlLanguage.split('-')[0] || 'en';
   }
 
@@ -153,7 +153,7 @@ const collectBoundaryElements = (legacySelector?: string) => {
     elements.add(element);
   }
 
-  if (!legacySelector) {
+  if (legacySelector === undefined || legacySelector === '') {
     return Array.from(elements);
   }
 
@@ -228,7 +228,7 @@ function BoundaryDebugger({
       const nextBoxes = collectBoundaryElements(legacySelector)
         .map((element): BoundaryBox | undefined => {
           const boundaryId = getBoundaryId(element);
-          if (!boundaryId) {
+          if (boundaryId === undefined || boundaryId === '') {
             return undefined;
           }
           const rect = element.getBoundingClientRect();
@@ -248,7 +248,10 @@ function BoundaryDebugger({
           const label = boundary?.label ?? boundary?.appId ?? boundaryId;
           const expose = element.dataset.modernMfExpose;
           const detail =
-            expose && expose !== label && expose !== boundaryId
+            expose !== undefined &&
+            expose !== '' &&
+            expose !== label &&
+            expose !== boundaryId
               ? expose
               : undefined;
           const box: BoundaryBox = {
@@ -260,7 +263,7 @@ function BoundaryDebugger({
             top: rect.top,
             width: rect.width,
           };
-          if (detail) {
+          if (detail !== undefined) {
             box.detail = detail;
           }
           return box;
@@ -368,7 +371,7 @@ function BoundaryDebugger({
                 }}
               >
                 <span>{box.label}</span>
-                {box.detail ? (
+                {box.detail !== undefined && box.detail !== '' ? (
                   <span
                     style={{
                       font: '700 10px/1.1 system-ui, sans-serif',
@@ -394,14 +397,12 @@ export const ultramodernBoundaryDebuggerPlugin = (
 ): RuntimePlugin => ({
   name: '@modern-js/runtime/boundary-debugger',
   setup: api => {
-    api.wrapRoot(App => {
-      return props => (
-        <>
-          <App {...props} />
-          <BoundaryDebugger {...options} />
-        </>
-      );
-    });
+    api.wrapRoot(App => props => (
+      <>
+        <App {...props} />
+        <BoundaryDebugger {...options} />
+      </>
+    ));
   },
 });
 

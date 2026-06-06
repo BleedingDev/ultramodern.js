@@ -2,7 +2,7 @@
 import React from 'react';
 import {
   Helmet as AsyncHelmet,
-  HelmetData,
+  HelmetData as AsyncHelmetData,
   type HelmetDatum,
   type HelmetHTMLBodyDatum,
   type HelmetHTMLElementDatum,
@@ -96,7 +96,7 @@ const createTitleDatum = (
 ): HelmetDatum => ({
   toComponent: () => [],
   toString: () => {
-    if (!title) {
+    if (title === undefined || title === '') {
       return '';
     }
     const attrs = attributesToString(attributes, true);
@@ -117,6 +117,16 @@ const createEmptyHelmetState = (): HelmetServerState => ({
   title: createTitleDatum(undefined, {}),
 });
 
+const normalizeHelmetTitle = (title: unknown): string | undefined => {
+  if (typeof title === 'string') {
+    return title;
+  }
+  if (Array.isArray(title)) {
+    return title.map(part => String(part)).join('');
+  }
+  return undefined;
+};
+
 const mergeAttributes = (
   current: TagRecord,
   next: TagRecord | undefined,
@@ -136,7 +146,7 @@ const collectChildren = (
   },
 ) => {
   React.Children.forEach(children, child => {
-    if (!React.isValidElement(child)) {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
       return;
     }
 
@@ -191,7 +201,7 @@ const collectHelmetProps = (
 ): HelmetServerState => {
   const baseState = current ?? createEmptyHelmetState();
   const draft = {
-    base: [...((props.base ? [props.base] : []) as TagRecord[])],
+    base: [...((props.base !== undefined ? [props.base] : []) as TagRecord[])],
     bodyAttributes: props.bodyAttributes as TagRecord | undefined,
     htmlAttributes: props.htmlAttributes as TagRecord | undefined,
     link: [...((props.link ?? []) as TagRecord[])],
@@ -199,19 +209,16 @@ const collectHelmetProps = (
     noscript: [...((props.noscript ?? []) as TagRecord[])],
     script: [...((props.script ?? []) as TagRecord[])],
     style: [...((props.style ?? []) as TagRecord[])],
-    title:
-      typeof props.title === 'string'
-        ? props.title
-        : Array.isArray(props.title)
-          ? props.title.join('')
-          : undefined,
+    title: normalizeHelmetTitle(props.title),
     titleAttributes: (props.titleAttributes ?? {}) as TagRecord,
   };
 
   collectChildren(props.children, draft);
 
   const title =
-    draft.title && props.titleTemplate
+    draft.title !== undefined &&
+    draft.title !== '' &&
+    props.titleTemplate !== undefined
       ? props.titleTemplate.replaceAll('%s', draft.title)
       : (draft.title ?? props.defaultTitle);
 
@@ -288,7 +295,7 @@ const collectHelmetProps = (
 export const Helmet = (props: React.PropsWithChildren<HelmetProps>) => {
   const runtimeContext = React.useContext(InternalRuntimeContext);
 
-  if (runtimeContext && !runtimeContext.isBrowser) {
+  if (runtimeContext !== null && runtimeContext.isBrowser === false) {
     runtimeContext._helmetContext ??= {};
     runtimeContext._helmetContext.helmet = collectHelmetProps(
       runtimeContext._helmetContext.helmet ?? undefined,
@@ -302,7 +309,7 @@ export const Helmet = (props: React.PropsWithChildren<HelmetProps>) => {
 
 const head = {
   Helmet,
-  HelmetData,
+  HelmetData: AsyncHelmetData,
   HelmetProvider,
 };
 
@@ -313,7 +320,7 @@ export type {
   HelmetHTMLBodyDatum,
   HelmetHTMLElementDatum,
   HelmetProps,
-  HelmetServerState as HelmetData,
+  HelmetServerState,
   HelmetTags,
 };
-export { HelmetData, HelmetProvider };
+export { AsyncHelmetData as HelmetData, HelmetProvider };

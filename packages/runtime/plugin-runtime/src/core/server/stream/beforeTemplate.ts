@@ -123,7 +123,10 @@ export async function buildShellBeforeTemplate(
                 return routeAssets[routeId] as RouteManifest | undefined;
               }
             })
-            .filter(Boolean) ?? [];
+            .filter(
+              (routeManifest): routeManifest is RouteManifest =>
+                routeManifest !== undefined,
+            ) ?? [];
       }
 
       const asyncEntry = routeAssets[`async-${entryName}`] as

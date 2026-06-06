@@ -1,4 +1,5 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
+import * as Context from 'effect/Context';
 import type * as EffectType from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
@@ -37,7 +38,18 @@ export * from 'effect/unstable/httpapi';
 export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
 
-export type EffectRuntimeLayer = Layer.Layer<never, unknown, unknown>;
+export type EffectRuntimeRequirements =
+  | HttpRouter.HttpRouter
+  | HttpRouter.Request<'Error', any>
+  | HttpRouter.Request<'GlobalError', any>
+  | HttpRouter.Request<'GlobalRequires', any>
+  | HttpRouter.Request<'Requires', any>;
+export type EffectRuntimeLayer = Layer.Layer<
+  never,
+  never,
+  EffectRuntimeRequirements
+>;
+const emptyEffectServiceContext = Context.empty() as Context.Context<any>;
 export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
@@ -785,7 +797,10 @@ export function createHttpApiHandler<
     if (validationError) {
       return validationError;
     }
-    return httpApiHandler.handler(request, context);
+    return httpApiHandler.handler(
+      request,
+      context ?? emptyEffectServiceContext,
+    );
   };
 
   const handleBatchRequest = async (
@@ -1064,7 +1079,10 @@ export function createHttpApiHandler<
       context?: Parameters<typeof rpcHandler.handler>[1],
     ) => {
       if (isRpcRequest(request, rpcPath)) {
-        return rpcHandler.handler(request, context);
+        return rpcHandler.handler(
+          request,
+          context ?? emptyEffectServiceContext,
+        );
       }
       return handleHttpApiRequest(request);
     },

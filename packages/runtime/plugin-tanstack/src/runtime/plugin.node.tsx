@@ -169,7 +169,8 @@ function isReactLazyRouteComponent(
   component: unknown,
 ): component is ReactLazyRouteComponent {
   return (
-    Boolean(component) &&
+    component !== null &&
+    component !== undefined &&
     typeof component === 'object' &&
     typeof (component as ReactLazyRouteComponent)._init === 'function' &&
     '_payload' in component

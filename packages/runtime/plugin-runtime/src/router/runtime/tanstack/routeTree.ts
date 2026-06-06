@@ -149,7 +149,7 @@ function wrapRouteComponentWithModernContext(
     route.options.component = withModernRouteMatchContext(
       component,
       routeMatchId,
-    );
+    ) as typeof route.options.component;
   }
 }
 
@@ -904,7 +904,7 @@ export function createRouteTreeFromModernRoutes(
     rootRoute.options.component = withModernRouteMatchContext(
       rootComponent,
       rootRouteId,
-    );
+    ) as typeof rootRoute.options.component;
   }
 
   const topLevel = rootModern
@@ -979,7 +979,7 @@ export function createRouteTreeFromRouteObjects(
     rootRoute.options.component = withModernRouteMatchContext(
       rootComponent,
       rootRouteId,
-    );
+    ) as typeof rootRoute.options.component;
   }
 
   const topLevel = rootLikeRoute

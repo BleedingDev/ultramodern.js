@@ -235,7 +235,7 @@ export function makeEffectHttpApiClient<
             }),
           );
 
-    return options?.transformClient
+    return typeof options?.transformClient === 'function'
       ? options.transformClient(contextClient)
       : contextClient;
   };

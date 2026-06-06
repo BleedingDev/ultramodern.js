@@ -33,7 +33,7 @@ export function injectBeforeHydrationEntryScript(
   scripts: string,
   entryName = 'index',
 ) {
-  if (!scripts) {
+  if (scripts === '') {
     return template;
   }
 
@@ -42,7 +42,7 @@ export function injectBeforeHydrationEntryScript(
     scriptTags.find(match => isEntryScript(match.src, entryName, false)) ??
     scriptTags.find(match => isEntryScript(match.src, entryName, true));
 
-  if (!target) {
+  if (target === undefined) {
     return template;
   }
 

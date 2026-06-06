@@ -1,12 +1,19 @@
 import { Outlet as TanstackOutlet } from '@tanstack/react-router';
 import {
-  type ComponentProps,
   createElement,
   type ElementType,
   memo,
+  type ReactElement,
 } from 'react';
 
-type PreloadableComponent = ElementType<Record<string, unknown>> & {
+type RouteComponentProps = Record<string, unknown>;
+type PreloadableComponent = ElementType<RouteComponentProps> & {
+  load?: () => Promise<unknown>;
+  preload?: () => Promise<unknown>;
+};
+type WrappedPreloadableComponent = ((
+  props: RouteComponentProps,
+) => ReactElement | null) & {
   load?: () => Promise<unknown>;
   preload?: () => Promise<unknown>;
 };
@@ -19,14 +26,13 @@ export function withModernRouteMatchContext(
   component: unknown,
   _routeId: string,
 ): unknown {
-  if (!component) {
+  if (component === null || component === undefined) {
     return component;
   }
 
-  const Component = component as ElementType<Record<string, unknown>>;
-  const WrappedRouteComponent = (
-    props: ComponentProps<ElementType<Record<string, unknown>>>,
-  ) => createElement(Component, props);
+  const Component = component as ElementType<RouteComponentProps>;
+  const WrappedRouteComponent: WrappedPreloadableComponent = props =>
+    createElement(Component, props);
 
   const preloadable = component as PreloadableComponent;
   if (typeof preloadable.load === 'function') {

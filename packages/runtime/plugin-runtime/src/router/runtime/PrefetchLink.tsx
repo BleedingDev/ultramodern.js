@@ -103,6 +103,8 @@ const warmupCache = new Map<string, number>();
 const warmupQueue: WarmupTask[] = [];
 let activeWarmups = 0;
 
+const getWarmupTimestamp = () => performance.now();
+
 const getConnection = (): NetworkInformationLike | undefined => {
   const nav = globalThis.navigator as
     | (Navigator & {
@@ -132,7 +134,7 @@ const shouldWarmupOnCurrentNetwork = () => {
   return true;
 };
 
-const pruneWarmupCache = (now = Date.now()) => {
+const pruneWarmupCache = (now = getWarmupTimestamp()) => {
   for (const [key, timestamp] of warmupCache) {
     if (now - timestamp > WARMUP_TTL) {
       warmupCache.delete(key);
@@ -173,7 +175,7 @@ const scheduleWarmup = (key: string, run: () => Promise<unknown>) => {
     return () => {};
   }
 
-  warmupCache.set(key, Date.now());
+  warmupCache.set(key, getWarmupTimestamp());
 
   const task: WarmupTask = {
     key,

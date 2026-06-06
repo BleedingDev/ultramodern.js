@@ -181,16 +181,16 @@ function getCachedRouteModule(routeId: string) {
   ]?.[routeId];
 }
 
-async function preloadHydratedRouteComponents(router: AnyRouter) {
+function preloadHydratedRouteComponents(router: AnyRouter): Promise<void> {
   const preloadableRouter = router as RouterWithPreloadableRoutes;
   const routesById = preloadableRouter.routesById || {};
   const matches = preloadableRouter.stores.matches.get() as Array<{
     routeId?: string;
   }>;
 
-  await Promise.all(
+  return Promise.all(
     matches.map(match => {
-      if (!match.routeId) {
+      if (match.routeId === undefined || match.routeId === '') {
         return undefined;
       }
 
@@ -203,10 +203,18 @@ async function preloadHydratedRouteComponents(router: AnyRouter) {
 
       return Promise.resolve(preload.call(component)).then(routeModule => {
         const modernRouteId = route?.options?.staticData?.modernRouteId;
+        const cachedRouteModule =
+          typeof modernRouteId === 'string' && modernRouteId !== ''
+            ? getCachedRouteModule(modernRouteId)
+            : undefined;
         const resolvedComponent = pickRouteModuleComponent(
-          (modernRouteId && getCachedRouteModule(modernRouteId)) || routeModule,
+          cachedRouteModule ?? routeModule,
         );
-        if (resolvedComponent && modernRouteId) {
+        if (
+          resolvedComponent !== undefined &&
+          typeof modernRouteId === 'string' &&
+          modernRouteId !== ''
+        ) {
           route.options.component = withModernRouteMatchContext(
             resolvedComponent,
             modernRouteId,
@@ -214,40 +222,39 @@ async function preloadHydratedRouteComponents(router: AnyRouter) {
         }
       });
     }),
-  );
+  ).then(() => undefined);
 }
 
 function getTanstackSsrHydrationRecord(router: AnyRouter) {
-  let hydrationRecord = routerHydrationRecords.get(router);
-  if (!hydrationRecord) {
-    hydrationRecord = {
-      promise: Promise.resolve(),
-      status: 'pending',
-    };
-    routerHydrationRecords.set(router, hydrationRecord);
-    try {
-      hydrationRecord.promise = hydrateTanstackRouter(router)
-        .then(async value => {
-          await preloadHydratedRouteComponents(router);
+  const existingHydrationRecord = routerHydrationRecords.get(router);
+  if (existingHydrationRecord !== undefined) {
+    return existingHydrationRecord;
+  }
+
+  const hydrationRecord: RouterHydrationRecord = {
+    promise: Promise.resolve(),
+    status: 'pending',
+  };
+  routerHydrationRecords.set(router, hydrationRecord);
+  try {
+    hydrationRecord.promise = hydrateTanstackRouter(router)
+      .then(value => preloadHydratedRouteComponents(router).then(() => value))
+      .then(
+        value => {
+          hydrationRecord.status = 'fulfilled';
           return value;
-        })
-        .then(
-          value => {
-            hydrationRecord.status = 'fulfilled';
-            return value;
-          },
-          error => {
-            hydrationRecord.status = 'rejected';
-            hydrationRecord.error = error;
-            throw error;
-          },
-        );
-    } catch (error) {
-      hydrationRecord.status = 'rejected';
-      hydrationRecord.error = error;
-      hydrationRecord.promise = Promise.reject(error);
-      hydrationRecord.promise.catch(() => {});
-    }
+        },
+        error => {
+          hydrationRecord.status = 'rejected';
+          hydrationRecord.error = error;
+          throw error;
+        },
+      );
+  } catch (error) {
+    hydrationRecord.status = 'rejected';
+    hydrationRecord.error = error;
+    hydrationRecord.promise = Promise.reject(error);
+    hydrationRecord.promise.catch(() => {});
   }
   return hydrationRecord;
 }
@@ -436,20 +443,25 @@ export const tanstackRouterPlugin = (
         return cachedRouter;
       };
 
-      api.onBeforeRender(async context => {
+      api.onBeforeRender(context => {
         const mergedConfig = getMergedConfig();
         if (
           typeof window !== 'undefined' &&
-          (window as { _SSR_DATA?: unknown })._SSR_DATA &&
+          (window as { _SSR_DATA?: unknown })._SSR_DATA !== undefined &&
           mergedConfig.unstable_reloadOnURLMismatch
         ) {
           const { ssrContext } = context;
           const currentPathname = normalizePathname(window.location.pathname);
           const initialPathname =
-            ssrContext?.request?.pathname &&
-            normalizePathname(ssrContext.request.pathname);
+            typeof ssrContext?.request?.pathname === 'string'
+              ? normalizePathname(ssrContext.request.pathname)
+              : undefined;
 
-          if (initialPathname && initialPathname !== currentPathname) {
+          if (
+            initialPathname !== undefined &&
+            initialPathname !== '' &&
+            initialPathname !== currentPathname
+          ) {
             const errorMsg = `The initial URL ${initialPathname} and the URL ${currentPathname} to be hydrated do not match, reload.`;
             console.error(errorMsg);
             window.location.reload();
@@ -467,14 +479,14 @@ export const tanstackRouterPlugin = (
         const hasSSRBootstrap =
           typeof window !== 'undefined' &&
           Boolean((window as WindowWithTanstackSsr).$_TSR);
-        if (hasSSRBootstrap && getRouteObjects().length) {
+        if (hasSSRBootstrap && getRouteObjects().length > 0) {
           const runtimeContext = context as TInternalRuntimeContext;
           const router = getRouter(
             runtimeContext,
             getClientBasename(runtimeContext),
           );
-          if (router) {
-            await getTanstackSsrHydrationPromise(router);
+          if (router !== undefined && router !== null) {
+            return getTanstackSsrHydrationPromise(router).then(() => undefined);
           }
         }
 
@@ -482,7 +494,7 @@ export const tanstackRouterPlugin = (
       });
 
       api.wrapRoot(App => {
-        if (!getRouteObjects().length) {
+        if (getRouteObjects().length === 0) {
           return App;
         }
 
@@ -493,17 +505,16 @@ export const tanstackRouterPlugin = (
 
           const _basename = getClientBasename(runtimeContext);
 
-          const routeTree = useMemo(() => {
-            return getRouteTree();
-          }, []);
+          const routeTree = useMemo(() => getRouteTree(), []);
 
           if (!routeTree) {
             return App ? <App /> : null;
           }
 
-          const router = useMemo(() => {
-            return getRouter(runtimeContext, _basename);
-          }, [_basename, routeTree, runtimeContext]);
+          const router = useMemo(
+            () => getRouter(runtimeContext, _basename),
+            [_basename, routeTree, runtimeContext],
+          );
           if (!router) {
             return App ? <App /> : null;
           }
