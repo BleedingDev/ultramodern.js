@@ -13,7 +13,6 @@ const bleedingDevAliases = {
   '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-  '@modern-js/ultramodern-checks': '@bleedingdev/modern-js-ultramodern-checks',
 };
 
 function expectedBleedingDevSpecifier(
@@ -516,9 +515,6 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.14.0',
-      '@modern-js/ultramodern-checks': expectedBleedingDevSpecifier(
-        '@modern-js/ultramodern-checks',
-      ),
       '@typescript/native-preview': '7.0.0-dev.20260606.1',
       lefthook: '^2.1.9',
       oxlint: '1.68.0',
@@ -918,6 +914,30 @@ describe('create-ultramodern-workspace', () => {
       'UltraModern workspace scaffold validated',
     );
 
+    const shellHeaderPath =
+      'apps/shell-super-app/src/routes/vertical-components.tsx';
+    const shellHeaderSource = readText(workspaceDir, shellHeaderPath);
+    expect(shellHeaderSource).toContain('data-modern-boundary-id');
+    writeText(
+      workspaceDir,
+      shellHeaderPath,
+      shellHeaderSource.replace(
+        'data-modern-boundary-id=',
+        'data-mf-boundary=',
+      ),
+    );
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        ['scripts/check-ultramodern-i18n-boundaries.mjs'],
+        {
+          cwd: workspaceDir,
+          stdio: 'pipe',
+        },
+      ),
+    ).toThrow(/legacy data-mf-\* boundary attributes/u);
+    writeText(workspaceDir, shellHeaderPath, shellHeaderSource);
+
     const fakeBinDir = path.join(tempRoot, 'fake-pnpm-bin');
     fs.mkdirSync(fakeBinDir, { recursive: true });
     const fakePnpmPath = path.join(fakeBinDir, 'pnpm');
@@ -1303,9 +1323,6 @@ process.exit(1);
     expect(packageSource.generatedWorkspacePackages.specifier).toBe(
       'workspace:*',
     );
-    expect(rootPackage.devDependencies['@modern-js/ultramodern-checks']).toBe(
-      '3.2.0-ultramodern.0',
-    );
 
     const shellPackage = readJson(
       workspaceDir,
@@ -1388,13 +1405,7 @@ process.exit(1);
       '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
       '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
       '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-      '@modern-js/ultramodern-checks':
-        '@bleedingdev/modern-js-ultramodern-checks',
     });
-    const rootPackage = readJson(workspaceDir, 'package.json');
-    expect(rootPackage.devDependencies['@modern-js/ultramodern-checks']).toBe(
-      'npm:@bleedingdev/modern-js-ultramodern-checks@3.2.0-ultramodern.0',
-    );
 
     const shellPackage = readJson(
       workspaceDir,

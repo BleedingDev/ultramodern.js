@@ -97,12 +97,12 @@ const requiredPaths = [
   '.github/renovate.json',
   '.github/workflows/ultramodern-gates.yml',
   'lefthook.yml',
+  'oxlint.config.ts',
+  'oxfmt.config.ts',
   'scripts/bootstrap-agent-skills.mjs',
 {{/unless}}
   '.mise.toml',
   '.modernjs/ultramodern-package-source.json',
-  'oxlint.config.ts',
-  'oxfmt.config.ts',
   'pnpm-workspace.yaml',
   'rstest.config.mts',
   'scripts/check-i18n-strings.mjs',
@@ -349,12 +349,14 @@ const skillsLock = JSON.parse(
 );
 {{/unless}}
 const requiredScripts = {
+{{#unless isSubproject}}
   format: 'oxfmt .',
   'format:check': 'oxfmt --check .',
+{{/unless}}
   'i18n:check': 'node ./scripts/check-i18n-strings.mjs',
+{{#unless isSubproject}}
   lint: 'oxlint .',
   'lint:fix': 'oxlint . --fix',
-{{#unless isSubproject}}
   postinstall: 'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
   'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
   'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
@@ -580,7 +582,6 @@ for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next'])
 for (const dependency of [
   '@effect/tsgo',
   '@modern-js/adapter-rstest',
-  '@modern-js/ultramodern-checks',
   '@rstest/core',
   '@typescript/native-preview',
   'happy-dom',
@@ -589,11 +590,11 @@ for (const dependency of [
   'postcss',
   'tailwindcss',
 {{/if}}
+{{#unless isSubproject}}
+  'lefthook',
   'oxlint',
   'oxfmt',
   'ultracite',
-{{#unless isSubproject}}
-  'lefthook',
 {{/unless}}
 ]) {
   if (!packageJson.devDependencies?.[dependency]) {

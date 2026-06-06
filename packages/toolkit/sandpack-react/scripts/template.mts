@@ -168,7 +168,6 @@ async function handleCreateTemplate() {
     oxlintVersion: '1.68.0',
     postcssVersion: '^8.5.15',
     ultraciteVersion: '7.8.1',
-    ultramodernChecksVersion: version,
     typesReactVersion: '^19.2.17',
     typesReactDomVersion: '^19.2.3',
     tailwindPostcssVersion: '4.3.0',

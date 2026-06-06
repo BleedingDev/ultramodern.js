@@ -1468,10 +1468,6 @@ async function main() {
       '@modern-js/plugin-i18n',
       packageSource,
     ),
-    ultramodernChecksVersion: modernPackageSpecifier(
-      '@modern-js/ultramodern-checks',
-      packageSource,
-    ),
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
     i18nextVersion: I18NEXT_VERSION,
     reactVersion: REACT_VERSION,
@@ -1514,6 +1510,10 @@ async function main() {
     delete packageJson['simple-git-hooks'];
     if (packageJson.scripts) {
       delete packageJson.scripts.prepare;
+      delete packageJson.scripts.format;
+      delete packageJson.scripts['format:check'];
+      delete packageJson.scripts.lint;
+      delete packageJson.scripts['lint:fix'];
       delete packageJson.scripts['skills:install'];
       delete packageJson.scripts['skills:check'];
       delete packageJson.scripts.postinstall;
@@ -1522,6 +1522,9 @@ async function main() {
       delete packageJson.devDependencies['lint-staged'];
       delete packageJson.devDependencies.lefthook;
       delete packageJson.devDependencies['simple-git-hooks'];
+      delete packageJson.devDependencies.oxlint;
+      delete packageJson.devDependencies.oxfmt;
+      delete packageJson.devDependencies.ultracite;
     }
     fs.rmSync(path.join(targetDir, '.codex'), { recursive: true, force: true });
     fs.rmSync(path.join(targetDir, 'lefthook.yml'), { force: true });
@@ -1565,7 +1568,6 @@ function copyTemplate(
     pluginTanstackVersion: string;
     pluginBffVersion: string;
     pluginI18nVersion: string;
-    ultramodernChecksVersion: string;
     tanstackRouterVersion: string;
     i18nextVersion: string;
     reactVersion: string;
@@ -1600,6 +1602,8 @@ function copyTemplate(
     'AGENTS.md',
     '.npmrc',
     '.nvmrc',
+    'oxfmt.config.ts',
+    'oxlint.config.ts',
   ];
 
   function copyRecursive(srcDir: string, destDir: string) {
@@ -1645,7 +1649,6 @@ function copyTemplate(
             pluginTanstackVersion: options.pluginTanstackVersion,
             pluginBffVersion: options.pluginBffVersion,
             pluginI18nVersion: options.pluginI18nVersion,
-            ultramodernChecksVersion: options.ultramodernChecksVersion,
             tanstackRouterVersion: options.tanstackRouterVersion,
             i18nextVersion: options.i18nextVersion,
             reactVersion: options.reactVersion,
