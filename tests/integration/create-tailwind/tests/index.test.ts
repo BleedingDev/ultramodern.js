@@ -17,6 +17,7 @@ const expectedBleedingDevAliases = {
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
+  '@modern-js/ultramodern-checks': '@bleedingdev/modern-js-ultramodern-checks',
 };
 
 function expectNoHandlebarsArtifacts(content: string) {
@@ -140,8 +141,18 @@ function expectSingleAppContract(appDir: string) {
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
+  expect(
+    packageJson.devDependencies['@modern-js/ultramodern-checks'],
+  ).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
+  expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
+  expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
+  expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+  expect(packageJson.scripts.format).toBe('oxfmt .');
+  expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
+  expect(packageJson.scripts.lint).toBe('oxlint .');
+  expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {
@@ -354,20 +365,22 @@ describe('create-tailwind', () => {
     expect(packageJson['simple-git-hooks']).toBeUndefined();
     expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(false);
     expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(false);
-    expect(packageJson.scripts.lint).toBeUndefined();
-    expect(packageJson.scripts['lint:fix']).toBeUndefined();
-    expect(packageJson.scripts.format).toBeUndefined();
-    expect(packageJson.scripts['format:check']).toBeUndefined();
+    expect(packageJson.scripts.lint).toBe('oxlint .');
+    expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
+    expect(packageJson.scripts.format).toBe('oxfmt .');
+    expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
     expect(packageJson.scripts['skills:install']).toBeUndefined();
     expect(packageJson.scripts['skills:check']).toBeUndefined();
     expect(packageJson.scripts.postinstall).toBeUndefined();
     expect(packageJson.scripts.prepare).toBeUndefined();
-    expect(packageJson.devDependencies.oxlint).toBeUndefined();
-    expect(packageJson.devDependencies.oxfmt).toBeUndefined();
-    expect(packageJson.devDependencies.ultracite).toBeUndefined();
+    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
+    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
+    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
     expect(packageJson.devDependencies['lint-staged']).toBeUndefined();
     expect(packageJson.devDependencies.lefthook).toBeUndefined();
     expect(packageJson.devDependencies['simple-git-hooks']).toBeUndefined();
+    expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
     expectSingleAppContract(appDir);
 
     expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
@@ -459,6 +472,9 @@ describe('create-tailwind', () => {
     );
     expect(packageJson.devDependencies['@modern-js/adapter-rstest']).toBe(
       'npm:@bleedingdev/modern-js-adapter-rstest@3.2.0-ultramodern.5',
+    );
+    expect(packageJson.devDependencies['@modern-js/ultramodern-checks']).toBe(
+      'npm:@bleedingdev/modern-js-ultramodern-checks@3.2.0-ultramodern.5',
     );
 
     const packageSource = JSON.parse(

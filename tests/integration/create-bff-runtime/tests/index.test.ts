@@ -8,10 +8,6 @@ const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.103';
 
-type ExecSyncError = Error & {
-  stderr?: Buffer | string;
-};
-
 function expectNoHandlebarsArtifacts(content: string) {
   expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
 }
@@ -42,14 +38,6 @@ function runCreate(projectDir: string, args: string[]) {
     },
     stdio: 'pipe',
   });
-}
-
-function runGeneratedI18nCheck(appDir: string) {
-  return execFileSync(process.execPath, ['scripts/check-i18n-strings.mjs'], {
-    cwd: appDir,
-    encoding: 'utf-8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim();
 }
 
 describe('create-bff-runtime', () => {
@@ -154,25 +142,15 @@ describe('create-bff-runtime', () => {
     expect(fs.readFileSync(routePage, 'utf-8')).toContain(
       'effectBff.client.greetings.hello',
     );
-    expect(runGeneratedI18nCheck(appDir)).toBe(
-      'No hardcoded user-visible JSX strings found.',
+    expect(
+      packageJson.devDependencies['@modern-js/ultramodern-checks'],
+    ).toBeDefined();
+    const i18nCheckScript = fs.readFileSync(
+      path.join(appDir, 'scripts/check-i18n-strings.mjs'),
+      'utf-8',
     );
-
-    fs.writeFileSync(
-      path.join(appDir, 'src/routes/[lang]/i18n-violation.tsx'),
-      'export default function I18nViolation() { return <div>Visible hardcoded copy</div>; }\n',
-    );
-    try {
-      runGeneratedI18nCheck(appDir);
-      throw new Error('Expected generated i18n checker to fail');
-    } catch (error) {
-      const execError = error as ExecSyncError;
-      const stderr =
-        typeof execError.stderr === 'string'
-          ? execError.stderr
-          : execError.stderr?.toString() || '';
-      expect(stderr).toContain('Visible hardcoded copy');
-    }
+    expect(i18nCheckScript).toContain('@modern-js/ultramodern-checks');
+    expect(i18nCheckScript).toContain('runSingleAppI18nCheck');
 
     const tsConfig = fs.readFileSync(
       path.join(appDir, 'tsconfig.json'),

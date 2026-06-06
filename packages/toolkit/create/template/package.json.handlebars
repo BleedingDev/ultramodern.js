@@ -17,11 +17,11 @@
     "skills:check": "node ./scripts/bootstrap-agent-skills.mjs --check",
     "postinstall": "oxfmt . && node ./scripts/bootstrap-agent-skills.mjs",
 {{/unless}}
-    "ultramodern:check": "{{#unless isSubproject}}pnpm format:check && pnpm lint && {{/unless}}pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs"{{#unless isSubproject}},
+    "ultramodern:check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test{{#unless isSubproject}} && pnpm skills:check{{/unless}} && node ./scripts/validate-ultramodern.mjs",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
-    "lint:fix": "oxlint . --fix"{{/unless}}
+    "lint:fix": "oxlint . --fix"
   },
   "dependencies": {
     "@modern-js/plugin-i18n": "{{pluginI18nVersion}}",
@@ -41,6 +41,7 @@
     "@modern-js/app-tools": "{{appToolsVersion}}",
 {{#if enableBff}}    "@modern-js/plugin-bff": "{{pluginBffVersion}}",
 {{/if}}    "@modern-js/tsconfig": "{{tsconfigVersion}}",
+    "@modern-js/ultramodern-checks": "{{ultramodernChecksVersion}}",
     "@rstest/core": "{{rstestCoreVersion}}",
 {{#if enableTailwind}}
     "@tailwindcss/postcss": "^{{tailwindPostcssVersion}}",
@@ -52,12 +53,13 @@
     "happy-dom": "{{happyDomVersion}}",
 {{#unless isSubproject}}
     "lefthook": "^2.1.9",
+{{/unless}}
     "oxfmt": "{{oxfmtVersion}}",
     "oxlint": "{{oxlintVersion}}",
-{{/unless}}{{#if enableTailwind}}    "postcss": "{{postcssVersion}}",
+{{#if enableTailwind}}    "postcss": "{{postcssVersion}}",
 {{/if}}    "rimraf": "^6.1.3"{{#if enableTailwind}},
-    "tailwindcss": "^{{tailwindVersion}}"{{/if}}{{#unless isSubproject}},
-    "ultracite": "{{ultraciteVersion}}"{{/unless}}
+    "tailwindcss": "^{{tailwindVersion}}"{{/if}},
+    "ultracite": "{{ultraciteVersion}}"
   },
   "engines": {
     "node": ">=20",
