@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-06T01:53:08.253932+00:00",
+  "generated_at": "2026-06-06T09:42:24.802713+00:00",
   "graph_id": "modernjs-active-next-work",
   "plan_set_hash": "4e7b93c42d",
   "selection_hash": "36298c3f13",
   "plan_count": 4,
   "edge_count": 3,
-  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "plans_root": ".codex/plans",
   "selected_globs": [],
   "selected_plan_paths": [
     "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-01-generated-blockers.plan.md",
@@ -32,7 +32,7 @@
       "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-01-generated-blockers.plan.md",
       "slug": "ultramodern-active-01-generated-blockers",
       "name": "ultramodern-active-01-generated-blockers",
-      "overview": "Remove the current blockers to fresh UltraModern generated-app validation by consolidating duplicated package policy, making effect-tsgo the primary checker, aligning install-backed package cohorts, settling the generated Effect dependency contract, and fixing the shell MF browser smoke failure in the owning framework/runtime layer.",
+      "overview": "Completed predecessor lane for fresh UltraModern generated-app validation: package policy drift, effect-tsgo authority, install-backed cohorts, generated Effect ownership, shell MF browser smoke, and the broader tsgo critical blocker are all closed before the generated-proof lane starts.",
       "todos": [
         {
           "id": "consolidate-generated-package-policy",
@@ -67,7 +67,7 @@
         {
           "id": "run-blocker-gates",
           "content": "Run the targeted blocker gates: pnpm validate:tsgo; node --test scripts/ultramodern-production-readiness/__tests__/browser-smoke.test.js scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js; node --test scripts/ultramodern-publish/__tests__/source-create-proof.test.js scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js; and the focused create/BFF/MF integration suites touched by the fixes.",
-          "status": "pending",
+          "status": "completed",
           "ordinal": 6
         }
       ],
@@ -79,35 +79,35 @@
       "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-02-generated-proof.plan.md",
       "slug": "ultramodern-active-02-generated-proof",
       "name": "ultramodern-active-02-generated-proof",
-      "overview": "Prove that fresh UltraModern generated apps work from the cleaned framework defaults across local source, install-backed package cohorts, browser SSR, no-JS rendering, Cloudflare output, and published-create validation without any app-local patches.",
+      "overview": "Prove that fresh UltraModern generated apps work from the cleaned framework defaults across local source, install-backed package cohorts, browser SSR, explicit no-JS rendering, Cloudflare output, and published-create validation without any app-local patches.",
       "todos": [
         {
           "id": "regenerate-clean-reference-workspaces",
-          "content": "Generate clean shell-only and shell-plus-vertical UltraModern workspaces, plus the relevant single-app variants, from the current local source after the blocker plan is green; remove stale generated fixtures before regenerating so evidence cannot pass because of old files.",
+          "content": "Generate clean references from current local source into fresh temp dirs only: single-app tanstack/effect, react-router/hono, --no-tailwind, --sub, workspace source mode, install-backed alias mode, workspace shell-only, and workspace shell-plus-vertical; remove stale .output, dist, .mf, @mf-types, lockfile, and generated artifacts before each proof run.",
           "status": "pending",
           "ordinal": 1
         },
         {
           "id": "run-generated-quality-gates",
-          "content": "Run generated format, lint, typecheck, build, ultramodern validation, BFF routes, route metadata checks, package-source assertions, and MF topology checks for the regenerated apps.",
+          "content": "Run repo-level pnpm validate:tsgo and focused create integration suites, then run mise install, pnpm install, generated pnpm ultramodern:check or pnpm check, and MODERN_PUBLIC_SITE_URL=http://localhost:8080 pnpm build inside each regenerated app/workspace.",
           "status": "pending",
           "ordinal": 2
         },
         {
           "id": "prove-browser-ssr-mf-css",
-          "content": "Run browser smoke with JavaScript enabled and disabled for shell and vertical routes, verify SSR content and styles are present before hydration, and prove shell composition has no remoteEntry page errors or runtimeContext ReferenceError.",
+          "content": "Run run-browser-smoke local proof for shell and vertical routes, add an explicit javaScriptEnabled=false no-JS SSR browser check, verify SSR content/styles before hydration, and prove shell composition has no remoteEntry page errors, failed same-origin responses, bridgeRouterAlias output, or runtimeContext ReferenceError.",
           "status": "pending",
           "ordinal": 3
         },
         {
           "id": "prove-cloudflare-output",
-          "content": "Run Cloudflare build/output validation and wrangler-based checks where available, including Worker SSR shape, asset serving, public URL enforcement, Effect BFF readiness routes, and no local Worker shim dependencies.",
+          "content": "Run generated Cloudflare build/output validation and wrangler-based checks where credentials and public URL envs are available: Worker SSR shape, asset serving, public URL enforcement, Effect BFF readiness routes, cloudflare:proof -- --require-public-urls, and no local Worker shim dependencies.",
           "status": "pending",
           "ordinal": 4
         },
         {
           "id": "prove-published-create-cohort",
-          "content": "After a trusted BleedingDev npm cohort exists, run the published-create proof against that exact @bleedingdev/modern-js-create version and confirm generated metadata, package-source records, lockfile dependencies, and validation scripts agree with the published cohort.",
+          "content": "After a trusted BleedingDev npm cohort exists, run run-published-create-proof.mjs against the exact @bleedingdev/modern-js-create version, at least erp-10 and broader erp-25/erp-50 when time allows, and confirm generated metadata, package-source records, lockfile dependencies, topology evidence, and validation scripts agree with the published cohort.",
           "status": "pending",
           "ordinal": 5
         },
@@ -166,7 +166,7 @@
         },
         {
           "id": "push-demo-and-close-tractor-issues",
-          "content": "Commit and push the Tractor demo cleanup to the correct BleedingDev remote, update Beads with proof locations, close modernjs-u3xw.1, and close modernjs-u3xw once generated validation remains green.",
+          "content": "Commit and push the Tractor demo cleanup to the correct BleedingDev remote, update Beads with proof locations, close modernjs-u3xw.1 after cleanup proof is green, then close modernjs-u3xw once generated validation remains green.",
           "status": "pending",
           "ordinal": 7
         }
@@ -225,35 +225,16 @@
   ],
   "frontier": [
     {
-      "plan_slug": "ultramodern-active-01-generated-blockers",
-      "plan_name": "ultramodern-active-01-generated-blockers",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-01-generated-blockers.plan.md",
+      "plan_slug": "ultramodern-active-02-generated-proof",
+      "plan_name": "ultramodern-active-02-generated-proof",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-02-generated-proof.plan.md",
       "plan_status": "pending",
       "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "run-blocker-gates",
-          "content": "Run the targeted blocker gates: pnpm validate:tsgo; node --test scripts/ultramodern-production-readiness/__tests__/browser-smoke.test.js scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js; node --test scripts/ultramodern-publish/__tests__/source-create-proof.test.js scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js; and the focused create/BFF/MF integration suites touched by the fixes.",
-          "status": "pending",
-          "ordinal": 6
-        }
-      ],
-      "upcoming": [],
-      "completed": 5,
-      "total": 6
-    },
-    {
-      "plan_slug": "ultramodern-active-02-generated-proof",
-      "plan_name": "ultramodern-active-02-generated-proof",
-      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-02-generated-proof.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": ["ultramodern-active-01-generated-blockers"],
-      "active": [
-        {
           "id": "regenerate-clean-reference-workspaces",
-          "content": "Generate clean shell-only and shell-plus-vertical UltraModern workspaces, plus the relevant single-app variants, from the current local source after the blocker plan is green; remove stale generated fixtures before regenerating so evidence cannot pass because of old files.",
+          "content": "Generate clean references from current local source into fresh temp dirs only: single-app tanstack/effect, react-router/hono, --no-tailwind, --sub, workspace source mode, install-backed alias mode, workspace shell-only, and workspace shell-plus-vertical; remove stale .output, dist, .mf, @mf-types, lockfile, and generated artifacts before each proof run.",
           "status": "pending",
           "ordinal": 1
         }
@@ -261,13 +242,13 @@
       "upcoming": [
         {
           "id": "run-generated-quality-gates",
-          "content": "Run generated format, lint, typecheck, build, ultramodern validation, BFF routes, route metadata checks, package-source assertions, and MF topology checks for the regenerated apps.",
+          "content": "Run repo-level pnpm validate:tsgo and focused create integration suites, then run mise install, pnpm install, generated pnpm ultramodern:check or pnpm check, and MODERN_PUBLIC_SITE_URL=http://localhost:8080 pnpm build inside each regenerated app/workspace.",
           "status": "pending",
           "ordinal": 2
         },
         {
           "id": "prove-browser-ssr-mf-css",
-          "content": "Run browser smoke with JavaScript enabled and disabled for shell and vertical routes, verify SSR content and styles are present before hydration, and prove shell composition has no remoteEntry page errors or runtimeContext ReferenceError.",
+          "content": "Run run-browser-smoke local proof for shell and vertical routes, add an explicit javaScriptEnabled=false no-JS SSR browser check, verify SSR content/styles before hydration, and prove shell composition has no remoteEntry page errors, failed same-origin responses, bridgeRouterAlias output, or runtimeContext ReferenceError.",
           "status": "pending",
           "ordinal": 3
         }
@@ -308,6 +289,18 @@
       "total": 7
     },
     {
+      "plan_slug": "ultramodern-active-01-generated-blockers",
+      "plan_name": "ultramodern-active-01-generated-blockers",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-active-01-generated-blockers.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 6,
+      "total": 6
+    },
+    {
       "plan_slug": "ultramodern-opinionated-defaults-02-public-surfaces",
       "plan_name": "ultramodern-opinionated-defaults-02-public-surfaces",
       "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-opinionated-defaults-02-public-surfaces.plan.md",
@@ -322,5 +315,5 @@
   ],
   "errors": [],
   "warnings": [],
-  "graph_source": "explicit"
+  "graph_source": "matched-plan-set"
 }

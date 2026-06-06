@@ -24,9 +24,9 @@
 
 ## Launch Plan
 
-Goal: finish `modernjs-04jb` first, then unblock generated blockers, generated proof, and Tractor cleanup without app-level shims.
+Goal: finish `modernjs-41je` generated proof first, then clean Tractor demo local patches for `modernjs-u3xw.1`, then close the `modernjs-u3xw` umbrella without app-level shims.
 
-Critical path: public-surface generation in `packages/toolkit/create/src/ultramodern-workspace.ts`, then generated blocker fixes, then proof, then Tractor.
+Critical path: completed public-surface generation, completed generated blocker fixes, fresh generated proof, then Tractor cleanup.
 
 Conflict hotspots:
 
@@ -54,7 +54,7 @@ Conflict hotspots:
 
 ## Wave 2
 
-Public surfaces are complete and committed in `f90d5527ba`; `ultramodern-active-01-generated-blockers` is now ready.
+Public surfaces are complete and committed in `f90d5527ba`; generated blockers are complete; `ultramodern-active-02-generated-proof` is now ready.
 
 | Lane | Agent | Mode | Scope | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
@@ -67,4 +67,13 @@ Public surfaces are complete and committed in `f90d5527ba`; `ultramodern-active-
 
 Targeted gates passed for the integrated blocker fixes: Biome on edited files, create build, create Tailwind and UltraModern workspace integration suites, proof/doctor/publish unit suites, plugin-bff tests, browser-smoke unit tests, and `git diff --check`.
 
-`pnpm validate:tsgo` still fails in the broader critical list across plugin-bff, plugin-tanstack, plugin-runtime, and generated superapp fixtures. This is filed as `modernjs-9kxf` and blocks the full `run-blocker-gates` todo.
+`modernjs-9kxf` is now closed in commit `7b0b734ca5`; `pnpm validate:tsgo` passed all 12 critical configs, and focused BFF, plugin-tanstack, runtime tests plus focused builds passed. This completes `ultramodern-active-01-generated-blockers`.
+
+## Current Frontier
+
+- `ultramodern-opinionated-defaults-02-public-surfaces`: done.
+- `ultramodern-active-01-generated-blockers`: done.
+- `ultramodern-active-02-generated-proof`: ready; owns `modernjs-41je`.
+- `ultramodern-active-03-tractor-cleanup`: blocked by generated proof; owns `modernjs-u3xw.1` cleanup and then `modernjs-u3xw` umbrella closure.
+
+Keep `modernjs-a6d4` and JSON-LD follow-ups outside this active graph; ADR-0016 and Beads keep resilience/performance and structured-data policy as later work.

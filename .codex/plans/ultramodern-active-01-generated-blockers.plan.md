@@ -1,6 +1,6 @@
 ---
 name: ultramodern-active-01-generated-blockers
-overview: Remove the current blockers to fresh UltraModern generated-app validation by consolidating duplicated package policy, making effect-tsgo the primary checker, aligning install-backed package cohorts, settling the generated Effect dependency contract, and fixing the shell MF browser smoke failure in the owning framework/runtime layer.
+overview: Completed predecessor lane for fresh UltraModern generated-app validation: package policy drift, effect-tsgo authority, install-backed cohorts, generated Effect ownership, shell MF browser smoke, and the broader tsgo critical blocker are all closed before the generated-proof lane starts.
 todos:
   - id: consolidate-generated-package-policy
     content: "Map package-source, generated dependency, and proof-script policy across packages/toolkit/create/src/ultramodern-workspace.ts, packages/toolkit/create/src/index.ts, packages/toolkit/create/template/package.json.handlebars, packages/toolkit/create/template-workspace, and scripts/ultramodern-production-readiness/run-published-create-proof.mjs; extract or reuse a single policy source where it removes drift, and delete duplicate constants or assertions instead of adding another special case."
@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: run-blocker-gates
     content: "Run the targeted blocker gates: pnpm validate:tsgo; node --test scripts/ultramodern-production-readiness/__tests__/browser-smoke.test.js scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js; node --test scripts/ultramodern-publish/__tests__/source-create-proof.test.js scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js; and the focused create/BFF/MF integration suites touched by the fixes."
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -27,8 +27,9 @@ isProject: false
 
 ## Execution Notes
 
-Beads issues: `modernjs-3z51`, `modernjs-zhaq`, `modernjs-zum6`, `modernjs-41je.1`.
-Follow-up Bead: `modernjs-9kxf` tracks the broader `pnpm validate:tsgo` critical-list failures found while running the blocker gates.
+Beads issues: `modernjs-3z51`, `modernjs-zhaq`, `modernjs-zum6`, `modernjs-41je.1`, and follow-up blocker `modernjs-9kxf`.
+
+Current status: this predecessor lane is complete. `modernjs-3z51`, `modernjs-zhaq`, `modernjs-zum6`, `modernjs-41je.1`, and `modernjs-9kxf` are closed. Commit `7b0b734ca5` made `pnpm validate:tsgo` pass all 12 critical configs after the earlier targeted blocker gates had already passed. Keep this plan in the active graph only as a durable completed predecessor for `modernjs-41je`.
 
 This lane exists to make the generated-validation lane boring. Do not start by widening generated proof scripts or relaxing validators. First remove policy drift: package-source mapping currently appears in generator code, CLI code, templates, and proof scripts; checker policy is also split between root scripts, create package config, and generated template scripts.
 
@@ -48,4 +49,4 @@ This lane exists to make the generated-validation lane boring. Do not start by w
 
 Suggested order: consolidate policy first, then make `effect-tsgo` authoritative, then align install-backed package cohorts, then settle the `effect` dependency, then fix the MF browser failure. If the MF fix uncovers a lower-level runtime bug, file or update the owning Bead rather than masking it in the generated app.
 
-Use narrow gates after each blocker and rerun the complete blocker gate set before moving to generated proof. Successful completion should unblock `modernjs-41je` but should not close it until the next plan proves the full generated matrix.
+The next executable lane is `ultramodern-active-02-generated-proof`. Do not reopen this lane unless a blocker regresses. If generated proof fails, file or update the owning issue for the concrete failing subsystem instead of adding a generated-app workaround.
