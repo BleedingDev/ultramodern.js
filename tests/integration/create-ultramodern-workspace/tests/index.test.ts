@@ -6,10 +6,15 @@ import path from 'node:path';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const createPackageDir = path.resolve(repoRoot, 'packages/toolkit/create');
+const codeToolsPackageDir = path.resolve(
+  repoRoot,
+  'packages/toolkit/code-tools',
+);
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 const bleedingDevAliases = {
   '@modern-js/create': '@bleedingdev/modern-js-create',
+  '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
   '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
@@ -93,13 +98,22 @@ function writeText(root: string, relativePath: string, content: string) {
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-function linkWorkspaceCreatePackage(projectDir: string) {
+function linkModernPackage(
+  projectDir: string,
+  name: string,
+  packageDir: string,
+) {
   const scopeDir = path.join(projectDir, 'node_modules/@modern-js');
-  const packageLink = path.join(scopeDir, 'create');
+  const packageLink = path.join(scopeDir, name);
   fs.mkdirSync(scopeDir, { recursive: true });
   if (!fs.existsSync(packageLink)) {
-    fs.symlinkSync(createPackageDir, packageLink, 'dir');
+    fs.symlinkSync(packageDir, packageLink, 'dir');
   }
+}
+
+function linkWorkspaceToolPackages(projectDir: string) {
+  linkModernPackage(projectDir, 'create', createPackageDir);
+  linkModernPackage(projectDir, 'code-tools', codeToolsPackageDir);
 }
 
 function expectPath(root: string, relativePath: string) {
@@ -451,8 +465,8 @@ describe('create-ultramodern-workspace', () => {
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
-    expect(rootPackage.packageManager).toBe('pnpm@11.5.0');
-    expect(rootPackage.engines.pnpm).toBe('>=11.5.0 <11.6.0');
+    expect(rootPackage.packageManager).toBe('pnpm@11.5.2');
+    expect(rootPackage.engines.pnpm).toBe('>=11.5.2 <11.6.0');
     expectPath(workspaceDir, '.mise.toml');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
@@ -526,6 +540,9 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
       '@effect/tsgo': '0.14.0',
+      '@modern-js/code-tools': expectedBleedingDevSpecifier(
+        '@modern-js/code-tools',
+      ),
       '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
       '@typescript/native-preview': '7.0.0-dev.20260606.1',
       lefthook: '^2.1.9',
@@ -938,7 +955,7 @@ describe('create-ultramodern-workspace', () => {
         'data-mf-boundary=',
       ),
     );
-    linkWorkspaceCreatePackage(workspaceDir);
+    linkWorkspaceToolPackages(workspaceDir);
     try {
       execFileSync(
         process.execPath,
@@ -977,7 +994,7 @@ describe('create-ultramodern-workspace', () => {
       fakePnpmPath,
       `#!/usr/bin/env node
 if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
-  console.log('11.5.1');
+  console.log('11.5.2');
   process.exit(0);
 }
 console.error('pmOnFail rejected active pnpm before version discovery');
@@ -1345,6 +1362,9 @@ process.exit(1);
     expect(rootPackage.devDependencies['@modern-js/create']).toBe(
       '3.2.0-ultramodern.0',
     );
+    expect(rootPackage.devDependencies['@modern-js/code-tools']).toBe(
+      '3.2.0-ultramodern.0',
+    );
 
     const packageSource = readJson(
       workspaceDir,
@@ -1436,6 +1456,7 @@ process.exit(1);
     );
     expect(packageSource.modernPackages.aliases).toMatchObject({
       '@modern-js/create': '@bleedingdev/modern-js-create',
+      '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
       '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
       '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
       '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
@@ -1462,6 +1483,9 @@ process.exit(1);
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.devDependencies['@modern-js/create']).toBe(
       'npm:@bleedingdev/modern-js-create@3.2.0-ultramodern.0',
+    );
+    expect(rootPackage.devDependencies['@modern-js/code-tools']).toBe(
+      'npm:@bleedingdev/modern-js-code-tools@3.2.0-ultramodern.0',
     );
 
     const validationOutput = execFileSync(

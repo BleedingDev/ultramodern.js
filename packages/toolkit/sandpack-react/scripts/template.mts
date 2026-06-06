@@ -173,7 +173,7 @@ async function handleCreateTemplate() {
     pluginBffVersion: version,
     pluginI18nVersion: version,
     pluginTanstackVersion: version,
-    pnpmVersion: '11.5.0',
+    pnpmVersion: '11.5.2',
     routerRuntimeImport: '@modern-js/plugin-tanstack/runtime',
     runtimeVersion: version,
     i18nextVersion: '26.3.1',
