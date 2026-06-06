@@ -61,3 +61,11 @@ Recommended first frontier: start with `inspect-public-surface-generation-points
 After inspection, prefer small reusable renderer functions over scattered template literals in generated app files. Renderer outputs should be sorted and newline-stable. Tests should compare full generated files or parsed structured output where practical, and they should run repeated generation to prove deterministic output.
 
 This lane can run independently of security defaults as long as it only generates files from already-owned public metadata. Coordinate with resilience/i18n before finalizing localized sitemap and hreflang behavior. Use subagents only after this graph is valid, with one worker on generator/renderers and one worker on integration validation if parallel execution is needed.
+
+## Codebase Research 2026-06-06
+
+Use `packages/toolkit/create/src/ultramodern-workspace.ts` as the owning surface. The already-landed prefactor is the private-first route metadata model: generated routes default to `public=false`, `indexable=false`, `publicSurface='private-app-screen'`, and expose a derived `publicRoutes` list. Build public files from that derived list instead of adding a new profile/spec layer.
+
+Start by mapping `createPublicRouteMetadata`, `workspaceAssetsForApp`, `createAppGeneratedContract`, `createWorkspaceValidationScript`, `writeApp`, `rewriteShellAppFiles`, `generateUltramodernWorkspace`, and `addUltramodernVertical`. `workspaceAssetsForApp` is currently the smallest obvious insertion point, but shell rewrites must also update public assets so adding a vertical cannot leave stale generated public files behind.
+
+Prefer removal and consolidation while implementing: delete duplicated ad hoc output decisions if renderer helpers replace them, omit sitemap `lastmod` unless stable metadata exists, and omit optional discovery files rather than emitting empty or misleading private-app catalogs.
