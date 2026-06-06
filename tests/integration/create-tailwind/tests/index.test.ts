@@ -172,6 +172,7 @@ function expectSingleAppContract(appDir: string) {
   expect(
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
+  expect(packageJson.devDependencies['@modern-js/code-tools']).toBeDefined();
   expect(packageJson.devDependencies['@modern-js/create']).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
@@ -183,7 +184,7 @@ function expectSingleAppContract(appDir: string) {
       path.join(appDir, 'scripts/check-i18n-strings.mjs'),
       'utf-8',
     ),
-  ).toContain("from '@modern-js/create/ultramodern-checks'");
+  ).toContain("from '@modern-js/code-tools'");
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {

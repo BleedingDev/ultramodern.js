@@ -371,10 +371,10 @@ for (const [scriptName, scriptCommand] of Object.entries(requiredScripts)) {
 
 const i18nCheckScript = readText('scripts/check-i18n-strings.mjs');
 if (
-  !i18nCheckScript.includes("from '@modern-js/create/ultramodern-checks'") ||
+  !i18nCheckScript.includes("from '@modern-js/code-tools'") ||
   !i18nCheckScript.includes('runSingleAppI18nCheck')
 ) {
-  console.error('i18n:check must call @modern-js/create/ultramodern-checks');
+  console.error('i18n:check must call @modern-js/code-tools');
   process.exit(1);
 }
 
@@ -599,6 +599,7 @@ for (const dependency of ['@modern-js/plugin-i18n', 'i18next', 'react-i18next'])
 for (const dependency of [
   '@effect/tsgo',
   '@modern-js/adapter-rstest',
+  '@modern-js/code-tools',
   '@modern-js/create',
   '@rstest/core',
   '@typescript/native-preview',

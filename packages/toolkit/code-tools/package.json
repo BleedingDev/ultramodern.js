@@ -1,19 +1,21 @@
 {
-  "name": "@modern-js/create",
-  "description": "A Progressive React Framework for modern web development.",
+  "name": "@modern-js/code-tools",
+  "description": "Code analysis tooling for Modern.js projects.",
   "homepage": "https://modernjs.dev",
   "bugs": "https://github.com/web-infra-dev/modern.js/issues",
   "repository": {
     "type": "git",
     "url": "https://github.com/web-infra-dev/modern.js",
-    "directory": "packages/toolkit/create"
+    "directory": "packages/toolkit/code-tools"
   },
   "license": "MIT",
   "keywords": [
     "react",
     "framework",
     "modern",
-    "modern.js"
+    "modern.js",
+    "lint",
+    "oxlint"
   ],
   "type": "module",
   "engines": {
@@ -22,13 +24,13 @@
   "version": "3.2.1",
   "types": "./dist/types/index.d.ts",
   "main": "./dist/esm-node/index.js",
-  "bin": {
-    "create": "./bin/run.js"
-  },
   "typesVersions": {
     "*": {
       ".": [
         "./dist/types/index.d.ts"
+      ],
+      "oxlint-plugin": [
+        "./dist/types/oxlint-plugin.d.ts"
       ]
     }
   },
@@ -41,29 +43,36 @@
         "require": "./dist/cjs/index.cjs"
       },
       "default": "./dist/esm-node/index.js"
+    },
+    "./oxlint-plugin": {
+      "types": "./dist/types/oxlint-plugin.d.ts",
+      "node": {
+        "modern:source": "./src/oxlint-plugin.ts",
+        "import": "./dist/esm-node/oxlint-plugin.js",
+        "require": "./dist/cjs/oxlint-plugin.cjs"
+      },
+      "default": "./dist/esm-node/oxlint-plugin.js"
     }
   },
   "files": [
-    "template",
-    "template-workspace",
-    "dist",
-    "bin.js"
+    "dist"
   ],
   "scripts": {
-    "build": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\"",
-    "dev": "rslib build -c rslibconfig.mts -w",
-    "start": "node ./dist/esm-node/index.js",
-    "test": "rm -rf dist && rslib build -c rslibconfig.mts && rstest --passWithNoTests"
+    "build": "rm -rf dist && rslib build -c rslib.config.mts && pnpm -w tsgo:dts \"$PWD\"",
+    "dev": "rslib build -c rslib.config.mts -w",
+    "test": "rstest --passWithNoTests"
+  },
+  "dependencies": {
+    "oxlint": "1.68.0"
   },
   "devDependencies": {
-    "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
-    "tsx": "^4.22.3"
+    "@typescript/native-preview": "7.0.0-dev.20260606.1"
   },
+  "sideEffects": false,
   "publishConfig": {
     "main": "./dist/esm-node/index.js",
     "registry": "https://registry.npmjs.org/",
@@ -77,6 +86,14 @@
           "require": "./dist/cjs/index.cjs"
         },
         "default": "./dist/esm-node/index.js"
+      },
+      "./oxlint-plugin": {
+        "types": "./dist/types/oxlint-plugin.d.ts",
+        "node": {
+          "import": "./dist/esm-node/oxlint-plugin.js",
+          "require": "./dist/cjs/oxlint-plugin.cjs"
+        },
+        "default": "./dist/esm-node/oxlint-plugin.js"
       }
     }
   },

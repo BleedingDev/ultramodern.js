@@ -7,6 +7,7 @@ export const BLEEDINGDEV_FRAMEWORK_VERSION_ENV =
 
 export const ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES = [
   '@modern-js/create',
+  '@modern-js/code-tools',
   '@modern-js/runtime',
   '@modern-js/app-tools',
   '@modern-js/tsconfig',
@@ -18,6 +19,7 @@ export const ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES = [
 
 export const ULTRAMODERN_WORKSPACE_MODERN_PACKAGES = [
   '@modern-js/create',
+  '@modern-js/code-tools',
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/plugin-i18n',

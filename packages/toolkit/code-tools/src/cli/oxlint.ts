@@ -41,8 +41,8 @@ const ignoredDirectories = new Set([
 ]);
 
 const packageNames = new Set([
-  '@modern-js/create',
-  '@bleedingdev/modern-js-create',
+  '@modern-js/code-tools',
+  '@bleedingdev/modern-js-code-tools',
 ]);
 
 const resolveExistingPath = (
@@ -69,29 +69,24 @@ const findPackageRoot = (): string => {
     directory = path.dirname(directory);
   }
 
-  throw new Error('Unable to resolve @modern-js/create package root.');
+  throw new Error('Unable to resolve @modern-js/code-tools package root.');
 };
 
 const resolvePluginPath = (): string => {
   const root = findPackageRoot();
-  const sourcePluginPath = path.join(
-    root,
-    'src/ultramodern-checks/oxlint-plugin.ts',
-  );
+  const sourcePluginPath = path.join(root, 'src/oxlint-plugin.ts');
   const pluginPath = resolveExistingPath([
-    path.join(root, 'dist/esm-node/ultramodern-checks/oxlint-plugin.mjs'),
-    path.join(root, 'dist/esm-node/ultramodern-checks/oxlint-plugin.js'),
-    path.join(root, 'dist/esm/ultramodern-checks/oxlint-plugin.mjs'),
-    path.join(root, 'dist/esm/ultramodern-checks/oxlint-plugin.js'),
-    path.join(root, 'dist/cjs/ultramodern-checks/oxlint-plugin.js'),
-    path.join(root, 'dist/cjs/ultramodern-checks/oxlint-plugin.cjs'),
+    path.join(root, 'dist/esm-node/oxlint-plugin.mjs'),
+    path.join(root, 'dist/esm-node/oxlint-plugin.js'),
+    path.join(root, 'dist/esm/oxlint-plugin.mjs'),
+    path.join(root, 'dist/esm/oxlint-plugin.js'),
+    path.join(root, 'dist/cjs/oxlint-plugin.js'),
+    path.join(root, 'dist/cjs/oxlint-plugin.cjs'),
     sourcePluginPath,
   ]);
 
   if (!pluginPath) {
-    throw new Error(
-      'Unable to resolve @modern-js/create UltraModern Oxlint plugin.',
-    );
+    throw new Error('Unable to resolve @modern-js/code-tools Oxlint plugin.');
   }
 
   return pluginPath;
@@ -162,7 +157,9 @@ export const runOxlintRules = ({
     };
   }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-oxlint-'));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-code-tools-oxlint-'),
+  );
   const configPath = path.join(tempDir, 'oxlint.config.mjs');
   const pluginPath = resolvePluginPath();
 

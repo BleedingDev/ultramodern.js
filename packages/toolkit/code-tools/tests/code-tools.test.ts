@@ -5,7 +5,7 @@ import {
   oxlintPlugin,
   runSingleAppI18nCheck,
   runWorkspaceSourceCheck,
-} from '../src/ultramodern-checks';
+} from '../src';
 
 type CapturedConsole = {
   readonly exitCode: number;
@@ -14,7 +14,7 @@ type CapturedConsole = {
 };
 
 const createTempRoot = (): string =>
-  fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-checks-test-'));
+  fs.mkdtempSync(path.join(os.tmpdir(), 'modern-code-tools-test-'));
 
 const writeFile = (
   root: string,
@@ -66,7 +66,7 @@ const captureConsole = (callback: () => number): CapturedConsole => {
 const combinedOutput = ({ errors, logs }: CapturedConsole): string =>
   [...errors, ...logs].join('\n');
 
-describe('@modern-js/create/ultramodern-checks', () => {
+describe('@modern-js/code-tools', () => {
   const tempRoots: string[] = [];
 
   afterEach(() => {

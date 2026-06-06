@@ -1552,11 +1552,29 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
 
-  packages/toolkit/create:
+  packages/toolkit/code-tools:
     dependencies:
       oxlint:
         specifier: 1.68.0
         version: 1.68.0
+    devDependencies:
+      '@modern-js/rslib':
+        specifier: workspace:*
+        version: link:../../../scripts/rslib
+      '@rslib/core':
+        specifier: 0.21.5
+        version: 0.21.5(@module-federation/runtime-tools@2.5.1)(@typescript/native-preview@7.0.0-dev.20260606.1)(core-js@3.49.0)(typescript@6.0.3)
+      '@scripts/rstest-config':
+        specifier: workspace:*
+        version: link:../../../scripts/rstest-config
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260606.1
+        version: 7.0.0-dev.20260606.1
+
+  packages/toolkit/create:
     devDependencies:
       '@modern-js/i18n-utils':
         specifier: workspace:*

@@ -1452,6 +1452,10 @@ async function main() {
       '@modern-js/adapter-rstest',
       packageSource,
     ),
+    codeToolsVersion: modernPackageSpecifier(
+      '@modern-js/code-tools',
+      packageSource,
+    ),
     createVersion: modernPackageSpecifier('@modern-js/create', packageSource),
     tsconfigVersion: modernPackageSpecifier(
       '@modern-js/tsconfig',
@@ -1558,6 +1562,7 @@ function copyTemplate(
     runtimeVersion: string;
     appToolsVersion: string;
     adapterRstestVersion: string;
+    codeToolsVersion: string;
     createVersion: string;
     tsconfigVersion: string;
     pluginTanstackVersion: string;
@@ -1638,6 +1643,7 @@ function copyTemplate(
             runtimeVersion: options.runtimeVersion,
             appToolsVersion: options.appToolsVersion,
             adapterRstestVersion: options.adapterRstestVersion,
+            codeToolsVersion: options.codeToolsVersion,
             createVersion: options.createVersion,
             tsconfigVersion: options.tsconfigVersion,
             pluginTanstackVersion: options.pluginTanstackVersion,
