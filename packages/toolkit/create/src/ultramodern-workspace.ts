@@ -130,7 +130,8 @@ type Ownership = {
   };
 };
 
-type SupportedWorkspaceLanguage = 'en' | 'cs';
+const supportedWorkspaceLanguages = ['en', 'cs'] as const;
+type SupportedWorkspaceLanguage = (typeof supportedWorkspaceLanguages)[number];
 
 type RoutePublicSurface =
   | 'private-app-screen'
@@ -148,6 +149,15 @@ type RouteOwnedI18nPath = {
   public: boolean;
   indexable: boolean;
   publicSurface: RoutePublicSurface;
+};
+
+type PublicRouteMetadata = {
+  canonicalPath: string;
+  id: string;
+  localisedPaths: Record<SupportedWorkspaceLanguage, string>;
+  namespace: string;
+  ownerAppId: string;
+  titleKey: string;
 };
 
 export type UltramodernWorkspaceOptions = {
@@ -1239,6 +1249,9 @@ ${bffConfig}      html: {
               '/mf-manifest.json',
               '/mf-stats.json',
               '/remoteEntry.js',
+              '/robots.txt',
+              '/site.webmanifest',
+              '/sitemap.xml',
               '/static',
               '/zephyr-manifest.json',
             ],
@@ -1792,7 +1805,7 @@ function createLocalisedUrlsMap(app: WorkspaceApp): Record<string, JsonValue> {
   return createLocalisedUrlsMapFromRoutes(createRouteOwnedI18nPaths(app));
 }
 
-function createPublicRouteMetadata(app: WorkspaceApp): JsonValue[] {
+function createPublicRouteMetadata(app: WorkspaceApp): PublicRouteMetadata[] {
   return createRouteOwnedI18nPaths(app)
     .filter(isPublicIndexableRoute)
     .map(route => ({
@@ -2084,8 +2097,207 @@ function createTw(prefix: string) {
       .join(' ');
 }
 
-function workspaceAssetsForApp(_app: WorkspaceApp): Record<string, string> {
-  return {};
+const publicSurfaceRequiredAssetPaths = ['config/public/robots.txt'] as const;
+const publicSurfaceOptionalAssetPaths = [
+  'config/public/sitemap.xml',
+  'config/public/site.webmanifest',
+] as const;
+
+type PublicSurfaceRouteEntry = PublicRouteMetadata & {
+  canonicalUrlPath: string;
+  localeUrlPaths: Record<SupportedWorkspaceLanguage, string>;
+};
+
+function normalisePublicPath(pathname: string): string {
+  const normalised = pathname
+    .trim()
+    .replaceAll(/\/+/gu, '/')
+    .replace(/\/+$/u, '');
+  return normalised.length > 0 && normalised.startsWith('/')
+    ? normalised
+    : `/${normalised}`;
+}
+
+function createLocalisedPublicPath(
+  pathname: string,
+  language: SupportedWorkspaceLanguage,
+): string {
+  const publicPath = normalisePublicPath(pathname);
+  return publicPath === '/' ? `/${language}` : `/${language}${publicPath}`;
+}
+
+function isConcretePublicPath(pathname: string): boolean {
+  return !normalisePublicPath(pathname)
+    .split('/')
+    .some(
+      segment =>
+        segment.startsWith(':') ||
+        segment.includes('*') ||
+        segment.startsWith('['),
+    );
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+function createPublicSurfaceRouteEntries(
+  app: WorkspaceApp,
+): PublicSurfaceRouteEntry[] {
+  return createPublicRouteMetadata(app)
+    .map(route => {
+      const localeUrlPaths = Object.fromEntries(
+        supportedWorkspaceLanguages.map(language => [
+          language,
+          createLocalisedPublicPath(route.localisedPaths[language], language),
+        ]),
+      ) as Record<SupportedWorkspaceLanguage, string>;
+
+      if (!Object.values(localeUrlPaths).every(isConcretePublicPath)) {
+        return;
+      }
+
+      return {
+        ...route,
+        canonicalUrlPath: localeUrlPaths.en,
+        localeUrlPaths,
+      };
+    })
+    .filter((route): route is PublicSurfaceRouteEntry => route !== undefined)
+    .sort(
+      (left, right) =>
+        left.canonicalUrlPath.localeCompare(right.canonicalUrlPath) ||
+        left.id.localeCompare(right.id),
+    );
+}
+
+function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
+  return uniqueSorted(
+    createPublicSurfaceRouteEntries(app).flatMap(route =>
+      supportedWorkspaceLanguages.map(
+        language => route.localeUrlPaths[language],
+      ),
+    ),
+  );
+}
+
+function createPublicSurfaceOrigin(app: WorkspaceApp): string {
+  return `http://localhost:${app.port}`;
+}
+
+function escapeXmlText(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function escapeXmlAttribute(value: string): string {
+  return escapeXmlText(value).replaceAll('"', '&quot;');
+}
+
+function renderRobotsTxt(app: WorkspaceApp): string {
+  const urlPaths = createPublicSurfaceUrlPaths(app);
+  const lines = ['User-agent: *'];
+
+  if (urlPaths.length === 0) {
+    lines.push('Disallow: /');
+  } else {
+    for (const urlPath of urlPaths) {
+      lines.push(`Allow: ${urlPath}$`);
+    }
+    lines.push('Disallow: /');
+    lines.push(`Sitemap: ${createPublicSurfaceOrigin(app)}/sitemap.xml`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+function renderSitemapXml(app: WorkspaceApp): string {
+  const origin = createPublicSurfaceOrigin(app);
+  const routes = createPublicSurfaceRouteEntries(app);
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+  ];
+
+  for (const route of routes) {
+    for (const language of supportedWorkspaceLanguages) {
+      lines.push('  <url>');
+      lines.push(
+        `    <loc>${escapeXmlText(
+          `${origin}${route.localeUrlPaths[language]}`,
+        )}</loc>`,
+      );
+      for (const alternateLanguage of supportedWorkspaceLanguages) {
+        lines.push(
+          `    <xhtml:link rel="alternate" hreflang="${alternateLanguage}" href="${escapeXmlAttribute(
+            `${origin}${route.localeUrlPaths[alternateLanguage]}`,
+          )}" />`,
+        );
+      }
+      lines.push(
+        `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXmlAttribute(
+          `${origin}${route.localeUrlPaths.en}`,
+        )}" />`,
+      );
+      lines.push('  </url>');
+    }
+  }
+
+  lines.push('</urlset>');
+  return `${lines.join('\n')}\n`;
+}
+
+function renderWebManifest(app: WorkspaceApp): string {
+  const startUrl = createPublicSurfaceUrlPaths(app)[0];
+  const manifest = {
+    name: app.displayName,
+    short_name: app.displayName,
+    display: 'standalone',
+    background_color: '#ffffff',
+    theme_color: '#133225',
+    lang: 'en',
+    categories: ['business', 'productivity'],
+    icons: [],
+    ...(startUrl ? { scope: '/', start_url: startUrl } : {}),
+  };
+
+  return `${JSON.stringify(sortJsonValue(manifest as JsonValue), null, 2)}\n`;
+}
+
+function createPublicSurfaceAssets(app: WorkspaceApp): Record<string, string> {
+  const assets: Record<string, string> = {
+    'config/public/robots.txt': renderRobotsTxt(app),
+  };
+
+  if (createPublicSurfaceRouteEntries(app).length > 0) {
+    assets['config/public/sitemap.xml'] = renderSitemapXml(app);
+    assets['config/public/site.webmanifest'] = renderWebManifest(app);
+  }
+
+  return assets;
+}
+
+function workspaceAssetsForApp(app: WorkspaceApp): Record<string, string> {
+  return createPublicSurfaceAssets(app);
+}
+
+function rewriteWorkspaceAssetsForApp(
+  workspaceRoot: string,
+  app: WorkspaceApp,
+) {
+  for (const [relativePath, content] of Object.entries(
+    workspaceAssetsForApp(app),
+  )) {
+    writeFileReplacing(
+      workspaceRoot,
+      `${app.directory}/${relativePath}`,
+      content,
+    );
+  }
 }
 
 function createLocalizedHeadComponent(): string {
@@ -4629,6 +4841,23 @@ function createStylingContract(
   };
 }
 
+function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
+  const files = Object.keys(createPublicSurfaceAssets(app))
+    .sort()
+    .map(relativePath => relativePath.replace(/^config\/public\//u, ''));
+
+  return {
+    source: 'route-owned-public-routes',
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    staticRoot: 'config/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    files,
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    publicRoutes: createPublicRouteMetadata(app),
+    concreteUrlPaths: createPublicSurfaceUrlPaths(app),
+  };
+}
+
 function createAppGeneratedContract(
   scope: string,
   app: WorkspaceApp,
@@ -4703,6 +4932,7 @@ function createAppGeneratedContract(
       publicnessDefault: 'private-app-screen',
       generatedRouteMap: true,
       manualOverrides: [],
+      publicSurface: createPublicSurfaceContract(app),
     },
     moduleFederation: {
       name: app.mfName,
@@ -5231,6 +5461,8 @@ const expectedBuildScript = ${JSON.stringify(expectedBuildScript)};
 const expectedCloudflareBuildScript = ${JSON.stringify(expectedCloudflareBuildScript)};
 const expectedCloudflareDeployScript = ${JSON.stringify(expectedCloudflareDeployScript)};
 const expectedCloudflareSecurity = ${JSON.stringify(expectedCloudflareSecurity, null, 2)};
+const publicSurfaceRequiredAssetPaths = ${JSON.stringify([...publicSurfaceRequiredAssetPaths], null, 2)};
+const publicSurfaceOptionalAssetPaths = ${JSON.stringify([...publicSurfaceOptionalAssetPaths], null, 2)};
 
 const readText = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf-8');
 const readJson = relativePath => JSON.parse(readText(relativePath));
@@ -5244,6 +5476,21 @@ const assertExists = relativePath => {
 };
 const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), \`Unexpected \${relativePath}\`);
+};
+const assertPublicSurfaceAssets = (appPath, publicRoutes) => {
+  const robots = readText(\`\${appPath}/config/public/robots.txt\`);
+  if ((publicRoutes ?? []).length === 0) {
+    assert(robots.includes('Disallow: /'), \`\${appPath} robots.txt must disallow crawling when no public routes exist\`);
+    for (const relativePath of publicSurfaceOptionalAssetPaths) {
+      assertNotExists(\`\${appPath}/\${relativePath}\`);
+    }
+    return;
+  }
+  const sitemap = readText(\`\${appPath}/config/public/sitemap.xml\`);
+  const manifest = readJson(\`\${appPath}/config/public/site.webmanifest\`);
+  assert(!sitemap.includes('<lastmod>'), \`\${appPath} sitemap must omit build-time lastmod values\`);
+  assert(typeof manifest.name === 'string' && manifest.name.length > 0, \`\${appPath} web manifest must include a safe app name\`);
+  assert(typeof manifest.start_url === 'string' && manifest.start_url.startsWith('/'), \`\${appPath} web manifest start_url must be a public route path\`);
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
@@ -5321,6 +5568,9 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/layout.tsx',
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
+  ...publicSurfaceRequiredAssetPaths.map(
+    relativePath => \`apps/shell-super-app/\${relativePath}\`,
+  ),
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-design-tokens/src/tokens.css',
@@ -5347,6 +5597,9 @@ for (const vertical of fullStackVerticals) {
     \`\${vertical.path}/src/routes/layout.tsx\`,
     \`\${vertical.path}/src/routes/ultramodern-route-metadata.ts\`,
     \`\${vertical.path}/src/routes/[lang]/page.tsx\`,
+    ...publicSurfaceRequiredAssetPaths.map(
+      relativePath => \`\${vertical.path}/\${relativePath}\`,
+    ),
     ...vertical.routePagePaths,
   );
 }
@@ -5452,6 +5705,7 @@ assert(
   (shellContract?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
   'Shell owned routes must be non-indexable private app screens by default',
 );
+assertPublicSurfaceAssets('apps/shell-super-app', shellContract?.routes?.publicRoutes ?? []);
 assert(
   topology.shell?.verticalRefs?.join(',') === fullStackVerticals.map(vertical => vertical.id).join(','),
   'Topology shell verticalRefs must match generated verticals',
@@ -5524,6 +5778,7 @@ for (const vertical of fullStackVerticals) {
     (contractEntry?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
     \`\${vertical.id} owned routes must be non-indexable private app screens by default\`,
   );
+  assertPublicSurfaceAssets(vertical.path, contractEntry?.routes?.publicRoutes ?? []);
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
   assert(contractEntry?.styling?.federation?.role === 'vertical-css', \`\${vertical.id} must own only vertical CSS\`);
   assert(contractEntry?.styling?.federation?.rootSelector === \`[data-app-id="\${vertical.id}"]\`, \`\${vertical.id} CSS root selector is incorrect\`);
@@ -6532,6 +6787,7 @@ function rewriteShellAppFiles(
     `${shellApp.directory}/src/routes/ultramodern-route-metadata.ts`,
     createRouteMetadataModule(shellHost),
   );
+  rewriteWorkspaceAssetsForApp(workspaceRoot, shellHost);
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/src/modern.runtime.ts`,

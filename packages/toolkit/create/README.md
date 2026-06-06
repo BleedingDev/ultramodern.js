@@ -42,7 +42,8 @@ domains to delete. It generates:
 - `packages/shared-*` placeholders for shared contracts, tokens, and API
   support.
 - `.modernjs/ultramodern-generated-contract.json` with MF, Effect, i18n,
-  federated CSS, Cloudflare, and Zephyr dependency metadata.
+  federated CSS, Cloudflare, route publicness, generated public-surface, and
+  Zephyr dependency metadata.
 
 Validate the generated workspace before making application changes:
 
@@ -146,11 +147,16 @@ client, `localisedUrls`, locale JSON, CSS layer, and Cloudflare Worker output.
 The shell consumes vertical UI through MF manifests and vertical APIs through
 generated Effect clients exported by the vertical packages.
 
-Route localization is route-owned. Each app writes
+Route metadata is route-owned. Each app writes
 `src/routes/ultramodern-route-metadata` and passes
 `ultramodernLocalisedUrls` into `@modern-js/plugin-i18n`. Locale JSON is served
 from `/locales/{{lng}}/{{ns}}.json`; Czech and English routes are generated from
-the route owner, not from shell rewrites.
+the route owner, not from shell rewrites. Routes default to
+`privateByDefault: true` and `publicnessDefault: private-app-screen`; generated
+public files use only explicit `public && indexable` route metadata, so private
+app screens publish only a disallowing `robots.txt` by default. Sitemap,
+manifest, `llms.txt`, API catalog, JSON-LD, and broad web profile/certification
+output stay omitted unless a safe public input exists.
 
 CSS federation is explicit:
 

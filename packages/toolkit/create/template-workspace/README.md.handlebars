@@ -19,9 +19,18 @@ pnpm dlx @bleedingdev/modern-js-create payments --vertical
 ```
 
 Each added vertical owns its UI/routes, browser-safe Module Federation exposes,
-localized route metadata, CSS prefix, Effect BFF handlers, local API contract,
-and typed client surface. Server handlers and Effect client/contract modules
-stay out of browser exposes.
+private-first route metadata, localized URLs, public-route opt-ins, CSS prefix,
+Effect BFF handlers, local API contract, and typed client surface. Server
+handlers and Effect client/contract modules stay out of browser exposes.
+
+## Private-First Public Surfaces
+
+Generated app routes are private and non-indexable by default. Private app,
+auth, tenant, dashboard, and internal routes publish no discovery output unless
+route metadata explicitly marks them `public && indexable`. The default scaffold
+therefore emits only a disallowing `robots.txt`; sitemap, web manifest,
+`llms.txt`, API catalog, security.txt, and JSON-LD output stay omitted until a
+safe public route or public docs/help/product surface exists.
 
 Run the scaffold validator before adding business code and after every
 `--vertical` mutation:

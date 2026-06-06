@@ -60,15 +60,23 @@ The minimal public metadata surface is:
 
 - `public`
 - `indexable`
-- title
-- description
-- canonical inference
-- locale alternates
+- `publicSurface`
+- title and description keys
+- canonical and localized path inference
 - opt-out behavior
+- optional reliable content modification time
 
 Localized metadata and `hreflang` generation apply only to public/indexable
 routes for generated public files. Locale redirects may still use private route
 metadata for routing correctness.
+
+Generated public files are deterministic and private-first. With no
+public/indexable routes, generated app screens emit only a `robots.txt` that
+disallows crawling; sitemap, web manifest, `llms.txt`, API catalog, security.txt,
+and JSON-LD output are omitted. When public routes exist, generated discovery
+files are derived only from `publicRoutes`, never from private route ownership,
+tenant, auth, Effect BFF, or Module Federation metadata. Sitemap `lastmod` is
+omitted unless a stable content date exists.
 
 ## Security Defaults And Escape Hatches
 

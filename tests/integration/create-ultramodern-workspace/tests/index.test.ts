@@ -134,6 +134,33 @@ function getGeneratedAppContract(workspaceDir: string, appId: string) {
   return contractEntry!;
 }
 
+function expectPrivatePublicSurface(
+  workspaceDir: string,
+  appPath: string,
+  routes: Record<string, any>,
+) {
+  expect(routes.publicSurface).toMatchObject({
+    source: 'route-owned-public-routes',
+    staticRoot: 'config/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    files: ['robots.txt'],
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    publicRoutes: [],
+    concreteUrlPaths: [],
+  });
+  expect(readText(workspaceDir, `${appPath}/config/public/robots.txt`)).toBe(
+    'User-agent: *\nDisallow: /\n',
+  );
+  expectNoPath(workspaceDir, `${appPath}/config/public/sitemap.xml`);
+  expectNoPath(workspaceDir, `${appPath}/config/public/site.webmanifest`);
+  expectNoPath(workspaceDir, `${appPath}/config/public/llms.txt`);
+  expectNoPath(
+    workspaceDir,
+    `${appPath}/config/public/.well-known/security.txt`,
+  );
+  expectNoPath(workspaceDir, `${appPath}/config/public/api-catalog.json`);
+}
+
 function expectAppConfigContract(
   contractEntry: {
     config: Record<string, any>;
@@ -640,6 +667,11 @@ describe('create-ultramodern-workspace', () => {
         publicSurface: 'private-app-screen',
       }),
     ]);
+    expectPrivatePublicSurface(
+      workspaceDir,
+      'apps/shell-super-app',
+      shellContract.routes,
+    );
     expect(shellContract.deploy).toMatchObject({
       target: 'cloudflare',
       cloudflare: {
@@ -987,6 +1019,16 @@ process.exit(1);
         publicSurface: 'private-app-screen',
       }),
     ]);
+    expectPrivatePublicSurface(
+      workspaceDir,
+      'apps/shell-super-app',
+      shellContract.routes,
+    );
+    expectPrivatePublicSurface(
+      workspaceDir,
+      'verticals/catalog',
+      catalogContract.routes,
+    );
 
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     expect(topology.shell.verticalRefs).toEqual(['catalog']);

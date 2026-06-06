@@ -4,22 +4,22 @@ overview: Implement conservative private-first generated public surfaces for Ult
 todos:
   - id: inspect-public-surface-generation-points
     content: Inspect current UltraModern workspace generation, generated contract validation, and emitted route metadata to identify the smallest file-generation insertion points for robots.txt, sitemap.xml, app manifest, security.txt, optional llms.txt, and optional API catalog output.
-    status: pending
+    status: completed
   - id: define-public-input-contract
     content: Define the minimal public input contract on top of existing public/indexable/publicSurface/publicRoutes metadata, including title, description, canonical inference, locale alternates, stable or omitted sitemap lastmod, and explicit opt-out behavior without requiring owner/id/canonicalPath/structuredData from app authors.
-    status: pending
+    status: completed
   - id: implement-public-file-renderers
     content: Implement deterministic renderers for robots.txt, sitemap.xml, app manifest, security.txt, optional llms.txt, and optional API catalog data using publicRoutes and generated public starter/docs/help/product inputs only.
-    status: pending
+    status: completed
   - id: wire-generated-output
     content: Wire generated public files into the UltraModern workspace materialization path so private/auth/tenant/internal app routes emit no public discovery output by default while explicit generated public surfaces are included.
-    status: pending
+    status: completed
   - id: extend-generated-contract-validation
     content: Extend generated contract checks and integration assertions to prove private routes are absent, public/indexable routes are included, non-production output is noindex/disallow where owned, and all generated files are stable across repeated generation.
-    status: pending
+    status: completed
   - id: document-sane-defaults-boundary
     content: Update the relevant UltraModern docs or generated README notes to describe the private-first public surface defaults, opt-in public metadata, and deferred JSON-LD boundary without introducing a webSpec/profile engine.
-    status: pending
+    status: completed
 isProject: false
 ---
 
