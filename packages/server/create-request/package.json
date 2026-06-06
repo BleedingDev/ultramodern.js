@@ -75,7 +75,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.1",
     "@types/qs": "^6.15.1",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "nock": "^14.0.15"
   },
   "sideEffects": false,

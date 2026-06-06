@@ -3,6 +3,11 @@ minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 minimumReleaseAgeExclude:
   - '@bleedingdev/modern-js-*'
+  - '@tanstack/react-router'
+  - '@tanstack/router-core'
+  - '@typescript/native-preview'
+  - '@typescript/native-preview-*'
+  - '@types/react'
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 1440
 blockExoticSubdeps: true

@@ -11,8 +11,8 @@
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
     "client-only": "^0.0.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-server-dom-rspack": "0.0.2",
     "server-only": "^0.0.1"
   },
@@ -20,9 +20,9 @@
     "@modern-js/app-tools": "workspace:*",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "cross-env": "^10.1.0"
   }
 }

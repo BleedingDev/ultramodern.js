@@ -39,12 +39,12 @@
     "@shikijs/transformers": "^4.1.0",
     "@types/fs-extra": "11.0.4",
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
     "fs-extra": "^11.3.5",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "rsbuild-plugin-open-graph": "1.1.3"
   }
 }

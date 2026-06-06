@@ -7,9 +7,9 @@
   },
   "dependencies": {
     "lodash": "^4.18.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-router-dom": "7.16.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "7.17.0",
     "vue": "^3.5.34"
   },
   "devDependencies": {
@@ -21,10 +21,10 @@
     "@types/connect": "^3.4.38",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/serve-static": "^2.2.0",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "connect": "^3.7.0",
     "serve-static": "^2.2.1",
     "tailwindcss": "^4.3.0"

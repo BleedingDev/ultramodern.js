@@ -112,6 +112,11 @@ function expectPnpm11Policy(workspaceDir: string) {
   ).toBe(false);
   expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeExclude')).toEqual([
     '@bleedingdev/modern-js-*',
+    '@tanstack/react-router',
+    '@tanstack/router-core',
+    '@typescript/native-preview',
+    '@typescript/native-preview-*',
+    '@types/react',
   ]);
   expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
     allowedVersions: {
@@ -120,7 +125,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
-    '@tanstack/react-router': '1.170.11',
+    '@tanstack/react-router': '1.170.15',
     'node-fetch': '^3.3.2',
   });
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
@@ -490,19 +495,32 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts.postinstall).toBe(
       "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
     );
+    const agentReferenceRepoSetup = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/setup-agent-reference-repos.mjs'),
+      'utf8',
+    );
+    expect(agentReferenceRepoSetup).toContain(
+      "['commit', '--no-verify', '-m', message]",
+    );
+    expect(agentReferenceRepoSetup).toContain(
+      "commitInstallerChanges('Initialize UltraModern workspace')",
+    );
+    expect(agentReferenceRepoSetup).toContain(
+      "commitInstallerChanges('Record agent reference repo manifest')",
+    );
     expect(
       Object.keys(rootPackage.scripts).every(
         scriptName => !scriptName.startsWith('zephyr:'),
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.13.0',
-      '@typescript/native-preview': '7.0.0-dev.20260527.2',
+      '@effect/tsgo': '0.14.0',
+      '@typescript/native-preview': '7.0.0-dev.20260606.1',
       lefthook: '^2.1.9',
-      oxlint: '1.66.0',
-      oxfmt: '0.51.0',
-      ultracite: '7.7.0',
-      wrangler: '4.95.0',
+      oxlint: '1.68.0',
+      oxfmt: '0.53.0',
+      ultracite: '7.8.1',
+      wrangler: '4.98.0',
       'zephyr-agent': '1.1.1',
     });
 
@@ -578,7 +596,7 @@ describe('create-ultramodern-workspace', () => {
         'dependencies',
         '@modern-js/runtime',
       );
-      expect(packageJson.dependencies.i18next).toBe('26.2.0');
+      expect(packageJson.dependencies.i18next).toBe('26.3.1');
       expect(packageJson.dependencies['react-i18next']).toBeUndefined();
       expect(packageJson.dependencies['node-fetch']).toBe('^3.3.2');
       expectBleedingDevModernDependency(
@@ -586,13 +604,13 @@ describe('create-ultramodern-workspace', () => {
         'devDependencies',
         '@modern-js/app-tools',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.13.0');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.0');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260527.2',
+        '7.0.0-dev.20260606.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
-      expect(packageJson.devDependencies.wrangler).toBe('4.95.0');
+      expect(packageJson.devDependencies.wrangler).toBe('4.98.0');
       expect(
         packageJson.devDependencies['zephyr-modernjs-plugin'],
       ).toBeUndefined();
@@ -600,7 +618,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
         '^4.3.0',
       );
-      expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
+      expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
       expect(packageJson.scripts.dev).toBe('modern dev');
       expect(packageJson.scripts.build).toBe(
         'ULTRAMODERN_ZEPHYR=false modern build',
@@ -626,10 +644,10 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson['zephyr:dependencies']).toEqual({});
       expect(typeof packageJson.scripts.typecheck).toBe('string');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.11',
+        '1.170.15',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
-        '2.5.0',
+        '2.5.1',
       );
       expectBleedingDevModernDependency(
         packageJson,
@@ -981,10 +999,10 @@ process.exit(1);
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.11',
+      '1.170.15',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
-      '2.5.0',
+      '2.5.1',
     );
     expectBleedingDevModernDependency(
       remotePackage,
@@ -1006,7 +1024,7 @@ process.exit(1);
       'devDependencies',
       '@modern-js/app-tools',
     );
-    expect(remotePackage.dependencies.i18next).toBe('26.2.0');
+    expect(remotePackage.dependencies.i18next).toBe('26.3.1');
     expect(remotePackage.dependencies['react-i18next']).toBeUndefined();
     expect(remotePackage.dependencies['node-fetch']).toBe('^3.3.2');
     expect(remotePackage.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
@@ -1063,7 +1081,15 @@ process.exit(1);
       workspaceDir,
       'verticals/catalog/api/effect/index.ts',
     );
+    const catalogEffectApi = readText(
+      workspaceDir,
+      'verticals/catalog/shared/effect/api.ts',
+    );
     expect(catalogModernConfig).toContain("entry: './api/effect/index'");
+    expect(catalogEffectApi).toContain(
+      'limit: Schema.optional(Schema.FiniteFromString)',
+    );
+    expect(catalogEffectApi).not.toContain('Schema.NumberFromString');
     expect(catalogEffectEntry).toContain(
       "from '../../src/ultramodern-build.ts'",
     );

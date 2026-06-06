@@ -22,25 +22,26 @@ const workspaceTemplateDir = path.resolve(
   'template-workspace',
 );
 
-const TANSTACK_ROUTER_VERSION = '1.170.11';
-const MODULE_FEDERATION_VERSION = '2.5.0';
+const TANSTACK_ROUTER_VERSION = '1.170.15';
+const MODULE_FEDERATION_VERSION = '2.5.1';
 const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const ZEPHYR_AGENT_VERSION = '1.1.1';
-const WRANGLER_VERSION = '4.95.0';
+const WRANGLER_VERSION = '4.98.0';
 const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
-const EFFECT_TSGO_VERSION = '0.13.0';
+const POSTCSS_VERSION = '8.5.15';
+const EFFECT_TSGO_VERSION = '0.14.0';
 const TYPESCRIPT_VERSION = '6.0.3';
-const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260527.2';
-const OXLINT_VERSION = '1.66.0';
-const OXFMT_VERSION = '0.51.0';
-const ULTRACITE_VERSION = '7.7.0';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260606.1';
+const OXLINT_VERSION = '1.68.0';
+const OXFMT_VERSION = '0.53.0';
+const ULTRACITE_VERSION = '7.8.1';
 const LEFTHOOK_VERSION = '^2.1.9';
-const I18NEXT_VERSION = '26.2.0';
-const REACT_VERSION = '^19.2.6';
-const REACT_DOM_VERSION = '^19.2.6';
-const REACT_ROUTER_DOM_VERSION = '7.16.0';
+const I18NEXT_VERSION = '26.3.1';
+const REACT_VERSION = '^19.2.7';
+const REACT_DOM_VERSION = '^19.2.7';
+const REACT_ROUTER_DOM_VERSION = '7.17.0';
 const PNPM_VERSION = '11.5.0';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
@@ -662,14 +663,14 @@ function appDevDependencies(
     ...(enableTailwind
       ? {
           '@tailwindcss/postcss': `^${TAILWIND_POSTCSS_VERSION}`,
-          postcss: '^8.5.6',
+          postcss: `^${POSTCSS_VERSION}`,
           tailwindcss: `^${TAILWIND_VERSION}`,
         }
       : {}),
     '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     '@types/node': '^20',
-    '@types/react': '^19.1.8',
-    '@types/react-dom': '^19.1.6',
+    '@types/react': '^19.2.17',
+    '@types/react-dom': '^19.2.3',
     typescript: TYPESCRIPT_VERSION,
     'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
     wrangler: WRANGLER_VERSION,
@@ -3926,7 +3927,7 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
     .add(
       HttpApiEndpoint.get('list', '/effect/${stem}', {
         query: {
-          limit: Schema.optional(Schema.NumberFromString),
+          limit: Schema.optional(Schema.FiniteFromString),
         },
         success: Schema.Struct({
           items: Schema.Array(${schemaExport}),
@@ -5636,6 +5637,10 @@ assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloud
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
 assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs", 'Root postinstall must format, bootstrap agent skills, initialize git/hooks, and install reference repositories');
+const agentReferenceRepoSetup = readText('scripts/setup-agent-reference-repos.mjs');
+assert(agentReferenceRepoSetup.includes("['commit', '--no-verify', '-m', message]"), 'Agent reference repo installer commits must skip hooks during postinstall');
+assert(agentReferenceRepoSetup.includes("commitInstallerChanges('Initialize UltraModern workspace')"), 'Initial agent reference repo commit must use the installer commit helper');
+assert(agentReferenceRepoSetup.includes("commitInstallerChanges('Record agent reference repo manifest')"), 'Agent reference repo manifest commit must use the installer commit helper');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
 const expectedCloudflareCompatibilityDate = '${CLOUDFLARE_COMPATIBILITY_DATE}';

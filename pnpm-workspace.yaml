@@ -41,15 +41,15 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  '@module-federation/manifest@2.5.0': patches/@module-federation__manifest@2.5.0.patch
-  '@module-federation/rspack@2.5.0': patches/@module-federation__rspack@2.5.0.patch
+  '@module-federation/manifest@2.5.1': patches/@module-federation__manifest@2.5.0.patch
+  '@module-federation/rspack@2.5.1': patches/@module-federation__rspack@2.5.0.patch
 
 overrides:
   micromatch: ^4.0.8
   'read-yaml-file>js-yaml': 3.14.2
   '@remix-run/router': '>=1.23.3'
-  react-router: 7.16.0
-  react-router-dom: 7.16.0
+  react-router: 7.17.0
+  react-router-dom: 7.17.0
   h3: '>=1.15.11'
   tar: '>=7.5.15'
   diff: '>=4.0.4'
@@ -109,3 +109,6 @@ allowedDeprecatedVersions:
 minimumReleaseAgeExclude:
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
+  - '@types/react@19.2.17'
+  - '@tanstack/react-router@1.170.15'
+  - '@tanstack/router-core@1.171.13'

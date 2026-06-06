@@ -122,6 +122,12 @@ function porcelainStatus() {
   return run('git', ['status', '--porcelain'], { timeout: 30000 });
 }
 
+function commitInstallerChanges(message) {
+  run('git', ['commit', '--no-verify', '-m', message], {
+    timeout: 120000,
+  });
+}
+
 function ensureGitRepository() {
   if (!isGitWorkTree()) {
     if (checkOnly) {
@@ -139,9 +145,7 @@ function ensureGitRepository() {
     }
     log('creating initial workspace commit before adding reference subtrees');
     run('git', ['add', '-A'], { timeout: 30000 });
-    run('git', ['commit', '-m', 'Initialize UltraModern workspace'], {
-      timeout: 120000,
-    });
+    commitInstallerChanges('Initialize UltraModern workspace');
     return true;
   }
 
@@ -311,9 +315,7 @@ function commitManifestIfChanged() {
     return;
   }
   run('git', ['add', manifestPath], { timeout: 30000 });
-  run('git', ['commit', '-m', 'Record agent reference repo manifest'], {
-    timeout: 120000,
-  });
+  commitInstallerChanges('Record agent reference repo manifest');
 }
 
 function main() {

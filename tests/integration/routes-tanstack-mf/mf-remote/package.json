@@ -10,16 +10,16 @@
   "dependencies": {
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@module-federation/modern-js-v3": "2.5.0",
-    "@module-federation/runtime": "2.5.0",
-    "@tanstack/react-router": "1.170.11",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "@module-federation/modern-js-v3": "2.5.1",
+    "@module-federation/runtime": "2.5.1",
+    "@tanstack/react-router": "1.170.15",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "typescript": "6.0.3"
   }
 }

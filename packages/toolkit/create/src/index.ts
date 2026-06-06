@@ -131,10 +131,24 @@ const sha1Pattern = /^[0-9a-f]{40}$/;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const templateIdPattern = /^[a-z0-9][a-z0-9._-]*$/;
 const packageNamePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
-const TANSTACK_ROUTER_VERSION = '1.170.11';
+const TANSTACK_ROUTER_VERSION = '1.170.15';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const PNPM_VERSION = '11.5.0';
+const I18NEXT_VERSION = '26.3.1';
+const REACT_VERSION = '^19.2.7';
+const REACT_DOM_VERSION = '^19.2.7';
+const REACT_I18NEXT_VERSION = '17.0.8';
+const EFFECT_TSGO_VERSION = '0.14.0';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260606.1';
+const HAPPY_DOM_VERSION = '^20.10.1';
+const RSTEST_CORE_VERSION = '0.10.3';
+const OXFMT_VERSION = '0.53.0';
+const OXLINT_VERSION = '1.68.0';
+const POSTCSS_VERSION = '^8.5.15';
+const ULTRACITE_VERSION = '7.8.1';
+const TYPES_REACT_VERSION = '^19.2.17';
+const TYPES_REACT_DOM_VERSION = '^19.2.3';
 const requiredDeniedPaths = [
   '.git/**',
   '.npmrc',
@@ -1455,6 +1469,20 @@ async function main() {
       packageSource,
     ),
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
+    i18nextVersion: I18NEXT_VERSION,
+    reactVersion: REACT_VERSION,
+    reactDomVersion: REACT_DOM_VERSION,
+    reactI18nextVersion: REACT_I18NEXT_VERSION,
+    effectTsgoVersion: EFFECT_TSGO_VERSION,
+    typescriptNativePreviewVersion: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+    rstestCoreVersion: RSTEST_CORE_VERSION,
+    happyDomVersion: HAPPY_DOM_VERSION,
+    oxfmtVersion: OXFMT_VERSION,
+    oxlintVersion: OXLINT_VERSION,
+    postcssVersion: POSTCSS_VERSION,
+    ultraciteVersion: ULTRACITE_VERSION,
+    typesReactVersion: TYPES_REACT_VERSION,
+    typesReactDomVersion: TYPES_REACT_DOM_VERSION,
     tailwindVersion: TAILWIND_VERSION,
     tailwindPostcssVersion: TAILWIND_POSTCSS_VERSION,
     pnpmVersion: PNPM_VERSION,
@@ -1541,6 +1569,20 @@ function copyTemplate(
     pluginBffVersion: string;
     pluginI18nVersion: string;
     tanstackRouterVersion: string;
+    i18nextVersion: string;
+    reactVersion: string;
+    reactDomVersion: string;
+    reactI18nextVersion: string;
+    effectTsgoVersion: string;
+    typescriptNativePreviewVersion: string;
+    rstestCoreVersion: string;
+    happyDomVersion: string;
+    oxfmtVersion: string;
+    oxlintVersion: string;
+    postcssVersion: string;
+    ultraciteVersion: string;
+    typesReactVersion: string;
+    typesReactDomVersion: string;
     tailwindVersion: string;
     tailwindPostcssVersion: string;
     pnpmVersion: string;
@@ -1608,6 +1650,21 @@ function copyTemplate(
             pluginBffVersion: options.pluginBffVersion,
             pluginI18nVersion: options.pluginI18nVersion,
             tanstackRouterVersion: options.tanstackRouterVersion,
+            i18nextVersion: options.i18nextVersion,
+            reactVersion: options.reactVersion,
+            reactDomVersion: options.reactDomVersion,
+            reactI18nextVersion: options.reactI18nextVersion,
+            effectTsgoVersion: options.effectTsgoVersion,
+            typescriptNativePreviewVersion:
+              options.typescriptNativePreviewVersion,
+            rstestCoreVersion: options.rstestCoreVersion,
+            happyDomVersion: options.happyDomVersion,
+            oxfmtVersion: options.oxfmtVersion,
+            oxlintVersion: options.oxlintVersion,
+            postcssVersion: options.postcssVersion,
+            ultraciteVersion: options.ultraciteVersion,
+            typesReactVersion: options.typesReactVersion,
+            typesReactDomVersion: options.typesReactDomVersion,
             tailwindVersion: options.tailwindVersion,
             tailwindPostcssVersion: options.tailwindPostcssVersion,
             pnpmVersion: options.pnpmVersion,

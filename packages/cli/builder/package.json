@@ -74,8 +74,8 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
-    "react": "^19.2.6",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "react": "^19.2.7",
     "terser": "^5.48.0"
   },
   "publishConfig": {

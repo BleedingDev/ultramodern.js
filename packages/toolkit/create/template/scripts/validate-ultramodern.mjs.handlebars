@@ -422,11 +422,19 @@ if (readPnpmConfig('minimumReleaseAgeIgnoreMissingTime') !== false) {
   console.error('pnpm minimumReleaseAgeIgnoreMissingTime must be false');
   process.exit(1);
 }
+const expectedMinimumReleaseAgeExcludes = [
+  '@bleedingdev/modern-js-*',
+  '@tanstack/react-router',
+  '@tanstack/router-core',
+  '@typescript/native-preview',
+  '@typescript/native-preview-*',
+  '@types/react',
+];
 if (
   JSON.stringify(readPnpmConfig('minimumReleaseAgeExclude')) !==
-  JSON.stringify(['@bleedingdev/modern-js-*'])
+  JSON.stringify(expectedMinimumReleaseAgeExcludes)
 ) {
-  console.error('pnpm minimumReleaseAgeExclude must allow just-published BleedingDev Modern cohorts only');
+  console.error('pnpm minimumReleaseAgeExclude must allow only approved latest-lane package cohorts');
   process.exit(1);
 }
 if (readPnpmConfig('trustPolicy') !== 'no-downgrade') {

@@ -41,7 +41,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.1",
     "@types/styled-components": "^5.1.36",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "styled-components": "^6.4.2"
   },
   "peerDependencies": {

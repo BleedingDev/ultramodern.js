@@ -233,7 +233,7 @@
     "@swc/core": "1.15.40",
     "@swc/helpers": "^0.5.23",
     "@swc/plugin-loadable-components": "^11.10.0",
-    "@tanstack/react-router": "1.170.11",
+    "@tanstack/react-router": "1.170.15",
     "@tanstack/router-core": "1.171.9",
     "@types/loadable__component": "^5.13.10",
     "cookie": "1.1.1",
@@ -243,11 +243,11 @@
     "invariant": "^2.2.4",
     "isbot": "5.1.40",
     "react-helmet-async": "3.0.0",
-    "react-is": "^19.2.6"
+    "react-is": "^19.2.7"
   },
   "peerDependencies": {
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -262,9 +262,9 @@
     "@types/invariant": "^2.2.37",
     "@types/loadable__server": "5.12.11",
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -36,16 +36,16 @@
     "@modern-js/server-core": "workspace:*",
     "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-server-dom-rspack": "0.0.2"
   },
   "peerDependencies": {
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-server-dom-rspack": "0.0.2"
   },
   "exports": {

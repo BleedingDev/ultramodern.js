@@ -16,8 +16,8 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
     "koa": "3.2.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tsconfig-paths": "4.2.0",
     "zod": "^4.4.3"
   },
@@ -26,8 +26,8 @@
     "@types/jest": "^30.0.0",
     "@types/koa": "3.0.3",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2"
+    "@typescript/native-preview": "7.0.0-dev.20260606.1"
   }
 }

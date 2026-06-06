@@ -8,6 +8,11 @@ minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 minimumReleaseAgeExclude:
   - '@bleedingdev/modern-js-*'
+  - '@tanstack/react-router'
+  - '@tanstack/router-core'
+  - '@typescript/native-preview'
+  - '@typescript/native-preview-*'
+  - '@types/react'
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 1440
 blockExoticSubdeps: true
@@ -22,7 +27,7 @@ peerDependencyRules:
     typescript: '>=6.0.0'
 
 overrides:
-  '@tanstack/react-router': 1.170.11
+  '@tanstack/react-router': 1.170.15
   node-fetch: '^3.3.2'
 
 allowBuilds:

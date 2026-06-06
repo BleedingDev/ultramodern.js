@@ -22,8 +22,8 @@
     "@modern-js/server-runtime": "workspace:*",
     "antd": "^6.4.3",
     "hono": "^4.12.22",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -34,9 +34,9 @@
     "@storybook/addon-onboarding": "^10.4.1",
     "@storybook/react": "^10.4.1",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "http-proxy": "^1.18.1",
     "storybook": "^10.4.1",
     "storybook-addon-modernjs": "3.3.4",

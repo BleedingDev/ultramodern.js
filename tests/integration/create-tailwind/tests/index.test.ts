@@ -80,6 +80,11 @@ function expectPnpm11Policy(projectDir: string) {
   );
   expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
     '@bleedingdev/modern-js-*',
+    '@tanstack/react-router',
+    '@tanstack/router-core',
+    '@typescript/native-preview',
+    '@typescript/native-preview-*',
+    '@types/react',
   ]);
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
@@ -136,7 +141,7 @@ function expectSingleAppContract(appDir: string) {
     packageJson.devDependencies['@modern-js/adapter-rstest'],
   ).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
-  expect(packageJson.devDependencies['happy-dom']).toBe('^20.9.0');
+  expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
   expect(packageJson.modernjs).toEqual({
     preset: 'presetUltramodern',
     packageSource: {
@@ -252,9 +257,9 @@ describe('create-tailwind', () => {
     expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
       `npm:@bleedingdev/modern-js-app-tools@${expectedBleedingDevFrameworkVersion}`,
     );
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.11');
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.15');
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
+    expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
     expect(packageJson.scripts.postinstall).toBe(
       'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
@@ -342,7 +347,7 @@ describe('create-tailwind', () => {
     );
 
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(packageJson.devDependencies.postcss).toBe('^8.5.6');
+    expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
 
     expect(packageJson['lint-staged']).toBeUndefined();
