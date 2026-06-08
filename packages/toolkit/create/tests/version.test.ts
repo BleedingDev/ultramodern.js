@@ -7,6 +7,14 @@ import path from 'node:path';
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
 
+test('package exposes the pnpm dlx command alias', () => {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+  );
+
+  assert.equal(packageJson.bin['modern-js-create'], './bin/run.js');
+});
+
 test('built CLI resolves package metadata for --version', () => {
   const result = spawnSync(process.execPath, [builtCliPath, '--version'], {
     cwd: packageRoot,

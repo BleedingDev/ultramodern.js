@@ -23,7 +23,8 @@
   "types": "./dist/types/index.d.ts",
   "main": "./dist/esm-node/index.js",
   "bin": {
-    "create": "./bin/run.js"
+    "create": "./bin/run.js",
+    "modern-js-create": "./bin/run.js"
   },
   "typesVersions": {
     "*": {
