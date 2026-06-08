@@ -32,14 +32,10 @@ test('built CLI resolves package templates for default scaffold', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
 
   try {
-    const result = spawnSync(
-      process.execPath,
-      [builtCliPath, 'smoke-app', '--lang', 'en'],
-      {
-        cwd: tmpDir,
-        encoding: 'utf8',
-      },
-    );
+    const result = spawnSync(process.execPath, [builtCliPath, 'smoke-app'], {
+      cwd: tmpDir,
+      encoding: 'utf8',
+    });
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
@@ -59,13 +55,7 @@ test('built CLI resolves package templates for workspace scaffold', () => {
   try {
     const result = spawnSync(
       process.execPath,
-      [
-        builtCliPath,
-        'smoke-workspace',
-        '--lang',
-        'en',
-        '--ultramodern-workspace',
-      ],
+      [builtCliPath, 'smoke-workspace', '--ultramodern-workspace'],
       {
         cwd: tmpDir,
         encoding: 'utf8',

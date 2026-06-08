@@ -43,7 +43,7 @@ export const EN_LOCALE = {
     options: '⚙️  Options:',
     optionHelp: '  -h, --help     Display this help message',
     optionVersion: '  -v, --version  Display version information',
-    optionLang: '  -l, --lang     Set the language (zh or en)',
+    optionLang: '  -l, --lang     Set the language (en default; zh opt-in)',
     optionRouter:
       '  -r, --router   Select router framework (tanstack default; react-router is compatibility mode)',
     optionBff:

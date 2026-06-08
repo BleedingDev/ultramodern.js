@@ -41,7 +41,7 @@ export const ZH_LOCALE = {
     options: '⚙️  选项:',
     optionHelp: '  -h, --help     显示帮助信息',
     optionVersion: '  -v, --version  显示版本信息',
-    optionLang: '  -l, --lang     设置语言 (zh 或 en)',
+    optionLang: '  -l, --lang     设置语言 (默认 en；zh 需显式选择)',
     optionRouter:
       '  -r, --router   选择路由框架（默认 tanstack；react-router 为兼容模式）',
     optionBff: '      --bff      保持启用 Effect BFF（UltraModern 应用默认值）',

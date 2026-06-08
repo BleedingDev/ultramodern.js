@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { resolveCreatePackageRoot } from './create-package-root';
 import { i18n, localeKeys } from './locale';
 import {
@@ -184,12 +183,7 @@ function getOptionValue(args: string[], names: string[]): string | undefined {
 
 const detectLanguage = (): 'zh' | 'en' => {
   const lang = getOptionValue(process.argv.slice(2), ['--lang', '-l']);
-  if (lang) {
-    return lang === 'zh' ? 'zh' : 'en';
-  }
-
-  const detectedLang = getLocaleLanguage();
-  if (detectedLang === 'zh') {
+  if (lang === 'zh') {
     return 'zh';
   }
 
