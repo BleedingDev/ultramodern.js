@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -266,6 +266,20 @@ function runCreate(projectDir: string, args: string[]) {
   });
 }
 
+function runCreateResult(projectDir: string, args: string[], input = '') {
+  return spawnSync(process.execPath, [createBin, projectDir, ...args], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
+        expectedBleedingDevFrameworkVersion,
+    },
+    input,
+    encoding: 'utf-8',
+  });
+}
+
 describe('create-tailwind', () => {
   let tempRoot = '';
 
@@ -287,7 +301,7 @@ describe('create-tailwind', () => {
 
   test('scaffolds Tailwind v4 files by default', () => {
     const appDir = path.join(tempRoot, 'with-tailwind');
-    runCreate(appDir, ['--router', 'tanstack', '--lang', 'en']);
+    runCreate(appDir, ['--lang', 'en']);
 
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
@@ -342,7 +356,27 @@ describe('create-tailwind', () => {
       "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
     );
     expect(modernConfig).toContain('tanstackRouterPlugin()');
+    expect(modernConfig).toContain("runtimeFramework: 'effect'");
+    expect(modernConfig).toContain('openapi: true');
     expectNoHandlebarsArtifacts(modernConfig);
+  });
+
+  test('requires explicit typed confirmation for legacy Modern.js setup', () => {
+    const appDir = path.join(tempRoot, 'legacy-modern-js-rejected');
+    const result = runCreateResult(
+      appDir,
+      ['--legacy-modern-js', '--lang', 'en'],
+      'no\n',
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'BRUTAL WARNING: YOU ARE OPTING OUT OF ULTRAMODERN.JS DEFAULTS.',
+    );
+    expect(result.stderr).toContain(
+      'Aborted. UltraModern.js remains the default unattended setup.',
+    );
+    expect(fs.existsSync(appDir)).toBe(false);
   });
 
   test('supports --no-tailwind opt-out', () => {

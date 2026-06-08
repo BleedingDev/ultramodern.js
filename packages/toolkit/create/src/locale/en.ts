@@ -1,6 +1,8 @@
 export const EN_LOCALE = {
   prompt: {
     projectName: 'Please enter project name: ',
+    legacyModernJsConfirmation:
+      'Type "{confirmation}" to continue with the original Modern.js setup: ',
   },
   error: {
     projectNameEmpty: 'Error: Project name cannot be empty',
@@ -10,6 +12,8 @@ export const EN_LOCALE = {
       'Error: Unsupported router "{router}". Use "react-router" or "tanstack".',
     invalidBffRuntime:
       'Error: Unsupported BFF runtime "{runtime}". Use "hono" or "effect".',
+    legacyModernJsNotConfirmed:
+      'Aborted. UltraModern.js remains the default unattended setup.',
     createFailed: 'Error creating project:',
   },
   message: {
@@ -19,6 +23,15 @@ export const EN_LOCALE = {
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
+    legacyModernJsWarning: [
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+      'BRUTAL WARNING: YOU ARE OPTING OUT OF ULTRAMODERN.JS DEFAULTS.',
+      'The unattended default is the best UltraModern.js configuration:',
+      'presetUltramodern, TanStack Router, Effect BFF, Tailwind CSS v4,',
+      'and the BleedingDev package cohort.',
+      'The original Modern.js setup is legacy compatibility only.',
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+    ].join('\n'),
   },
   help: {
     title: '🚀 UltraModern.js Project Creator',
@@ -50,6 +63,8 @@ export const EN_LOCALE = {
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
     optionVertical:
       '      --vertical Mutate the current existing UltraModern workspace and wire a MicroVertical named <project-name>',
+    optionLegacyModernJs:
+      '      --legacy-modern-js Opt into the original Modern.js setup after a large warning and typed confirmation',
     optionSub: '  -s, --sub       Mark as a subproject (package in monorepo)',
     examples: '💡 Examples:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-app',

@@ -55,8 +55,10 @@
     "start": "node ./dist/esm-node/index.js",
     "test": "rm -rf dist && rslib build -c rslibconfig.mts && rstest --passWithNoTests"
   },
+  "dependencies": {
+    "@modern-js/i18n-utils": "workspace:*"
+  },
   "devDependencies": {
-    "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.21.5",
     "@scripts/rstest-config": "workspace:*",

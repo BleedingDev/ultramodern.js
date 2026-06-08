@@ -25,6 +25,7 @@ const dependencyBlockNames = [
   'optionalDependencies',
   'peerDependencies',
 ];
+const requiredCreateRuntimeDependencies = ['@modern-js/i18n-utils'];
 
 function parseArgs(argv) {
   const options = {
@@ -231,6 +232,41 @@ function validateInternalDependencyResolution({
   return checks;
 }
 
+function validateCreateRuntimeDependencies(
+  packageJson,
+  packageName,
+  internalChecks,
+) {
+  const checks = [];
+
+  for (const dependencyName of requiredCreateRuntimeDependencies) {
+    const specifier = packageJson.dependencies?.[dependencyName];
+    assertString(
+      specifier,
+      `${packageName} dependencies.${dependencyName} is required because create imports it at runtime`,
+    );
+    assert(
+      packageJson.devDependencies?.[dependencyName] === undefined,
+      `${packageName} devDependencies.${dependencyName} must be a runtime dependency`,
+    );
+    assert(
+      internalChecks.some(
+        check =>
+          check.blockName === 'dependencies' &&
+          check.dependencyName === dependencyName &&
+          check.resolution === 'staged-cohort',
+      ),
+      `${packageName} dependencies.${dependencyName} must resolve to the staged BleedingDev cohort`,
+    );
+    checks.push({
+      dependencyName,
+      specifier,
+    });
+  }
+
+  return checks;
+}
+
 function validateManifestShape(manifest) {
   assert(isObject(manifest), 'Publish manifest must be a JSON object');
   assert(
@@ -377,10 +413,16 @@ function validateSourceProof({ repoRoot, manifestPath, outPath, now = Date }) {
           manifest.dependencyVersion,
         `@modern-js/create staged package must record ultramodern.frameworkVersion=${manifest.dependencyVersion}`,
       );
+      const runtimeDependencyChecks = validateCreateRuntimeDependencies(
+        packageJson,
+        item.targetName,
+        internalDependencyChecks,
+      );
       createPackageProof = {
         sourceName: item.sourceName,
         targetName: item.targetName,
         frameworkVersion: packageJson.ultramodern.frameworkVersion,
+        runtimeDependencyChecks,
       };
     }
 

@@ -21,6 +21,7 @@ const makePackageJson = ({
   name,
   version = '1.0.0',
   dependencies,
+  devDependencies,
   ultramodern,
 }) => {
   writeJson(path.join(dir, 'package.json'), {
@@ -34,6 +35,7 @@ const makePackageJson = ({
       access: 'public',
     },
     ...(dependencies ? { dependencies } : {}),
+    ...(devDependencies ? { devDependencies } : {}),
     ...(ultramodern ? { ultramodern } : {}),
   });
 };
@@ -43,6 +45,8 @@ const makeFixture = ({
   includeUtils = true,
   includeCreate = true,
   stagedDependency = 'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+  stagedCreateI18nDependency = 'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
+  createI18nDependencyBlock = 'dependencies',
   externalDependency,
   createFrameworkVersion = '3.2.0-ultramodern.1',
 } = {}) => {
@@ -59,6 +63,7 @@ const makeFixture = ({
 
   const aliases = {
     '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
     '@modern-js/utils': '@bleedingdev/modern-js-utils',
   };
@@ -106,7 +111,27 @@ const makeFixture = ({
     });
   }
 
+  makePackageJson({
+    dir: path.join(repoRoot, 'packages/toolkit/i18n-utils'),
+    name: '@modern-js/i18n-utils',
+  });
+  makePackageJson({
+    dir: path.join(repoRoot, '.modern/bleedingdev-publish/packages/i18n-utils'),
+    name: '@bleedingdev/modern-js-i18n-utils',
+    version: '3.2.0-ultramodern.1',
+  });
+  packages.push({
+    sourceName: '@modern-js/i18n-utils',
+    targetName: '@bleedingdev/modern-js-i18n-utils',
+    version: '3.2.0-ultramodern.1',
+    packageDir: '.modern/bleedingdev-publish/packages/i18n-utils',
+  });
+
   if (includeCreate) {
+    const createI18nDependency =
+      createI18nDependencyBlock === 'missing'
+        ? undefined
+        : { '@modern-js/i18n-utils': stagedCreateI18nDependency };
     makePackageJson({
       dir: path.join(repoRoot, 'packages/toolkit/create'),
       name: '@modern-js/create',
@@ -115,6 +140,14 @@ const makeFixture = ({
       dir: path.join(repoRoot, '.modern/bleedingdev-publish/packages/create'),
       name: '@bleedingdev/modern-js-create',
       version: '3.2.0-ultramodern.1',
+      dependencies:
+        createI18nDependencyBlock === 'dependencies'
+          ? createI18nDependency
+          : undefined,
+      devDependencies:
+        createI18nDependencyBlock === 'devDependencies'
+          ? createI18nDependency
+          : undefined,
       ultramodern: {
         frameworkVersion: createFrameworkVersion,
       },
@@ -156,7 +189,7 @@ test('validateSourceProof accepts staged local cohort metadata', async () => {
     const proof = validateSourceProof(fixture);
 
     assert.equal(proof.passed, true);
-    assert.equal(proof.cohort.packageCount, 3);
+    assert.equal(proof.cohort.packageCount, 4);
     assert.equal(
       proof.createPackageProof.frameworkVersion,
       '3.2.0-ultramodern.1',
@@ -166,9 +199,33 @@ test('validateSourceProof accepts staged local cohort metadata', async () => {
         .internalDependencyChecks[0].specifier,
       'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
     );
+    assert.deepEqual(proof.createPackageProof.runtimeDependencyChecks, [
+      {
+        dependencyName: '@modern-js/i18n-utils',
+        specifier: 'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
+      },
+    ]);
     assert.equal(
       JSON.parse(fs.readFileSync(fixture.outPath, 'utf8')).passed,
       true,
+    );
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof rejects create i18n-utils as a dev-only dependency', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture({
+    createI18nDependencyBlock: 'devDependencies',
+  });
+
+  try {
+    assert.throws(
+      () => validateSourceProof(fixture),
+      /@bleedingdev\/modern-js-create dependencies\.@modern-js\/i18n-utils is required because create imports it at runtime/,
     );
   } finally {
     removeDir(fixture.repoRoot);

@@ -7,6 +7,10 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const createPackageDir = path.resolve(repoRoot, 'packages/toolkit/create');
+const codeToolsPackageDir = path.resolve(
+  repoRoot,
+  'packages/toolkit/code-tools',
+);
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 
 type ExecSyncError = Error & {
@@ -47,7 +51,8 @@ function runCreate(projectDir: string, args: string[]) {
 }
 
 function runGeneratedI18nCheck(appDir: string) {
-  linkWorkspaceCreatePackage(appDir);
+  linkWorkspaceModernPackage(appDir, 'create', createPackageDir);
+  linkWorkspaceModernPackage(appDir, 'code-tools', codeToolsPackageDir);
   return execFileSync(process.execPath, ['scripts/check-i18n-strings.mjs'], {
     cwd: appDir,
     encoding: 'utf-8',
@@ -55,12 +60,16 @@ function runGeneratedI18nCheck(appDir: string) {
   }).trim();
 }
 
-function linkWorkspaceCreatePackage(projectDir: string) {
+function linkWorkspaceModernPackage(
+  projectDir: string,
+  packageName: string,
+  packageDir: string,
+) {
   const scopeDir = path.join(projectDir, 'node_modules/@modern-js');
-  const packageLink = path.join(scopeDir, 'create');
+  const packageLink = path.join(scopeDir, packageName);
   fs.mkdirSync(scopeDir, { recursive: true });
   if (!fs.existsSync(packageLink)) {
-    fs.symlinkSync(createPackageDir, packageLink, 'dir');
+    fs.symlinkSync(packageDir, packageLink, 'dir');
   }
 }
 
@@ -92,6 +101,10 @@ describe('create-bff-runtime', () => {
       fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
     );
     expect(packageJson.name).toBe('with-bff-effect-default');
+    expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
+      `npm:@bleedingdev/modern-js-plugin-tanstack@${expectedBleedingDevFrameworkVersion}`,
+    );
+    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.15');
     expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
     expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
     expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
@@ -100,6 +113,10 @@ describe('create-bff-runtime', () => {
       path.join(appDir, 'modern.config.ts'),
       'utf-8',
     );
+    expect(modernConfig).toContain(
+      "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
+    );
+    expect(modernConfig).toContain('tanstackRouterPlugin()');
     expect(modernConfig).toContain('bffPlugin()');
     expect(modernConfig).toContain("runtimeFramework: 'effect'");
     expect(modernConfig).toContain('openapi: true');

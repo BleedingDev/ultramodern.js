@@ -1575,10 +1575,11 @@ importers:
         version: 7.0.0-dev.20260606.1
 
   packages/toolkit/create:
-    devDependencies:
+    dependencies:
       '@modern-js/i18n-utils':
         specifier: workspace:*
         version: link:../i18n-utils
+    devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib

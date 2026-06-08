@@ -667,17 +667,7 @@ function createWorkspace(workDir, projectName, createPackage) {
 function createSingleApp(workDir, projectName, createPackage) {
   run(
     'pnpm',
-    [
-      'dlx',
-      createPackage.exactSpecifier,
-      projectName,
-      '--router',
-      'tanstack',
-      '--bff-runtime',
-      'effect',
-      '--lang',
-      'en',
-    ],
+    ['dlx', createPackage.exactSpecifier, projectName, '--lang', 'en'],
     { cwd: workDir },
   );
 }

@@ -1,6 +1,8 @@
 export const ZH_LOCALE = {
   prompt: {
     projectName: '请输入项目名称: ',
+    legacyModernJsConfirmation:
+      '输入 "{confirmation}" 以继续使用原始 Modern.js 初始化: ',
   },
   error: {
     projectNameEmpty: '错误: 项目名称不能为空',
@@ -9,6 +11,8 @@ export const ZH_LOCALE = {
       '错误: 不支持的路由器 "{router}"，请使用 "react-router" 或 "tanstack"',
     invalidBffRuntime:
       '错误: 不支持的 BFF 运行时 "{runtime}"，请使用 "hono" 或 "effect"',
+    legacyModernJsNotConfirmed:
+      '已中止。UltraModern.js 仍是默认的免交互初始化方案。',
     createFailed: '创建项目时出错:',
   },
   message: {
@@ -18,6 +22,15 @@ export const ZH_LOCALE = {
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
+    legacyModernJsWarning: [
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+      '严重警告：你正在退出 ULTRAMODERN.JS 默认配置。',
+      '免交互默认值是最佳 UltraModern.js 配置：',
+      'presetUltramodern、TanStack Router、Effect BFF、Tailwind CSS v4，',
+      '以及 BleedingDev 包版本队列。',
+      '原始 Modern.js 初始化仅用于遗留兼容。',
+      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+    ].join('\n'),
   },
   help: {
     title: '🚀 UltraModern.js 项目创建工具',
@@ -46,6 +59,8 @@ export const ZH_LOCALE = {
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
     optionVertical:
       '      --vertical 修改当前已有的 UltraModern 工作区，并接入名为 <项目名称> 的 MicroVertical',
+    optionLegacyModernJs:
+      '      --legacy-modern-js 在大型警告和输入确认后，选择原始 Modern.js 初始化',
     optionSub: '  -s, --sub       标记为子项目（monorepo 中的子包）',
     examples: '💡 示例:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-app',

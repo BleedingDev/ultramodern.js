@@ -160,6 +160,8 @@ const requiredDeniedPaths = [
 ];
 const requiredLifecycleDeniedScripts = ['preinstall', 'install', 'prepare'];
 const requiredLifecycleAllowedScripts = ['postinstall'];
+const LEGACY_MODERN_JS_FLAG = '--legacy-modern-js';
+const LEGACY_MODERN_JS_CONFIRMATION = 'USE LEGACY MODERN.JS';
 
 function getOptionValue(args: string[], names: string[]): string | undefined {
   for (const name of names) {
@@ -833,6 +835,9 @@ function showHelp() {
   if (localeKeys.help.optionVertical) {
     console.log(i18n.t(localeKeys.help.optionVertical));
   }
+  if (localeKeys.help.optionLegacyModernJs) {
+    console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
+  }
   console.log(i18n.t(localeKeys.help.optionSub));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -884,6 +889,58 @@ function promptInput(question: string): Promise<string> {
       resolve(answer.trim());
     });
   });
+}
+
+function detectLegacyModernJsFlag(args: string[]): boolean {
+  if (args.some(arg => arg.startsWith(`${LEGACY_MODERN_JS_FLAG}=`))) {
+    console.error(`${LEGACY_MODERN_JS_FLAG} does not accept a value.`);
+    process.exit(1);
+  }
+
+  return args.includes(LEGACY_MODERN_JS_FLAG);
+}
+
+function stripLegacyModernJsArgs(args: string[]): string[] {
+  return args.filter(arg => arg !== LEGACY_MODERN_JS_FLAG);
+}
+
+async function confirmLegacyModernJsSetup() {
+  console.error('');
+  console.error(i18n.t(localeKeys.message.legacyModernJsWarning));
+  console.error('');
+
+  const answer = await promptInput(
+    i18n.t(localeKeys.prompt.legacyModernJsConfirmation, {
+      confirmation: LEGACY_MODERN_JS_CONFIRMATION,
+    }),
+  );
+
+  if (answer !== LEGACY_MODERN_JS_CONFIRMATION) {
+    console.error(i18n.t(localeKeys.error.legacyModernJsNotConfirmed));
+    process.exit(1);
+  }
+}
+
+function delegateLegacyModernJsSetup(args: string[]) {
+  const forwardedArgs = stripLegacyModernJsArgs(args);
+
+  if (commandExists('pnpm')) {
+    runSetupCommand('pnpm', ['dlx', '@modern-js/create', ...forwardedArgs], {
+      stdio: 'inherit',
+    });
+    return;
+  }
+
+  if (commandExists('npx')) {
+    runSetupCommand('npx', ['@modern-js/create', ...forwardedArgs], {
+      stdio: 'inherit',
+    });
+    return;
+  }
+
+  throw new Error(
+    'Legacy Modern.js setup requires pnpm or npx to run @modern-js/create.',
+  );
 }
 
 function detectSubprojectFlag(): boolean | null {
@@ -1250,6 +1307,7 @@ async function getProjectName(): Promise<{
     '--no-tailwind',
     '--workspace',
     '--vertical',
+    LEGACY_MODERN_JS_FLAG,
     ULTRAMODERN_WORKSPACE_FLAG,
   ]);
   const positionalArgs: string[] = [];
@@ -1322,6 +1380,12 @@ async function main() {
 
   if (args.includes('--version') || args.includes('-v')) {
     showVersion();
+    return;
+  }
+
+  if (detectLegacyModernJsFlag(args)) {
+    await confirmLegacyModernJsSetup();
+    delegateLegacyModernJsSetup(args);
     return;
   }
 
