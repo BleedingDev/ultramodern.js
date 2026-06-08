@@ -771,7 +771,18 @@ function writeTemplateManifestEvidence(
 }
 
 function readCreatePackageJson(): CreatePackageJson {
-  const createPackageJson = path.resolve(__dirname, '..', 'package.json');
+  const packageJsonCandidates = [
+    path.resolve(__dirname, '..', 'package.json'),
+    path.resolve(__dirname, '..', '..', 'package.json'),
+  ];
+  const createPackageJson = packageJsonCandidates.find(candidate =>
+    fs.existsSync(candidate),
+  );
+
+  if (!createPackageJson) {
+    throw new Error('Unable to resolve create package.json');
+  }
+
   return JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
 }
 
