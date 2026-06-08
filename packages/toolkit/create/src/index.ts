@@ -5,6 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
+import { resolveCreatePackageRoot } from './create-package-root';
 import { i18n, localeKeys } from './locale';
 import {
   BLEEDINGDEV_CREATE_PACKAGE,
@@ -24,7 +25,8 @@ import {
 } from './ultramodern-workspace';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const templateDir = path.resolve(__dirname, '..', 'template');
+const createPackageRoot = resolveCreatePackageRoot(__dirname);
+const templateDir = path.join(createPackageRoot, 'template');
 type RouterFramework = 'react-router' | 'tanstack';
 type BffRuntime = 'none' | 'hono' | 'effect';
 type TemplateSourceType = 'builtin' | 'npm' | 'git' | 'local';
@@ -771,18 +773,7 @@ function writeTemplateManifestEvidence(
 }
 
 function readCreatePackageJson(): CreatePackageJson {
-  const packageJsonCandidates = [
-    path.resolve(__dirname, '..', 'package.json'),
-    path.resolve(__dirname, '..', '..', 'package.json'),
-  ];
-  const createPackageJson = packageJsonCandidates.find(candidate =>
-    fs.existsSync(candidate),
-  );
-
-  if (!createPackageJson) {
-    throw new Error('Unable to resolve create package.json');
-  }
-
+  const createPackageJson = path.join(createPackageRoot, 'package.json');
   return JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
 }
 

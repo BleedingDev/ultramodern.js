@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCreatePackageRoot } from './create-package-root';
 import {
   BLEEDINGDEV_PACKAGE_NAME_PREFIX,
   BLEEDINGDEV_PACKAGE_SCOPE,
@@ -16,11 +17,8 @@ import {
 } from './ultramodern-package-source';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const workspaceTemplateDir = path.resolve(
-  __dirname,
-  '..',
-  'template-workspace',
-);
+const createPackageRoot = resolveCreatePackageRoot(__dirname);
+const workspaceTemplateDir = path.join(createPackageRoot, 'template-workspace');
 
 const TANSTACK_ROUTER_VERSION = '1.170.15';
 const MODULE_FEDERATION_VERSION = '2.5.1';
