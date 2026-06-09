@@ -154,7 +154,7 @@ async function handleCreateTemplate() {
   );
   const createPackageJsonPath = path.join(createPackagePath, 'package.json');
 
-  const templateDir = path.join(createPackagePath, 'template');
+  const templateDir = path.join(createPackagePath, 'template-workspace');
 
   const createPackageJson = JSON.parse(
     fs.readFileSync(createPackageJsonPath, 'utf-8'),
@@ -163,39 +163,7 @@ async function handleCreateTemplate() {
 
   const files = await handleTemplate(templateDir, {
     packageName: 'modern-app',
-    adapterRstestVersion: version,
-    appToolsVersion: version,
-    bffRuntime: 'effect',
-    enableBff: true,
-    enableTailwind: true,
-    isSubproject: false,
-    isTanstackRouter: true,
-    pluginBffVersion: version,
-    pluginI18nVersion: version,
-    pluginTanstackVersion: version,
     pnpmVersion: '11.5.2',
-    routerRuntimeImport: '@modern-js/plugin-tanstack/runtime',
-    runtimeVersion: version,
-    i18nextVersion: '26.3.1',
-    reactVersion: '^19.2.7',
-    reactDomVersion: '^19.2.7',
-    reactI18nextVersion: '17.0.8',
-    effectTsgoVersion: '0.14.0',
-    typescriptNativePreviewVersion: '7.0.0-dev.20260606.1',
-    rstestCoreVersion: '0.10.3',
-    happyDomVersion: '^20.10.1',
-    oxfmtVersion: '0.53.0',
-    oxlintVersion: '1.68.0',
-    postcssVersion: '^8.5.15',
-    ultraciteVersion: '7.8.1',
-    typesReactVersion: '^19.2.17',
-    typesReactDomVersion: '^19.2.3',
-    tailwindPostcssVersion: '4.3.0',
-    tailwindVersion: '4.3.0',
-    tanstackRouterVersion: '1.170.15',
-    tsconfigVersion: version,
-    useEffectBff: true,
-    useHonoBff: false,
     version,
   });
 
