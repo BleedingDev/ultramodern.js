@@ -19,9 +19,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ultramodern-workspace-gates:
+  workspace-gate:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Format
+            command: pnpm format:check
+          - name: Lint
+            command: pnpm lint
+          - name: Typecheck
+            command: pnpm typecheck
+          - name: Skills
+            command: pnpm skills:check
+          - name: I18n Boundaries
+            command: pnpm i18n:boundaries
+          - name: Contract
+            command: pnpm contract:check
+          - name: Build
+            command: pnpm build
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -45,10 +64,7 @@ jobs:
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 
-      - name: Validate Ultramodern Workspace Contract
-        run: mise exec -- pnpm run ultramodern:check
-
-      - name: Build Workspace Apps
+      - name: Run ${{ matrix.name }}
         env:
           MODERN_PUBLIC_SITE_URL: http://localhost:8080
-        run: mise exec -- pnpm build
+        run: mise exec -- ${{ matrix.command }}

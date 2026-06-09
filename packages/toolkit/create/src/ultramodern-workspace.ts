@@ -176,7 +176,6 @@ export type AddUltramodernVerticalOptions = {
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
 };
 
-export const ULTRAMODERN_WORKSPACE_FLAG = '--ultramodern-workspace';
 const FIRST_VERTICAL_PORT = 4101;
 const TAILWIND_PREFIX_DIGIT_WORDS = [
   'zero',
@@ -715,13 +714,13 @@ function createRootPackageJson(
           `pnpm --filter ${packageName(scope, remote.packageSuffix)} dev`,
         ]),
       ),
-      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types`,
+      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types`,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint apps verticals packages',
       'lint:fix': 'oxlint apps verticals packages --fix',
       typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
-      'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types`,
+      'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
         'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
@@ -730,14 +729,13 @@ function createRootPackageJson(
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mjs --check',
-      'ultramodern:assert-mf-types': 'node ./scripts/assert-mf-types.mjs',
-      'ultramodern:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
-      'ultramodern:i18n-boundaries':
-        'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
+      'mf:types': 'node ./scripts/assert-mf-types.mjs',
+      'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
+      'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
       check:
-        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:i18n-boundaries && pnpm ultramodern:check',
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
     },
     engines: {
       node: '>=20',
@@ -4476,7 +4474,7 @@ function createTopology(
     })),
     validation: {
       script: 'scripts/validate-ultramodern-workspace.mjs',
-      commands: ['pnpm ultramodern:i18n-boundaries', 'pnpm ultramodern:check'],
+      commands: ['pnpm i18n:boundaries', 'pnpm contract:check'],
     },
   };
 }
@@ -5090,8 +5088,8 @@ function createTemplateManifest(
       expectedCommands: [
         'mise install',
         'pnpm install',
-        'pnpm run ultramodern:i18n-boundaries',
-        'pnpm run ultramodern:check',
+        'pnpm run i18n:boundaries',
+        'pnpm run contract:check',
       ],
     },
   };
@@ -5220,12 +5218,12 @@ function createWorkspaceValidationScript(
   const oldRemotePaths = ['apps/remotes'];
   const expectedBuildScript =
     remotes.length > 0
-      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types'
-      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types';
+      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types'
+      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types';
   const expectedCloudflareBuildScript =
     remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types'
-      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types';
+      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types'
+      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types';
   const expectedCloudflareDeployScript =
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy'
@@ -5477,15 +5475,16 @@ assert(
   'Root build script must build verticals before shell',
 );
 assert(rootPackage.scripts?.['cloudflare:build'] === expectedCloudflareBuildScript, 'Root cloudflare:build script is incorrect');
-assert(rootPackage.scripts?.['ultramodern:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose ultramodern:check');
-assert(rootPackage.scripts?.['ultramodern:i18n-boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose ultramodern:i18n-boundaries');
+assert(!('ultramodern:check' in (rootPackage.scripts ?? {})), 'Root must not expose ultramodern:check');
+assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose contract:check');
+assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose i18n:boundaries');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mjs');
 assert(
   i18nBoundaryScript.includes("from '@modern-js/code-tools'") &&
     i18nBoundaryScript.includes('runWorkspaceSourceCheck'),
   'Root i18n boundary script must call @modern-js/code-tools',
 );
-assert(rootPackage.scripts?.['ultramodern:assert-mf-types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose ultramodern:assert-mf-types');
+assert(rootPackage.scripts?.['mf:types'] === 'node ./scripts/assert-mf-types.mjs', 'Root must expose mf:types');
 assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeployScript, 'Root must expose cloudflare:deploy');
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');

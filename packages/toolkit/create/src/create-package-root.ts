@@ -17,7 +17,7 @@ export function resolveCreatePackageRoot(fromDir: string): string {
 
     if (
       fs.existsSync(path.join(candidate, 'package.json')) &&
-      fs.existsSync(path.join(candidate, 'template'))
+      fs.existsSync(path.join(candidate, 'template-workspace'))
     ) {
       return candidate;
     }

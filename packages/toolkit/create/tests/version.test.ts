@@ -28,19 +28,33 @@ test('built CLI resolves package metadata for --version', () => {
   );
 });
 
-test('built CLI resolves package templates for default scaffold', () => {
+test('built CLI resolves workspace template for default scaffold', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
 
   try {
-    const result = spawnSync(process.execPath, [builtCliPath, 'smoke-app'], {
-      cwd: tmpDir,
-      encoding: 'utf8',
-    });
+    const result = spawnSync(
+      process.execPath,
+      [builtCliPath, 'smoke-workspace'],
+      {
+        cwd: tmpDir,
+        encoding: 'utf8',
+      },
+    );
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
       fs.existsSync(
-        path.join(tmpDir, 'smoke-app', '.modernjs/mv-template-manifest.json'),
+        path.join(
+          tmpDir,
+          'smoke-workspace',
+          '.modernjs/ultramodern-workspace-template-manifest.json',
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(tmpDir, 'smoke-workspace', 'apps/shell-super-app'),
       ),
       true,
     );
@@ -49,7 +63,7 @@ test('built CLI resolves package templates for default scaffold', () => {
   }
 });
 
-test('built CLI resolves package templates for workspace scaffold', () => {
+test('built CLI rejects removed workspace flag', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
 
   try {
@@ -62,12 +76,10 @@ test('built CLI resolves package templates for workspace scaffold', () => {
       },
     );
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(
-      fs.existsSync(
-        path.join(tmpDir, 'smoke-workspace', 'pnpm-workspace.yaml'),
-      ),
-      true,
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /Unexpected positional argument: --ultramodern-workspace/,
     );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

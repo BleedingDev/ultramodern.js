@@ -9,9 +9,13 @@ instructions, not optional reading.
 - `pnpm lint` runs Oxlint with the Ultracite preset.
 - `pnpm format` runs oxfmt.
 - `pnpm typecheck` runs effect-tsgo as the TypeScript checker.
-- `pnpm check` runs formatting, linting, effect-tsgo, private-skill availability checks, and the generated workspace contract.
+- `pnpm i18n:boundaries` verifies workspace source boundaries through `@modern-js/code-tools`.
+- `pnpm contract:check` verifies the generated workspace contract.
+- `pnpm mf:types` verifies Module Federation type outputs after builds.
+- `pnpm check` is a local convenience aggregate for the primitive gates.
+- Generated CI runs primitive gates as separate matrix jobs instead of calling `pnpm check`.
 - Generated Codex stop hooks and subagent-stop hooks run `pnpm format && pnpm lint:fix && pnpm check`.
-- `postinstall` formats the generated tree, initializes Git when needed, installs agent skills and reference repos, then installs `lefthook`. Generated `lefthook.yml` runs `pnpm format && pnpm lint:fix && pnpm check` on pre-commit; pre-push runs `pnpm check`.
+- `postinstall` formats the generated tree, initializes Git when needed, installs agent skills and reference repos, then installs `lefthook`. Generated `lefthook.yml` runs separate format and lint-fix commands on pre-commit; pre-push runs read-only primitive gates in parallel.
 
 ## Localized Routes
 
@@ -73,4 +77,4 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 
 ## Skill Provenance
 
-The vendored Rstack skills, public Module Federation skill, and private TechsioCZ skill set are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run `pnpm check`.
+The vendored Rstack skills, public Module Federation skill, and private TechsioCZ skill set are pinned in `.agents/skills-lock.json`. Do not update, remove, or replace them casually. If a skill needs updating, update the lock file and run the affected primitive gate plus `pnpm check`.
