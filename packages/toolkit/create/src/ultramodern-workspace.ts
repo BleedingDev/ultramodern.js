@@ -733,7 +733,7 @@ function createRootPackageJson(
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
-        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
+        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall && node ./scripts/setup-agent-reference-repos.mjs",
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
     },
@@ -5489,7 +5489,7 @@ assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeploySc
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs", 'Root postinstall must format, bootstrap agent skills, initialize git/hooks, and install reference repositories');
+assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall && node ./scripts/setup-agent-reference-repos.mjs", 'Root postinstall must format, bootstrap agent skills, initialize git/hooks, and install reference repositories');
 const agentReferenceRepoSetup = readText('scripts/setup-agent-reference-repos.mjs');
 assert(agentReferenceRepoSetup.includes("['commit', '--no-verify', '-m', message]"), 'Agent reference repo installer commits must skip hooks during postinstall');
 assert(agentReferenceRepoSetup.includes("commitInstallerChanges('Initialize UltraModern workspace')"), 'Initial agent reference repo commit must use the installer commit helper');

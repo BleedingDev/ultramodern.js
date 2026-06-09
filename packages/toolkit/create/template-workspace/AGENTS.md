@@ -15,7 +15,7 @@ instructions, not optional reading.
 - `pnpm check` is a local convenience aggregate for the primitive gates.
 - Generated CI runs primitive gates as separate matrix jobs instead of calling `pnpm check`.
 - Generated Codex stop hooks and subagent-stop hooks run `pnpm format && pnpm lint:fix && pnpm check`.
-- `postinstall` formats the generated tree, initializes Git when needed, installs agent skills and reference repos, then installs `lefthook`. Generated `lefthook.yml` runs separate format and lint-fix commands on pre-commit; pre-push runs read-only primitive gates in parallel.
+- `postinstall` formats the generated tree, initializes Git when needed, prepares agent skills and reference repos, then installs `lefthook`. Generated `lefthook.yml` runs separate format and lint-fix commands on pre-commit; pre-push runs read-only primitive gates in parallel.
 
 ## Localized Routes
 
@@ -41,7 +41,7 @@ Use these skills when the task touches the matching subsystem:
 - `rstest-best-practices`: Rstest configuration, test writing, mocking, snapshots, coverage, and CI test behavior.
 - `mf`: Module Federation docs, Modern.js integration, DTS/type checks, shared dependency checks, runtime errors, and observability troubleshooting.
 
-The public `module-federation/agent-skills` repository is installed during `pnpm install` and `pnpm skills:install`. `pnpm skills:check` fails when the required public `mf` skill is missing.
+The public `module-federation/agent-skills` repository is installed during `pnpm install` and `pnpm skills:install`. Postinstall mode skips unavailable clone sources instead of blocking dependency installation; `pnpm skills:install` remains strict for required public skills. Use `ULTRAMODERN_SKIP_AGENT_SKILLS=1` when an install must avoid external skill repositories completely. `pnpm skills:check` fails when the required public `mf` skill is missing unless that skip flag is set.
 
 ## Private Skills
 

@@ -7,6 +7,16 @@ const root = process.cwd();
 const lockPath = path.join(root, '.agents/skills-lock.json');
 const checkOnly = process.argv.includes('--check');
 const force = process.argv.includes('--force');
+const postinstall = process.argv.includes('--postinstall');
+const truthy = value => /^(1|true|yes|on)$/i.test(String(value ?? ''));
+const falsy = value => /^(0|false|no|off)$/i.test(String(value ?? ''));
+const skipRequested =
+  truthy(process.env.ULTRAMODERN_SKIP_AGENT_SKILLS) ||
+  falsy(process.env.ULTRAMODERN_AGENT_SKILLS);
+const cloneTimeoutMs = Number.parseInt(
+  process.env.ULTRAMODERN_AGENT_SKILLS_CLONE_TIMEOUT_MS ?? '60000',
+  10,
+);
 
 const readJson = filePath => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
@@ -15,6 +25,7 @@ const run = (command, args, options = {}) =>
     cwd: options.cwd ?? root,
     encoding: 'utf-8',
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
+    timeout: options.timeout,
   });
 
 const commandExists = command => {
@@ -106,12 +117,14 @@ const removeTree = dir =>
 
 const cloneSource = (source, targetDir) => {
   if (source.commit) {
-    run('git', ['init', targetDir]);
+    run('git', ['init', targetDir], { timeout: 30000 });
     run('git', ['remote', 'add', 'origin', source.repository], {
       cwd: targetDir,
+      timeout: 30000,
     });
     run('git', ['fetch', '--depth', '1', '--quiet', 'origin', source.commit], {
       cwd: targetDir,
+      timeout: cloneTimeoutMs,
     });
     run(
       'git',
@@ -123,32 +136,24 @@ const cloneSource = (source, targetDir) => {
         '--quiet',
         'FETCH_HEAD',
       ],
-      { cwd: targetDir },
+      { cwd: targetDir, timeout: 30000 },
     );
     return;
   }
 
   const repo = source.repository.replace(/^https:\/\/github.com\//u, '');
   try {
-    run('gh', [
-      'repo',
-      'clone',
-      repo,
-      targetDir,
-      '--',
-      '--depth',
-      '1',
-      '--quiet',
-    ]);
+    run(
+      'gh',
+      ['repo', 'clone', repo, targetDir, '--', '--depth', '1', '--quiet'],
+      { timeout: cloneTimeoutMs },
+    );
   } catch {
-    run('git', [
-      'clone',
-      '--depth',
-      '1',
-      '--quiet',
-      source.repository,
-      targetDir,
-    ]);
+    run(
+      'git',
+      ['clone', '--depth', '1', '--quiet', source.repository, targetDir],
+      { timeout: cloneTimeoutMs },
+    );
   }
 };
 
@@ -185,6 +190,17 @@ const requiredSkills = [
   (skill, index, skills) =>
     skills.findIndex(candidate => candidate.name === skill.name) === index,
 );
+
+if (skipRequested) {
+  const reason = 'agent skills bootstrap skipped by environment';
+  if (checkOnly) {
+    console.log(reason);
+    process.exit(0);
+  }
+  console.log(reason);
+  installLefthook();
+  process.exit(0);
+}
 
 if (checkOnly) {
   const missingRequired = requiredSkills
@@ -230,10 +246,8 @@ for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
     try {
       cloneSource(source, tempDir);
     } catch (error) {
-      if (source.install === 'clone-if-authorized') {
-        console.warn(
-          `Skipping ${source.repository}; current developer may not have access.`,
-        );
+      if (source.install === 'clone-if-authorized' || postinstall) {
+        console.warn(`Skipping ${source.repository}; ${error.message}`);
         continue;
       }
       throw error;
