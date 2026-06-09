@@ -47,7 +47,7 @@
   "files": [
     "template-workspace",
     "dist",
-    "bin.js"
+    "bin"
   ],
   "scripts": {
     "build": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\"",

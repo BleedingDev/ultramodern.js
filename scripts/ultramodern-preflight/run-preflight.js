@@ -114,7 +114,7 @@ function parseArgs(argv) {
 }
 
 function createWorkspaceArgs(workspace, options) {
-  const args = [workspace, '--ultramodern-workspace', '--lang', 'en'];
+  const args = [workspace, '--lang', 'en'];
   if (options.packageSource) {
     args.push('--ultramodern-package-source', options.packageSource);
   }

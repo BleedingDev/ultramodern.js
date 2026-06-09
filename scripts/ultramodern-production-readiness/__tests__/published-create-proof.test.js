@@ -102,7 +102,10 @@ test('asserts generated cohorts from package source metadata and framework versi
         },
       },
     });
-    writeJson(root, '.modernjs/mv-template-manifest.json', {
+    writeJson(root, '.modernjs/ultramodern-workspace-template-manifest.json', {
+      packageSource: {
+        modernPackageSpecifier: '3.2.0-framework.1',
+      },
       template: {
         version: '3.2.0-create.1',
       },

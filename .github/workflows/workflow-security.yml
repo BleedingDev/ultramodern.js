@@ -5,7 +5,6 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/renovate.json'
-      - 'packages/toolkit/create/template/.github/**'
       - 'packages/toolkit/create/template-workspace/.github/**'
       - 'scripts/security/**'
       - 'package.json'
@@ -15,7 +14,6 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/renovate.json'
-      - 'packages/toolkit/create/template/.github/**'
       - 'packages/toolkit/create/template-workspace/.github/**'
       - 'scripts/security/**'
       - 'package.json'

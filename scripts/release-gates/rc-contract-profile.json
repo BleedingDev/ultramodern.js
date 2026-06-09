@@ -299,42 +299,8 @@
         "includes": [
           "UltraModern.js 3.0 is our SuperApp framework forked from Modern.js",
           "UltraModern.js additions are designed as the default product surface",
-          "generated starter also ships `.github/workflows/ultramodern-gates.yml`",
-          "Starter preset enforcement"
-        ]
-      },
-      {
-        "id": "ultramodern-starter-readme-contract",
-        "path": "packages/toolkit/create/template/README.md",
-        "includes": [
-          "# UltraModern.js 3.0 Starter",
-          "pnpm dev",
-          ".github/workflows/ultramodern-gates.yml",
-          "pnpm run ultramodern:check"
-        ]
-      },
-      {
-        "id": "ultramodern-template-workflow-contract",
-        "path": "packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars",
-        "includes": [
-          "Ultramodern Gates",
-          "permissions:\n  contents: read",
-          "persist-credentials: false",
-          "pnpm install --frozen-lockfile",
-          "MODERN_PUBLIC_SITE_URL: http://localhost:8080",
-          "egress-policy: audit",
-          "pnpm run ultramodern:check",
-          "pnpm run build"
-        ]
-      },
-      {
-        "id": "ultramodern-template-renovate-contract",
-        "path": "packages/toolkit/create/template/.github/renovate.json",
-        "includes": [
-          "\"dependencyDashboard\": true",
-          "\"minimumReleaseAge\": \"1 day\"",
-          "\"helpers:pinGitHubActionDigests\"",
-          "\"dependencyDashboardApproval\": true"
+          "Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`",
+          "Workspace preset enforcement"
         ]
       },
       {
@@ -345,10 +311,11 @@
           "permissions:\n  contents: read",
           "persist-credentials: false",
           "pnpm install --frozen-lockfile",
-          "pnpm -r --filter \"./apps/**\" run build",
+          "matrix:",
+          "pnpm contract:check",
           "MODERN_PUBLIC_SITE_URL: http://localhost:8080",
           "egress-policy: audit",
-          "pnpm run ultramodern:check"
+          "pnpm build"
         ]
       },
       {
@@ -395,33 +362,23 @@
         ]
       },
       {
-        "id": "ultramodern-sandpack-starter-contract",
-        "path": "packages/toolkit/sandpack-react/src/templates/mwa.ts",
-        "includes": [
-          "presetUltramodern(...)",
-          "presetUltramodern",
-          "pnpm run ultramodern:check",
-          ".github/workflows/ultramodern-gates.yml"
-        ]
-      },
-      {
         "id": "ultramodern-create-readme-contract",
         "path": "packages/toolkit/create/README.md",
         "includes": [
-          "Effect BFF",
           "pnpm dlx @bleedingdev/modern-js-create .",
-          "presetUltramodern(...)",
-          "--bff-runtime hono"
+          "UltraModern SuperApp workspace",
+          "pnpm check",
+          "pnpm dlx @bleedingdev/modern-js-create catalog --vertical"
         ]
       },
       {
         "id": "ultramodern-init-app-doc-contract",
         "path": "packages/document/docs/en/components/init-app.mdx",
         "includes": [
-          "Effect HttpApi BFF is scaffolded by default",
+          "UltraModern SuperApp workspace",
           "pnpm dlx @bleedingdev/modern-js-create .",
           "@bleedingdev/modern-js-create",
-          "--bff-runtime hono"
+          "pnpm dlx @bleedingdev/modern-js-create transportation --vertical"
         ]
       },
       {

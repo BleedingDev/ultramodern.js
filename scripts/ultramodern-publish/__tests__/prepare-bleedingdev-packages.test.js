@@ -12,14 +12,6 @@ const scriptPath = path.join(
 );
 
 const createTemplateRequiredFiles = [
-  'template/.agents/skills-lock.json',
-  'template/.browserslistrc',
-  'template/.codex/hooks.json',
-  'template/.github/renovate.json',
-  'template/.github/workflows/ultramodern-gates.yml.handlebars',
-  'template/.gitignore.handlebars',
-  'template/.mise.toml.handlebars',
-  'template/.nvmrc',
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
   'template-workspace/.agents/skills-lock.json',
@@ -132,7 +124,7 @@ const makeManifest = () => ({
   ],
 });
 
-test('publish-existing rejects create packages missing hidden template files', () => {
+test('publish-existing rejects create packages missing hidden workspace template files', () => {
   const outDir = makeCreateFixture({ includeTemplateDotFiles: false });
 
   try {

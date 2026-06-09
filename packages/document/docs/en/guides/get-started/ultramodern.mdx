@@ -39,8 +39,8 @@ UltraModern.js additions are designed as the default product surface for new Sup
 | MF vertical loading reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
 | Module onboarding governance | No module-certification evidence profile in baseline | Adds module SDK contracts, boundary anti-pattern guards, and release/module certification gate workflows |
 | Router runtime | Default runtime path centers on React Router | Adds first-class TanStack Router runtime/CLI path (React Router remains supported) |
-| Scaffolding templates | Default create templates center on React Router starter path | Adds TanStack-ready and Tailwind-ready create templates |
-| Starter preset enforcement | No generated UltraModern preset gate workflow | Generated starters include `ultramodern:check`, opt-out env switches, and `.github/workflows/ultramodern-gates.yml` |
+| Scaffolding templates | Default create templates center on React Router starter path | Generates a SuperApp workspace by default with TanStack, Effect, Module Federation, i18n, Tailwind, Cloudflare, and ownership contracts |
+| Workspace preset enforcement | No generated UltraModern preset gate workflow | Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`, `pnpm check`, primitive local gates, and generated contract validation |
 
 ## What We Intentionally Do Not Change
 
@@ -56,33 +56,24 @@ For teams already on Modern.js 3.0, the adoption path remains compatibility-awar
 1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
 2. Prefer `bff.runtimeFramework: 'effect'` for new BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
 3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
-4. The public preset now ships with explicit release and certification gates. The generated starter also ships `.github/workflows/ultramodern-gates.yml`, so `pnpm run ultramodern:check` and `pnpm run build` stay part of the adoption contract from day one.
+4. The public preset now ships with explicit release and certification gates. Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`, so `pnpm check` and `pnpm build` stay part of the local adoption contract from day one while CI runs the primitive gates as parallel matrix jobs.
 
 This page is not a migration guide or codemod plan. Migration guidance for existing applications is intentionally deferred from the current Micro Verticals framework scope.
 
 ## Human Workflow
 
-The public BleedingDev create package starts small. The default command creates
-one production-ready UltraModern app with `presetUltramodern(...)`, SSR,
-TanStack Router, Tailwind CSS v4, i18n, Effect BFF, generated quality gates, and
-Cloudflare deploy basics:
+The public BleedingDev create package has one supported generated product. The
+default command creates a production-ready UltraModern SuperApp workspace with
+`presetUltramodern(...)`, SSR, TanStack Router, Tailwind CSS v4, i18n, Effect
+BFF, Module Federation topology, generated quality gates, and Cloudflare deploy
+basics:
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
 cd myapp
 mise install
 mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
-```
-
-Create a SuperApp workspace only when independent ownership is useful:
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
-cd my-super-app
-mise install
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 The workspace starts from a shell and generated platform contracts. It does not
@@ -94,7 +85,7 @@ pnpm dlx @bleedingdev/modern-js-create transportation --vertical
 pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
 pnpm dlx @bleedingdev/modern-js-create payments --vertical
 pnpm dlx @bleedingdev/modern-js-create maps --vertical
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 The `--vertical` command mutates the current workspace. It creates the vertical
@@ -132,7 +123,7 @@ Version switching must select UI, Effect API, CSS, i18n JSON, and MF manifest ev
 Local gates:
 
 ```bash
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
 ```

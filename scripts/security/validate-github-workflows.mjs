@@ -5,14 +5,12 @@ import path from 'node:path';
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const workflowDirs = [
   '.github/workflows',
-  'packages/toolkit/create/template/.github/workflows',
   'packages/toolkit/create/template-workspace/.github/workflows',
 ];
 const sensitiveWorkflowPaths = new Set([
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/ultramodern-production-readiness.yml',
   '.github/workflows/workflow-security.yml',
-  'packages/toolkit/create/template/.github/workflows/ultramodern-gates.yml.handlebars',
   'packages/toolkit/create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
 ]);
 const requiredSensitiveTokens = [
@@ -142,9 +140,6 @@ function main() {
   const workflowErrors = collectWorkflowFiles().flatMap(validateWorkflow);
   const renovateErrors = [
     ...validateRenovateConfig('.github/renovate.json'),
-    ...validateRenovateConfig(
-      'packages/toolkit/create/template/.github/renovate.json',
-    ),
     ...validateRenovateConfig(
       'packages/toolkit/create/template-workspace/.github/renovate.json',
     ),

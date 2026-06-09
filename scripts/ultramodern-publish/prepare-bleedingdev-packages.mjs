@@ -9,14 +9,6 @@ import { promisify } from 'node:util';
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const execFileAsync = promisify(execFile);
 const createTemplateRequiredFiles = [
-  'template/.agents/skills-lock.json',
-  'template/.browserslistrc',
-  'template/.codex/hooks.json',
-  'template/.github/renovate.json',
-  'template/.github/workflows/ultramodern-gates.yml.handlebars',
-  'template/.gitignore.handlebars',
-  'template/.mise.toml.handlebars',
-  'template/.nvmrc',
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
   'template-workspace/.agents/skills-lock.json',
