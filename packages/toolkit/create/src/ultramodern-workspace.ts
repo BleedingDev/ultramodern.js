@@ -137,6 +137,7 @@ type RouteOwnedI18nPath = {
   canonicalPath: string;
   localisedPaths: Record<SupportedWorkspaceLanguage, string>;
   titleKey: string;
+  descriptionKey: string;
   ownerAppId: string;
   mfBoundaryId: string;
   namespace: string;
@@ -152,6 +153,7 @@ type PublicRouteMetadata = {
   namespace: string;
   ownerAppId: string;
   titleKey: string;
+  descriptionKey: string;
 };
 
 export type UltramodernWorkspaceOptions = {
@@ -1578,6 +1580,7 @@ const privateAppRoutePublicness = {
 function createRouteOwnedI18nPaths(app: WorkspaceApp): RouteOwnedI18nPath[] {
   const namespace = appI18nNamespace(app);
   const base = {
+    descriptionKey: `${namespace}.seo.description`,
     mfBoundaryId: app.mfName,
     namespace,
     ownerAppId: app.id,
@@ -1801,6 +1804,7 @@ function createPublicRouteMetadata(app: WorkspaceApp): PublicRouteMetadata[] {
       localisedPaths: route.localisedPaths,
       namespace: route.namespace,
       ownerAppId: route.ownerAppId,
+      descriptionKey: route.descriptionKey,
       titleKey: route.titleKey,
     }));
 }
@@ -2246,15 +2250,26 @@ function rewriteWorkspaceAssetsForApp(
   }
 }
 
-function createLocalizedHeadComponent(): string {
-  return `const fallbackLanguage = 'en';
+function createRouteHeadModule(app: WorkspaceApp): string {
+  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { Helmet } from '@modern-js/runtime/head';
+import {
+  ultramodernLocalisedUrls,
+  ultramodernRouteMetadata,
+} from './ultramodern-route-metadata';
+
+const appName = ${JSON.stringify(app.displayName)};
+const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
+type RouteMetadata = (typeof ultramodernRouteMetadata)[number];
 
 const localisedUrls = ultramodernLocalisedUrls as Record<
   string,
   Record<SupportedLanguage, string>
 >;
+const routeMetadata = ultramodernRouteMetadata as readonly RouteMetadata[];
 
 const isSupportedLanguage = (value: string): value is SupportedLanguage =>
   supportedLanguages.includes(value as SupportedLanguage);
@@ -2361,26 +2376,89 @@ const absoluteUrl = (pathname: string) => {
   return \`\${origin}\${pathname}\`;
 };
 
-const LocalizedHead = () => {
+const resolveRouteMetadata = (pathname: string) => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname);
+
+  for (const route of routeMetadata) {
+    const canonicalParams = matchPattern(pathWithoutLanguage, route.canonicalPath);
+    if (canonicalParams !== undefined) {
+      return route;
+    }
+
+    for (const language of supportedLanguages) {
+      const params = matchPattern(pathWithoutLanguage, route.localisedPaths[language]);
+      if (params !== undefined) {
+        return route;
+      }
+    }
+  }
+
+  return routeMetadata[0];
+};
+
+const sanitiseJsonLd = (value: unknown) =>
+  JSON.stringify(value).replaceAll('<', '\\\\u003c');
+
+export const UltramodernRouteHead = () => {
   const location = useLocation();
+  const { i18nInstance } = useModernI18n();
+  const t = i18nInstance['t'].bind(i18nInstance);
+  const route = resolveRouteMetadata(location.pathname);
   const canonicalPath = localizedPath(location.pathname, fallbackLanguage);
+  const title = route ? t(route.titleKey) : appName;
+  const description = route ? t(route.descriptionKey) : appName;
+  const canonicalUrl = absoluteUrl(canonicalPath);
+  const indexable = route?.public === true && route?.indexable === true;
+  const jsonLd = indexable
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        description,
+        inLanguage: supportedLanguages.join(','),
+        isPartOf: {
+          '@type': 'WebSite',
+          name: appName,
+          url: absoluteUrl('/'),
+        },
+        name: title,
+        url: canonicalUrl,
+      }
+    : undefined;
 
   return (
-    <Helmet>
-      <link rel="canonical" href={absoluteUrl(canonicalPath)} />
-      {supportedLanguages.map(code => (
-        <link
-          href={absoluteUrl(localizedPath(location.pathname, code))}
-          hrefLang={code}
-          key={code}
-          rel="alternate"
-        />
-      ))}
-      <link
-        href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
-        hrefLang="x-default"
-        rel="alternate"
-      />
+    <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>
+      <title>{title}</title>
+      <meta content={description} name="description" />
+      <meta content={indexable ? 'index, follow' : 'noindex, nofollow'} name="robots" />
+      {indexable && (
+        <>
+          <link rel="canonical" href={canonicalUrl} />
+          {supportedLanguages.map(code => (
+            <link
+              href={absoluteUrl(localizedPath(location.pathname, code))}
+              hrefLang={code}
+              key={code}
+              rel="alternate"
+            />
+          ))}
+          <link
+            href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
+            hrefLang="x-default"
+            rel="alternate"
+          />
+          <meta content={title} property="og:title" />
+          <meta content={description} property="og:description" />
+          <meta content={canonicalUrl} property="og:url" />
+          <meta content="website" property="og:type" />
+          <meta content={i18nInstance.language ?? fallbackLanguage} property="og:locale" />
+          <meta content="summary_large_image" name="twitter:card" />
+          <meta content={title} name="twitter:title" />
+          <meta content={description} name="twitter:description" />
+          {jsonLd && (
+            <script type="application/ld+json">{sanitiseJsonLd(jsonLd)}</script>
+          )}
+        </>
+      )}
     </Helmet>
   );
 };
@@ -2392,21 +2470,18 @@ function createShellPage(remotes: WorkspaceApp[] = []): string {
   const remoteCount = String(remotes.length);
 
   return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import ShellFrame from '../shell-frame';
+import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { VerticalShowcase } from '../vertical-components';
-import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
-${createLocalizedHeadComponent()}
 export default function ShellHome() {
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 
   return (
     <ShellFrame>
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <section className="${tw('mx-auto grid max-w-7xl items-center gap-8 py-8 md:grid-cols-[0.9fr_1.1fr] lg:gap-14')}">
         <div className="${tw('min-w-0')}">
           <p className="${tw('text-xs font-black uppercase tracking-[0.18em] text-emerald-800')}">{t('shell.hero.eyebrow')}</p>
@@ -2448,17 +2523,14 @@ export default function ShellHome() {
 }
 
 function createShellWorkspacesPage(): string {
-  return `import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import ShellFrame from '../../shell-frame';
+  return `import ShellFrame from '../../shell-frame';
+import { UltramodernRouteHead } from '../../ultramodern-route-head';
 import { Highlights } from '../../vertical-components';
-import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
-${createLocalizedHeadComponent()}
 export default function ShellWorkspacesPage() {
   return (
     <ShellFrame>
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <Highlights />
     </ShellFrame>
   );
@@ -2467,17 +2539,14 @@ export default function ShellWorkspacesPage() {
 }
 
 function createShellDirectoryPage(): string {
-  return `import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import ShellFrame from '../../shell-frame';
+  return `import ShellFrame from '../../shell-frame';
+import { UltramodernRouteHead } from '../../ultramodern-route-head';
 import { DirectoryPanel } from '../../vertical-components';
-import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
-${createLocalizedHeadComponent()}
 export default function ShellDirectoryPage() {
   return (
     <ShellFrame>
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <DirectoryPanel />
     </ShellFrame>
   );
@@ -2486,17 +2555,14 @@ export default function ShellDirectoryPage() {
 }
 
 function createShellRecordPage(): string {
-  return `import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import ShellFrame from '../../../shell-frame';
+  return `import ShellFrame from '../../../shell-frame';
+import { UltramodernRouteHead } from '../../../ultramodern-route-head';
 import { RecordPage } from '../../../vertical-components';
-import { ultramodernLocalisedUrls } from '../../../ultramodern-route-metadata';
 
-${createLocalizedHeadComponent()}
 export default function ShellRecordPage() {
   return (
     <ShellFrame>
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <RecordPage />
     </ShellFrame>
   );
@@ -2505,17 +2571,14 @@ export default function ShellRecordPage() {
 }
 
 function createShellActionsPage(): string {
-  return `import { Helmet } from '@modern-js/runtime/head';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
-import ShellFrame from '../../shell-frame';
+  return `import ShellFrame from '../../shell-frame';
+import { UltramodernRouteHead } from '../../ultramodern-route-head';
 import { ActionQueue } from '../../vertical-components';
-import { ultramodernLocalisedUrls } from '../../ultramodern-route-metadata';
 
-${createLocalizedHeadComponent()}
 export default function ShellActionsPage() {
   return (
     <ShellFrame>
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <ActionQueue />
     </ShellFrame>
   );
@@ -2857,18 +2920,17 @@ function createRemotePage(app: WorkspaceApp): string {
   const listEffectItems = `list${toPascalCase(effectApiStem(app))}`;
   const effectBffImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { Helmet } from '@modern-js/runtime/head';
-import { Link, useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
   Effect,
   ${listEffectItems},
   runEffectRequest,
 } from '../../effect/${effectApiStem(app)}-client';
-import { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';
+import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Helmet } from '@modern-js/runtime/head';\nimport { Link, useLocation } from '@modern-js/plugin-tanstack/runtime';\nimport { ultramodernLocalisedUrls } from '../ultramodern-route-metadata';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Link } from '@modern-js/plugin-tanstack/runtime';\nimport { UltramodernRouteHead } from '../ultramodern-route-head';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
   const effectBffState = appHasEffectApi(app)
     ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
@@ -2906,13 +2968,12 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
     : '';
 
   return `${effectBffImport}
-${createLocalizedHeadComponent()}
 export default function ${toPascalCase(app.id)}Home() {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 ${effectBffState}  return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
-      <LocalizedHead />
+      <UltramodernRouteHead />
       <nav aria-label={t('${app.domain}.language.switcher')} className="${tw('flex gap-3')}">
         {supportedLanguages.map(code => (
           <Link
@@ -3351,6 +3412,10 @@ const commonLocaleMessages = {
       unavailable: 'Nedostupné',
       workspaces: 'Pracovní prostory',
     },
+    seo: {
+      description:
+        'Route-owned UltraModern plocha s lokalizovaným SSR a frameworkem řízenými public metadata.',
+    },
   },
   en: {
     language: {
@@ -3367,6 +3432,10 @@ const commonLocaleMessages = {
       review: 'Action review',
       unavailable: 'Unavailable',
       workspaces: 'Workspaces',
+    },
+    seo: {
+      description:
+        'Route-owned UltraModern surface with localized SSR and framework-owned public metadata.',
     },
   },
 } satisfies Record<'en' | 'cs', Record<string, JsonValue>>;
@@ -3447,6 +3516,10 @@ const generatedLocaleResources = {
       remotes: {},
       routes: {
         home: commonLocaleMessages.cs.routes.home,
+      },
+      seo: {
+        description:
+          'UltraModern shell SuperApp s lokalizovaným SSR, Module Federation a frameworkem řízenými public metadata.',
       },
       title: 'UltraModern Workspace',
     },
@@ -3558,6 +3631,10 @@ const generatedLocaleResources = {
       remotes: {},
       routes: {
         home: commonLocaleMessages.en.routes.home,
+      },
+      seo: {
+        description:
+          'UltraModern shell SuperApp with localized SSR, Module Federation, and framework-owned public metadata.',
       },
       title: 'UltraModern Workspace',
     },
@@ -4789,6 +4866,45 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
   };
 }
 
+function createPublicHeadContract(): JsonValue {
+  return {
+    authoring: 'colocated-route-meta',
+    generator: './src/routes/ultramodern-route-head',
+    renderer: '@modern-js/runtime/head Helmet',
+    ssr: true,
+    title: {
+      required: true,
+      source: 'route.titleKey',
+    },
+    description: {
+      required: true,
+      source: 'route.descriptionKey',
+    },
+    canonical: {
+      publicIndexableOnly: true,
+      source: 'localized canonical route URL',
+    },
+    alternates: {
+      hreflang: [...supportedWorkspaceLanguages],
+      xDefault: 'en',
+    },
+    openGraph: {
+      publicIndexableOnly: true,
+      required: ['og:title', 'og:description', 'og:url', 'og:type'],
+    },
+    twitter: {
+      publicIndexableOnly: true,
+      required: ['twitter:card', 'twitter:title', 'twitter:description'],
+    },
+    structuredData: {
+      publicIndexableOnly: true,
+      type: 'WebPage',
+      sanitizesHtmlOpenBracket: true,
+    },
+    privateRouteRobots: 'noindex, nofollow',
+  };
+}
+
 function createAppGeneratedContract(
   scope: string,
   app: WorkspaceApp,
@@ -4865,6 +4981,7 @@ function createAppGeneratedContract(
       publicnessDefault: 'private-app-screen',
       generatedRouteMap: true,
       manualOverrides: [],
+      publicHead: createPublicHeadContract(),
       publicSurface: createPublicSurfaceContract(app),
     },
     moduleFederation: {
@@ -5511,6 +5628,31 @@ const assertPublicSurfaceContract = (appId, publicSurface) => {
     assert((publicSurface?.files ?? []).includes('site.webmanifest'), \`\${appId} public surface must emit site.webmanifest when public routes exist\`);
   }
 };
+const assertPublicHeadContract = (appId, publicHead, headModule) => {
+  assert(publicHead?.generator === './src/routes/ultramodern-route-head', \`\${appId} public head generator is incorrect\`);
+  assert(publicHead?.renderer === '@modern-js/runtime/head Helmet', \`\${appId} public head renderer is incorrect\`);
+  assert(publicHead?.ssr === true, \`\${appId} public head must be SSR-rendered\`);
+  assert(publicHead?.title?.source === 'route.titleKey', \`\${appId} public head title must come from route metadata\`);
+  assert(publicHead?.description?.source === 'route.descriptionKey', \`\${appId} public head description must come from route metadata\`);
+  assert(publicHead?.canonical?.publicIndexableOnly === true, \`\${appId} canonical links must be public/indexable only\`);
+  assert(publicHead?.structuredData?.sanitizesHtmlOpenBracket === true, \`\${appId} structured data must sanitize HTML open brackets\`);
+  assert(publicHead?.privateRouteRobots === 'noindex, nofollow', \`\${appId} private route robots policy is incorrect\`);
+  for (const snippet of [
+    "from '@modern-js/runtime/head'",
+    '<title>{title}</title>',
+    'name="description"',
+    'name="robots"',
+    'rel="canonical"',
+    'rel="alternate"',
+    'property="og:title"',
+    'property="og:description"',
+    'name="twitter:card"',
+    'application/ld+json',
+    "replaceAll('<', '\\\\\\\\u003c')",
+  ]) {
+    assert(headModule.includes(snippet), \`\${appId} route head module is missing \${snippet}\`);
+  }
+};
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
   \`__ULTRAMODERN_\${mfName
@@ -5586,6 +5728,7 @@ const requiredPaths = [
   \`apps/shell-super-app/locales/cs/\${shellNamespace}.json\`,
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/layout.tsx',
+  'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   ...${JSON.stringify(shellRouteMetaPaths, null, 2)},
@@ -5613,6 +5756,7 @@ for (const vertical of fullStackVerticals) {
     \`\${vertical.path}/locales/cs/\${vertical.namespace}.json\`,
     \`\${vertical.path}/src/routes/index.css\`,
     \`\${vertical.path}/src/routes/layout.tsx\`,
+    \`\${vertical.path}/src/routes/ultramodern-route-head.tsx\`,
     \`\${vertical.path}/src/routes/ultramodern-route-metadata.ts\`,
     \`\${vertical.path}/src/routes/[lang]/page.tsx\`,
     ...vertical.routePagePaths,
@@ -5737,6 +5881,7 @@ assert(generatedContract.cssFederation?.sharedDesignTokens?.ssr?.firstPaintRequi
 
 const shellPackage = readJson('apps/shell-super-app/package.json');
 const shellModernConfig = readText('apps/shell-super-app/modern.config.ts');
+const shellRouteHead = readText('apps/shell-super-app/src/routes/ultramodern-route-head.tsx');
 const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern-route-metadata.ts');
 assert(shellRouteMetadata.includes('@generated by @modern-js/create'), 'Shell route metadata compatibility manifest must be marked generated');
 assert(shellRouteMetadata.includes("authoring: 'colocated-route-meta'"), 'Shell route metadata manifest must advertise colocated authoring');
@@ -5784,10 +5929,11 @@ assert(shellContract?.routes?.metadataAuthoring === 'colocated-route-meta', 'She
 assert(shellContract?.routes?.generatedManifest === true, 'Shell route metadata manifest must be generated');
 assert(shellContract?.routes?.publicnessDefault === 'private-app-screen', 'Shell route publicness default is incorrect');
 assert(JSON.stringify(shellContract?.routes?.publicRoutes ?? []) === '[]', 'Shell must not expose generated public routes by default');
+assertPublicHeadContract('shell-super-app', shellContract?.routes?.publicHead, shellRouteHead);
 assertPublicSurfaceContract('shell-super-app', shellContract?.routes?.publicSurface);
 assert(
-  (shellContract?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
-  'Shell owned routes must be non-indexable private app screens by default',
+  (shellContract?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen' && typeof route.descriptionKey === 'string'),
+  'Shell owned routes must be non-indexable private app screens by default and include description keys',
 );
 assertPublicSurfaceAssets('apps/shell-super-app', shellContract?.routes?.publicRoutes ?? []);
 assert(
@@ -5801,6 +5947,7 @@ assert(!('effectServices' in topology), 'Default APIs must be vertical-owned, no
 for (const vertical of fullStackVerticals) {
   const packageJson = readJson(\`\${vertical.path}/package.json\`);
   const modernConfig = readText(\`\${vertical.path}/modern.config.ts\`);
+  const routeHead = readText(\`\${vertical.path}/src/routes/ultramodern-route-head.tsx\`);
   const routeMetadata = readText(\`\${vertical.path}/src/routes/ultramodern-route-metadata.ts\`);
   assert(routeMetadata.includes('@generated by @modern-js/create'), \`\${vertical.id} route metadata compatibility manifest must be marked generated\`);
   assert(routeMetadata.includes("authoring: 'colocated-route-meta'"), \`\${vertical.id} route metadata manifest must advertise colocated authoring\`);
@@ -5871,10 +6018,11 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.routes?.privateByDefault === true, \`\${vertical.id} routes must be private by default\`);
   assert(contractEntry?.routes?.publicnessDefault === 'private-app-screen', \`\${vertical.id} route publicness default is incorrect\`);
   assert(JSON.stringify(contractEntry?.routes?.publicRoutes ?? []) === '[]', \`\${vertical.id} must not expose generated public routes by default\`);
+  assertPublicHeadContract(vertical.id, contractEntry?.routes?.publicHead, routeHead);
   assertPublicSurfaceContract(vertical.id, contractEntry?.routes?.publicSurface);
   assert(
-    (contractEntry?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
-    \`\${vertical.id} owned routes must be non-indexable private app screens by default\`,
+    (contractEntry?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen' && typeof route.descriptionKey === 'string'),
+    \`\${vertical.id} owned routes must be non-indexable private app screens by default and include description keys\`,
   );
   assertPublicSurfaceAssets(vertical.path, contractEntry?.routes?.publicRoutes ?? []);
   assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, \`\${vertical.id} CSS federation owner is missing\`);
@@ -6174,6 +6322,148 @@ function assertCloudflareSecurity(evidence, app, response, route, publicUrl, opt
   }
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+}
+
+function htmlHasTagWithAttributes(html, tagName, attributes) {
+  const tagPattern = new RegExp(\`<\${tagName}\\\\b[^>]*>\`, 'giu');
+  const tags = html.match(tagPattern) || [];
+  return tags.some(tag =>
+    Object.entries(attributes).every(([name, value]) => {
+      const attrPattern = new RegExp(
+        \`\\\\b\${escapeRegExp(name)}=["']\${escapeRegExp(value)}["']\`,
+        'iu',
+      );
+      return attrPattern.test(tag);
+    }),
+  );
+}
+
+function assertHeadTag(evidence, html, options) {
+  const found = htmlHasTagWithAttributes(
+    html,
+    options.tag,
+    options.attributes,
+  );
+  evidence.assertions.push({
+    type: 'ssr-head',
+    route: options.route,
+    tag: options.tag,
+    attributes: options.attributes,
+    status: found ? 'pass' : 'fail',
+  });
+  assert(found, \`\${options.appId} \${options.route} SSR head is missing \${options.label}\`);
+}
+
+async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
+  const titleFound = /<title\\b[^>]*>[^<]+<\\/title>/iu.test(ssr.body);
+  evidence.assertions.push({
+    type: 'ssr-head',
+    route: ssrRoute,
+    tag: 'title',
+    status: titleFound ? 'pass' : 'fail',
+  });
+  assert(titleFound, \`\${app.id} \${ssrRoute} SSR head is missing title\`);
+  assertHeadTag(evidence, ssr.body, {
+    appId: app.id,
+    route: ssrRoute,
+    tag: 'meta',
+    attributes: { name: 'description' },
+    label: 'description meta',
+  });
+  assertHeadTag(evidence, ssr.body, {
+    appId: app.id,
+    route: ssrRoute,
+    tag: 'meta',
+    attributes: { name: 'robots' },
+    label: 'robots meta',
+  });
+
+  const publicSurface = app.routes?.publicSurface ?? {};
+  const routeEntry = (publicSurface.routeEntries ?? [])[0];
+  if (!routeEntry) {
+    const canonicalFound = htmlHasTagWithAttributes(ssr.body, 'link', {
+      rel: 'canonical',
+    });
+    evidence.assertions.push({
+      type: 'ssr-head-private-canonical',
+      route: ssrRoute,
+      status: canonicalFound ? 'fail' : 'pass',
+    });
+    assert(!canonicalFound, \`\${app.id} \${ssrRoute} private SSR head must not emit canonical links\`);
+    return;
+  }
+
+  const publicRoute = routeEntry.localeUrlPaths?.en ?? publicSurface.concreteUrlPaths?.[0];
+  const headRoute = publicRoute || ssrRoute;
+  const headResponse =
+    headRoute === ssrRoute ? ssr : await fetchText(joinUrl(publicUrl, headRoute));
+  if (headRoute !== ssrRoute) {
+    evidence.assertions.push({
+      type: 'ssr-head-route',
+      route: headRoute,
+      status: headResponse.ok ? 'pass' : 'fail',
+      statusCode: headResponse.status,
+    });
+    assert(headResponse.ok, \`\${app.id} public head route returned HTTP \${headResponse.status}\`);
+    assertCloudflareSecurity(evidence, app, headResponse, headRoute, publicUrl, {
+      html: true,
+    });
+  }
+
+  const canonicalUrl = String(joinUrl(publicUrl, headRoute));
+  assertHeadTag(evidence, headResponse.body, {
+    appId: app.id,
+    route: headRoute,
+    tag: 'link',
+    attributes: { rel: 'canonical', href: canonicalUrl },
+    label: 'canonical link',
+  });
+  for (const language of app.routes?.publicHead?.alternates?.hreflang ?? []) {
+    const href = String(joinUrl(publicUrl, routeEntry.localeUrlPaths?.[language] ?? headRoute));
+    assertHeadTag(evidence, headResponse.body, {
+      appId: app.id,
+      route: headRoute,
+      tag: 'link',
+      attributes: { rel: 'alternate', hreflang: language, href },
+      label: \`hreflang \${language}\`,
+    });
+  }
+  assertHeadTag(evidence, headResponse.body, {
+    appId: app.id,
+    route: headRoute,
+    tag: 'link',
+    attributes: { rel: 'alternate', hreflang: 'x-default' },
+    label: 'x-default hreflang',
+  });
+  for (const property of ['og:title', 'og:description', 'og:url', 'og:type']) {
+    assertHeadTag(evidence, headResponse.body, {
+      appId: app.id,
+      route: headRoute,
+      tag: 'meta',
+      attributes: { property },
+      label: property,
+    });
+  }
+  for (const name of ['twitter:card', 'twitter:title', 'twitter:description']) {
+    assertHeadTag(evidence, headResponse.body, {
+      appId: app.id,
+      route: headRoute,
+      tag: 'meta',
+      attributes: { name },
+      label: name,
+    });
+  }
+  assertHeadTag(evidence, headResponse.body, {
+    appId: app.id,
+    route: headRoute,
+    tag: 'script',
+    attributes: { type: 'application/ld+json' },
+    label: 'JSON-LD structured data',
+  });
+}
+
 async function validateApp(app, publicUrl) {
   const cloudflare = app.deploy?.cloudflare;
   const routes = cloudflare?.routes ?? {};
@@ -6197,6 +6487,7 @@ async function validateApp(app, publicUrl) {
   assertCloudflareSecurity(evidence, app, ssr, ssrRoute, publicUrl, {
     html: true,
   });
+  await validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr);
 
   const uiMarker = extractUiMarker(ssr.body);
   evidence.assertions.push({
@@ -6467,6 +6758,11 @@ function writeApp(
     targetDir,
     `${resolvedApp.directory}/src/routes/ultramodern-route-metadata.ts`,
     createRouteMetadataModule(resolvedApp),
+  );
+  writeFile(
+    targetDir,
+    `${resolvedApp.directory}/src/routes/ultramodern-route-head.tsx`,
+    createRouteHeadModule(resolvedApp),
   );
   writeFile(
     targetDir,
@@ -6895,6 +7191,11 @@ function rewriteShellAppFiles(
     workspaceRoot,
     `${shellApp.directory}/src/routes/ultramodern-route-metadata.ts`,
     createRouteMetadataModule(shellHost),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellApp.directory}/src/routes/ultramodern-route-head.tsx`,
+    createRouteHeadModule(shellHost),
   );
   for (const route of createRouteOwnedI18nPaths(shellHost)) {
     writeFileReplacing(

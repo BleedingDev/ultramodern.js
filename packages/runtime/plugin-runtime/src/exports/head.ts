@@ -22,6 +22,7 @@ const ATTRIBUTE_NAME_MAP: Record<string, string> = {
   className: 'class',
   contentEditable: 'contenteditable',
   httpEquiv: 'http-equiv',
+  hrefLang: 'hreflang',
   itemProp: 'itemprop',
   tabIndex: 'tabindex',
 };

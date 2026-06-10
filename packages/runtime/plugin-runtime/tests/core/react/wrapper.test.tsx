@@ -67,4 +67,25 @@ describe('wrapRuntimeContextProvider', () => {
       '<title data-rh="true">Modern SSR</title>',
     );
   });
+
+  it('serializes React head prop names to valid HTML attributes', () => {
+    const context = getInitialContext(false);
+
+    renderToString(
+      wrapRuntimeContextProvider(
+        <Helmet>
+          <link href="/cs" hrefLang="cs" rel="alternate" />
+          <meta charSet="utf-8" />
+        </Helmet>,
+        context as Record<string, unknown> as any,
+      ),
+    );
+
+    expect(context._helmetContext?.helmet?.link.toString()).toContain(
+      '<link data-rh="true" href="/cs" hreflang="cs" rel="alternate">',
+    );
+    expect(context._helmetContext?.helmet?.meta.toString()).toContain(
+      '<meta data-rh="true" charset="utf-8">',
+    );
+  });
 });

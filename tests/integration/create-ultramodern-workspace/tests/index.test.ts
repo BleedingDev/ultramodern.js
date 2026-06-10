@@ -453,6 +453,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/locales/cs/translation.json',
       'apps/shell-super-app/locales/cs/shell.json',
       'apps/shell-super-app/src/routes/index.css',
+      'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
       'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
       'apps/shell-super-app/src/routes/[lang]/route.meta.ts',
       'packages/shared-contracts/src/index.ts',
@@ -767,9 +768,25 @@ describe('create-ultramodern-workspace', () => {
       privateByDefault: true,
       publicnessDefault: 'private-app-screen',
       publicRoutes: [],
+      publicHead: {
+        generator: './src/routes/ultramodern-route-head',
+        renderer: '@modern-js/runtime/head Helmet',
+        ssr: true,
+        title: {
+          source: 'route.titleKey',
+        },
+        description: {
+          source: 'route.descriptionKey',
+        },
+        canonical: {
+          publicIndexableOnly: true,
+        },
+        privateRouteRobots: 'noindex, nofollow',
+      },
     });
     expect(shellContract.routes.owned).toEqual([
       expect.objectContaining({
+        descriptionKey: 'shell.seo.description',
         id: 'shell-home',
         public: false,
         indexable: false,
@@ -781,6 +798,18 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app',
       shellContract.routes,
     );
+    const shellRouteHead = readText(
+      workspaceDir,
+      'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
+    );
+    expect(shellRouteHead).toContain("from '@modern-js/runtime/head'");
+    expect(shellRouteHead).toContain('<title>{title}</title>');
+    expect(shellRouteHead).toContain('name="description"');
+    expect(shellRouteHead).toContain('name="robots"');
+    expect(shellRouteHead).toContain('rel="canonical"');
+    expect(shellRouteHead).toContain('property="og:title"');
+    expect(shellRouteHead).toContain('name="twitter:card"');
+    expect(shellRouteHead).toContain('application/ld+json');
     expect(shellContract.deploy).toMatchObject({
       target: 'cloudflare',
       cloudflare: {
@@ -1063,6 +1092,7 @@ process.exit(1);
       'verticals/catalog/src/routes/[lang]/page.tsx',
       'verticals/catalog/src/routes/[lang]/route.meta.ts',
       'verticals/catalog/src/routes/index.css',
+      'verticals/catalog/src/routes/ultramodern-route-head.tsx',
       'verticals/catalog/src/federation-entry.tsx',
       'verticals/catalog/src/components/catalog-widget.tsx',
       'verticals/catalog/postcss.config.mjs',
@@ -1197,9 +1227,14 @@ process.exit(1);
       privateByDefault: true,
       publicnessDefault: 'private-app-screen',
       publicRoutes: [],
+      publicHead: {
+        generator: './src/routes/ultramodern-route-head',
+        ssr: true,
+      },
     });
     expect(catalogContract.routes.owned).toEqual([
       expect.objectContaining({
+        descriptionKey: 'catalog.seo.description',
         id: 'catalog-home',
         public: false,
         indexable: false,
