@@ -1,0 +1,353 @@
+{
+  "generated_at": "2026-06-10T19:37:28.981013+00:00",
+  "graph_id": "ultramodern-public-web-simplify-01-cloudflare-proof-plus-3-plans-d2e47e5865",
+  "plan_set_hash": "dde3c7105f",
+  "selection_hash": "d2e47e5865",
+  "plan_count": 4,
+  "edge_count": 3,
+  "plans_root": "/Users/satan/side/experiments/modernjs/.codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-01-cloudflare-proof.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-02-generator-module.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-03-policy-data.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-04-provider-dx.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "ultramodern-public-web-simplify-01-cloudflare-proof",
+      "target": "ultramodern-public-web-simplify-02-generator-module"
+    },
+    {
+      "source": "ultramodern-public-web-simplify-02-generator-module",
+      "target": "ultramodern-public-web-simplify-03-policy-data"
+    },
+    {
+      "source": "ultramodern-public-web-simplify-02-generator-module",
+      "target": "ultramodern-public-web-simplify-04-provider-dx"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-01-cloudflare-proof.plan.md",
+      "slug": "ultramodern-public-web-simplify-01-cloudflare-proof",
+      "name": "ultramodern-public-web-simplify-01-cloudflare-proof",
+      "overview": "Deepen the Cloudflare public proof implementation by consolidating generated public-URL proof and local Worker validation behind one proof module with explicit public URL and local Worker adapters.",
+      "todos": [
+        {
+          "id": "map-proof-interfaces",
+          "content": "Map the current generated proof script, local Cloudflare SSR validator, and Cloudflare deploy adapter response/security behavior to identify the stable proof interface and the two adapters it must support.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "add-characterization-tests",
+          "content": "Add focused characterization coverage for the current proof assertions, including SSR HTML, security headers, preview noindex, CSS preload/assets, public surface assets, byte budgets, sourcemap policy, locale JSON, MF manifest, and Effect readiness.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "extract-proof-module",
+          "content": "Extract reusable proof functions from generated script string code into an owned create-package proof module or generated helper source while preserving the generated script CLI and report JSON shape.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "wire-public-url-adapter",
+          "content": "Rewire generated proof-cloudflare-version.mjs to use the shared proof module through a public URL adapter without changing CLI flags, env variables, report fields, or failure messages that tests depend on.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "evaluate-local-worker-adapter",
+          "content": "Evaluate whether scripts/ultramodern-cloudflare-ssr-validation can reuse the same proof module through a local Worker adapter; implement only the behavior-preserving portion inside the current scope.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "validate-proof-refactor",
+          "content": "Run create-package tests, create-ultramodern integration tests, and any local Cloudflare SSR validation tests touched by the extraction.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-02-generator-module.plan.md",
+      "slug": "ultramodern-public-web-simplify-02-generator-module",
+      "name": "ultramodern-public-web-simplify-02-generator-module",
+      "overview": "Deepen the public web generator implementation so route metadata projection, content source expansion, public artifact rendering, and generated contract fragments live behind a smaller create-package interface.",
+      "todos": [
+        {
+          "id": "inventory-public-web-functions",
+          "content": "Inventory public web generation functions in ultramodern-workspace.ts and classify them as route metadata projection, content expansion, artifact rendering, contract rendering, validation, or generated script glue.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "define-module-seam",
+          "content": "Define a small internal public web generator interface that keeps current output shapes stable while hiding routeEntries, concreteUrlPaths, contentSources, and artifact lifecycle details from unrelated create flow code.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-output-characterization",
+          "content": "Add or strengthen characterization tests for generated route.meta.ts files, generated compatibility manifest, public surface contract, generated asset script, and dynamic sitemap smoke output before moving code.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "extract-generator-module",
+          "content": "Move public web generator implementation into a focused internal module or cohesive section with exported helpers only where existing package structure requires it, preserving generated file content except for intentional formatting stability.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "update-readme-dx-wording",
+          "content": "Update UltraModern create README wording so route metadata is described as colocated authoring with a generated compatibility manifest, not as authors editing src/routes/ultramodern-route-metadata.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "validate-generator-refactor",
+          "content": "Run create-ultramodern integration tests, create package tests, and generated workspace contract validation to prove public web outputs did not drift.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-03-policy-data.plan.md",
+      "slug": "ultramodern-public-web-simplify-03-policy-data",
+      "name": "ultramodern-public-web-simplify-03-policy-data",
+      "overview": "Consolidate public web policy values so generated contracts, validators, tests, and documentation derive from one data description instead of repeating policy literals across the scaffold.",
+      "todos": [
+        {
+          "id": "list-duplicated-policy-values",
+          "content": "List duplicated public web policy values across createPublicWebsiteQualityGateContract, assertCloudflareQualityGates, integration expectations, README wording, and generated validator snippets.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "choose-policy-owner",
+          "content": "Choose the smallest internal owner for public web policy data that can feed contract rendering, generated validator rendering, and integration expectations without creating a broad profile engine.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-policy-characterization",
+          "content": "Add characterization coverage proving current quality gate contract keys and values remain stable for shell and vertical apps before consolidating literals.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "consolidate-policy-data",
+          "content": "Replace duplicated public web quality gate literals with a single internal data source and render contract, validator, and tests from it where practical.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "align-docs-with-policy",
+          "content": "Align README or generated documentation snippets with the single public web policy source, especially route-owned metadata, generated compatibility manifest, and proof-gate wording.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "validate-policy-refactor",
+          "content": "Run targeted create-ultramodern integration tests, create package tests, and a diff inspection of generated contract JSON expectations.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-04-provider-dx.plan.md",
+      "slug": "ultramodern-public-web-simplify-04-provider-dx",
+      "name": "ultramodern-public-web-simplify-04-provider-dx",
+      "overview": "Improve route-owned dynamic sitemap provider DX by making route.sitemap.mjs discovery and content source manifest generation framework-owned, while preserving the current explicit contentSources contract for compatibility.",
+      "todos": [
+        {
+          "id": "document-current-provider-interface",
+          "content": "Document the current route-owned provider interface, including route.sitemap.mjs exports, UltramodernPublicSitemapEntry shape, localeParams behavior, draft/indexable filtering, and contentSources manifest requirements.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "design-discovery-contract",
+          "content": "Design a build-safe discovery contract that finds route-owned route.sitemap.mjs providers without importing React page modules or CSS and emits the same contentSources manifest shape.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-discovery-tests",
+          "content": "Add tests for provider discovery across static routes, dynamic routes, localized route folders, missing providers, malformed provider paths, and explicit contentSources compatibility.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "implement-provider-discovery",
+          "content": "Implement provider discovery in the scaffold/generator so authors create route-owned provider files and do not hand-edit contentSources for normal cases.",
+          "status": "pending",
+          "ordinal": 4
+        },
+        {
+          "id": "update-generated-docs",
+          "content": "Update generated README or shared-contracts guidance with the simplified author workflow for dynamic public routes and sitemap entries.",
+          "status": "pending",
+          "ordinal": 5
+        },
+        {
+          "id": "validate-provider-dx",
+          "content": "Run create-ultramodern integration tests and a dynamic sitemap smoke test proving discovered providers generate localized sitemap, robots, and webmanifest output.",
+          "status": "pending",
+          "ordinal": 6
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-public-web-simplify-01-cloudflare-proof",
+      "plan_name": "ultramodern-public-web-simplify-01-cloudflare-proof",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-01-cloudflare-proof.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "map-proof-interfaces",
+          "content": "Map the current generated proof script, local Cloudflare SSR validator, and Cloudflare deploy adapter response/security behavior to identify the stable proof interface and the two adapters it must support.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "add-characterization-tests",
+          "content": "Add focused characterization coverage for the current proof assertions, including SSR HTML, security headers, preview noindex, CSS preload/assets, public surface assets, byte budgets, sourcemap policy, locale JSON, MF manifest, and Effect readiness.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "extract-proof-module",
+          "content": "Extract reusable proof functions from generated script string code into an owned create-package proof module or generated helper source while preserving the generated script CLI and report JSON shape.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-public-web-simplify-02-generator-module",
+      "plan_name": "ultramodern-public-web-simplify-02-generator-module",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-02-generator-module.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["ultramodern-public-web-simplify-01-cloudflare-proof"],
+      "active": [
+        {
+          "id": "inventory-public-web-functions",
+          "content": "Inventory public web generation functions in ultramodern-workspace.ts and classify them as route metadata projection, content expansion, artifact rendering, contract rendering, validation, or generated script glue.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "define-module-seam",
+          "content": "Define a small internal public web generator interface that keeps current output shapes stable while hiding routeEntries, concreteUrlPaths, contentSources, and artifact lifecycle details from unrelated create flow code.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-output-characterization",
+          "content": "Add or strengthen characterization tests for generated route.meta.ts files, generated compatibility manifest, public surface contract, generated asset script, and dynamic sitemap smoke output before moving code.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-public-web-simplify-03-policy-data",
+      "plan_name": "ultramodern-public-web-simplify-03-policy-data",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-03-policy-data.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["ultramodern-public-web-simplify-02-generator-module"],
+      "active": [
+        {
+          "id": "list-duplicated-policy-values",
+          "content": "List duplicated public web policy values across createPublicWebsiteQualityGateContract, assertCloudflareQualityGates, integration expectations, README wording, and generated validator snippets.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "choose-policy-owner",
+          "content": "Choose the smallest internal owner for public web policy data that can feed contract rendering, generated validator rendering, and integration expectations without creating a broad profile engine.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-policy-characterization",
+          "content": "Add characterization coverage proving current quality gate contract keys and values remain stable for shell and vertical apps before consolidating literals.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    },
+    {
+      "plan_slug": "ultramodern-public-web-simplify-04-provider-dx",
+      "plan_name": "ultramodern-public-web-simplify-04-provider-dx",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-simplify-04-provider-dx.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": ["ultramodern-public-web-simplify-02-generator-module"],
+      "active": [
+        {
+          "id": "document-current-provider-interface",
+          "content": "Document the current route-owned provider interface, including route.sitemap.mjs exports, UltramodernPublicSitemapEntry shape, localeParams behavior, draft/indexable filtering, and contentSources manifest requirements.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "design-discovery-contract",
+          "content": "Design a build-safe discovery contract that finds route-owned route.sitemap.mjs providers without importing React page modules or CSS and emits the same contentSources manifest shape.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "add-discovery-tests",
+          "content": "Add tests for provider discovery across static routes, dynamic routes, localized route folders, missing providers, malformed provider paths, and explicit contentSources compatibility.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 6
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "matched-plan-set"
+}
