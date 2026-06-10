@@ -211,6 +211,8 @@ function expectPrivatePublicSurface(
   routes: Record<string, any>,
 ) {
   expect(routes.publicSurface).toMatchObject({
+    authoring: 'colocated-route-meta',
+    generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     staticRoot: 'config/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
@@ -404,7 +406,7 @@ describe('create-ultramodern-workspace', () => {
   test('scaffolds a shell-only UltraModern SuperApp workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreate(workspaceDir, ['--lang', 'en']);
 
     for (const relativePath of [
       'AGENTS.md',
@@ -448,6 +450,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/locales/cs/shell.json',
       'apps/shell-super-app/src/routes/index.css',
       'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
+      'apps/shell-super-app/src/routes/[lang]/route.meta.ts',
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-design-tokens/src/tokens.css',
@@ -479,17 +482,17 @@ describe('create-ultramodern-workspace', () => {
       strategy: 'install',
       config: './.modernjs/ultramodern-package-source.json',
     });
-    expect(rootPackage.scripts['ultramodern:check']).toBe(
+    expect(rootPackage.scripts['contract:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
     );
-    expect(rootPackage.scripts['ultramodern:assert-mf-types']).toBe(
+    expect(rootPackage.scripts['mf:types']).toBe(
       'node ./scripts/assert-mf-types.mjs',
     );
     expect(rootPackage.scripts.build).toBe(
-      'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ultramodern:assert-mf-types',
+      'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types',
     );
     expect(rootPackage.scripts['cloudflare:build']).toBe(
-      'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ultramodern:assert-mf-types',
+      'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types',
     );
     expect(rootPackage.scripts['cloudflare:deploy']).toBe(
       'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
@@ -518,7 +521,7 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/bootstrap-agent-skills.mjs --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs && node ./scripts/setup-agent-reference-repos.mjs",
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall && node ./scripts/setup-agent-reference-repos.mjs",
     );
     const agentReferenceRepoSetup = fs.readFileSync(
       path.join(workspaceDir, 'scripts/setup-agent-reference-repos.mjs'),
@@ -752,6 +755,8 @@ describe('create-ultramodern-workspace', () => {
     });
     expect(shellContract.routes).toMatchObject({
       source: 'route-owned',
+      metadataAuthoring: 'colocated-route-meta',
+      generatedManifest: true,
       metadataExport: './src/routes/ultramodern-route-metadata',
       generatedRouteMap: true,
       privateByDefault: true,
@@ -878,8 +883,8 @@ describe('create-ultramodern-workspace', () => {
     expect(manifest.validation.expectedCommands).toEqual([
       'mise install',
       'pnpm install',
-      'pnpm run ultramodern:i18n-boundaries',
-      'pnpm run ultramodern:check',
+      'pnpm run i18n:boundaries',
+      'pnpm run contract:check',
     ]);
     expect(manifest.validation.postMaterializationValidation).toEqual([
       'ultramodern-workspace-contract-check',
@@ -1033,7 +1038,7 @@ process.exit(1);
   test('adds a full-stack MicroVertical to an existing workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-add-remote-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreate(workspaceDir, ['--lang', 'en']);
     runCreateInWorkspace(workspaceDir, [
       'catalog',
       '--vertical',
@@ -1051,6 +1056,7 @@ process.exit(1);
       'verticals/catalog/locales/en/translation.json',
       'verticals/catalog/locales/cs/translation.json',
       'verticals/catalog/src/routes/[lang]/page.tsx',
+      'verticals/catalog/src/routes/[lang]/route.meta.ts',
       'verticals/catalog/src/routes/index.css',
       'verticals/catalog/src/federation-entry.tsx',
       'verticals/catalog/src/components/catalog-widget.tsx',
@@ -1181,6 +1187,8 @@ process.exit(1);
       rootSelector: '[data-app-id="catalog"]',
     });
     expect(catalogContract.routes).toMatchObject({
+      metadataAuthoring: 'colocated-route-meta',
+      generatedManifest: true,
       privateByDefault: true,
       publicnessDefault: 'private-app-screen',
       publicRoutes: [],
@@ -1260,7 +1268,7 @@ process.exit(1);
   test('keeps numbered vertical Tailwind prefixes unique', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-numbered-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreate(workspaceDir, ['--lang', 'en']);
     runCreateInWorkspace(workspaceDir, [
       'erp-vertical-011',
       '--vertical',
@@ -1326,7 +1334,7 @@ process.exit(1);
   test('rejects the removed legacy microvertical flag', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-legacy-flag-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, ['--ultramodern-workspace', '--lang', 'en']);
+    runCreate(workspaceDir, ['--lang', 'en']);
     expect(() =>
       runCreateInWorkspace(workspaceDir, [
         'catalog-api',
@@ -1343,7 +1351,6 @@ process.exit(1);
     const workspaceDir = path.join(tempRoot, 'ultra-install-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, [
-      '--ultramodern-workspace',
       '--ultramodern-package-source',
       'install',
       '--ultramodern-package-version',
@@ -1437,7 +1444,6 @@ process.exit(1);
     const workspaceDir = path.join(tempRoot, 'ultra-alias-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, [
-      '--ultramodern-workspace',
       '--ultramodern-package-source',
       'install',
       '--ultramodern-package-version',
