@@ -1,0 +1,365 @@
+{
+  "generated_at": "2026-06-10T22:03:45.748747+00:00",
+  "graph_id": "ultramodern-public-web-deepen-00-research-plus-5-plans-1adb33d887",
+  "plan_set_hash": "9114233ab9",
+  "selection_hash": "1adb33d887",
+  "plan_count": 6,
+  "edge_count": 8,
+  "plans_root": ".codex/plans",
+  "selected_globs": [],
+  "selected_plan_paths": [
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-00-research.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-01-route-path-semantics.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-02-artifact-facade.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-03-policy-decisions.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-04-cloudflare-proof-helper.plan.md",
+    "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-05-generated-output-tests.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "ultramodern-public-web-deepen-00-research",
+      "target": "ultramodern-public-web-deepen-01-route-path-semantics"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-00-research",
+      "target": "ultramodern-public-web-deepen-02-artifact-facade"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-00-research",
+      "target": "ultramodern-public-web-deepen-03-policy-decisions"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-00-research",
+      "target": "ultramodern-public-web-deepen-04-cloudflare-proof-helper"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-01-route-path-semantics",
+      "target": "ultramodern-public-web-deepen-05-generated-output-tests"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-02-artifact-facade",
+      "target": "ultramodern-public-web-deepen-05-generated-output-tests"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-03-policy-decisions",
+      "target": "ultramodern-public-web-deepen-05-generated-output-tests"
+    },
+    {
+      "source": "ultramodern-public-web-deepen-04-cloudflare-proof-helper",
+      "target": "ultramodern-public-web-deepen-05-generated-output-tests"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-00-research.plan.md",
+      "slug": "ultramodern-public-web-deepen-00-research",
+      "name": "ultramodern-public-web-deepen-00-research",
+      "overview": "Build evidence-backed understanding of the recent UltraModern public-web create pipeline before changing implementation, covering route path semantics, public-web artifact generation, policy defaults, Cloudflare proof helpers, and generated-output tests.",
+      "todos": [
+        {
+          "id": "map-current-public-web-flow",
+          "content": "Trace current public-web create flow from workspace/app generation through route metadata, head rendering, public surface asset generation, Cloudflare proof generation, and integration tests.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "identify-stable-contracts",
+          "content": "Identify generated contracts, CLI flags, env vars, file paths, assertion names, private-first behavior, and provider compatibility that must remain stable during deepening.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "choose-first-implementation-seam",
+          "content": "Decide which deepening lane can start first with the smallest behavior-preserving diff and list the files it may edit.",
+          "status": "completed",
+          "ordinal": 3
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-01-route-path-semantics.plan.md",
+      "slug": "ultramodern-public-web-deepen-01-route-path-semantics",
+      "name": "ultramodern-public-web-deepen-01-route-path-semantics",
+      "overview": "Collapse duplicated route path semantics across generated route head, public-surface asset generation, and tests so localization, canonical paths, dynamic params, and public URL paths have one generator-owned source of truth.",
+      "todos": [
+        {
+          "id": "characterize-route-path-behavior",
+          "content": "Add or confirm focused characterization coverage for localized canonical paths, dynamic route params, provider discovery paths, sitemap URL paths, and SSR head URL expectations.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "define-route-path-semantics-module",
+          "content": "Define a small internal route path semantics module or cohesive section that can generate shared route path decisions without changing generated contract shapes.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "refactor-head-and-surface-consumers",
+          "content": "Rewire generated route head and public-surface asset generation to consume the shared route path semantics decisions while preserving generated output behavior.",
+          "status": "completed",
+          "ordinal": 3
+        },
+        {
+          "id": "validate-route-path-semantics",
+          "content": "Run focused create integration tests and Biome checks, then inspect generated route metadata/head/public-surface output for unintentional drift.",
+          "status": "completed",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-02-artifact-facade.plan.md",
+      "slug": "ultramodern-public-web-deepen-02-artifact-facade",
+      "name": "ultramodern-public-web-deepen-02-artifact-facade",
+      "overview": "Keep the `createPublicWebAppArtifacts` module deep by ensuring its interface remains focused on generated public-web files and contract fragments, not pass-through command rendering or unrelated cleanup policy.",
+      "todos": [
+        {
+          "id": "verify-facade-scope",
+          "content": "Verify `createPublicWebAppArtifacts` exposes only generated route metadata/head files, route meta/alias files, public head contract, and public surface contract.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "add-regression-guard-if-needed",
+          "content": "Add the smallest regression guard if existing tests do not prevent reintroducing pass-through fields or unrelated responsibilities into the facade.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "validate-artifact-facade",
+          "content": "Run focused integration and source checks to prove generated package scripts and public-web artifacts remain stable.",
+          "status": "completed",
+          "ordinal": 3
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-03-policy-decisions.plan.md",
+      "slug": "ultramodern-public-web-deepen-03-policy-decisions",
+      "name": "ultramodern-public-web-deepen-03-policy-decisions",
+      "overview": "Deepen `PUBLIC_WEBSITE_POLICY` from a nested constant bag into a private create-package policy module that owns generated public-web decisions without becoming a broad profile or certification engine.",
+      "todos": [
+        {
+          "id": "map-policy-projections",
+          "content": "Map every current projection of `PUBLIC_WEBSITE_POLICY` into contracts, generated validator snippets, generated head robots, proof fallbacks, tests, and docs.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "characterize-policy-output",
+          "content": "Strengthen characterization only where generated quality gates, robots policy, provider defaults, or proof fallback values are not already pinned.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "deepen-policy-rendering",
+          "content": "Move behavior-preserving rendering decisions behind the private policy module so callers ask for decisions rather than reassembling nested policy fragments.",
+          "status": "completed",
+          "ordinal": 3
+        },
+        {
+          "id": "validate-policy-decisions",
+          "content": "Run focused integration tests, create package tests, and Biome checks; confirm ADR-0016 boundaries are still respected.",
+          "status": "completed",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-04-cloudflare-proof-helper.plan.md",
+      "slug": "ultramodern-public-web-deepen-04-cloudflare-proof-helper",
+      "name": "ultramodern-public-web-deepen-04-cloudflare-proof-helper",
+      "overview": "Deepen the generated Cloudflare proof helper by separating evidence mechanics and assertion families internally while keeping `proof-cloudflare-version.mjs` CLI, env vars, report JSON, and assertion names stable.",
+      "todos": [
+        {
+          "id": "map-proof-helper-responsibilities",
+          "content": "Map current generated proof helper responsibilities across fetch evidence, security assertions, public-surface assertions, SSR head assertions, CSS/MF/i18n checks, Effect readiness, and report assembly.",
+          "status": "completed",
+          "ordinal": 1
+        },
+        {
+          "id": "characterize-proof-helper",
+          "content": "Add or confirm tests that pin the generated helper import, CLI behavior, skipped reports, assertion names, fallback budgets, and public URL env behavior.",
+          "status": "completed",
+          "ordinal": 2
+        },
+        {
+          "id": "group-proof-assertions",
+          "content": "Refactor the generated proof helper into clearer internal assertion groups or evidence helpers without changing its exported interface or generated CLI adapter.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "validate-proof-helper",
+          "content": "Run create integration tests, `@modern-js/create` tests, and any touched Cloudflare validation tests.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-05-generated-output-tests.plan.md",
+      "slug": "ultramodern-public-web-deepen-05-generated-output-tests",
+      "name": "ultramodern-public-web-deepen-05-generated-output-tests",
+      "overview": "Narrow generated-output tests so they keep compatibility checks for public surfaces but rely more on generated artifact behavior than brittle string-internal mirroring.",
+      "todos": [
+        {
+          "id": "classify-test-assertions",
+          "content": "Classify current integration assertions as public compatibility surfaces, generated artifact behavior, or implementation-internal string mirroring.",
+          "status": "pending",
+          "ordinal": 1
+        },
+        {
+          "id": "preserve-required-compatibility-checks",
+          "content": "Keep string-level checks only where they protect intentional compatibility surfaces such as CLI paths, env names, report fields, assertion names, and generated exports.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "shift-to-artifact-behavior",
+          "content": "Replace safe implementation-internal string checks with generated script execution, contract outcome checks, or artifact output assertions.",
+          "status": "pending",
+          "ordinal": 3
+        },
+        {
+          "id": "validate-generated-output-tests",
+          "content": "Run create integration tests and inspect failures to ensure coverage was not narrowed or made less precise.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "ultramodern-public-web-deepen-04-cloudflare-proof-helper",
+      "plan_name": "ultramodern-public-web-deepen-04-cloudflare-proof-helper",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-04-cloudflare-proof-helper.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "group-proof-assertions",
+          "content": "Refactor the generated proof helper into clearer internal assertion groups or evidence helpers without changing its exported interface or generated CLI adapter.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "validate-proof-helper",
+          "content": "Run create integration tests, `@modern-js/create` tests, and any touched Cloudflare validation tests.",
+          "status": "pending",
+          "ordinal": 4
+        }
+      ],
+      "completed": 2,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-public-web-deepen-05-generated-output-tests",
+      "plan_name": "ultramodern-public-web-deepen-05-generated-output-tests",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-05-generated-output-tests.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "ultramodern-public-web-deepen-04-cloudflare-proof-helper"
+      ],
+      "active": [
+        {
+          "id": "classify-test-assertions",
+          "content": "Classify current integration assertions as public compatibility surfaces, generated artifact behavior, or implementation-internal string mirroring.",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [
+        {
+          "id": "preserve-required-compatibility-checks",
+          "content": "Keep string-level checks only where they protect intentional compatibility surfaces such as CLI paths, env names, report fields, assertion names, and generated exports.",
+          "status": "pending",
+          "ordinal": 2
+        },
+        {
+          "id": "shift-to-artifact-behavior",
+          "content": "Replace safe implementation-internal string checks with generated script execution, contract outcome checks, or artifact output assertions.",
+          "status": "pending",
+          "ordinal": 3
+        }
+      ],
+      "completed": 0,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-public-web-deepen-00-research",
+      "plan_name": "ultramodern-public-web-deepen-00-research",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-00-research.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 3,
+      "total": 3
+    },
+    {
+      "plan_slug": "ultramodern-public-web-deepen-01-route-path-semantics",
+      "plan_name": "ultramodern-public-web-deepen-01-route-path-semantics",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-01-route-path-semantics.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    },
+    {
+      "plan_slug": "ultramodern-public-web-deepen-02-artifact-facade",
+      "plan_name": "ultramodern-public-web-deepen-02-artifact-facade",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-02-artifact-facade.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 3,
+      "total": 3
+    },
+    {
+      "plan_slug": "ultramodern-public-web-deepen-03-policy-decisions",
+      "plan_name": "ultramodern-public-web-deepen-03-policy-decisions",
+      "plan_path": "/Users/satan/side/experiments/modernjs/.codex/plans/ultramodern-public-web-deepen-03-policy-decisions.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
+      "upcoming": [],
+      "completed": 4,
+      "total": 4
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "matched-plan-set"
+}

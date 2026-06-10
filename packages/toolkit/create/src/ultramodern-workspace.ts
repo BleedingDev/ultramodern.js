@@ -970,10 +970,6 @@ const PUBLIC_WEBSITE_POLICY = {
   },
 };
 
-function createPublicWebsiteQualityGateContract(): JsonValue {
-  return PUBLIC_WEBSITE_POLICY.qualityGates;
-}
-
 function formatTsJsonValue(value: JsonValue, indent: number): string {
   return JSON.stringify(value, null, 2).replaceAll(
     '\n',
@@ -983,6 +979,26 @@ function formatTsJsonValue(value: JsonValue, indent: number): string {
 
 function formatIntegerCodeLiteral(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, '_');
+}
+
+function createPublicWebsiteQualityGateContract(): JsonValue {
+  return PUBLIC_WEBSITE_POLICY.qualityGates;
+}
+
+function createPublicWebsiteBudgetFallback(
+  budgetName: keyof (typeof PUBLIC_WEBSITE_POLICY)['qualityGates']['budgets'],
+): string {
+  return formatIntegerCodeLiteral(
+    PUBLIC_WEBSITE_POLICY.qualityGates.budgets[budgetName],
+  );
+}
+
+function createPublicHeadRobotsPolicy() {
+  return PUBLIC_WEBSITE_POLICY.publicHead;
+}
+
+function createPublicSurfaceContentExpansionPolicy() {
+  return PUBLIC_WEBSITE_POLICY.publicSurface;
 }
 
 function createCloudflareDeployContract(
@@ -1951,20 +1967,61 @@ export { routeMeta };
 `;
 }
 
-function routeSegmentToDirectory(segment: string): string {
+function normalisePublicPath(pathname: string): string {
+  const normalised = pathname
+    .trim()
+    .replaceAll(/\/+/gu, '/')
+    .replace(/\/+$/u, '');
+  return normalised.length > 0 && normalised.startsWith('/')
+    ? normalised
+    : `/${normalised}`;
+}
+
+function splitPublicPathSegments(pathname: string): string[] {
+  return normalisePublicPath(pathname).split('/').filter(Boolean);
+}
+
+function routePathParamName(segment: string): string | undefined {
   if (segment.startsWith(':')) {
-    const name = segment.slice(1).replace(/\?$/u, '');
-    return segment.endsWith('?') ? `[${name}$]` : `[${name}]`;
+    return segment.slice(1).replace(/[?*+]$/u, '');
   }
 
+  if (segment.startsWith('[') && segment.endsWith(']')) {
+    return segment
+      .slice(1, -1)
+      .replace(/^\.\.\./u, '')
+      .replace(/\$$/u, '');
+  }
+
+  return undefined;
+}
+
+function isDynamicPublicPathSegment(segment: string): boolean {
+  return (
+    routePathParamName(segment) !== undefined ||
+    segment.includes('*') ||
+    segment.startsWith('[')
+  );
+}
+
+function isConcretePublicPath(pathname: string): boolean {
+  return !splitPublicPathSegments(pathname).some(isDynamicPublicPathSegment);
+}
+
+function routeSegmentToDirectory(segment: string): string {
+  const paramName = routePathParamName(segment);
+  if (paramName && segment.startsWith(':')) {
+    return segment.endsWith('?') ? `[${paramName}$]` : `[${paramName}]`;
+  }
   return segment;
 }
 
+function routePathDirectorySegments(routePath: string): string[] {
+  return splitPublicPathSegments(routePath).map(routeSegmentToDirectory);
+}
+
 function createRoutePageFilePath(app: WorkspaceApp, canonicalPath: string) {
-  const segments = canonicalPath
-    .split('/')
-    .filter(Boolean)
-    .map(routeSegmentToDirectory);
+  const segments = routePathDirectorySegments(canonicalPath);
 
   return `${app.directory}/src/routes/[lang]/${[...segments, 'page.tsx'].join(
     '/',
@@ -1972,10 +2029,7 @@ function createRoutePageFilePath(app: WorkspaceApp, canonicalPath: string) {
 }
 
 function createRouteMetaFilePath(app: WorkspaceApp, canonicalPath: string) {
-  const segments = canonicalPath
-    .split('/')
-    .filter(Boolean)
-    .map(routeSegmentToDirectory);
+  const segments = routePathDirectorySegments(canonicalPath);
 
   return `${app.directory}/src/routes/[lang]/${[
     ...segments,
@@ -2239,33 +2293,12 @@ type PublicSurfaceContentSource = {
   routeId: string;
 };
 
-function normalisePublicPath(pathname: string): string {
-  const normalised = pathname
-    .trim()
-    .replaceAll(/\/+/gu, '/')
-    .replace(/\/+$/u, '');
-  return normalised.length > 0 && normalised.startsWith('/')
-    ? normalised
-    : `/${normalised}`;
-}
-
 function createLocalisedPublicPath(
   pathname: string,
   language: SupportedWorkspaceLanguage,
 ): string {
   const publicPath = normalisePublicPath(pathname);
   return publicPath === '/' ? `/${language}` : `/${language}${publicPath}`;
-}
-
-function isConcretePublicPath(pathname: string): boolean {
-  return !normalisePublicPath(pathname)
-    .split('/')
-    .some(
-      segment =>
-        segment.startsWith(':') ||
-        segment.includes('*') ||
-        segment.startsWith('['),
-    );
 }
 
 function uniqueSorted(values: string[]): string[] {
@@ -2369,6 +2402,8 @@ function rewriteWorkspaceAssetsForApp(
 }
 
 function createRouteHeadModule(app: WorkspaceApp): string {
+  const robotsPolicy = createPublicHeadRobotsPolicy();
+
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useLocation } from '@modern-js/plugin-tanstack/runtime';
 import { Helmet } from '@modern-js/runtime/head';
@@ -2547,7 +2582,7 @@ export const UltramodernRouteHead = () => {
     <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>
       <title>{title}</title>
       <meta content={description} name="description" />
-      <meta content={indexable ? '${PUBLIC_WEBSITE_POLICY.publicHead.indexableRobots}' : '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}'} name="robots" />
+      <meta content={indexable ? '${robotsPolicy.indexableRobots}' : '${robotsPolicy.privateRouteRobots}'} name="robots" />
       {indexable && (
         <>
           <link rel="canonical" href={canonicalUrl} />
@@ -4964,6 +4999,7 @@ function createStylingContract(
 
 function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
   const files = createPublicSurfaceOutputFiles(app);
+  const contentExpansionPolicy = createPublicSurfaceContentExpansionPolicy();
 
   return {
     authoring: 'colocated-route-meta',
@@ -4980,12 +5016,11 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     languages: [...supportedWorkspaceLanguages],
     contentExpansion: {
       authoring: 'route-owned-esm-provider',
-      defaultProviderFile:
-        PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile,
+      defaultProviderFile: contentExpansionPolicy.defaultProviderFile,
       entryExport: 'default-or-entries',
       paramsSource: 'params-or-localeParams',
-      draftPolicy: PUBLIC_WEBSITE_POLICY.publicSurface.draftPolicy,
-      indexablePolicy: PUBLIC_WEBSITE_POLICY.publicSurface.indexablePolicy,
+      draftPolicy: contentExpansionPolicy.draftPolicy,
+      indexablePolicy: contentExpansionPolicy.indexablePolicy,
       lifecycle: 'executed-during-public-surface-generation',
     },
     contentSources: createPublicSurfaceContentSources(app),
@@ -4996,6 +5031,8 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
 }
 
 function createPublicHeadContract(): JsonValue {
+  const robotsPolicy = createPublicHeadRobotsPolicy();
+
   return {
     authoring: 'colocated-route-meta',
     generator: './src/routes/ultramodern-route-head',
@@ -5030,7 +5067,7 @@ function createPublicHeadContract(): JsonValue {
       type: 'WebPage',
       sanitizesHtmlOpenBracket: true,
     },
-    privateRouteRobots: PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots,
+    privateRouteRobots: robotsPolicy.privateRouteRobots,
   };
 }
 
@@ -5448,6 +5485,8 @@ process.exitCode = runWorkspaceSourceCheck({
 }
 
 function createPublicSurfaceAssetsScript(): string {
+  const contentExpansionPolicy = createPublicSurfaceContentExpansionPolicy();
+
   return `#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5508,7 +5547,7 @@ Set each app's production URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com
 
 Dynamic public routes can opt into sitemap expansion by adding a route-owned
-${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile} provider beside route metadata, or by adding an
+${contentExpansionPolicy.defaultProviderFile} provider beside route metadata, or by adding an
 explicit provider to routes.publicSurface.contentSources. Providers should export
 an entries array, entries() function, or default entries/loader returning
 UltramodernPublicSitemapEntry[].
@@ -5599,14 +5638,26 @@ function createLocalisedPublicPath(pathname, language) {
   return publicPath === '/' ? '/' + language : '/' + language + publicPath;
 }
 
-function getSegmentParamName(segment) {
+function splitPublicPathSegments(pathname) {
+  return normalizePublicPath(pathname).split('/').filter(Boolean);
+}
+
+function routePathParamName(segment) {
   if (segment.startsWith(':')) {
     return segment.slice(1).replace(/[?*+]$/u, '');
   }
   if (segment.startsWith('[') && segment.endsWith(']')) {
-    return segment.slice(1, -1).replace(/^\\.\\.\\./u, '');
+    return segment.slice(1, -1).replace(/^\\.\\.\\./u, '').replace(/\\$$/u, '');
   }
   return undefined;
+}
+
+function routeSegmentToDirectory(segment) {
+  const paramName = routePathParamName(segment);
+  if (paramName && segment.startsWith(':')) {
+    return segment.endsWith('?') ? '[' + paramName + '$]' : '[' + paramName + ']';
+  }
+  return segment;
 }
 
 function assertParamValue(routeId, language, paramName, value) {
@@ -5621,13 +5672,12 @@ function assertParamValue(routeId, language, paramName, value) {
 }
 
 function expandPublicPathPattern(routeId, language, pattern, params) {
-  const normalised = normalizePublicPath(pattern);
-  const segments = normalised.split('/').filter(Boolean);
+  const segments = splitPublicPathSegments(pattern);
   if (segments.length === 0) {
     return '/';
   }
   const expanded = segments.map(segment => {
-    const paramName = getSegmentParamName(segment);
+    const paramName = routePathParamName(segment);
     if (!paramName) {
       if (segment.includes('*')) {
         throw new Error(routeId + ' ' + language + ' sitemap expansion does not support wildcard path segment ' + segment);
@@ -5675,20 +5725,13 @@ function normalizeSitemapFields(routeId, entry) {
 }
 
 function routePathToProviderDirectory(routePath) {
-  const normalised = normalizePublicPath(routePath);
-  const segments = normalised.split('/').filter(Boolean);
+  const segments = splitPublicPathSegments(routePath);
   if (segments.length === 0) {
     return 'src/routes/[lang]';
   }
   return path.posix.join(
     'src/routes/[lang]',
-    ...segments.map(segment => {
-      if (segment.startsWith(':')) {
-        const paramName = segment.slice(1).replace(/[?*+]$/u, '');
-        return '[' + paramName + ']';
-      }
-      return segment;
-    }),
+    ...segments.map(routeSegmentToDirectory),
   );
 }
 
@@ -5708,7 +5751,7 @@ function createDiscoveredContentSources(app, publicSurface) {
     }
     const providerModule = path.posix.join(
       routePathToProviderDirectory(route.canonicalPath),
-      '${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile}',
+      '${contentExpansionPolicy.defaultProviderFile}',
     );
     if (fs.existsSync(resolveAppRelativePath(app, providerModule))) {
       discovered.push({
@@ -6024,6 +6067,11 @@ function createWorkspaceValidationScript(
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy'
       : 'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy';
   const expectedCloudflareSecurity = createCloudflareSecurityContract();
+  const contentExpansionPolicy = createPublicSurfaceContentExpansionPolicy();
+  const robotsPolicy = createPublicHeadRobotsPolicy();
+  const qualityGates = createPublicWebsiteQualityGateContract() as {
+    csp: { finalMode: string };
+  };
 
   return `import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -6078,9 +6126,9 @@ const assertPublicSurfaceContract = (appId, publicSurface) => {
   assert(!('staticRoot' in (publicSurface ?? {})), \`\${appId} public surface must not point at source config/public\`);
   assert((publicSurface?.files ?? []).includes('robots.txt'), \`\${appId} public surface must always emit robots.txt\`);
   assert(publicSurface?.contentExpansion?.authoring === 'route-owned-esm-provider', \`\${appId} public content expansion authoring is incorrect\`);
-  assert(publicSurface?.contentExpansion?.defaultProviderFile === '${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile}', \`\${appId} public content expansion provider file is incorrect\`);
-  assert(publicSurface?.contentExpansion?.draftPolicy === '${PUBLIC_WEBSITE_POLICY.publicSurface.draftPolicy}', \`\${appId} public content expansion draft policy is incorrect\`);
-  assert(publicSurface?.contentExpansion?.indexablePolicy === '${PUBLIC_WEBSITE_POLICY.publicSurface.indexablePolicy}', \`\${appId} public content expansion indexable policy is incorrect\`);
+  assert(publicSurface?.contentExpansion?.defaultProviderFile === '${contentExpansionPolicy.defaultProviderFile}', \`\${appId} public content expansion provider file is incorrect\`);
+  assert(publicSurface?.contentExpansion?.draftPolicy === '${contentExpansionPolicy.draftPolicy}', \`\${appId} public content expansion draft policy is incorrect\`);
+  assert(publicSurface?.contentExpansion?.indexablePolicy === '${contentExpansionPolicy.indexablePolicy}', \`\${appId} public content expansion indexable policy is incorrect\`);
   assert(Array.isArray(publicSurface?.contentSources), \`\${appId} public content sources must be an array\`);
   if ((publicSurface?.publicRoutes ?? []).length === 0) {
     assert(!(publicSurface?.files ?? []).includes('sitemap.xml'), \`\${appId} private public surface must omit sitemap.xml\`);
@@ -6098,7 +6146,7 @@ const assertPublicHeadContract = (appId, publicHead, headModule) => {
   assert(publicHead?.description?.source === 'route.descriptionKey', \`\${appId} public head description must come from route metadata\`);
   assert(publicHead?.canonical?.publicIndexableOnly === true, \`\${appId} canonical links must be public/indexable only\`);
   assert(publicHead?.structuredData?.sanitizesHtmlOpenBracket === true, \`\${appId} structured data must sanitize HTML open brackets\`);
-  assert(publicHead?.privateRouteRobots === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}', \`\${appId} private route robots policy is incorrect\`);
+  assert(publicHead?.privateRouteRobots === '${robotsPolicy.privateRouteRobots}', \`\${appId} private route robots policy is incorrect\`);
   for (const snippet of [
     "from '@modern-js/runtime/head'",
     '<title>{title}</title>',
@@ -6125,7 +6173,7 @@ const assertCloudflareQualityGates = (appId, qualityGates) => {
   assert(qualityGates?.assets?.sourcemapsPubliclyReferenced === false, \`\${appId} quality gates must reject public sourcemap references\`);
   assert(typeof qualityGates?.budgets?.ssrHtmlMaxBytes === 'number', \`\${appId} quality gates must define SSR HTML byte budget\`);
   assert(typeof qualityGates?.budgets?.mfManifestMaxBytes === 'number', \`\${appId} quality gates must define MF manifest byte budget\`);
-  assert(qualityGates?.csp?.finalMode === '${PUBLIC_WEBSITE_POLICY.qualityGates.csp.finalMode}', \`\${appId} CSP final mode decision is missing\`);
+  assert(qualityGates?.csp?.finalMode === '${qualityGates.csp.finalMode}', \`\${appId} CSP final mode decision is missing\`);
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
@@ -6535,6 +6583,11 @@ console.log('UltraModern workspace scaffold validated');
 }
 
 function createCloudflareProofHelperScript(): string {
+  const robotsPolicy = createPublicHeadRobotsPolicy();
+  const qualityGates = createPublicWebsiteQualityGateContract() as {
+    statusCodes: { notFoundRoute: string; unknownRouteStatus: number };
+  };
+
   return `function joinUrl(baseUrl, routePath) {
   return new URL(routePath, baseUrl.endsWith('/') ? baseUrl : \`\${baseUrl}/\`);
 }
@@ -6779,10 +6832,10 @@ function assertCloudflareSecurity(evidence, app, response, route, publicUrl, opt
       type: 'security-noindex',
       route,
       actual: response.xRobotsTag,
-      status: response.xRobotsTag === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' ? 'pass' : 'fail',
+      status: response.xRobotsTag === '${robotsPolicy.privateRouteRobots}' ? 'pass' : 'fail',
     });
     assert(
-      response.xRobotsTag === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}',
+      response.xRobotsTag === '${robotsPolicy.privateRouteRobots}',
       \`\${app.id} \${route} is missing noindex X-Robots-Tag\`,
     );
   }
@@ -6927,7 +6980,7 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
     });
   }
   const isPreview = shouldNoindexUrl(publicUrl, app.deploy?.cloudflare?.security?.noindex);
-  const robotsIndexable = htmlHasRobotsDirective(headResponse.body, 'index, follow');
+  const robotsIndexable = htmlHasRobotsDirective(headResponse.body, '${robotsPolicy.indexableRobots}');
   evidence.assertions.push({
     type: 'indexing-policy',
     route: headRoute,
@@ -6935,13 +6988,13 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
     xRobotsTag: headResponse.xRobotsTag,
     htmlRobotsIndexable: robotsIndexable,
     status:
-      isPreview || (headResponse.xRobotsTag !== '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' && robotsIndexable)
+      isPreview || (headResponse.xRobotsTag !== '${robotsPolicy.privateRouteRobots}' && robotsIndexable)
         ? 'pass'
         : 'fail',
   });
   if (!isPreview) {
     assert(
-      headResponse.xRobotsTag !== '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' && robotsIndexable,
+      headResponse.xRobotsTag !== '${robotsPolicy.privateRouteRobots}' && robotsIndexable,
       \`\${app.id} \${headRoute} production public route must be indexable\`,
     );
   }
@@ -7001,8 +7054,8 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
 async function validateNotFound(evidence, app, publicUrl) {
   const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
   const notFoundRoute =
-    qualityGates.statusCodes?.notFoundRoute ?? '${PUBLIC_WEBSITE_POLICY.qualityGates.statusCodes.notFoundRoute}';
-  const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? 404;
+    qualityGates.statusCodes?.notFoundRoute ?? '${qualityGates.statusCodes.notFoundRoute}';
+  const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? ${qualityGates.statusCodes.unknownRouteStatus};
   const response = await fetchText(joinUrl(publicUrl, notFoundRoute));
   evidence.assertions.push({
     type: 'status-code',
@@ -7052,7 +7105,7 @@ async function validateCssAsset(evidence, app, publicUrl, ssr) {
   });
   assertByteBudget(evidence, app, css, {
     label: 'cssAssetMaxBytes',
-    maxBytes: budgets.cssAssetMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.cssAssetMaxBytes)},
+    maxBytes: budgets.cssAssetMaxBytes ?? ${createPublicWebsiteBudgetFallback('cssAssetMaxBytes')},
     route,
   });
 }
@@ -7111,7 +7164,7 @@ async function validatePublicSurface(evidence, app, publicUrl) {
   });
   assertByteBudget(evidence, app, sitemap, {
     label: 'sitemapXmlMaxBytes',
-    maxBytes: budgets.sitemapXmlMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.sitemapXmlMaxBytes)},
+    maxBytes: budgets.sitemapXmlMaxBytes ?? ${createPublicWebsiteBudgetFallback('sitemapXmlMaxBytes')},
     route: sitemapRoute,
   });
 
@@ -7186,7 +7239,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, ssr, {
     label: 'ssrHtmlMaxBytes',
-    maxBytes: budgets.ssrHtmlMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.ssrHtmlMaxBytes)},
+    maxBytes: budgets.ssrHtmlMaxBytes ?? ${createPublicWebsiteBudgetFallback('ssrHtmlMaxBytes')},
     route: ssrRoute,
   });
   await validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr);
@@ -7253,7 +7306,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, manifest, {
     label: 'mfManifestMaxBytes',
-    maxBytes: budgets.mfManifestMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.mfManifestMaxBytes)},
+    maxBytes: budgets.mfManifestMaxBytes ?? ${createPublicWebsiteBudgetFallback('mfManifestMaxBytes')},
     route: manifestRoute,
   });
   assertNoPublicSourcemapRefs(evidence, app, manifestJson);
@@ -7303,7 +7356,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, locale, {
     label: 'localeJsonMaxBytes',
-    maxBytes: budgets.localeJsonMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.localeJsonMaxBytes)},
+    maxBytes: budgets.localeJsonMaxBytes ?? ${createPublicWebsiteBudgetFallback('localeJsonMaxBytes')},
     route: localeRoute,
   });
   evidence.assertions.push({

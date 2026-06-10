@@ -1914,6 +1914,18 @@ process.exit(1);
         ownerAppId: 'shell-super-app',
         titleKey: 'shell.sessions.detail.title',
       },
+      {
+        canonicalPath: '/optional/:slug?',
+        descriptionKey: 'shell.optional.detail.meta.description',
+        id: 'optional-detail',
+        localisedPaths: {
+          en: '/optional/:slug?',
+          cs: '/volitelne/:slug?',
+        },
+        namespace: 'shell',
+        ownerAppId: 'shell-super-app',
+        titleKey: 'shell.optional.detail.title',
+      },
     ];
     shellContract.routes.publicSurface.contentSources = [
       {
@@ -1982,6 +1994,17 @@ export const entries = [
 }
 `,
     );
+    writeText(
+      workspaceDir,
+      'apps/shell-super-app/src/routes/[lang]/optional/[slug$]/route.sitemap.mjs',
+      `export const entries = [
+  {
+    params: { slug: 'route-owned-optional' },
+    localeParams: { cs: { slug: 'volitelny-segment' } },
+  },
+];
+`,
+    );
 
     execFileSync(
       process.execPath,
@@ -2019,6 +2042,12 @@ export const entries = [
     expect(sitemap).toContain(
       '<loc>https://example.com/cs/sezeni/nacist-poskytovatele</loc>',
     );
+    expect(sitemap).toContain(
+      '<loc>https://example.com/en/optional/route-owned-optional</loc>',
+    );
+    expect(sitemap).toContain(
+      '<loc>https://example.com/cs/volitelne/volitelny-segment</loc>',
+    );
     expect(sitemap).toContain('hreflang="x-default"');
     expect(sitemap).toContain('<lastmod>2026-06-10</lastmod>');
     expect(sitemap).toContain('<lastmod>2026-06-11</lastmod>');
@@ -2037,6 +2066,8 @@ export const entries = [
     expect(robots).toContain('Allow: /cs/prednasky/verejny-web$');
     expect(robots).toContain('Allow: /en/sessions/provider-loader$');
     expect(robots).toContain('Allow: /cs/sezeni/nacist-poskytovatele$');
+    expect(robots).toContain('Allow: /en/optional/route-owned-optional$');
+    expect(robots).toContain('Allow: /cs/volitelne/volitelny-segment$');
     expect(robots).toContain('Sitemap: https://example.com/sitemap.xml');
 
     const webManifest = readJson(
