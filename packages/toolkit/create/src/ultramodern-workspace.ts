@@ -1070,11 +1070,14 @@ function createAppPackage(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
-  const publicWeb = createPublicWebAppArtifacts(app);
-  const publicSurfaceBuildCommand = publicWeb.buildCommand('dist');
-  const publicSurfaceCloudflareBuildCommand = publicWeb.buildCommand('dist');
+  const publicSurfaceBuildCommand = createPublicSurfaceGenerationCommand(
+    app,
+    'dist',
+  );
+  const publicSurfaceCloudflareBuildCommand =
+    createPublicSurfaceGenerationCommand(app, 'dist');
   const publicSurfaceCloudflareOutputCommand =
-    publicWeb.buildCommand('cloudflare');
+    createPublicSurfaceGenerationCommand(app, 'cloudflare');
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
     Object.entries(app.exposes ?? {}).map(([expose, source]) => [
       expose,
@@ -5043,11 +5046,6 @@ type PublicWebAppArtifacts = {
   routeAliasFiles: PublicWebGeneratedFile[];
   publicHead: JsonValue;
   publicSurface: JsonValue;
-  buildCommand: (
-    target: PublicSurfaceGenerationTarget,
-    requirePublicOrigin?: boolean,
-  ) => string;
-  managedSourceAssetPaths: readonly string[];
 };
 
 function createPublicWebAppArtifacts(app: WorkspaceApp): PublicWebAppArtifacts {
@@ -5074,9 +5072,6 @@ function createPublicWebAppArtifacts(app: WorkspaceApp): PublicWebAppArtifacts {
       })),
     publicHead: createPublicHeadContract(),
     publicSurface: createPublicSurfaceContract(app),
-    buildCommand: (target, requirePublicOrigin) =>
-      createPublicSurfaceGenerationCommand(app, target, requirePublicOrigin),
-    managedSourceAssetPaths: publicSurfaceManagedSourceAssetPaths,
   };
 }
 
