@@ -33,12 +33,12 @@ Launch these together. They must not edit files.
 
 | Lane | Agent id | Owner / write scope | Dependency | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| proof-interface-scout | unassigned | Read-only: `packages/toolkit/create/src/ultramodern-workspace.ts`, `scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js`, `packages/solutions/app-tools/src/plugins/deploy/platforms/templates/cloudflare-entry.mjs` | none | ready | Map stable proof interface, adapters, duplicate security/indexing logic, and current report invariants. |
-| generator-surface-scout | unassigned | Read-only: public web functions in `packages/toolkit/create/src/ultramodern-workspace.ts` and create integration tests | none | ready | Inventory route metadata projection, public surface contract, asset script generation, content expansion, and validation glue. |
-| policy-duplication-scout | unassigned | Read-only: quality gate contract, generated validator assertions, integration expectations, README/template docs | none | ready | List duplicated policy literals and identify the smallest owner for policy data. |
-| provider-dx-scout | unassigned | Read-only: route-owned metadata/provider code paths, shared-contracts output, dynamic sitemap smoke test | none | ready | Document current provider interface and discovery constraints for `route.sitemap.mjs`. |
-| existing-proof-reuse-scout | unassigned | Read-only: existing Cloudflare proof/validation scripts and tests outside create package | none | ready | Identify reusable helpers or test fixtures that avoid adding new proof code. |
-| generated-output-baseline-scout | unassigned | Read-only verification only | none | ready | Produce exact commands and generated-file snapshots needed before write lanes start. |
+| proof-interface-scout | `019eb31e-e0a2-7de0-b844-a91919e3605a` / Linnaeus | Read-only: `packages/toolkit/create/src/ultramodern-workspace.ts`, `scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js`, `packages/solutions/app-tools/src/plugins/deploy/platforms/templates/cloudflare-entry.mjs` | none | complete | Stable seam: create-owned proof runner with URL/local-Worker adapters; preserve generated CLI flags, env vars, report schema, assertion names, and private-first behavior. |
+| generator-surface-scout | `019eb31e-fbbb-7732-81b0-a99b2cdfc322` / Dirac | Read-only: public web functions in `packages/toolkit/create/src/ultramodern-workspace.ts` and create integration tests | none | complete | Recommended seam: internal `createPublicWebAppArtifacts(app)` plus sibling public-surface asset script renderer; preserve generated route metadata, publicHead/publicSurface contracts, CLI, scripts, and managed-source cleanup behavior. |
+| policy-duplication-scout | `019eb320-8bf6-78e2-b744-36a28ffd059e` / Goodall | Read-only: quality gate contract, generated validator assertions, integration expectations, README/template docs | none | complete | Duplication spans quality gates, public-surface content expansion, public-head robots, proof fallbacks, validator snippets, tests, and docs; smallest seam is private `PUBLIC_WEBSITE_POLICY` near public-web generator, excluding Cloudflare runtime security ownership. |
+| provider-dx-scout | `019eb320-8c9e-79c0-8824-eac3e8624460` / Arendt | Read-only: route-owned metadata/provider code paths, shared-contracts output, dynamic sitemap smoke test | none | complete | Current runtime supports `contentSources` and `route.sitemap.mjs` export forms, but generator discovery returns empty sources; preserve explicit manifest compatibility, loader context, filters, validation, and no page/CSS imports. |
+| existing-proof-reuse-scout | `019eb320-8d37-7961-a66e-3f94d82171f9` / Curie | Read-only: existing Cloudflare proof/validation scripts and tests outside create package | none | complete | Reuse adapter mechanics/fixtures from local SSR validator and Cloudflare tests; keep browser smoke separate; generated proof needs stricter assertion library plus CLI/report shell, without importing runtime implementation. |
+| generated-output-baseline-scout | `019eb320-8dc9-7b00-a312-d35c33ae7a6a` / McClintock | Read-only verification only | none | complete | Baseline gates: create-ultramodern integration, `@modern-js/create` tests, plan graph validate; invariants cover generated proof CLI/report/assertions, public surface contract/assets, route metadata manifest, quality gates, and private-first outputs. |
 
 ## Wave 2 — Disjoint Write Lanes
 
@@ -46,10 +46,10 @@ Launch only after Wave 1 has returned and the primary agent has chosen shared in
 
 | Lane | Agent id | Owner / write scope | Dependency | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| proof-characterization-worker | unassigned | Tests only: `tests/integration/create-ultramodern-workspace/tests/index.test.ts` and, if needed, `scripts/ultramodern-cloudflare-ssr-validation/__tests__/*` | Wave 1 proof scouts | blocked | Add characterization tests for current proof output and assertions. Do not edit implementation. |
-| proof-module-worker | unassigned | Implementation: proof helper module and generated `proof-cloudflare-version.mjs` template area only | `proof-characterization-worker` | blocked | Extract proof module and wire public URL adapter. Do not edit generator public surface helpers. |
-| generator-characterization-worker | unassigned | Tests only: generated route metadata/public surface assertions in create integration tests | Wave 1 generator scout | blocked | Strengthen output characterization before moving generator code. Do not edit implementation. |
-| docs-dx-worker | unassigned | Docs only: `packages/toolkit/create/README.md` and generated workspace README text if selected by primary | Wave 1 generator/provider/policy scouts | blocked | Fix DX wording around colocated route metadata, generated compatibility manifest, proof gates, and provider workflow. |
+| proof-characterization-worker | `019eb324-61c5-7950-b6aa-149939b593fe` / Lagrange | Tests only: `tests/integration/create-ultramodern-workspace/tests/index.test.ts` and, if needed, `scripts/ultramodern-cloudflare-ssr-validation/__tests__/*` | Wave 1 proof scouts | complete | Added generated proof-script contract coverage for CLI help, report schema, skipped reports, `--app`, `--require-public-urls`, public URL envs, assertion names, budgets, and Cloudflare/security/public-surface references. |
+| proof-module-worker | primary / local | Implementation: proof helper module and generated `proof-cloudflare-version.mjs` template area only | `proof-characterization-worker` | complete | Extracted reusable generated proof logic to `scripts/ultramodern-cloudflare-proof.mjs`; `proof-cloudflare-version.mjs` remains the CLI/report adapter and imports `validateApp`. Integration suite passes. |
+| generator-characterization-worker | `019eb324-6255-74c2-96db-31962383ec15` / Newton | Tests only: generated route metadata/public surface assertions in create integration tests | Wave 1 generator scout | complete | Added characterization for public surface contract shape, compatibility manifest, colocated root `route.meta.ts`, asset script help, and dynamic contentSources for named/default loader providers across dist/cloudflare targets. |
+| docs-dx-worker | `019eb324-62e7-7243-a1d4-2505c7ae1145` / Hypatia | Docs only: `packages/toolkit/create/README.md` and generated workspace README text if selected by primary | Wave 1 generator/provider/policy scouts | complete | Updated README/template wording for colocated route metadata, generated compatibility manifest, build/deploy public artifacts, explicit contentSources provider wiring, and proof gates. |
 
 ## Wave 3 — Generator And Policy Refactor
 
@@ -57,16 +57,16 @@ Launch after proof extraction is integrated and generator characterization is in
 
 | Lane | Agent id | Owner / write scope | Dependency | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| generator-module-worker | unassigned | Implementation: public web generator module or cohesive section in create package | `proof-module-worker`, `generator-characterization-worker` | blocked | Extract public web generation behind a smaller internal interface. Preserve generated output shape. |
-| policy-data-worker | unassigned | Implementation: public web quality gate policy data and validator/test wiring | `generator-module-worker` | blocked | Consolidate duplicated policy values without creating a profile engine. |
-| provider-discovery-design-worker | unassigned | Design/tests first: provider discovery contract and compatibility tests | `generator-module-worker` | blocked | Design route-owned provider discovery; no implementation until primary accepts seam. |
+| generator-module-worker | primary / local | Implementation: public web generator module or cohesive section in create package | `proof-module-worker`, `generator-characterization-worker` | complete | Introduced internal `createPublicWebAppArtifacts(app)` facade for route metadata/head files, route meta/alias files, publicHead/publicSurface contract fragments, command rendering, and managed asset policy. Integration suite passes. |
+| policy-data-worker | primary / local | Implementation: public web quality gate policy data and validator/test wiring | `generator-module-worker` | complete | Added private `PUBLIC_WEBSITE_POLICY` owner for generated public-web quality gates, public-head robots defaults, public-surface provider/filter defaults, validator checks, and proof fallback rendering. Integration suite passes. |
+| provider-discovery-design-worker | primary / local | Design/tests first: provider discovery contract and compatibility tests | `generator-module-worker` | complete | Accepted seam: generated public-surface asset script discovers existing route-owned `route.sitemap.mjs` files for dynamic public routes at generation time, merges them with explicit `contentSources`, and never imports page/CSS modules. |
 
 ## Wave 4 — Provider DX Implementation And Verification
 
 | Lane | Agent id | Owner / write scope | Dependency | Status | Next action |
 | --- | --- | --- | --- | --- | --- |
-| provider-discovery-worker | unassigned | Implementation: provider discovery and generated contentSources compatibility path | `provider-discovery-design-worker` | blocked | Implement build-safe `route.sitemap.mjs` discovery. |
-| graph-verifier | unassigned | Verification only | all write lanes | blocked | Run full targeted gates and inspect generated output drift. |
+| provider-discovery-worker | primary / local | Implementation: provider discovery and generated contentSources compatibility path | `provider-discovery-design-worker` | complete | Generated public-surface asset script now discovers existing dynamic-route `route.sitemap.mjs` providers and merges them with explicit `contentSources`; docs/help updated; integration suite passes. |
+| graph-verifier | primary / local | Verification only | all write lanes | complete | Passed create-ultramodern integration suite, `@modern-js/create` tests, Biome on touched source/test files, and plan graph validation. |
 
 ## Critical Path
 

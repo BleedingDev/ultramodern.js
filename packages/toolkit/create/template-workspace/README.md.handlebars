@@ -25,12 +25,23 @@ handlers and Effect client/contract modules stay out of browser exposes.
 
 ## Private-First Public Surfaces
 
-Generated app routes are private and non-indexable by default. Private app,
-auth, tenant, dashboard, and internal routes publish no discovery output unless
-route metadata explicitly marks them `public && indexable`. The default scaffold
-therefore emits only a disallowing `robots.txt`; sitemap, web manifest,
-`llms.txt`, API catalog, security.txt, and JSON-LD output stay omitted until a
-safe public route or public docs/help/product surface exists.
+Generated app routes are private and non-indexable by default. Author route
+metadata in colocated `src/routes/**/route.meta.ts` files; the scaffold
+regenerates `src/routes/ultramodern-route-metadata.ts` as a compatibility
+manifest for config, i18n, public head, and public surface contracts. Private
+app, auth, tenant, dashboard, and internal routes publish no discovery output
+unless route metadata explicitly marks them `public && indexable`. The default
+scaffold therefore emits only a disallowing `robots.txt`; sitemap, web
+manifest, `llms.txt`, API catalog, security.txt, and JSON-LD output stay
+omitted until a safe public route or public docs/help/product surface exists.
+
+Public web artifacts are build/deploy outputs generated into `dist/public` and
+`.output/public`, not hand-authored source files under `config/public`. Dynamic
+public routes can expand sitemap entries through route-owned, Node-safe
+`route.sitemap.mjs` providers beside route metadata. The public-surface
+generator discovers those providers for dynamic public routes and still honors
+explicit `routes.publicSurface.contentSources` entries in the generated
+compatibility manifest.
 
 Run the scaffold validator before adding business code and after every
 `--vertical` mutation:
@@ -75,9 +86,12 @@ packages still use `workspace:*` because they are part of this workspace.
 ## Cloudflare Proof
 
 Deploy the generated apps, then pass each deployed app's generated public URL
-env key into the proof step. A shell-only workspace only needs the shell URL;
-added verticals use the same `ULTRAMODERN_PUBLIC_URL_<APP_ID>` pattern with
-hyphens converted to underscores and uppercased.
+env key into the proof step. The proof script reads the generated contract and
+checks the live Worker surface, including public-route sitemap/robots
+consistency, preview noindex behavior, unknown-route status, asset headers,
+byte budgets, and public sourcemap exposure. A shell-only workspace only needs
+the shell URL; added verticals use the same `ULTRAMODERN_PUBLIC_URL_<APP_ID>`
+pattern with hyphens converted to underscores and uppercased.
 
 ```bash
 pnpm cloudflare:deploy

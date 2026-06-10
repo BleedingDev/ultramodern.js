@@ -925,8 +925,8 @@ function createCloudflareSecurityContract(): JsonValue {
   };
 }
 
-function createPublicWebsiteQualityGateContract(): JsonValue {
-  return {
+const PUBLIC_WEBSITE_POLICY = {
+  qualityGates: {
     publicRoutes: {
       requireSitemapWhenPresent: true,
       requireRobotsSitemapConsistency: true,
@@ -958,7 +958,20 @@ function createPublicWebsiteQualityGateContract(): JsonValue {
       decision:
         'Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface.',
     },
-  };
+  },
+  publicHead: {
+    indexableRobots: 'index, follow',
+    privateRouteRobots: 'noindex, nofollow',
+  },
+  publicSurface: {
+    defaultProviderFile: 'route.sitemap.mjs',
+    draftPolicy: 'omit-draft-by-default',
+    indexablePolicy: 'omit-indexable-false',
+  },
+};
+
+function createPublicWebsiteQualityGateContract(): JsonValue {
+  return PUBLIC_WEBSITE_POLICY.qualityGates;
 }
 
 function formatTsJsonValue(value: JsonValue, indent: number): string {
@@ -966,6 +979,10 @@ function formatTsJsonValue(value: JsonValue, indent: number): string {
     '\n',
     `\n${' '.repeat(indent)}`,
   );
+}
+
+function formatIntegerCodeLiteral(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, '_');
 }
 
 function createCloudflareDeployContract(
@@ -1053,14 +1070,11 @@ function createAppPackage(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
-  const publicSurfaceBuildCommand = createPublicSurfaceGenerationCommand(
-    app,
-    'dist',
-  );
-  const publicSurfaceCloudflareBuildCommand =
-    createPublicSurfaceGenerationCommand(app, 'dist');
+  const publicWeb = createPublicWebAppArtifacts(app);
+  const publicSurfaceBuildCommand = publicWeb.buildCommand('dist');
+  const publicSurfaceCloudflareBuildCommand = publicWeb.buildCommand('dist');
   const publicSurfaceCloudflareOutputCommand =
-    createPublicSurfaceGenerationCommand(app, 'cloudflare');
+    publicWeb.buildCommand('cloudflare');
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
     Object.entries(app.exposes ?? {}).map(([expose, source]) => [
       expose,
@@ -2312,9 +2326,11 @@ function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
   ];
 }
 
+type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare';
+
 function createPublicSurfaceGenerationCommand(
   app: WorkspaceApp,
-  target: 'dist' | 'cloudflare',
+  target: PublicSurfaceGenerationTarget,
   requirePublicOrigin = false,
 ): string {
   return `node ${relativeRootFor(
@@ -2528,7 +2544,7 @@ export const UltramodernRouteHead = () => {
     <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>
       <title>{title}</title>
       <meta content={description} name="description" />
-      <meta content={indexable ? 'index, follow' : 'noindex, nofollow'} name="robots" />
+      <meta content={indexable ? '${PUBLIC_WEBSITE_POLICY.publicHead.indexableRobots}' : '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}'} name="robots" />
       {indexable && (
         <>
           <link rel="canonical" href={canonicalUrl} />
@@ -4961,11 +4977,12 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     languages: [...supportedWorkspaceLanguages],
     contentExpansion: {
       authoring: 'route-owned-esm-provider',
-      defaultProviderFile: 'route.sitemap.mjs',
+      defaultProviderFile:
+        PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile,
       entryExport: 'default-or-entries',
       paramsSource: 'params-or-localeParams',
-      draftPolicy: 'omit-draft-by-default',
-      indexablePolicy: 'omit-indexable-false',
+      draftPolicy: PUBLIC_WEBSITE_POLICY.publicSurface.draftPolicy,
+      indexablePolicy: PUBLIC_WEBSITE_POLICY.publicSurface.indexablePolicy,
       lifecycle: 'executed-during-public-surface-generation',
     },
     contentSources: createPublicSurfaceContentSources(app),
@@ -5010,7 +5027,56 @@ function createPublicHeadContract(): JsonValue {
       type: 'WebPage',
       sanitizesHtmlOpenBracket: true,
     },
-    privateRouteRobots: 'noindex, nofollow',
+    privateRouteRobots: PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots,
+  };
+}
+
+type PublicWebGeneratedFile = {
+  path: string;
+  content: string;
+};
+
+type PublicWebAppArtifacts = {
+  routeMetadataFile: PublicWebGeneratedFile;
+  routeHeadFile: PublicWebGeneratedFile;
+  routeMetaFiles: PublicWebGeneratedFile[];
+  routeAliasFiles: PublicWebGeneratedFile[];
+  publicHead: JsonValue;
+  publicSurface: JsonValue;
+  buildCommand: (
+    target: PublicSurfaceGenerationTarget,
+    requirePublicOrigin?: boolean,
+  ) => string;
+  managedSourceAssetPaths: readonly string[];
+};
+
+function createPublicWebAppArtifacts(app: WorkspaceApp): PublicWebAppArtifacts {
+  const routeMetadata = createRouteOwnedI18nPaths(app);
+
+  return {
+    routeMetadataFile: {
+      path: `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
+      content: createRouteMetadataModule(app),
+    },
+    routeHeadFile: {
+      path: `${app.directory}/src/routes/ultramodern-route-head.tsx`,
+      content: createRouteHeadModule(app),
+    },
+    routeMetaFiles: routeMetadata.map(route => ({
+      path: createRouteMetaFilePath(app, route.canonicalPath),
+      content: createRouteMetaModule(route),
+    })),
+    routeAliasFiles: routeMetadata
+      .filter(route => route.canonicalPath !== '/' && app.kind !== 'shell')
+      .map(route => ({
+        path: createRoutePageFilePath(app, route.canonicalPath),
+        content: createRouteAliasPage(route.canonicalPath),
+      })),
+    publicHead: createPublicHeadContract(),
+    publicSurface: createPublicSurfaceContract(app),
+    buildCommand: (target, requirePublicOrigin) =>
+      createPublicSurfaceGenerationCommand(app, target, requirePublicOrigin),
+    managedSourceAssetPaths: publicSurfaceManagedSourceAssetPaths,
   };
 }
 
@@ -5029,6 +5095,7 @@ function createAppGeneratedContract(
             .map(candidate => candidate.id),
         }
       : app;
+  const publicWeb = createPublicWebAppArtifacts(app);
   const consumedRemotes = createModuleFederationRemoteContracts(
     appWithResolvedRefs,
     apps,
@@ -5090,8 +5157,8 @@ function createAppGeneratedContract(
       publicnessDefault: 'private-app-screen',
       generatedRouteMap: true,
       manualOverrides: [],
-      publicHead: createPublicHeadContract(),
-      publicSurface: createPublicSurfaceContract(app),
+      publicHead: publicWeb.publicHead,
+      publicSurface: publicWeb.publicSurface,
     },
     moduleFederation: {
       name: app.mfName,
@@ -5445,10 +5512,11 @@ function printHelp() {
 Set each app's production URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com
 
-Dynamic public routes can opt into sitemap expansion by adding a
-route-owned ESM provider to routes.publicSurface.contentSources. The default
-provider file is route.sitemap.mjs and it should export an entries array,
-entries() function, or default entries/loader returning UltramodernPublicSitemapEntry[].
+Dynamic public routes can opt into sitemap expansion by adding a route-owned
+${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile} provider beside route metadata, or by adding an
+explicit provider to routes.publicSurface.contentSources. Providers should export
+an entries array, entries() function, or default entries/loader returning
+UltramodernPublicSitemapEntry[].
 \`);
 }
 
@@ -5611,6 +5679,60 @@ function normalizeSitemapFields(routeId, entry) {
   return normalized;
 }
 
+function routePathToProviderDirectory(routePath) {
+  const normalised = normalizePublicPath(routePath);
+  const segments = normalised.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    return 'src/routes/[lang]';
+  }
+  return path.posix.join(
+    'src/routes/[lang]',
+    ...segments.map(segment => {
+      if (segment.startsWith(':')) {
+        const paramName = segment.slice(1).replace(/[?*+]$/u, '');
+        return '[' + paramName + ']';
+      }
+      return segment;
+    }),
+  );
+}
+
+function createDiscoveredContentSources(app, publicSurface) {
+  const explicitRouteIds = new Set(
+    (publicSurface.contentSources ?? []).map(source => source.routeId),
+  );
+  const discovered = [];
+  for (const route of publicSurface.publicRoutes ?? []) {
+    if (
+      explicitRouteIds.has(route.id) ||
+      !Object.values(route.localisedPaths ?? {}).some(routePath =>
+        /(?:^|\\/):[^/]+|\\[[^\\]]+\\]/u.test(routePath),
+      )
+    ) {
+      continue;
+    }
+    const providerModule = path.posix.join(
+      routePathToProviderDirectory(route.canonicalPath),
+      '${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile}',
+    );
+    if (fs.existsSync(resolveAppRelativePath(app, providerModule))) {
+      discovered.push({
+        entryExport: 'default-or-entries',
+        module: providerModule,
+        routeId: route.id,
+      });
+    }
+  }
+  return discovered;
+}
+
+function resolveContentSources(app, publicSurface) {
+  return [
+    ...(publicSurface.contentSources ?? []),
+    ...createDiscoveredContentSources(app, publicSurface),
+  ];
+}
+
 async function loadContentSourceEntries(app, contentSource, languages) {
   if (typeof contentSource?.routeId !== 'string' || contentSource.routeId.trim() === '') {
     throw new Error(app.id + ' public content source is missing routeId');
@@ -5637,7 +5759,7 @@ async function expandContentSources(app, publicSurface, languages) {
     (publicSurface.publicRoutes ?? []).map(route => [route.id, route]),
   );
   const expanded = [];
-  for (const contentSource of publicSurface.contentSources ?? []) {
+  for (const contentSource of resolveContentSources(app, publicSurface)) {
     const route = routesById.get(contentSource.routeId);
     if (!route) {
       throw new Error(app.id + ' public content source references unknown route ' + contentSource.routeId);
@@ -5961,9 +6083,9 @@ const assertPublicSurfaceContract = (appId, publicSurface) => {
   assert(!('staticRoot' in (publicSurface ?? {})), \`\${appId} public surface must not point at source config/public\`);
   assert((publicSurface?.files ?? []).includes('robots.txt'), \`\${appId} public surface must always emit robots.txt\`);
   assert(publicSurface?.contentExpansion?.authoring === 'route-owned-esm-provider', \`\${appId} public content expansion authoring is incorrect\`);
-  assert(publicSurface?.contentExpansion?.defaultProviderFile === 'route.sitemap.mjs', \`\${appId} public content expansion provider file is incorrect\`);
-  assert(publicSurface?.contentExpansion?.draftPolicy === 'omit-draft-by-default', \`\${appId} public content expansion draft policy is incorrect\`);
-  assert(publicSurface?.contentExpansion?.indexablePolicy === 'omit-indexable-false', \`\${appId} public content expansion indexable policy is incorrect\`);
+  assert(publicSurface?.contentExpansion?.defaultProviderFile === '${PUBLIC_WEBSITE_POLICY.publicSurface.defaultProviderFile}', \`\${appId} public content expansion provider file is incorrect\`);
+  assert(publicSurface?.contentExpansion?.draftPolicy === '${PUBLIC_WEBSITE_POLICY.publicSurface.draftPolicy}', \`\${appId} public content expansion draft policy is incorrect\`);
+  assert(publicSurface?.contentExpansion?.indexablePolicy === '${PUBLIC_WEBSITE_POLICY.publicSurface.indexablePolicy}', \`\${appId} public content expansion indexable policy is incorrect\`);
   assert(Array.isArray(publicSurface?.contentSources), \`\${appId} public content sources must be an array\`);
   if ((publicSurface?.publicRoutes ?? []).length === 0) {
     assert(!(publicSurface?.files ?? []).includes('sitemap.xml'), \`\${appId} private public surface must omit sitemap.xml\`);
@@ -5981,7 +6103,7 @@ const assertPublicHeadContract = (appId, publicHead, headModule) => {
   assert(publicHead?.description?.source === 'route.descriptionKey', \`\${appId} public head description must come from route metadata\`);
   assert(publicHead?.canonical?.publicIndexableOnly === true, \`\${appId} canonical links must be public/indexable only\`);
   assert(publicHead?.structuredData?.sanitizesHtmlOpenBracket === true, \`\${appId} structured data must sanitize HTML open brackets\`);
-  assert(publicHead?.privateRouteRobots === 'noindex, nofollow', \`\${appId} private route robots policy is incorrect\`);
+  assert(publicHead?.privateRouteRobots === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}', \`\${appId} private route robots policy is incorrect\`);
   for (const snippet of [
     "from '@modern-js/runtime/head'",
     '<title>{title}</title>',
@@ -6008,7 +6130,7 @@ const assertCloudflareQualityGates = (appId, qualityGates) => {
   assert(qualityGates?.assets?.sourcemapsPubliclyReferenced === false, \`\${appId} quality gates must reject public sourcemap references\`);
   assert(typeof qualityGates?.budgets?.ssrHtmlMaxBytes === 'number', \`\${appId} quality gates must define SSR HTML byte budget\`);
   assert(typeof qualityGates?.budgets?.mfManifestMaxBytes === 'number', \`\${appId} quality gates must define MF manifest byte budget\`);
-  assert(qualityGates?.csp?.finalMode === 'report-only-dogfood', \`\${appId} CSP final mode decision is missing\`);
+  assert(qualityGates?.csp?.finalMode === '${PUBLIC_WEBSITE_POLICY.qualityGates.csp.finalMode}', \`\${appId} CSP final mode decision is missing\`);
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
@@ -6417,66 +6539,8 @@ console.log('UltraModern workspace scaffold validated');
 `;
 }
 
-function createCloudflareVersionProofScript(): string {
-  return `#!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const workspaceRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-);
-const contractPath = path.join(
-  workspaceRoot,
-  '.modernjs/ultramodern-generated-contract.json',
-);
-const defaultOut = path.join(
-  workspaceRoot,
-  '.codex/reports/cloudflare-version-proof/public-url-proof.json',
-);
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function parseArgs(argv) {
-  const parsed = {
-    appId: undefined,
-    out: defaultOut,
-    requirePublicUrls: false,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--app') {
-      parsed.appId = argv[index + 1];
-      index += 1;
-    } else if (arg === '--out') {
-      parsed.out = argv[index + 1];
-      index += 1;
-    } else if (arg === '--require-public-urls') {
-      parsed.requirePublicUrls = true;
-    } else if (arg === '--help' || arg === '-h') {
-      parsed.help = true;
-    } else {
-      throw new Error(\`Unknown argument: \${arg}\`);
-    }
-  }
-
-  return parsed;
-}
-
-function printHelp() {
-  process.stdout.write(\`Usage:
-  node scripts/proof-cloudflare-version.mjs [--app workspace] [--out evidence.json] [--require-public-urls]
-
-Set each app's public URL using the contract env key, for example:
-  ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev
-\`);
-}
-
-function joinUrl(baseUrl, routePath) {
+function createCloudflareProofHelperScript(): string {
+  return `function joinUrl(baseUrl, routePath) {
   return new URL(routePath, baseUrl.endsWith('/') ? baseUrl : \`\${baseUrl}/\`);
 }
 
@@ -6720,10 +6784,10 @@ function assertCloudflareSecurity(evidence, app, response, route, publicUrl, opt
       type: 'security-noindex',
       route,
       actual: response.xRobotsTag,
-      status: response.xRobotsTag === 'noindex, nofollow' ? 'pass' : 'fail',
+      status: response.xRobotsTag === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' ? 'pass' : 'fail',
     });
     assert(
-      response.xRobotsTag === 'noindex, nofollow',
+      response.xRobotsTag === '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}',
       \`\${app.id} \${route} is missing noindex X-Robots-Tag\`,
     );
   }
@@ -6876,13 +6940,13 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
     xRobotsTag: headResponse.xRobotsTag,
     htmlRobotsIndexable: robotsIndexable,
     status:
-      isPreview || (headResponse.xRobotsTag !== 'noindex, nofollow' && robotsIndexable)
+      isPreview || (headResponse.xRobotsTag !== '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' && robotsIndexable)
         ? 'pass'
         : 'fail',
   });
   if (!isPreview) {
     assert(
-      headResponse.xRobotsTag !== 'noindex, nofollow' && robotsIndexable,
+      headResponse.xRobotsTag !== '${PUBLIC_WEBSITE_POLICY.publicHead.privateRouteRobots}' && robotsIndexable,
       \`\${app.id} \${headRoute} production public route must be indexable\`,
     );
   }
@@ -6942,7 +7006,7 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
 async function validateNotFound(evidence, app, publicUrl) {
   const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
   const notFoundRoute =
-    qualityGates.statusCodes?.notFoundRoute ?? '/__ultramodern-smoke-missing';
+    qualityGates.statusCodes?.notFoundRoute ?? '${PUBLIC_WEBSITE_POLICY.qualityGates.statusCodes.notFoundRoute}';
   const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? 404;
   const response = await fetchText(joinUrl(publicUrl, notFoundRoute));
   evidence.assertions.push({
@@ -6993,7 +7057,7 @@ async function validateCssAsset(evidence, app, publicUrl, ssr) {
   });
   assertByteBudget(evidence, app, css, {
     label: 'cssAssetMaxBytes',
-    maxBytes: budgets.cssAssetMaxBytes ?? 750_000,
+    maxBytes: budgets.cssAssetMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.cssAssetMaxBytes)},
     route,
   });
 }
@@ -7052,7 +7116,7 @@ async function validatePublicSurface(evidence, app, publicUrl) {
   });
   assertByteBudget(evidence, app, sitemap, {
     label: 'sitemapXmlMaxBytes',
-    maxBytes: budgets.sitemapXmlMaxBytes ?? 500_000,
+    maxBytes: budgets.sitemapXmlMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.sitemapXmlMaxBytes)},
     route: sitemapRoute,
   });
 
@@ -7127,7 +7191,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, ssr, {
     label: 'ssrHtmlMaxBytes',
-    maxBytes: budgets.ssrHtmlMaxBytes ?? 250_000,
+    maxBytes: budgets.ssrHtmlMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.ssrHtmlMaxBytes)},
     route: ssrRoute,
   });
   await validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr);
@@ -7194,7 +7258,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, manifest, {
     label: 'mfManifestMaxBytes',
-    maxBytes: budgets.mfManifestMaxBytes ?? 500_000,
+    maxBytes: budgets.mfManifestMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.mfManifestMaxBytes)},
     route: manifestRoute,
   });
   assertNoPublicSourcemapRefs(evidence, app, manifestJson);
@@ -7244,7 +7308,7 @@ async function validateApp(app, publicUrl) {
   });
   assertByteBudget(evidence, app, locale, {
     label: 'localeJsonMaxBytes',
-    maxBytes: budgets.localeJsonMaxBytes ?? 100_000,
+    maxBytes: budgets.localeJsonMaxBytes ?? ${formatIntegerCodeLiteral(PUBLIC_WEBSITE_POLICY.qualityGates.budgets.localeJsonMaxBytes)},
     route: localeRoute,
   });
   evidence.assertions.push({
@@ -7282,6 +7346,76 @@ async function validateApp(app, publicUrl) {
   }
 
   return evidence;
+}
+
+export { validateApp };
+`;
+}
+
+function createCloudflareVersionProofScript(): string {
+  return `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { validateApp } from './ultramodern-cloudflare-proof.mjs';
+
+const workspaceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const contractPath = path.join(
+  workspaceRoot,
+  '.modernjs/ultramodern-generated-contract.json',
+);
+const defaultOut = path.join(
+  workspaceRoot,
+  '.codex/reports/cloudflare-version-proof/public-url-proof.json',
+);
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function parseArgs(argv) {
+  const parsed = {
+    appId: undefined,
+    out: defaultOut,
+    requirePublicUrls: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--app') {
+      parsed.appId = argv[index + 1];
+      index += 1;
+    } else if (arg === '--out') {
+      parsed.out = argv[index + 1];
+      index += 1;
+    } else if (arg === '--require-public-urls') {
+      parsed.requirePublicUrls = true;
+    } else if (arg === '--help' || arg === '-h') {
+      parsed.help = true;
+    } else {
+      throw new Error(\`Unknown argument: \${arg}\`);
+    }
+  }
+
+  return parsed;
+}
+
+function printHelp() {
+  process.stdout.write(\`Usage:
+  node scripts/proof-cloudflare-version.mjs [--app workspace] [--out evidence.json] [--require-public-urls]
+
+Set each app's public URL using the contract env key, for example:
+  ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev
+\`);
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
 }
 
 async function main(argv = process.argv.slice(2)) {
@@ -7375,6 +7509,11 @@ function writeGeneratedWorkspaceScripts(
   );
   writeFileReplacing(
     targetDir,
+    'scripts/ultramodern-cloudflare-proof.mjs',
+    createCloudflareProofHelperScript(),
+  );
+  writeFileReplacing(
+    targetDir,
     'scripts/proof-cloudflare-version.mjs',
     createCloudflareVersionProofScript(),
   );
@@ -7389,6 +7528,7 @@ function writeApp(
   remotes: WorkspaceApp[] = [],
 ) {
   const resolvedApp = app.kind === 'shell' ? createShellHost(remotes) : app;
+  const publicWeb = createPublicWebAppArtifacts(resolvedApp);
   const writeAppFile = (relativePath: string, content: string) => {
     writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
   };
@@ -7421,13 +7561,13 @@ function writeApp(
   );
   writeFile(
     targetDir,
-    `${resolvedApp.directory}/src/routes/ultramodern-route-metadata.ts`,
-    createRouteMetadataModule(resolvedApp),
+    publicWeb.routeMetadataFile.path,
+    publicWeb.routeMetadataFile.content,
   );
   writeFile(
     targetDir,
-    `${resolvedApp.directory}/src/routes/ultramodern-route-head.tsx`,
-    createRouteHeadModule(resolvedApp),
+    publicWeb.routeHeadFile.path,
+    publicWeb.routeHeadFile.content,
   );
   writeFile(
     targetDir,
@@ -7495,22 +7635,11 @@ function writeApp(
       ? createShellPage(remotes)
       : createRemotePage(resolvedApp),
   );
-  for (const route of createRouteOwnedI18nPaths(resolvedApp)) {
-    writeFile(
-      targetDir,
-      createRouteMetaFilePath(resolvedApp, route.canonicalPath),
-      createRouteMetaModule(route),
-    );
-
-    if (route.canonicalPath === '/' || resolvedApp.kind === 'shell') {
-      continue;
-    }
-
-    writeFile(
-      targetDir,
-      createRoutePageFilePath(resolvedApp, route.canonicalPath),
-      createRouteAliasPage(route.canonicalPath),
-    );
+  for (const generatedFile of publicWeb.routeMetaFiles) {
+    writeFile(targetDir, generatedFile.path, generatedFile.content);
+  }
+  for (const generatedFile of publicWeb.routeAliasFiles) {
+    writeFile(targetDir, generatedFile.path, generatedFile.content);
   }
 
   if (resolvedApp.kind === 'shell') {
@@ -7840,6 +7969,7 @@ function rewriteShellAppFiles(
   remotes: WorkspaceApp[],
 ) {
   const shellHost = createShellHost(remotes);
+  const publicWeb = createPublicWebAppArtifacts(shellHost);
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/package.json`),
     createAppPackage(scope, shellHost, packageSource, enableTailwind, remotes),
@@ -7851,19 +7981,19 @@ function rewriteShellAppFiles(
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/routes/ultramodern-route-metadata.ts`,
-    createRouteMetadataModule(shellHost),
+    publicWeb.routeMetadataFile.path,
+    publicWeb.routeMetadataFile.content,
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/routes/ultramodern-route-head.tsx`,
-    createRouteHeadModule(shellHost),
+    publicWeb.routeHeadFile.path,
+    publicWeb.routeHeadFile.content,
   );
-  for (const route of createRouteOwnedI18nPaths(shellHost)) {
+  for (const generatedFile of publicWeb.routeMetaFiles) {
     writeFileReplacing(
       workspaceRoot,
-      createRouteMetaFilePath(shellHost, route.canonicalPath),
-      createRouteMetaModule(route),
+      generatedFile.path,
+      generatedFile.content,
     );
   }
   rewriteWorkspaceAssetsForApp(workspaceRoot, shellHost);
