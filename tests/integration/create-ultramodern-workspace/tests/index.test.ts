@@ -192,6 +192,7 @@ function readGeneratedContract(workspaceDir: string) {
       kind: string;
       marker: Record<string, any>;
       moduleFederation: Record<string, any>;
+      routes: Record<string, any>;
       styling: Record<string, any>;
     }>;
   }>(workspaceDir, '.modernjs/ultramodern-generated-contract.json');
@@ -222,6 +223,16 @@ function expectPrivatePublicSurface(
     files: ['robots.txt'],
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
     languages: ['en', 'cs'],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: 'route.sitemap.mjs',
+      entryExport: 'default-or-entries',
+      paramsSource: 'params-or-localeParams',
+      draftPolicy: 'omit-draft-by-default',
+      indexablePolicy: 'omit-indexable-false',
+      lifecycle: 'executed-during-public-surface-generation',
+    },
+    contentSources: [],
     publicRoutes: [],
     routeEntries: [],
     concreteUrlPaths: [],
@@ -810,6 +821,14 @@ describe('create-ultramodern-workspace', () => {
     expect(shellRouteHead).toContain('property="og:title"');
     expect(shellRouteHead).toContain('name="twitter:card"');
     expect(shellRouteHead).toContain('application/ld+json');
+    const sharedContracts = readText(
+      workspaceDir,
+      'packages/shared-contracts/src/index.ts',
+    );
+    expect(sharedContracts).toContain(
+      'export type UltramodernPublicSitemapEntry',
+    );
+    expect(sharedContracts).toContain('localeParams?:');
     expect(shellContract.deploy).toMatchObject({
       target: 'cloudflare',
       cloudflare: {
@@ -1478,6 +1497,125 @@ process.exit(1);
     expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
+  });
+
+  test('generates public surface assets from route-owned content sources', () => {
+    const workspaceDir = path.join(tempRoot, 'ultra-public-content-workspace');
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    runCreate(workspaceDir, ['--lang', 'en']);
+
+    const generatedContract = readGeneratedContract(workspaceDir);
+    const shellContract = generatedContract.apps.find(
+      app => app.id === 'shell-super-app',
+    )!;
+    shellContract.routes.publicSurface.publicRoutes = [
+      {
+        canonicalPath: '/talks/:slug',
+        descriptionKey: 'shell.talks.detail.meta.description',
+        id: 'talk-detail',
+        localisedPaths: {
+          en: '/talks/:slug',
+          cs: '/prednasky/:slug',
+        },
+        namespace: 'shell',
+        ownerAppId: 'shell-super-app',
+        titleKey: 'shell.talks.detail.title',
+      },
+    ];
+    shellContract.routes.publicSurface.contentSources = [
+      {
+        entryExport: 'default-or-entries',
+        module: 'src/routes/[lang]/talks/[slug]/route.sitemap.mjs',
+        routeId: 'talk-detail',
+      },
+    ];
+    shellContract.routes.publicSurface.files = [
+      'robots.txt',
+      'sitemap.xml',
+      'site.webmanifest',
+    ];
+    shellContract.routes.publicSurface.routeEntries = [];
+    shellContract.routes.publicSurface.concreteUrlPaths = [];
+    writeText(
+      workspaceDir,
+      '.modernjs/ultramodern-generated-contract.json',
+      `${JSON.stringify(generatedContract, null, 2)}\n`,
+    );
+    writeText(
+      workspaceDir,
+      'apps/shell-super-app/src/routes/[lang]/talks/[slug]/route.sitemap.mjs',
+      `/** @type {import('@ultra-public-content-workspace/shared-contracts').UltramodernPublicSitemapEntry[]} */
+export const entries = [
+  {
+    params: { slug: 'building-public-web' },
+    localeParams: { cs: { slug: 'verejny-web' } },
+    lastModified: '2026-06-10',
+    changeFrequency: 'monthly',
+    priority: 0.7,
+  },
+  {
+    params: { slug: 'draft-talk' },
+    draft: true,
+  },
+  {
+    params: { slug: 'noindex-talk' },
+    indexable: false,
+  },
+];
+`,
+    );
+
+    execFileSync(
+      process.execPath,
+      [
+        'scripts/generate-public-surface-assets.mjs',
+        '--app',
+        'shell-super-app',
+        '--target',
+        'dist',
+        '--require-public-origin',
+      ],
+      {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: 'https://example.com',
+        },
+        stdio: 'pipe',
+      },
+    );
+
+    const sitemap = readText(
+      workspaceDir,
+      'apps/shell-super-app/dist/public/sitemap.xml',
+    );
+    expect(sitemap).toContain(
+      '<loc>https://example.com/en/talks/building-public-web</loc>',
+    );
+    expect(sitemap).toContain(
+      '<loc>https://example.com/cs/prednasky/verejny-web</loc>',
+    );
+    expect(sitemap).toContain('hreflang="x-default"');
+    expect(sitemap).toContain('<lastmod>2026-06-10</lastmod>');
+    expect(sitemap).toContain('<changefreq>monthly</changefreq>');
+    expect(sitemap).toContain('<priority>0.7</priority>');
+    expect(sitemap).not.toContain('draft-talk');
+    expect(sitemap).not.toContain('noindex-talk');
+
+    const robots = readText(
+      workspaceDir,
+      'apps/shell-super-app/dist/public/robots.txt',
+    );
+    expect(robots).toContain('Allow: /en/talks/building-public-web$');
+    expect(robots).toContain('Allow: /cs/prednasky/verejny-web$');
+    expect(robots).toContain('Sitemap: https://example.com/sitemap.xml');
+
+    const webManifest = readJson(
+      workspaceDir,
+      'apps/shell-super-app/dist/public/site.webmanifest',
+    );
+    expect(webManifest.scope).toBe('/');
+    expect(webManifest.start_url).toMatch(/^\/(cs|en)\//u);
   });
 
   test('scaffolds npm alias package source metadata for external forks', () => {

@@ -156,6 +156,21 @@ type PublicRouteMetadata = {
   descriptionKey: string;
 };
 
+type PublicSitemapChangeFrequency =
+  | 'always'
+  | 'hourly'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'never';
+
+type PublicSurfaceSitemapFields = {
+  lastModified?: string;
+  changeFrequency?: PublicSitemapChangeFrequency;
+  priority?: number;
+};
+
 export type UltramodernWorkspaceOptions = {
   targetDir: string;
   packageName: string;
@@ -1106,6 +1121,41 @@ function createSharedPackage(
   }
 
   return packageJson;
+}
+
+function createSharedContractsIndex(): string {
+  return `export type UltramodernPublicSitemapChangeFrequency =
+  | 'always'
+  | 'hourly'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'never';
+
+export type UltramodernPublicSitemapEntry = {
+  /**
+   * Params used to expand every localized route pattern, for example
+   * { slug: 'platform-story' } for /talks/:slug.
+   */
+  params: Record<string, string | number | boolean>;
+  /**
+   * Per-locale overrides when translated URLs use translated params.
+   */
+  localeParams?: Partial<Record<'en' | 'cs', Record<string, string | number | boolean>>>;
+  draft?: boolean;
+  indexable?: boolean;
+  lastModified?: string;
+  changeFrequency?: UltramodernPublicSitemapChangeFrequency;
+  priority?: number;
+};
+
+export const ultramodernWorkspaceContract = {
+  ownership: 'topology/ownership.json',
+  preset: 'presetUltramodern',
+  topology: 'topology/reference-topology.json',
+} as const;
+`;
 }
 
 function createAppModernConfig(scope: string, app: WorkspaceApp): string {
@@ -2127,6 +2177,12 @@ const publicSurfacePublicRouteOutputFiles = [
 type PublicSurfaceRouteEntry = PublicRouteMetadata & {
   canonicalUrlPath: string;
   localeUrlPaths: Record<SupportedWorkspaceLanguage, string>;
+} & PublicSurfaceSitemapFields;
+
+type PublicSurfaceContentSource = {
+  entryExport: 'default-or-entries';
+  module: string;
+  routeId: string;
 };
 
 function normalisePublicPath(pathname: string): string {
@@ -2194,6 +2250,12 @@ function createPublicSurfaceRouteEntries(
     );
 }
 
+function createPublicSurfaceContentSources(
+  _app: WorkspaceApp,
+): PublicSurfaceContentSource[] {
+  return [];
+}
+
 function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
   return uniqueSorted(
     createPublicSurfaceRouteEntries(app).flatMap(route =>
@@ -2207,7 +2269,7 @@ function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
 function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
   return [
     ...publicSurfaceBaseOutputFiles,
-    ...(createPublicSurfaceRouteEntries(app).length > 0
+    ...(createPublicRouteMetadata(app).length > 0
       ? publicSurfacePublicRouteOutputFiles
       : []),
   ];
@@ -4860,6 +4922,16 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     files,
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
     languages: [...supportedWorkspaceLanguages],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: 'route.sitemap.mjs',
+      entryExport: 'default-or-entries',
+      paramsSource: 'params-or-localeParams',
+      draftPolicy: 'omit-draft-by-default',
+      indexablePolicy: 'omit-indexable-false',
+      lifecycle: 'executed-during-public-surface-generation',
+    },
+    contentSources: createPublicSurfaceContentSources(app),
     publicRoutes: createPublicRouteMetadata(app),
     routeEntries: createPublicSurfaceRouteEntries(app),
     concreteUrlPaths: createPublicSurfaceUrlPaths(app),
@@ -5280,7 +5352,7 @@ function createPublicSurfaceAssetsScript(): string {
   return `#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const workspaceRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -5335,6 +5407,11 @@ function printHelp() {
 
 Set each app's production URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com
+
+Dynamic public routes can opt into sitemap expansion by adding a
+route-owned ESM provider to routes.publicSurface.contentSources. The default
+provider file is route.sitemap.mjs and it should export an entries array,
+entries() function, or default entries/loader returning UltramodernPublicSitemapEntry[].
 \`);
 }
 
@@ -5387,6 +5464,219 @@ function ensureOutputDir(app, target) {
   return outputDir;
 }
 
+function resolveAppRelativePath(app, relativePath) {
+  if (
+    typeof relativePath !== 'string' ||
+    relativePath.trim() === '' ||
+    path.isAbsolute(relativePath) ||
+    relativePath.split(/[\\\\/]+/).includes('..')
+  ) {
+    throw new Error(app.id + ' public content source has an unsafe module path');
+  }
+  const appRoot = path.resolve(workspaceRoot, app.path);
+  const resolved = path.resolve(appRoot, relativePath);
+  if (resolved !== appRoot && !resolved.startsWith(appRoot + path.sep)) {
+    throw new Error(app.id + ' public content source escaped the app directory');
+  }
+  return resolved;
+}
+
+function normalizePublicPath(pathname) {
+  if (typeof pathname !== 'string') {
+    throw new Error('Public route path must be a string');
+  }
+  const normalised = pathname
+    .trim()
+    .replaceAll(/\\/+/gu, '/')
+    .replace(/\\/+$/u, '');
+  return normalised.length > 0 && normalised.startsWith('/')
+    ? normalised
+    : '/' + normalised;
+}
+
+function createLocalisedPublicPath(pathname, language) {
+  const publicPath = normalizePublicPath(pathname);
+  return publicPath === '/' ? '/' + language : '/' + language + publicPath;
+}
+
+function getSegmentParamName(segment) {
+  if (segment.startsWith(':')) {
+    return segment.slice(1).replace(/[?*+]$/u, '');
+  }
+  if (segment.startsWith('[') && segment.endsWith(']')) {
+    return segment.slice(1, -1).replace(/^\\.\\.\\./u, '');
+  }
+  return undefined;
+}
+
+function assertParamValue(routeId, language, paramName, value) {
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+    throw new Error(routeId + ' ' + language + ' sitemap param ' + paramName + ' must be a string, number, or boolean');
+  }
+  const text = String(value).trim();
+  if (text === '' || text.includes('/')) {
+    throw new Error(routeId + ' ' + language + ' sitemap param ' + paramName + ' must be a non-empty path segment');
+  }
+  return encodeURIComponent(text);
+}
+
+function expandPublicPathPattern(routeId, language, pattern, params) {
+  const normalised = normalizePublicPath(pattern);
+  const segments = normalised.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    return '/';
+  }
+  const expanded = segments.map(segment => {
+    const paramName = getSegmentParamName(segment);
+    if (!paramName) {
+      if (segment.includes('*')) {
+        throw new Error(routeId + ' ' + language + ' sitemap expansion does not support wildcard path segment ' + segment);
+      }
+      return segment;
+    }
+    if (!Object.prototype.hasOwnProperty.call(params, paramName)) {
+      throw new Error(routeId + ' ' + language + ' sitemap entry is missing param ' + paramName);
+    }
+    return assertParamValue(routeId, language, paramName, params[paramName]);
+  });
+  return '/' + expanded.join('/');
+}
+
+function assertPlainObject(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(label + ' must be an object');
+  }
+  return value;
+}
+
+function normalizeSitemapFields(routeId, entry) {
+  const normalized = {};
+  if (entry.lastModified !== undefined) {
+    const lastModified = String(entry.lastModified).trim();
+    if (lastModified === '' || Number.isNaN(Date.parse(lastModified))) {
+      throw new Error(routeId + ' sitemap entry has invalid lastModified');
+    }
+    normalized.lastModified = lastModified;
+  }
+  if (entry.changeFrequency !== undefined) {
+    const allowed = new Set(['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never']);
+    if (!allowed.has(entry.changeFrequency)) {
+      throw new Error(routeId + ' sitemap entry has invalid changeFrequency');
+    }
+    normalized.changeFrequency = entry.changeFrequency;
+  }
+  if (entry.priority !== undefined) {
+    if (typeof entry.priority !== 'number' || entry.priority < 0 || entry.priority > 1) {
+      throw new Error(routeId + ' sitemap entry priority must be a number between 0 and 1');
+    }
+    normalized.priority = entry.priority;
+  }
+  return normalized;
+}
+
+async function loadContentSourceEntries(app, contentSource, languages) {
+  if (typeof contentSource?.routeId !== 'string' || contentSource.routeId.trim() === '') {
+    throw new Error(app.id + ' public content source is missing routeId');
+  }
+  const modulePath = resolveAppRelativePath(app, contentSource.module);
+  const moduleExports = await import(pathToFileURL(modulePath).href);
+  const exported = moduleExports.default ?? moduleExports.entries;
+  const rawEntries =
+    typeof exported === 'function'
+      ? await exported({
+          appId: app.id,
+          languages,
+          routeId: contentSource.routeId,
+        })
+      : exported;
+  if (!Array.isArray(rawEntries)) {
+    throw new Error(app.id + ' public content source for ' + contentSource.routeId + ' must export an entries array or loader');
+  }
+  return rawEntries;
+}
+
+async function expandContentSources(app, publicSurface, languages) {
+  const routesById = new Map(
+    (publicSurface.publicRoutes ?? []).map(route => [route.id, route]),
+  );
+  const expanded = [];
+  for (const contentSource of publicSurface.contentSources ?? []) {
+    const route = routesById.get(contentSource.routeId);
+    if (!route) {
+      throw new Error(app.id + ' public content source references unknown route ' + contentSource.routeId);
+    }
+    const rawEntries = await loadContentSourceEntries(app, contentSource, languages);
+    for (const rawEntry of rawEntries) {
+      const entry = assertPlainObject(rawEntry, route.id + ' sitemap entry');
+      if (entry.draft === true || entry.indexable === false) {
+        continue;
+      }
+      const baseParams = assertPlainObject(entry.params, route.id + ' sitemap entry params');
+      const localeParams = entry.localeParams === undefined
+        ? {}
+        : assertPlainObject(entry.localeParams, route.id + ' sitemap entry localeParams');
+      const localeUrlPaths = {};
+      for (const language of languages) {
+        const params = {
+          ...baseParams,
+          ...(localeParams[language] ?? {}),
+        };
+        localeUrlPaths[language] = createLocalisedPublicPath(
+          expandPublicPathPattern(route.id, language, route.localisedPaths[language], params),
+          language,
+        );
+      }
+      expanded.push({
+        ...route,
+        ...normalizeSitemapFields(route.id, entry),
+        canonicalUrlPath: localeUrlPaths.en,
+        localeUrlPaths,
+      });
+    }
+  }
+  return expanded;
+}
+
+function mergeRouteEntries(routeEntries, expandedRouteEntries, languages) {
+  const byKey = new Map();
+  const urlPathOwners = new Map();
+  for (const route of [...routeEntries, ...expandedRouteEntries]) {
+    const key = route.id + ':' + route.canonicalUrlPath;
+    if (byKey.has(key)) {
+      throw new Error('Duplicate public sitemap route entry ' + key);
+    }
+    for (const language of languages) {
+      const urlPath = route.localeUrlPaths?.[language];
+      if (typeof urlPath !== 'string') {
+        throw new Error(route.id + ' public route entry is missing ' + language + ' locale URL path');
+      }
+      const existingOwner = urlPathOwners.get(urlPath);
+      if (existingOwner && existingOwner !== route.id) {
+        throw new Error('Duplicate public sitemap URL path ' + urlPath + ' from ' + existingOwner + ' and ' + route.id);
+      }
+      urlPathOwners.set(urlPath, route.id);
+    }
+    byKey.set(key, route);
+  }
+  return Array.from(byKey.values()).sort(
+    (left, right) =>
+      left.canonicalUrlPath.localeCompare(right.canonicalUrlPath) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
+function uniqueSorted(values) {
+  return Array.from(new Set(values)).sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+function createConcreteUrlPaths(routeEntries, languages) {
+  return uniqueSorted(
+    routeEntries.flatMap(route => languages.map(language => route.localeUrlPaths[language])),
+  );
+}
+
 function escapeXmlText(value) {
   return value
     .replaceAll('&', '&amp;')
@@ -5436,6 +5726,15 @@ function renderSitemapXml(origin, routeEntries, languages) {
           \`\${origin}\${route.localeUrlPaths.en}\`,
         )}" />\`,
       );
+      if (route.lastModified) {
+        lines.push(\`    <lastmod>\${escapeXmlText(route.lastModified)}</lastmod>\`);
+      }
+      if (route.changeFrequency) {
+        lines.push(\`    <changefreq>\${escapeXmlText(route.changeFrequency)}</changefreq>\`);
+      }
+      if (route.priority !== undefined) {
+        lines.push(\`    <priority>\${route.priority.toFixed(1).replace(/\\.0$/u, '')}</priority>\`);
+      }
       lines.push('  </url>');
     }
   }
@@ -5468,15 +5767,19 @@ function writeText(outputDir, fileName, content) {
   fs.writeFileSync(path.join(outputDir, fileName), content);
 }
 
-function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
+async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
   const publicSurface = app.routes?.publicSurface ?? {};
-  const routeEntries = publicSurface.routeEntries ?? [];
-  const urlPaths = publicSurface.concreteUrlPaths ?? [];
   const languages = publicSurface.languages ?? ['en', 'cs'];
   const outputDir = ensureOutputDir(app, target);
   const shouldRequirePublicOrigin =
     requirePublicOrigin ||
     process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true';
+  const routeEntries = mergeRouteEntries(
+    publicSurface.routeEntries ?? [],
+    await expandContentSources(app, publicSurface, languages),
+    languages,
+  );
+  const urlPaths = createConcreteUrlPaths(routeEntries, languages);
 
   if (routeEntries.length === 0) {
     writeText(outputDir, 'robots.txt', renderRobotsTxt([], undefined));
@@ -5509,7 +5812,7 @@ try {
   if (!app) {
     throw new Error(\`Unknown app in generated contract: \${args.appId}\`);
   }
-  generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
+  await generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
 } catch (error) {
   process.stderr.write(\`[public-surface] \${error.message}\\n\`);
   process.exitCode = 1;
@@ -5620,6 +5923,11 @@ const assertPublicSurfaceContract = (appId, publicSurface) => {
   assert(publicSurface?.cloudflareOutputRoot === '.output/public', \`\${appId} public surface Cloudflare outputRoot is incorrect\`);
   assert(!('staticRoot' in (publicSurface ?? {})), \`\${appId} public surface must not point at source config/public\`);
   assert((publicSurface?.files ?? []).includes('robots.txt'), \`\${appId} public surface must always emit robots.txt\`);
+  assert(publicSurface?.contentExpansion?.authoring === 'route-owned-esm-provider', \`\${appId} public content expansion authoring is incorrect\`);
+  assert(publicSurface?.contentExpansion?.defaultProviderFile === 'route.sitemap.mjs', \`\${appId} public content expansion provider file is incorrect\`);
+  assert(publicSurface?.contentExpansion?.draftPolicy === 'omit-draft-by-default', \`\${appId} public content expansion draft policy is incorrect\`);
+  assert(publicSurface?.contentExpansion?.indexablePolicy === 'omit-indexable-false', \`\${appId} public content expansion indexable policy is incorrect\`);
+  assert(Array.isArray(publicSurface?.contentSources), \`\${appId} public content sources must be an array\`);
   if ((publicSurface?.publicRoutes ?? []).length === 0) {
     assert(!(publicSurface?.files ?? []).includes('sitemap.xml'), \`\${appId} private public surface must omit sitemap.xml\`);
     assert(!(publicSurface?.files ?? []).includes('site.webmanifest'), \`\${appId} private public surface must omit site.webmanifest\`);
@@ -6934,7 +7242,9 @@ function writeGenericSharedPackage(
   writeFile(
     targetDir,
     `${sharedPackage.directory}/src/index.ts`,
-    `export const packageId = '${sharedPackage.id}';
+    sharedPackage.id === 'shared-contracts'
+      ? createSharedContractsIndex()
+      : `export const packageId = '${sharedPackage.id}';
 `,
   );
   if (sharedPackage.id === 'shared-design-tokens') {
@@ -6971,12 +7281,7 @@ function writeSharedPackages(
   writeFile(
     targetDir,
     'packages/shared-contracts/src/index.ts',
-    `export const ultramodernWorkspaceContract = {
-  ownership: 'topology/ownership.json',
-  preset: 'presetUltramodern',
-  topology: 'topology/reference-topology.json',
-} as const;
-`,
+    createSharedContractsIndex(),
   );
   writeFile(
     targetDir,
