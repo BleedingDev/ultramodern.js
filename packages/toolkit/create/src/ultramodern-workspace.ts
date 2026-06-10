@@ -999,6 +999,14 @@ function createAppPackage(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
+  const publicSurfaceBuildCommand = createPublicSurfaceGenerationCommand(
+    app,
+    'dist',
+  );
+  const publicSurfaceCloudflareBuildCommand =
+    createPublicSurfaceGenerationCommand(app, 'dist');
+  const publicSurfaceCloudflareOutputCommand =
+    createPublicSurfaceGenerationCommand(app, 'cloudflare');
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
     Object.entries(app.exposes ?? {}).map(([expose, source]) => [
       expose,
@@ -1012,10 +1020,9 @@ function createAppPackage(
     scripts: {
       dev: 'modern dev',
       build: app.exposes
-        ? `ULTRAMODERN_ZEPHYR=false modern build && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
-        : 'ULTRAMODERN_ZEPHYR=false modern build',
-      'cloudflare:build':
-        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+        ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
+        : `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand}`,
+      'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ${publicSurfaceCloudflareBuildCommand} && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && ${publicSurfaceCloudflareOutputCommand}`,
       'cloudflare:deploy':
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
       'cloudflare:preview':
@@ -2102,10 +2109,15 @@ function createTw(prefix: string) {
       .join(' ');
 }
 
-const publicSurfaceRequiredAssetPaths = ['config/public/robots.txt'] as const;
-const publicSurfaceOptionalAssetPaths = [
+const publicSurfaceManagedSourceAssetPaths = [
+  'config/public/robots.txt',
   'config/public/sitemap.xml',
   'config/public/site.webmanifest',
+] as const;
+const publicSurfaceBaseOutputFiles = ['robots.txt'] as const;
+const publicSurfacePublicRouteOutputFiles = [
+  'sitemap.xml',
+  'site.webmanifest',
 ] as const;
 
 type PublicSurfaceRouteEntry = PublicRouteMetadata & {
@@ -2188,112 +2200,41 @@ function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
   );
 }
 
-function createPublicSurfaceOrigin(app: WorkspaceApp): string {
-  return `http://localhost:${app.port}`;
-}
-
-function escapeXmlText(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
-function escapeXmlAttribute(value: string): string {
-  return escapeXmlText(value).replaceAll('"', '&quot;');
-}
-
-function renderRobotsTxt(app: WorkspaceApp): string {
-  const urlPaths = createPublicSurfaceUrlPaths(app);
-  const lines = ['User-agent: *'];
-
-  if (urlPaths.length === 0) {
-    lines.push('Disallow: /');
-  } else {
-    for (const urlPath of urlPaths) {
-      lines.push(`Allow: ${urlPath}$`);
-    }
-    lines.push('Disallow: /');
-    lines.push(`Sitemap: ${createPublicSurfaceOrigin(app)}/sitemap.xml`);
-  }
-
-  return `${lines.join('\n')}\n`;
-}
-
-function renderSitemapXml(app: WorkspaceApp): string {
-  const origin = createPublicSurfaceOrigin(app);
-  const routes = createPublicSurfaceRouteEntries(app);
-  const lines = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
+  return [
+    ...publicSurfaceBaseOutputFiles,
+    ...(createPublicSurfaceRouteEntries(app).length > 0
+      ? publicSurfacePublicRouteOutputFiles
+      : []),
   ];
-
-  for (const route of routes) {
-    for (const language of supportedWorkspaceLanguages) {
-      lines.push('  <url>');
-      lines.push(
-        `    <loc>${escapeXmlText(
-          `${origin}${route.localeUrlPaths[language]}`,
-        )}</loc>`,
-      );
-      for (const alternateLanguage of supportedWorkspaceLanguages) {
-        lines.push(
-          `    <xhtml:link rel="alternate" hreflang="${alternateLanguage}" href="${escapeXmlAttribute(
-            `${origin}${route.localeUrlPaths[alternateLanguage]}`,
-          )}" />`,
-        );
-      }
-      lines.push(
-        `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXmlAttribute(
-          `${origin}${route.localeUrlPaths.en}`,
-        )}" />`,
-      );
-      lines.push('  </url>');
-    }
-  }
-
-  lines.push('</urlset>');
-  return `${lines.join('\n')}\n`;
 }
 
-function renderWebManifest(app: WorkspaceApp): string {
-  const startUrl = createPublicSurfaceUrlPaths(app)[0];
-  const manifest = {
-    name: app.displayName,
-    short_name: app.displayName,
-    display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#133225',
-    lang: 'en',
-    categories: ['business', 'productivity'],
-    icons: [],
-    ...(startUrl ? { scope: '/', start_url: startUrl } : {}),
-  };
-
-  return `${JSON.stringify(sortJsonValue(manifest as JsonValue), null, 2)}\n`;
-}
-
-function createPublicSurfaceAssets(app: WorkspaceApp): Record<string, string> {
-  const assets: Record<string, string> = {
-    'config/public/robots.txt': renderRobotsTxt(app),
-  };
-
-  if (createPublicSurfaceRouteEntries(app).length > 0) {
-    assets['config/public/sitemap.xml'] = renderSitemapXml(app);
-    assets['config/public/site.webmanifest'] = renderWebManifest(app);
-  }
-
-  return assets;
+function createPublicSurfaceGenerationCommand(
+  app: WorkspaceApp,
+  target: 'dist' | 'cloudflare',
+  requirePublicOrigin = false,
+): string {
+  return `node ${relativeRootFor(
+    app.directory,
+  )}/scripts/generate-public-surface-assets.mjs --app ${app.id} --target ${target}${
+    requirePublicOrigin ? ' --require-public-origin' : ''
+  }`;
 }
 
 function workspaceAssetsForApp(app: WorkspaceApp): Record<string, string> {
-  return createPublicSurfaceAssets(app);
+  void app;
+  return {};
 }
 
 function rewriteWorkspaceAssetsForApp(
   workspaceRoot: string,
   app: WorkspaceApp,
 ) {
+  for (const relativePath of publicSurfaceManagedSourceAssetPaths) {
+    fs.rmSync(path.join(workspaceRoot, app.directory, relativePath), {
+      force: true,
+    });
+  }
   for (const [relativePath, content] of Object.entries(
     workspaceAssetsForApp(app),
   )) {
@@ -4827,20 +4768,23 @@ function createStylingContract(
 }
 
 function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
-  const files = Object.keys(createPublicSurfaceAssets(app))
-    .sort()
-    .map(relativePath => relativePath.replace(/^config\/public\//u, ''));
+  const files = createPublicSurfaceOutputFiles(app);
 
   return {
     authoring: 'colocated-route-meta',
+    artifactLifecycle: 'build-and-deploy-output',
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     metadataExport: './src/routes/ultramodern-route-metadata',
-    staticRoot: 'config/public',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    outputRoot: 'dist/public',
+    cloudflareOutputRoot: '.output/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
     files,
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    languages: [...supportedWorkspaceLanguages],
     publicRoutes: createPublicRouteMetadata(app),
+    routeEntries: createPublicSurfaceRouteEntries(app),
     concreteUrlPaths: createPublicSurfaceUrlPaths(app),
   };
 }
@@ -5215,6 +5159,247 @@ process.exitCode = runWorkspaceSourceCheck({
 `;
 }
 
+function createPublicSurfaceAssetsScript(): string {
+  return `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const workspaceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const contractPath = path.join(
+  workspaceRoot,
+  '.modernjs/ultramodern-generated-contract.json',
+);
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function parseArgs(argv) {
+  const parsed = {
+    appId: undefined,
+    target: 'dist',
+    requirePublicOrigin: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--app') {
+      parsed.appId = argv[index + 1];
+      index += 1;
+    } else if (arg === '--target') {
+      parsed.target = argv[index + 1];
+      index += 1;
+    } else if (arg === '--require-public-origin') {
+      parsed.requirePublicOrigin = true;
+    } else if (arg === '--help' || arg === '-h') {
+      parsed.help = true;
+    } else {
+      throw new Error(\`Unknown argument: \${arg}\`);
+    }
+  }
+
+  if (!parsed.appId && !parsed.help) {
+    throw new Error('Missing required --app argument');
+  }
+  if (!['dist', 'cloudflare'].includes(parsed.target)) {
+    throw new Error(\`Unsupported public surface target: \${parsed.target}\`);
+  }
+
+  return parsed;
+}
+
+function printHelp() {
+  process.stdout.write(\`Usage:
+  node scripts/generate-public-surface-assets.mjs --app shell-super-app [--target dist|cloudflare] [--require-public-origin]
+
+Set each app's production URL using the contract env key, for example:
+  ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com
+\`);
+}
+
+function normalizeOrigin(value) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined;
+  }
+  const url = new URL(value);
+  return url.origin;
+}
+
+function resolveOrigin(app, requirePublicOrigin) {
+  const cloudflare = app.deploy?.cloudflare ?? {};
+  const publicUrlEnv = cloudflare.publicUrlEnv;
+  const fromAppEnv =
+    typeof publicUrlEnv === 'string' ? normalizeOrigin(process.env[publicUrlEnv]) : undefined;
+  const fromGlobalEnv = normalizeOrigin(process.env.MODERN_PUBLIC_SITE_URL);
+  const workersDevSubdomain = process.env.ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN;
+  const fromWorkersDev =
+    typeof workersDevSubdomain === 'string' && workersDevSubdomain.trim() !== ''
+      ? normalizeOrigin(\`https://\${cloudflare.workerName}.\${workersDevSubdomain}.workers.dev\`)
+      : undefined;
+
+  const configuredOrigin = fromAppEnv ?? fromGlobalEnv ?? fromWorkersDev;
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+  if (requirePublicOrigin) {
+    throw new Error(
+      \`\${app.id} has public routes but no production public URL. Set \${publicUrlEnv ?? 'ULTRAMODERN_PUBLIC_URL_<APP>'} or MODERN_PUBLIC_SITE_URL.\`,
+    );
+  }
+  return undefined;
+}
+
+function ensureOutputDir(app, target) {
+  const relativeDir =
+    target === 'cloudflare'
+      ? app.routes?.publicSurface?.cloudflareOutputRoot
+      : app.routes?.publicSurface?.outputRoot;
+  if (typeof relativeDir !== 'string') {
+    throw new Error(\`\${app.id} public surface contract is missing outputRoot for \${target}\`);
+  }
+  const outputDir = path.resolve(workspaceRoot, app.path, relativeDir);
+  const appRoot = path.resolve(workspaceRoot, app.path);
+  if (!outputDir.startsWith(appRoot + path.sep)) {
+    throw new Error(\`\${app.id} public surface output escaped the app directory\`);
+  }
+  fs.mkdirSync(outputDir, { recursive: true });
+  return outputDir;
+}
+
+function escapeXmlText(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function escapeXmlAttribute(value) {
+  return escapeXmlText(value).replaceAll('"', '&quot;');
+}
+
+function renderRobotsTxt(urlPaths, sitemapUrl) {
+  const lines = ['User-agent: *'];
+  if (urlPaths.length === 0) {
+    lines.push('Disallow: /');
+  } else {
+    for (const urlPath of urlPaths) {
+      lines.push(\`Allow: \${urlPath}$\`);
+    }
+    lines.push('Disallow: /');
+    if (sitemapUrl) {
+      lines.push(\`Sitemap: \${sitemapUrl}\`);
+    }
+  }
+  return \`\${lines.join('\\n')}\\n\`;
+}
+
+function renderSitemapXml(origin, routeEntries, languages) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+  ];
+
+  for (const route of routeEntries) {
+    for (const language of languages) {
+      lines.push('  <url>');
+      lines.push(\`    <loc>\${escapeXmlText(\`\${origin}\${route.localeUrlPaths[language]}\`)}</loc>\`);
+      for (const alternateLanguage of languages) {
+        lines.push(
+          \`    <xhtml:link rel="alternate" hreflang="\${alternateLanguage}" href="\${escapeXmlAttribute(
+            \`\${origin}\${route.localeUrlPaths[alternateLanguage]}\`,
+          )}" />\`,
+        );
+      }
+      lines.push(
+        \`    <xhtml:link rel="alternate" hreflang="x-default" href="\${escapeXmlAttribute(
+          \`\${origin}\${route.localeUrlPaths.en}\`,
+        )}" />\`,
+      );
+      lines.push('  </url>');
+    }
+  }
+
+  lines.push('</urlset>');
+  return \`\${lines.join('\\n')}\\n\`;
+}
+
+function renderWebManifest(app, urlPaths) {
+  const startUrl = urlPaths[0];
+  const manifest = {
+    background_color: '#ffffff',
+    categories: ['business', 'productivity'],
+    display: 'standalone',
+    icons: [],
+    lang: 'en',
+    name: app.marker?.appId ?? app.id,
+    short_name: app.marker?.appId ?? app.id,
+    theme_color: '#133225',
+    ...(startUrl ? { scope: '/', start_url: startUrl } : {}),
+  };
+  return \`\${JSON.stringify(manifest, null, 2)}\\n\`;
+}
+
+function removeIfExists(outputDir, fileName) {
+  fs.rmSync(path.join(outputDir, fileName), { force: true });
+}
+
+function writeText(outputDir, fileName, content) {
+  fs.writeFileSync(path.join(outputDir, fileName), content);
+}
+
+function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
+  const publicSurface = app.routes?.publicSurface ?? {};
+  const routeEntries = publicSurface.routeEntries ?? [];
+  const urlPaths = publicSurface.concreteUrlPaths ?? [];
+  const languages = publicSurface.languages ?? ['en', 'cs'];
+  const outputDir = ensureOutputDir(app, target);
+  const shouldRequirePublicOrigin =
+    requirePublicOrigin ||
+    process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true';
+
+  if (routeEntries.length === 0) {
+    writeText(outputDir, 'robots.txt', renderRobotsTxt([], undefined));
+    removeIfExists(outputDir, 'sitemap.xml');
+    removeIfExists(outputDir, 'site.webmanifest');
+    return;
+  }
+
+  const origin = resolveOrigin(app, shouldRequirePublicOrigin);
+  if (!origin) {
+    writeText(outputDir, 'robots.txt', renderRobotsTxt([], undefined));
+    removeIfExists(outputDir, 'sitemap.xml');
+    removeIfExists(outputDir, 'site.webmanifest');
+    return;
+  }
+
+  writeText(outputDir, 'sitemap.xml', renderSitemapXml(origin, routeEntries, languages));
+  writeText(outputDir, 'site.webmanifest', renderWebManifest(app, urlPaths));
+  writeText(outputDir, 'robots.txt', renderRobotsTxt(urlPaths, \`\${origin}/sitemap.xml\`));
+}
+
+try {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    printHelp();
+    process.exit(0);
+  }
+  const contract = readJson(contractPath);
+  const app = contract.apps?.find(candidate => candidate.id === args.appId);
+  if (!app) {
+    throw new Error(\`Unknown app in generated contract: \${args.appId}\`);
+  }
+  generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
+} catch (error) {
+  process.stderr.write(\`[public-surface] \${error.message}\\n\`);
+  process.exitCode = 1;
+}
+`;
+}
+
 function createWorkspaceValidationScript(
   scope: string,
   enableTailwind: boolean,
@@ -5281,8 +5466,7 @@ const expectedBuildScript = ${JSON.stringify(expectedBuildScript)};
 const expectedCloudflareBuildScript = ${JSON.stringify(expectedCloudflareBuildScript)};
 const expectedCloudflareDeployScript = ${JSON.stringify(expectedCloudflareDeployScript)};
 const expectedCloudflareSecurity = ${JSON.stringify(expectedCloudflareSecurity, null, 2)};
-const publicSurfaceRequiredAssetPaths = ${JSON.stringify([...publicSurfaceRequiredAssetPaths], null, 2)};
-const publicSurfaceOptionalAssetPaths = ${JSON.stringify([...publicSurfaceOptionalAssetPaths], null, 2)};
+const publicSurfaceManagedSourceAssetPaths = ${JSON.stringify([...publicSurfaceManagedSourceAssetPaths], null, 2)};
 const expectedModernPackageSpecifier = packageName => {
   if (packageSource.strategy === 'workspace') {
     return 'workspace:*';
@@ -5307,19 +5491,25 @@ const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), \`Unexpected \${relativePath}\`);
 };
 const assertPublicSurfaceAssets = (appPath, publicRoutes) => {
-  const robots = readText(\`\${appPath}/config/public/robots.txt\`);
-  if ((publicRoutes ?? []).length === 0) {
-    assert(robots.includes('Disallow: /'), \`\${appPath} robots.txt must disallow crawling when no public routes exist\`);
-    for (const relativePath of publicSurfaceOptionalAssetPaths) {
-      assertNotExists(\`\${appPath}/\${relativePath}\`);
-    }
-    return;
+  for (const relativePath of publicSurfaceManagedSourceAssetPaths) {
+    assertNotExists(\`\${appPath}/\${relativePath}\`);
   }
-  const sitemap = readText(\`\${appPath}/config/public/sitemap.xml\`);
-  const manifest = readJson(\`\${appPath}/config/public/site.webmanifest\`);
-  assert(!sitemap.includes('<lastmod>'), \`\${appPath} sitemap must omit build-time lastmod values\`);
-  assert(typeof manifest.name === 'string' && manifest.name.length > 0, \`\${appPath} web manifest must include a safe app name\`);
-  assert(typeof manifest.start_url === 'string' && manifest.start_url.startsWith('/'), \`\${appPath} web manifest start_url must be a public route path\`);
+  void publicRoutes;
+};
+const assertPublicSurfaceContract = (appId, publicSurface) => {
+  assert(publicSurface?.artifactLifecycle === 'build-and-deploy-output', \`\${appId} public surface artifacts must be build/deploy outputs\`);
+  assert(publicSurface?.generator === 'scripts/generate-public-surface-assets.mjs', \`\${appId} public surface generator script is incorrect\`);
+  assert(publicSurface?.outputRoot === 'dist/public', \`\${appId} public surface dist outputRoot is incorrect\`);
+  assert(publicSurface?.cloudflareOutputRoot === '.output/public', \`\${appId} public surface Cloudflare outputRoot is incorrect\`);
+  assert(!('staticRoot' in (publicSurface ?? {})), \`\${appId} public surface must not point at source config/public\`);
+  assert((publicSurface?.files ?? []).includes('robots.txt'), \`\${appId} public surface must always emit robots.txt\`);
+  if ((publicSurface?.publicRoutes ?? []).length === 0) {
+    assert(!(publicSurface?.files ?? []).includes('sitemap.xml'), \`\${appId} private public surface must omit sitemap.xml\`);
+    assert(!(publicSurface?.files ?? []).includes('site.webmanifest'), \`\${appId} private public surface must omit site.webmanifest\`);
+  } else {
+    assert((publicSurface?.files ?? []).includes('sitemap.xml'), \`\${appId} public surface must emit sitemap.xml when public routes exist\`);
+    assert((publicSurface?.files ?? []).includes('site.webmanifest'), \`\${appId} public surface must emit site.webmanifest when public routes exist\`);
+  }
 };
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
@@ -5381,6 +5571,7 @@ const requiredPaths = [
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
   'scripts/check-ultramodern-i18n-boundaries.mjs',
+  'scripts/generate-public-surface-assets.mjs',
   'scripts/proof-cloudflare-version.mjs',
   'scripts/setup-agent-reference-repos.mjs',
   'apps/shell-super-app/package.json',
@@ -5398,9 +5589,6 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   ...${JSON.stringify(shellRouteMetaPaths, null, 2)},
-  ...publicSurfaceRequiredAssetPaths.map(
-    relativePath => \`apps/shell-super-app/\${relativePath}\`,
-  ),
   'packages/shared-contracts/src/index.ts',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-design-tokens/src/tokens.css',
@@ -5427,9 +5615,6 @@ for (const vertical of fullStackVerticals) {
     \`\${vertical.path}/src/routes/layout.tsx\`,
     \`\${vertical.path}/src/routes/ultramodern-route-metadata.ts\`,
     \`\${vertical.path}/src/routes/[lang]/page.tsx\`,
-    ...publicSurfaceRequiredAssetPaths.map(
-      relativePath => \`\${vertical.path}/\${relativePath}\`,
-    ),
     ...vertical.routePagePaths,
     ...vertical.routeMetaPaths,
   );
@@ -5599,6 +5784,7 @@ assert(shellContract?.routes?.metadataAuthoring === 'colocated-route-meta', 'She
 assert(shellContract?.routes?.generatedManifest === true, 'Shell route metadata manifest must be generated');
 assert(shellContract?.routes?.publicnessDefault === 'private-app-screen', 'Shell route publicness default is incorrect');
 assert(JSON.stringify(shellContract?.routes?.publicRoutes ?? []) === '[]', 'Shell must not expose generated public routes by default');
+assertPublicSurfaceContract('shell-super-app', shellContract?.routes?.publicSurface);
 assert(
   (shellContract?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
   'Shell owned routes must be non-indexable private app screens by default',
@@ -5685,6 +5871,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.routes?.privateByDefault === true, \`\${vertical.id} routes must be private by default\`);
   assert(contractEntry?.routes?.publicnessDefault === 'private-app-screen', \`\${vertical.id} route publicness default is incorrect\`);
   assert(JSON.stringify(contractEntry?.routes?.publicRoutes ?? []) === '[]', \`\${vertical.id} must not expose generated public routes by default\`);
+  assertPublicSurfaceContract(vertical.id, contractEntry?.routes?.publicSurface);
   assert(
     (contractEntry?.routes?.owned ?? []).every(route => route.public === false && route.indexable === false && route.publicSurface === 'private-app-screen'),
     \`\${vertical.id} owned routes must be non-indexable private app screens by default\`,
@@ -6224,6 +6411,11 @@ function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/check-ultramodern-i18n-boundaries.mjs',
     createWorkspaceI18nBoundaryValidationScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/generate-public-surface-assets.mjs',
+    createPublicSurfaceAssetsScript(),
   );
   writeFileReplacing(
     targetDir,

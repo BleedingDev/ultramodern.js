@@ -212,18 +212,22 @@ function expectPrivatePublicSurface(
 ) {
   expect(routes.publicSurface).toMatchObject({
     authoring: 'colocated-route-meta',
+    artifactLifecycle: 'build-and-deploy-output',
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
-    staticRoot: 'config/public',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    outputRoot: 'dist/public',
+    cloudflareOutputRoot: '.output/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
     files: ['robots.txt'],
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    languages: ['en', 'cs'],
     publicRoutes: [],
+    routeEntries: [],
     concreteUrlPaths: [],
   });
-  expect(readText(workspaceDir, `${appPath}/config/public/robots.txt`)).toBe(
-    'User-agent: *\nDisallow: /\n',
-  );
+  expect(routes.publicSurface.staticRoot).toBeUndefined();
+  expectNoPath(workspaceDir, `${appPath}/config/public/robots.txt`);
   expectNoPath(workspaceDir, `${appPath}/config/public/sitemap.xml`);
   expectNoPath(workspaceDir, `${appPath}/config/public/site.webmanifest`);
   expectNoPath(workspaceDir, `${appPath}/config/public/llms.txt`);
@@ -488,6 +492,7 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['mf:types']).toBe(
       'node ./scripts/assert-mf-types.mjs',
     );
+    expectPath(workspaceDir, 'scripts/generate-public-surface-assets.mjs');
     expect(rootPackage.scripts.build).toBe(
       'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types',
     );
@@ -653,10 +658,10 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
       expect(packageJson.scripts.dev).toBe('modern dev');
       expect(packageJson.scripts.build).toBe(
-        'ULTRAMODERN_ZEPHYR=false modern build',
+        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target dist',
       );
       expect(packageJson.scripts['cloudflare:build']).toBe(
-        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target cloudflare',
       );
       expect(packageJson.scripts['cloudflare:deploy']).toBe(
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
@@ -1074,7 +1079,7 @@ process.exit(1);
     expect(remotePackage.scripts).toMatchObject({
       dev: 'modern dev',
       build:
-        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/assert-mf-types.mjs',
+        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mjs --app catalog --target dist && node ../../scripts/assert-mf-types.mjs',
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
