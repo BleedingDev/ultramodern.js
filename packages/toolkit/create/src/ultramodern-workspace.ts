@@ -925,6 +925,42 @@ function createCloudflareSecurityContract(): JsonValue {
   };
 }
 
+function createPublicWebsiteQualityGateContract(): JsonValue {
+  return {
+    publicRoutes: {
+      requireSitemapWhenPresent: true,
+      requireRobotsSitemapConsistency: true,
+      requireWebManifestWhenPresent: true,
+    },
+    statusCodes: {
+      notFoundRoute: '/__ultramodern-smoke-missing',
+      unknownRouteStatus: 404,
+    },
+    indexing: {
+      previewNoindex: true,
+      productionPublicRoutesIndexable: true,
+    },
+    assets: {
+      cssPreloadRequired: true,
+      cssResponseRequired: true,
+      cacheControlRequiredForCss: true,
+      sourcemapsPubliclyReferenced: false,
+    },
+    budgets: {
+      ssrHtmlMaxBytes: 250_000,
+      mfManifestMaxBytes: 500_000,
+      localeJsonMaxBytes: 100_000,
+      sitemapXmlMaxBytes: 500_000,
+      cssAssetMaxBytes: 750_000,
+    },
+    csp: {
+      finalMode: 'report-only-dogfood',
+      decision:
+        'Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface.',
+    },
+  };
+}
+
 function formatTsJsonValue(value: JsonValue, indent: number): string {
   return JSON.stringify(value, null, 2).replaceAll(
     '\n',
@@ -945,6 +981,7 @@ function createCloudflareDeployContract(
     assetsBinding: 'ASSETS',
     routes: createCloudflareProofRoute(app),
     security: createCloudflareSecurityContract(),
+    qualityGates: createPublicWebsiteQualityGateContract(),
     evidence: {
       proofScript: 'scripts/proof-cloudflare-version.mjs',
       reportDefault:
@@ -5961,6 +5998,18 @@ const assertPublicHeadContract = (appId, publicHead, headModule) => {
     assert(headModule.includes(snippet), \`\${appId} route head module is missing \${snippet}\`);
   }
 };
+const assertCloudflareQualityGates = (appId, qualityGates) => {
+  assert(qualityGates?.publicRoutes?.requireSitemapWhenPresent === true, \`\${appId} quality gates must require sitemap for public routes\`);
+  assert(qualityGates?.publicRoutes?.requireRobotsSitemapConsistency === true, \`\${appId} quality gates must require robots/sitemap consistency\`);
+  assert(qualityGates?.statusCodes?.unknownRouteStatus === 404, \`\${appId} quality gates must require 404 unknown routes\`);
+  assert(qualityGates?.indexing?.previewNoindex === true, \`\${appId} quality gates must require preview noindex\`);
+  assert(qualityGates?.indexing?.productionPublicRoutesIndexable === true, \`\${appId} quality gates must require production public routes to be indexable\`);
+  assert(qualityGates?.assets?.cssPreloadRequired === true, \`\${appId} quality gates must require CSS preload evidence\`);
+  assert(qualityGates?.assets?.sourcemapsPubliclyReferenced === false, \`\${appId} quality gates must reject public sourcemap references\`);
+  assert(typeof qualityGates?.budgets?.ssrHtmlMaxBytes === 'number', \`\${appId} quality gates must define SSR HTML byte budget\`);
+  assert(typeof qualityGates?.budgets?.mfManifestMaxBytes === 'number', \`\${appId} quality gates must define MF manifest byte budget\`);
+  assert(qualityGates?.csp?.finalMode === 'report-only-dogfood', \`\${appId} CSP final mode decision is missing\`);
+};
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
   \`__ULTRAMODERN_\${mfName
@@ -6215,6 +6264,7 @@ assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_U
 assert(shellContract?.deploy?.cloudflare?.compatibilityDate === expectedCloudflareCompatibilityDate, 'Shell Cloudflare compatibilityDate is incorrect');
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), 'Shell Cloudflare compatibility flags are incorrect');
 assert(JSON.stringify(shellContract?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), 'Shell Cloudflare security contract is incorrect');
+assertCloudflareQualityGates('shell-super-app', shellContract?.deploy?.cloudflare?.qualityGates);
 assert(shellContract?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, 'Shell worker compatibilityDate is incorrect');
 assert(shellContract?.deploy?.worker?.name === expectedWorkerName('shell-super-app'), 'Shell worker name is incorrect');
 assert(shellModernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName('shell-super-app') + "'"), 'Shell modern.config.ts must define the Cloudflare worker name');
@@ -6291,6 +6341,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.deploy?.cloudflare?.compatibilityDate === expectedCloudflareCompatibilityDate, \`\${vertical.id} Cloudflare compatibilityDate is incorrect\`);
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.compatibilityFlags) === JSON.stringify(expectedCloudflareCompatibilityFlags), \`\${vertical.id} Cloudflare compatibility flags are incorrect\`);
   assert(JSON.stringify(contractEntry?.deploy?.cloudflare?.security) === JSON.stringify(expectedCloudflareSecurity), \`\${vertical.id} Cloudflare security contract is incorrect\`);
+  assertCloudflareQualityGates(vertical.id, contractEntry?.deploy?.cloudflare?.qualityGates);
   assert(contractEntry?.deploy?.worker?.compatibilityDate === expectedCloudflareCompatibilityDate, \`\${vertical.id} worker compatibilityDate is incorrect\`);
   assert(contractEntry?.deploy?.worker?.name === expectedWorkerName(vertical.id), \`\${vertical.id} worker name is incorrect\`);
   assert(modernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName(vertical.id) + "'"), \`\${vertical.id} modern.config.ts must define the Cloudflare worker name\`);
@@ -6439,6 +6490,8 @@ async function fetchText(url) {
     ok: response.ok,
     status: response.status,
     accessControlAllowOrigin: response.headers.get('access-control-allow-origin'),
+    cacheControl: response.headers.get('cache-control'),
+    contentLength: response.headers.get('content-length'),
     contentSecurityPolicy: response.headers.get('content-security-policy'),
     contentSecurityPolicyReportOnly: response.headers.get('content-security-policy-report-only'),
     contentType: response.headers.get('content-type'),
@@ -6495,6 +6548,52 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function responseByteLength(response) {
+  return Buffer.byteLength(response.body, 'utf8');
+}
+
+function assertByteBudget(evidence, app, response, options) {
+  const bytes = responseByteLength(response);
+  const passed = bytes <= options.maxBytes;
+  evidence.assertions.push({
+    type: 'byte-budget',
+    label: options.label,
+    route: options.route,
+    actualBytes: bytes,
+    maxBytes: options.maxBytes,
+    status: passed ? 'pass' : 'fail',
+  });
+  assert(
+    passed,
+    app.id + ' ' + options.route + ' exceeds ' + options.label + ' byte budget: ' + bytes + ' > ' + options.maxBytes,
+  );
+}
+
+function assertContentType(evidence, app, response, options) {
+  const actual = response.contentType ?? '';
+  const passed = actual.toLowerCase().includes(options.includes);
+  evidence.assertions.push({
+    type: 'content-type',
+    route: options.route,
+    expectedIncludes: options.includes,
+    actual,
+    status: passed ? 'pass' : 'fail',
+  });
+  assert(passed, app.id + ' ' + options.route + ' content-type must include ' + options.includes);
+}
+
+function assertCacheControl(evidence, app, response, options) {
+  const actual = response.cacheControl ?? '';
+  const passed = options.required === false || actual.trim() !== '';
+  evidence.assertions.push({
+    type: 'cache-control',
+    route: options.route,
+    actual,
+    status: passed ? 'pass' : 'fail',
+  });
+  assert(passed, app.id + ' ' + options.route + ' is missing cache-control');
 }
 
 function matchesPreviewHostname(hostname, pattern) {
@@ -6630,6 +6729,55 @@ function assertCloudflareSecurity(evidence, app, response, route, publicUrl, opt
   }
 }
 
+function collectStringValues(value, results = []) {
+  if (typeof value === 'string') {
+    results.push(value);
+    return results;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStringValues(item, results);
+    }
+    return results;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      collectStringValues(item, results);
+    }
+  }
+  return results;
+}
+
+function assertNoPublicSourcemapRefs(evidence, app, manifestJson) {
+  const sourcemapRefs = collectStringValues(manifestJson).filter(value =>
+    /\\.map(?:$|[?#])/u.test(value),
+  );
+  evidence.assertions.push({
+    type: 'sourcemap-policy',
+    actual: sourcemapRefs,
+    status: sourcemapRefs.length === 0 ? 'pass' : 'fail',
+  });
+  assert(
+    sourcemapRefs.length === 0,
+    app.id + ' MF manifest must not publicly reference sourcemaps',
+  );
+}
+
+function extractPreloadStyleUrls(linkHeader, publicUrl) {
+  const urls = [];
+  for (const match of String(linkHeader || '').matchAll(/<([^>]+)>\\s*;[^,]*rel=preload[^,]*as=style/giu)) {
+    urls.push(String(joinUrl(publicUrl, match[1])));
+  }
+  return urls;
+}
+
+function htmlHasRobotsDirective(html, expectedContent) {
+  return htmlHasTagWithAttributes(html, 'meta', {
+    name: 'robots',
+    content: expectedContent,
+  });
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
 }
@@ -6719,6 +6867,25 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
       html: true,
     });
   }
+  const isPreview = shouldNoindexUrl(publicUrl, app.deploy?.cloudflare?.security?.noindex);
+  const robotsIndexable = htmlHasRobotsDirective(headResponse.body, 'index, follow');
+  evidence.assertions.push({
+    type: 'indexing-policy',
+    route: headRoute,
+    mode: isPreview ? 'preview' : 'production',
+    xRobotsTag: headResponse.xRobotsTag,
+    htmlRobotsIndexable: robotsIndexable,
+    status:
+      isPreview || (headResponse.xRobotsTag !== 'noindex, nofollow' && robotsIndexable)
+        ? 'pass'
+        : 'fail',
+  });
+  if (!isPreview) {
+    assert(
+      headResponse.xRobotsTag !== 'noindex, nofollow' && robotsIndexable,
+      \`\${app.id} \${headRoute} production public route must be indexable\`,
+    );
+  }
 
   const canonicalUrl = String(joinUrl(publicUrl, headRoute));
   assertHeadTag(evidence, headResponse.body, {
@@ -6772,6 +6939,163 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
   });
 }
 
+async function validateNotFound(evidence, app, publicUrl) {
+  const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
+  const notFoundRoute =
+    qualityGates.statusCodes?.notFoundRoute ?? '/__ultramodern-smoke-missing';
+  const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? 404;
+  const response = await fetchText(joinUrl(publicUrl, notFoundRoute));
+  evidence.assertions.push({
+    type: 'status-code',
+    route: notFoundRoute,
+    expectedStatus,
+    actualStatus: response.status,
+    status: response.status === expectedStatus ? 'pass' : 'fail',
+  });
+  assert(
+    response.status === expectedStatus,
+    \`\${app.id} unknown route must return HTTP \${expectedStatus}, got \${response.status}\`,
+  );
+  assertCloudflareSecurity(evidence, app, response, notFoundRoute, publicUrl, {
+    html: response.contentType?.includes('text/html'),
+  });
+}
+
+async function validateCssAsset(evidence, app, publicUrl, ssr) {
+  const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
+  const styleUrls = extractPreloadStyleUrls(ssr.link, publicUrl);
+  evidence.assertions.push({
+    type: 'css-preload-assets',
+    actual: styleUrls,
+    status: styleUrls.length > 0 ? 'pass' : 'fail',
+  });
+  assert(styleUrls.length > 0, \`\${app.id} SSR response did not expose preloadable CSS assets\`);
+
+  const styleUrl = styleUrls[0];
+  const route = new URL(styleUrl).pathname;
+  const css = await fetchText(styleUrl);
+  evidence.assertions.push({
+    type: 'css-asset',
+    route,
+    status: css.ok && css.body.trim() !== '' ? 'pass' : 'fail',
+    statusCode: css.status,
+  });
+  assert(css.ok, \`\${app.id} CSS asset returned HTTP \${css.status}\`);
+  assert(css.body.trim() !== '', \`\${app.id} CSS asset is empty\`);
+  assertContentType(evidence, app, css, {
+    route,
+    includes: 'text/css',
+  });
+  assertCacheControl(evidence, app, css, {
+    route,
+    required: qualityGates.assets?.cacheControlRequiredForCss,
+  });
+  assertByteBudget(evidence, app, css, {
+    label: 'cssAssetMaxBytes',
+    maxBytes: budgets.cssAssetMaxBytes ?? 750_000,
+    route,
+  });
+}
+
+async function validatePublicSurface(evidence, app, publicUrl) {
+  const publicSurface = app.routes?.publicSurface ?? {};
+  const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
+  const hasPublicRoutes =
+    (publicSurface.publicRoutes ?? []).length > 0 ||
+    (publicSurface.routeEntries ?? []).length > 0 ||
+    (publicSurface.contentSources ?? []).length > 0;
+
+  const robotsRoute = '/robots.txt';
+  const robots = await fetchText(joinUrl(publicUrl, robotsRoute));
+  evidence.assertions.push({
+    type: 'public-surface-robots',
+    route: robotsRoute,
+    status: robots.ok ? 'pass' : 'fail',
+    statusCode: robots.status,
+  });
+  assert(robots.ok, \`\${app.id} robots.txt returned HTTP \${robots.status}\`);
+  assertContentType(evidence, app, robots, {
+    route: robotsRoute,
+    includes: 'text/plain',
+  });
+  assertCloudflareSecurity(evidence, app, robots, robotsRoute, publicUrl);
+
+  if (!hasPublicRoutes) {
+    const disallowsAll = robots.body.includes('Disallow: /');
+    const referencesSitemap = /\\bSitemap:/iu.test(robots.body);
+    evidence.assertions.push({
+      type: 'public-surface-private-robots',
+      route: robotsRoute,
+      disallowsAll,
+      referencesSitemap,
+      status: disallowsAll && !referencesSitemap ? 'pass' : 'fail',
+    });
+    assert(disallowsAll, \`\${app.id} private public surface robots.txt must disallow crawling\`);
+    assert(!referencesSitemap, \`\${app.id} private public surface robots.txt must not reference sitemap.xml\`);
+    return;
+  }
+
+  const sitemapRoute = '/sitemap.xml';
+  const sitemap = await fetchText(joinUrl(publicUrl, sitemapRoute));
+  evidence.assertions.push({
+    type: 'public-surface-sitemap',
+    route: sitemapRoute,
+    status: sitemap.ok ? 'pass' : 'fail',
+    statusCode: sitemap.status,
+  });
+  assert(sitemap.ok, \`\${app.id} sitemap.xml returned HTTP \${sitemap.status}\`);
+  assertContentType(evidence, app, sitemap, {
+    route: sitemapRoute,
+    includes: 'xml',
+  });
+  assertByteBudget(evidence, app, sitemap, {
+    label: 'sitemapXmlMaxBytes',
+    maxBytes: budgets.sitemapXmlMaxBytes ?? 500_000,
+    route: sitemapRoute,
+  });
+
+  const sitemapUrl = String(joinUrl(publicUrl, sitemapRoute));
+  const robotsReferencesSitemap = robots.body.includes(\`Sitemap: \${sitemapUrl}\`);
+  evidence.assertions.push({
+    type: 'robots-sitemap-consistency',
+    route: robotsRoute,
+    sitemapUrl,
+    status: robotsReferencesSitemap ? 'pass' : 'fail',
+  });
+  assert(
+    robotsReferencesSitemap,
+    \`\${app.id} robots.txt must reference generated sitemap.xml\`,
+  );
+
+  for (const urlPath of publicSurface.concreteUrlPaths ?? []) {
+    const loc = \`<loc>\${String(joinUrl(publicUrl, urlPath))}</loc>\`;
+    evidence.assertions.push({
+      type: 'sitemap-route',
+      route: urlPath,
+      status: sitemap.body.includes(loc) ? 'pass' : 'fail',
+    });
+    assert(sitemap.body.includes(loc), \`\${app.id} sitemap.xml is missing \${urlPath}\`);
+  }
+
+  const manifestRoute = '/site.webmanifest';
+  const webManifest = await fetchText(joinUrl(publicUrl, manifestRoute));
+  const webManifestJson = parseMaybeJson(webManifest.body);
+  evidence.assertions.push({
+    type: 'public-surface-webmanifest',
+    route: manifestRoute,
+    status: webManifest.ok && webManifestJson ? 'pass' : 'fail',
+    statusCode: webManifest.status,
+  });
+  assert(webManifest.ok, \`\${app.id} site.webmanifest returned HTTP \${webManifest.status}\`);
+  assert(webManifestJson, \`\${app.id} site.webmanifest must be valid JSON\`);
+  assertContentType(evidence, app, webManifest, {
+    route: manifestRoute,
+    includes: 'manifest',
+  });
+}
+
 async function validateApp(app, publicUrl) {
   const cloudflare = app.deploy?.cloudflare;
   const routes = cloudflare?.routes ?? {};
@@ -6785,6 +7109,8 @@ async function validateApp(app, publicUrl) {
 
   const ssrRoute = routes.ssr ?? '/en';
   const ssr = await fetchText(joinUrl(publicUrl, ssrRoute));
+  const qualityGates = cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
   evidence.assertions.push({
     type: 'ssr',
     route: ssrRoute,
@@ -6795,7 +7121,18 @@ async function validateApp(app, publicUrl) {
   assertCloudflareSecurity(evidence, app, ssr, ssrRoute, publicUrl, {
     html: true,
   });
+  assertContentType(evidence, app, ssr, {
+    route: ssrRoute,
+    includes: 'text/html',
+  });
+  assertByteBudget(evidence, app, ssr, {
+    label: 'ssrHtmlMaxBytes',
+    maxBytes: budgets.ssrHtmlMaxBytes ?? 250_000,
+    route: ssrRoute,
+  });
   await validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr);
+  await validateNotFound(evidence, app, publicUrl);
+  await validatePublicSurface(evidence, app, publicUrl);
 
   const uiMarker = extractUiMarker(ssr.body);
   evidence.assertions.push({
@@ -6835,6 +7172,7 @@ async function validateApp(app, publicUrl) {
       cssPreloadLinkHeader.includes('as=style'),
     \`\${app.id} SSR response is missing CSS preload Link headers\`,
   );
+  await validateCssAsset(evidence, app, publicUrl, ssr);
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
   const manifest = await fetchText(joinUrl(publicUrl, manifestRoute));
@@ -6850,6 +7188,16 @@ async function validateApp(app, publicUrl) {
     \`\${app.id} MF manifest returned HTTP \${manifest.status}\`,
   );
   assertCloudflareSecurity(evidence, app, manifest, manifestRoute, publicUrl);
+  assertContentType(evidence, app, manifest, {
+    route: manifestRoute,
+    includes: 'json',
+  });
+  assertByteBudget(evidence, app, manifest, {
+    label: 'mfManifestMaxBytes',
+    maxBytes: budgets.mfManifestMaxBytes ?? 500_000,
+    route: manifestRoute,
+  });
+  assertNoPublicSourcemapRefs(evidence, app, manifestJson);
   evidence.assertions.push({
     type: 'mf-manifest-cors',
     route: manifestRoute,
@@ -6890,6 +7238,15 @@ async function validateApp(app, publicUrl) {
   });
   assert(locale.ok, \`\${app.id} locale JSON returned HTTP \${locale.status}\`);
   assertCloudflareSecurity(evidence, app, locale, localeRoute, publicUrl);
+  assertContentType(evidence, app, locale, {
+    route: localeRoute,
+    includes: 'json',
+  });
+  assertByteBudget(evidence, app, locale, {
+    label: 'localeJsonMaxBytes',
+    maxBytes: budgets.localeJsonMaxBytes ?? 100_000,
+    route: localeRoute,
+  });
   evidence.assertions.push({
     type: 'i18n-cors',
     route: localeRoute,

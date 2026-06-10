@@ -523,6 +523,11 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(cloudflareProofScript).toContain('css-preload-link-header');
     expect(cloudflareProofScript).toContain('security-csp');
+    expect(cloudflareProofScript).toContain('public-surface-sitemap');
+    expect(cloudflareProofScript).toContain('robots-sitemap-consistency');
+    expect(cloudflareProofScript).toContain('sourcemap-policy');
+    expect(cloudflareProofScript).toContain('byte-budget');
+    expect(cloudflareProofScript).toContain('status-code');
     expect(rootPackage.scripts.format).toBe("oxfmt . '!repos/**'");
     expect(rootPackage.scripts['format:check']).toBe(
       "oxfmt --check . '!repos/**'",
@@ -876,6 +881,37 @@ describe('create-ultramodern-workspace', () => {
           },
           cookies: {
             mutateSetCookie: false,
+          },
+        },
+        qualityGates: {
+          publicRoutes: {
+            requireSitemapWhenPresent: true,
+            requireRobotsSitemapConsistency: true,
+            requireWebManifestWhenPresent: true,
+          },
+          statusCodes: {
+            notFoundRoute: '/__ultramodern-smoke-missing',
+            unknownRouteStatus: 404,
+          },
+          indexing: {
+            previewNoindex: true,
+            productionPublicRoutesIndexable: true,
+          },
+          assets: {
+            cssPreloadRequired: true,
+            cssResponseRequired: true,
+            cacheControlRequiredForCss: true,
+            sourcemapsPubliclyReferenced: false,
+          },
+          budgets: {
+            ssrHtmlMaxBytes: 250_000,
+            mfManifestMaxBytes: 500_000,
+            localeJsonMaxBytes: 100_000,
+            sitemapXmlMaxBytes: 500_000,
+            cssAssetMaxBytes: 750_000,
+          },
+          csp: {
+            finalMode: 'report-only-dogfood',
           },
         },
         routes: {
