@@ -20,9 +20,12 @@ export const OXFMT_VERSION = '0.53.0';
 export const ULTRACITE_VERSION = '7.8.1';
 export const LEFTHOOK_VERSION = '^2.1.9';
 export const I18NEXT_VERSION = '26.3.1';
+export const NODE_FETCH_VERSION = '^3.3.2';
 export const REACT_VERSION = '^19.2.7';
 export const REACT_DOM_VERSION = '^19.2.7';
 export const REACT_ROUTER_DOM_VERSION = '7.17.0';
+export const TYPES_REACT_VERSION = '^19.2.17';
+export const TYPES_REACT_DOM_VERSION = '^19.2.3';
 export const PNPM_VERSION = '11.5.2';
 export const RSTACK_AGENT_SKILLS_COMMIT =
   '61c948b42512e223bad44b83af4080eba48b2677';

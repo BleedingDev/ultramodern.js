@@ -15,9 +15,7 @@ setSuiteTimeout(1000 * 60 * 15);
 const appDir = path.resolve(__dirname, '../');
 const enabled = process.env.SUPERAPP_PILOT_CHAOS === '1';
 const externalBaseUrl = (
-  process.env.SUPERAPP_PILOT_CHAOS_BASE_URL ??
-  process.env.SUPERAPP_DESTROY_BASE_URL ??
-  ''
+  process.env.SUPERAPP_PILOT_CHAOS_BASE_URL ?? ''
 ).replace(/\/+$/, '');
 const artifactDir =
   process.env.SUPERAPP_PILOT_CHAOS_ARTIFACT_DIR ??

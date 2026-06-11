@@ -1,0 +1,127 @@
+import {
+  HttpApi,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  HttpApiSchema,
+  Schema,
+} from '@modern-js/plugin-bff/effect-client';
+
+export const catalogMarkerSchema = Schema.Struct({
+  appId: Schema.String,
+  build: Schema.String,
+  deployProfile: Schema.String,
+  packageName: Schema.String,
+  surface: Schema.String,
+  version: Schema.String,
+});
+
+export const catalogItemSchema = Schema.Struct({
+  id: Schema.String,
+  marker: catalogMarkerSchema,
+  title: Schema.String,
+});
+
+export const catalogReadinessSchema = Schema.Struct({
+  checks: Schema.Struct({
+    effectBff: Schema.Literal('ready'),
+    moduleFederation: Schema.Literal('ready'),
+    ssr: Schema.Literal('ready'),
+    translations: Schema.Literal('ready'),
+  }),
+  marker: catalogMarkerSchema,
+  status: Schema.Literal('ready'),
+  versionSkew: Schema.Literal('none'),
+});
+
+export const catalogCreatePayloadSchema = Schema.Struct({
+  title: Schema.String,
+});
+
+export class CatalogNotFound extends Schema.TaggedErrorClass<CatalogNotFound>()(
+  'CatalogNotFound',
+  {
+    id: Schema.String,
+  },
+) {}
+
+export const catalogNotFoundSchema = CatalogNotFound.pipe(
+  HttpApiSchema.status(404),
+);
+
+export interface OperationContext {
+  method: string;
+  operationId: string;
+  routePath: string;
+  source: string;
+  traceId?: string;
+}
+
+export const catalogEffectApi = HttpApi.make('CatalogEffectApi').add(
+  HttpApiGroup.make('catalog')
+    .add(
+      HttpApiEndpoint.get('list', '/effect/catalog', {
+        query: {
+          limit: Schema.optional(Schema.FiniteFromString),
+        },
+        success: Schema.Struct({
+          items: Schema.Array(catalogItemSchema),
+        }),
+      }),
+    )
+    .add(
+      HttpApiEndpoint.get('readiness', '/effect/catalog/readiness', {
+        success: catalogReadinessSchema,
+      }),
+    )
+    .add(
+      HttpApiEndpoint.get('get', '/effect/catalog/:id', {
+        error: catalogNotFoundSchema,
+        params: {
+          id: Schema.String,
+        },
+        success: catalogItemSchema,
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('create', '/effect/catalog', {
+        payload: catalogCreatePayloadSchema,
+        success: Schema.Struct({
+          item: catalogItemSchema,
+        }),
+      }),
+    ),
+);
+
+export const catalogOperationContexts = {
+  create: {
+    method: 'POST',
+    operationId: 'CatalogEffectApi:catalog:create',
+    routePath: '/effect/catalog',
+    source: 'generated-client',
+  },
+  get: {
+    method: 'GET',
+    operationId: 'CatalogEffectApi:catalog:get',
+    routePath: '/effect/catalog/:id',
+    source: 'generated-client',
+  },
+  list: {
+    method: 'GET',
+    operationId: 'CatalogEffectApi:catalog:list',
+    routePath: '/effect/catalog',
+    source: 'generated-client',
+  },
+  readiness: {
+    method: 'GET',
+    operationId: 'CatalogEffectApi:catalog:readiness',
+    routePath: '/effect/catalog/readiness',
+    source: 'generated-client',
+  },
+} satisfies Record<string, OperationContext>;
+
+export const catalogApiContract = {
+  apiPrefix: '/catalog-api',
+  basePath: '/catalog-api/effect/catalog',
+  ownerId: 'catalog',
+  readinessPath: '/catalog-api/effect/catalog/readiness',
+} as const;

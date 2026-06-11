@@ -23,7 +23,11 @@ import {
   createEffectRequestContextContract,
   effectApiTopologyMetadata,
 } from './effect-api';
-import { hashTemplateTree, workspaceTemplateDir } from './fs-io';
+import {
+  fileTemplatesDir,
+  hashTemplateTree,
+  workspaceTemplateDir,
+} from './fs-io';
 import { createBuildMarker } from './module-federation';
 import {
   createRspackChunkLoadingGlobal,
@@ -612,7 +616,7 @@ export function createTemplateManifest(
       type: 'builtin',
       name: 'modernjs-ultramodern-superapp-workspace',
       repositoryPath: 'packages/toolkit/create/template-workspace',
-      generator: 'packages/toolkit/create/src/ultramodern-workspace.ts',
+      generator: 'packages/toolkit/create/src/ultramodern-workspace/',
     },
     integrity: {
       checksums: [
@@ -620,6 +624,11 @@ export function createTemplateManifest(
           algorithm: 'sha256',
           value: hashTemplateTree(workspaceTemplateDir),
           scope: 'source-tree',
+        },
+        {
+          algorithm: 'sha256',
+          value: hashTemplateTree(fileTemplatesDir),
+          scope: 'file-templates-tree',
         },
       ],
       provenance: {

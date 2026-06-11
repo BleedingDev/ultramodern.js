@@ -20,8 +20,8 @@ const AppIdSchema = Schema.Literals([
 ]);
 
 const ProfileSchema = Schema.Struct({
-  durationMs: Schema.Number,
-  concurrency: Schema.Number,
+  durationMs: Schema.Finite,
+  concurrency: Schema.Finite,
   workflows: Schema.Array(Schema.String),
 });
 
@@ -39,7 +39,7 @@ const PortfolioAppSchema = Schema.Struct({
   ]),
   routes: Schema.Array(Schema.String),
   capabilities: Schema.Array(Schema.String),
-  openWork: Schema.Number,
+  openWork: Schema.Finite,
   risk: Schema.Literals(['low', 'medium', 'high']),
   profiles: Schema.Struct({
     smoke: ProfileSchema,
@@ -207,7 +207,7 @@ const WorkloadTenantPlanSchema = Schema.Struct({
   region: Schema.String,
   dataResidency: Schema.String,
   appIds: Schema.Array(AppIdSchema),
-  baselineUsers: Schema.Number,
+  baselineUsers: Schema.Finite,
   featureFlags: Schema.Array(Schema.String),
   primaryRoles: Schema.Array(WorkloadRoleSchema),
 });
@@ -229,26 +229,26 @@ const WorkloadUserPlanSchema = Schema.Struct({
   homeRegion: Schema.String,
   appIds: Schema.Array(AppIdSchema),
   requestActor: Schema.String,
-  workloadWeight: Schema.Number,
+  workloadWeight: Schema.Finite,
 });
 
 const WorkloadEntityScaleSchema = Schema.Struct({
   entity: Schema.String,
-  perTenant: Schema.Number,
-  highWatermark: Schema.Number,
+  perTenant: Schema.Finite,
+  highWatermark: Schema.Finite,
   hotPartitionKey: Schema.String,
   cadence: Schema.String,
 });
 
 const WorkloadBudgetSchema = Schema.Struct({
-  p95Ms: Schema.Number,
-  maxMs: Schema.Number,
-  concurrency: Schema.Number,
-  recordsTouched: Schema.Number,
+  p95Ms: Schema.Finite,
+  maxMs: Schema.Finite,
+  concurrency: Schema.Finite,
+  recordsTouched: Schema.Finite,
 });
 
 const WorkloadMutationProfileSchema = Schema.Struct({
-  readsPerWrite: Schema.Number,
+  readsPerWrite: Schema.Finite,
   idempotentWrites: Schema.Boolean,
   crossTenantWrites: Schema.Boolean,
   retryableActions: Schema.Array(Schema.String),
@@ -287,7 +287,7 @@ const WorkloadScenarioOperationSchema = Schema.Struct({
   requestId: Schema.String,
   idempotencyKey: Schema.String,
   expectedEventKind: Schema.String,
-  weight: Schema.Number,
+  weight: Schema.Finite,
   producesAuditEvent: Schema.Boolean,
 });
 
@@ -364,19 +364,19 @@ const GeneratedWorkloadEntitySchema = Schema.Literals([
 ]);
 
 const GeneratedWorkloadEntityCountsSchema = Schema.Struct({
-  orders: Schema.Number,
-  invoices: Schema.Number,
-  ledgerEntries: Schema.Number,
-  rides: Schema.Number,
-  dispatchAssignments: Schema.Number,
-  fleetVehicles: Schema.Number,
-  chatThreads: Schema.Number,
-  messages: Schema.Number,
-  auditEvents: Schema.Number,
-  users: Schema.Number,
-  roles: Schema.Number,
-  memberships: Schema.Number,
-  tenantResources: Schema.Number,
+  orders: Schema.Finite,
+  invoices: Schema.Finite,
+  ledgerEntries: Schema.Finite,
+  rides: Schema.Finite,
+  dispatchAssignments: Schema.Finite,
+  fleetVehicles: Schema.Finite,
+  chatThreads: Schema.Finite,
+  messages: Schema.Finite,
+  auditEvents: Schema.Finite,
+  users: Schema.Finite,
+  roles: Schema.Finite,
+  memberships: Schema.Finite,
+  tenantResources: Schema.Finite,
 });
 
 const GeneratedWorkloadRecordSchema = Schema.Struct({
@@ -391,14 +391,14 @@ const GeneratedWorkloadRecordSchema = Schema.Struct({
   actorUserId: Schema.String,
   requestId: Schema.String,
   relatedIds: Schema.Array(Schema.String),
-  amountCents: Schema.Number,
-  ordinal: Schema.Number,
+  amountCents: Schema.Finite,
+  ordinal: Schema.Finite,
   checksum: Schema.String,
 });
 
 const GeneratedWorkloadHighWatermarkSchema = Schema.Struct({
   entity: GeneratedWorkloadEntitySchema,
-  count: Schema.Number,
+  count: Schema.Finite,
   firstId: Schema.String,
   lastId: Schema.String,
   lastCreatedAtIso: Schema.String,
@@ -408,7 +408,7 @@ const GeneratedTenantWorkloadSummarySchema = Schema.Struct({
   tenantId: WorkloadTenantSchema,
   region: Schema.String,
   appIds: Schema.Array(AppIdSchema),
-  totalRecords: Schema.Number,
+  totalRecords: Schema.Finite,
   totals: GeneratedWorkloadEntityCountsSchema,
   sampleIds: Schema.Array(Schema.String),
 });
@@ -417,9 +417,9 @@ const GeneratedWorkloadSampleWindowSchema = Schema.Struct({
   id: Schema.String,
   entity: GeneratedWorkloadEntitySchema,
   tenantId: WorkloadTenantSchema,
-  start: Schema.Number,
-  limit: Schema.Number,
-  count: Schema.Number,
+  start: Schema.Finite,
+  limit: Schema.Finite,
+  count: Schema.Finite,
   firstId: Schema.String,
   lastId: Schema.String,
 });
@@ -486,9 +486,9 @@ const GeneratedWorkloadContractSchema = Schema.Struct({
   datasetVersion: Schema.Literal('superapp-generated-workload-v1'),
   seed: Schema.Literal('superapp-portfolio-generated-workload-v1'),
   clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
-  clockStepMs: Schema.Number,
+  clockStepMs: Schema.Finite,
   metadata: Schema.Struct({
-    totalRecords: Schema.Number,
+    totalRecords: Schema.Finite,
     totals: GeneratedWorkloadEntityCountsSchema,
     highWatermarks: Schema.Array(GeneratedWorkloadHighWatermarkSchema),
     tenantSummaries: Schema.Array(GeneratedTenantWorkloadSummarySchema),
@@ -512,11 +512,11 @@ const WorkloadScenarioProfileMetadataSchema = Schema.Struct({
   categories: Schema.Array(WorkloadScenarioProfileCategorySchema),
   profileIds: Schema.Array(WorkloadScenarioProfileIdSchema),
   helperMetadata: Schema.Struct({
-    profileCount: Schema.Number,
+    profileCount: Schema.Finite,
     categoryCounts: Schema.Array(
       Schema.Struct({
         category: WorkloadScenarioProfileCategorySchema,
-        count: Schema.Number,
+        count: Schema.Finite,
       }),
     ),
     sampleWindowIds: Schema.Array(Schema.String),
@@ -551,11 +551,11 @@ const WorkloadSeedDescriptorSchema = Schema.Struct({
   sampleRecordIds: Schema.Array(Schema.String),
   selectedSampleWindows: Schema.Array(GeneratedWorkloadSampleWindowSchema),
   metadata: Schema.Struct({
-    totalRecords: Schema.Number,
-    profileCount: Schema.Number,
-    sampleWindowCount: Schema.Number,
-    selectedSampleWindowCount: Schema.Number,
-    selectedSampleRecordCount: Schema.Number,
+    totalRecords: Schema.Finite,
+    profileCount: Schema.Finite,
+    sampleWindowCount: Schema.Finite,
+    selectedSampleWindowCount: Schema.Finite,
+    selectedSampleRecordCount: Schema.Finite,
   }),
 });
 
@@ -573,11 +573,11 @@ const WorkloadResetSeedMetadataSchema = Schema.Struct({
     'superapp-portfolio-scenario-profiles-v1',
   ),
   clockStartIso: Schema.Literal('2026-01-15T08:00:00.000Z'),
-  clockStepMs: Schema.Number,
+  clockStepMs: Schema.Finite,
   eventIdPrefix: Schema.Literal('evt'),
   pilotRunIdPrefix: Schema.Literal('pilot'),
-  initialEventCounter: Schema.Number,
-  initialPilotRunCounter: Schema.Number,
+  initialEventCounter: Schema.Finite,
+  initialPilotRunCounter: Schema.Finite,
   helperIds: Schema.Struct({
     workloadRootTenantId: WorkloadTenantSchema,
     readHeavyTenantId: WorkloadTenantSchema,
@@ -614,7 +614,7 @@ const PilotModuleResultSchema = Schema.Struct({
   ok: Schema.Boolean,
   degraded: Schema.Boolean,
   invariant: Schema.String,
-  durationBudgetMs: Schema.Number,
+  durationBudgetMs: Schema.Finite,
 });
 
 const PilotRunSchema = Schema.Struct({
@@ -629,22 +629,22 @@ const PilotRunSchema = Schema.Struct({
   moduleResults: Schema.Array(PilotModuleResultSchema),
   productionChecks: Schema.Array(Schema.String),
   summary: Schema.Struct({
-    workflowEvents: Schema.Number,
-    chatMessages: Schema.Number,
-    approvals: Schema.Number,
-    remoteFallbacks: Schema.Number,
-    securityChecks: Schema.Number,
-    degradedModules: Schema.Number,
+    workflowEvents: Schema.Finite,
+    chatMessages: Schema.Finite,
+    approvals: Schema.Finite,
+    remoteFallbacks: Schema.Finite,
+    securityChecks: Schema.Finite,
+    degradedModules: Schema.Finite,
   }),
 });
 
 const SummarySchema = Schema.Struct({
-  appCount: Schema.Number,
-  highRiskApps: Schema.Number,
-  totalOpenWork: Schema.Number,
-  eventCount: Schema.Number,
+  appCount: Schema.Finite,
+  highRiskApps: Schema.Finite,
+  totalOpenWork: Schema.Finite,
+  eventCount: Schema.Finite,
   failureMode: FailureModeSchema,
-  nightlyWorkflowCount: Schema.Number,
+  nightlyWorkflowCount: Schema.Finite,
 });
 
 const ChaosToggleDescriptorSchema = Schema.Struct({
@@ -654,21 +654,21 @@ const ChaosToggleDescriptorSchema = Schema.Struct({
   scope: ChaosToggleScopeSchema,
   targetRequestId: Schema.String,
   targetEndpoint: ChaosToggleEndpointSchema,
-  expectedHttpStatus: Schema.Number,
+  expectedHttpStatus: Schema.Finite,
   responseKind: Schema.String,
   applicationStatus: Schema.String,
   errorCode: Schema.String,
   messageKey: Schema.String,
   retryable: Schema.Boolean,
   resetRequired: Schema.Boolean,
-  retryAfterMs: Schema.optional(Schema.Number),
+  retryAfterMs: Schema.optional(Schema.Finite),
   armedBy: Schema.String,
   reason: Schema.String,
   armedAtEventId: Schema.String,
   idempotencyKey: Schema.String,
   payloadSeed: Schema.String,
-  attemptCount: Schema.Number,
-  clockOffsetMs: Schema.Number,
+  attemptCount: Schema.Finite,
+  clockOffsetMs: Schema.Finite,
   legacyFailureMode: Schema.optional(Schema.String),
 });
 

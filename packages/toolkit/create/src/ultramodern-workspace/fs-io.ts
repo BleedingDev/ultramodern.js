@@ -12,7 +12,7 @@ export const workspaceTemplateDir = path.join(
   createPackageRoot,
   'template-workspace',
 );
-const fileTemplatesDir = path.join(createPackageRoot, 'templates');
+export const fileTemplatesDir = path.join(createPackageRoot, 'templates');
 
 export function readFileTemplate(relativePath: string): string {
   return fs.readFileSync(path.join(fileTemplatesDir, relativePath), 'utf-8');
