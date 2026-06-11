@@ -1,5 +1,6 @@
 import { RenderLevel } from '../../../../src/core/constants';
 import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
+import { applyRouterRuntimeState } from '../../../../src/router/runtime/lifecycle';
 
 const createScripts = (options?: {
   useJsonScript?: boolean;
@@ -21,12 +22,19 @@ const createScripts = (options?: {
     cssChunk: '',
   };
 
+  const runtimeContext = {
+    initialData: { name: 'modern.js' },
+    __i18nData__: {},
+  } as any;
+  if (options?.routerServerSnapshot) {
+    applyRouterRuntimeState(runtimeContext, {
+      framework: 'react-router',
+      serverSnapshot: options.routerServerSnapshot,
+    });
+  }
+
   const collector = new SSRDataCollector({
-    runtimeContext: {
-      initialData: { name: 'modern.js' },
-      __i18nData__: {},
-      routerServerSnapshot: options?.routerServerSnapshot,
-    } as any,
+    runtimeContext,
     request: new Request('http://localhost/'),
     chunkSet,
     ssrContext: {

@@ -20,6 +20,8 @@ export {
   handleModifyEntrypoints,
   isRouteEntry,
 } from '../router/cli';
+export { makeLegalIdentifier } from '../router/cli/code/makeLegalIdentifier';
+export { getPathWithoutExt } from '../router/cli/code/utils';
 export { isRuntimeEntry } from './entry';
 export { documentPlugin, routerPlugin, ssrPlugin };
 export const runtimePlugin = (params?: {

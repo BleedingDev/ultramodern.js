@@ -6,6 +6,7 @@ import {
   type TInternalRuntimeContext,
   type TRuntimeContext,
 } from '../context';
+import { ensureHelmetContext } from '../context/helmetContext';
 
 export function wrapRuntimeContextProvider(
   App: React.ReactElement,
@@ -15,31 +16,23 @@ export function wrapRuntimeContextProvider(
     isBrowser,
     initialData,
     routes,
-    routerFramework,
     context,
     routeManifest,
-    routerRuntime,
-    routerInstance,
-    routerHydrationScript,
-    routerMatchedRouteIds,
-    routerServerSnapshot,
     routerContext,
     unstable_getBlockNavState,
     ssrContext,
     _internalContext,
     _internalRouterBaseName,
-    _helmetContext,
     ...rest
   } = contextValue as TInternalRuntimeContext;
 
   const internalContextValue = contextValue as TInternalRuntimeContext;
-  internalContextValue._helmetContext ??= {};
+  const helmetContext = ensureHelmetContext(internalContextValue);
 
   const runtimeContextValue: TRuntimeContext = {
     isBrowser,
     initialData,
     routes,
-    routerFramework,
     context,
     ...rest,
   };
@@ -47,9 +40,7 @@ export function wrapRuntimeContextProvider(
   return (
     <InternalRuntimeContext.Provider value={internalContextValue}>
       <RuntimeContext.Provider value={runtimeContextValue}>
-        <HelmetProvider context={internalContextValue._helmetContext}>
-          {App}
-        </HelmetProvider>
+        <HelmetProvider context={helmetContext}>{App}</HelmetProvider>
       </RuntimeContext.Provider>
     </InternalRuntimeContext.Provider>
   );

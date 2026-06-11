@@ -24,6 +24,7 @@ export default {
       testEnvironment: 'node',
       include: [
         'tests/router/cli.test.ts',
+        'tests/router/fastDefaults.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/tanstackTypes.test.ts',
         'tests/router/routeTree.test.ts',
@@ -35,6 +36,7 @@ export default {
       testEnvironment: 'happy-dom',
       include: [
         'tests/router/dataMutation.test.tsx',
+        'tests/router/hydrationBoundary.test.tsx',
         'tests/router/prefetchLink.test.tsx',
       ],
       extends: commonConfig,

@@ -4,6 +4,16 @@ import {
   LoadableCollector,
   orderHydrationScriptChunks,
 } from '../../../src/core/server/string/loadable';
+import { applyRouterRuntimeState } from '../../../src/router/runtime/lifecycle';
+
+const createRuntimeContextWithMatchedRoutes = (matchedRouteIds: string[]) => {
+  const runtimeContext = {} as any;
+  applyRouterRuntimeState(runtimeContext, {
+    framework: 'react-router',
+    serverSnapshot: { matchedRouteIds },
+  });
+  return runtimeContext;
+};
 
 const chunk = (url: string, filename = url) => ({
   url,
@@ -24,11 +34,7 @@ describe('LoadableCollector federated css', () => {
     };
 
     const collector = new LoadableCollector({
-      runtimeContext: {
-        routerServerSnapshot: {
-          matchedRouteIds: ['route-a'],
-        },
-      } as any,
+      runtimeContext: createRuntimeContextWithMatchedRoutes(['route-a']),
       template:
         '<html><head><link href="https://remote.example.com/already.css" rel="stylesheet" /></head></html>',
       entryName: 'main',

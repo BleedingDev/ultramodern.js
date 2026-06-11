@@ -4,6 +4,33 @@ import type React from 'react';
 import type { RuntimeExtends } from '../plugin/types';
 import type { ServerPayload } from './serverPayload/index';
 
+// Router runtime state shared between router providers (react-router,
+// @modern-js/plugin-tanstack, ...) and the SSR pipeline. Exported from the
+// `/context` subpath so router plugins can use it without pulling the
+// react-router based runtime in.
+export {
+  applyRouterRuntimeState,
+  applyRouterServerPrepareResult,
+  cleanupRouterRuntimeState,
+  createRouterRuntimeState,
+  createRouterServerSnapshot,
+  getRouterHydrationScripts,
+  getRouterMatchedRouteIds,
+  getRouterRuntimeState,
+  getRouterServerSnapshot,
+  type RouterLifecycleContext,
+  type RouterLifecyclePhase,
+} from '../../router/runtime/lifecycle';
+export {
+  type RouterProviderFactory,
+  type RouterProviderPlugin,
+  registerRouterProvider,
+  resolveRouterProvider,
+} from '../../router/runtime/provider';
+export {
+  createRuntimeContextExtension,
+  type RuntimeContextExtension,
+} from './extensions';
 export {
   getInitialContext,
   InternalRuntimeContext,

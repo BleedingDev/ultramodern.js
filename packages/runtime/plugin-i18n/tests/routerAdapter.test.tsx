@@ -1,4 +1,5 @@
 import {
+  applyRouterRuntimeState,
   InternalRuntimeContext,
   RuntimeContext,
 } from '@modern-js/runtime/context';
@@ -59,22 +60,23 @@ function createRuntimeContext(
   router: unknown,
   framework: 'tanstack' | 'react-router',
 ) {
-  return {
+  const context = {
     isBrowser: true,
     requestContext,
     context: requestContext,
-    routerFramework: framework,
-    routerInstance: router,
-    routerRuntime: {
-      framework,
-      instance: router,
-    },
     router: {
       ...(framework === 'tanstack'
         ? { Link: TanstackLink, useRouter: () => router }
         : { useLocation: () => undefined, useHref: () => undefined }),
     },
   } as any;
+
+  applyRouterRuntimeState(context, {
+    framework,
+    instance: router,
+  });
+
+  return context;
 }
 
 function createTanstackRuntimeContext(router: unknown) {

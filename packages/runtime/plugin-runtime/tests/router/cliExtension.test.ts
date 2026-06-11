@@ -179,7 +179,6 @@ describe('router cli extension points', () => {
       [entrypoint],
       {
         entrypointsKey: '@modern-js/plugin-fake-router',
-        generateCodeOptions: { enableTanstackTypes: false },
       },
     );
 

@@ -43,6 +43,7 @@ import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterServerPrepareResult,
   createRouterServerSnapshot,
+  getRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
 import {
@@ -560,8 +561,7 @@ export const tanstackRouterPlugin = (
             const context = useContext(
               InternalRuntimeContext,
             ) as unknown as TInternalRuntimeContext;
-            const router =
-              context.routerInstance ?? context.routerRuntime?.instance;
+            const router = getRouterRuntimeState(context)?.instance;
             if (!router) {
               return App ? <App {...props} /> : null;
             }

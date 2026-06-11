@@ -11,8 +11,10 @@ import {
   onBeforeHydrateRouter as onBeforeHydrateRouterHook,
 } from './hooks';
 import { routerPlugin as reactRouterPlugin } from './plugin';
-import { tanstackRouterPlugin } from './tanstack/plugin';
+import { registerRouterProvider, resolveRouterProvider } from './provider';
 import type { RouterConfig, SingleRouteConfig } from './types';
+
+registerRouterProvider('react-router', reactRouterPlugin, { isDefault: true });
 
 export const routerPlugin = (
   userConfig: Partial<RouterConfig> = {},
@@ -35,11 +37,9 @@ export const routerPlugin = (
         userConfig,
       ) as RouterConfig;
 
-      const framework = mergedConfig.framework || 'react-router';
-      const pluginFactory =
-        framework === 'tanstack' ? tanstackRouterPlugin : reactRouterPlugin;
+      const pluginFactory = resolveRouterProvider(mergedConfig.framework);
 
-      pluginFactory(userConfig as any).setup?.(api as any);
+      pluginFactory(userConfig).setup?.(api);
     },
   };
 };
@@ -47,5 +47,11 @@ export const routerPlugin = (
 export default routerPlugin;
 export type { RouterExtendsHooks } from './hooks';
 export { modifyRoutes } from './plugin';
+export {
+  type RouterProviderFactory,
+  type RouterProviderPlugin,
+  registerRouterProvider,
+  resolveRouterProvider,
+} from './provider';
 export { renderRoutes } from './utils';
 export type { RouterConfig, SingleRouteConfig };

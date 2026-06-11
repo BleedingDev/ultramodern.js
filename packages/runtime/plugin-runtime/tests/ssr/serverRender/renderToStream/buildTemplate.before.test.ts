@@ -1,6 +1,18 @@
 import { CHUNK_CSS_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { buildShellBeforeTemplate } from '../../../../src/core/server/stream/beforeTemplate';
 import { buildShellBeforeTemplate as buildWorkerShellBeforeTemplate } from '../../../../src/core/server/stream/beforeTemplate.worker';
+import { applyRouterRuntimeState } from '../../../../src/router/runtime/lifecycle';
+
+const withRouterSnapshot = (
+  runtimeContext: Record<string, unknown>,
+  serverSnapshot: Record<string, unknown>,
+) => {
+  applyRouterRuntimeState(runtimeContext as any, {
+    framework: 'react-router',
+    serverSnapshot,
+  });
+  return runtimeContext;
+};
 
 describe('buildShellBeforeTemplate', () => {
   it('should use shared matched route ids from the router snapshot for css injection', async () => {
@@ -8,18 +20,20 @@ describe('buildShellBeforeTemplate', () => {
       `<html><head>${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
       {
         entryName: 'main',
-        runtimeContext: {
-          routeManifest: {
-            routeAssets: {
-              'route-a': {
-                referenceCssAssets: ['/assets/route-a.css'],
+        runtimeContext: withRouterSnapshot(
+          {
+            routeManifest: {
+              routeAssets: {
+                'route-a': {
+                  referenceCssAssets: ['/assets/route-a.css'],
+                },
               },
             },
           },
-          routerServerSnapshot: {
+          {
             matchedRouteIds: ['route-a'],
           },
-        } as any,
+        ) as any,
         config: {} as any,
       },
     );
@@ -32,21 +46,23 @@ describe('buildShellBeforeTemplate', () => {
       `<html><head>${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
       {
         entryName: 'main',
-        runtimeContext: {
-          routeManifest: {
-            routeAssets: {
-              'asset-route': {
-                referenceCssAssets: ['/assets/asset-route.css'],
-              },
-              legacy: {
-                referenceCssAssets: ['/assets/legacy.css'],
+        runtimeContext: withRouterSnapshot(
+          {
+            routeManifest: {
+              routeAssets: {
+                'asset-route': {
+                  referenceCssAssets: ['/assets/asset-route.css'],
+                },
+                legacy: {
+                  referenceCssAssets: ['/assets/legacy.css'],
+                },
               },
             },
           },
-          routerServerSnapshot: {
+          {
             matches: [{ routeId: 'router-route', assetRouteId: 'asset-route' }],
           },
-        } as any,
+        ) as any,
         config: {} as any,
       },
     );

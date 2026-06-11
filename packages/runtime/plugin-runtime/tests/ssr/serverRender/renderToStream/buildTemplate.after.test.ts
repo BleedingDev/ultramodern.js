@@ -2,6 +2,18 @@ import { RenderLevel } from '../../../../src/core/constants';
 import { SSR_DATA_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { buildShellAfterTemplate } from '../../../../src/core/server/stream/afterTemplate';
 import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
+import { applyRouterRuntimeState } from '../../../../src/router/runtime/lifecycle';
+
+const withRouterSnapshot = (
+  runtimeContext: Record<string, unknown>,
+  serverSnapshot: Record<string, unknown>,
+) => {
+  applyRouterRuntimeState(runtimeContext as any, {
+    framework: 'react-router',
+    serverSnapshot,
+  });
+  return runtimeContext;
+};
 
 const scriptSrcs = (html: string) =>
   Array.from(
@@ -62,13 +74,15 @@ describe('SSRDataCollector (stream parity)', () => {
     };
 
     const collector = new SSRDataCollector({
-      runtimeContext: {
-        initialData: {},
-        __i18nData__: {},
-        routerServerSnapshot: {
+      runtimeContext: withRouterSnapshot(
+        {
+          initialData: {},
+          __i18nData__: {},
+        },
+        {
           hydrationScript: '<script>window.__HYDRATE__ = "router";</script>',
         },
-      } as any,
+      ) as any,
       request: new Request('http://localhost/'),
       chunkSet,
       ssrContext: {
@@ -95,28 +109,30 @@ describe('SSRDataCollector (stream parity)', () => {
       entryName: 'main',
       renderLevel: RenderLevel.SERVER_RENDER,
       request: new Request('http://localhost/'),
-      runtimeContext: {
-        initialData: {},
-        __i18nData__: {},
-        routeManifest: {},
-        ssrContext: {
-          request: {
-            params: {},
-            query: {},
-            pathname: '/',
-            host: 'localhost',
-            url: 'http://localhost/',
-            headers: {},
+      runtimeContext: withRouterSnapshot(
+        {
+          initialData: {},
+          __i18nData__: {},
+          routeManifest: {},
+          ssrContext: {
+            request: {
+              params: {},
+              query: {},
+              pathname: '/',
+              host: 'localhost',
+              url: 'http://localhost/',
+              headers: {},
+            },
+            reporter: { sessionId: 'session-1' },
           },
-          reporter: { sessionId: 'session-1' },
         },
-        routerServerSnapshot: {
+        {
           hydrationScripts: [
             '<script>window.__STREAM_ROUTER_A__ = true;</script>',
             '<script>window.__STREAM_ROUTER_B__ = true;</script>',
           ],
         },
-      } as any,
+      ) as any,
       ssrConfig: {} as any,
       config: {} as any,
     });
@@ -203,37 +219,39 @@ describe('SSRDataCollector (stream parity)', () => {
       entryName: 'main',
       renderLevel: RenderLevel.SERVER_RENDER,
       request: new Request('http://localhost/products/shoe'),
-      runtimeContext: {
-        routerServerSnapshot: {
+      runtimeContext: withRouterSnapshot(
+        {
+          routeManifest: {
+            routeAssets: {
+              layout: {
+                assets: ['/assets/layout.js'],
+              },
+              'products/$slug': {
+                assets: ['/assets/product.js', '/assets/product.css'],
+              },
+              'async-main': {
+                assets: ['/assets/main.js'],
+              },
+            },
+          },
+          initialData: {},
+          __i18nData__: {},
+          ssrContext: {
+            request: {
+              params: {},
+              query: {},
+              pathname: '/products/shoe',
+              host: 'localhost',
+              url: 'http://localhost/products/shoe',
+              headers: {},
+            },
+            reporter: { sessionId: 'session-1' },
+          },
+        },
+        {
           matchedRouteIds: ['layout', 'products/$slug'],
         },
-        routeManifest: {
-          routeAssets: {
-            layout: {
-              assets: ['/assets/layout.js'],
-            },
-            'products/$slug': {
-              assets: ['/assets/product.js', '/assets/product.css'],
-            },
-            'async-main': {
-              assets: ['/assets/main.js'],
-            },
-          },
-        },
-        initialData: {},
-        __i18nData__: {},
-        ssrContext: {
-          request: {
-            params: {},
-            query: {},
-            pathname: '/products/shoe',
-            host: 'localhost',
-            url: 'http://localhost/products/shoe',
-            headers: {},
-          },
-          reporter: { sessionId: 'session-1' },
-        },
-      } as any,
+      ) as any,
       ssrConfig: {} as any,
       config: {} as any,
     });
@@ -251,37 +269,39 @@ describe('SSRDataCollector (stream parity)', () => {
         entryName: 'index',
         renderLevel: RenderLevel.SERVER_RENDER,
         request: new Request('http://localhost/products/shoe'),
-        runtimeContext: {
-          routerServerSnapshot: {
+        runtimeContext: withRouterSnapshot(
+          {
+            routeManifest: {
+              routeAssets: {
+                'products/$slug': {
+                  assets: [
+                    '/static/js/async/products/shared.js',
+                    '/static/js/async/products/$slug.js',
+                  ],
+                },
+                'async-index': {
+                  assets: ['/static/js/async/async-index.js'],
+                },
+              },
+            },
+            initialData: {},
+            __i18nData__: {},
+            ssrContext: {
+              request: {
+                params: {},
+                query: {},
+                pathname: '/products/shoe',
+                host: 'localhost',
+                url: 'http://localhost/products/shoe',
+                headers: {},
+              },
+              reporter: { sessionId: 'session-1' },
+            },
+          },
+          {
             matchedRouteIds: ['products/$slug'],
           },
-          routeManifest: {
-            routeAssets: {
-              'products/$slug': {
-                assets: [
-                  '/static/js/async/products/shared.js',
-                  '/static/js/async/products/$slug.js',
-                ],
-              },
-              'async-index': {
-                assets: ['/static/js/async/async-index.js'],
-              },
-            },
-          },
-          initialData: {},
-          __i18nData__: {},
-          ssrContext: {
-            request: {
-              params: {},
-              query: {},
-              pathname: '/products/shoe',
-              host: 'localhost',
-              url: 'http://localhost/products/shoe',
-              headers: {},
-            },
-            reporter: { sessionId: 'session-1' },
-          },
-        } as any,
+        ) as any,
         ssrConfig: {} as any,
         config: {} as any,
       },

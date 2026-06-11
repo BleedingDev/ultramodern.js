@@ -72,9 +72,6 @@ type RuntimeRouterCliHelpers = {
     entrypoints: Entrypoint[],
     options?: {
       entrypointsKey?: string;
-      generateCodeOptions?: {
-        enableTanstackTypes?: boolean;
-      };
     },
   ) => Promise<Record<string, (NestedRouteForCli | PageRoute)[]>>;
   handleModifyEntrypoints: (
@@ -312,9 +309,6 @@ export function tanstackRouterPlugin(
           tanstackEntrypoints,
           {
             entrypointsKey: ENTRYPOINTS_KEY,
-            generateCodeOptions: {
-              enableTanstackTypes: false,
-            },
           },
         );
 
@@ -340,9 +334,6 @@ export function tanstackRouterPlugin(
               entrypoints,
               {
                 entrypointsKey: ENTRYPOINTS_KEY,
-                generateCodeOptions: {
-                  enableTanstackTypes: false,
-                },
               },
             );
 

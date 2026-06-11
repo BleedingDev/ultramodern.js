@@ -1,3 +1,9 @@
+/**
+ * @deprecated Legacy alias kept so the published `@modern-js/runtime/tanstack-router`
+ * subpath keeps resolving. Use `@modern-js/plugin-tanstack/runtime` instead —
+ * it additionally provides the Modern.js specific `Link`, `NavLink`, `Outlet`,
+ * `Form` and `useFetcher` bindings that used to live here.
+ */
 export type * from '@tanstack/react-router';
 export {
   Asset,
@@ -99,22 +105,3 @@ export {
   useSearch,
   useTags,
 } from '@tanstack/react-router';
-export type {
-  Fetcher,
-  FetcherState,
-  FetcherSubmitOptions,
-  FormProps,
-  SubmitOptions,
-} from '../router/runtime/tanstack/dataMutation';
-export {
-  Form,
-  RouteActionResponseError,
-  useFetcher,
-} from '../router/runtime/tanstack/dataMutation';
-export { Outlet } from '../router/runtime/tanstack/outlet';
-export type {
-  LinkProps,
-  NavLinkProps,
-  PrefetchBehavior,
-} from '../router/runtime/tanstack/prefetchLink';
-export { Link, NavLink } from '../router/runtime/tanstack/prefetchLink';

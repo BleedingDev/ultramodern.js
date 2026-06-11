@@ -5,20 +5,13 @@ import type {
 import type { BaseSSRServerContext } from '@modern-js/types';
 import { ROUTE_MANIFEST } from '@modern-js/utils/universal/constants';
 import { createContext, useContext } from 'react';
-import type { HelmetServerState } from 'react-helmet-async';
-import type {
-  InternalRouterRuntimeState,
-  InternalRouterServerSnapshot,
-  RouteManifest,
-  RouterFramework,
-} from '../../router/runtime/types';
+import type { RouteManifest } from '../../router/runtime/types';
 import type { RequestContext, SSRServerContext } from '../types';
 
 export interface TRuntimeContext {
   initialData?: Record<string, unknown>;
   isBrowser: boolean;
   routes?: RouteObject[];
-  routerFramework?: RouterFramework;
   requestContext: RequestContext;
   /**
    * @deprecated Use `requestContext` instead
@@ -32,19 +25,11 @@ export interface TRuntimeContext {
  */
 export interface TInternalRuntimeContext extends TRuntimeContext {
   routeManifest?: RouteManifest;
-  routerRuntime?: InternalRouterRuntimeState;
-  routerInstance?: unknown;
-  routerHydrationScript?: string;
-  routerMatchedRouteIds?: string[];
-  routerServerSnapshot?: InternalRouterServerSnapshot;
   routerContext?: StaticHandlerContext;
   unstable_getBlockNavState?: () => boolean;
   ssrContext?: SSRServerContext;
   _internalContext?: any;
   _internalRouterBaseName?: any;
-  _helmetContext?: {
-    helmet?: HelmetServerState | null;
-  };
 }
 
 export const InternalRuntimeContext = createContext<TInternalRuntimeContext>(

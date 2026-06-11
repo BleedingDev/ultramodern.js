@@ -1,5 +1,6 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { RouteObject } from '@modern-js/runtime-utils/router';
+import { createRuntimeContextExtension } from '../../core/context/extensions';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import type {
   InternalRouterRuntimeState,
@@ -8,6 +9,39 @@ import type {
   RouterRouteMatchSnapshot,
   RouterServerPrepareResult,
 } from './types';
+
+/**
+ * Router runtime state is shared by every router provider (react-router,
+ * @modern-js/plugin-tanstack, ...) and consumed by the SSR pipeline. It lives
+ * in the runtime-context extension slot instead of ad-hoc fields on
+ * `TInternalRuntimeContext`.
+ */
+const routerRuntimeStateExtension =
+  createRuntimeContextExtension<InternalRouterRuntimeState>(
+    '@modern-js/runtime:router-runtime-state',
+  );
+
+/**
+ * The server snapshot is tracked separately: a later
+ * `applyRouterRuntimeState` call without a snapshot must not clear a
+ * previously captured one.
+ */
+const routerServerSnapshotExtension =
+  createRuntimeContextExtension<InternalRouterServerSnapshot>(
+    '@modern-js/runtime:router-server-snapshot',
+  );
+
+export function getRouterRuntimeState(
+  runtimeContext: object,
+): InternalRouterRuntimeState | undefined {
+  return routerRuntimeStateExtension.get(runtimeContext);
+}
+
+export function getRouterServerSnapshot(
+  runtimeContext: object,
+): InternalRouterServerSnapshot | undefined {
+  return routerServerSnapshotExtension.get(runtimeContext);
+}
 
 export type RouterLifecyclePhase = 'ssr-prepare' | 'client-create' | 'hydrate';
 
@@ -124,13 +158,12 @@ export function applyRouterRuntimeState(
   state: InternalRouterRuntimeState,
 ) {
   const normalized = createRouterRuntimeState(state);
-  runtimeContext.routerFramework = normalized.framework;
-  runtimeContext.routerInstance = normalized.instance;
-  runtimeContext.routerHydrationScript = normalized.hydrationScript;
-  runtimeContext.routerMatchedRouteIds = normalized.matchedRouteIds;
-  runtimeContext.routerRuntime = normalized;
+  routerRuntimeStateExtension.set(runtimeContext, normalized);
   if (normalized.serverSnapshot) {
-    runtimeContext.routerServerSnapshot = normalized.serverSnapshot;
+    routerServerSnapshotExtension.set(
+      runtimeContext,
+      normalized.serverSnapshot,
+    );
   }
 
   return runtimeContext;
@@ -152,16 +185,16 @@ export function applyRouterServerPrepareResult(
 export function getRouterHydrationScripts(
   runtimeContext: TInternalRuntimeContext,
 ) {
+  const serverSnapshot = getRouterServerSnapshot(runtimeContext);
+  const runtimeState = getRouterRuntimeState(runtimeContext);
   return (
-    runtimeContext.routerServerSnapshot?.hydrationScripts ??
+    serverSnapshot?.hydrationScripts ??
     toHydrationScripts({
-      hydrationScript: runtimeContext.routerServerSnapshot?.hydrationScript,
+      hydrationScript: serverSnapshot?.hydrationScript,
     }) ??
-    runtimeContext.routerRuntime?.hydrationScripts ??
+    runtimeState?.hydrationScripts ??
     toHydrationScripts({
-      hydrationScript:
-        runtimeContext.routerRuntime?.hydrationScript ??
-        runtimeContext.routerHydrationScript,
+      hydrationScript: runtimeState?.hydrationScript,
     }) ??
     []
   );
@@ -170,14 +203,13 @@ export function getRouterHydrationScripts(
 export function getRouterMatchedRouteIds(
   runtimeContext: TInternalRuntimeContext,
 ) {
+  const serverSnapshot = getRouterServerSnapshot(runtimeContext);
+  const runtimeState = getRouterRuntimeState(runtimeContext);
   return (
-    runtimeContext.routerServerSnapshot?.matchedRouteIds ??
-    getMatchedRouteIdsFromMatches(
-      runtimeContext.routerServerSnapshot?.matches,
-    ) ??
-    runtimeContext.routerRuntime?.matchedRouteIds ??
-    getMatchedRouteIdsFromMatches(runtimeContext.routerRuntime?.matches) ??
-    runtimeContext.routerMatchedRouteIds
+    serverSnapshot?.matchedRouteIds ??
+    getMatchedRouteIdsFromMatches(serverSnapshot?.matches) ??
+    runtimeState?.matchedRouteIds ??
+    getMatchedRouteIdsFromMatches(runtimeState?.matches)
   );
 }
 
@@ -185,6 +217,6 @@ export async function cleanupRouterRuntimeState(
   runtimeContext: TInternalRuntimeContext,
 ) {
   try {
-    await runtimeContext.routerRuntime?.cleanup?.();
+    await getRouterRuntimeState(runtimeContext)?.cleanup?.();
   } catch {}
 }

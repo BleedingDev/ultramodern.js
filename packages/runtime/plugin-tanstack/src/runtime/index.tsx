@@ -1,3 +1,5 @@
+import './register';
+
 export type * from '@tanstack/react-router';
 export {
   Asset,
@@ -128,6 +130,8 @@ export type {
   CompositeComponentProps,
 } from './rsc/client';
 export { CompositeComponent } from './rsc/client';
+export type { TanstackRouterState } from './state';
+export { getTanstackRouterState } from './state';
 export type { RouterConfig } from './types';
 export {
   getModernTanstackRouterFastDefaults,

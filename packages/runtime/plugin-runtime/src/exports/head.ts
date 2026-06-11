@@ -12,6 +12,7 @@ import {
   type HelmetTags,
 } from 'react-helmet-async';
 import { InternalRuntimeContext } from '../core/context';
+import { ensureHelmetContext } from '../core/context/helmetContext';
 
 type HelmetTagName = 'base' | 'link' | 'meta' | 'noscript' | 'script' | 'style';
 
@@ -297,9 +298,9 @@ export const Helmet = (props: React.PropsWithChildren<HelmetProps>) => {
   const runtimeContext = React.useContext(InternalRuntimeContext);
 
   if (runtimeContext !== null && runtimeContext.isBrowser === false) {
-    runtimeContext._helmetContext ??= {};
-    runtimeContext._helmetContext.helmet = collectHelmetProps(
-      runtimeContext._helmetContext.helmet ?? undefined,
+    const helmetContext = ensureHelmetContext(runtimeContext);
+    helmetContext.helmet = collectHelmetProps(
+      helmetContext.helmet ?? undefined,
       props,
     );
     return null;

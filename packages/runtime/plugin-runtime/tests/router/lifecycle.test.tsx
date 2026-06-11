@@ -15,6 +15,8 @@ import {
   createRouterServerSnapshot,
   getRouterHydrationScripts,
   getRouterMatchedRouteIds,
+  getRouterRuntimeState,
+  getRouterServerSnapshot,
 } from '../../src/router/runtime/lifecycle';
 
 describe('router lifecycle seams', () => {
@@ -31,15 +33,15 @@ describe('router lifecycle seams', () => {
       },
     });
 
-    expect(context.routerFramework).toBe('custom-router');
-    expect(context.routerRuntime).toMatchObject({
+    expect(getRouterRuntimeState(context)?.framework).toBe('custom-router');
+    expect(getRouterRuntimeState(context)).toMatchObject({
       framework: 'custom-router',
       basename: '/shell',
       matchedRouteIds: ['mf/page'],
       hydrationScript: '<script>one()</script>',
       hydrationScripts: ['<script>one()</script>', '<script>two()</script>'],
     });
-    expect(context.routerServerSnapshot).toMatchObject({
+    expect(getRouterServerSnapshot(context)).toMatchObject({
       framework: 'custom-router',
       basename: '/shell',
       matchedRouteIds: ['mf/page'],
@@ -81,15 +83,15 @@ describe('router lifecycle seams', () => {
       },
     });
 
-    expect(context.routerInstance).toEqual({ opaque: true });
-    expect(context.routerServerSnapshot).toMatchObject({
+    expect(getRouterRuntimeState(context)?.instance).toEqual({ opaque: true });
+    expect(getRouterServerSnapshot(context)).toMatchObject({
       framework: 'plugin-router',
       basename: '/app',
       statusCode: 299,
       matchedRouteIds: ['asset-root'],
       hydrationScript: '<script>hydrateA()</script>',
     });
-    context.routerRuntime.cleanup();
+    getRouterRuntimeState(context)?.cleanup?.();
     expect(cleaned).toBe(true);
   });
 

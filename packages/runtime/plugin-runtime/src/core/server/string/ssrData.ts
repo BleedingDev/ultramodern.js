@@ -3,7 +3,10 @@ import { serializeJson } from '@modern-js/runtime-utils/node';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import type { HeadersData } from '@modern-js/runtime-utils/universal/request';
 import type { IncomingHttpHeaders } from 'http';
-import { getRouterHydrationScripts } from '../../../router/runtime/lifecycle';
+import {
+  getRouterHydrationScripts,
+  getRouterServerSnapshot,
+} from '../../../router/runtime/lifecycle';
 import { ROUTER_DATA_JSON_ID, SSR_DATA_JSON_ID } from '../../constants';
 import type { TInternalRuntimeContext } from '../../context';
 import type { SSRContainer, SSRServerContext } from '../../types';
@@ -83,7 +86,8 @@ export class SSRDataCollector implements Collector {
 
   #getRouterData() {
     const { routerContext, runtimeContext } = this.#options;
-    const snapshotRouterData = runtimeContext.routerServerSnapshot?.routerData;
+    const snapshotRouterData =
+      getRouterServerSnapshot(runtimeContext)?.routerData;
 
     if (snapshotRouterData) {
       return {

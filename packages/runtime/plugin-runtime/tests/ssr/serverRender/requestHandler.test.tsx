@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  applyRouterRuntimeState,
   setGlobalContext,
   setGlobalInternalRuntimeContext,
 } from '../../../src/core/context';
@@ -31,12 +32,15 @@ describe('createRequestHandler router snapshot fallback', () => {
         },
         onBeforeRender: {
           call: async (context: any) => {
-            context.routerServerSnapshot = {
-              statusCode: 418,
-              errors: {
-                root: new Error('loader failed'),
+            applyRouterRuntimeState(context, {
+              framework: 'custom-router',
+              serverSnapshot: {
+                statusCode: 418,
+                errors: {
+                  root: new Error('loader failed'),
+                },
               },
-            };
+            });
           },
         },
       },
@@ -89,12 +93,12 @@ describe('createRequestHandler router snapshot fallback', () => {
         },
         onBeforeRender: {
           call: async (context: any) => {
-            context.routerRuntime = {
+            applyRouterRuntimeState(context, {
               framework: 'custom-router',
               cleanup: () => {
                 cleaned = true;
               },
-            };
+            });
           },
         },
       },

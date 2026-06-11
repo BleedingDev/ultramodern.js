@@ -1,5 +1,6 @@
 import { isBrowser, RuntimeContext } from '@modern-js/runtime';
 import {
+  getRouterRuntimeState,
   InternalRuntimeContext,
   type TInternalRuntimeContext,
   type TRuntimeContext,
@@ -131,9 +132,8 @@ const getRouterFramework = (
   inReactRouter: boolean,
 ): I18nRouterFramework | undefined => {
   const framework =
-    internalContext.routerFramework ||
-    internalContext.routerRuntime?.framework ||
-    runtimeContext.routerFramework;
+    getRouterRuntimeState(internalContext)?.framework ||
+    getRouterRuntimeState(runtimeContext)?.framework;
 
   if (framework) {
     return framework;
@@ -167,8 +167,7 @@ const getRouterInstance = (
     return contextRouter;
   }
 
-  const router =
-    internalContext.routerInstance || internalContext.routerRuntime?.instance;
+  const router = getRouterRuntimeState(internalContext)?.instance;
   if (!router || typeof router !== 'object') {
     return null;
   }

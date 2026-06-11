@@ -2,6 +2,7 @@
 // 用于 react-helmet 正则替换
 import type { HelmetServerState } from 'react-helmet-async';
 import type { TInternalRuntimeContext } from '../context';
+import { getHelmetContext } from '../context/helmetContext';
 import { safeReplace } from './utils';
 
 const EOL = '\n';
@@ -16,7 +17,7 @@ const TEST_TITLE_CONTENT =
 export function getHelmetData(
   runtimeContext: TInternalRuntimeContext,
 ): HelmetServerState | undefined {
-  return runtimeContext._helmetContext?.helmet ?? undefined;
+  return getHelmetContext(runtimeContext)?.helmet ?? undefined;
 }
 
 export function createReplaceHelemt(helmetData?: HelmetServerState) {

@@ -24,9 +24,6 @@ type RegenerateRoutesFn = (params: {
 
 type HandleGeneratorEntryCodeOptions = {
   entrypointsKey?: string;
-  generateCodeOptions?: {
-    enableTanstackTypes?: boolean;
-  };
 };
 
 type HandleFileChangeOptions = {
@@ -71,7 +68,6 @@ export async function handleGeneratorEntryCode(
     resolvedConfig as AppNormalizedConfig,
     entrypoints,
     api,
-    normalizedOptions.generateCodeOptions,
   );
   await Promise.all(
     entrypoints.map(async entrypoint => {

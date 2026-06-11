@@ -19,16 +19,27 @@ const runtimeCliMocks = {
 
 rstest.mock('@modern-js/runtime/cli', () => {
   const routesDirMetaKey = '__modernRoutesDir';
+  // The codegen helpers are pure — forward to the real implementations.
+  const actualCli = rstest.requireActual('@modern-js/runtime/cli') as {
+    getPathWithoutExt: (filename: string) => string;
+    makeLegalIdentifier: (value: string) => string;
+  };
 
   return {
     __esModule: true,
+    getPathWithoutExt: actualCli.getPathWithoutExt,
+    makeLegalIdentifier: actualCli.makeLegalIdentifier,
     getEntrypointRoutesDir: (entrypoint: any) =>
       entrypoint[routesDirMetaKey] ||
       (entrypoint.nestedRoutesEntry
         ? path.basename(entrypoint.nestedRoutesEntry)
         : null),
-    handleFileChange: runtimeCliMocks.handleFileChange,
-    handleGeneratorEntryCode: runtimeCliMocks.handleGeneratorEntryCode,
+    // Forward through arrows: the mock factory is hoisted above the
+    // `runtimeCliMocks` initializer, so it must not dereference it eagerly.
+    handleFileChange: (...args: unknown[]) =>
+      runtimeCliMocks.handleFileChange(...args),
+    handleGeneratorEntryCode: (...args: unknown[]) =>
+      runtimeCliMocks.handleGeneratorEntryCode(...args),
     handleModifyEntrypoints: async (
       entrypoints: Entrypoint[],
       routesDir = 'routes',
@@ -316,9 +327,6 @@ describe('tanstack router cli plugin', () => {
       [entrypoint],
       {
         entrypointsKey: '@modern-js/plugin-tanstack',
-        generateCodeOptions: {
-          enableTanstackTypes: false,
-        },
       },
     );
 

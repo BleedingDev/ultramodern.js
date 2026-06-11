@@ -6,7 +6,9 @@ import {
 import { time } from '@modern-js/runtime-utils/time';
 import React from 'react';
 import { HelmetProvider } from 'react-helmet-async';
+import { ensureHelmetContext } from '../../../core/context/helmetContext';
 import { getHelmetData, helmetReplace } from '../../../core/server/helmet';
+import { getRouterServerSnapshot } from '../../../router/runtime/lifecycle';
 import { serializeErrors } from '../../../router/runtime/utils';
 import prefetch from '../../prefetch';
 import { SSRErrors, SSRTimings, type SSRTracker } from '../tracker';
@@ -135,7 +137,8 @@ export default class Entry {
       return '';
     }
 
-    const { routerContext, routerServerSnapshot } = context;
+    const { routerContext } = context;
+    const routerServerSnapshot = getRouterServerSnapshot(context);
     const routerData = routerServerSnapshot?.routerData
       ? {
           loaderData: routerServerSnapshot.routerData.loaderData,
@@ -192,7 +195,7 @@ export default class Entry {
     const { ssrContext } = context;
 
     try {
-      const helmetContext = ((context as any)._helmetContext ??= {});
+      const helmetContext = ensureHelmetContext(context);
       const App = React.createElement(
         HelmetProvider,
         { context: helmetContext },

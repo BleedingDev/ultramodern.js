@@ -12,7 +12,10 @@ import {
   parseQuery,
 } from '@modern-js/runtime-utils/universal/request';
 import React, { Fragment } from 'react';
-import { cleanupRouterRuntimeState } from '../../router/runtime/lifecycle';
+import {
+  cleanupRouterRuntimeState,
+  getRouterServerSnapshot,
+} from '../../router/runtime/lifecycle';
 import { handleRSCRedirect } from '../../router/runtime/rsc-router';
 import {
   getGlobalInternalRuntimeContext,
@@ -290,7 +293,7 @@ export const createRequestHandler: CreateRequestHandler = async (
           const beforeRenderResult = await runBeforeRender(context);
 
           // Support data loader to return `new Response` and set status code
-          const routerServerSnapshot = context.routerServerSnapshot;
+          const routerServerSnapshot = getRouterServerSnapshot(context);
           const routerStatusCode =
             routerServerSnapshot?.statusCode ??
             context.routerContext?.statusCode;

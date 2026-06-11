@@ -1,15 +1,19 @@
 import React, { useContext } from 'react';
 import { renderToString } from 'react-dom/server';
 import {
+  applyRouterRuntimeState,
   getInitialContext,
+  getRouterRuntimeState,
+  getRouterServerSnapshot,
   InternalRuntimeContext,
   RuntimeContext,
 } from '../../../src/core/context';
+import { getHelmetContext } from '../../../src/core/context/helmetContext';
 import { wrapRuntimeContextProvider } from '../../../src/core/react/wrapper';
 import { Helmet } from '../../../src/exports/head';
 
 describe('wrapRuntimeContextProvider', () => {
-  it('should keep routerServerSnapshot internal-only', () => {
+  it('should keep router runtime state out of public context enumeration', () => {
     let runtimeValue: Record<string, unknown> | undefined;
     let internalValue: Record<string, unknown> | undefined;
 
@@ -23,11 +27,13 @@ describe('wrapRuntimeContextProvider', () => {
     };
 
     const context = getInitialContext(false);
-    context.routerFramework = 'custom-router';
-    context.routerInstance = { kind: 'internal-router' };
-    context.routerServerSnapshot = {
-      matchedRouteIds: ['route-a'],
-    };
+    applyRouterRuntimeState(context, {
+      framework: 'custom-router',
+      instance: { kind: 'internal-router' },
+      serverSnapshot: {
+        matchedRouteIds: ['route-a'],
+      },
+    });
 
     renderToString(
       wrapRuntimeContextProvider(
@@ -36,14 +42,32 @@ describe('wrapRuntimeContextProvider', () => {
       ),
     );
 
-    expect(internalValue?.routerServerSnapshot).toEqual({
+    expect(getRouterServerSnapshot(internalValue as object)).toMatchObject({
       matchedRouteIds: ['route-a'],
     });
-    expect(internalValue?.routerFramework).toBe('custom-router');
-    expect(internalValue?.routerInstance).toEqual({
+    expect(getRouterRuntimeState(internalValue as object)?.framework).toBe(
+      'custom-router',
+    );
+    expect(getRouterRuntimeState(internalValue as object)?.instance).toEqual({
       kind: 'internal-router',
     });
-    expect(runtimeValue?.routerFramework).toBe('custom-router');
+
+    // None of the router state may leak into string-key enumeration of
+    // either context value.
+    for (const value of [runtimeValue, internalValue]) {
+      expect(Object.keys(value as object)).not.toEqual(
+        expect.arrayContaining([
+          'routerFramework',
+          'routerInstance',
+          'routerRuntime',
+          'routerServerSnapshot',
+          'routerHydrationScript',
+          'routerMatchedRouteIds',
+          '_helmetContext',
+        ]),
+      );
+    }
+    expect(runtimeValue?.routerFramework).toBeUndefined();
     expect(runtimeValue?.routerInstance).toBeUndefined();
     expect(runtimeValue?.routerServerSnapshot).toBeUndefined();
   });
@@ -60,10 +84,10 @@ describe('wrapRuntimeContextProvider', () => {
       ),
     );
 
-    expect(context._helmetContext?.helmet?.htmlAttributes.toString()).toBe(
+    expect(getHelmetContext(context)?.helmet?.htmlAttributes.toString()).toBe(
       'lang="cs"',
     );
-    expect(context._helmetContext?.helmet?.title.toString()).toBe(
+    expect(getHelmetContext(context)?.helmet?.title.toString()).toBe(
       '<title data-rh="true">Modern SSR</title>',
     );
   });
@@ -81,10 +105,10 @@ describe('wrapRuntimeContextProvider', () => {
       ),
     );
 
-    expect(context._helmetContext?.helmet?.link.toString()).toContain(
+    expect(getHelmetContext(context)?.helmet?.link.toString()).toContain(
       '<link data-rh="true" href="/cs" hreflang="cs" rel="alternate">',
     );
-    expect(context._helmetContext?.helmet?.meta.toString()).toContain(
+    expect(getHelmetContext(context)?.helmet?.meta.toString()).toContain(
       '<meta data-rh="true" charset="utf-8">',
     );
   });
