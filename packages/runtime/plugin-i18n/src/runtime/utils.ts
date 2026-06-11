@@ -46,24 +46,43 @@ export const getLanguageFromPath = (
 };
 
 /**
+ * Split a link target into its pathname, search and hash parts without
+ * relying on `new URL` (SSR-hot path; targets are relative).
+ */
+export const splitUrlTarget = (
+  target: string,
+): { pathname: string; search: string; hash: string } => {
+  const hashIndex = target.indexOf('#');
+  const hash = hashIndex >= 0 ? target.slice(hashIndex) : '';
+  const beforeHash = hashIndex >= 0 ? target.slice(0, hashIndex) : target;
+  const searchIndex = beforeHash.indexOf('?');
+  const search = searchIndex >= 0 ? beforeHash.slice(searchIndex) : '';
+  const pathname =
+    searchIndex >= 0 ? beforeHash.slice(0, searchIndex) : beforeHash;
+
+  return { pathname, search, hash };
+};
+
+/**
  * Helper function to build localized URL
- * @param pathname - The current pathname
+ * @param target - The language-agnostic target; may include `?search` and `#hash`
  * @param language - The target language
  * @param languages - Array of supported languages
- * @returns The localized URL path
+ * @returns The localized URL path with search and hash re-appended verbatim
  */
 export const buildLocalizedUrl = (
-  pathname: string,
+  target: string,
   language: string,
   languages: string[],
   localisedUrls?: boolean | LocalisedUrlsMap,
 ): string => {
+  const { pathname, search, hash } = splitUrlTarget(target);
   const segments = pathname.split('/').filter(Boolean);
   const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
   const pathWithoutLanguage =
     segments.length > 0 && languages.includes(segments[0])
       ? `/${segments.slice(1).join('/')}`
-      : pathname;
+      : pathname || '/';
   const resolvedPath = localisedUrlsConfig.enabled
     ? resolveLocalisedPath(
         pathWithoutLanguage,
@@ -74,7 +93,7 @@ export const buildLocalizedUrl = (
     : pathWithoutLanguage;
   const resolvedSegments = resolvedPath.split('/').filter(Boolean);
 
-  return `/${[language, ...resolvedSegments].join('/')}`;
+  return `/${[language, ...resolvedSegments].join('/')}${search}${hash}`;
 };
 
 export const detectLanguageFromPath = (

@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { generateTanstackRouterTypesSourceForEntry } from '../../src/cli/tanstackTypes';
+import {
+  collectCanonicalRoutesForEntry,
+  generateTanstackRouterTypesSourceForEntry,
+} from '../../src/cli/tanstackTypes';
 
 const execFileAsync = promisify(execFile);
 
@@ -242,5 +245,232 @@ describe('tanstack router type generation', () => {
       'export const routeTree = rootRoute.addChildren([route__lang__layout]);',
     );
     expect(routerGenTs).not.toContain('route__lang__layout.addChildren([');
+  });
+});
+
+describe('collectCanonicalRoutesForEntry', () => {
+  test('returns null for a route tree with no locale param and no canonical metadata', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: 'about/page',
+            path: 'about',
+          },
+          {
+            type: 'nested',
+            id: 'contact/page',
+            path: 'contact',
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).toBeNull();
+  });
+
+  test('strips leading :lang param and maps index under :lang to "/"', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/page',
+                index: true,
+              },
+              {
+                type: 'nested',
+                id: '(lang)/about/page',
+                path: 'about',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    expect(result!['/']).toBe('Record<string, never>');
+    expect(result!['/about']).toBe('Record<string, never>');
+  });
+
+  test('converts :slug to $slug with required params type', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/products/(slug)/page',
+                path: 'products/:slug',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    expect(result!['/products/$slug']).toBe('{ "slug": string }');
+  });
+
+  test('converts :slug? to optional {-$slug} with optional params type', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/optional/(slug$)/page',
+                path: 'optional/:slug?',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    expect(result!['/optional/{-$slug}']).toBe('{ "slug"?: string }');
+  });
+
+  test('converts * splat to $ with optional _splat param', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/files/page',
+                path: 'files/*',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    expect(result!['/files/$']).toBe("{ '_splat'?: string }");
+  });
+
+  test('collapses localized variants with shared modernCanonicalPath to one canonical key', () => {
+    // This reuses the same fixture shape as the 'preserves typed child trees'
+    // test but adds modernCanonicalPath fields as plugin-i18n now emits.
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/products/(slug)/page',
+                path: 'products/:slug',
+                modernCanonicalPath: '/products/:slug',
+              },
+              {
+                type: 'nested',
+                id: '(lang)/products/(slug)/page__localised_produkty_slug',
+                path: 'produkty/:slug',
+                modernCanonicalPath: '/products/:slug',
+              },
+              {
+                type: 'nested',
+                id: '(lang)/optional/(slug$)/page__localised_volitelne_slug',
+                path: 'volitelne/:slug?',
+                modernCanonicalPath: '/optional/:slug?',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    // Two physical variants share the same canonical path — only one entry.
+    const keys = Object.keys(result!);
+    // /products/$slug and /optional/{-$slug} — exactly 2 keys with params
+    expect(keys.filter(k => k.startsWith('/products'))).toHaveLength(1);
+    expect(result!['/products/$slug']).toBe('{ "slug": string }');
+    expect(result!['/optional/{-$slug}']).toBe('{ "slug"?: string }');
+    // The Czech localized path must not appear as a separate key.
+    expect('/produkty/$slug' in result!).toBe(false);
+  });
+
+  test('output is sorted alphabetically by canonical key', () => {
+    const result = collectCanonicalRoutesForEntry([
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/products/(slug)/page',
+                path: 'products/:slug',
+              },
+              {
+                type: 'nested',
+                id: '(lang)/about/page',
+                path: 'about',
+              },
+              {
+                type: 'nested',
+                id: '(lang)/page',
+                index: true,
+              },
+            ],
+          },
+        ],
+      },
+    ] as any);
+
+    expect(result).not.toBeNull();
+    const keys = Object.keys(result!);
+    expect(keys).toEqual([...keys].sort((a, b) => a.localeCompare(b)));
   });
 });

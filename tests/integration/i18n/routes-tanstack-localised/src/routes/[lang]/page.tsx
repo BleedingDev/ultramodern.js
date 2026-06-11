@@ -11,7 +11,12 @@ export default function HomePage() {
 
   return (
     <div id="home">
-      home:{data.language}:{data.message}
+      <div>
+        home:{data.language}:{data.message}
+      </div>
+      <section id="work-with-me" style={{ marginTop: '200px' }}>
+        Work With Me
+      </section>
     </div>
   );
 }

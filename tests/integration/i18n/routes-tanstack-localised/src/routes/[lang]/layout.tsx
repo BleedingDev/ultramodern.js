@@ -1,4 +1,7 @@
-import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import {
+  Link as I18nRouteLink,
+  useModernI18n,
+} from '@modern-js/plugin-i18n/runtime';
 import { Link, Outlet } from '@modern-js/plugin-tanstack/runtime';
 
 export default function LanguageLayout() {
@@ -36,6 +39,9 @@ export default function LanguageLayout() {
         >
           i18n link probe
         </Link>
+        <I18nRouteLink to="/terms-of-service" data-testid="layout-nav-terms">
+          terms
+        </I18nRouteLink>
         <button
           type="button"
           data-testid="switch-cs"

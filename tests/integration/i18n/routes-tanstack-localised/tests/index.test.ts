@@ -242,4 +242,97 @@ describe('i18n TanStack localisedUrls', () => {
       scope: 'tanstack-localised-urls',
     });
   });
+
+  test('framework Link navigates cross-page hash targets without reload', async () => {
+    await page.goto(`http://localhost:${appPort}/cs/odkaz-probe`, {
+      waitUntil: ['networkidle0'],
+    });
+    await waitForHydration(page, '[data-testid="hash-cta"]');
+    await setReloadSentinel(page);
+
+    await page.click('[data-testid="hash-cta"]');
+
+    await page.waitForFunction(
+      () =>
+        window.location.pathname === '/cs' &&
+        window.location.hash === '#work-with-me',
+    );
+
+    expect(await getReloadSentinel(page)).toBe('kept');
+
+    // Verify the element is present in the DOM (hash navigation completed)
+    const elementExists = await page.evaluate(
+      () => document.getElementById('work-with-me') !== null,
+    );
+    expect(elementExists).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('typed Link localizes params', async () => {
+    await page.goto(`http://localhost:${appPort}/cs/odkaz-probe`, {
+      waitUntil: ['networkidle0'],
+    });
+    await waitForHydration(page, '[data-testid="typed-product"]');
+
+    const href = await page.$eval('[data-testid="typed-product"]', el =>
+      el.getAttribute('href'),
+    );
+    expect(href).toBe('/cs/produkty/bota');
+    expect(errors).toEqual([]);
+  });
+
+  test('active state is language-invariant', async () => {
+    // On the en terms page the layout nav-terms link should be active
+    await page.goto(`http://localhost:${appPort}/en/terms-of-service`, {
+      waitUntil: ['networkidle0'],
+    });
+    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+
+    const enStatus = await page.$eval('[data-testid="layout-nav-terms"]', el =>
+      el.getAttribute('data-status'),
+    );
+    const enAriaCurrent = await page.$eval(
+      '[data-testid="layout-nav-terms"]',
+      el => el.getAttribute('aria-current'),
+    );
+    expect(enStatus).toBe('active');
+    expect(enAriaCurrent).toBe('page');
+
+    // On the cs localised terms page (obchodni-podminky) it should also be active
+    await page.close();
+    errors.length = 0;
+    page = await createTrackedPage();
+
+    await page.goto(`http://localhost:${appPort}/cs/obchodni-podminky`, {
+      waitUntil: ['networkidle0'],
+    });
+    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+
+    const csStatus = await page.$eval('[data-testid="layout-nav-terms"]', el =>
+      el.getAttribute('data-status'),
+    );
+    const csAriaCurrent = await page.$eval(
+      '[data-testid="layout-nav-terms"]',
+      el => el.getAttribute('aria-current'),
+    );
+    expect(csStatus).toBe('active');
+    expect(csAriaCurrent).toBe('page');
+
+    // On a different page it should NOT be active
+    await page.close();
+    errors.length = 0;
+    page = await createTrackedPage();
+
+    await page.goto(`http://localhost:${appPort}/cs/odkaz-probe`, {
+      waitUntil: ['networkidle0'],
+    });
+    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+
+    const probeStatus = await page.$eval(
+      '[data-testid="layout-nav-terms"]',
+      el => el.getAttribute('data-status'),
+    );
+    expect(probeStatus).toBeNull();
+    expect(errors).toEqual([]);
+  });
 });

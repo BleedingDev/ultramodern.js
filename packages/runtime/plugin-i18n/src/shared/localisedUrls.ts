@@ -224,7 +224,7 @@ const transformLocalisedRoute = (
     languages,
     localisedUrlEntry,
   ).map((localisedPath, index) =>
-    cloneRouteWithLocalisedPath(baseRoute, localisedPath, index),
+    cloneRouteWithLocalisedPath(baseRoute, localisedPath, index, canonicalPath),
   );
 };
 
@@ -251,6 +251,7 @@ const cloneRouteWithLocalisedPath = (
   route: NestedRouteForCli | PageRoute,
   path: string,
   index: number,
+  canonicalPath: string,
 ): NestedRouteForCli | PageRoute => {
   const leadingLocaleParam = getLeadingLocaleParam(route.path);
   const localisedPath = leadingLocaleParam
@@ -260,6 +261,10 @@ const cloneRouteWithLocalisedPath = (
     ...route,
     path: localisedPath,
   } as NestedRouteForCli | PageRoute;
+  // Language-agnostic source pattern; lets downstream codegen collapse the
+  // localized physical variants back to one canonical route.
+  (routeWithPath as { modernCanonicalPath?: string }).modernCanonicalPath =
+    canonicalPath;
 
   return index === 0
     ? routeWithPath
@@ -324,7 +329,7 @@ const compilePathPattern = (pattern: string) => {
   };
 };
 
-const matchPathPattern = (
+export const matchPathPattern = (
   pathname: string,
   pattern: string,
 ): Record<string, string> | null => {
@@ -340,7 +345,7 @@ const matchPathPattern = (
   }, {});
 };
 
-const buildPathFromPattern = (
+export const buildPathFromPattern = (
   pattern: string,
   params: Record<string, string>,
 ): string => {
@@ -370,6 +375,22 @@ export const resolveLocalisedPath = (
 ): string => {
   const normalizedPathname = normalisePathPattern(pathname);
 
+  // Canonical keys take precedence: authors write language-agnostic paths,
+  // which are the map keys, even when no language pattern equals the key.
+  for (const [canonicalPattern, localisedUrlEntry] of Object.entries(
+    localisedUrls,
+  )) {
+    const targetPattern = localisedUrlEntry[targetLanguage];
+    if (!targetPattern) {
+      continue;
+    }
+
+    const params = matchPathPattern(normalizedPathname, canonicalPattern);
+    if (params) {
+      return buildPathFromPattern(targetPattern, params);
+    }
+  }
+
   for (const localisedUrlEntry of Object.values(localisedUrls)) {
     const targetPattern = localisedUrlEntry[targetLanguage];
     if (!targetPattern) {
@@ -385,6 +406,45 @@ export const resolveLocalisedPath = (
       const params = matchPathPattern(normalizedPathname, sourcePattern);
       if (params) {
         return buildPathFromPattern(targetPattern, params);
+      }
+    }
+  }
+
+  return normalizedPathname;
+};
+
+/**
+ * Reverse-map a language-specific pathname (without language prefix) back to
+ * the canonical, language-agnostic path: localized slug patterns are matched
+ * against every language variant and rebuilt from the canonical map key.
+ */
+export const resolveCanonicalLocalisedPath = (
+  pathname: string,
+  languages: string[],
+  localisedUrls: LocalisedUrlsMap,
+): string => {
+  const normalizedPathname = normalisePathPattern(pathname);
+
+  for (const [canonicalPattern, localisedUrlEntry] of Object.entries(
+    localisedUrls,
+  )) {
+    const canonicalParams = matchPathPattern(
+      normalizedPathname,
+      canonicalPattern,
+    );
+    if (canonicalParams) {
+      return buildPathFromPattern(canonicalPattern, canonicalParams);
+    }
+
+    for (const language of languages) {
+      const sourcePattern = localisedUrlEntry[language];
+      if (!sourcePattern) {
+        continue;
+      }
+
+      const params = matchPathPattern(normalizedPathname, sourcePattern);
+      if (params) {
+        return buildPathFromPattern(canonicalPattern, params);
       }
     }
   }

@@ -82,7 +82,7 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
     } = localeDetection || {};
     const { enabled: backendEnabled = false } = backend || {};
     let latestI18nInstance: I18nInstance | undefined;
-    let I18nextProvider: React.FunctionComponent<any> | null;
+    let I18nextProvider: React.ComponentType<any> | null;
 
     const loadReactI18nextIntegration = async () => {
       if (!reactI18next) {
@@ -293,6 +293,28 @@ export const i18nPlugin = (options: I18nPluginOptions): RuntimePlugin => ({
   },
 });
 
+export type {
+  AllowedLinkTarget,
+  CanonicalRoutePath,
+  UltramodernCanonicalRoutes,
+} from './canonicalRoutes';
 export { useModernI18n } from './context';
-export { I18nLink } from './I18nLink';
+export { I18nLink, type I18nLinkProps } from './I18nLink';
+export {
+  Link,
+  type LinkActiveOptions,
+  type LinkBaseProps,
+  type LinkParams,
+  type LinkProps,
+} from './Link';
+export {
+  canonicalPath,
+  type LocalizedPathsConfig,
+  localizePath,
+  type UseLocalizedLocationReturn,
+  type UseLocalizedPathsReturn,
+  useLocalizedLocation,
+  useLocalizedPaths,
+} from './localizedPaths';
+export { buildLocalizedUrl, splitUrlTarget } from './utils';
 export default i18nPlugin;
