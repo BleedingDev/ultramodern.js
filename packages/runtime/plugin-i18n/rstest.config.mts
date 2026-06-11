@@ -26,13 +26,17 @@ export default {
     withTestPreset({
       name: 'plugin-i18n-node',
       testEnvironment: 'node',
-      include: ['tests/i18nUtils.test.ts', 'tests/localisedUrls.test.ts'],
+      include: [
+        'tests/i18nUtils.test.ts',
+        'tests/localisedUrls.test.ts',
+        'tests/linkTypes.test.ts',
+      ],
       extends: commonConfig,
     }),
     withTestPreset({
       name: 'plugin-i18n-client',
       testEnvironment: 'happy-dom',
-      include: ['tests/routerAdapter.test.tsx'],
+      include: ['tests/routerAdapter.test.tsx', 'tests/link.test.tsx'],
       extends: commonConfig,
     }),
   ],

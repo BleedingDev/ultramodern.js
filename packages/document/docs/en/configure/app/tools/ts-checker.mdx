@@ -2,6 +2,8 @@
 title: tsChecker
 ---
 
+import { PackageManagerTabs } from '@theme';
+
 # tools.tsChecker
 
 - **Type:** `Object | Function`
@@ -14,6 +16,8 @@ const defaultOptions = {
     memoryLimit: 8192,
     // use tsconfig of user project
     configFile: tsconfigPath,
+    // use TypeScript Go checker by default
+    tsgo: true,
     // use TS-Go native preview of user project
     typescriptPath: require.resolve('@typescript/native-preview/package.json'),
   },
@@ -35,7 +39,7 @@ const defaultOptions = {
 },
 ```
 
-By default, Modern.js type checking is aligned with the TS-Go native preview used by this fork. You can use `output.disableTsChecker` config to disable build-time checking.
+By default, the [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) is enabled for type checking. You can use `output.disableTsChecker` config to disable it.
 
 ## Example
 
@@ -53,4 +57,28 @@ export default {
 };
 ```
 
-> This fork keeps the TypeScript toolchain on `@typescript/native-preview` / `tsgo`; do not install the classic `typescript` compiler for application type checking.
+## TypeScript Go by Default
+
+Type checking runs on [TypeScript Go](https://github.com/microsoft/typescript-go) (`tsgo`) by default in this fork. The capability is provided by [`ts-checker-rspack-plugin`](https://github.com/rstackjs/ts-checker-rspack-plugin), which is integrated by [`@rsbuild/plugin-type-check`](https://github.com/rstackjs/rsbuild-plugin-type-check), and reduces type-checking time by about 5-10x.
+
+`@typescript/native-preview` ships with the builder, so no extra install is needed. To pin your own version, install it in your project:
+
+<PackageManagerTabs command="install @typescript/native-preview -D" />
+
+When `tsgo` is enabled, the default `typescript.typescriptPath` resolves to `@typescript/native-preview/package.json`. If you manually set `typescript.typescriptPath`, it must be an absolute path to `@typescript/native-preview/package.json`.
+
+To fall back to the classic TypeScript checker, set `typescript.tsgo` to `false` and make sure `typescript` is installed in your project:
+
+```ts
+export default {
+  tools: {
+    tsChecker: {
+      typescript: {
+        tsgo: false,
+      },
+    },
+  },
+};
+```
+
+For supported options and limitations, please refer to [ts-checker-rspack-plugin - TypeScript Go support](https://github.com/rstackjs/ts-checker-rspack-plugin#typescript-go-support).

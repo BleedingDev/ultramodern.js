@@ -63,12 +63,12 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.21.5",
+    "@rslib/core": "0.22.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
-    "lint-staged": "~17.0.5"
+    "@types/node": "^25.9.3",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "lint-staged": "~17.0.7"
   },
   "sideEffects": [],
   "engines": {

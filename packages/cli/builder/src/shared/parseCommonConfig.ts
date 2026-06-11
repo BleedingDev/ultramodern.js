@@ -21,6 +21,7 @@ import type {
   RsdoctorUserConfig,
 } from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
+import { withTsgoDefaults } from './tsgo';
 import { NODE_MODULES_REGEX } from './utils';
 
 const CSS_MODULES_REGEX = /\.modules?\.\w+$/i;
@@ -242,7 +243,10 @@ export async function parseCommonConfig(
     const { pluginTypeCheck } = await import('@rsbuild/plugin-type-check');
     rsbuildPlugins.push(
       pluginTypeCheck({
-        tsCheckerOptions: tsChecker,
+        tsCheckerOptions: withTsgoDefaults(
+          tsChecker,
+          options?.cwd ?? process.cwd(),
+        ),
       }),
     );
   }

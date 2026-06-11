@@ -1,7 +1,5 @@
 import type React from 'react';
-import { useModernI18n } from './context';
-import { useI18nRouterAdapter } from './routerAdapter';
-import { buildLocalizedUrl } from './utils';
+import { Link } from './Link';
 
 export interface I18nLinkProps {
   to: string;
@@ -9,61 +7,30 @@ export interface I18nLinkProps {
   [key: string]: any;
 }
 
+let warnedDeprecation = false;
+
 /**
- * I18nLink component that automatically adds language prefix to navigation links.
- * This component should be used within a :lang dynamic route context.
- *
- * @example
- * ```tsx
- * // When current language is 'en' and to="/about"
- * // The actual link will be "/en/about"
- * <I18nLink to="/about">About</I18nLink>
- *
- * // When current language is 'zh' and to="/"
- * // The actual link will be "/zh"
- * <I18nLink to="/">Home</I18nLink>
- * ```
+ * @deprecated Use {@link Link} from `@modern-js/plugin-i18n/runtime` instead.
+ * `Link` accepts the same language-agnostic `to` values and additionally
+ * supports `#hash`/`?query` targets, typed canonical routes, `params`
+ * interpolation and language-invariant active state.
  */
 export const I18nLink: React.FC<I18nLinkProps> = ({
   to,
   children,
   ...props
 }) => {
-  const { Link, params, hasRouter } = useI18nRouterAdapter();
-  const { language, supportedLanguages, localisedUrls } = useModernI18n();
-
-  // Get the current language from context (which reflects the actual current language)
-  // URL params might be stale after language changes, so we prioritize the context language
-  const currentLang = language;
-
-  // Build the localized URL by adding language prefix
-  const localizedTo = buildLocalizedUrl(
-    to,
-    currentLang,
-    supportedLanguages,
-    localisedUrls,
-  );
-
-  // In development mode, warn if used outside of :lang route context
-  if (process.env.NODE_ENV === 'development' && hasRouter && !params.lang) {
+  if (process.env.NODE_ENV === 'development' && !warnedDeprecation) {
+    warnedDeprecation = true;
     console.warn(
-      'I18nLink is being used outside of a :lang dynamic route context. ' +
-        'This may cause unexpected behavior. Please ensure I18nLink is used within a route that has a :lang parameter.',
-    );
-  }
-
-  if (!hasRouter || !Link) {
-    const { prefetch: _prefetch, preload: _preload, ...anchorProps } = props;
-
-    return (
-      <a href={localizedTo} {...anchorProps}>
-        {children}
-      </a>
+      '[plugin-i18n] I18nLink is deprecated. Import { Link } from ' +
+        "'@modern-js/plugin-i18n/runtime' instead — it accepts the same " +
+        'language-agnostic `to` values.',
     );
   }
 
   return (
-    <Link to={localizedTo} {...props}>
+    <Link to={to} {...props}>
       {children}
     </Link>
   );

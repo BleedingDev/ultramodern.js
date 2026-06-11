@@ -81,19 +81,19 @@
     "@web-std/stream": "^1.0.3",
     "cloneable-readable": "^3.0.0",
     "flatted": "^3.4.2",
-    "hono": "^4.12.22",
+    "hono": "^4.12.25",
     "ts-deepmerge": "8.0.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.21.5",
+    "@rslib/core": "0.22.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
-    "http-proxy-middleware": "^4.0.0"
+    "@types/node": "^25.9.3",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "http-proxy-middleware": "^4.1.0"
   },
   "sideEffects": false,
   "publishConfig": {

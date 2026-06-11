@@ -6,6 +6,10 @@ instructions, not optional reading.
 
 ## Quality Gates
 
+Generated workspaces target Node `>=26` and pnpm `11.5.3`. Keep
+`packageManager`, `.mise.toml`, generated validation, and CI aligned to that
+baseline; do not reintroduce Corepack or older pnpm aliases.
+
 - `pnpm lint` runs Oxlint with the Ultracite preset.
 - `pnpm format` runs oxfmt.
 - `pnpm typecheck` runs effect-tsgo as the TypeScript checker.
@@ -24,9 +28,12 @@ static language links, and canonical plus `hreflang` metadata. A new workspace
 starts shell-only; `create <domain> --vertical` adds route-owned metadata,
 localized resources, and Effect BFF surfaces for that domain. Runtime i18n is
 not enabled in the starter because the current React 19 + Module Federation
-streaming SSR stack must render predictably first. Production builds fail unless
-`MODERN_PUBLIC_SITE_URL` is set per deployed app, so canonical URLs always use
-the production origin.
+streaming SSR stack must render predictably first. Canonical and hreflang URLs
+use `MODERN_PUBLIC_SITE_URL` only. JS/CSS/static assets use
+`MODERN_ASSET_PREFIX`, then `ULTRAMODERN_ASSET_PREFIX`, then `/`; do not use
+`MODERN_PUBLIC_SITE_URL` or stale public URL aliases as asset-prefix fallbacks.
+Without an asset prefix, builds emit origin-relative asset paths so pages work
+behind tunnels and reverse proxies.
 
 ## Required Skill Baseline
 

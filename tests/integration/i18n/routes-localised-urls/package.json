@@ -16,6 +16,6 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1"
+    "@typescript/native-preview": "7.0.0-dev.20260610.1"
   }
 }

@@ -38,7 +38,7 @@ pnpm --filter "./apps/remotes/**" run cloudflare:build
 pnpm --filter "./apps/remotes/remote-explore" run cloudflare:preview
 ```
 
-The workspace pins `packageManager: pnpm@11.4.0`, writes `.mise.toml` with pnpm `11.4.0`, and records mise as the toolchain in `.modernjs/ultramodern-generated-contract.json`.
+The workspace pins Node `>=26` and `packageManager: pnpm@11.5.3`, writes `.mise.toml` with pnpm `11.5.3`, and records mise as the toolchain in `.modernjs/ultramodern-generated-contract.json`.
 
 ## Worker Output Contract
 
@@ -68,6 +68,10 @@ node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
   --match-build-marker \
   --out .codex/reports/cloudflare-ssr/remote-explore-local.json
 ```
+
+`MODERN_PUBLIC_SITE_URL` in this validation path is canonical/SEO-only. JS,
+CSS, and static assets use `MODERN_ASSET_PREFIX`, then
+`ULTRAMODERN_ASSET_PREFIX`, then the origin-relative `/` fallback.
 
 The local evidence bundle proves:
 

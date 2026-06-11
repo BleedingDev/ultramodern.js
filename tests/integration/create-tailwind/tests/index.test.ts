@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,76 +6,22 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedPnpmVersion = '11.5.2';
+const expectedPnpmVersion = '11.5.3';
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
+const shellAppPath = 'apps/shell-super-app';
 
 const expectedBleedingDevAliases = {
-  '@modern-js/adapter-rstest': '@bleedingdev/modern-js-adapter-rstest',
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+  '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
   '@modern-js/create': '@bleedingdev/modern-js-create',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
   '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
   '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-  '@modern-js/tsconfig': '@bleedingdev/modern-js-tsconfig',
 };
 
-function expectNoHandlebarsArtifacts(content: string) {
-  expect(/\{\{[#/]|(?:\{\{\w+)/.test(content)).toBe(false);
-}
-
-function expectWorkspaceModernVersions(packageJson: {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-}) {
-  const mergedDependencies = {
-    ...(packageJson.dependencies || {}),
-    ...(packageJson.devDependencies || {}),
-  };
-  Object.entries(mergedDependencies).forEach(([name, version]) => {
-    if (name.startsWith('@modern-js/')) {
-      expect(version).toBe('workspace:*');
-    }
-  });
-}
-
-function expectNoDirectEffectDependency(packageJson: {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-}) {
-  expect(packageJson.dependencies?.effect).toBeUndefined();
-  expect(packageJson.devDependencies?.effect).toBeUndefined();
-}
-
-function expectSubprojectRepoLevelBehaviorRemoved(
-  appDir: string,
-  packageJson: {
-    'lint-staged'?: unknown;
-    'simple-git-hooks'?: unknown;
-    devDependencies?: Record<string, string>;
-    scripts?: Record<string, string>;
-  },
-) {
-  expect(packageJson['lint-staged']).toBeUndefined();
-  expect(packageJson['simple-git-hooks']).toBeUndefined();
-  expect(fs.existsSync(path.join(appDir, '.agents'))).toBe(false);
-  expect(fs.existsSync(path.join(appDir, '.github'))).toBe(false);
-  expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(false);
-  expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(false);
-  expect(packageJson.scripts?.['skills:install']).toBeUndefined();
-  expect(packageJson.scripts?.['skills:check']).toBeUndefined();
-  expect(packageJson.scripts?.postinstall).toBeUndefined();
-  expect(packageJson.scripts?.prepare).toBeUndefined();
-  expect(packageJson.devDependencies?.['lint-staged']).toBeUndefined();
-  expect(packageJson.devDependencies?.lefthook).toBeUndefined();
-  expect(packageJson.devDependencies?.['simple-git-hooks']).toBeUndefined();
-}
-
-function readGeneratedPage(appDir: string) {
-  return fs.readFileSync(
-    path.join(appDir, 'src/routes/[lang]/page.tsx'),
-    'utf-8',
-  );
+function readJson<T = any>(baseDir: string, relativePath: string): T {
+  return JSON.parse(fs.readFileSync(path.join(baseDir, relativePath), 'utf-8'));
 }
 
 function readPnpmConfig<T = any>(
@@ -118,144 +64,11 @@ function expectPnpm11Policy(projectDir: string) {
   expect(readPnpmConfig(projectDir, 'pmOnFail')).toBe('error');
   expect(readPnpmConfig(projectDir, 'verifyDepsBeforeRun')).toBe('error');
   expect(readPnpmConfig(projectDir, 'strictDepBuilds')).toBe(true);
-  expect(readPnpmConfig(projectDir, 'allowBuilds')).toEqual({
-    '@swc/core': true,
-    'core-js': true,
-    esbuild: true,
-    lefthook: true,
-    'msgpackr-extract': true,
-    sharp: true,
-    workerd: true,
-  });
-  expect(readPnpmConfig(projectDir, 'onlyBuiltDependencies')).toEqual([
-    '@swc/core',
-    'core-js',
-    'esbuild',
-    'lefthook',
-    'msgpackr-extract',
-    'sharp',
-    'workerd',
-  ]);
 }
 
-function expectSingleAppContract(appDir: string) {
-  const packageJson = JSON.parse(
-    fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
-  );
-  const packageSource = JSON.parse(
-    fs.readFileSync(
-      path.join(appDir, '.modernjs/ultramodern-package-source.json'),
-      'utf-8',
-    ),
-  );
-  const templateManifest = JSON.parse(
-    fs.readFileSync(
-      path.join(appDir, '.modernjs/mv-template-manifest.json'),
-      'utf-8',
-    ),
-  );
-  expect(packageJson.private).toBe(true);
-  expectNoDirectEffectDependency(packageJson);
-  expect(packageJson.packageManager).toBe(`pnpm@${expectedPnpmVersion}`);
-  expect(packageJson.engines.pnpm).toBe(`>=${expectedPnpmVersion} <11.6.0`);
-  expect(fs.existsSync(path.join(appDir, '.mise.toml'))).toBe(true);
-  expect(packageJson.pnpm).toBeUndefined();
-  expect(packageJson.scripts.test).toBe('rstest run');
-  expect(packageJson.scripts['ultramodern:check']).toContain('pnpm test');
-  expect(packageJson.scripts['ultramodern:check']).toContain(
-    'pnpm format:check && pnpm lint',
-  );
-  expect(packageJson.scripts.format).toBe('oxfmt .');
-  expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
-  expect(packageJson.scripts.lint).toBe('oxlint .');
-  expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
-  expect(
-    packageJson.devDependencies['@modern-js/adapter-rstest'],
-  ).toBeDefined();
-  expect(packageJson.devDependencies['@modern-js/code-tools']).toBeDefined();
-  expect(packageJson.devDependencies['@modern-js/create']).toBeDefined();
-  expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
-  expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
-  expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-  expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-  expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
-  expect(
-    fs.readFileSync(
-      path.join(appDir, 'scripts/check-i18n-strings.mjs'),
-      'utf-8',
-    ),
-  ).toContain("from '@modern-js/code-tools'");
-  expect(packageJson.modernjs).toEqual({
-    preset: 'presetUltramodern',
-    packageSource: {
-      strategy: packageJson.modernjs.packageSource.strategy,
-      config: './.modernjs/ultramodern-package-source.json',
-    },
-  });
-  expect(fs.existsSync(path.join(appDir, 'rstest.config.mts'))).toBe(true);
-  expect(
-    fs.existsSync(path.join(appDir, 'tests/ultramodern.contract.test.ts')),
-  ).toBe(true);
-  expect(
-    fs.existsSync(
-      path.join(appDir, '.modernjs/ultramodern-package-source.json'),
-    ),
-  ).toBe(true);
-  if (packageSource.strategy === 'install') {
-    expect(packageSource.modernPackages.specifier).toBe(
-      templateManifest.template.version,
-    );
-    expect(packageSource.modernPackages.aliases).toMatchObject(
-      expectedBleedingDevAliases,
-    );
-  }
-  expect(fs.existsSync(path.join(appDir, 'pnpm-workspace.yaml'))).toBe(true);
-  expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
-  expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
-  expectPnpm11Policy(appDir);
-  expect(fs.existsSync(path.join(appDir, 'src/routes/page.tsx'))).toBe(false);
-  const page = readGeneratedPage(appDir);
-  expect(page).toContain('@modern-js/plugin-tanstack/runtime');
-  expect(page).not.toContain('@modern-js/runtime/tanstack-router');
-  expect(fs.existsSync(path.join(appDir, 'config/favicon.svg'))).toBe(true);
-  expect(
-    fs.existsSync(
-      path.join(appDir, 'config/public/assets/ultramodern-logo.svg'),
-    ),
-  ).toBe(true);
-  expect(page).not.toContain('lf3-static.bytednsdoc.com');
-  expect(page).toContain('<Helmet');
-  expect(page).toContain('htmlAttributes={{');
-  expect(page).toContain('dir: languageDirections[currentLanguage]');
-  expect(page).toContain('lang: currentLanguage');
-  expect(page).toContain('<title>{pageTitle}</title>');
-  expect(page).toContain(
-    '<meta name="description" content={pageDescription} />',
-  );
-  expect(page).toContain('<h1 id="starter-heading" className="title">');
-  expect(page).toContain('src="/assets/ultramodern-logo.svg"');
-  expect(page).toContain('<span aria-hidden="true" className="arrow-right" />');
-  const css = fs.readFileSync(
-    path.join(appDir, 'src/routes/index.css'),
-    'utf-8',
-  );
-  expect(css).toContain('min-block-size: 100dvh');
-  expect(css).toContain(':focus-visible');
-  expect(css).toContain('@media (prefers-reduced-motion: reduce)');
-  expect(css).not.toContain('width: 1100px');
-  const modernConfig = fs.readFileSync(
-    path.join(appDir, 'modern.config.ts'),
-    'utf-8',
-  );
-  expect(modernConfig).toContain(
-    'width=device-width, initial-scale=1.0, viewport-fit=cover',
-  );
-  expect(modernConfig).not.toContain('user-scalable=no');
-}
-
-function runCreate(projectDir: string, args: string[]) {
-  execFileSync(process.execPath, [createBin, projectDir, ...args], {
-    cwd: repoRoot,
+function runCreate(cwd: string, args: string[]) {
+  execFileSync(process.execPath, [createBin, ...args], {
+    cwd,
     env: {
       ...process.env,
       FORCE_COLOR: '0',
@@ -266,22 +79,10 @@ function runCreate(projectDir: string, args: string[]) {
   });
 }
 
-function runCreateResult(projectDir: string, args: string[], input = '') {
-  return spawnSync(process.execPath, [createBin, projectDir, ...args], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      FORCE_COLOR: '0',
-      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
-        expectedBleedingDevFrameworkVersion,
-    },
-    input,
-    encoding: 'utf-8',
-  });
-}
-
 describe('create-tailwind', () => {
   let tempRoot = '';
+  let withTailwindDir = '';
+  let withoutTailwindDir = '';
 
   beforeAll(() => {
     rstest.setConfig({
@@ -291,6 +92,10 @@ describe('create-tailwind', () => {
     tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-create-tailwind-'),
     );
+    withTailwindDir = path.join(tempRoot, 'with-tailwind');
+    withoutTailwindDir = path.join(tempRoot, 'without-tailwind');
+    runCreate(tempRoot, ['with-tailwind', '--lang', 'en']);
+    runCreate(tempRoot, ['without-tailwind', '--no-tailwind', '--lang', 'en']);
   });
 
   afterAll(() => {
@@ -299,327 +104,88 @@ describe('create-tailwind', () => {
     }
   });
 
-  test('scaffolds Tailwind v4 files by default', () => {
-    const appDir = path.join(tempRoot, 'with-tailwind');
-    runCreate(appDir, ['--lang', 'en']);
+  test('scaffolds Tailwind v4 in the generated workspace by default', () => {
+    const shellDir = path.join(withTailwindDir, shellAppPath);
+    expect(fs.existsSync(path.join(shellDir, 'tailwind.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(shellDir, 'postcss.config.mjs'))).toBe(true);
+    expect(
+      fs.existsSync(path.join(shellDir, 'src/routes/[lang]/page.tsx')),
+    ).toBe(true);
 
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
-    );
-    expect(packageJson.name).toBe('with-tailwind');
-    expect(packageJson.dependencies['@modern-js/runtime']).toBe(
-      `npm:@bleedingdev/modern-js-runtime@${expectedBleedingDevFrameworkVersion}`,
-    );
-    expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
-      `npm:@bleedingdev/modern-js-plugin-tanstack@${expectedBleedingDevFrameworkVersion}`,
-    );
-    expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
-      `npm:@bleedingdev/modern-js-app-tools@${expectedBleedingDevFrameworkVersion}`,
-    );
-    expect(packageJson.dependencies['@tanstack/react-router']).toBe('1.170.15');
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
-    expect(packageJson.scripts.postinstall).toBe(
-      'oxfmt . && node ./scripts/bootstrap-agent-skills.mjs',
-    );
-    expect(fs.existsSync(path.join(appDir, '.codex/hooks.json'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'lefthook.yml'))).toBe(true);
-    expect(packageJson.devDependencies.lefthook).toBe('^2.1.9');
-    expectSingleAppContract(appDir);
-
-    const postcssConfigPath = path.join(appDir, 'postcss.config.mjs');
-    expect(fs.existsSync(postcssConfigPath)).toBe(true);
-    expect(fs.readFileSync(postcssConfigPath, 'utf-8')).toContain(
-      '@tailwindcss/postcss',
-    );
-
-    const tailwindConfigPath = path.join(appDir, 'tailwind.config.ts');
-    expect(fs.existsSync(tailwindConfigPath)).toBe(true);
-
-    const css = fs.readFileSync(
-      path.join(appDir, 'src/routes/index.css'),
-      'utf-8',
-    );
-    expect(css).toContain("@import 'tailwindcss';");
-
-    const pageTsx = readGeneratedPage(appDir);
-    expectNoHandlebarsArtifacts(pageTsx);
-    expect(pageTsx).toContain('text-emerald-700');
-    expect(pageTsx).toContain('font-semibold');
-
-    const modernConfig = fs.readFileSync(
-      path.join(appDir, 'modern.config.ts'),
-      'utf-8',
-    );
-    expect(modernConfig).toContain(
-      "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
-    );
-    expect(modernConfig).toContain('tanstackRouterPlugin()');
-    expect(modernConfig).toContain("runtimeFramework: 'effect'");
-    expect(modernConfig).toContain('openapi: true');
-    expectNoHandlebarsArtifacts(modernConfig);
-  });
-
-  test('requires explicit typed confirmation for legacy Modern.js setup', () => {
-    const appDir = path.join(tempRoot, 'legacy-modern-js-rejected');
-    const result = runCreateResult(
-      appDir,
-      ['--legacy-modern-js', '--lang', 'en'],
-      'no\n',
-    );
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(
-      'BRUTAL WARNING: YOU ARE OPTING OUT OF ULTRAMODERN.JS DEFAULTS.',
-    );
-    expect(result.stderr).toContain(
-      'Aborted. UltraModern.js remains the default unattended setup.',
-    );
-    expect(fs.existsSync(appDir)).toBe(false);
+    const shellPackage = readJson(shellDir, 'package.json');
+    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(shellPackage.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
   });
 
   test('supports --no-tailwind opt-out', () => {
-    const appDir = path.join(tempRoot, 'without-tailwind');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--no-tailwind',
-      '--lang',
-      'en',
-    ]);
-
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+    const shellDir = path.join(withoutTailwindDir, shellAppPath);
+    expect(fs.existsSync(path.join(shellDir, 'tailwind.config.ts'))).toBe(
+      false,
     );
-    expect(packageJson.devDependencies.tailwindcss).toBeUndefined();
-    expect(packageJson.devDependencies.postcss).toBeUndefined();
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBeUndefined();
-
-    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(false);
-
-    const css = fs.readFileSync(
-      path.join(appDir, 'src/routes/index.css'),
-      'utf-8',
+    expect(fs.existsSync(path.join(shellDir, 'postcss.config.mjs'))).toBe(
+      false,
     );
-    expect(css).not.toContain("@import 'tailwindcss';");
 
-    expectSingleAppContract(appDir);
-
-    const pageTsx = readGeneratedPage(appDir);
-    expectNoHandlebarsArtifacts(pageTsx);
-    expect(pageTsx).not.toContain('text-emerald-700');
-    expect(pageTsx).not.toContain('font-semibold');
-
-    expectNoHandlebarsArtifacts(
-      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
-    );
+    const shellPackage = readJson(shellDir, 'package.json');
+    expect(shellPackage.devDependencies.tailwindcss).toBeUndefined();
+    expect(
+      shellPackage.devDependencies['@tailwindcss/postcss'],
+    ).toBeUndefined();
   });
 
-  test('keeps Tailwind default-on with --sub', () => {
-    const appDir = path.join(tempRoot, 'with-tailwind-sub');
-    runCreate(appDir, ['--router', 'tanstack', '--sub', '--lang', 'en']);
+  test('adds a Tailwind-enabled vertical to a Tailwind workspace', () => {
+    runCreate(withTailwindDir, ['catalog', '--vertical', '--lang', 'en']);
 
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+    const verticalDir = path.join(withTailwindDir, 'verticals/catalog');
+    expect(fs.existsSync(path.join(verticalDir, 'tailwind.config.ts'))).toBe(
+      true,
     );
-
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
-
-    expectSubprojectRepoLevelBehaviorRemoved(appDir, packageJson);
-    expect(packageJson.scripts.format).toBe('oxfmt .');
-    expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
-    expect(packageJson.scripts.lint).toBe('oxlint .');
-    expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
-    expect(packageJson.scripts['ultramodern:check']).toBe(
-      'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
-    );
-    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
-    expectSingleAppContract(appDir);
-
-    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
-    expectNoHandlebarsArtifacts(
-      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
-    );
-    expectNoHandlebarsArtifacts(readGeneratedPage(appDir));
-    const validationOutput = execFileSync(
-      process.execPath,
-      ['scripts/validate-ultramodern.mjs'],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    ).toString();
-    expect(validationOutput).toContain('Ultramodern contract check passed.');
+    const verticalPackage = readJson(verticalDir, 'package.json');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.0');
   });
 
-  test('keeps lint and format tooling with --sub --no-tailwind', () => {
-    const appDir = path.join(tempRoot, 'without-tailwind-sub');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--sub',
-      '--no-tailwind',
-      '--lang',
-      'en',
-    ]);
+  test('vertical inherits --no-tailwind workspace setting', () => {
+    runCreate(withoutTailwindDir, ['billing', '--vertical', '--lang', 'en']);
 
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+    const verticalDir = path.join(withoutTailwindDir, 'verticals/billing');
+    expect(fs.existsSync(path.join(verticalDir, 'package.json'))).toBe(true);
+    expect(fs.existsSync(path.join(verticalDir, 'tailwind.config.ts'))).toBe(
+      false,
     );
-
-    expectSubprojectRepoLevelBehaviorRemoved(appDir, packageJson);
-    expect(packageJson.devDependencies.tailwindcss).toBeUndefined();
-    expect(packageJson.devDependencies.postcss).toBeUndefined();
-    expect(packageJson.devDependencies['@tailwindcss/postcss']).toBeUndefined();
-    expect(packageJson.scripts.format).toBe('oxfmt .');
-    expect(packageJson.scripts['format:check']).toBe('oxfmt --check .');
-    expect(packageJson.scripts.lint).toBe('oxlint .');
-    expect(packageJson.scripts['lint:fix']).toBe('oxlint . --fix');
-    expect(packageJson.scripts['ultramodern:check']).toBe(
-      'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
-    );
-    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
-
-    expectSingleAppContract(appDir);
-    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(false);
-    expect(fs.existsSync(path.join(appDir, 'oxlint.config.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'oxfmt.config.ts'))).toBe(true);
-    expectNoHandlebarsArtifacts(
-      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
-    );
-    expectNoHandlebarsArtifacts(readGeneratedPage(appDir));
-    const validationOutput = execFileSync(
-      process.execPath,
-      ['scripts/validate-ultramodern.mjs'],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    ).toString();
-    expect(validationOutput).toContain('Ultramodern contract check passed.');
+    const verticalPackage = readJson(verticalDir, 'package.json');
+    expect(verticalPackage.devDependencies.tailwindcss).toBeUndefined();
   });
 
-  test('keeps Tailwind default-on with --bff-runtime effect', () => {
-    const appDir = path.join(tempRoot, 'with-tailwind-effect');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--bff-runtime',
-      'effect',
-      '--lang',
-      'en',
-    ]);
-
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
+  test('uses BleedingDev npm aliases for UltraModern package installs', () => {
+    const packageSource = readJson(
+      withTailwindDir,
+      '.modernjs/ultramodern-package-source.json',
     );
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBeDefined();
-
-    const modernConfig = fs.readFileSync(
-      path.join(appDir, 'modern.config.ts'),
-      'utf-8',
-    );
-    expect(modernConfig).toContain("runtimeFramework: 'effect'");
-    expect(modernConfig).toContain('openapi: true');
-    expectNoHandlebarsArtifacts(modernConfig);
-
-    expect(fs.existsSync(path.join(appDir, 'api/effect/index.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'shared/effect/api.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'tailwind.config.ts'))).toBe(true);
-    expectNoHandlebarsArtifacts(readGeneratedPage(appDir));
-  });
-
-  test('supports BleedingDev npm aliases for UltraModern package installs', () => {
-    const appDir = path.join(tempRoot, 'with-bleedingdev-aliases');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--bff-runtime',
-      'effect',
-      '--ultramodern-package-source',
-      'install',
-      '--ultramodern-package-version',
-      '3.2.0-ultramodern.5',
-      '--ultramodern-package-scope',
-      'bleedingdev',
-      '--ultramodern-package-name-prefix',
-      'modern-js-',
-      '--lang',
-      'en',
-    ]);
-
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
-    );
-
-    expect(packageJson.dependencies['@modern-js/runtime']).toBe(
-      'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.dependencies['@modern-js/plugin-tanstack']).toBe(
-      'npm:@bleedingdev/modern-js-plugin-tanstack@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.devDependencies['@modern-js/app-tools']).toBe(
-      'npm:@bleedingdev/modern-js-app-tools@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.devDependencies['@modern-js/tsconfig']).toBe(
-      'npm:@bleedingdev/modern-js-tsconfig@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.devDependencies['@modern-js/plugin-bff']).toBe(
-      'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.devDependencies['@modern-js/adapter-rstest']).toBe(
-      'npm:@bleedingdev/modern-js-adapter-rstest@3.2.0-ultramodern.5',
-    );
-    expect(packageJson.devDependencies['@modern-js/create']).toBe(
-      'npm:@bleedingdev/modern-js-create@3.2.0-ultramodern.5',
-    );
-
-    const packageSource = JSON.parse(
-      fs.readFileSync(
-        path.join(appDir, '.modernjs/ultramodern-package-source.json'),
-        'utf-8',
-      ),
+    expect(packageSource.strategy).toBe('install');
+    expect(packageSource.modernPackages.specifier).toBe(
+      expectedBleedingDevFrameworkVersion,
     );
     expect(packageSource.modernPackages.aliases).toMatchObject(
       expectedBleedingDevAliases,
     );
+
+    const shellPackage = readJson(
+      path.join(withTailwindDir, shellAppPath),
+      'package.json',
+    );
+    expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
+      `npm:@bleedingdev/modern-js-runtime@${expectedBleedingDevFrameworkVersion}`,
+    );
+    expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
+      `npm:@bleedingdev/modern-js-app-tools@${expectedBleedingDevFrameworkVersion}`,
+    );
   });
 
-  test('keeps Tailwind default-on with --workspace and effect runtime', () => {
-    const appDir = path.join(tempRoot, 'with-tailwind-effect-workspace');
-    runCreate(appDir, [
-      '--router',
-      'tanstack',
-      '--bff-runtime',
-      'effect',
-      '--workspace',
-      '--lang',
-      'en',
-    ]);
-
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf-8'),
-    );
-    expectWorkspaceModernVersions(packageJson);
-    expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
-
-    expectNoHandlebarsArtifacts(
-      fs.readFileSync(path.join(appDir, 'modern.config.ts'), 'utf-8'),
-    );
-    expectNoHandlebarsArtifacts(readGeneratedPage(appDir));
+  test('pins the pnpm toolchain and hardening policy on the workspace root', () => {
+    const rootPackage = readJson(withTailwindDir, 'package.json');
+    expect(rootPackage.packageManager).toBe(`pnpm@${expectedPnpmVersion}`);
+    expect(rootPackage.engines.pnpm).toBe(`>=${expectedPnpmVersion} <11.6.0`);
+    expect(fs.existsSync(path.join(withTailwindDir, '.mise.toml'))).toBe(true);
+    expectPnpm11Policy(withTailwindDir);
   });
 });

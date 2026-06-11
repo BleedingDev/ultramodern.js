@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "skipLibCheck": false,
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"]

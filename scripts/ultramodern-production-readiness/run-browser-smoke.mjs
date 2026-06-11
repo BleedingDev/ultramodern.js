@@ -86,11 +86,11 @@ function writeJson(filePath, value) {
 }
 
 function appPort(app) {
-  return app.config?.output?.assetPrefix?.defaultLocalhostPort;
+  return app.config?.source?.siteUrl?.defaultLocalhostPort;
 }
 
 function appPortEnv(app) {
-  return app.config?.output?.assetPrefix?.envFallbackOrder?.find(name =>
+  return app.config?.source?.siteUrl?.envFallbackOrder?.find(name =>
     String(name).endsWith('_PORT'),
   );
 }

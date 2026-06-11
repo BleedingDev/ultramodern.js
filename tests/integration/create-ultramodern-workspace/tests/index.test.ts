@@ -76,6 +76,20 @@ function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
 }
 
+function expectDedicatedAssetPrefixExpression(modernConfig: string) {
+  const assetPrefixMatch = modernConfig.match(
+    /const assetPrefix =\n(?<expression>[\s\S]*?);/u,
+  );
+  expect(assetPrefixMatch?.groups?.expression).toBeDefined();
+  const assetPrefixExpression = assetPrefixMatch?.groups?.expression ?? '';
+  expect(assetPrefixExpression).toContain(
+    "configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'",
+  );
+  expect(assetPrefixExpression).not.toMatch(
+    /configuredSiteUrl|MODERN_PUBLIC_SITE_URL|configuredCloudflareUrl|inferredCloudflareUrl/u,
+  );
+}
+
 function readPnpmConfig<T = any>(root: string, key: string): T | undefined {
   const env = { ...process.env };
   for (const envKey of Object.keys(env)) {
@@ -350,11 +364,19 @@ function expectRouteMetadataCompatibility(
 function expectAppConfigContract(
   contractEntry: {
     config: Record<string, any>;
+    deploy?: Record<string, any>;
     moduleFederation: Record<string, any>;
     ssr?: Record<string, any>;
   },
-  expected: { apiPrefix?: string; hasEffect?: boolean },
+  expected: {
+    apiPrefix?: string;
+    hasEffect?: boolean;
+    publicUrlEnv: string;
+    portEnv: string;
+    port: number;
+  },
 ) {
+  const { publicUrlEnv, portEnv, port } = expected;
   expect(contractEntry.config).toMatchObject({
     preset: 'presetUltramodern',
     output: {
@@ -382,6 +404,20 @@ function expectAppConfigContract(
       mainEntryName: 'index',
       siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
     },
+  });
+  expect(contractEntry.config.dev).toEqual({ assetPrefix: '/' });
+  expect(contractEntry.config.output.assetPrefix).toEqual({
+    envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
+    default: '/',
+  });
+  expect(contractEntry.config.source.siteUrl).toEqual({
+    envFallbackOrder: [
+      'MODERN_PUBLIC_SITE_URL',
+      publicUrlEnv,
+      'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+      portEnv,
+    ],
+    defaultLocalhostPort: port,
   });
   expect(contractEntry.config.plugins).toEqual(
     expected.hasEffect
@@ -804,9 +840,17 @@ describe('create-ultramodern-workspace', () => {
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
-    expect(rootPackage.packageManager).toBe('pnpm@11.5.2');
-    expect(rootPackage.engines.pnpm).toBe('>=11.5.2 <11.6.0');
+    expect(rootPackage.packageManager).toBe('pnpm@11.5.3');
+    expect(rootPackage.engines.node).toBe('>=26');
+    expect(rootPackage.engines.pnpm).toBe('>=11.5.3 <11.6.0');
     expectPath(workspaceDir, '.mise.toml');
+    expect(readText(workspaceDir, '.mise.toml')).toContain('node = "26.3.0"');
+    const workflowText = readText(
+      workspaceDir,
+      '.github/workflows/ultramodern-workspace-gates.yml',
+    );
+    expect(workflowText).toContain('node-version: "26.3.0"');
+    expect(workflowText).not.toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
       'verticals/*',
@@ -874,17 +918,17 @@ describe('create-ultramodern-workspace', () => {
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.14.0',
+      '@effect/tsgo': '0.14.3',
       '@modern-js/code-tools': expectedBleedingDevSpecifier(
         '@modern-js/code-tools',
       ),
       '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
-      '@typescript/native-preview': '7.0.0-dev.20260606.1',
+      '@typescript/native-preview': '7.0.0-dev.20260610.1',
       lefthook: '^2.1.9',
-      oxlint: '1.68.0',
-      oxfmt: '0.53.0',
-      ultracite: '7.8.1',
-      wrangler: '4.98.0',
+      oxlint: '1.69.0',
+      oxfmt: '0.54.0',
+      ultracite: '7.8.3',
+      wrangler: '4.99.0',
       'zephyr-agent': '1.1.1',
     });
 
@@ -968,13 +1012,13 @@ describe('create-ultramodern-workspace', () => {
         'devDependencies',
         '@modern-js/app-tools',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.0');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.3');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260606.1',
+        '7.0.0-dev.20260610.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
-      expect(packageJson.devDependencies.wrangler).toBe('4.98.0');
+      expect(packageJson.devDependencies.wrangler).toBe('4.99.0');
       expect(
         packageJson.devDependencies['zephyr-modernjs-plugin'],
       ).toBeUndefined();
@@ -1036,7 +1080,11 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'shell-super-app',
     );
-    expectAppConfigContract(shellContract, {});
+    expectAppConfigContract(shellContract, {
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+      portEnv: 'SHELL_SUPER_APP_PORT',
+      port: 3020,
+    });
     expectCssFederationContract(generatedContract, shellContract, {
       classPrefix: 'shell:',
       ownedLayers: ['ultramodern-shell-base', 'ultramodern-shell-overlay'],
@@ -1047,7 +1095,7 @@ describe('create-ultramodern-workspace', () => {
       name: 'shellSuperApp',
       dts: {
         displayErrorInTerminal: true,
-        compilerInstance: '--package typescript -- tsc',
+        compilerInstance: 'tsgo',
       },
     });
     expect(shellContract.moduleFederation.remoteRefs ?? []).toEqual([]);
@@ -1065,6 +1113,13 @@ describe('create-ultramodern-workspace', () => {
     expect(shellModernConfig).toContain('"mode": "report-only"');
     expect(shellModernConfig).toContain('"script-src"');
     expect(shellModernConfig).toContain('"connect-src"');
+    expect(shellModernConfig).toContain('const assetPrefix =');
+    expectDedicatedAssetPrefixExpression(shellModernConfig);
+    expect(shellModernConfig).toContain("assetPrefix: '/',");
+    expect(shellModernConfig).toContain('assetPrefix,');
+    expect(shellModernConfig).toMatch(
+      /const siteUrl =\s*configuredSiteUrl \|\|\s*configuredCloudflareUrl \|\|/,
+    );
     expect(shellModuleFederationConfig).toContain(`bridge: {
     enableBridgeRouter: false,
   },`);
@@ -1404,7 +1459,7 @@ describe('create-ultramodern-workspace', () => {
       fakePnpmPath,
       `#!/usr/bin/env node
 if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
-  console.log('11.5.2');
+  console.log('11.5.3');
   process.exit(0);
 }
 console.error('pmOnFail rejected active pnpm before version discovery');
@@ -1590,6 +1645,13 @@ process.exit(1);
       'verticals/catalog/shared/effect/api.ts',
     );
     expect(catalogModernConfig).toContain("entry: './api/effect/index'");
+    expect(catalogModernConfig).toContain('const assetPrefix =');
+    expectDedicatedAssetPrefixExpression(catalogModernConfig);
+    expect(catalogModernConfig).toContain("assetPrefix: '/',");
+    expect(catalogModernConfig).toContain('assetPrefix,');
+    expect(catalogModernConfig).toMatch(
+      /const siteUrl =\s*configuredSiteUrl \|\|\s*configuredCloudflareUrl \|\|/,
+    );
     expect(catalogEffectApi).toContain(
       'limit: Schema.optional(Schema.FiniteFromString)',
     );
@@ -2077,6 +2139,8 @@ export const entries = [
     expect(webManifest.scope).toBe('/');
     expect(webManifest.start_url).toMatch(/^\/(cs|en)\//u);
 
+    // Site-wide MODERN_PUBLIC_SITE_URL must win over per-app ULTRAMODERN_PUBLIC_URL_*
+    // for SEO output (sitemap/robots origins), regardless of per-app env being set.
     execFileSync(
       process.execPath,
       [
@@ -2091,6 +2155,8 @@ export const entries = [
         env: {
           ...process.env,
           MODERN_PUBLIC_SITE_URL: 'https://global.example/path-is-ignored',
+          ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP:
+            'https://per-app.example.workers.dev',
         },
         stdio: 'pipe',
       },

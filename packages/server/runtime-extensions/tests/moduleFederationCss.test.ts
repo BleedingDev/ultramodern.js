@@ -73,6 +73,55 @@ describe('module federation css collection', () => {
     ]);
   });
 
+  it('resolves publicPath variants without localhost or doubled static prefixes', () => {
+    const cases = [
+      {
+        publicPath: '/',
+        expected: 'https://remote.example.com/static/css/main.css',
+      },
+      {
+        publicPath: '/static-base',
+        expected: 'https://remote.example.com/static-base/static/css/main.css',
+      },
+      {
+        publicPath: '/static-base/',
+        expected: 'https://remote.example.com/static-base/static/css/main.css',
+      },
+      {
+        publicPath: 'https://cdn.example.com/assets',
+        expected: 'https://cdn.example.com/assets/static/css/main.css',
+      },
+      {
+        publicPath: 'https://cdn.example.com/assets/',
+        expected: 'https://cdn.example.com/assets/static/css/main.css',
+      },
+    ];
+
+    for (const { publicPath, expected } of cases) {
+      const css = collectModuleFederationManifestCss(
+        {
+          metaData: {
+            publicPath,
+          },
+          exposes: [
+            {
+              assets: {
+                css: {
+                  sync: ['static/css/main.css'],
+                },
+              },
+            },
+          ],
+        },
+        'https://remote.example.com/nested/mf-manifest.json',
+      );
+
+      expect(css).toEqual([expected]);
+      expect(css[0]).not.toContain('localhost');
+      expect(css[0]).not.toContain('//static');
+    }
+  });
+
   it('falls back to the remote manifest URL when publicPath is absent', () => {
     const css = collectModuleFederationManifestCss(
       {

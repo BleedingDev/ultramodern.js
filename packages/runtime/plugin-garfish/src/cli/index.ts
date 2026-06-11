@@ -1,5 +1,4 @@
-import type { AppTools, CliPlugin } from '@modern-js/app-tools';
-import type { CliHookCallbacks, useConfigContext } from '@modern-js/core';
+import type { AppTools, AppUserConfig, CliPlugin } from '@modern-js/app-tools';
 import { createRuntimeExportsUtils } from '@modern-js/utils';
 import { logger } from '../util';
 import {
@@ -10,11 +9,9 @@ import {
   setRuntimeConfig,
 } from './utils';
 
-export type UseConfig = ReturnType<typeof useConfigContext>;
+export type UseConfig = AppUserConfig;
 
 export const externals = { 'react-dom': 'react-dom', react: 'react' };
-
-export type LifeCycle = CliHookCallbacks;
 
 type NonInValidAble<T> = T extends null | undefined | false ? never : T;
 

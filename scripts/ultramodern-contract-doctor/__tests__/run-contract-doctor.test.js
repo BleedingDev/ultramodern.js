@@ -155,7 +155,7 @@ function createWorkspace() {
     writeText(
       root,
       `${vertical.path}/module-federation.config.ts`,
-      "displayErrorInTerminal: true; compilerInstance: '--package typescript -- tsc'; './Route'; './Widget';\n",
+      "displayErrorInTerminal: true; compilerInstance: 'tsgo'; './Route'; './Widget';\n",
     );
     writeText(
       root,
@@ -209,7 +209,7 @@ function createWorkspace() {
           exposes: ['./Widget', './Route'],
           dts: {
             displayErrorInTerminal: true,
-            compilerInstance: '--package typescript -- tsc',
+            compilerInstance: 'tsgo',
           },
         },
         effect: {
@@ -246,7 +246,7 @@ function createWorkspace() {
           exposes: ['./Widget', './Route'],
           dts: {
             displayErrorInTerminal: true,
-            compilerInstance: '--package typescript -- tsc',
+            compilerInstance: 'tsgo',
           },
         },
         effect: {
@@ -347,7 +347,7 @@ test('rejects split default vertical services and unsafe remote exposes', () => 
     writeText(
       root,
       'apps/remotes/remote-commerce/module-federation.config.ts',
-      "displayErrorInTerminal: true; compilerInstance: '--package typescript -- tsc'; './Route'; './Widget'; './api';\n",
+      "displayErrorInTerminal: true; compilerInstance: 'tsgo'; './Route'; './Widget'; './api';\n",
     );
     const generatedContract = JSON.parse(
       fs.readFileSync(

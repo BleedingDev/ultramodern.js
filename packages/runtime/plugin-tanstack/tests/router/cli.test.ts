@@ -134,6 +134,82 @@ describe('tanstack router cli plugin', () => {
     );
   });
 
+  test('writes plugin-i18n module augmentation when canonicalRoutes are provided', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    await writeTanstackRegisterFile({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+      canonicalRoutes: {
+        '/': 'Record<string, never>',
+        '/products/$slug': '{ "slug": string }',
+      },
+    });
+
+    const register = await readFile(
+      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
+      'utf-8',
+    );
+
+    expect(register).toContain(
+      "declare module '@modern-js/plugin-i18n/runtime'",
+    );
+    expect(register).toContain('interface UltramodernCanonicalRoutes');
+    expect(register).toContain("'/': Record<string, never>;");
+    expect(register).toContain('\'/products/$slug\': { "slug": string };');
+  });
+
+  test('does not emit plugin-i18n augmentation when canonicalRoutes is absent (back-compat)', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    await writeTanstackRegisterFile({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+      // No canonicalRoutes provided at all — plain TanStack app
+    });
+
+    const register = await readFile(
+      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
+      'utf-8',
+    );
+
+    expect(register).not.toContain('plugin-i18n');
+    expect(register).not.toContain('UltramodernCanonicalRoutes');
+    // But the standard TanStack runtime augmentation must still be present.
+    expect(register).toContain(
+      "declare module '@modern-js/plugin-tanstack/runtime'",
+    );
+  });
+
+  test('uses a custom i18nRuntimeModule when specified', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    await writeTanstackRegisterFile({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+      canonicalRoutes: {
+        '/talks': 'Record<string, never>',
+      },
+      i18nRuntimeModule: '@my-org/i18n/runtime',
+    });
+
+    const register = await readFile(
+      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
+      'utf-8',
+    );
+
+    expect(register).toContain("declare module '@my-org/i18n/runtime'");
+    expect(register).not.toContain(
+      "declare module '@modern-js/plugin-i18n/runtime'",
+    );
+  });
+
   test('claims custom routes, injects runtime plugin, and merges route specs', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');

@@ -100,7 +100,7 @@
     "react-i18next": "17.0.8"
   },
   "peerDependencies": {
-    "@modern-js/runtime": "workspace:^3.2.0",
+    "@modern-js/runtime": "workspace:^3.2.1",
     "i18next": ">=25.7.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -114,10 +114,10 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.21.5",
+    "@rslib/core": "0.22.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.1",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "@types/node": "^25.9.3",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "i18next": "26.3.1",
     "jest": "^30.4.2",
     "react": "^19.2.7",

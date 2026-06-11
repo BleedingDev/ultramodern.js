@@ -1,5 +1,4 @@
 import type { AppUserConfig } from '@modern-js/app-tools';
-import { type CliPlugin, manager } from '@modern-js/core';
 import WebpackChain from '@modern-js/utils/webpack-chain';
 import type { UseConfig } from '../src/cli';
 import { externals, garfishPlugin } from '../src/cli';
@@ -14,14 +13,22 @@ const testChainId = {
   },
 };
 
+const setupGarfishPlugin = async (
+  api: Record<string, unknown> = {},
+): Promise<any> =>
+  garfishPlugin().setup!({
+    useConfigContext: () => ({}),
+    useResolvedConfigContext: () => ({}),
+    useAppContext: useTestAppContext,
+    ...api,
+  } as any);
+
 describe('plugin-garfish cli', () => {
   test('cli garfish basename', async () => {
     expect(garfishPlugin().name).toBe('@modern-js/plugin-garfish');
 
-    const main = manager.clone().usePlugin(garfishPlugin as CliPlugin);
-    const runner = await main.init();
-    await runner.prepare();
-    const configHistoryOptions: any = await runner.resolvedConfig({
+    const lifecycle = await setupGarfishPlugin();
+    const configHistoryOptions: any = await lifecycle.resolvedConfig({
       resolved: {
         runtime: {
           router: {
@@ -36,7 +43,7 @@ describe('plugin-garfish cli', () => {
       '/test',
     );
 
-    const configHistory: any = await runner.resolvedConfig({
+    const configHistory: any = await lifecycle.resolvedConfig({
       resolved: {
         runtime: {
           router: {
@@ -121,16 +128,10 @@ describe('plugin-garfish cli', () => {
       },
     };
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-
-    const runner = await main.init();
-    await runner.prepare();
-    const config: any = await runner.config();
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig,
+    });
+    const config: any = [await lifecycle.config()];
     const webpackConfig = new WebpackChain();
 
     // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -175,15 +176,10 @@ describe('plugin-garfish cli', () => {
       },
     };
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-    const runner = await main.init();
-    await runner.prepare();
-    const config: any = await runner.config();
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig,
+    });
+    const config: any = [await lifecycle.config()];
     const webpackConfig = new WebpackChain();
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     function HTMLWebpackPlugin() {}
@@ -229,17 +225,11 @@ describe('plugin-garfish cli', () => {
       },
     };
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig as any,
-        useConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-
-    const runner = await main.init();
-    await runner.prepare();
-    const config = (await runner.config()) as AppUserConfig[];
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig as any,
+      useConfigContext: () => resolveConfig,
+    });
+    const config = [await lifecycle.config()] as AppUserConfig[];
     expect(config[0].output!.disableCssExtract).toBe(false);
   });
 
@@ -255,32 +245,22 @@ describe('plugin-garfish cli', () => {
       },
     };
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig as any,
-        useConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-    const runner = await main.init();
-    await runner.prepare();
-    const config = (await runner.config()) as AppUserConfig[];
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig as any,
+      useConfigContext: () => resolveConfig,
+    });
+    const config = [await lifecycle.config()] as AppUserConfig[];
     expect(config[0].output!.disableCssExtract).toBe(true);
   });
 
   test('normal disableCssExtract false', async () => {
     const resolveConfig: Partial<UseConfig> = {};
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig as any,
-        useConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-    const runner = await main.init();
-    await runner.prepare();
-    const config = (await runner.config()) as AppUserConfig[];
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig as any,
+      useConfigContext: () => resolveConfig,
+    });
+    const config = [await lifecycle.config()] as AppUserConfig[];
     expect(config[0].output!.disableCssExtract).toBe(false);
   });
 
@@ -295,16 +275,11 @@ describe('plugin-garfish cli', () => {
       },
     };
 
-    const main = manager
-      .clone({
-        useResolvedConfigContext: () => resolveConfig as any,
-        useConfigContext: () => resolveConfig,
-        useAppContext: useTestAppContext,
-      })
-      .usePlugin(garfishPlugin as CliPlugin);
-    const runner = await main.init();
-    await runner.prepare();
-    const config = (await runner.config()) as AppUserConfig[];
+    const lifecycle = await setupGarfishPlugin({
+      useResolvedConfigContext: () => resolveConfig as any,
+      useConfigContext: () => resolveConfig,
+    });
+    const config = [await lifecycle.config()] as AppUserConfig[];
 
     expect(config[0].source?.define).toMatchObject({
       'process.env.MODERN_MF_RUNTIME_DIGEST': '"runtime-v1-digest"',

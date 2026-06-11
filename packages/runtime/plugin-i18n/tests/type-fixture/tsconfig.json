@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "module": "Preserve",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM"],
+    "paths": {
+      "@modern-js/plugin-i18n/runtime": ["../../src/runtime/index.tsx"]
+    }
+  },
+  "include": ["*.tsx", "*.ts"]
+}

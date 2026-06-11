@@ -7,6 +7,71 @@ import path from 'node:path';
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
 
+const readGeneratedFile = (workspacePath: string, relativePath: string) =>
+  fs.readFileSync(path.join(workspacePath, relativePath), 'utf8');
+
+const assertGeneratedModernConfigAssetPrefixContract = (
+  modernConfig: string,
+  label: string,
+) => {
+  const indexOfAny = (source: string, needles: string[]) => {
+    const indexes = needles
+      .map(needle => source.indexOf(needle))
+      .filter(index => index >= 0);
+
+    return indexes.length > 0 ? Math.min(...indexes) : -1;
+  };
+
+  const assetPrefixMatch = modernConfig.match(
+    /const assetPrefix =\n(?<expression>[\s\S]*?);/,
+  );
+
+  assert.ok(
+    assetPrefixMatch?.groups?.expression,
+    `${label} derives assetPrefix`,
+  );
+
+  const assetPrefixExpression = assetPrefixMatch.groups.expression;
+
+  assert.doesNotMatch(
+    assetPrefixExpression,
+    /configuredSiteUrl|MODERN_PUBLIC_SITE_URL/,
+    `${label} assetPrefix must not use MODERN_PUBLIC_SITE_URL`,
+  );
+  assert.match(
+    modernConfig,
+    /MODERN_ASSET_PREFIX/,
+    `${label} modern.config.ts must read MODERN_ASSET_PREFIX`,
+  );
+  assert.match(
+    modernConfig,
+    /ULTRAMODERN_ASSET_PREFIX/,
+    `${label} modern.config.ts must read ULTRAMODERN_ASSET_PREFIX`,
+  );
+  assert.match(
+    assetPrefixExpression,
+    /configuredModernAssetPrefix|MODERN_ASSET_PREFIX/,
+    `${label} assetPrefix must prefer MODERN_ASSET_PREFIX`,
+  );
+  assert.match(
+    assetPrefixExpression,
+    /configuredUltramodernAssetPrefix|ULTRAMODERN_ASSET_PREFIX/,
+    `${label} assetPrefix must fall back to ULTRAMODERN_ASSET_PREFIX`,
+  );
+  assert.ok(
+    indexOfAny(assetPrefixExpression, [
+      'configuredModernAssetPrefix',
+      'MODERN_ASSET_PREFIX',
+    ]) <
+      indexOfAny(assetPrefixExpression, [
+        'configuredUltramodernAssetPrefix',
+        'ULTRAMODERN_ASSET_PREFIX',
+      ]),
+    `${label} assetPrefix must prefer MODERN_ASSET_PREFIX before ` +
+      'ULTRAMODERN_ASSET_PREFIX',
+  );
+};
+
 test('package exposes the pnpm dlx command alias', () => {
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
@@ -58,6 +123,24 @@ test('built CLI resolves workspace template for default scaffold', () => {
       ),
       true,
     );
+
+    const workspacePath = path.join(tmpDir, 'smoke-workspace');
+    const appDirectories = fs
+      .readdirSync(path.join(workspacePath, 'apps'), { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name);
+
+    assert.notEqual(appDirectories.length, 0);
+
+    for (const appDirectory of appDirectories) {
+      assertGeneratedModernConfigAssetPrefixContract(
+        readGeneratedFile(
+          workspacePath,
+          `apps/${appDirectory}/modern.config.ts`,
+        ),
+        appDirectory,
+      );
+    }
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

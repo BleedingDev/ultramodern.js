@@ -3,6 +3,8 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"],

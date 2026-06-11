@@ -650,8 +650,7 @@ function checkFullStackVerticals(workspace) {
           unsafeExposes.length === 0 &&
           contractEntry.moduleFederation?.dts?.displayErrorInTerminal ===
             true &&
-          contractEntry.moduleFederation?.dts?.compilerInstance ===
-            '--package typescript -- tsc',
+          contractEntry.moduleFederation?.dts?.compilerInstance === 'tsgo',
         {
           file:
             generatedContract.file ||

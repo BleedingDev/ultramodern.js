@@ -8,8 +8,8 @@ export default defineConfig({
   tools: {
     bundlerChain: chain => {
       if (process.env.RSDOCTOR) {
-        chain.plugin('rsdoctor').use(RsdoctorRspackPlugin, [
-          {
+        chain.plugin('rsdoctor').use(
+          new RsdoctorRspackPlugin({
             output: isCI
               ? {
                   mode: 'brief',
@@ -19,8 +19,8 @@ export default defineConfig({
                 }
               : {},
             features: isCI ? ['bundle'] : ['bundle', 'loader', 'plugins'],
-          },
-        ]);
+          }),
+        );
       }
     },
   },

@@ -20,12 +20,12 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
-    "@types/finalhandler": "^1.2.3",
+    "@types/finalhandler": "^1.2.4",
     "@types/formidable": "^3.4.6",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@types/supertest": "^7.2.0",
     "@types/type-is": "^1.6.7",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "supertest": "^7.2.2"
   }
 }

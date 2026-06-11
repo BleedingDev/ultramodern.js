@@ -163,7 +163,8 @@ async function handleCreateTemplate() {
 
   const files = await handleTemplate(templateDir, {
     packageName: 'modern-app',
-    pnpmVersion: '11.5.2',
+    nodeVersion: '26.3.0',
+    pnpmVersion: '11.5.3',
     version,
   });
 
