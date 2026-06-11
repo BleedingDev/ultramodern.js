@@ -11,7 +11,7 @@ exports[`lightningcss-loader > should register lightningcss-loader and disable p
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -137,7 +137,7 @@ exports[`lightningcss-loader > should register lightningcss-loader and postcss-l
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -311,7 +311,7 @@ exports[`plugin-postcssLegacy > should allow tools.postcss to override the plugi
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -446,7 +446,7 @@ exports[`plugin-postcssLegacy > should allow tools.postcss to override the plugi
     },
     "oneOf": [
       {
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -641,7 +641,7 @@ exports[`plugin-postcssLegacy > should allow tools.postcss to override the plugi
     },
     "oneOf": [
       {
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -812,7 +812,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 1
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1031,7 +1031,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 2
     },
     "oneOf": [
       {
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1310,7 +1310,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin by browserslist 3
     },
     "oneOf": [
       {
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1565,7 +1565,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1817,7 +1817,7 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
         "resolve": {
           "preferRelative": true,
         },
-        "resourceQuery": /\\^\\\\\\?url\\$/,
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
         "use": [
           {
             "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1974,14 +1974,10 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                       },
                       {
                         "OnceExit": [Function],
-                        "postcssPlugin": "css-declaration-sorter",
-                      },
-                      {
-                        "OnceExit": [Function],
                         "postcssPlugin": "cssnano-util-raw-cache",
                       },
                     ],
-                    "version": "8.5.14",
+                    "version": "<POSTCSS_VERSION>",
                   },
                   {
                     "browsers": [
@@ -2156,10 +2152,6 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                       {
                         "OnceExit": [Function],
                         "postcssPlugin": "postcss-unique-selectors",
-                      },
-                      {
-                        "OnceExit": [Function],
-                        "postcssPlugin": "css-declaration-sorter",
                       },
                       {
                         "OnceExit": [Function],
@@ -2352,10 +2344,6 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                       {
                         "OnceExit": [Function],
                         "postcssPlugin": "postcss-unique-selectors",
-                      },
-                      {
-                        "OnceExit": [Function],
-                        "postcssPlugin": "css-declaration-sorter",
                       },
                       {
                         "OnceExit": [Function],

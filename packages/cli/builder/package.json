@@ -46,6 +46,7 @@
     "@rsbuild/plugin-type-check": "1.4.0",
     "@rsbuild/plugin-typed-css-modules": "1.2.3",
     "@rsdoctor/rspack-plugin": "^1.5.12",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "@swc/core": "1.15.40",
     "@swc/helpers": "^0.5.23",
     "autoprefixer": "10.5.0",
@@ -74,7 +75,6 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
     "react": "^19.2.7",
     "terser": "^5.48.0"
   },
