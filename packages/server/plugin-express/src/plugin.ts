@@ -1,15 +1,24 @@
+// @effect-diagnostics asyncFunction:off newPromise:off nodeBuiltinImport:off strictBooleanExpressions:off
+
 import {
   type APIHandlerInfo,
   type CrossProjectPolicyConfig,
   checkCrossProjectPolicy,
   resolveCrossProjectPolicy,
 } from '@modern-js/bff-core';
-import type { ServerConfig, ServerPlugin } from '@modern-js/server-core';
+import type {
+  APIServerStartInput,
+  PrepareWebServerFn,
+  ServerConfig,
+  ServerPlugin,
+  WebServerStartInput,
+} from '@modern-js/server-core';
 import { createDebugger, fs } from '@modern-js/utils';
 import cookieParser from 'cookie-parser';
 import type { Request, Response } from 'express';
 import express, { type Express, type RequestHandler } from 'express';
 import finalhandler from 'finalhandler';
+import type { IncomingMessage, ServerResponse } from 'http';
 import * as path from 'path';
 import { run } from './context';
 import registerRoutes from './registerRoutes';
@@ -23,6 +32,39 @@ interface FrameConfig {
 type Hooks = {
   afterLambdaRegisted?: (app: Express) => void;
 };
+
+/**
+ * Node-style request handler produced by `prepareApiServer`. The pipeline's
+ * declared return type is a Hono middleware, but this adapter (and its test
+ * harness) still exchange the legacy node `(req, res)` shape, so the tap is
+ * registered through the same `as unknown as` seam plugin-bff uses.
+ */
+type ApiServerHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+) => Promise<void>;
+
+type PrepareApiServerTap = (
+  input: APIServerStartInput,
+) => Promise<ApiServerHandler>;
+
+/** `WebAdapter` is not re-exported from the server-core root entry. */
+type WebAdapter = NonNullable<Awaited<ReturnType<PrepareWebServerFn>>>;
+
+type PrepareWebServerTap = (
+  input: WebServerStartInput,
+  next: () => void,
+) => WebAdapter | void;
+
+/**
+ * The adapters still consume the legacy v2 node render signature
+ * `(req, res) => html`. Only reachable when `bff.enableHandleWeb` is set and
+ * the caller provides a render function.
+ */
+type LegacyNodeRender = (
+  req: IncomingMessage,
+  res: ServerResponse,
+) => Promise<string | undefined>;
 
 /**
  * Sync CJS require with ESM-default interop. `@modern-js/utils` removed the
@@ -99,15 +141,19 @@ export default (): ServerPlugin => ({
   name: '@modern-js/plugin-express',
   pre: ['@modern-js/plugin-bff'],
   post: ['@modern-js/plugin-server'],
-  setup: api => ({
-    async prepareApiServer({ pwd, config, render }) {
+  setup: api => {
+    const prepareApiServer: PrepareApiServerTap = async ({
+      pwd,
+      config,
+      render,
+    }) => {
       let app: Express;
-      const appContext = api.useAppContext();
+      const appContext = api.getServerContext();
       const apiHandlerInfos = appContext.apiHandlerInfos as APIHandlerInfo[];
       const apiDirectory = appContext.apiDirectory as string;
       const apiDir = apiDirectory || path.join(pwd, './api');
       const mode = appContext.apiMode;
-      const userConfig: ServerConfig = api.useConfigContext();
+      const userConfig: ServerConfig = api.getServerConfig();
       const bffConfig = userConfig.bff;
       const crossProjectPolicy = resolveCrossProjectPolicy({
         crossProjectPolicy: bffConfig?.crossProjectPolicy,
@@ -159,8 +205,9 @@ export default (): ServerPlugin => ({
       }
 
       if (userConfig.bff?.enableHandleWeb && render) {
+        const legacyRender = render as unknown as LegacyNodeRender;
         app.use(async (req, res, next) => {
-          const html = await render(req, res);
+          const html = await legacyRender(req, res);
           if (html) {
             res.end(html);
           }
@@ -169,7 +216,7 @@ export default (): ServerPlugin => ({
       }
 
       return (req, res) =>
-        new Promise((resolve, reject) => {
+        new Promise<void>((resolve, reject) => {
           const handler = (err: unknown) => {
             if (err) {
               return reject(err);
@@ -187,11 +234,16 @@ export default (): ServerPlugin => ({
           });
           return app(req as Request, res as Response, handler);
         });
-    },
+    };
 
-    prepareWebServer({ config }, next) {
-      const userConfig: ServerConfig = api.useConfigContext();
-      if (!userConfig?.server?.enableFrameworkExt) {
+    const prepareWebServer: PrepareWebServerTap = ({ config }, next) => {
+      const userConfig: ServerConfig = api.getServerConfig();
+      // `server.enableFrameworkExt` is a legacy v2 flag that no longer exists
+      // on `ServerUserConfig`; keep honoring it when present at runtime.
+      const serverConfig = userConfig?.server as
+        | { enableFrameworkExt?: boolean }
+        | undefined;
+      if (!serverConfig?.enableFrameworkExt) {
         return next();
       }
 
@@ -204,10 +256,10 @@ export default (): ServerPlugin => ({
       }
 
       return ctx =>
-        new Promise((resolve, reject) => {
-          const {
-            source: { req, res },
-          } = ctx;
+        new Promise<void>((resolve, reject) => {
+          const { source } = ctx;
+          const req = source.req as Request;
+          const res = source.res as Response;
           const handler = (err: string) => {
             if (err) {
               return reject(err);
@@ -225,8 +277,15 @@ export default (): ServerPlugin => ({
             }
             return resolve();
           });
-          return app(req as Request, res as Response, handler);
+          return app(req, res, handler);
         });
-    },
-  }),
+    };
+
+    api.prepareApiServer(
+      prepareApiServer as unknown as Parameters<typeof api.prepareApiServer>[0],
+    );
+    api.prepareWebServer(
+      prepareWebServer as unknown as Parameters<typeof api.prepareWebServer>[0],
+    );
+  },
 });

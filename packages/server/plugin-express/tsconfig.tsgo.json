@@ -8,8 +8,5 @@
     "moduleResolution": "Bundler",
     "rootDir": "./src"
   },
-  // Scoped to the typed adapter-kit seam. src/plugin.ts still uses the legacy
-  // setup-object server-plugin API, which predates the toolkit Plugin type and
-  // cannot typecheck until the adapter migrates to the tap-style plugin API.
-  "include": ["src/utils.ts", "src/registerRoutes.ts", "src/context.ts"]
+  "include": ["src"]
 }
