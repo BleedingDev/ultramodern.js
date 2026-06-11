@@ -1596,7 +1596,7 @@ export default createModuleFederationConfig({
   dts: {
     displayErrorInTerminal: true,
     generateTypes: {
-      compilerInstance: '--package typescript -- tsc',
+      compilerInstance: 'tsgo',
     },
   },
   filename: 'remoteEntry.js',
@@ -1671,7 +1671,7 @@ export default createModuleFederationConfig({
   dts: {
     displayErrorInTerminal: true,
     generateTypes: {
-      compilerInstance: '--package typescript -- tsc',
+      compilerInstance: 'tsgo',
     },
   },
   exposes: ${exposes},
@@ -5203,7 +5203,7 @@ function createAppGeneratedContract(
       exposes: Object.keys(app.exposes ?? {}),
       dts: {
         displayErrorInTerminal: true,
-        compilerInstance: '--package typescript -- tsc',
+        compilerInstance: 'tsgo',
       },
       browserSafeExposesOnly: true,
       zephyrRspackPlugin: ZEPHYR_RSPACK_PLUGIN_VERSION,
@@ -5443,7 +5443,7 @@ for (const appDir of appDirs) {
   if (
     contractEntry &&
     contractEntry.moduleFederation?.dts?.compilerInstance !==
-      '--package typescript -- tsc'
+      'tsgo'
   ) {
     throw new Error(
       \`Module Federation DTS must use the workspace TypeScript compiler: \${appDir}\`,
@@ -6516,7 +6516,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, \`\${vertical.id} MF name is incorrect\`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), \`\${vertical.id} MF exposes are incorrect\`);
-  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === '--package typescript -- tsc', \`\${vertical.id} must keep mandatory DTS compiler\`);
+  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === 'tsgo', \`\${vertical.id} must keep mandatory DTS compiler\`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.verticalRefs ?? []) === JSON.stringify(vertical.verticalRefs), \`\${vertical.id} MF verticalRefs are incorrect\`);
   assert(
     JSON.stringify((contractEntry?.moduleFederation?.remotes ?? []).map(remote => remote.id)) ===
