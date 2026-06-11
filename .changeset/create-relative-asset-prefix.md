@@ -5,7 +5,9 @@
 Generated workspaces default `output.assetPrefix` to origin-relative `/` and set
 `dev.assetPrefix: '/'` so apps served through tunnels and reverse proxies
 (ngrok, cloudflared) no longer reference absolute localhost URLs, which
-previously triggered Chrome's Local Network Access prompt. `ULTRAMODERN_PUBLIC_URL_<APP_ID>`
-(per-app asset and deployment origin) and `MODERN_PUBLIC_SITE_URL` (site-wide
-SEO origin) now have distinct precedence: assets prefer the per-app variable,
-while canonical/hreflang/sitemap output uses the site-wide variable.
+previously triggered Chrome's Local Network Access prompt. `MODERN_PUBLIC_SITE_URL`
+is now documented as canonical/SEO-only, while JS/CSS/static assets use
+`MODERN_ASSET_PREFIX`, then `ULTRAMODERN_ASSET_PREFIX`, then `/`; stale public
+URL aliases should not be carried forward as asset-prefix fallbacks. Generated
+workspace documentation also records the Node `>=26` plus pnpm `11.5.3`
+toolchain baseline.

@@ -53,6 +53,10 @@ pnpm check
 pnpm build
 ```
 
+The generated toolchain baseline is Node `>=26` with pnpm `11.5.3`.
+`packageManager`, `.mise.toml`, generated validation, and CI should all agree
+on that baseline; do not reintroduce Corepack or older pnpm aliases.
+
 Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable.
@@ -85,25 +89,31 @@ packages still use `workspace:*` because they are part of this workspace.
 
 ## Public URL Environment Variables
 
-This workspace's apps no longer bake absolute `http://localhost:<port>` URLs
-into asset configuration. Two environment variables now have distinct roles in
-controlling where assets are served from and where SEO output links point.
+This workspace's apps must not bake absolute `http://localhost:<port>` URLs
+into asset configuration. Public URL and asset prefix environment variables
+have distinct roles, and stale aliases should not be carried forward when
+regenerating or updating the workspace.
 
 | Variable | Role | Feeds |
 | --- | --- | --- |
-| `ULTRAMODERN_PUBLIC_URL_<APP_ID>` | Per-app deployment and asset origin | `output.assetPrefix`, Module Federation remote URLs |
-| `MODERN_PUBLIC_SITE_URL` | Site-wide public origin for SEO output | Canonical, hreflang, sitemap `<loc>`, robots `Sitemap:` |
+| `MODERN_PUBLIC_SITE_URL` | Canonical site origin for public SEO output only | Canonical, hreflang, sitemap `<loc>`, robots `Sitemap:` |
+| `MODERN_ASSET_PREFIX` | Preferred JS/CSS/static asset prefix | Modern/Rspack-emitted asset URLs |
+| `ULTRAMODERN_ASSET_PREFIX` | UltraModern compatibility asset prefix | Modern/Rspack-emitted asset URLs when `MODERN_ASSET_PREFIX` is unset |
+| `ULTRAMODERN_PUBLIC_URL_<APP_ID>` | Per-app deployment/proof URL | Cloudflare proof inputs and Module Federation remote URLs |
 
-Asset URLs use this precedence: `ULTRAMODERN_PUBLIC_URL_<APP_ID>` →
-`MODERN_PUBLIC_SITE_URL` → inferred workers.dev URL → origin-relative `/`.
-SEO and site origin prefer: `MODERN_PUBLIC_SITE_URL` →
-`ULTRAMODERN_PUBLIC_URL_<APP_ID>` → inferred workers.dev → `http://localhost:<port>`.
+Asset URLs use this precedence: `MODERN_ASSET_PREFIX` →
+`ULTRAMODERN_ASSET_PREFIX` → origin-relative `/`. `MODERN_PUBLIC_SITE_URL` is
+canonical/SEO-only and must not be used as an asset-prefix fallback.
+SEO output uses `MODERN_PUBLIC_SITE_URL`; if it is unset, generated local and
+preview outputs remain non-public until deployment proof provides explicit
+public URLs.
 
 Without public URLs configured, asset paths are origin-relative (`/`), and the
 dev server uses `dev.assetPrefix: '/'` — so apps work through tunnels and
 reverse proxies (ngrok, cloudflared) without triggering Chrome's Local Network
-Access prompt or mixed-content errors. Shell-only workspaces can set just
-`MODERN_PUBLIC_SITE_URL` for SEO output.
+Access prompt or mixed-content errors. Shell-only workspaces can set
+`MODERN_PUBLIC_SITE_URL` for SEO output without changing where assets load
+from.
 
 ## Cloudflare Proof
 
