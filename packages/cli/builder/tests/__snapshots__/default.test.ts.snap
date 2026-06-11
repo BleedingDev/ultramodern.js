@@ -48,7 +48,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
             "resolve": {
               "preferRelative": true,
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -299,6 +299,15 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
         ],
         "oneOf": [
           {
+            "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "javascript/auto",
+            "use": [
+              {
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+              },
+            ],
+          },
+          {
             "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/source",
           },
@@ -425,7 +434,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
             "generator": {
               "filename": "static/image/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -456,7 +465,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
             "generator": {
               "filename": "static/media/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -487,7 +496,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
             "generator": {
               "filename": "static/font/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -535,7 +544,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -839,7 +848,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1395,6 +1404,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
             "DEV": true,
             "MODE": "\\"development\\"",
             "PROD": false,
+            "SSR": false,
           },
           "process.env.ASSET_PREFIX": "\\"\\"",
           "process.env.BASE_URL": "\\"/\\"",
@@ -1568,7 +1578,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
             "resolve": {
               "preferRelative": true,
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1657,6 +1667,15 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
           /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
         ],
         "oneOf": [
+          {
+            "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "javascript/auto",
+            "use": [
+              {
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+              },
+            ],
+          },
           {
             "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/source",
@@ -1767,7 +1786,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
               "emit": false,
               "filename": "static/image/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -1800,7 +1819,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
               "emit": false,
               "filename": "static/media/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -1833,7 +1852,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
               "emit": false,
               "filename": "static/font/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -1894,7 +1913,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2038,7 +2057,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2358,6 +2377,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
             "DEV": false,
             "MODE": "\\"production\\"",
             "PROD": true,
+            "SSR": true,
           },
           "process.env.ASSET_PREFIX": "\\"\\"",
           "process.env.BASE_URL": "\\"/\\"",
@@ -2482,7 +2502,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
             "resolve": {
               "preferRelative": true,
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2732,6 +2752,15 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
         ],
         "oneOf": [
           {
+            "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "javascript/auto",
+            "use": [
+              {
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+              },
+            ],
+          },
+          {
             "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/source",
           },
@@ -2858,7 +2887,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
             "generator": {
               "filename": "static/image/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -2889,7 +2918,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
             "generator": {
               "filename": "static/media/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -2920,7 +2949,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
             "generator": {
               "filename": "static/font/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -2968,7 +2997,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -3272,7 +3301,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -3861,6 +3890,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
             "DEV": false,
             "MODE": "\\"production\\"",
             "PROD": true,
+            "SSR": false,
           },
           "process.env.ASSET_PREFIX": "\\"\\"",
           "process.env.BASE_URL": "\\"/\\"",
@@ -3988,7 +4018,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "resolve": {
               "preferRelative": true,
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -4077,6 +4107,15 @@ exports[`builder rspack > should generator rspack config correctly when service-
           /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
         ],
         "oneOf": [
+          {
+            "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "javascript/auto",
+            "use": [
+              {
+                "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+              },
+            ],
+          },
           {
             "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/source",
@@ -4186,7 +4225,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "generator": {
               "filename": "static/image/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -4217,7 +4256,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "generator": {
               "filename": "static/media/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -4248,7 +4287,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "generator": {
               "filename": "static/font/[name].[contenthash:10][ext]",
             },
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "type": "asset/resource",
           },
           {
@@ -4296,7 +4335,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -4440,7 +4479,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
         },
         "oneOf": [
           {
-            "resourceQuery": /\\^\\\\\\?url\\$/,
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -4794,6 +4833,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "DEV": false,
             "MODE": "\\"production\\"",
             "PROD": true,
+            "SSR": false,
           },
           "process.env.ASSET_PREFIX": "\\"\\"",
           "process.env.BASE_URL": "\\"/\\"",

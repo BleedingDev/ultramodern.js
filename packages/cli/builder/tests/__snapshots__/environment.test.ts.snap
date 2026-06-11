@@ -49,7 +49,7 @@ exports[`builder environment compat > should generator environment config correc
               "resolve": {
                 "preferRelative": true,
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -300,6 +300,15 @@ exports[`builder environment compat > should generator environment config correc
           ],
           "oneOf": [
             {
+              "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "javascript/auto",
+              "use": [
+                {
+                  "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+                },
+              ],
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -426,7 +435,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/image/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -457,7 +466,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/media/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -488,7 +497,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/font/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -536,7 +545,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -840,7 +849,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1396,6 +1405,7 @@ exports[`builder environment compat > should generator environment config correc
               "DEV": true,
               "MODE": "\\"development\\"",
               "PROD": false,
+              "SSR": false,
             },
             "process.env.ASSET_PREFIX": "\\"\\"",
             "process.env.BASE_URL": "\\"/\\"",
@@ -1546,7 +1556,7 @@ exports[`builder environment compat > should generator environment config correc
               "resolve": {
                 "preferRelative": true,
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -1635,6 +1645,15 @@ exports[`builder environment compat > should generator environment config correc
             /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
           ],
           "oneOf": [
+            {
+              "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "javascript/auto",
+              "use": [
+                {
+                  "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+                },
+              ],
+            },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
@@ -1745,7 +1764,7 @@ exports[`builder environment compat > should generator environment config correc
                 "emit": false,
                 "filename": "static/image/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -1778,7 +1797,7 @@ exports[`builder environment compat > should generator environment config correc
                 "emit": false,
                 "filename": "static/media/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -1811,7 +1830,7 @@ exports[`builder environment compat > should generator environment config correc
                 "emit": false,
                 "filename": "static/font/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -1872,7 +1891,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2016,7 +2035,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2336,6 +2355,7 @@ exports[`builder environment compat > should generator environment config correc
               "DEV": true,
               "MODE": "\\"development\\"",
               "PROD": false,
+              "SSR": true,
             },
             "process.env.ASSET_PREFIX": "\\"\\"",
             "process.env.BASE_URL": "\\"/\\"",
@@ -2437,7 +2457,7 @@ exports[`builder environment compat > should generator environment config correc
               "resolve": {
                 "preferRelative": true,
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2526,6 +2546,15 @@ exports[`builder environment compat > should generator environment config correc
             /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
           ],
           "oneOf": [
+            {
+              "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "javascript/auto",
+              "use": [
+                {
+                  "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
+                },
+              ],
+            },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
@@ -2635,7 +2664,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/image/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -2666,7 +2695,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/media/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -2697,7 +2726,7 @@ exports[`builder environment compat > should generator environment config correc
               "generator": {
                 "filename": "static/font/[name].[contenthash:10][ext]",
               },
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/resource",
             },
             {
@@ -2745,7 +2774,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -2889,7 +2918,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
-              "resourceQuery": /\\^\\\\\\?url\\$/,
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/cssUrlLoader.mjs",
@@ -3207,6 +3236,7 @@ exports[`builder environment compat > should generator environment config correc
               "DEV": true,
               "MODE": "\\"development\\"",
               "PROD": false,
+              "SSR": false,
             },
             "process.env.ASSET_PREFIX": "\\"\\"",
             "process.env.BASE_URL": "\\"/\\"",
