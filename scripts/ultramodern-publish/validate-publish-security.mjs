@@ -16,6 +16,9 @@ const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const enforcedPublishTag = 'latest';
 const enforcedPublishConcurrency = '8';
+const defaultPublishBranch = 'main-ultramodern';
+const publishBranch =
+  process.env.BLEEDINGDEV_PUBLISH_BRANCH || defaultPublishBranch;
 
 function fail(message) {
   throw new Error(`Publish security validation failed: ${message}`);
@@ -49,8 +52,8 @@ function validateGitHubContext() {
   if (process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch') {
     fail('publish workflow must run only from workflow_dispatch');
   }
-  if (process.env.GITHUB_REF !== 'refs/heads/main-ultramodern') {
-    fail('publish workflow must run only from refs/heads/main-ultramodern');
+  if (process.env.GITHUB_REF !== `refs/heads/${publishBranch}`) {
+    fail(`publish workflow must run only from refs/heads/${publishBranch}`);
   }
   if (process.env.GITHUB_REPOSITORY !== 'BleedingDev/ultramodern.js') {
     fail('publish workflow must run only in BleedingDev/ultramodern.js');
@@ -121,7 +124,7 @@ function validateWorkflowContract() {
   );
   requireIncludes(
     workflow,
-    "github.ref == 'refs/heads/main-ultramodern'",
+    "github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')",
     'publish workflow',
   );
   requireIncludes(
@@ -185,7 +188,12 @@ function validatePublishScriptContract() {
   );
   requireIncludes(
     publishScript,
-    "repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git'",
+    'process.env.BLEEDINGDEV_REPOSITORY_URL ||',
+    'publish script',
+  );
+  requireIncludes(
+    publishScript,
+    "'git+https://github.com/BleedingDev/ultramodern.js.git'",
     'publish script',
   );
   requireIncludes(

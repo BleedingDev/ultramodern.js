@@ -1,19 +1,16 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  ensureFileExists: ensureFileExistsWithLabel,
+  ensureSchemaVersion,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const ALLOWED_SIDE_EFFECTS = new Set(['read', 'write']);
 
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureFileExists = filePath => {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File does not exist: ${filePath}`);
-  }
-};
+const ensureFileExists = filePath =>
+  ensureFileExistsWithLabel(filePath, { label: 'File' });
 
 const isRecord = value =>
   value && typeof value === 'object' && !Array.isArray(value);
@@ -106,11 +103,11 @@ const validateContractShape = contract => {
   if (!isRecord(contract)) {
     throw new Error('AI capability contract must be a JSON object');
   }
-  if (contract.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported schemaVersion: ${String(contract.schemaVersion)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: contract.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'AI capability contract',
+  });
   if (!Array.isArray(contract.capabilities)) {
     throw new Error('Contract must contain capabilities array');
   }

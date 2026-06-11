@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const {
+  ensureSchemaVersion,
+  escapeRegExp,
   readJsonFile,
+} = require('../lib/validation-kit');
+const {
   resolveManifestRequirementSet,
   validateContractShape,
   validateManifests,
@@ -42,8 +46,6 @@ const toRegex = pattern => {
   }
 };
 
-const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 const globToRegex = glob => {
   const normalized = String(glob).replace(/\\/g, '/');
   let source = '';
@@ -59,7 +61,7 @@ const globToRegex = glob => {
       }
       continue;
     }
-    source += escapeRegex(char);
+    source += escapeRegExp(char);
   }
   return new RegExp(`^${source}$`);
 };
@@ -153,13 +155,11 @@ const validateProfileShape = profile => {
     throw new Error('Boundary guard profile must be a JSON object');
   }
 
-  if (profile.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported boundary guard profile schemaVersion: ${String(
-        profile.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: profile.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'boundary guard profile',
+  });
 
   if (
     typeof profile.contractPath !== 'string' ||
@@ -514,13 +514,11 @@ const validateOwnershipContractShape = contract => {
   if (!isObject(contract)) {
     throw new Error('Ownership contract must be a JSON object');
   }
-  if (contract.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported ownership contract schemaVersion: ${String(
-        contract.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: contract.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'ownership contract',
+  });
   if (!isNonEmptyString(contract.contractId)) {
     throw new Error('Ownership contract contractId must be non-empty');
   }

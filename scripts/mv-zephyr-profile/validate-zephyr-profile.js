@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonFile } = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const PROFILE_NAME = 'zephyr-vanilla-modernjs';
@@ -28,11 +29,6 @@ const DEFAULT_IGNORED_DIRECTORIES = new Set([
 
 const isRecord = value =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
 
 const stripComments = content =>
   content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');

@@ -1,5 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  ensureSchemaVersion,
+  ensureStringArray,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const REQUIRED_COMPATIBILITY_LANES = ['effect-first', 'tanstack-first'];
@@ -39,23 +44,6 @@ const REQUIRED_FORBIDDEN_CODE_PATTERNS = [
   'x-modernjs-bff-envelope',
   'x-operation-id',
 ];
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureStringArray = (value, context) => {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array`);
-  }
-
-  for (const item of value) {
-    if (typeof item !== 'string' || item.trim() === '') {
-      throw new Error(`${context} must contain non-empty string values`);
-    }
-  }
-};
 
 const ensureIncludesAll = ({
   actual,
@@ -234,13 +222,11 @@ const validateContractShape = contract => {
     throw new Error('Contract must be a JSON object');
   }
 
-  if (contract.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported contract schemaVersion: ${String(
-        contract.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: contract.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'contract',
+  });
 
   ensureIncludesAll({
     actual: contract.compatibilityLanes,

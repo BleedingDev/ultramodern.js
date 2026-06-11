@@ -1,34 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const {
+  ensureFileExists,
+  ensureSchemaVersion,
+  escapeRegExp,
+  isPlaceholderValue,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
-const PLACEHOLDER_METADATA_VALUES = new Set([
-  'tbd',
-  'todo',
-  'pending',
-  'unknown',
-  'n/a',
-  'na',
-  'none',
-  'null',
-  'undefined',
-  'changeme',
-  'to-be-filled',
-]);
-
-const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureFileExists = filePath => {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Required file does not exist: ${filePath}`);
-  }
-};
 
 const isPathInsideDirectory = ({ baseDir, targetDir }) => {
   const relative = path.relative(baseDir, targetDir);
@@ -91,13 +72,11 @@ const validateProfileShape = profile => {
     throw new Error('Profile must be a JSON object');
   }
 
-  if (profile.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported profile schemaVersion: ${String(
-        profile.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: profile.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'profile',
+  });
 
   if (!profile.evidence || typeof profile.evidence !== 'object') {
     throw new Error('Profile is missing "evidence" section');
@@ -155,11 +134,7 @@ const validateMetadataFields = ({
       );
     }
 
-    if (
-      PLACEHOLDER_METADATA_VALUES.has(normalized) ||
-      /^tbd\b/.test(normalized) ||
-      /^todo\b/.test(normalized)
-    ) {
+    if (isPlaceholderValue(normalized)) {
       throw new Error(
         `Metadata field "${field}" uses placeholder value "${rawValue}" in evidence file: ${filePath}`,
       );

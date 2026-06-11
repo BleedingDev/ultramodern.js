@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { readJsonFile } = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const REQUIRED_ENVS = ['development', 'staging', 'production'];
@@ -11,11 +12,6 @@ const DEFAULT_TOPOLOGY_PATH = path.resolve(
   __dirname,
   '__fixtures__/reference-topology.json',
 );
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
 
 const ensureObject = (value, context) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

@@ -1,49 +1,17 @@
-const fs = require('fs');
 const path = require('path');
+const {
+  ensureBoolean,
+  ensureNonEmptyArray,
+  ensureNonEmptyStringArray: ensureStringArray,
+  ensureObject,
+  ensureSchemaVersion,
+  ensureString,
+  ensureUniqueIds,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_POLICY_PATH = path.resolve(__dirname, 'lane-policy.json');
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureObject = (value, context) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${context} must be an object`);
-  }
-};
-
-const ensureArray = (value, context) => {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array`);
-  }
-};
-
-const ensureNonEmptyArray = (value, context) => {
-  ensureArray(value, context);
-  if (value.length === 0) {
-    throw new Error(`${context} must not be empty`);
-  }
-};
-
-const ensureString = (value, context) => {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${context} must be a non-empty string`);
-  }
-};
-
-const ensureBoolean = (value, context) => {
-  if (typeof value !== 'boolean') {
-    throw new Error(`${context} must be a boolean`);
-  }
-};
-
-const ensureStringArray = (value, context) => {
-  ensureNonEmptyArray(value, context);
-  value.forEach((item, index) => ensureString(item, `${context}[${index}]`));
-};
 
 const createSet = (items, context) => {
   ensureStringArray(items, context);
@@ -63,18 +31,6 @@ const ensureKnownValues = ({ values, knownValues, context, knownContext }) => {
     if (!knownValues.has(value)) {
       throw new Error(`${context} contains unknown ${knownContext} "${value}"`);
     }
-  });
-};
-
-const ensureUniqueIds = (items, context) => {
-  const seen = new Set();
-  items.forEach((item, index) => {
-    ensureObject(item, `${context}[${index}]`);
-    ensureString(item.id, `${context}[${index}].id`);
-    if (seen.has(item.id)) {
-      throw new Error(`${context} contains duplicate id "${item.id}"`);
-    }
-    seen.add(item.id);
   });
 };
 
@@ -208,13 +164,11 @@ const validateDemotionRules = ({
 
 const validatePolicyShape = policy => {
   ensureObject(policy, 'policy');
-  if (policy.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported policy schemaVersion: ${String(
-        policy.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: policy.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'policy',
+  });
 
   ensureString(policy.name, 'policy.name');
   const gateCatalog = createSet(policy.gateCatalog, 'gateCatalog');

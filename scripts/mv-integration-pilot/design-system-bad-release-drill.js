@@ -1,5 +1,5 @@
-const fs = require('fs');
 const path = require('path');
+const { readJsonFile } = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const CONSUMER_STATUSES = new Set(['affected', 'unaffected']);
@@ -8,11 +8,6 @@ const DEFAULT_DRILL_PATH = path.resolve(
   __dirname,
   '__fixtures__/design-system-bad-release.json',
 );
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
 
 const ensureObject = (value, context) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

@@ -1,5 +1,16 @@
-const fs = require('fs');
 const path = require('path');
+const {
+  ensureArray,
+  ensureInteger,
+  ensureNonPlaceholderString,
+  ensureObject,
+  ensurePositiveInteger,
+  ensureSchemaVersion,
+  ensureString,
+  ensureUniqueIds,
+  normalizeIdentifier,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_PROFILE_PATH = path.resolve(
@@ -9,71 +20,6 @@ const DEFAULT_PROFILE_PATH = path.resolve(
 const REQUIRED_TIERS = ['golden', 'compat', 'experimental'];
 const ISSUE_REF_PATTERN =
   /^(modernjs-[a-z0-9]+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+)$/;
-const PLACEHOLDER_VALUES = new Set([
-  'tbd',
-  'todo',
-  'pending',
-  'unknown',
-  'n/a',
-  'na',
-  'none',
-  'null',
-  'undefined',
-  'changeme',
-]);
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureObject = (value, context) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${context} must be an object`);
-  }
-};
-
-const ensureArray = (value, context) => {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array`);
-  }
-};
-
-const ensureString = (value, context) => {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${context} must be a non-empty string`);
-  }
-};
-
-const ensureInteger = (value, context) => {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`${context} must be a non-negative integer`);
-  }
-};
-
-const ensurePositiveInteger = (value, context) => {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`${context} must be a positive integer`);
-  }
-};
-
-const normalizeIdentifier = value => String(value).trim().toLowerCase();
-
-const isPlaceholder = value => {
-  const normalized = normalizeIdentifier(value);
-  return (
-    PLACEHOLDER_VALUES.has(normalized) ||
-    /^tbd\b/.test(normalized) ||
-    /^todo\b/.test(normalized)
-  );
-};
-
-const ensureNonPlaceholderString = (value, context) => {
-  ensureString(value, context);
-  if (isPlaceholder(value)) {
-    throw new Error(`${context} must not use placeholder value "${value}"`);
-  }
-};
 
 const parseIsoDate = (value, context) => {
   ensureString(value, context);
@@ -142,18 +88,6 @@ const validateTierBudgets = tiers => {
   }
 
   return report;
-};
-
-const ensureUniqueIds = (items, context) => {
-  const seen = new Set();
-  items.forEach((item, index) => {
-    ensureObject(item, `${context}[${index}]`);
-    ensureString(item.id, `${context}[${index}].id`);
-    if (seen.has(item.id)) {
-      throw new Error(`${context} contains duplicate id "${item.id}"`);
-    }
-    seen.add(item.id);
-  });
 };
 
 const validateIssueRef = (issueRef, context) => {
@@ -333,13 +267,11 @@ const summarizeByTier = checks =>
 
 const validateCiHardeningProfile = (profile, options = {}) => {
   ensureObject(profile, 'profile');
-  if (profile.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported profile schemaVersion: ${String(
-        profile.schemaVersion,
-      )}. Expected ${String(SCHEMA_VERSION)}.`,
-    );
-  }
+  ensureSchemaVersion({
+    actual: profile.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'profile',
+  });
   ensureString(profile.name, 'profile.name');
   const policy = validatePolicy(profile.policy);
   const tiers = validateTierBudgets(profile.tiers);

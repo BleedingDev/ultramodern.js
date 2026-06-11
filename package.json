@@ -59,10 +59,7 @@
     "validate:mcp-cli-parity": "node scripts/ai-capabilities/validate-mcp-cli-parity.js --contract docs/super-app-rfc-adr/contracts/ai-capabilities.json --out .modern/mcp-cli-parity.json",
     "generate:mcp-adapter": "node scripts/ai-capabilities/generate-mcp-adapter.js --contract docs/super-app-rfc-adr/contracts/ai-capabilities.json --out .modern/mcp/adapter-manifest.json --mcporter-out .modern/mcporter.json",
     "serve:mcp-cli-bridge": "node scripts/ai-capabilities/mcp-cli-bridge.js --contract docs/super-app-rfc-adr/contracts/ai-capabilities.json",
-    "benchmark:runtime-resilience": "node benchmark/runtime-resilience/run.js",
     "benchmark:runtime-resilience:worker-lane-gate": "node benchmark/runtime-resilience/run.js --mode worker-lane-only --worker-lane-enabled --fail-on-worker-lane-gate",
-    "load:superapp-erp": "node scripts/superapp-load/run-superapp-load.js",
-    "validate:superapp-erp-effect-load": "node scripts/superapp-load/run-superapp-load.js",
     "validate:superapp-certification": "node scripts/superapp-certification/run-superapp-certification.js",
     "validate:superapp-certification:smoke": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke",
     "validate:superapp-certification:release": "node scripts/superapp-certification/run-superapp-certification.js --profile release",
@@ -79,7 +76,8 @@
     "validate:bun-smoke": "bun scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json && bun scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands && bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
     "test:all:parallel": "node scripts/test-orchestrator/run-parallel-tests.js",
-    "test:all:parallel:analyze": "node scripts/test-orchestrator/run-parallel-tests.js --mode analyze"
+    "test:all:parallel:analyze": "node scripts/test-orchestrator/run-parallel-tests.js --mode analyze",
+    "test:scripts": "node --test scripts/lib/__tests__/*.test.js scripts/module-sdk-contracts/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/mv-lane-policy/__tests__/*.test.js scripts/mv-ci-hardening/__tests__/*.test.js scripts/release-gates/__tests__/*.test.js scripts/ai-capabilities/__tests__/*.test.js"
   },
   "engines": {
     "node": ">=20",

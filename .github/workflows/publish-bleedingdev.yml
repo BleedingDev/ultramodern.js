@@ -34,7 +34,7 @@ jobs:
     name: Validate publish security
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.ref == 'refs/heads/main-ultramodern'
+    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -61,6 +61,7 @@ jobs:
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           DRY_RUN: ${{ inputs.dry_run }}
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
+          BLEEDINGDEV_PUBLISH_BRANCH: ${{ vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern' }}
         run: node scripts/ultramodern-publish/validate-publish-security.mjs
 
       - name: Verify publish toolchain
@@ -75,7 +76,7 @@ jobs:
     name: Build and stage @bleedingdev packages
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.ref == 'refs/heads/main-ultramodern'
+    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -137,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm-publish
     timeout-minutes: 45
-    if: github.ref == 'refs/heads/main-ultramodern'
+    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:
       - publish-security
       - prepare-packages
