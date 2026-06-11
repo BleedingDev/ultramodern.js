@@ -106,4 +106,45 @@ describe('typescript', () => {
       await fs.remove(distDir);
     }
   });
+  it('forces Node-executable emission when app tsconfig resolves to bundler module settings', async () => {
+    // Regression: TS-Go v7 resolves unpinned app tsconfigs to
+    // module=preserve/moduleResolution=bundler, which used to leak bare
+    // `import` statements into the CommonJS server dist (Node then fails on
+    // extensionless ESM imports at runtime).
+    const example = path.join(__dirname, './fixtures', './ts-example');
+    const tsconfigPath = path.join(example, './tsconfig.bundler.json');
+    const distDir = path.join(example, './dist-bundler');
+    const sharedDir = path.join(example, './shared');
+    const apiDir = path.join(example, './api');
+    const serverDir = path.join(example, './server');
+
+    try {
+      await compile(
+        example,
+        {
+          alias: {
+            '@modern-js/runtime/server': path.join(
+              sharedDir,
+              './runtime/server',
+            ),
+          },
+        } as any,
+        {
+          sourceDirs: [sharedDir, apiDir, serverDir],
+          distDir,
+          tsconfigPath,
+        },
+      );
+
+      const apiContent = (
+        await fs.readFile(path.join(distDir, './api/index.js'))
+      ).toString();
+      expect(apiContent).not.toMatch(/^import /m);
+
+      const api = require(path.join(distDir, './api')).default;
+      expect(api()).toEqual('runtime-shared-api');
+    } finally {
+      await fs.remove(distDir);
+    }
+  });
 });

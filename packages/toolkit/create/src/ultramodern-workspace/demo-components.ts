@@ -16,7 +16,7 @@ export function createShellPage(remotes: WorkspaceApp[] = []): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
   const remoteCount = String(remotes.length);
 
-  return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import ShellFrame from '../shell-frame';
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { VerticalShowcase } from '../vertical-components';
@@ -35,9 +35,9 @@ export default function ShellHome() {
           <h1 className="${tw('mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('shell.title')}</h1>
           <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('shell.hero.lede')}</p>
           <div className="${tw('mt-7 flex flex-wrap gap-3')}">
-            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/">
+            <Link className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/">
               {t('shell.hero.primary')}
-            </I18nLink>
+            </Link>
             <span className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}">
               {t('shell.hero.secondary')}
             </span>
@@ -163,7 +163,7 @@ const createHydratedRemote =
     .join('\n');
   const remoteCount = String(widgetRemotes.length);
 
-  return `${federationImports}import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `${federationImports}import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 	const widgetCount = Number('${remoteCount}');
 
@@ -176,7 +176,7 @@ const createHydratedRemote =
 
   return (
     <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${shellApp.mfName}" data-modern-mf-expose="shell/Header">
-      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</I18nLink>
+      <Link className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</Link>
     </header>
   );
 };
@@ -370,7 +370,7 @@ export function createRemoteExposeComponent(
   const tw = createTw(tailwindPrefixForApp(app));
 
   if (app.id === 'workspace' && expose === './Header') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function Header() {
   const { i18nInstance } = useModernI18n();
@@ -378,10 +378,10 @@ export default function Header() {
 
   return (
     <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
-      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('workspace.header.brand')}</I18nLink>
+      <Link className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('workspace.header.brand')}</Link>
       <nav aria-label={t('workspace.header.navigation')} className="${tw('flex items-center gap-5')}">
-        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/workspaces">{t('workspace.header.workspaces')}</I18nLink>
-        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/directory">{t('workspace.header.directory')}</I18nLink>
+        <Link className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/workspaces">{t('workspace.header.workspaces')}</Link>
+        <Link className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/directory">{t('workspace.header.directory')}</Link>
       </nav>
     </header>
   );
@@ -390,7 +390,7 @@ export default function Header() {
   }
 
   if (app.id === 'workspace' && expose === './Highlights') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 const highlights = [
   { badge: 'workspace.highlights.shell', href: '/workspaces', name: 'workspace.highlights.shellTitle' },
@@ -407,10 +407,10 @@ export default function Highlights() {
       <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('workspace.highlights.title')}</h2>
       <div className="${tw('mt-5 grid gap-4 md:grid-cols-3')}">
         {highlights.map(highlight => (
-          <I18nLink className="${tw('block rounded-2xl bg-white/90 p-5 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" key={highlight.href} to={highlight.href}>
+          <Link className="${tw('block rounded-2xl bg-white/90 p-5 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" key={highlight.href} to={highlight.href}>
             <span className="${tw('text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t(highlight.badge)}</span>
             <strong className="${tw('mt-3 block text-xl font-black leading-tight')}">{t(highlight.name)}</strong>
-          </I18nLink>
+          </Link>
         ))}
       </div>
     </section>
@@ -505,7 +505,7 @@ export default function ${componentName}() {
   }
 
   if (app.id === 'actions' && expose === './StartAction') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useActionQueue } from '../action-queue-store';
 
 export default function ${componentName}() {
@@ -518,9 +518,9 @@ export default function ${componentName}() {
       <button className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" onClick={queue.addStarterAction} type="button">
         {t('actions.controls.start')}
       </button>
-      <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/actions">
+      <Link className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/actions">
         {t('actions.controls.viewQueue')}
-      </I18nLink>
+      </Link>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 type TsgoConfig = {
   compilerOptions?: {
     baseUrl?: unknown;
+    module?: string;
     moduleResolution?: string;
     noEmitOnError?: boolean;
     outDir?: string;
@@ -39,6 +40,7 @@ const createResolvedTsgoConfig = async (
   tsconfigPath: string,
   distDir: string,
   sourceDirs: string[],
+  moduleType?: 'module' | 'commonjs',
 ) => {
   const output = await runTsgo(['--showConfig', '-p', tsconfigPath], {
     cwd: path.dirname(tsconfigPath),
@@ -60,6 +62,23 @@ const createResolvedTsgoConfig = async (
       String(config.compilerOptions.moduleResolution).toLowerCase(),
     )
   ) {
+    delete config.compilerOptions.moduleResolution;
+  }
+
+  // The server compiler's output is executed by Node directly (never bundled),
+  // so bundler-oriented emission must not leak through from app tsconfigs.
+  // TS-Go v7 resolves unpinned configs to module=preserve/moduleResolution=
+  // bundler, which keeps bare `import` statements in the emitted .js while the
+  // dist runs as CommonJS — Node then fails on extensionless ESM imports.
+  // Force CommonJS emission unless the caller explicitly compiles for ESM
+  // output (moduleType 'module', which post-processes specifiers itself).
+  if (
+    moduleType !== 'module' &&
+    ['preserve', 'esnext', 'es2015', 'es2020', 'es2022', 'es6'].includes(
+      String(config.compilerOptions.module).toLowerCase(),
+    )
+  ) {
+    config.compilerOptions.module = 'commonjs';
     delete config.compilerOptions.moduleResolution;
   }
 
@@ -248,6 +267,7 @@ export const compileByTs: CompileFunc = async (
       tsconfigPath,
       distDir,
       sourceDirs,
+      compileOptions.moduleType,
     );
   const result = await runTsgo(['-p', resolvedConfigPath], {
     cwd: appDirectory,

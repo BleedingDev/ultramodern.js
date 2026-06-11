@@ -84,6 +84,8 @@ const envValue = (name: string) => {
 };
 const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
 const configuredCloudflareUrl = envValue('${createCloudflarePublicUrlEnv(app)}');
+const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX');
+const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX');
 const cloudflareWorkersDevSubdomain = envValue(
   'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
 );
@@ -91,11 +93,19 @@ const inferredCloudflareUrl =
   cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined
     ? \`https://\${cloudflareWorkerName}.\${cloudflareWorkersDevSubdomain}.workers.dev\`
     : undefined;
+// Site origin (SEO: canonical/hreflang URLs) prefers the site-wide public URL;
+// the per-app deployment URL only fills in when no site origin is configured.
 const siteUrl =
-  configuredCloudflareUrl ||
   configuredSiteUrl ||
+  configuredCloudflareUrl ||
   inferredCloudflareUrl ||
   \`http://localhost:\${port}\`;
+// Asset loading is intentionally independent from the canonical site URL and
+// deployment public URL. Without an explicit asset prefix, assets stay
+// origin-relative so self-hosted apps, tunnels, and reverse proxies never leak
+// localhost URLs into production HTML.
+const assetPrefix =
+  configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/';
 
 if (
   cloudflareDeployEnabled &&
@@ -126,11 +136,16 @@ ${bffConfig}      ...(cloudflareDeployEnabled
             },
           }
         : {}),
+      dev: {
+        // Keep dev assets origin-relative too; the default absolute
+        // http://localhost:<port> prefix breaks pages served through tunnels.
+        assetPrefix: '/',
+      },
       html: {
         outputStructure: 'flat',
       },
       output: {
-        assetPrefix: siteUrl,
+        assetPrefix,
         disableTsChecker: true,
         distPath: {
           html: './',
@@ -386,7 +401,7 @@ export default createModuleFederationConfig({
   dts: {
     displayErrorInTerminal: true,
     generateTypes: {
-      compilerInstance: '--package typescript -- tsc',
+      compilerInstance: 'tsgo',
     },
   },
   filename: 'remoteEntry.js',
@@ -461,7 +476,7 @@ export default createModuleFederationConfig({
   dts: {
     displayErrorInTerminal: true,
     generateTypes: {
-      compilerInstance: '--package typescript -- tsc',
+      compilerInstance: 'tsgo',
     },
   },
   exposes: ${exposes},

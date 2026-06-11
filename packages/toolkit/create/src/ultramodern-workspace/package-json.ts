@@ -268,7 +268,7 @@ export function createRootPackageJson(
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
     },
     engines: {
-      node: '>=20',
+      node: '>=26',
       pnpm: `>=${PNPM_VERSION} <11.6.0`,
     },
     workspaces: ['apps/*', 'verticals/*', 'packages/*'],

@@ -42,7 +42,7 @@ for (const appDir of appDirs) {
   if (
     contractEntry &&
     contractEntry.moduleFederation?.dts?.compilerInstance !==
-      '--package typescript -- tsc'
+      'tsgo'
   ) {
     throw new Error(
       `Module Federation DTS must use the workspace TypeScript compiler: ${appDir}`,

@@ -21,7 +21,11 @@ import {
   createRoutePageFilePath,
 } from './routes';
 import type { WorkspaceApp } from './types';
-import { CLOUDFLARE_COMPATIBILITY_DATE, PNPM_VERSION } from './versions';
+import {
+  CLOUDFLARE_COMPATIBILITY_DATE,
+  NODE_VERSION,
+  PNPM_VERSION,
+} from './versions';
 
 export function createAssertMfTypesScript(
   remotes: WorkspaceApp[] = [],
@@ -90,6 +94,7 @@ export function createWorkspaceValidationScript(
     'workspace-scripts/validate-ultramodern-workspace.mjs',
     {
       packageScope: scope,
+      nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
       tailwindEnabledJson: JSON.stringify(enableTailwind),
       fullStackVerticalsJson: JSON.stringify(verticals, null, 2),

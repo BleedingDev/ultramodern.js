@@ -1,8 +1,6 @@
-import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+import { useLocalizedLocation, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import {
-  ultramodernLocalisedUrls,
   ultramodernRouteMetadata,
 } from './ultramodern-route-metadata';
 
@@ -12,10 +10,6 @@ const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 type RouteMetadata = (typeof ultramodernRouteMetadata)[number];
 
-const localisedUrls = ultramodernLocalisedUrls as Record<
-  string,
-  Record<SupportedLanguage, string>
->;
 const routeMetadata = ultramodernRouteMetadata as readonly RouteMetadata[];
 
 const isSupportedLanguage = (value: string): value is SupportedLanguage =>
@@ -67,62 +61,6 @@ const matchPattern = (pathname: string, pattern: string) => {
   return params;
 };
 
-const buildPath = (pattern: string, params: Record<string, string>) => {
-  const path = normalisePath(pattern)
-    .split('/')
-    .filter(Boolean)
-    .map(segment => {
-      if (!segment.startsWith(':')) {
-        return segment;
-      }
-      const value = params[paramName(segment)];
-      return value !== undefined && value.length > 0
-        ? encodeURIComponent(value)
-        : '';
-    })
-    .filter(Boolean)
-    .join('/');
-
-  return `/${path}`;
-};
-
-const resolveLocalisedPath = (
-  pathname: string,
-  targetLanguage: SupportedLanguage,
-) => {
-  const pathWithoutLanguage = stripLanguagePrefix(pathname);
-
-  for (const entry of Object.values(localisedUrls)) {
-    const targetPattern = entry[targetLanguage];
-    if (targetPattern === undefined) {
-      continue;
-    }
-
-    for (const language of supportedLanguages) {
-      const sourcePattern = entry[language];
-      const params =
-        sourcePattern === undefined
-          ? undefined
-          : matchPattern(pathWithoutLanguage, sourcePattern);
-      if (params !== undefined) {
-        return buildPath(targetPattern, params);
-      }
-    }
-  }
-
-  return pathWithoutLanguage;
-};
-
-const localizedPath = (pathname: string, language: SupportedLanguage) => {
-  const pathWithoutLanguage = resolveLocalisedPath(pathname, language);
-  return pathWithoutLanguage === '/' ? `/${language}` : `/${language}${pathWithoutLanguage}`;
-};
-
-const absoluteUrl = (pathname: string) => {
-  const origin = ULTRAMODERN_SITE_URL.replace(/\/+$/u, '');
-  return `${origin}${pathname}`;
-};
-
 const resolveRouteMetadata = (pathname: string) => {
   const pathWithoutLanguage = stripLanguagePrefix(pathname);
 
@@ -143,18 +81,22 @@ const resolveRouteMetadata = (pathname: string) => {
   return routeMetadata[0];
 };
 
+const absoluteUrl = (pathname: string) => {
+  const origin = ULTRAMODERN_SITE_URL.replace(/\/+$/u, '');
+  return `${origin}${pathname}`;
+};
+
 const sanitiseJsonLd = (value: unknown) =>
   JSON.stringify(value).replaceAll('<', '\\u003c');
 
 export const UltramodernRouteHead = () => {
-  const location = useLocation();
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const route = resolveRouteMetadata(location.pathname);
-  const canonicalPath = localizedPath(location.pathname, fallbackLanguage);
+  const { canonical, alternates } = useLocalizedLocation();
+  const route = resolveRouteMetadata(canonical);
   const title = route ? t(route.titleKey) : appName;
   const description = route ? t(route.descriptionKey) : appName;
-  const canonicalUrl = absoluteUrl(canonicalPath);
+  const canonicalUrl = absoluteUrl(alternates[fallbackLanguage] ?? `/${fallbackLanguage}`);
   const indexable = route?.public === true && route?.indexable === true;
   const jsonLd = indexable
     ? {
@@ -182,14 +124,14 @@ export const UltramodernRouteHead = () => {
           <link rel="canonical" href={canonicalUrl} />
           {supportedLanguages.map(code => (
             <link
-              href={absoluteUrl(localizedPath(location.pathname, code))}
+              href={absoluteUrl(alternates[code] ?? `/${code}`)}
               hrefLang={code}
               key={code}
               rel="alternate"
             />
           ))}
           <link
-            href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
+            href={absoluteUrl(alternates[fallbackLanguage] ?? `/${fallbackLanguage}`)}
             hrefLang="x-default"
             rel="alternate"
           />

@@ -57,6 +57,7 @@ import {
   I18NEXT_VERSION,
   MODULE_FEDERATION_AGENT_SKILLS_COMMIT,
   MODULE_FEDERATION_VERSION,
+  NODE_VERSION,
   PNPM_VERSION,
   RSTACK_AGENT_SKILLS_COMMIT,
   TANSTACK_ROUTER_VERSION,
@@ -249,15 +250,13 @@ export function createAppConfigContract(app: WorkspaceApp): JsonValue {
       'moduleFederationPlugin',
       'zephyrRspackPlugin',
     ],
+    dev: {
+      assetPrefix: '/',
+    },
     output: {
       assetPrefix: {
-        envFallbackOrder: [
-          createCloudflarePublicUrlEnv(app),
-          'MODERN_PUBLIC_SITE_URL',
-          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-          app.portEnv,
-        ],
-        defaultLocalhostPort: app.port,
+        envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
+        default: '/',
       },
       disableTsChecker: true,
       distPath: {
@@ -283,6 +282,15 @@ export function createAppConfigContract(app: WorkspaceApp): JsonValue {
     },
     source: {
       mainEntryName: 'index',
+      siteUrl: {
+        envFallbackOrder: [
+          'MODERN_PUBLIC_SITE_URL',
+          createCloudflarePublicUrlEnv(app),
+          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+          app.portEnv,
+        ],
+        defaultLocalhostPort: app.port,
+      },
       siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
     },
     ...(appHasEffectApi(app)
@@ -532,7 +540,7 @@ export function createAppGeneratedContract(
       exposes: Object.keys(app.exposes ?? {}),
       dts: {
         displayErrorInTerminal: true,
-        compilerInstance: '--package typescript -- tsc',
+        compilerInstance: 'tsgo',
       },
       browserSafeExposesOnly: true,
       zephyrRspackPlugin: ZEPHYR_RSPACK_PLUGIN_VERSION,
@@ -578,6 +586,12 @@ export function createGeneratedContract(
       source: 'package.json',
       manager: 'pnpm',
       version: PNPM_VERSION,
+      toolchain: 'mise',
+    },
+    node: {
+      source: 'package.json engines.node and .mise.toml',
+      version: NODE_VERSION,
+      engineRange: '>=26',
       toolchain: 'mise',
     },
     versions: {

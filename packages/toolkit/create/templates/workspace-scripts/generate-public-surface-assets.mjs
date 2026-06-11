@@ -85,7 +85,9 @@ function resolveOrigin(app, requirePublicOrigin) {
       ? normalizeOrigin(`https://${cloudflare.workerName}.${workersDevSubdomain}.workers.dev`)
       : undefined;
 
-  const configuredOrigin = fromAppEnv ?? fromGlobalEnv ?? fromWorkersDev;
+  // SEO output (sitemap <loc>, robots Sitemap:) uses the site-wide origin
+  // first; the per-app deployment URL is only a fallback.
+  const configuredOrigin = fromGlobalEnv ?? fromAppEnv ?? fromWorkersDev;
   if (configuredOrigin) {
     return configuredOrigin;
   }

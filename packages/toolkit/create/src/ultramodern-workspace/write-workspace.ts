@@ -75,7 +75,7 @@ import type {
   UltramodernWorkspaceOptions,
   WorkspaceApp,
 } from './types';
-import { PNPM_VERSION } from './versions';
+import { NODE_VERSION, PNPM_VERSION } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 
 export function writeApp(
@@ -328,6 +328,7 @@ export function generateUltramodernWorkspace(
   copyRootTemplate(options.targetDir, {
     packageName: options.packageName,
     packageScope: scope,
+    nodeVersion: NODE_VERSION,
     pnpmVersion: PNPM_VERSION,
     tailwindEnabled: String(enableTailwind),
   });
