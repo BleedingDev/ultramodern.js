@@ -141,4 +141,102 @@ describe('router provider registry', () => {
       /Unknown router framework "not-a-router".*react-router/s,
     );
   });
+
+  describe('mixed-version registry isolation (Module Federation)', () => {
+    // Old published copies of @modern-js/runtime own the unversioned key and
+    // THROW on duplicate-name registration; the current module must use the
+    // ':v2' key so the two generations never share a registry object.
+    const OLD_REGISTRY_SLOT: unique symbol = Symbol.for(
+      '@modern-js/runtime:router-providers',
+    );
+    const V2_REGISTRY_SLOT: unique symbol = Symbol.for(
+      '@modern-js/runtime:router-providers:v2',
+    );
+
+    /** Registry shape written by old published copies (no warnedDuplicates). */
+    type OldRegistryShape = {
+      providers: Map<string, RouterProviderFactory>;
+      defaultProvider?: string;
+      nonDefaultProvider?: string;
+    };
+
+    type V2RegistryShape = OldRegistryShape & {
+      warnedDuplicates?: Set<string>;
+    };
+
+    const host = globalThis as {
+      [OLD_REGISTRY_SLOT]?: OldRegistryShape;
+      [V2_REGISTRY_SLOT]?: V2RegistryShape;
+    };
+
+    afterEach(() => {
+      delete host[OLD_REGISTRY_SLOT];
+      unsafe_resetRouterProvidersForTesting();
+    });
+
+    it('never joins a registry created by an old runtime copy under the unversioned key', () => {
+      // An OLD copy already created its registry under the unversioned key
+      // and registered "tanstack" (e.g. an MF remote bundling a published
+      // @modern-js/runtime that predates keep-first semantics).
+      const oldCopyFactory = createFactory('tanstack-old-runtime-copy');
+      host[OLD_REGISTRY_SLOT] = {
+        providers: new Map([['tanstack', oldCopyFactory]]),
+        nonDefaultProvider: 'tanstack',
+      };
+      const warnSpy = rstest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+      try {
+        const newCopyFactory = createFactory('tanstack-new-runtime-copy');
+        // The new copy must not throw even though "tanstack" is taken by a
+        // different factory in the old registry...
+        expect(() =>
+          registerRouterProvider('tanstack', newCopyFactory),
+        ).not.toThrow();
+        // ...because it registers into its own v2 registry and resolves
+        // itself there.
+        expect(resolveRouterProvider('tanstack')).toBe(newCopyFactory);
+        expect(host[V2_REGISTRY_SLOT]?.providers.get('tanstack')).toBe(
+          newCopyFactory,
+        );
+        // Fresh registration in an empty v2 registry, not a dedup: no warn.
+        expect(warnSpy).not.toHaveBeenCalled();
+        // The old copy's registry is untouched, so the old copy's throwing
+        // duplicate check never observes the new copy's registration either.
+        expect(host[OLD_REGISTRY_SLOT]?.providers.get('tanstack')).toBe(
+          oldCopyFactory,
+        );
+        expect(host[OLD_REGISTRY_SLOT]?.providers.size).toBe(1);
+        expect(host[OLD_REGISTRY_SLOT]).not.toHaveProperty('warnedDuplicates');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('heals a v2-keyed registry that lacks later-added fields', () => {
+      // A v2-keyed copy from an earlier minor could have created the registry
+      // without `warnedDuplicates`; the current copy must heal the shape
+      // instead of crashing in the duplicate-warning path.
+      const existing = createFactory('tanstack-existing');
+      host[V2_REGISTRY_SLOT] = {
+        providers: new Map([['tanstack', existing]]),
+      };
+      const warnSpy = rstest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+      try {
+        expect(() =>
+          registerRouterProvider('tanstack', createFactory('tanstack-dup')),
+        ).not.toThrow();
+        // Keep-first semantics still hold against the pre-seeded registry.
+        expect(resolveRouterProvider('tanstack')).toBe(existing);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(host[V2_REGISTRY_SLOT]?.warnedDuplicates?.has('tanstack')).toBe(
+          true,
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
 });

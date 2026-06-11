@@ -32,16 +32,28 @@ type RouterProviderRegistry = {
   warnedDuplicates: Set<string>;
 };
 
+/**
+ * Versioned registry key. The unsuffixed key
+ * ('@modern-js/runtime:router-providers') is owned by older published copies
+ * of this module whose `registerRouterProvider` *throws* on a same-name
+ * re-registration. Sharing a registry object with such a copy (e.g. a Module
+ * Federation remote bundling an old @modern-js/runtime) would crash the old
+ * copy as soon as it sees a name taken by a different factory. The ':v2'
+ * suffix isolates keep-first-generation copies in their own registry: old and
+ * new copies each register and resolve against their own slot, and neither
+ * side throws. Bump the suffix again if registration semantics ever change
+ * incompatibly.
+ */
 const REGISTRY_SLOT: unique symbol = Symbol.for(
-  '@modern-js/runtime:router-providers',
+  '@modern-js/runtime:router-providers:v2',
 );
 
 function getRegistry(): RouterProviderRegistry {
   const host = globalThis as { [REGISTRY_SLOT]?: RouterProviderRegistry };
   host[REGISTRY_SLOT] ??= { providers: new Map(), warnedDuplicates: new Set() };
-  // The registry may have been created by an older copy of this module that
-  // predates the `warnedDuplicates` field (e.g. mixed versions in a Module
-  // Federation setup), so heal the shape defensively.
+  // Defense in depth within the v2 key: if a future v2-keyed copy of this
+  // module ever predates a later-added field (mixed v2 minors in a Module
+  // Federation setup), heal the shape instead of crashing on `undefined`.
   host[REGISTRY_SLOT].warnedDuplicates ??= new Set();
   return host[REGISTRY_SLOT];
 }

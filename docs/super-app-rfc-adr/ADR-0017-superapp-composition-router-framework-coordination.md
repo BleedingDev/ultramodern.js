@@ -156,13 +156,23 @@ fixture runs a Garfish masterApp at all, with any router framework.
    itself is gone — the consolidation removed it from the runtime context
    (zero `src/` hits; `plugin-runtime/tests/core/react/wrapper.test.tsx:59,73`
    asserts its absence) and Garfish never read it, so composition is
-   unaffected. The residual risk is registry behavior under bundling
-   duplication: a same-name re-registration (two bundled copies of one
-   provider module, e.g. an MF remote that does not share
-   `@modern-js/plugin-tanstack/runtime`) is keep-first-and-warn-once
-   (`provider.ts:56-72`), while two *different* non-default providers are a
-   hard error (`provider.ts:79-83`). Both paths are unit-tested
-   (`plugin-runtime/tests/router/provider.test.ts:69,118`) but never
+   unaffected. Registry behavior under bundling duplication: a same-name
+   re-registration (two bundled copies of one provider module, e.g. an MF
+   remote that does not share `@modern-js/plugin-tanstack/runtime`) is
+   keep-first-and-warn-once (`provider.ts:69-84`), while two *different*
+   non-default providers are a hard error (`provider.ts:92-95`). The
+   formerly-documented mixed-version hazard — an MF remote bundling an
+   *older published* `@modern-js/runtime` whose `registerRouterProvider`
+   throws on duplicate names, joining the same `globalThis` registry — no
+   longer exists: the registry key is versioned
+   (`Symbol.for('@modern-js/runtime:router-providers:v2')`,
+   `provider.ts:47-48`), so old-keyed and v2-keyed copies hold disjoint
+   registry objects and each generation registers and resolves its own
+   providers without observing the other (no throw on either side; sharing
+   the runtime via MF `shared` remains best practice to avoid
+   double-bundling, but is no longer load-bearing for crash-safety). All
+   three paths are unit-tested
+   (`plugin-runtime/tests/router/provider.test.ts:69,118,177`) but never
    exercised inside a running Garfish or MF composition. Future composition
    logic must resolve routers through the registry, never a framework
    discriminant.
