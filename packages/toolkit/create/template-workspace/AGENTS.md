@@ -24,9 +24,11 @@ static language links, and canonical plus `hreflang` metadata. A new workspace
 starts shell-only; `create <domain> --vertical` adds route-owned metadata,
 localized resources, and Effect BFF surfaces for that domain. Runtime i18n is
 not enabled in the starter because the current React 19 + Module Federation
-streaming SSR stack must render predictably first. Production builds fail unless
-`MODERN_PUBLIC_SITE_URL` is set per deployed app, so canonical URLs always use
-the production origin.
+streaming SSR stack must render predictably first. Canonical and hreflang URLs
+use `MODERN_PUBLIC_SITE_URL` (falling back to per-app `ULTRAMODERN_PUBLIC_URL_<APP_ID>`),
+while asset URLs prefer the per-app `ULTRAMODERN_PUBLIC_URL_<APP_ID>`. Without
+any configured public URL, builds emit origin-relative asset paths so pages work
+behind tunnels and reverse proxies.
 
 ## Required Skill Baseline
 

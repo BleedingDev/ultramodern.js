@@ -24,17 +24,17 @@ const TANSTACK_ROUTER_VERSION = '1.170.15';
 const MODULE_FEDERATION_VERSION = '2.5.1';
 const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 const ZEPHYR_AGENT_VERSION = '1.1.1';
-const WRANGLER_VERSION = '4.98.0';
+const WRANGLER_VERSION = '4.99.0';
 const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 const TAILWIND_VERSION = '4.3.0';
 const TAILWIND_POSTCSS_VERSION = '4.3.0';
 const POSTCSS_VERSION = '8.5.15';
-const EFFECT_TSGO_VERSION = '0.14.0';
+const EFFECT_TSGO_VERSION = '0.14.3';
 const TYPESCRIPT_VERSION = '6.0.3';
-const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260606.1';
-const OXLINT_VERSION = '1.68.0';
-const OXFMT_VERSION = '0.53.0';
-const ULTRACITE_VERSION = '7.8.1';
+const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260610.1';
+const OXLINT_VERSION = '1.69.0';
+const OXFMT_VERSION = '0.54.0';
+const ULTRACITE_VERSION = '7.8.3';
 const LEFTHOOK_VERSION = '^2.1.9';
 const I18NEXT_VERSION = '26.3.1';
 const REACT_VERSION = '^19.2.7';
@@ -1297,11 +1297,20 @@ const inferredCloudflareUrl =
   cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined
     ? \`https://\${cloudflareWorkerName}.\${cloudflareWorkersDevSubdomain}.workers.dev\`
     : undefined;
+// Site origin (SEO: canonical/hreflang URLs) prefers the site-wide public URL;
+// the per-app deployment URL only fills in when no site origin is configured.
 const siteUrl =
-  configuredCloudflareUrl ||
   configuredSiteUrl ||
+  configuredCloudflareUrl ||
   inferredCloudflareUrl ||
   \`http://localhost:\${port}\`;
+// Asset origin prefers the per-app deployment URL (each MF app serves its own
+// assets). Without an explicit public URL, assets must stay origin-relative so
+// the app works behind tunnels and proxies (an absolute localhost assetPrefix
+// makes pages served via e.g. ngrok fetch scripts from localhost, which Chrome
+// blocks behind a Local Network Access permission prompt).
+const assetPrefix =
+  configuredCloudflareUrl || configuredSiteUrl || inferredCloudflareUrl || '/';
 
 if (
   cloudflareDeployEnabled &&
@@ -1332,11 +1341,16 @@ ${bffConfig}      ...(cloudflareDeployEnabled
             },
           }
         : {}),
+      dev: {
+        // Keep dev assets origin-relative too; the default absolute
+        // http://localhost:<port> prefix breaks pages served through tunnels.
+        assetPrefix: '/',
+      },
       html: {
         outputStructure: 'flat',
       },
       output: {
-        assetPrefix: siteUrl,
+        assetPrefix,
         disableTsChecker: true,
         distPath: {
           html: './',
@@ -2404,11 +2418,9 @@ function rewriteWorkspaceAssetsForApp(
 function createRouteHeadModule(app: WorkspaceApp): string {
   const robotsPolicy = createPublicHeadRobotsPolicy();
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+  return `import { useLocalizedLocation, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import {
-  ultramodernLocalisedUrls,
   ultramodernRouteMetadata,
 } from './ultramodern-route-metadata';
 
@@ -2418,10 +2430,6 @@ const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
 type RouteMetadata = (typeof ultramodernRouteMetadata)[number];
 
-const localisedUrls = ultramodernLocalisedUrls as Record<
-  string,
-  Record<SupportedLanguage, string>
->;
 const routeMetadata = ultramodernRouteMetadata as readonly RouteMetadata[];
 
 const isSupportedLanguage = (value: string): value is SupportedLanguage =>
@@ -2473,62 +2481,6 @@ const matchPattern = (pathname: string, pattern: string) => {
   return params;
 };
 
-const buildPath = (pattern: string, params: Record<string, string>) => {
-  const path = normalisePath(pattern)
-    .split('/')
-    .filter(Boolean)
-    .map(segment => {
-      if (!segment.startsWith(':')) {
-        return segment;
-      }
-      const value = params[paramName(segment)];
-      return value !== undefined && value.length > 0
-        ? encodeURIComponent(value)
-        : '';
-    })
-    .filter(Boolean)
-    .join('/');
-
-  return \`/\${path}\`;
-};
-
-const resolveLocalisedPath = (
-  pathname: string,
-  targetLanguage: SupportedLanguage,
-) => {
-  const pathWithoutLanguage = stripLanguagePrefix(pathname);
-
-  for (const entry of Object.values(localisedUrls)) {
-    const targetPattern = entry[targetLanguage];
-    if (targetPattern === undefined) {
-      continue;
-    }
-
-    for (const language of supportedLanguages) {
-      const sourcePattern = entry[language];
-      const params =
-        sourcePattern === undefined
-          ? undefined
-          : matchPattern(pathWithoutLanguage, sourcePattern);
-      if (params !== undefined) {
-        return buildPath(targetPattern, params);
-      }
-    }
-  }
-
-  return pathWithoutLanguage;
-};
-
-const localizedPath = (pathname: string, language: SupportedLanguage) => {
-  const pathWithoutLanguage = resolveLocalisedPath(pathname, language);
-  return pathWithoutLanguage === '/' ? \`/\${language}\` : \`/\${language}\${pathWithoutLanguage}\`;
-};
-
-const absoluteUrl = (pathname: string) => {
-  const origin = ULTRAMODERN_SITE_URL.replace(/\\/+$/u, '');
-  return \`\${origin}\${pathname}\`;
-};
-
 const resolveRouteMetadata = (pathname: string) => {
   const pathWithoutLanguage = stripLanguagePrefix(pathname);
 
@@ -2549,18 +2501,22 @@ const resolveRouteMetadata = (pathname: string) => {
   return routeMetadata[0];
 };
 
+const absoluteUrl = (pathname: string) => {
+  const origin = ULTRAMODERN_SITE_URL.replace(/\\/+$/u, '');
+  return \`\${origin}\${pathname}\`;
+};
+
 const sanitiseJsonLd = (value: unknown) =>
   JSON.stringify(value).replaceAll('<', '\\\\u003c');
 
 export const UltramodernRouteHead = () => {
-  const location = useLocation();
   const { i18nInstance } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const route = resolveRouteMetadata(location.pathname);
-  const canonicalPath = localizedPath(location.pathname, fallbackLanguage);
+  const { canonical, alternates } = useLocalizedLocation();
+  const route = resolveRouteMetadata(canonical);
   const title = route ? t(route.titleKey) : appName;
   const description = route ? t(route.descriptionKey) : appName;
-  const canonicalUrl = absoluteUrl(canonicalPath);
+  const canonicalUrl = absoluteUrl(alternates[fallbackLanguage] ?? \`/\${fallbackLanguage}\`);
   const indexable = route?.public === true && route?.indexable === true;
   const jsonLd = indexable
     ? {
@@ -2588,14 +2544,14 @@ export const UltramodernRouteHead = () => {
           <link rel="canonical" href={canonicalUrl} />
           {supportedLanguages.map(code => (
             <link
-              href={absoluteUrl(localizedPath(location.pathname, code))}
+              href={absoluteUrl(alternates[code] ?? \`/\${code}\`)}
               hrefLang={code}
               key={code}
               rel="alternate"
             />
           ))}
           <link
-            href={absoluteUrl(localizedPath(location.pathname, fallbackLanguage))}
+            href={absoluteUrl(alternates[fallbackLanguage] ?? \`/\${fallbackLanguage}\`)}
             hrefLang="x-default"
             rel="alternate"
           />
@@ -2622,7 +2578,7 @@ function createShellPage(remotes: WorkspaceApp[] = []): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
   const remoteCount = String(remotes.length);
 
-  return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import ShellFrame from '../shell-frame';
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { VerticalShowcase } from '../vertical-components';
@@ -2641,9 +2597,9 @@ export default function ShellHome() {
           <h1 className="${tw('mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl')}">{t('shell.title')}</h1>
           <p className="${tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600')}">{t('shell.hero.lede')}</p>
           <div className="${tw('mt-7 flex flex-wrap gap-3')}">
-            <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/">
+            <Link className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" to="/">
               {t('shell.hero.primary')}
-            </I18nLink>
+            </Link>
             <span className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}">
               {t('shell.hero.secondary')}
             </span>
@@ -2742,145 +2698,18 @@ export default function ShellActionsPage() {
 function createShellFrameComponent(): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
-import { useLocation } from '@modern-js/plugin-tanstack/runtime';
+  return `import { useLocalizedLocation, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import type { ReactNode } from 'react';
 import { Header, StatusBadge } from './vertical-components';
-import { ultramodernLocalisedUrls } from './ultramodern-route-metadata';
-
-const supportedLanguages = ['en', 'cs'] as const;
-type SupportedLanguage = (typeof supportedLanguages)[number];
 
 interface ShellFrameProps {
   children: ReactNode;
 }
 
-const localisedUrls = ultramodernLocalisedUrls as Record<
-  string,
-  Record<SupportedLanguage, string>
->;
-
-const isSupportedLanguage = (value: string): value is SupportedLanguage =>
-  supportedLanguages.includes(value as SupportedLanguage);
-
-const normalisePath = (pathname: string) => {
-  const normalised = pathname.replaceAll(/\\/+/gu, '/').replace(/\\/+$/u, '');
-  return normalised.length > 0 ? normalised : '/';
-};
-
-const stripLanguagePrefix = (pathname: string) => {
-  const segments = normalisePath(pathname).split('/').filter(Boolean);
-  if (segments.length > 0 && isSupportedLanguage(segments[0] ?? '')) {
-    segments.shift();
-  }
-  return \`/\${segments.join('/')}\`;
-};
-
-const escapeRegExp = (value: string) =>
-  value.replaceAll(/[.*+?^\${}()|[\\]\\\\]/gu, '\\\\$&');
-
-const paramName = (segment: string) => segment.slice(1).replace(/\\?$/u, '');
-
-const matchPattern = (pathname: string, pattern: string) => {
-  const names: string[] = [];
-  const source = normalisePath(pattern)
-    .split('/')
-    .filter(Boolean)
-    .map(segment => {
-      if (segment.startsWith(':')) {
-        names.push(paramName(segment));
-        return segment.endsWith('?') ? '(?:/([^/]+))?' : '/([^/]+)';
-      }
-      return \`/\${escapeRegExp(segment)}\`;
-    })
-    .join('');
-  const match = new RegExp(\`^\${source || '/'}$\`, 'u').exec(
-    normalisePath(pathname),
-  );
-
-  if (match === null) {
-    return;
-  }
-
-  const params: Record<string, string> = {};
-  for (const [index, name] of names.entries()) {
-    params[name] = decodeURIComponent(match[index + 1] ?? '');
-  }
-  return params;
-};
-
-const buildPath = (pattern: string, params: Record<string, string>) => {
-  const path = normalisePath(pattern)
-    .split('/')
-    .filter(Boolean)
-    .map(segment => {
-      if (!segment.startsWith(':')) {
-        return segment;
-      }
-      const value = params[paramName(segment)];
-      return value !== undefined && value.length > 0
-        ? encodeURIComponent(value)
-        : '';
-    })
-    .filter(Boolean)
-    .join('/');
-
-  return \`/\${path}\`;
-};
-
-const resolveLocalisedPath = (
-  pathname: string,
-  targetLanguage: SupportedLanguage,
-) => {
-  const pathWithoutLanguage = stripLanguagePrefix(pathname);
-
-  for (const entry of Object.values(localisedUrls)) {
-    const targetPattern = entry[targetLanguage];
-    if (targetPattern === undefined) {
-      continue;
-    }
-
-    for (const language of supportedLanguages) {
-      const sourcePattern = entry[language];
-      const params =
-        sourcePattern === undefined
-          ? undefined
-          : matchPattern(pathWithoutLanguage, sourcePattern);
-      if (params !== undefined) {
-        return buildPath(targetPattern, params);
-      }
-    }
-  }
-
-  return pathWithoutLanguage;
-};
-
-const localizedPath = (pathname: string, language: SupportedLanguage) => {
-  const pathWithoutLanguage = resolveLocalisedPath(pathname, language);
-  return pathWithoutLanguage === '/' ? \`/\${language}\` : \`/\${language}\${pathWithoutLanguage}\`;
-};
-
-const locationSuffix = (location: {
-  hash?: unknown;
-  search?: unknown;
-  searchStr?: unknown;
-}) => {
-  let locationSearch = '';
-  if (typeof location.searchStr === 'string') {
-    locationSearch = location.searchStr;
-  } else if (typeof location.search === 'string') {
-    locationSearch = location.search;
-  }
-  const locationHash = typeof location.hash === 'string' ? location.hash : '';
-
-  return \`\${locationSearch}\${locationHash}\`;
-};
-
 export default function ShellFrame({ children }: ShellFrameProps) {
   const { i18nInstance, language } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
-  const location = useLocation();
-  const suffix = locationSuffix(location);
+  const { alternates } = useLocalizedLocation();
 
   return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-5 text-um-foreground sm:px-6 lg:px-12')}">
@@ -2897,10 +2726,9 @@ export default function ShellFrame({ children }: ShellFrameProps) {
             name="language"
             onChange={event => {
               const nextLanguage = event.currentTarget.value;
-              if (isSupportedLanguage(nextLanguage)) {
-                window.location.assign(
-                  \`\${localizedPath(location.pathname, nextLanguage)}\${suffix}\`,
-                );
+              const targetHref = alternates[nextLanguage];
+              if (targetHref !== undefined) {
+                window.location.assign(targetHref);
               }
             }}
             value={language}
@@ -3016,7 +2844,7 @@ const createHydratedRemote =
     .join('\n');
   const remoteCount = String(widgetRemotes.length);
 
-  return `${federationImports}import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `${federationImports}import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 	const widgetCount = Number('${remoteCount}');
 
@@ -3029,7 +2857,7 @@ const createHydratedRemote =
 
   return (
     <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${shellApp.mfName}" data-modern-mf-expose="shell/Header">
-      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</I18nLink>
+      <Link className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('shell.title')}</Link>
     </header>
   );
 };
@@ -3223,7 +3051,7 @@ function createRemoteExposeComponent(
   const tw = createTw(tailwindPrefixForApp(app));
 
   if (app.id === 'workspace' && expose === './Header') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function Header() {
   const { i18nInstance } = useModernI18n();
@@ -3231,10 +3059,10 @@ export default function Header() {
 
   return (
     <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
-      <I18nLink className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('workspace.header.brand')}</I18nLink>
+      <Link className="${tw('whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline')}" to="/">{t('workspace.header.brand')}</Link>
       <nav aria-label={t('workspace.header.navigation')} className="${tw('flex items-center gap-5')}">
-        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/workspaces">{t('workspace.header.workspaces')}</I18nLink>
-        <I18nLink className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/directory">{t('workspace.header.directory')}</I18nLink>
+        <Link className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/workspaces">{t('workspace.header.workspaces')}</Link>
+        <Link className="${tw('text-sm font-extrabold text-stone-900 no-underline')}" to="/directory">{t('workspace.header.directory')}</Link>
       </nav>
     </header>
   );
@@ -3243,7 +3071,7 @@ export default function Header() {
   }
 
   if (app.id === 'workspace' && expose === './Highlights') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 const highlights = [
   { badge: 'workspace.highlights.shell', href: '/workspaces', name: 'workspace.highlights.shellTitle' },
@@ -3260,10 +3088,10 @@ export default function Highlights() {
       <h2 className="${tw('text-3xl font-black tracking-normal text-stone-950')}">{t('workspace.highlights.title')}</h2>
       <div className="${tw('mt-5 grid gap-4 md:grid-cols-3')}">
         {highlights.map(highlight => (
-          <I18nLink className="${tw('block rounded-2xl bg-white/90 p-5 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" key={highlight.href} to={highlight.href}>
+          <Link className="${tw('block rounded-2xl bg-white/90 p-5 text-stone-950 no-underline shadow-xl shadow-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-2xl')}" key={highlight.href} to={highlight.href}>
             <span className="${tw('text-xs font-black uppercase tracking-[0.16em] text-emerald-800')}">{t(highlight.badge)}</span>
             <strong className="${tw('mt-3 block text-xl font-black leading-tight')}">{t(highlight.name)}</strong>
-          </I18nLink>
+          </Link>
         ))}
       </div>
     </section>
@@ -3358,7 +3186,7 @@ export default function ${componentName}() {
   }
 
   if (app.id === 'actions' && expose === './StartAction') {
-    return `import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    return `import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { useActionQueue } from '../action-queue-store';
 
 export default function ${componentName}() {
@@ -3371,9 +3199,9 @@ export default function ${componentName}() {
       <button className="${tw('inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10')}" onClick={queue.addStarterAction} type="button">
         {t('actions.controls.start')}
       </button>
-      <I18nLink className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/actions">
+      <Link className="${tw('inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10')}" to="/actions">
         {t('actions.controls.viewQueue')}
-      </I18nLink>
+      </Link>
     </div>
   );
 }
@@ -4805,15 +4633,17 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
       'moduleFederationPlugin',
       'zephyrRspackPlugin',
     ],
+    dev: {
+      assetPrefix: '/',
+    },
     output: {
       assetPrefix: {
         envFallbackOrder: [
           createCloudflarePublicUrlEnv(app),
           'MODERN_PUBLIC_SITE_URL',
           'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-          app.portEnv,
         ],
-        defaultLocalhostPort: app.port,
+        default: '/',
       },
       disableTsChecker: true,
       distPath: {
@@ -4839,6 +4669,15 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
     },
     source: {
       mainEntryName: 'index',
+      siteUrl: {
+        envFallbackOrder: [
+          'MODERN_PUBLIC_SITE_URL',
+          createCloudflarePublicUrlEnv(app),
+          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+          app.portEnv,
+        ],
+        defaultLocalhostPort: app.port,
+      },
       siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
     },
     ...(appHasEffectApi(app)
@@ -5574,7 +5413,9 @@ function resolveOrigin(app, requirePublicOrigin) {
       ? normalizeOrigin(\`https://\${cloudflare.workerName}.\${workersDevSubdomain}.workers.dev\`)
       : undefined;
 
-  const configuredOrigin = fromAppEnv ?? fromGlobalEnv ?? fromWorkersDev;
+  // SEO output (sitemap <loc>, robots Sitemap:) uses the site-wide origin
+  // first; the per-app deployment URL is only a fallback.
+  const configuredOrigin = fromGlobalEnv ?? fromAppEnv ?? fromWorkersDev;
   if (configuredOrigin) {
     return configuredOrigin;
   }
@@ -6434,6 +6275,13 @@ assert(shellContract?.deploy?.worker?.compatibilityDate === expectedCloudflareCo
 assert(shellContract?.deploy?.worker?.name === expectedWorkerName('shell-super-app'), 'Shell worker name is incorrect');
 assert(shellModernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName('shell-super-app') + "'"), 'Shell modern.config.ts must define the Cloudflare worker name');
 assert(shellModernConfig.includes('name: cloudflareWorkerName'), 'Shell modern.config.ts must wire deploy.worker.name');
+assert(shellModernConfig.includes('const assetPrefix ='), 'Shell modern.config.ts must derive a dedicated asset prefix');
+assert(shellModernConfig.includes("assetPrefix: '/'"), 'Shell modern.config.ts must keep dev assets origin-relative');
+assert(shellModernConfig.includes('assetPrefix,'), 'Shell modern.config.ts must wire output.assetPrefix to the derived asset prefix');
+assert(shellContract?.config?.dev?.assetPrefix === '/', 'Shell dev asset prefix must stay origin-relative');
+assert(shellContract?.config?.output?.assetPrefix?.default === '/', 'Shell asset prefix must default to origin-relative paths');
+assert(JSON.stringify(shellContract?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']), 'Shell asset prefix env fallback order is incorrect');
+assert(JSON.stringify(shellContract?.config?.source?.siteUrl?.envFallbackOrder) === JSON.stringify(['MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN', 'SHELL_SUPER_APP_PORT']), 'Shell site URL env fallback order is incorrect');
 assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
 assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
@@ -6511,6 +6359,12 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.deploy?.worker?.name === expectedWorkerName(vertical.id), \`\${vertical.id} worker name is incorrect\`);
   assert(modernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName(vertical.id) + "'"), \`\${vertical.id} modern.config.ts must define the Cloudflare worker name\`);
   assert(modernConfig.includes('name: cloudflareWorkerName'), \`\${vertical.id} modern.config.ts must wire deploy.worker.name\`);
+  assert(modernConfig.includes('const assetPrefix ='), \`\${vertical.id} modern.config.ts must derive a dedicated asset prefix\`);
+  assert(modernConfig.includes("assetPrefix: '/'"), \`\${vertical.id} modern.config.ts must keep dev assets origin-relative\`);
+  assert(modernConfig.includes('assetPrefix,'), \`\${vertical.id} modern.config.ts must wire output.assetPrefix to the derived asset prefix\`);
+  assert(contractEntry?.config?.dev?.assetPrefix === '/', \`\${vertical.id} dev asset prefix must stay origin-relative\`);
+  assert(contractEntry?.config?.output?.assetPrefix?.default === '/', \`\${vertical.id} asset prefix must default to origin-relative paths\`);
+  assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify([\`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, 'MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']), \`\${vertical.id} asset prefix env fallback order is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, \`\${vertical.id} Rspack uniqueName is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);

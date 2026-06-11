@@ -123,6 +123,28 @@ CSS federation is explicit:
 - Duplicate base styles are forbidden; SSR first paint depends on shared token
   CSS plus Modern/Rspack-emitted app CSS.
 
+## Public URL Environment Variables
+
+Generated apps no longer bake absolute `http://localhost:<port>` URLs into
+asset configuration. Two environment variables now have distinct roles in
+controlling where assets are served from and where SEO output links point.
+
+| Variable | Role | Feeds |
+| --- | --- | --- |
+| `ULTRAMODERN_PUBLIC_URL_<APP_ID>` | Per-app deployment and asset origin | `output.assetPrefix`, Module Federation remote URLs |
+| `MODERN_PUBLIC_SITE_URL` | Site-wide public origin for SEO output | Canonical, hreflang, sitemap `<loc>`, robots `Sitemap:` |
+
+Asset URLs use this precedence: `ULTRAMODERN_PUBLIC_URL_<APP_ID>` →
+`MODERN_PUBLIC_SITE_URL` → inferred workers.dev URL → origin-relative `/`.
+SEO and site origin prefer: `MODERN_PUBLIC_SITE_URL` →
+`ULTRAMODERN_PUBLIC_URL_<APP_ID>` → inferred workers.dev → `http://localhost:<port>`.
+
+Without public URLs configured, asset paths are origin-relative (`/`), and the
+dev server uses `dev.assetPrefix: '/'` — so apps work through tunnels and
+reverse proxies (ngrok, cloudflared) without triggering Chrome's Local Network
+Access prompt or mixed-content errors. Shell-only workspaces can set just
+`MODERN_PUBLIC_SITE_URL` for SEO output.
+
 ## Cloudflare And Zephyr Proof
 
 Each generated workspace app has:
