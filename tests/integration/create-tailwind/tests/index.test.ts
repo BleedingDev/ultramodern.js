@@ -176,9 +176,9 @@ function expectSingleAppContract(appDir: string) {
   expect(packageJson.devDependencies['@modern-js/create']).toBeDefined();
   expect(packageJson.devDependencies['@rstest/core']).toBe('0.10.3');
   expect(packageJson.devDependencies['happy-dom']).toBe('^20.10.1');
-  expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-  expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-  expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+  expect(packageJson.devDependencies.oxfmt).toBe('0.54.0');
+  expect(packageJson.devDependencies.oxlint).toBe('1.69.0');
+  expect(packageJson.devDependencies.ultracite).toBe('7.8.3');
   expect(
     fs.readFileSync(
       path.join(appDir, 'scripts/check-i18n-strings.mjs'),
@@ -437,9 +437,9 @@ describe('create-tailwind', () => {
     expect(packageJson.scripts['ultramodern:check']).toBe(
       'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
     );
-    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+    expect(packageJson.devDependencies.oxlint).toBe('1.69.0');
+    expect(packageJson.devDependencies.oxfmt).toBe('0.54.0');
+    expect(packageJson.devDependencies.ultracite).toBe('7.8.3');
     expectSingleAppContract(appDir);
 
     expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(true);
@@ -487,9 +487,9 @@ describe('create-tailwind', () => {
     expect(packageJson.scripts['ultramodern:check']).toBe(
       'pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm test && node ./scripts/validate-ultramodern.mjs',
     );
-    expect(packageJson.devDependencies.oxlint).toBe('1.68.0');
-    expect(packageJson.devDependencies.oxfmt).toBe('0.53.0');
-    expect(packageJson.devDependencies.ultracite).toBe('7.8.1');
+    expect(packageJson.devDependencies.oxlint).toBe('1.69.0');
+    expect(packageJson.devDependencies.oxfmt).toBe('0.54.0');
+    expect(packageJson.devDependencies.ultracite).toBe('7.8.3');
 
     expectSingleAppContract(appDir);
     expect(fs.existsSync(path.join(appDir, 'postcss.config.mjs'))).toBe(false);

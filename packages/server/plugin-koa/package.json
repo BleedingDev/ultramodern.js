@@ -6,7 +6,7 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@koa/router": "^15.5.0",
+    "@koa/router": "^15.6.0",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/utils": "workspace:*",
@@ -16,9 +16,9 @@
   "devDependencies": {
     "@scripts/rstest-config": "workspace:*",
     "@types/koa": "3.0.3",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@types/supertest": "^7.2.0",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "supertest": "^7.2.2"
   }
 }

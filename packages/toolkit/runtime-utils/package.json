@@ -165,7 +165,7 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
-    "lru-cache": "^11.5.0",
+    "lru-cache": "^11.5.1",
     "react-router": "7.17.0",
     "serialize-javascript": "^7.0.5"
   },
@@ -183,12 +183,12 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.21.5",
+    "@rslib/core": "0.22.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.7",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@types/serialize-javascript": "^5.0.4",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "ioredis-mock": "^8.13.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

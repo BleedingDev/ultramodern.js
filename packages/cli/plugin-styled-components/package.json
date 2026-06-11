@@ -30,22 +30,22 @@
     "build": "rslib build && pnpm -w tsgo:dts \"$PWD\""
   },
   "dependencies": {
-    "@rsbuild/plugin-styled-components": "1.6.2",
+    "@rsbuild/plugin-styled-components": "1.6.3",
     "@swc/helpers": "^0.5.23"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.21.5",
+    "@rslib/core": "0.22.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@types/styled-components": "^5.1.36",
-    "@typescript/native-preview": "7.0.0-dev.20260606.1",
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "styled-components": "^6.4.2"
   },
   "peerDependencies": {
-    "styled-components": "^5.3.1"
+    "styled-components": "^5.3.1 || ^6.0.0"
   },
   "exports": {
     ".": {

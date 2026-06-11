@@ -4,6 +4,6 @@
   "version": "2.66.0",
   "dependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.1"
+    "@types/node": "^25.9.3"
   }
 }
