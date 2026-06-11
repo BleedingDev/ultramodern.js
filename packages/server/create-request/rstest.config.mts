@@ -12,7 +12,7 @@ export default {
     withTestPreset({
       name: 'create-request-client',
       root: __dirname,
-      testEnvironment: 'jsdom',
+      testEnvironment: 'happy-dom',
       include: ['tests/browser.test.ts'],
       globals: true,
     }),

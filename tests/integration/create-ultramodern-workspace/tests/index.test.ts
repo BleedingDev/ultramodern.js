@@ -830,8 +830,8 @@ describe('create-ultramodern-workspace', () => {
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
-    expect(rootPackage.packageManager).toBe('pnpm@11.5.2');
-    expect(rootPackage.engines.pnpm).toBe('>=11.5.2 <11.6.0');
+    expect(rootPackage.packageManager).toBe('pnpm@11.5.3');
+    expect(rootPackage.engines.pnpm).toBe('>=11.5.3 <11.6.0');
     expectPath(workspaceDir, '.mise.toml');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
@@ -1443,7 +1443,7 @@ describe('create-ultramodern-workspace', () => {
       fakePnpmPath,
       `#!/usr/bin/env node
 if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
-  console.log('11.5.2');
+  console.log('11.5.3');
   process.exit(0);
 }
 console.error('pmOnFail rejected active pnpm before version discovery');

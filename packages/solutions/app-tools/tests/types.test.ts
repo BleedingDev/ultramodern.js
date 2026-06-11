@@ -10,10 +10,7 @@ describe('app-tools types', () => {
       'utf-8',
     );
     const appEnvTemplate = readFileSync(
-      join(
-        repoRoot,
-        'packages/toolkit/create/template/src/modern-app-env.d.ts',
-      ),
+      join(repoRoot, 'packages/toolkit/create/src/ultramodern-workspace.ts'),
       'utf-8',
     );
 

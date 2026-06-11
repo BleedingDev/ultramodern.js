@@ -9,13 +9,13 @@ const ModuleSchema = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
   status: Schema.Literals(['healthy', 'degraded']),
-  openWork: Schema.Number,
+  openWork: Schema.Finite,
 });
 
 const ApprovalSchema = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
-  amount: Schema.Number,
+  amount: Schema.Finite,
   status: Schema.Literals(['pending', 'approved', 'rejected']),
   owner: Schema.String,
 });
@@ -43,11 +43,11 @@ export const superAppApi = HttpApi.make('SuperAppErpApi').add(
           chat: Schema.Array(ChatMessageSchema),
           summary: Schema.Struct({
             tenantName: Schema.String,
-            moduleCount: Schema.Number,
-            pendingApprovals: Schema.Number,
-            urgentMessages: Schema.Number,
-            totalOpenWork: Schema.Number,
-            financeExposure: Schema.Number,
+            moduleCount: Schema.Finite,
+            pendingApprovals: Schema.Finite,
+            urgentMessages: Schema.Finite,
+            totalOpenWork: Schema.Finite,
+            financeExposure: Schema.Finite,
           }),
         }),
       }),
@@ -65,7 +65,7 @@ export const superAppApi = HttpApi.make('SuperAppErpApi').add(
           id: Schema.String,
           status: Schema.Literals(['approved', 'rejected']),
           actor: Schema.String,
-          pendingApprovals: Schema.Number,
+          pendingApprovals: Schema.Finite,
         }),
       }),
     )
@@ -80,7 +80,7 @@ export const superAppApi = HttpApi.make('SuperAppErpApi').add(
         success: Schema.Struct({
           accepted: Schema.Boolean,
           message: ChatMessageSchema,
-          totalMessages: Schema.Number,
+          totalMessages: Schema.Finite,
         }),
       }),
     )
@@ -88,8 +88,8 @@ export const superAppApi = HttpApi.make('SuperAppErpApi').add(
       HttpApiEndpoint.post('reset', '/effect/reset', {
         success: Schema.Struct({
           ok: Schema.Boolean,
-          pendingApprovals: Schema.Number,
-          totalMessages: Schema.Number,
+          pendingApprovals: Schema.Finite,
+          totalMessages: Schema.Finite,
         }),
       }),
     ),

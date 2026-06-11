@@ -104,8 +104,6 @@ const diagnosticSeverity = Object.fromEntries(
   effectDiagnostics.map(name => [name, 'error']),
 );
 
-diagnosticSeverity.schemaNumber = 'off';
-
 function resolveEffectTsgoBinary(cliPath) {
   if (!existsSync(cliPath)) {
     return cliPath;

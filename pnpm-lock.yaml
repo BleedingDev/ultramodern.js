@@ -697,13 +697,13 @@ importers:
     dependencies:
       '@rsbuild-image/core':
         specifier: 0.0.1-next.36
-        version: 0.0.1-next.36(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
+        version: 0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
       '@rsbuild-image/react':
         specifier: 0.0.1-next.36
-        version: 0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0))(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
+        version: 0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
       ipx:
         specifier: ^3.1.1
-        version: 3.1.1
+        version: 3.1.1(ioredis@5.11.1)
       sharp:
         specifier: ^0.35.0
         version: 0.35.0
@@ -1132,6 +1132,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260610.1
         version: 7.0.0-dev.20260610.1
+      happy-dom:
+        specifier: ^20.10.2
+        version: 20.10.2(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       nock:
         specifier: ^14.0.15
         version: 14.0.15
@@ -1696,7 +1699,7 @@ importers:
         version: link:../../../scripts/rstest-config
       '@types/ioredis-mock':
         specifier: ^8.2.7
-        version: 8.2.7
+        version: 8.2.7(ioredis@5.11.1)
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
@@ -1706,9 +1709,15 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260610.1
         version: 7.0.0-dev.20260610.1
+      happy-dom:
+        specifier: ^20.10.2
+        version: 20.10.2(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      ioredis:
+        specifier: ^5.11.1
+        version: 5.11.1
       ioredis-mock:
         specifier: ^8.13.1
-        version: 8.13.1(@types/ioredis-mock@8.2.7)
+        version: 8.13.1(@types/ioredis-mock@8.2.7(ioredis@5.11.1))(ioredis@5.11.1)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -6909,6 +6918,9 @@ packages:
   '@ioredis/as-callback@3.0.0':
     resolution: {integrity: sha512-Kqv1rZ3WbgOrS+hgzJ5xG5WQuhvzzSTRYvNeyPMLOAM78MHSnuKI20JeJGbpuAt//LCuP0vsexZcorqW7kWhJg==}
 
+  '@ioredis/commands@1.10.0':
+    resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
+
   '@ioredis/commands@1.5.0':
     resolution: {integrity: sha512-eUgLqrMf8nJkZxT24JvVRrQya1vZkQh8BBeYNwGDqa5I0VUi8ACx7uFvAaLxintokpTenkK6DASvo/bvNbBGow==}
 
@@ -10663,6 +10675,10 @@ packages:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
 
+  cluster-key-slot@1.1.1:
+    resolution: {integrity: sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==}
+    engines: {node: '>=0.10.0'}
+
   co-body@6.2.0:
     resolution: {integrity: sha512-Kbpv2Yd1NdL1V/V4cwLVxraHDV6K8ayohr2rmH0J87Er8+zJjcTa6dAn9QMPC9CRgU8+aNajKbSf1TzDB1yKPA==}
     engines: {node: '>=8.0.0'}
@@ -11242,6 +11258,10 @@ packages:
 
   delegates@1.0.0:
     resolution: {integrity: sha512-bd2L678uiWATM6m5Z1VzNCErI3jiGzt6HGY8OVICs40JQq/HALfbyNJmp0UDakEY4pMMaN0Ly5om/B1VI/+xfQ==}
+
+  denque@2.1.0:
+    resolution: {integrity: sha512-HVQE3AAb/pxF8fQAoiqpvg9i3evqug3hoiwakOyZAwJm+6vZehbkYXZ0l4JxS+I3QxM97v5aaRNhj8v5oBhekw==}
+    engines: {node: '>=0.10'}
 
   depd@1.1.2:
     resolution: {integrity: sha512-7emPTl6Dpo6JRXOXjLRxck+FlLRX5847cLKEn00PLAgc3g2hTZZgr+e4c2v6QpSmLeFP3n5yUo7ft6avBK/5jQ==}
@@ -12341,6 +12361,10 @@ packages:
     peerDependencies:
       '@types/ioredis-mock': ^8
       ioredis: ^5
+
+  ioredis@5.11.1:
+    resolution: {integrity: sha512-ehuGcf94bQXhfagULNXrJdfnWO38v070jxSx/qE87Kjzmu2fU7ro5EFAb+OPituLqgfyuQaym5DlrNydW2sJ9A==}
+    engines: {node: '>=12.22.0'}
 
   ip-regex@2.1.0:
     resolution: {integrity: sha512-58yWmlHpp7VYfcdTwMTvwMmqx/Elfxjd9RXTDyMsbL7lLWmhMylLEqiYVLKuLzOZqVgiWXD9MfR62Vv89VRxkw==}
@@ -14651,6 +14675,14 @@ packages:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
     engines: {node: '>=8'}
 
+  redis-errors@1.2.0:
+    resolution: {integrity: sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w==}
+    engines: {node: '>=4'}
+
+  redis-parser@3.0.0:
+    resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
+    engines: {node: '>=4'}
+
   reduce-configs@1.1.2:
     resolution: {integrity: sha512-AgBP55V8FC7NaqoOP2RCbTpu6LE+YuX3LUZkNAoitcfyS3/PIC8Obg/TJrBzTkJ+lDvZv0TTAeDpLkzjTtYlbw==}
 
@@ -15271,6 +15303,9 @@ packages:
   stack-utils@2.0.6:
     resolution: {integrity: sha512-XlkWvfIm6RmsWtNJx+uqtKLS8eqFbxUg0ZzLXqY0caEy9l7hruX8IpiDnjsLavoBgqCCR71TqWO8MaXYheJ3RQ==}
     engines: {node: '>=10'}
+
+  standard-as-callback@2.1.0:
+    resolution: {integrity: sha512-qoRRSyROncaz1z0mvYqIE4lCd9p2R90i6GxW3uZv5ucSu8tU7B5HXUP1gG8pVZsYNVaXjk8ClXHPttLyxAL48A==}
 
   static-browser-server@1.0.3:
     resolution: {integrity: sha512-ZUyfgGDdFRbZGGJQ1YhiM930Yczz5VlbJObrQLlk24+qNHVQx4OlLcYswEUo3bIyNAbQUIUR9Yr5/Hqjzqb4zA==}
@@ -17565,6 +17600,8 @@ snapshots:
 
   '@ioredis/as-callback@3.0.0': {}
 
+  '@ioredis/commands@1.10.0': {}
+
   '@ioredis/commands@1.5.0': {}
 
   '@isaacs/cliui@8.0.2':
@@ -17593,7 +17630,7 @@ snapshots:
   '@jest/console@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       jest-message-util: 30.4.1
       jest-util: 30.4.1
@@ -17643,7 +17680,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-mock: 30.4.1
 
   '@jest/expect-utils@30.2.0':
@@ -17665,7 +17702,7 @@ snapshots:
     dependencies:
       '@jest/types': 30.4.1
       '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-message-util: 30.4.1
       jest-mock: 30.4.1
       jest-util: 30.4.1
@@ -17683,12 +17720,12 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-regex-util: 30.0.1
 
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-regex-util: 30.4.0
 
   '@jest/reporters@30.4.1':
@@ -17699,7 +17736,7 @@ snapshots:
       '@jest/transform': 30.4.1
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -17779,7 +17816,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -19621,7 +19658,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.61.1':
     optional: true
 
-  '@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)':
+  '@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)':
     dependencies:
       image-size: 2.0.2
       knitwork: 1.3.0
@@ -19631,19 +19668,19 @@ snapshots:
       type-fest: 4.41.0
       ufo: 1.6.3
     optionalDependencies:
-      ipx: 3.1.1
+      ipx: 3.1.1(ioredis@5.11.1)
       sharp: 0.35.0
 
-  '@rsbuild-image/react@0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0))(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)':
+  '@rsbuild-image/react@0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)':
     dependencies:
-      '@rsbuild-image/core': 0.0.1-next.36(ipx@3.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
+      '@rsbuild-image/core': 0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.0)
       debug: 4.4.3
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       type-fest: 4.41.0
       ufo: 1.6.3
     optionalDependencies:
-      ipx: 3.1.1
+      ipx: 3.1.1(ioredis@5.11.1)
       sharp: 0.35.0
     transitivePeerDependencies:
       - supports-color
@@ -20790,7 +20827,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -20833,7 +20870,7 @@ snapshots:
 
   '@types/cors@2.8.19':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/d3-array@3.2.2': {}
 
@@ -21020,7 +21057,9 @@ snapshots:
 
   '@types/invariant@2.2.37': {}
 
-  '@types/ioredis-mock@8.2.7': {}
+  '@types/ioredis-mock@8.2.7(ioredis@5.11.1)':
+    dependencies:
+      ioredis: 5.11.1
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -21049,7 +21088,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/koa-compose@3.2.9':
     dependencies:
@@ -21143,7 +21182,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/semver@7.5.8': {}
 
@@ -21151,7 +21190,7 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/serialize-javascript@5.0.4': {}
 
@@ -21825,7 +21864,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   buffer@5.7.1:
     dependencies:
@@ -22051,6 +22090,8 @@ snapshots:
       readable-stream: 4.7.0
 
   clsx@2.1.1: {}
+
+  cluster-key-slot@1.1.1: {}
 
   co-body@6.2.0:
     dependencies:
@@ -22636,6 +22677,8 @@ snapshots:
 
   delegates@1.0.0: {}
 
+  denque@2.1.0: {}
+
   depd@1.1.2: {}
 
   depd@2.0.0: {}
@@ -22818,7 +22861,7 @@ snapshots:
   engine.io@6.6.7(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
       '@types/cors': 2.8.19
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/ws': 8.18.1
       accepts: 1.3.8
       base64id: 2.0.0
@@ -23553,7 +23596,7 @@ snapshots:
 
   happy-dom@20.10.2(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       buffer-image-size: 0.6.4
@@ -23931,20 +23974,33 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  ioredis-mock@8.13.1(@types/ioredis-mock@8.2.7):
+  ioredis-mock@8.13.1(@types/ioredis-mock@8.2.7(ioredis@5.11.1))(ioredis@5.11.1):
     dependencies:
       '@ioredis/as-callback': 3.0.0
       '@ioredis/commands': 1.5.0
-      '@types/ioredis-mock': 8.2.7
+      '@types/ioredis-mock': 8.2.7(ioredis@5.11.1)
       fengari: 0.1.5
       fengari-interop: 0.1.4(fengari@0.1.5)
+      ioredis: 5.11.1
       semver: 7.7.4
+
+  ioredis@5.11.1:
+    dependencies:
+      '@ioredis/commands': 1.10.0
+      cluster-key-slot: 1.1.1
+      debug: 4.4.3
+      denque: 2.1.0
+      redis-errors: 1.2.0
+      redis-parser: 3.0.0
+      standard-as-callback: 2.1.0
+    transitivePeerDependencies:
+      - supports-color
 
   ip-regex@2.1.0: {}
 
   ipaddr.js@1.9.1: {}
 
-  ipx@3.1.1:
+  ipx@3.1.1(ioredis@5.11.1):
     dependencies:
       '@fastify/accept-negotiator': 2.0.1
       citty: 0.1.6
@@ -23960,7 +24016,7 @@ snapshots:
       sharp: 0.34.5
       svgo: 4.0.1
       ufo: 1.6.3
-      unstorage: 1.17.4
+      unstorage: 1.17.4(ioredis@5.11.1)
       xss: 1.0.15
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -24189,7 +24245,7 @@ snapshots:
       '@jest/expect': 30.4.1
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2(babel-plugin-macros@3.1.0)
@@ -24323,7 +24379,7 @@ snapshots:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-mock: 30.4.1
       jest-util: 30.4.1
       jest-validate: 30.4.1
@@ -24331,7 +24387,7 @@ snapshots:
   jest-haste-map@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -24390,13 +24446,13 @@ snapshots:
   jest-mock@30.2.0:
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-util: 30.2.0
 
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-util: 30.4.1
 
   jest-pnp-resolver@1.2.3(jest-resolve@30.4.1):
@@ -24432,7 +24488,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -24461,7 +24517,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -24508,7 +24564,7 @@ snapshots:
   jest-util@30.2.0:
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -24517,7 +24573,7 @@ snapshots:
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -24536,7 +24592,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -24545,7 +24601,7 @@ snapshots:
 
   jest-worker@30.4.1:
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@ungap/structured-clone': 1.3.1
       jest-util: 30.4.1
       merge-stream: 2.0.0
@@ -26894,6 +26950,12 @@ snapshots:
       indent-string: 4.0.0
       strip-indent: 3.0.0
 
+  redis-errors@1.2.0: {}
+
+  redis-parser@3.0.0:
+    dependencies:
+      redis-errors: 1.2.0
+
   reduce-configs@1.1.2: {}
 
   reflect-metadata@0.2.2: {}
@@ -27619,6 +27681,8 @@ snapshots:
     dependencies:
       escape-string-regexp: 2.0.0
 
+  standard-as-callback@2.1.0: {}
+
   static-browser-server@1.0.3:
     dependencies:
       '@open-draft/deferred-promise': 2.2.0
@@ -28258,7 +28322,7 @@ snapshots:
       '@unrs/resolver-binding-win32-ia32-msvc': 1.11.1
       '@unrs/resolver-binding-win32-x64-msvc': 1.11.1
 
-  unstorage@1.17.4:
+  unstorage@1.17.4(ioredis@5.11.1):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -28268,6 +28332,8 @@ snapshots:
       node-fetch-native: 1.6.7
       ofetch: 1.5.1
       ufo: 1.6.3
+    optionalDependencies:
+      ioredis: 5.11.1
 
   untun@0.1.3:
     dependencies:

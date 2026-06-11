@@ -6,7 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedPnpmVersion = '11.5.2';
+const expectedPnpmVersion = '11.5.3';
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 
 const expectedBleedingDevAliases = {

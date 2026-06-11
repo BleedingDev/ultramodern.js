@@ -53,10 +53,6 @@ const commonConfig = {
         'hoist-non-react-statics@',
         'hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js',
       ),
-      '@modern-js/core': resolvePnpmPackageEntry(
-        '@modern-js+core@',
-        '@modern-js/core/dist/index.js',
-      ),
       react: resolvePnpmPackageEntry('react@', 'react/index.js'),
       'react/jsx-runtime': resolvePnpmPackageEntry(
         'react@',
