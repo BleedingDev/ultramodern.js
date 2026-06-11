@@ -7,9 +7,9 @@ import type {
 import type { Monitors } from '@modern-js/types';
 import { fs, isProd } from '@modern-js/utils';
 import path from 'path';
-import { parseServerRuntimeExtensionsEnv } from './env';
 
 const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
+const DEFAULT_REMOTE_MANIFEST_TIMEOUT = 1500;
 
 type ModuleFederationAssets = {
   css?: {
@@ -231,9 +231,7 @@ export const collectDirectRemoteModuleFederationCss = async (
     return [];
   }
 
-  const timeout =
-    options.timeout ??
-    parseServerRuntimeExtensionsEnv().mfRemoteManifestTimeoutMs;
+  const timeout = options.timeout ?? DEFAULT_REMOTE_MANIFEST_TIMEOUT;
   const cssAssets: string[] = [];
   const seen = new Set<string>();
 

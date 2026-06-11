@@ -1,8 +1,5 @@
 import {
   DEFAULT_ENVIRONMENT_NAME,
-  DEFAULT_MF_REMOTE_MANIFEST_TIMEOUT_MS,
-  DEFAULT_TELEMETRY_OTLP_ENDPOINT,
-  DEFAULT_TELEMETRY_VICTORIA_METRICS_ENDPOINT,
   parseServerRuntimeExtensionsEnv,
 } from '../src/env';
 
@@ -15,10 +12,6 @@ describe('parseServerRuntimeExtensionsEnv', () => {
       nodeEnv: undefined,
       environmentName: DEFAULT_ENVIRONMENT_NAME,
       contractGatesFile: undefined,
-      telemetryOtlpEndpoint: DEFAULT_TELEMETRY_OTLP_ENDPOINT,
-      telemetryVictoriaMetricsEndpoint:
-        DEFAULT_TELEMETRY_VICTORIA_METRICS_ENDPOINT,
-      mfRemoteManifestTimeoutMs: DEFAULT_MF_REMOTE_MANIFEST_TIMEOUT_MS,
     });
   });
 
@@ -27,22 +20,12 @@ describe('parseServerRuntimeExtensionsEnv', () => {
       MODERN_ENV: ' staging ',
       NODE_ENV: 'production',
       MODERN_CONTRACT_GATES_FILE: ' /var/run/gates.json ',
-      MODERN_TELEMETRY_OTLP_ENDPOINT: 'https://otlp.example.com/v1/logs',
-      MODERN_TELEMETRY_VICTORIA_ENDPOINT: 'https://vm.example.com/import',
-      MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS: '2500',
     });
 
     expect(parsed.modernEnv).toBe('staging');
     expect(parsed.nodeEnv).toBe('production');
     expect(parsed.environmentName).toBe('staging');
     expect(parsed.contractGatesFile).toBe('/var/run/gates.json');
-    expect(parsed.telemetryOtlpEndpoint).toBe(
-      'https://otlp.example.com/v1/logs',
-    );
-    expect(parsed.telemetryVictoriaMetricsEndpoint).toBe(
-      'https://vm.example.com/import',
-    );
-    expect(parsed.mfRemoteManifestTimeoutMs).toBe(2500);
   });
 
   test('falls back from MODERN_ENV to NODE_ENV to the default', () => {
@@ -65,49 +48,25 @@ describe('parseServerRuntimeExtensionsEnv', () => {
     const parsed = parseServerRuntimeExtensionsEnv({
       MODERN_ENV: '   ',
       MODERN_CONTRACT_GATES_FILE: '',
-      MODERN_TELEMETRY_OTLP_ENDPOINT: ' ',
     });
 
     expect(parsed.modernEnv).toBeUndefined();
     expect(parsed.contractGatesFile).toBeUndefined();
-    expect(parsed.telemetryOtlpEndpoint).toBe(DEFAULT_TELEMETRY_OTLP_ENDPOINT);
     expect(parsed.environmentName).toBe(DEFAULT_ENVIRONMENT_NAME);
   });
 
-  test.each([
-    'not-a-number',
-    '-100',
-    '0',
-    'NaN',
-    'Infinity',
-  ])('rejects invalid MF manifest timeout %p and keeps the default', value => {
-    expect(
-      parseServerRuntimeExtensionsEnv({
-        MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS: value,
-      }).mfRemoteManifestTimeoutMs,
-    ).toBe(DEFAULT_MF_REMOTE_MANIFEST_TIMEOUT_MS);
-  });
-
-  test('floors fractional MF manifest timeouts', () => {
-    expect(
-      parseServerRuntimeExtensionsEnv({
-        MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS: '1234.9',
-      }).mfRemoteManifestTimeoutMs,
-    ).toBe(1234);
-  });
-
   test('reads from process.env by default', () => {
-    const previous = process.env.MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS;
-    process.env.MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS = '4321';
+    const previous = process.env.MODERN_CONTRACT_GATES_FILE;
+    process.env.MODERN_CONTRACT_GATES_FILE = '/tmp/gates.json';
     try {
-      expect(parseServerRuntimeExtensionsEnv().mfRemoteManifestTimeoutMs).toBe(
-        4321,
+      expect(parseServerRuntimeExtensionsEnv().contractGatesFile).toBe(
+        '/tmp/gates.json',
       );
     } finally {
       if (previous === undefined) {
-        delete process.env.MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS;
+        delete process.env.MODERN_CONTRACT_GATES_FILE;
       } else {
-        process.env.MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS = previous;
+        process.env.MODERN_CONTRACT_GATES_FILE = previous;
       }
     }
   });

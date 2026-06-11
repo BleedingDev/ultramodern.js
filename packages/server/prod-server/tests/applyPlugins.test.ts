@@ -86,6 +86,79 @@ describe('applyPlugins fork plugin assembly', () => {
     }
   });
 
+  test('registers injectModuleFederationCssPlugin after injectResourcePlugin in the real assembly', async () => {
+    const tempDir = makeTempDir();
+
+    try {
+      // Host MF manifest fixture: makes injectModuleFederationCssPlugin
+      // active for this dist directory (no remotes -> no network access).
+      fs.writeFileSync(
+        path.join(tempDir, 'mf-manifest.json'),
+        JSON.stringify({ remotes: [] }),
+      );
+
+      let observedManifest: Record<string, unknown> | undefined;
+
+      const options = {
+        pwd: tempDir,
+        serverConfigPath: path.join(tempDir, 'modern.server.js'),
+        appContext: {
+          apiDirectory: '',
+          lambdaDirectory: '',
+          appDirectory: tempDir,
+        },
+        config: {
+          html: {},
+          output: {},
+          source: {},
+          tools: {},
+          server: {
+            logger: false,
+          },
+          bff: {},
+          dev: {},
+          security: {},
+        },
+        serverConfig: {
+          middlewares: [
+            {
+              name: 'capture-server-manifest',
+              // run after every default middleware (including
+              // inject-server-manifest and inject-module-federation-css)
+              order: 'post' as const,
+              handler: async (c: any) => {
+                observedManifest = c.get('serverManifest') as Record<
+                  string,
+                  unknown
+                >;
+                return c.json({ ok: true });
+              },
+            },
+          ],
+        },
+      } as unknown as ProdServerOptions;
+
+      const server = createServerBase(options);
+      await applyPlugins(server, options);
+      await server.init();
+
+      const response = await server.request('/', {}, {});
+      expect(response.status).toBe(200);
+
+      // The real injectResourcePlugin middleware ran first and set the
+      // request-scoped manifest...
+      expect(observedManifest).toBeTruthy();
+      expect(observedManifest!.loaderBundles).toEqual({});
+      // ...and injectModuleFederationCssPlugin, registered after it in
+      // applyPlugins, enriched that manifest. If the registration order
+      // regressed, the manifest would not exist yet at enrichment time and
+      // this property would be undefined.
+      expect(observedManifest!.moduleFederationCssAssets).toEqual([]);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('does not expose telemetry endpoints when telemetry is not configured', async () => {
     const tempDir = makeTempDir();
 

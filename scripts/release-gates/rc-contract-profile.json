@@ -193,7 +193,7 @@
       },
       {
         "id": "telemetry-exporter-contract",
-        "path": "packages/server/core/src/plugins/telemetry.ts",
+        "path": "packages/server/runtime-extensions/src/telemetry.ts",
         "includes": [
           "createOtlpTelemetryExporter",
           "createVictoriaMetricsTelemetryExporter",
@@ -266,7 +266,7 @@
       },
       {
         "id": "mf-cache-policy-contract",
-        "path": "packages/server/core/src/plugins/mfCache.ts",
+        "path": "packages/server/runtime-extensions/src/mfCache.ts",
         "includes": [
           "resolveMfAssetCacheHeaders",
           "isMfManifestAsset",
@@ -334,7 +334,7 @@
         "includes": [
           "NPM_TOKEN",
           "NODE_AUTH_TOKEN",
-          "refs/heads/main-ultramodern",
+          "const enforcedPublishBranch = 'main-ultramodern'",
           "BleedingDev/ultramodern.js",
           "https://registry.npmjs.org/"
         ]
@@ -375,7 +375,7 @@
         "id": "ultramodern-init-app-doc-contract",
         "path": "packages/document/docs/en/components/init-app.mdx",
         "includes": [
-          "UltraModern SuperApp workspace",
+          "create package to create SuperApp\nworkspaces",
           "pnpm dlx @bleedingdev/modern-js-create .",
           "@bleedingdev/modern-js-create",
           "pnpm dlx @bleedingdev/modern-js-create transportation --vertical"
@@ -385,7 +385,7 @@
         "id": "ultramodern-bff-runtime-framework-doc-contract",
         "path": "packages/document/docs/en/configure/app/bff/runtime-framework.mdx",
         "includes": [
-          "public UltraModern preset",
+          "Generated UltraModern apps use the Effect lane by default",
           "api/effect/index",
           "api/lambda/**",
           "Choose one runtime mode per app."

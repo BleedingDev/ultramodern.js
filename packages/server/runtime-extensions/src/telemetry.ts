@@ -195,6 +195,9 @@ export interface VictoriaMetricsExporterOptions extends OtlpExporterOptions {
   metricPrefix?: string;
 }
 
+const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
+const DEFAULT_VM_ENDPOINT = 'http://127.0.0.1:8428/api/v1/import/prometheus';
+
 type TelemetryMetricsTags = Record<string, unknown>;
 
 type TelemetryMetricsPrefixOrTags = string | TelemetryMetricsTags;
@@ -492,8 +495,7 @@ function toPrometheusLine(
 export function createOtlpTelemetryExporter(
   options: OtlpExporterOptions = {},
 ): TelemetryExporter {
-  const endpoint =
-    options.endpoint || parseServerRuntimeExtensionsEnv().telemetryOtlpEndpoint;
+  const endpoint = options.endpoint || DEFAULT_OTLP_ENDPOINT;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const headers = {
     'content-type': 'application/json',
@@ -530,9 +532,7 @@ export function createOtlpTelemetryExporter(
 export function createVictoriaMetricsTelemetryExporter(
   options: VictoriaMetricsExporterOptions = {},
 ): TelemetryExporter {
-  const endpoint =
-    options.endpoint ||
-    parseServerRuntimeExtensionsEnv().telemetryVictoriaMetricsEndpoint;
+  const endpoint = options.endpoint || DEFAULT_VM_ENDPOINT;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const metricPrefix = sanitizeMetricName(options.metricPrefix || 'modernjs');
   const headers = {
@@ -1748,7 +1748,7 @@ function maybeWarnLegacyOtlpEndpoint(endpoint: string | undefined) {
   // Keep this warning lightweight and runtime-safe.
   // eslint-disable-next-line no-console
   console.warn(
-    `[telemetry] OTLP endpoint "${endpoint}" looks like a metrics path. UltraModern telemetry exporter expects log-style envelopes (default: ${parseServerRuntimeExtensionsEnv().telemetryOtlpEndpoint}).`,
+    `[telemetry] OTLP endpoint "${endpoint}" looks like a metrics path. UltraModern telemetry exporter expects log-style envelopes (default: ${DEFAULT_OTLP_ENDPOINT}).`,
   );
 }
 

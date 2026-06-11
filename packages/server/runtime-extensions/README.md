@@ -30,17 +30,23 @@ identically:
 
 ## Environment variables
 
-All environment variables consumed by this package are parsed in a single
-typed pass by `parseServerRuntimeExtensionsEnv()` in `src/env.ts`:
+The environment variables consumed by this package at runtime are parsed in a
+single typed pass by `parseServerRuntimeExtensionsEnv()` in `src/env.ts`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MODERN_ENV` | _unset_ | Deployment environment name (also drives `.env.{MODERN_ENV}` loading in the server bootstrap). First candidate for the telemetry `environment` label. |
 | `NODE_ENV` | _unset_ | Standard Node.js environment name. Second candidate for the telemetry `environment` label; the final fallback is `development`. |
 | `MODERN_CONTRACT_GATES_FILE` | `.modern/contract-gates.json` (resolved against the app directory) | Path of the contract-gate snapshot file used by the canary autopilot and the runtime fallback signal endpoint when `server.telemetry.canary.autopilot.gateSnapshotPath` is not configured. |
-| `MODERN_TELEMETRY_OTLP_ENDPOINT` | `http://127.0.0.1:4318/v1/logs` | Default endpoint for the OTLP log-envelope exporter when `server.telemetry.exporters.otlp.endpoint` is not configured. |
-| `MODERN_TELEMETRY_VICTORIA_ENDPOINT` | `http://127.0.0.1:8428/api/v1/import/prometheus` | Default endpoint for the VictoriaMetrics exporter when `server.telemetry.exporters.victoriaMetrics.endpoint` is not configured. |
-| `MODERN_MF_REMOTE_MANIFEST_TIMEOUT_MS` | `1500` | Timeout in milliseconds for fetching remote module federation manifests during SSR CSS collection. Invalid or non-positive values fall back to the default. |
+
+Exporter endpoints and the module federation remote manifest timeout are
+configured through `server.telemetry.exporters.*.endpoint` and plugin options
+only; their defaults (`http://127.0.0.1:4318/v1/logs`,
+`http://127.0.0.1:8428/api/v1/import/prometheus`, `1500`ms) are hard-coded,
+matching the pre-extraction server-core behavior.
+`MODERN_TELEMETRY_OTLP_ENDPOINT` / `MODERN_TELEMETRY_VICTORIA_ENDPOINT` are
+read only at config time by `@modern-js/app-tools` (`baseline.ts`), not at
+server runtime.
 
 One dynamic indirection cannot be statically parsed:
 `server.telemetry.canary.autopilot.runtimeFallbackSignal.auth.expectedValueEnv`

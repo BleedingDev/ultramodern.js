@@ -20,9 +20,6 @@ export {
 } from './contractGateSnapshotStore';
 export {
   DEFAULT_ENVIRONMENT_NAME,
-  DEFAULT_MF_REMOTE_MANIFEST_TIMEOUT_MS,
-  DEFAULT_TELEMETRY_OTLP_ENDPOINT,
-  DEFAULT_TELEMETRY_VICTORIA_METRICS_ENDPOINT,
   parseServerRuntimeExtensionsEnv,
   type ServerRuntimeExtensionsEnv,
 } from './env';

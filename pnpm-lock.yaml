@@ -970,6 +970,9 @@ importers:
         specifier: 5.6.0
         version: 5.6.0
     devDependencies:
+      '@modern-js/bff-runtime':
+        specifier: workspace:*
+        version: link:../bff-runtime
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib
@@ -1162,6 +1165,9 @@ importers:
       formidable:
         specifier: ^3.5.4
         version: 3.5.4
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
       type-is:
         specifier: ^2.1.0
         version: 2.1.0
@@ -1178,12 +1184,18 @@ importers:
       '@types/finalhandler':
         specifier: ^1.2.3
         version: 1.2.4
+      '@types/formidable':
+        specifier: ^3.4.6
+        version: 3.5.1
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
+      '@types/type-is':
+        specifier: ^1.6.7
+        version: 1.6.7
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260606.1
         version: 7.0.0-dev.20260606.1
@@ -1211,6 +1223,12 @@ importers:
       koa-body:
         specifier: ^8.0.0
         version: 8.0.0
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      type-is:
+        specifier: ^2.1.0
+        version: 2.1.0
     devDependencies:
       '@scripts/rstest-config':
         specifier: workspace:*
@@ -1224,6 +1242,9 @@ importers:
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
+      '@types/type-is':
+        specifier: ^1.6.7
+        version: 1.6.7
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260606.1
         version: 7.0.0-dev.20260606.1

@@ -14,7 +14,8 @@
     "src/netlify.ts",
     "src/apply.ts",
     "src/types.ts",
-    "src/libs/metrics.ts",
+    "src/server/index.ts",
+    "src/libs/runtimeFallbackWorkerLane.ts",
     "src/modern-app-env.d.ts"
   ]
 }

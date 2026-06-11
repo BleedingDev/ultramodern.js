@@ -38,6 +38,7 @@
     "./server": {
       "types": "./dist/types/node.d.ts",
       "modern:source": "./src/node.ts",
+      "require": "./dist/cjs/node.js",
       "default": "./dist/esm/node.mjs"
     }
   },
