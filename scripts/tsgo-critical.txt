@@ -3,6 +3,8 @@
 # surfaces; broad legacy fixture cleanup should happen in later waves.
 
 packages/cli/plugin-bff/tsconfig.json
+packages/server/plugin-express/tsconfig.tsgo.json
+packages/server/plugin-koa/tsconfig.tsgo.json
 packages/runtime/plugin-tanstack/tsconfig.tsgo.json
 packages/runtime/plugin-runtime/tsconfig.tsgo.json
 tests/integration/routes-tanstack/tsconfig.json

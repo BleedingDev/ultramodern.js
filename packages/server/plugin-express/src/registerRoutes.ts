@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import 'reflect-metadata';
 import { type APIHandlerInfo, planApiRoutes } from '@modern-js/bff-core';
 import type { Express, RequestHandler } from 'express';

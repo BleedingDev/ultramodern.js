@@ -3,11 +3,11 @@ import {
   createAdapterParityScenarios,
   createParityApiHandlerInfos,
   createParityBffConfig,
-} from '@modern-js/bff-core';
+} from '@modern-js/bff-core/adapter-parity';
 import request from 'supertest';
 import plugin from '../src/plugin';
 import { createAPIPlugin } from './helpers';
-import { ConfigContext, serverManager } from './runtimeHarness';
+import { serverManager } from './runtimeHarness';
 import './common';
 
 type ApiServerHandler = Parameters<typeof request>[0];
@@ -19,7 +19,6 @@ describe('adapter parity', () => {
   let policyHandler: ApiServerHandler;
 
   beforeAll(async () => {
-    ConfigContext.set({});
     const openRunner = await serverManager
       .clone()
       .usePlugin(createAPIPlugin(createParityApiHandlerInfos()), plugin)
@@ -27,21 +26,18 @@ describe('adapter parity', () => {
     openHandler = await openRunner.prepareApiServer({
       pwd: __dirname,
       prefix: '/',
+      config: {},
     });
 
-    ConfigContext.set({ bff: createParityBffConfig() });
-    try {
-      const policyRunner = await serverManager
-        .clone()
-        .usePlugin(createAPIPlugin(createParityApiHandlerInfos()), plugin)
-        .init();
-      policyHandler = await policyRunner.prepareApiServer({
-        pwd: __dirname,
-        prefix: '/',
-      });
-    } finally {
-      ConfigContext.set({});
-    }
+    const policyRunner = await serverManager
+      .clone()
+      .usePlugin(createAPIPlugin(createParityApiHandlerInfos()), plugin)
+      .init();
+    policyHandler = await policyRunner.prepareApiServer({
+      pwd: __dirname,
+      prefix: '/',
+      config: { bff: createParityBffConfig() },
+    });
   });
 
   for (const scenario of scenarios) {
@@ -59,7 +55,7 @@ describe('adapter parity', () => {
         req = req.send(scenario.request.body as Record<string, unknown>);
       }
       const res = await req;
-      assertParityResult(scenario, res);
+      assertParityResult(scenario, res, 'express');
     });
   }
 });

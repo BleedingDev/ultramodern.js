@@ -1,6 +1,8 @@
+// @effect-diagnostics asyncFunction:off newPromise:off
 import 'reflect-metadata';
 import {
   type ApiHandler,
+  type ApiHandlerInput,
   buildPositionalHandlerArgs,
   getApiHandlerMode,
   getResponseMetaList,
@@ -51,8 +53,8 @@ export const createRouteHandler = (handler: ApiHandler) => {
           return;
         }
 
-        const result = await handler(input);
-        if (result && typeof result === 'object') {
+        const result: unknown = await handler(input);
+        if (typeof result === 'object' && result !== null) {
           res.json(result);
         }
       } catch (error) {
@@ -78,7 +80,8 @@ export const createRouteHandler = (handler: ApiHandler) => {
 
     if (mode === 'inputParamsDecider') {
       try {
-        const args = input?.data?.args || [];
+        const data = input.data as { args?: unknown[] } | undefined;
+        const args = data?.args ?? [];
         const body = await handler(...args);
         if (typeof body !== 'undefined') {
           if (typeof body === 'object') {
@@ -102,6 +105,10 @@ export const createRouteHandler = (handler: ApiHandler) => {
       }
       if (typeof body !== 'undefined') {
         res.json(body);
+      } else {
+        // A plain handler returning undefined used to leave the response
+        // open forever (the request hung until the client timed out).
+        res.end();
       }
     } catch (error) {
       next(error);
@@ -116,21 +123,26 @@ export const createRouteHandler = (handler: ApiHandler) => {
 };
 
 export const isNormalMethod = (httpMethod: string) =>
-  httpMethods.includes(httpMethod);
+  (httpMethods as readonly string[]).includes(httpMethod);
+
+const matchesContentType = (request: Request, patterns: string[]): boolean =>
+  typeof typeis(request, patterns) === 'string';
 
 const getInputFromRequest = async (request: Request) => {
-  const draft: Record<string, any> = {
+  const draft: ApiHandlerInput = {
     params: request.params,
     query: request.query,
     headers: request.headers,
     cookies: request.headers.cookie,
   };
 
-  if (typeis(request, ['application/json'])) {
+  if (matchesContentType(request, ['application/json'])) {
     draft.data = request.body;
-  } else if (typeis(request, ['multipart/form-data'])) {
+  } else if (matchesContentType(request, ['multipart/form-data'])) {
     draft.formData = await resolveFormData(request);
-  } else if (typeis(request, ['application/x-www-form-urlencoded'])) {
+  } else if (
+    matchesContentType(request, ['application/x-www-form-urlencoded'])
+  ) {
     draft.formUrlencoded = request.body;
   } else {
     draft.body = request.body;
@@ -145,7 +157,7 @@ const resolveFormData = (request: Request) => {
   });
   return new Promise<Record<string, unknown>>((resolve, reject) => {
     form.parse(request, (err, fields, files) => {
-      if (err) {
+      if (err != null) {
         reject(err);
         return;
       }

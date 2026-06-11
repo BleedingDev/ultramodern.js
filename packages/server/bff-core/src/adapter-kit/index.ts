@@ -9,8 +9,6 @@ import {
 import { HttpMetadata, HttpMethod } from '../types';
 import { isInputParamsDeciderHandler, isWithMetaHandler } from '../utils';
 
-export * from './parity';
-
 /** Lowercase route-registration method shared by express/koa/hono routers. */
 export type ApiRouteMethod = Lowercase<`${HttpMethod}`>;
 
@@ -93,6 +91,10 @@ export type ApiHandlerMode = 'meta' | 'schema' | 'inputParamsDecider' | 'plain';
 /**
  * Detects how an API handler expects to be invoked. The probe order (meta →
  * schema → input-params-decider → plain) is shared by every adapter.
+ *
+ * Adapters call this once at route-registration time, not per request:
+ * meta/schema markers are attached by decorators at module load, so a handler
+ * marked after registration would not be picked up.
  */
 export const getApiHandlerMode = (handler: ApiHandler): ApiHandlerMode => {
   if (isWithMetaHandler(handler)) {

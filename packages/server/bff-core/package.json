@@ -27,6 +27,15 @@
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
+    },
+    "./adapter-parity": {
+      "types": "./dist/types/adapter-kit/parity.d.ts",
+      "modern:source": "./src/adapter-kit/parity.ts",
+      "node": {
+        "import": "./dist/esm-node/adapter-kit/parity.mjs",
+        "require": "./dist/cjs/adapter-kit/parity.js"
+      },
+      "default": "./dist/cjs/adapter-kit/parity.js"
     }
   },
   "scripts": {
@@ -43,6 +52,7 @@
     "type-fest": "5.6.0"
   },
   "devDependencies": {
+    "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.21.5",

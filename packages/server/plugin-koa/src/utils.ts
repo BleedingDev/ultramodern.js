@@ -1,6 +1,8 @@
+// @effect-diagnostics asyncFunction:off
 import 'reflect-metadata';
 import {
   type ApiHandler,
+  type ApiHandlerInput,
   buildPositionalHandlerArgs,
   getApiHandlerMode,
   getResponseMetaList,
@@ -106,22 +108,25 @@ export const createRouteHandler = (handler: ApiHandler) => {
 };
 
 export const isNormalMethod = (httpMethod: string) =>
-  httpMethods.includes(httpMethod);
+  (httpMethods as readonly string[]).includes(httpMethod);
+
+const matchesContentType = (contentType: string, patterns: string[]): boolean =>
+  typeof typeis.is(contentType, patterns) === 'string';
 
 const getInputFromRequest = async (ctx: ApiContext) => {
-  const draft: Record<string, any> = {
+  const draft: ApiHandlerInput = {
     params: ctx.params,
     query: ctx.query,
     headers: ctx.headers,
     cookies: ctx.headers.cookie,
   };
 
-  if (typeis.is(ctx.request.type, ['application/json'])) {
+  if (matchesContentType(ctx.request.type, ['application/json'])) {
     draft.data = ctx.request.body;
-  } else if (typeis.is(ctx.request.type, ['multipart/form-data'])) {
+  } else if (matchesContentType(ctx.request.type, ['multipart/form-data'])) {
     draft.formData = ctx.request.files;
   } else if (
-    typeis.is(ctx.request.type, ['application/x-www-form-urlencoded'])
+    matchesContentType(ctx.request.type, ['application/x-www-form-urlencoded'])
   ) {
     draft.formUrlencoded = ctx.request.body;
   } else {

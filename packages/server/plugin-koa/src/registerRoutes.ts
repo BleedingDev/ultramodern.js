@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off
 import type Router from '@koa/router';
 import { type APIHandlerInfo, planApiRoutes } from '@modern-js/bff-core';
 import { createRouteHandler } from './utils';

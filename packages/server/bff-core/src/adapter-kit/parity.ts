@@ -14,6 +14,14 @@ import { HttpMethod } from '../types';
  * Transport details intentionally NOT asserted: express serializes scalar
  * bodies as JSON while koa sends `text/plain`; {@link toParityResult}
  * normalizes both to the decoded payload value before comparison.
+ *
+ * Intentionally OUT OF SCOPE (known, accepted adapter drift — do not add
+ * scenarios without deciding the drift first):
+ * - operator route-middlewares: express applies them, koa ignores them;
+ * - multipart/form-data: payload shapes differ (formidable vs koa-body);
+ * - undefined-returning plain handlers are pinned via a per-adapter
+ *   scenario below: express ends the response 200/empty, koa leaves
+ *   `ctx.body` unset and serves its stock 404 ("Not Found").
  */
 
 export const PARITY_REQUEST_ID = 'crm';
@@ -60,6 +68,14 @@ export const createParityApiHandlerInfos = (): APIHandlerInfo[] => [
     routePath: '/hello',
     filename: PARITY_FIXTURE_FILENAME,
     handler: () => 'hello',
+  },
+  {
+    name: 'getNothing',
+    httpMethod: HttpMethod.Get,
+    routeName: '/nothing',
+    routePath: '/nothing',
+    filename: PARITY_FIXTURE_FILENAME,
+    handler: () => undefined,
   },
   {
     name: 'postEcho',
@@ -121,12 +137,22 @@ const envelopeHeader = (requestId: unknown) =>
 const detailHeader = (details: Record<string, unknown>) =>
   JSON.stringify(details);
 
+export type ParityAdapterId = 'express' | 'koa';
+
 export type ParityExpectation =
   | { kind: 'payload'; status: number; payload: unknown }
   | {
       kind: 'denied';
       status: number;
       reason: CrossProjectPolicyViolationReason;
+    }
+  | {
+      /** Pinned, intentional adapter drift: each adapter has its own expectation. */
+      kind: 'perAdapter';
+      expectations: Record<
+        ParityAdapterId,
+        { status: number; payload: unknown }
+      >;
     };
 
 export type AdapterParityScenario = {
@@ -171,6 +197,18 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
       policy: false,
       request: { method: 'post', path: '/hello' },
       expected: { kind: 'payload', status: 200, payload: 'hello' },
+    },
+    {
+      name: 'plain handler returning undefined (pinned adapter drift)',
+      policy: false,
+      request: { method: 'get', path: '/nothing' },
+      expected: {
+        kind: 'perAdapter',
+        expectations: {
+          express: { status: 200, payload: undefined },
+          koa: { status: 404, payload: 'Not Found' },
+        },
+      },
     },
     {
       name: 'plain handler receives data, query and cookies',
@@ -257,6 +295,13 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
     deniedScenario('policy denies invalid envelope', 'invalid_envelope', {
       'x-modernjs-bff-envelope': 'not-json',
     }),
+    deniedScenario(
+      'policy denies envelope that is valid JSON but not an object',
+      'invalid_envelope',
+      {
+        'x-modernjs-bff-envelope': '123',
+      },
+    ),
     deniedScenario('policy denies missing requestId', 'missing_request_id', {
       'x-modernjs-bff-envelope': envelopeHeader(undefined),
     }),
@@ -288,6 +333,15 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
       {
         'x-modernjs-bff-envelope': validEnvelope,
         'x-operation-id': validOperationId,
+      },
+    ),
+    deniedScenario(
+      'policy denies JSON-array operation context details',
+      'invalid_operation_context_details',
+      {
+        'x-modernjs-bff-envelope': validEnvelope,
+        'x-operation-id': validOperationId,
+        'x-modernjs-bff-operation-context': '[]',
       },
     ),
     deniedScenario(
@@ -428,10 +482,20 @@ const formatValue = (value: unknown) => JSON.stringify(value);
 export const assertParityResult = (
   scenario: AdapterParityScenario,
   res: ParityHttpResponse,
+  adapter?: ParityAdapterId,
 ): void => {
   const result = toParityResult(res);
   const failures: string[] = [];
-  const { expected } = scenario;
+  let { expected } = scenario;
+
+  if (expected.kind === 'perAdapter') {
+    if (adapter === undefined) {
+      throw new Error(
+        `Adapter parity scenario "${scenario.name}" pins per-adapter drift; pass the adapter id to assertParityResult.`,
+      );
+    }
+    expected = { kind: 'payload', ...expected.expectations[adapter] };
+  }
 
   if (result.status !== expected.status) {
     failures.push(

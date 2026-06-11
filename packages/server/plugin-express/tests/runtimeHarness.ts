@@ -49,8 +49,17 @@ class TestServerManager {
     return this;
   }
 
-  async prepareApiServer({ pwd, prefix }: { pwd: string; prefix: string }) {
-    const runtimeConfig = ConfigContext.get();
+  async prepareApiServer({
+    pwd,
+    prefix,
+    config,
+  }: {
+    pwd: string;
+    prefix: string;
+    /** Explicit config wins over the shared ConfigContext singleton. */
+    config?: Record<string, any>;
+  }) {
+    const runtimeConfig = config ?? ConfigContext.get();
     const mergedConfig = {
       ...DEFAULT_CONFIG,
       ...runtimeConfig,
