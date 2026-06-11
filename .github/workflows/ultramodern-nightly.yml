@@ -5,17 +5,25 @@ on:
   schedule:
     - cron: '23 1 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   script-tests:
     name: Gate validator and scripts/lib unit tests
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 15
-    continue-on-error: true
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -34,12 +42,17 @@ jobs:
     name: MCP/CLI capability parity
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 10
-    continue-on-error: true
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -54,16 +67,24 @@ jobs:
       - name: Validate MCP/CLI parity
         run: pnpm run validate:mcp-cli-parity
 
+  # Experimental benchmark lane: numbers are environment-sensitive, so this
+  # job is advisory-only and intentionally excluded from the nightly signal.
   worker-lane-resilience-gate:
-    name: Runtime resilience worker-lane gate
+    name: Runtime resilience worker-lane gate (experimental)
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 15
     continue-on-error: true
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -82,12 +103,17 @@ jobs:
     name: SuperApp upstream drift probe
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 30
-    continue-on-error: true
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -113,13 +139,18 @@ jobs:
   superapp-erp-tests:
     name: SuperApp ERP integration suite
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 90
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -135,12 +166,20 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build Packages
+        run: pnpm run prepare-build
+
+      - name: Install Puppeteer
+        run: cd ./tests/node_modules/puppeteer && npm run postinstall && cd ../..
+
       - name: Run superapp-erp tests
         env:
           SUPERAPP_ERP_STRESS: '1'
           SUPERAPP_ERP_STRESS_ROUNDS: '4'
           SUPERAPP_ERP_STRESS_BATCH: '8'
           SUPERAPP_ERP_STRESS_ROUTE_CYCLES: '4'
+          SUPERAPP_ERP_SOAK: '1'
+          SUPERAPP_ERP_SOAK_MS: '120000'
         run: >-
           pnpm --dir tests exec rstest run -c rstest.config.mts
           integration/superapp-erp/tests/index.test.ts
@@ -151,12 +190,17 @@ jobs:
     name: SuperApp portfolio integration suite
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
-    continue-on-error: true
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -172,6 +216,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build Packages
+        run: pnpm run prepare-build
+
+      - name: Install Puppeteer
+        run: cd ./tests/node_modules/puppeteer && npm run postinstall && cd ../..
+
       - name: Run superapp-portfolio tests
         env:
           SUPERAPP_PORTFOLIO_SECURITY: '1'
@@ -181,6 +231,7 @@ jobs:
           SUPERAPP_PILOT_CHAOS: '1'
           SUPERAPP_PORTFOLIO_STRESS: '1'
           SUPERAPP_PORTFOLIO_STRESS_CYCLES: '6'
+          SUPERAPP_PORTFOLIO_NIGHTLY: '1'
         run: >-
           pnpm --dir tests exec rstest run -c rstest.config.mts
           integration/superapp-portfolio/tests/index.test.ts
@@ -205,13 +256,18 @@ jobs:
   superapp-browser-matrix-tests:
     name: SuperApp browser matrix smoke
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 90
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
@@ -227,7 +283,41 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build Packages
+        run: pnpm run prepare-build
+
+      # The matrix suite resolves playwright from the rstest browser fixture
+      # (see tests/integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts),
+      # so install browsers through that fixture to match its playwright version.
+      # The default (smoke) matrix only exercises chromium.
+      - name: Install Playwright browsers
+        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
+
       - name: Run superapp-browser-matrix tests
         run: >-
           pnpm --dir tests exec rstest run -c rstest.config.mts
           integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts
+
+  nightly-signal:
+    name: Aggregate nightly signal
+    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - script-tests
+      - mcp-cli-parity
+      - superapp-upstream-drift
+      - superapp-erp-tests
+      - superapp-portfolio-tests
+      - superapp-browser-matrix-tests
+    steps:
+      - name: Report signal job results
+        env:
+          NEEDS_RESULTS: ${{ toJSON(needs) }}
+        run: printf '%s\n' "$NEEDS_RESULTS"
+
+      - name: Fail if any signal job did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: |
+          echo 'At least one nightly signal job failed, was cancelled, or was skipped.'
+          exit 1

@@ -15,3 +15,35 @@ Rules:
   and `bun` (see `validate:bun-smoke`) without any install or build step.
 - Keep error messages stable; validator test suites assert on them.
 - Run the tests with `pnpm run test:scripts` (plain `node --test`).
+
+## Observable behavior deltas vs the pre-consolidation validators
+
+Porting the validators onto `validation-kit.js` introduced exactly three
+observable CLI behavior changes. Everything else (flags, `--help` output,
+success paths, and all other messages and exit codes) is byte-identical to
+the standalone validators. No in-repo consumer parses validator output;
+workflows consume exit codes only.
+
+1. **Malformed JSON input (all ported validators).** `readJsonFile` wraps the
+   raw `JSON.parse` error with the offending path.
+   - Old: the raw parse error, e.g.
+     `Expected property name or '}' in JSON at position 2 (line 1 column 3)`;
+     exit code 1.
+   - New: `Failed to parse JSON in /abs/path/to/file.json: Expected property
+     name or '}' in JSON at position 2 (line 1 column 3)`; exit code 1.
+
+2. **`mv-ci-hardening` now rejects the placeholder value `to-be-filled`.**
+   `PLACEHOLDER_VALUES` is the union of the historical mv-ci-hardening and
+   release-gates lists; `to-be-filled` came from release-gates and was not in
+   the old mv-ci-hardening list.
+   - Old: a profile with e.g. `owner: "to-be-filled"` validated successfully;
+     exit code 0.
+   - New: `profile.checks[0].owner must not use placeholder value
+     "to-be-filled"`; exit code 1.
+
+3. **`ai-capabilities` schema-version mismatch message.** The shared
+   `ensureSchemaVersion` helper labels the contract and states the expected
+   version.
+   - Old: `Unsupported schemaVersion: 2.`; exit code 1.
+   - New: `Unsupported AI capability contract schemaVersion: 2. Expected 1.`;
+     exit code 1.

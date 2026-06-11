@@ -61,7 +61,6 @@ jobs:
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           DRY_RUN: ${{ inputs.dry_run }}
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
-          BLEEDINGDEV_PUBLISH_BRANCH: ${{ vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern' }}
         run: node scripts/ultramodern-publish/validate-publish-security.mjs
 
       - name: Verify publish toolchain

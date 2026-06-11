@@ -39,15 +39,9 @@ function parseArgs(argv) {
     version: undefined,
     tag: 'latest',
     out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
-    repositoryUrl:
-      process.env.BLEEDINGDEV_REPOSITORY_URL ||
-      'git+https://github.com/BleedingDev/ultramodern.js.git',
-    homepage:
-      process.env.BLEEDINGDEV_HOMEPAGE_URL ||
-      'https://github.com/BleedingDev/ultramodern.js#readme',
-    bugsUrl:
-      process.env.BLEEDINGDEV_BUGS_URL ||
-      'https://github.com/BleedingDev/ultramodern.js/issues',
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
     publish: false,
     publishExisting: false,
     dryRun: false,

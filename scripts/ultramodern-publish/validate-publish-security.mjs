@@ -16,9 +16,12 @@ const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const enforcedPublishTag = 'latest';
 const enforcedPublishConcurrency = '8';
-const defaultPublishBranch = 'main-ultramodern';
-const publishBranch =
-  process.env.BLEEDINGDEV_PUBLISH_BRANCH || defaultPublishBranch;
+// The publish branch is intentionally hardcoded rather than derived from the
+// BLEEDINGDEV_PUBLISH_BRANCH repository variable: the workflow-level if-gates
+// may narrow where jobs run, but a mutable repo variable must never widen
+// where packages can be published from. Changing the publish branch requires
+// editing this constant in a reviewed commit.
+const enforcedPublishBranch = 'main-ultramodern';
 
 function fail(message) {
   throw new Error(`Publish security validation failed: ${message}`);
@@ -52,8 +55,13 @@ function validateGitHubContext() {
   if (process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch') {
     fail('publish workflow must run only from workflow_dispatch');
   }
-  if (process.env.GITHUB_REF !== `refs/heads/${publishBranch}`) {
-    fail(`publish workflow must run only from refs/heads/${publishBranch}`);
+  console.log(
+    `Enforcing publish branch refs/heads/${enforcedPublishBranch}; actual ref: ${process.env.GITHUB_REF}`,
+  );
+  if (process.env.GITHUB_REF !== `refs/heads/${enforcedPublishBranch}`) {
+    fail(
+      `publish workflow must run only from refs/heads/${enforcedPublishBranch}`,
+    );
   }
   if (process.env.GITHUB_REPOSITORY !== 'BleedingDev/ultramodern.js') {
     fail('publish workflow must run only in BleedingDev/ultramodern.js');
@@ -188,12 +196,17 @@ function validatePublishScriptContract() {
   );
   requireIncludes(
     publishScript,
-    'process.env.BLEEDINGDEV_REPOSITORY_URL ||',
+    "repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git'",
     'publish script',
   );
   requireIncludes(
     publishScript,
-    "'git+https://github.com/BleedingDev/ultramodern.js.git'",
+    "homepage: 'https://github.com/BleedingDev/ultramodern.js#readme'",
+    'publish script',
+  );
+  requireIncludes(
+    publishScript,
+    "bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues'",
     'publish script',
   );
   requireIncludes(
