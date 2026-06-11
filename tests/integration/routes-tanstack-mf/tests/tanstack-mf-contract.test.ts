@@ -15,6 +15,10 @@ const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
 const require = createRequire(import.meta.url);
 const { modernBuild } = require('../../../utils/modernTestUtils.js');
 const ensureWorkspacePackages = [
+  // app-tools' emitted ts-paths-loader.mjs imports @modern-js/utils from a
+  // loader thread at build startup; keep it in the pre-spawn completeness
+  // probe so a missing dist tree fails loudly before spawning.
+  '@modern-js/utils',
   '@modern-js/plugin',
   '@modern-js/i18n-utils',
   '@modern-js/server-core',
@@ -84,8 +88,19 @@ const readTanstackRouterDependency = (appName: string) => {
   return version;
 };
 
+// ENOTEMPTY: transient fs race while replacing the fixture's own dist.
+// ERR_MODULE_NOT_FOUND on a workspace dist path: an external writer (e.g. an
+// overlapping `pnpm run prepare-build` nx cache restore) rewrote a
+// packages/*/dist tree under the spawned build. In-harness rebuilds are
+// already serialized via the workspace dist read/write locks, so this retry
+// only covers writers the harness cannot coordinate with.
+const isTransientWorkspaceDistRace = (output: string) =>
+  output.includes('ENOTEMPTY') ||
+  (output.includes('ERR_MODULE_NOT_FOUND') &&
+    /packages[/\\][^'"\n]*[/\\]dist[/\\]/.test(output));
+
 async function ensureTanstackMfDistFixtures() {
-  ensurePluginDataLoaderRuntimeBuilt();
+  await ensurePluginDataLoaderRuntimeBuilt();
 
   for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
     const appDir = path.join(tanstackMfRoot, appName);
@@ -109,9 +124,17 @@ async function ensureTanstackMfDistFixtures() {
       });
       result = await build();
       const output = `${result.stdout || ''}\n${result.stderr || ''}`;
-      if (result.code === 0 || !output.includes('ENOTEMPTY')) {
+      if (result.code === 0 || !isTransientWorkspaceDistRace(output)) {
         break;
       }
+      console.warn(
+        `[tanstack-mf-contract] RETRYING ${appName} build (attempt ${
+          attempt + 1
+        }/4): detected a transient workspace dist race (a packages/*/dist ` +
+          'tree was rewritten while the build was running — likely an ' +
+          'overlapping prepare-build/nx cache restore). Failure output:\n' +
+          output,
+      );
     }
 
     if (!result || result.code !== 0) {

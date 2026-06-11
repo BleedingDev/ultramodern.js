@@ -78,7 +78,7 @@ async function waitForReady(url: string) {
 }
 
 async function buildApp(appDir: string, env: Record<string, string>) {
-  ensurePluginDataLoaderRuntimeBuilt();
+  await ensurePluginDataLoaderRuntimeBuilt();
   let result:
     | {
         code: number | null;

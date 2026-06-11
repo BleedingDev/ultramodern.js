@@ -435,7 +435,7 @@ async function buildFederatedFixtureApp(
   appDir: string,
   env: Record<string, string>,
 ) {
-  ensurePluginDataLoaderRuntimeBuilt();
+  await ensurePluginDataLoaderRuntimeBuilt();
   let result:
     | {
         code: number | null;
@@ -852,7 +852,7 @@ describe('routes-tanstack-mf', () => {
     runTypecheck(remoteDir, 'tsconfig.typecheck.json');
     runTypecheck(remoteTwoDir, 'tsconfig.typecheck.json');
     runTypecheck(hostDir, 'tsconfig.typecheck.json');
-    ensurePluginDataLoaderRuntimeBuilt();
+    await ensurePluginDataLoaderRuntimeBuilt();
 
     remoteApp = await launchApp(remoteDir, ports.remote, { env });
     await waitForAppReady(`http://localhost:${ports.remote}/mf-manifest.json`);

@@ -20,6 +20,21 @@ const kWorkspaceSearchRoots = [
 ];
 const kWorkspacePackageLockPollInterval = 200;
 const kWorkspacePackageLockStaleAge = 10 * 60 * 1000;
+// Readers (spawned modern builds) can legitimately run for several minutes;
+// only steamroll them when the owning process is gone or clearly abandoned.
+const kWorkspaceDistReaderStaleAge = 30 * 60 * 1000;
+const kWorkspaceRwLockRoot = path.join(
+  os.tmpdir(),
+  `modernjs-workspace-rwlock-${crypto
+    .createHash('sha1')
+    .update(kRepoRoot)
+    .digest('hex')}`,
+);
+const kWorkspaceDistWriterLockDir = path.join(
+  kWorkspaceRwLockRoot,
+  'writer.lock',
+);
+const kWorkspaceDistReadersDir = path.join(kWorkspaceRwLockRoot, 'readers');
 
 function resolveWorkspacePackageBuildLockDir(packageDir) {
   const digest = crypto
@@ -68,6 +83,194 @@ async function acquireWorkspacePackageBuildLock(packageDir) {
       );
     }
   }
+}
+
+// --- workspace dist reader/writer coordination -----------------------------
+//
+// Root-cause guard for the first-run-after-prepare-build flake: workspace
+// package rebuilds triggered by `ensureWorkspacePackagesBuilt` wipe and
+// rewrite `packages/*/dist` trees (rslib cleans dist first). A `modern build`
+// spawned by ANOTHER rstest worker resolves workspace deps (e.g.
+// `@modern-js/utils/dist/esm-node/index.mjs` from app-tools'
+// ts-paths-loader.mjs loader thread) through those same dist trees and dies
+// with ERR_MODULE_NOT_FOUND if it races a wipe window. The per-package build
+// locks above only serialize rebuilds against each other, not against
+// spawned fixture builds.
+//
+// The locks below implement a cross-process reader/writer protocol in
+// os.tmpdir() (scoped per repo root):
+//   - every spawned modern command holds a READ lock while it may resolve
+//     workspace dist files (builds: until exit; dev/serve: until readiness),
+//   - a workspace package rebuild takes the WRITE lock: it blocks new readers
+//     and waits for in-flight readers to drain before wiping any dist tree.
+// Writers are preferred (new readers wait once writer.lock exists), so
+// rebuilds cannot be starved.
+
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but belongs to another user.
+    return error?.code === 'EPERM';
+  }
+}
+
+async function listActiveWorkspaceDistReaders() {
+  let entries;
+  try {
+    entries = await fs.promises.readdir(kWorkspaceDistReadersDir);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  const activeReaders = [];
+  for (const entry of entries) {
+    const readerPath = path.join(kWorkspaceDistReadersDir, entry);
+    const readerPid = Number(entry.split('-')[0]);
+    let stat;
+    try {
+      stat = await fs.promises.stat(readerPath);
+    } catch {
+      continue;
+    }
+
+    const isStale =
+      (Number.isInteger(readerPid) &&
+        readerPid > 0 &&
+        !isPidAlive(readerPid)) ||
+      Date.now() - stat.mtimeMs > kWorkspaceDistReaderStaleAge;
+    if (isStale) {
+      await fs.promises.rm(readerPath, { force: true });
+      continue;
+    }
+
+    activeReaders.push(entry);
+  }
+
+  return activeReaders;
+}
+
+async function isWorkspaceDistWriterActive() {
+  try {
+    const stat = await fs.promises.stat(kWorkspaceDistWriterLockDir);
+    if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
+      await fs.promises.rm(kWorkspaceDistWriterLockDir, {
+        recursive: true,
+        force: true,
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    // Be conservative on unexpected stat failures: treat as writer active.
+    return true;
+  }
+}
+
+async function acquireWorkspaceDistReadLock() {
+  await fs.promises.mkdir(kWorkspaceDistReadersDir, { recursive: true });
+  const readerPath = path.join(
+    kWorkspaceDistReadersDir,
+    `${process.pid}-${crypto.randomUUID()}.json`,
+  );
+
+  while (true) {
+    if (await isWorkspaceDistWriterActive()) {
+      await new Promise(resolve =>
+        setTimeout(resolve, kWorkspacePackageLockPollInterval),
+      );
+      continue;
+    }
+
+    await fs.promises.writeFile(
+      readerPath,
+      JSON.stringify({
+        pid: process.pid,
+        acquiredAt: new Date().toISOString(),
+      }),
+    );
+
+    // Close the register/acquire race: if a writer appeared while we were
+    // registering, back off so it can drain the readers it already observed.
+    if (!(await isWorkspaceDistWriterActive())) {
+      break;
+    }
+    await fs.promises.rm(readerPath, { force: true });
+    await new Promise(resolve =>
+      setTimeout(resolve, kWorkspacePackageLockPollInterval),
+    );
+  }
+
+  let released = false;
+  return async () => {
+    if (released) {
+      return;
+    }
+    released = true;
+    await fs.promises.rm(readerPath, { force: true });
+  };
+}
+
+async function acquireWorkspaceDistWriteLock() {
+  await fs.promises.mkdir(kWorkspaceRwLockRoot, { recursive: true });
+
+  while (true) {
+    try {
+      await fs.promises.mkdir(kWorkspaceDistWriterLockDir);
+      break;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') {
+        throw error;
+      }
+
+      try {
+        const stat = await fs.promises.stat(kWorkspaceDistWriterLockDir);
+        if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
+          await fs.promises.rm(kWorkspaceDistWriterLockDir, {
+            recursive: true,
+            force: true,
+          });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      await new Promise(resolve =>
+        setTimeout(resolve, kWorkspacePackageLockPollInterval),
+      );
+    }
+  }
+
+  await fs.promises.writeFile(
+    path.join(kWorkspaceDistWriterLockDir, 'owner.json'),
+    JSON.stringify({
+      pid: process.pid,
+      acquiredAt: new Date().toISOString(),
+    }),
+  );
+
+  // New readers are blocked by writer.lock; wait for in-flight spawned
+  // builds to finish before letting the caller wipe any dist tree.
+  while ((await listActiveWorkspaceDistReaders()).length > 0) {
+    await new Promise(resolve =>
+      setTimeout(resolve, kWorkspacePackageLockPollInterval),
+    );
+  }
+
+  return async () => {
+    await fs.promises.rm(kWorkspaceDistWriterLockDir, {
+      recursive: true,
+      force: true,
+    });
+  };
 }
 
 function getNewestModifiedAt(targetPath) {
@@ -325,9 +528,17 @@ function ensureWorkspacePackageBuilt(packageName) {
           return;
         }
 
-        await runProcess('pnpm', ['--dir', packageDir, 'run', 'build'], {
-          cwd: kRepoRoot,
-        });
+        // The rebuild wipes `dist` before re-emitting it. Take the workspace
+        // dist write lock so no spawned modern build (in this or any other
+        // rstest worker) resolves through the half-written tree.
+        const releaseDistWriteLock = await acquireWorkspaceDistWriteLock();
+        try {
+          await runProcess('pnpm', ['--dir', packageDir, 'run', 'build'], {
+            cwd: kRepoRoot,
+          });
+        } finally {
+          await releaseDistWriteLock();
+        }
       } finally {
         await releaseBuildLock();
       }
@@ -345,6 +556,39 @@ async function ensureWorkspacePackagesBuilt(packageNames = []) {
   }
 }
 
+// Build-completeness probe: refuse to spawn a modern command against a dist
+// tree that is missing required entries (e.g. a half-restored nx cache or an
+// interrupted rebuild). Failing here produces an actionable error instead of
+// an opaque ERR_MODULE_NOT_FOUND from a loader thread inside the child.
+function assertWorkspacePackagesBuildComplete(packageNames = []) {
+  const missingEntries = [];
+
+  for (const packageName of packageNames) {
+    const { packageDir, packageJson } =
+      resolveWorkspacePackageInfo(packageName);
+    const requiredEntries = new Set([
+      resolvePackageDistEntry(packageDir, packageJson),
+      ...resolveRequiredPackageDistEntries(packageDir, packageJson),
+    ]);
+
+    for (const entry of requiredEntries) {
+      if (!fs.existsSync(entry)) {
+        missingEntries.push(`${packageName}: ${entry}`);
+      }
+    }
+  }
+
+  if (missingEntries.length > 0) {
+    throw new Error(
+      'Workspace dist tree is incomplete; refusing to spawn a modern command ' +
+        'against a half-written tree.\n' +
+        `Missing files:\n  ${missingEntries.join('\n  ')}\n` +
+        'Rebuild the packages above with `pnpm --filter <pkg> build` ' +
+        '(or re-run `pnpm run prepare-build`) and retry.',
+    );
+  }
+}
+
 function runModernCommand(argv, options = {}) {
   const { cwd, rejectOnCompileError = true } = options;
   const cmd = argv[0];
@@ -352,10 +596,15 @@ function runModernCommand(argv, options = {}) {
     ...process.env,
     ...options.env,
   };
+  let releaseWorkspaceDistReadLock;
 
-  return new Promise((resolve, reject) => {
+  const commandPromise = new Promise((resolve, reject) => {
     const launch = async () => {
       await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
+      assertWorkspacePackagesBuildComplete(options.ensureWorkspacePackages);
+      // Hold the dist read lock for the lifetime of the child so concurrent
+      // workspace package rebuilds cannot wipe dist trees out from under it.
+      releaseWorkspaceDistReadLock = await acquireWorkspaceDistReadLock();
 
       const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
         ...options.spawnOptions,
@@ -418,6 +667,8 @@ function runModernCommand(argv, options = {}) {
 
     launch().catch(reject);
   });
+
+  return commandPromise.finally(() => releaseWorkspaceDistReadLock?.());
 }
 
 function runModernCommandDev(argv, stdOut, options = {}) {
@@ -426,10 +677,16 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     ...process.env,
     ...options.env,
   };
+  let releaseWorkspaceDistReadLock;
 
-  return new Promise((resolve, reject) => {
+  const commandPromise = new Promise((resolve, reject) => {
     const launch = async () => {
       await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
+      assertWorkspacePackagesBuildComplete(options.ensureWorkspacePackages);
+      // Hold the dist read lock until the dev/serve process is ready (its
+      // startup is when workspace dist files are resolved); afterwards the
+      // module graph lives in the child process.
+      releaseWorkspaceDistReadLock = await acquireWorkspaceDistReadLock();
 
       const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
         cwd,
@@ -527,6 +784,8 @@ function runModernCommandDev(argv, stdOut, options = {}) {
 
     launch().catch(reject);
   });
+
+  return commandPromise.finally(() => releaseWorkspaceDistReadLock?.());
 }
 
 function runContinuousTask(argv, stdOut, options = {}) {
@@ -736,4 +995,5 @@ module.exports = {
   runContinuousTask,
   launchOptions,
   ensureWorkspacePackagesBuilt,
+  acquireWorkspaceDistWriteLock,
 };
