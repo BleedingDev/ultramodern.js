@@ -124,14 +124,19 @@ const createApiHandlerInfos = (): APIHandlerInfo[] => {
   ];
 };
 
-export const APIPlugin = (): ServerPlugin => ({
+export const createAPIPlugin = (
+  apiHandlerInfos: APIHandlerInfo[],
+): ServerPlugin => ({
   name: '@modern-js/test-plugin-express-api',
   setup: (api: any) => {
     api.setAppContext({
       apiMode: 'function',
-      apiHandlerInfos: createApiHandlerInfos(),
+      apiHandlerInfos,
       apiDirectory: '',
     });
     return {};
   },
 });
+
+export const APIPlugin = (): ServerPlugin =>
+  createAPIPlugin(createApiHandlerInfos());

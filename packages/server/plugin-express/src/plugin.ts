@@ -1,10 +1,11 @@
 import {
   type APIHandlerInfo,
-  buildOperationContractMap,
-  evaluateCrossProjectPolicy,
+  type CrossProjectPolicyConfig,
+  checkCrossProjectPolicy,
+  resolveCrossProjectPolicy,
 } from '@modern-js/bff-core';
-import type { ServerPlugin } from '@modern-js/server-core';
-import { compatRequire, createDebugger, fs } from '@modern-js/utils';
+import type { ServerConfig, ServerPlugin } from '@modern-js/server-core';
+import { createDebugger, fs } from '@modern-js/utils';
 import cookieParser from 'cookie-parser';
 import type { Request, Response } from 'express';
 import express, { type Express, type RequestHandler } from 'express';
@@ -23,6 +24,16 @@ type Hooks = {
   afterLambdaRegisted?: (app: Express) => void;
 };
 
+/**
+ * Sync CJS require with ESM-default interop. `@modern-js/utils` removed the
+ * old `compatRequire` export; this preserves its behavior for loading user
+ * `api/app.{ts,js}` modules and string middlewares.
+ */
+const requireWithInterop = (filePath: string) => {
+  const mod = require(filePath);
+  return mod?.__esModule ? mod.default : mod;
+};
+
 const findAppModule = async (apiDir: string) => {
   const exts = ['.ts', '.js'];
   const paths = exts.map(ext => path.resolve(apiDir, `app${ext}`));
@@ -31,7 +42,7 @@ const findAppModule = async (apiDir: string) => {
     if (await fs.pathExists(filename)) {
       // 每次获取 app.ts 的时候，避免使用缓存的 app.ts
       delete require.cache[filename];
-      return [compatRequire(filename), require(filename)];
+      return [requireWithInterop(filename), require(filename)];
     }
   }
 
@@ -45,7 +56,7 @@ const initMiddlewares = (
   middleware.forEach(middlewareItem => {
     const middlewareFunc =
       typeof middlewareItem === 'string'
-        ? compatRequire(middlewareItem)
+        ? requireWithInterop(middlewareItem)
         : middlewareItem;
     app.use(middlewareFunc);
   });
@@ -67,71 +78,21 @@ const initApp = (app: express.Express) => {
 
 const applyCrossProjectPolicy = (
   app: Express,
-  crossProjectPolicy: Record<string, unknown> | undefined,
+  crossProjectPolicy: CrossProjectPolicyConfig | undefined,
 ) => {
-  if (!crossProjectPolicy || !crossProjectPolicy.enabled) {
+  if (!crossProjectPolicy?.enabled) {
     return;
   }
 
   app.use((req, res, next) => {
-    const violation = evaluateCrossProjectPolicy(
-      req.headers as Record<string, unknown>,
-      crossProjectPolicy as any,
-    );
-    if (!violation) {
+    const denial = checkCrossProjectPolicy(req.headers, crossProjectPolicy);
+    if (!denial) {
       next();
       return;
     }
 
-    res.status(violation.status).json({
-      code: violation.code,
-      reason: violation.reason,
-      message: violation.message,
-    });
+    res.status(denial.status).json(denial.body);
   });
-};
-
-const resolveCrossProjectPolicy = (input: {
-  crossProjectPolicy?: Record<string, unknown>;
-  apiHandlerInfos: APIHandlerInfo[];
-  requestId?: string;
-  isCrossProjectServer?: boolean;
-}) => {
-  const {
-    crossProjectPolicy,
-    apiHandlerInfos,
-    requestId,
-    isCrossProjectServer,
-  } = input;
-  if (!crossProjectPolicy && !isCrossProjectServer) {
-    return undefined;
-  }
-
-  const policy = (crossProjectPolicy || {}) as Record<string, any>;
-  const effectiveRequestId =
-    typeof requestId === 'string' && requestId.trim().length > 0
-      ? requestId
-      : 'default';
-  const generatedContracts = buildOperationContractMap({
-    handlers: apiHandlerInfos,
-    requestId: effectiveRequestId,
-  });
-
-  return {
-    ...policy,
-    enabled: policy.enabled ?? Boolean(isCrossProjectServer),
-    requireEnvelope: policy.requireEnvelope ?? true,
-    requireOperationContext: policy.requireOperationContext ?? true,
-    requireOperationContextDetails:
-      policy.requireOperationContextDetails ?? true,
-    requireOperationSchemaHash: policy.requireOperationSchemaHash ?? true,
-    requireOperationVersion: policy.requireOperationVersion ?? true,
-    allowUnknownOperations: policy.allowUnknownOperations ?? false,
-    expectedOperationContracts: {
-      ...(policy.expectedOperationContracts || {}),
-      ...generatedContracts,
-    },
-  };
 };
 
 export default (): ServerPlugin => ({
@@ -146,15 +107,13 @@ export default (): ServerPlugin => ({
       const apiDirectory = appContext.apiDirectory as string;
       const apiDir = apiDirectory || path.join(pwd, './api');
       const mode = appContext.apiMode;
-      const userConfig = api.useConfigContext();
-      const rawCrossProjectPolicy = userConfig.bff?.crossProjectPolicy as
-        | Record<string, unknown>
-        | undefined;
+      const userConfig: ServerConfig = api.useConfigContext();
+      const bffConfig = userConfig.bff;
       const crossProjectPolicy = resolveCrossProjectPolicy({
-        crossProjectPolicy: rawCrossProjectPolicy,
-        apiHandlerInfos,
-        requestId: userConfig.bff?.requestId,
-        isCrossProjectServer: userConfig.bff?.isCrossProjectServer,
+        crossProjectPolicy: bffConfig?.crossProjectPolicy,
+        handlers: apiHandlerInfos,
+        requestId: bffConfig?.requestId,
+        isCrossProjectServer: bffConfig?.isCrossProjectServer,
       });
 
       if (mode === 'framework') {
@@ -211,7 +170,7 @@ export default (): ServerPlugin => ({
 
       return (req, res) =>
         new Promise((resolve, reject) => {
-          const handler = (err: any) => {
+          const handler = (err: unknown) => {
             if (err) {
               return reject(err);
             }
@@ -231,7 +190,7 @@ export default (): ServerPlugin => ({
     },
 
     prepareWebServer({ config }, next) {
-      const userConfig = api.useConfigContext();
+      const userConfig: ServerConfig = api.useConfigContext();
       if (!userConfig?.server?.enableFrameworkExt) {
         return next();
       }

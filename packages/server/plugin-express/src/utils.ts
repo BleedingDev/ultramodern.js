@@ -1,39 +1,32 @@
 import 'reflect-metadata';
 import {
-  HttpMetadata,
+  type ApiHandler,
+  buildPositionalHandlerArgs,
+  getApiHandlerMode,
+  getResponseMetaList,
   httpMethods,
-  isInputParamsDeciderHandler,
-  isWithMetaHandler,
+  mapSchemaHandlerResult,
   ResponseMetaType,
   ValidationError,
 } from '@modern-js/bff-core';
-import { isSchemaHandler } from '@modern-js/bff-runtime';
 import type { NextFunction, Request, Response } from 'express';
 import formidable from 'formidable';
 import typeis from 'type-is';
 
-type AnyHandler = (...args: any[]) => any;
-
-const handleResponseMeta = (res: Response, handler: AnyHandler) => {
-  const responseMeta = Reflect.getMetadata(HttpMetadata.Response, handler);
-  if (!Array.isArray(responseMeta)) {
-    return;
-  }
-
-  for (const meta of responseMeta) {
-    const metaType = meta.type;
+const handleResponseMeta = (res: Response, handler: ApiHandler) => {
+  for (const meta of getResponseMetaList(handler)) {
     const metaValue = meta.value;
-    switch (metaType) {
+    switch (meta.type) {
       case ResponseMetaType.Headers:
-        for (const [key, value] of Object.entries(metaValue)) {
+        for (const [key, value] of Object.entries(metaValue as object)) {
           res.append(key, value as string);
         }
         break;
       case ResponseMetaType.Redirect:
-        res.redirect(metaValue);
+        res.redirect(metaValue as string);
         break;
       case ResponseMetaType.StatusCode:
-        res.status(metaValue);
+        res.status(metaValue as number);
         break;
       default:
         break;
@@ -41,7 +34,9 @@ const handleResponseMeta = (res: Response, handler: AnyHandler) => {
   }
 };
 
-export const createRouteHandler = (handler: AnyHandler) => {
+export const createRouteHandler = (handler: ApiHandler) => {
+  const mode = getApiHandlerMode(handler);
+
   const apiHandler = async (
     req: Request,
     res: Response,
@@ -49,7 +44,7 @@ export const createRouteHandler = (handler: AnyHandler) => {
   ) => {
     const input = await getInputFromRequest(req);
 
-    if (isWithMetaHandler(handler)) {
+    if (mode === 'meta') {
       try {
         handleResponseMeta(res, handler);
         if (res.headersSent) {
@@ -73,24 +68,15 @@ export const createRouteHandler = (handler: AnyHandler) => {
       return;
     }
 
-    if (isSchemaHandler(handler)) {
+    if (mode === 'schema') {
       const result = await handler(input);
-      if (result.type !== 'HandleSuccess') {
-        if (result.type === 'InputValidationError') {
-          res.status(400);
-        } else {
-          res.status(500);
-        }
-        res.json(result.message);
-        return;
-      }
-
-      res.status(200);
-      res.json(result.value);
+      const outcome = mapSchemaHandlerResult(result);
+      res.status(outcome.status);
+      res.json(outcome.body);
       return;
     }
 
-    if (isInputParamsDeciderHandler(handler)) {
+    if (mode === 'inputParamsDecider') {
       try {
         const args = input?.data?.args || [];
         const body = await handler(...args);
@@ -107,7 +93,7 @@ export const createRouteHandler = (handler: AnyHandler) => {
       return;
     }
 
-    const args = Object.values(input.params).concat(input);
+    const args = buildPositionalHandlerArgs(input);
     try {
       const body = await handler(...args);
       if (res.headersSent) {

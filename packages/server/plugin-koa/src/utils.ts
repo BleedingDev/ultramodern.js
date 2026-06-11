@@ -1,27 +1,34 @@
 import 'reflect-metadata';
 import {
-  HttpMetadata,
+  type ApiHandler,
+  buildPositionalHandlerArgs,
+  getApiHandlerMode,
+  getResponseMetaList,
   httpMethods,
-  isWithMetaHandler,
+  mapSchemaHandlerResult,
   ResponseMetaType,
 } from '@modern-js/bff-core';
-import { isSchemaHandler } from '@modern-js/bff-runtime';
+import type { Context } from 'koa';
 import typeis from 'type-is';
 
-type AnyHandler = (...args: any[]) => any;
+/**
+ * Koa context as seen by API routes: `params` is added by `@koa/router`,
+ * `body`/`files` are added by `koa-body`.
+ */
+type ApiContext = Context & {
+  params: Record<string, unknown>;
+  request: Context['request'] & {
+    body?: unknown;
+    files?: unknown;
+  };
+};
 
-const handleResponseMeta = (ctx: any, handler: AnyHandler) => {
-  const responseMeta = Reflect.getMetadata(HttpMetadata.Response, handler);
-  if (!Array.isArray(responseMeta)) {
-    return;
-  }
-
-  for (const meta of responseMeta) {
-    const metaType = meta.type;
+const handleResponseMeta = (ctx: ApiContext, handler: ApiHandler) => {
+  for (const meta of getResponseMetaList(handler)) {
     const metaValue = meta.value;
-    switch (metaType) {
+    switch (meta.type) {
       case ResponseMetaType.Headers:
-        for (const [key, value] of Object.entries(metaValue)) {
+        for (const [key, value] of Object.entries(metaValue as object)) {
           if (typeof value === 'string') {
             ctx.append(key, value);
           }
@@ -43,26 +50,28 @@ const handleResponseMeta = (ctx: any, handler: AnyHandler) => {
   }
 };
 
-export const createRouteHandler = (handler: AnyHandler) => {
-  const apiHandler = async (ctx: any) => {
+export const createRouteHandler = (handler: ApiHandler) => {
+  const mode = getApiHandlerMode(handler);
+
+  const apiHandler = async (ctx: ApiContext) => {
     const input = await getInputFromRequest(ctx);
 
-    if (isWithMetaHandler(handler)) {
+    if (mode === 'meta') {
       try {
         handleResponseMeta(ctx, handler);
         const body = await handler(input);
         if (typeof body !== 'undefined') {
           ctx.body = body;
         }
-      } catch (error: any) {
+      } catch (error) {
         if (error instanceof Error) {
-          if (error.status) {
-            ctx.status = error.status;
-          } else {
-            ctx.status = 500;
-          }
+          const { status, code } = error as Error & {
+            status?: number;
+            code?: unknown;
+          };
+          ctx.status = status || 500;
           ctx.body = {
-            code: error.code,
+            code,
             message: error.message,
           };
         }
@@ -70,22 +79,19 @@ export const createRouteHandler = (handler: AnyHandler) => {
       return;
     }
 
-    if (isSchemaHandler(handler)) {
+    if (mode === 'schema') {
       const result = await handler(input);
-      if (result.type !== 'HandleSuccess') {
-        if (result.type === 'InputValidationError') {
-          ctx.status = 400;
-        } else {
-          ctx.status = 500;
-        }
-        ctx.body = result.message;
-      } else {
-        ctx.body = result.value;
+      const outcome = mapSchemaHandlerResult(result);
+      if (!outcome.success) {
+        ctx.status = outcome.status;
       }
+      ctx.body = outcome.body;
       return;
     }
 
-    const args = Object.values(input.params).concat(input);
+    // 'inputParamsDecider' handlers keep the historical koa behavior and are
+    // invoked like plain function handlers.
+    const args = buildPositionalHandlerArgs(input);
     const body = await handler(...args);
     if (typeof body !== 'undefined') {
       ctx.body = body;
@@ -102,7 +108,7 @@ export const createRouteHandler = (handler: AnyHandler) => {
 export const isNormalMethod = (httpMethod: string) =>
   httpMethods.includes(httpMethod);
 
-const getInputFromRequest = async (ctx: any) => {
+const getInputFromRequest = async (ctx: ApiContext) => {
   const draft: Record<string, any> = {
     params: ctx.params,
     query: ctx.query,
