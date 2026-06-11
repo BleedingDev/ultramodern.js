@@ -5,13 +5,13 @@
 - Decision Type: Runtime composition contract
 - Related: ADR-0002 (app-level MF SSR), ADR-0011 (MF vs Garfish parity contract, Proposed)
 
-> **Target-state note:** this ADR is written against the router consolidation
-> landing in the same hardening wave: all TanStack code lives in
-> `@modern-js/plugin-tanstack`, `plugin-runtime` exposes a router
-> provider-registry, and `routerFramework` is removed from the public runtime
-> context. Where the tree still shows the pre-consolidation layout (tanstack
-> subtree under `plugin-runtime/src/router/runtime/tanstack/`,
-> `TRuntimeContext.routerFramework`), treat that as transitional.
+> **Scope note:** this ADR documents the contract as implemented after the
+> router consolidation, which has landed: all TanStack code lives in
+> `@modern-js/plugin-tanstack`, `plugin-runtime` exposes the router
+> provider-registry (`src/router/runtime/provider.ts`), and `routerFramework`
+> no longer exists on the runtime context — the only remaining references in
+> the runtime packages are tests asserting its absence
+> (`plugin-runtime/tests/core/react/wrapper.test.tsx:59,73`).
 
 ## 1. Context
 
@@ -28,8 +28,11 @@ independently:
 2. Router:
    - **react-router** (default, in `plugin-runtime`).
    - **TanStack Router** (`@modern-js/plugin-tanstack`, registered per-app via
-     `tanstackRouterPlugin()` and, post-consolidation, the provider-registry in
-     `plugin-runtime`).
+     `tanstackRouterPlugin()`; its runtime entry registers the `tanstack`
+     provider in the `plugin-runtime` provider-registry,
+     `plugin-tanstack/src/runtime/register.ts:29`; react-router registers
+     itself as the default at
+     `plugin-runtime/src/router/runtime/internal.ts:17`).
 
 ## 2. Decision (implied precedence, made explicit)
 
@@ -43,8 +46,9 @@ independently:
      `_internalRouterBaseName`.
 3. Router selection must flow through the provider-registry in
    `plugin-runtime`; nothing in composition code may branch on a
-   `routerFramework` discriminant (grep-verified: `plugin-garfish` does not
-   read `routerFramework` anywhere in `src/`).
+   `routerFramework` discriminant (grep-verified: `routerFramework` appears
+   nowhere under `packages/runtime/*/src` — the only remaining hits are tests
+   asserting it is absent from the context).
 
 ## 3. Mechanics (code evidence)
 
@@ -106,8 +110,8 @@ independently:
 | Composition | Coverage |
 | --- | --- |
 | TanStack single app + Effect BFF + string SSR | `tests/integration/superapp-erp`, `tests/integration/superapp-portfolio` (+ `superapp-browser-matrix` runtime-matrix tests) |
-| TanStack + Module Federation host/remotes (incl. `MODERN_MF_APP_SSR` contract, remote-loader reliability) | `tests/integration/routes-tanstack-mf` |
-| react-router + app-level MF SSR + i18n | `tests/integration/i18n/mf` |
+| TanStack + Module Federation host/remotes (incl. the `moduleFederationAppSSR: true` runtime contract — `tests/tanstack-mf-contract.test.ts:249` — and remote-loader reliability) | `tests/integration/routes-tanstack-mf` |
+| react-router + app-level MF SSR + i18n (the suite that asserts the `MODERN_MF_APP_SSR` env marker, `test/app-level-ssr-serve.test.ts:43`) | `tests/integration/i18n/mf` |
 | Garfish masterApp (any router) | **Unit tests only**: `packages/runtime/plugin-garfish/tests/` (trust, compatibility, fallbackTelemetry, cachePolicy, runtimePlugin, reliabilityMatrix) |
 
 `grep -r "garfish\|masterApp" tests/` returns **zero** hits: no integration
@@ -119,8 +123,10 @@ fixture runs a Garfish masterApp at all, with any router framework.
    the last match; nested splat/optional segments under a micro-app activation
    route are outside the verified shape.
 2. **Informal router surface:** `context.router` is untyped by design (the
-   upstream comment admits it). The provider-registry consolidation is the
-   place to formalize it; until then both router plugins must keep
+   upstream comment admits it). The provider-registry
+   (`plugin-runtime/src/router/runtime/provider.ts`) has landed but selects
+   provider factories only — it does not type `context.router`. Until that
+   surface is formalized, both router plugins must keep
    `useMatches`/`useLocation` shape-compatible (objects with `pathname` and
    `params`).
 3. **CSR-only Garfish sub-apps:** any SSR requirement forces the MF lane.
@@ -146,11 +152,20 @@ fixture runs a Garfish masterApp at all, with any router framework.
 5. **Trust/attestation end-to-end:** the `MODERN_MF_*` digest/integrity/
    attestation handshake is unit-tested only; no test loads a digest-pinned
    remote through a real masterApp shell.
-6. **`routerFramework` removal:** `plugin-tanstack/src/runtime/lifecycle.ts`
-   still writes `routerFramework` onto the runtime context during the
-   transition. Garfish does not read it, so removal does not break
-   composition — but future composition logic must use the provider-registry,
-   never a framework discriminant.
+6. **Provider-registry collisions under composition:** `routerFramework`
+   itself is gone — the consolidation removed it from the runtime context
+   (zero `src/` hits; `plugin-runtime/tests/core/react/wrapper.test.tsx:59,73`
+   asserts its absence) and Garfish never read it, so composition is
+   unaffected. The residual risk is registry behavior under bundling
+   duplication: a same-name re-registration (two bundled copies of one
+   provider module, e.g. an MF remote that does not share
+   `@modern-js/plugin-tanstack/runtime`) is keep-first-and-warn-once
+   (`provider.ts:56-72`), while two *different* non-default providers are a
+   hard error (`provider.ts:79-83`). Both paths are unit-tested
+   (`plugin-runtime/tests/router/provider.test.ts:69,118`) but never
+   exercised inside a running Garfish or MF composition. Future composition
+   logic must resolve routers through the registry, never a framework
+   discriminant.
 
 ## 7. Follow-ups
 
@@ -158,7 +173,8 @@ fixture runs a Garfish masterApp at all, with any router framework.
    micro-apps (one react-router, one TanStack) asserting basename resolution,
    cross-app navigation, and fallback telemetry emission. This converts risks
    1-3 into contracts.
-2. When the provider-registry lands, type the `context.router` surface and
-   delete the duck-typed access in `plugin-garfish/src/runtime/utils/apps.tsx`.
+2. Type the `context.router` surface (the provider-registry has landed; the
+   surface is still duck-typed) and delete the duck-typed access in
+   `plugin-garfish/src/runtime/utils/apps.tsx`.
 3. Revisit ADR-0011 (MF vs Garfish parity) once the fixture exists; today its
    parity evidence requirement cannot be satisfied for the Garfish side.

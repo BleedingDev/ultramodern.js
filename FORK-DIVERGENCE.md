@@ -2,23 +2,25 @@
 
 Read this during every upstream sync. Merge-base: `8a744c1b` (v3.2.1), upstream = `origin` (web-infra-dev/modern.js).
 
-Scope: upstream files **modified** by the fork. Regenerate the raw list with:
+Scope: upstream files **modified** by the fork, plus upstream files the fork **deleted** or **renamed** (appendices below — they conflict differently). Regenerate the raw list with rename detection pinned on (the counts depend on it; with `diff.renames=false` the 3 renames surface as 3 D + 3 A and the M total shifts):
 
 ```sh
-git diff origin/main...HEAD --name-status -- packages | grep '^M'
+git diff $(git merge-base origin/main HEAD) --name-status -M -- packages
 ```
 
-Fork-**added** files and packages (`@modern-js/plugin-tanstack`, the rewritten `plugin-garfish` contents, server-core telemetry/contract-gate modules, `app-tools/src/baseline.ts`, prod-server worker lane, etc.) are fork-owned by definition and not listed here.
+`M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and not listed.
+
+Fork-**added** files and packages (`@modern-js/plugin-tanstack`, the rewritten `plugin-garfish` contents, `@modern-js/server-runtime-extensions` — `packages/server/runtime-extensions`, where the telemetry/contract-gate/MF-cache/MF-CSS server modules live — `app-tools/src/baseline.ts`, the prod-server worker lane, etc.) are fork-owned by definition and not listed here.
 
 Legend:
 
 - **[U]** upstreamable — a candidate to PR to web-infra-dev/modern.js in isolation.
-- **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, SuperApp trust, telemetry, tsgo toolchain).
-- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 538 modified files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
+- **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, SuperApp trust, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
+- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 539 modified files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
 
-Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing is an upstreamable bug fix.** Upstream returns `[]` cast to `MatchedRoute` when nothing matches, so callers destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, returns `[undefined, {}]`). PR this upstream; until then, always keep the fork side in merges.
+Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing is an upstreamable bug fix.** Upstream returns `[]` cast to `MatchedRoute` when nothing matches, so callers destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, `render.ts:82`, returns `[undefined, {}]`). PR this upstream; until then, always keep the fork side in merges.
 
-Total at last audit (2026-06-11): 538 modified files.
+Total at last audit (2026-06-11, post fix-round, working tree): 539 modified, 19 deleted, 3 renamed.
 
 ---
 
@@ -72,7 +74,7 @@ Type-cast strictness fix on ipx basename + toolchain configs.
 
 ### plugin-runtime (98 files) — the largest divergence
 
-- `src/router/runtime/*` — [F] router runtime state machinery (`lifecycle.ts`, `routerRuntime`/`routerServerSnapshot`/hydration script on the internal context), `routerFramework` on the context (slated for removal — see ADR-0017), plus the in-tree tanstack subtree being consolidated into `@modern-js/plugin-tanstack`.
+- `src/router/runtime/*` — [F] router runtime state machinery (`routerRuntime`/`routerServerSnapshot`/hydration script on the internal context) plus the fork-added router provider-registry (`provider.ts`) and state helpers (`lifecycle.ts`). The TanStack consolidation has landed: all TanStack code lives in `@modern-js/plugin-tanstack`, and `routerFramework` has been **removed** from the runtime context (no `src/` hits remain; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence — see ADR-0017 §6.6).
 - `src/router/runtime/PrefetchLink.tsx` — [U] candidate: intent/render/viewport prefetch behaviors + webpack chunk preload.
 - `src/exports/head.ts` — [F] Helmet re-implemented over `react-helmet-async` with SSR `_helmetContext` plumbing.
 - `src/core/server/*` (stream/string/requestHandler) — [F] router server snapshot + `loaderFailureMode` + helmet integration in SSR rendering.
@@ -91,9 +93,9 @@ RSC adapter surface: `createFromFetch` export, `rscManifest` plumb-through, `rea
 
 Operation contracts (schema hash, operation entries), cross-project policy evaluator (ADR-0005 §13), client generator emits operation-context bootstrap.
 
-### bff-runtime (4 files) — [M]
+### bff-runtime (4 files) — [F] coupled dependency migration
 
-Export reordering only.
+package.json bumps farrow-api/farrow-pipeline/farrow-schema `^1.12` → `^2.3` (**majors**), and `src/index.ts:1` does `export * from 'farrow-schema'`, so the package's public API surface follows farrow 2.x. The `src/{index,match}.ts` diffs are otherwise import/export reordering, but `package.json` and source must be taken from the same side — **keep the fork version on sync**; do not resolve `package.json` toward upstream's farrow 1.x while keeping fork source (or vice versa).
 
 ### core (35 files)
 
@@ -101,7 +103,7 @@ Export reordering only.
 - `src/adapters/node/plugins/static.ts` — [U] candidate: pre-compressed asset serving (`.br`/`.gz` with Accept-Encoding q-value parsing).
 - `src/types/config/server.ts` — [F] `server.telemetry` (exporters, SLO, canary, contract gates) + `ssr.moduleFederationAppSSR` + preload types.
 - `src/types/config/bff.ts` — [F] `bff.crossProjectPolicy`.
-- `src/plugins/{index,monitors,default}.ts` — [F] telemetry/contract-gate registration and re-exports.
+- `src/plugins/{index,monitors,default}.ts`, `src/adapters/node/plugins/resource.ts` — [M] pure import/export re-sorting (the telemetry/contract-gate registration that used to live here was extracted to the fork-added `@modern-js/server-runtime-extensions` package, `packages/server/runtime-extensions/src/`; `grep -rn telemetry src/plugins/` in server-core returns zero hits).
 - `src/plugins/render/{csrRscRender,ssrRender,renderRscHandler}.ts` — [F] fork RSC + router-snapshot integration.
 - adapters/node helpers, `context.ts`, `utils/*`, `hono.ts` — [M]/[F] plumbing + strictness.
 
@@ -109,17 +111,17 @@ Export reordering only.
 
 Producer-client hardening per ADR-0005: envelope policy, identity binding, transport resilience, canonical `traceparent` parsing/propagation (ce7c6b06ac).
 
-### plugin-polyfill (4 files) — [M]
+### plugin-polyfill (4 files) — [F] coupled dependency migration
 
-Import reordering + minor cache lib touch.
+Breaking major-version runtime dep migrations, not mechanical churn: ua-parser-js `0.7` → `2.0` with a call-site rewrite in `src/index.ts:34-36` (`new UAParser.UAParser(ua).getResult()` against the v2 module shape), and lru-cache `6` → `11` with the constructor API rewrite in `src/libs/cache.ts:39-40` (`max`/`length` → `maxSize`/`sizeCalculation`). **Keep the fork version on sync** for both `package.json` and source as a pair — taking upstream source against the fork's 2.x/11.x deps (or the reverse) produces a runtime-broken package.
 
 ### prod-server (5 files) — [F]
 
-Telemetry re-export surface, typed `createProdServer`, netlify entry. (MF cache headers + worker lane live in fork-added files under `src/libs/` and `src/server/`.)
+Telemetry re-export surface (re-exported from `@modern-js/server-runtime-extensions` — see `src/apply.ts:23`, `src/index.ts:17`), typed `createProdServer`, netlify entry. (The runtime-fallback worker lane lives in fork-added files: `src/libs/runtimeFallbackWorkerLane.ts`, `src/server/modernServerSplit.ts`; MF cache headers now live in `@modern-js/server-runtime-extensions`.)
 
 ### server (16 files) — [M]
 
-Mostly mechanical; plus typed `CreateDevServerResult` and undefined-guards in watcher/fileReader ([U]-grade strictness fixes, same family as render.ts).
+Mostly mechanical; plus typed `CreateDevServerResult` and undefined-guards in watcher/fileReader ([U]-grade strictness fixes, same family as render.ts). One semantic delta hides in the churn: `src/helpers/mock.ts:117-120` dropped `encode: encodeURI` from the path-to-regexp `match` options (plus `method ?? 'get'` / `pathname ?? '/'` fallbacks in `parseKey`), which changes dev-mock route matching for non-ASCII paths. Dev-tooling only, but on conflict in this file keep the fork side or consciously re-add `encode` — do not assume the whole package is take-upstream-safe.
 
 ### server-runtime (3 files) — [M]
 
@@ -129,7 +131,7 @@ Export reordering only.
 
 TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths matcher, import-specifier rewriting). Toolchain divergence.
 
-## packages/solutions/app-tools (60 files) — [F]
+## packages/solutions/app-tools (61 files) — [F]
 
 - config/initialize, `src/index.ts`, types — wiring for fork-added `baseline.ts` (`presetUltramodern` defaults: telemetry, MF SSR).
 - `src/builder/generator/getBuilderEnvironments.ts` — Effect BFF worker entry + Cloudflare worker compat template resolution.
@@ -177,8 +179,29 @@ Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validat
 
 ---
 
+## Appendix A — deleted upstream files (19): keep deleted on sync
+
+These files exist upstream but not in the fork. On merge they conflict as delete/modify or silently resurrect — re-delete them and port any upstream change into the listed fork replacement instead.
+
+- `packages/runtime/render/modern.config.js` — build config replaced by fork-added `rslib.config.mts`. Keep deleted; port upstream build-config changes into the rslib config.
+- `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` — the TS compile path was rebuilt around tsgo (see the `server/utils` entry above). Keep deleted; re-express upstream loader fixes in the fork's tsgo compiler path under `src/compilers/typescript/`.
+- `packages/solutions/app-tools/src/esm/ts-node-loader.mjs` + `packages/solutions/app-tools/tests/utils/ts-node-loader.test.ts` — ts-node ESM loader dropped for the tsgo toolchain; the fork keeps `src/esm/register-esm.mjs` and `src/esm/ts-paths-loader.mjs`. Keep deleted; map upstream loader changes onto `ts-paths-loader.mjs`.
+- `packages/toolkit/create/template/**` (14 files: `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). Keep deleted; mirror upstream template-content changes in the workspace templates only where they still apply.
+- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version.
+
+## Appendix B — renamed + modified upstream files (3): follow the rename
+
+Git resolves these only with rename detection on (`-M`); without it they look like delete + add. Apply upstream edits to the **new** path, then re-apply fork content.
+
+- `packages/document/docs/en/apis/app/runtime/bff/use-hono-context.mdx` → `use-backend-context.mdx` (R087) and the `zh` twin (R088) — renamed for runtime-framework-neutral BFF naming, ~12-13% content change. Follow the rename; treat content per the `packages/document` [F] rule above.
+- `packages/runtime/plugin-runtime/scripts/gen-static.ts` → `scripts/gen-static.mts` (R075, ~25% modified) — ESM script for the tsgo toolchain. Follow the rename; port upstream script logic into the `.mts` file.
+
+---
+
 ## Sync guidance
 
 1. Resolve [M] conflicts toward upstream, then re-run `npx biome check --write` and restore `@effect-diagnostics` pragmas.
-2. Keep the fork side for everything [F]; diffs inside upstream-owned files are intentionally minimal — if a conflict looks large, check whether the logic should move to a fork-owned module instead.
+2. Keep the fork side for everything [F]; diffs inside upstream-owned files are intentionally minimal — if a conflict looks large, check whether the logic should move to a fork-owned module instead. For the coupled dependency migrations (`bff-runtime`, `plugin-polyfill`) keep `package.json` + source together — never split sides within the package.
 3. [U] items shrink this ledger: PR them upstream (render.ts matchRoute first) and drop the entry once merged.
+4. Deleted upstream files (Appendix A): keep them deleted; a merge that resurrects one is wrong even if it applies cleanly. Port the upstream change into the fork replacement listed per file.
+5. Renamed files (Appendix B): run the sync with rename detection on (`git merge`/`git diff -M`) and land upstream edits on the renamed path.
