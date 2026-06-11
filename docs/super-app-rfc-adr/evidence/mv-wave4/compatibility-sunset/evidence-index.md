@@ -2,7 +2,7 @@
 
 - Status: Proposed Wave 4 evidence index
 - Date: 2026-04-29
-- Related Plan: `.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md`
+- Related Plan: `.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md` (historical reference — `.codex/` planning artifacts were untracked from the repo in ce7c6b06ac and this path no longer exists in-tree)
 - Related Lanes: `uw4-03`, `uw4-04`
 
 ## Purpose

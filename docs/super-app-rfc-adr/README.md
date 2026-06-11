@@ -39,6 +39,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0014-mv-template-supply-chain-policy.md`
 - `ADR-0015-mv-ownership-and-blast-radius-gates.md`
 - `ADR-0016-ultramodern-opinionated-defaults-contract.md`
+- `ADR-0017-superapp-composition-router-framework-coordination.md`
 - `contracts/ai-capabilities.json`
 - `contracts/mv-runtime-parity-contract.json`
 - `contracts/mv-topology-manifest.schema.json`

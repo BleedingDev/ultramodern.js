@@ -1,6 +1,6 @@
 # Super App Implementation Backlog
 
-- Status: Active (Phases A/B complete, Phase C alpha, AI-first Phase D1 in progress)
+- Status: Active (Phases A/B complete, Phase C stable, AI-first Phase D1 in progress; ADR-0001/EPIC-1 reverted)
 - Date: 2026-02-26
 - Source docs:
   - `RFC-0001-super-app-foundation-plan.md`
@@ -25,17 +25,22 @@
 
 | Epic ID | Epic | ADR | Suggested Owner | Effort | Parallelization | Depends On | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| EPIC-1 | RsDoctor Default-On | ADR-0001 | Platform Build | M | Parallel | None | Implemented |
+| EPIC-1 | RsDoctor Default-On | ADR-0001 | Platform Build | M | Parallel | None | Reverted (a210ac658d; see ADR-0001) |
 | EPIC-2 | Cross-Project BFF Hardening | ADR-0005 | BFF Platform | L | Parallel | None | Implemented |
 | EPIC-3 | Telemetry Standardization + Exporters | ADR-0004 | Observability Platform | L | Parallel | None | Implemented |
 | EPIC-4 | Effect-Only MF Data-Fetch Reliability | ADR-0003 | Runtime Federation + QA Infra | L | Parallel-start, partial sequential | EPIC-2 (partial) | Implemented |
-| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Implemented (Alpha) |
+| EPIC-5 | App-Level MF SSR | ADR-0002 | Runtime Federation | XL | Mostly sequential | EPIC-2, EPIC-4 | Implemented (Stable contract defaults; see ADR-0002 §10-12) |
 | EPIC-6 | AI-First Runtime + Agent Surfaces | RFC-0002 | AI Platform + Observability Platform | L | Parallel-start, partial sequential | EPIC-3, EPIC-5 | In Progress |
 | EPIC-7 | MCP Capability Parity via CLI | ADR-0009 | AI Platform + Platform Build | M | Parallel with EPIC-6 | EPIC-6 (partial) | In Progress |
 
 ## Progress Snapshot (2026-02-26)
 
-- EPIC-1 complete: RsDoctor defaults are enabled in production with opt-out and non-blocking plugin defaults.
+> **Status audit note (2026-06-11):** the EPIC-1 line below is historical. The
+> RsDoctor default-on behavior was later reverted (a210ac658d); RsDoctor is now
+> opt-in via `performance.rsdoctor` (`packages/cli/builder/tests/rsdoctor.test.ts`
+> asserts default-off). EPIC-2..7 claims were re-verified in-tree and stand.
+
+- EPIC-1 complete (later reverted): RsDoctor defaults were enabled in production with opt-out and non-blocking plugin defaults.
 - EPIC-2 complete: cross-project BFF now enforces prefix/runtime compatibility and generated runtime/bootstrap contracts.
 - EPIC-3 complete: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are in framework core.
 - EPIC-4 complete: routes MF reliability and distributed trace assertions are active in both build and serve integration suites.

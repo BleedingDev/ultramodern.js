@@ -1,8 +1,14 @@
 # RFC-0001: Super App Foundation Plan
 
-- Status: Implemented (Phases A/B/C complete)
+- Status: Partially Implemented (Phases A/B/C landed; ADR-0001 portion of Phase A later reverted in a210ac658d)
 - Date: 2026-02-21
 - Scope: Modern.js framework-level capability roadmap
+
+> **Status audit note (2026-06-11):** Phase A's "RsDoctor enabled by default" exit
+> criterion no longer holds — ADR-0001 was reverted (commit a210ac658d); RsDoctor is
+> opt-in via `performance.rsdoctor` and `packages/cli/builder/tests/rsdoctor.test.ts`
+> asserts it is NOT enabled by default. The remaining Phase A/B/C outcomes
+> (ADR-0002/0003/0004/0005) were re-verified in-tree and stand.
 
 ## 1. Summary
 
