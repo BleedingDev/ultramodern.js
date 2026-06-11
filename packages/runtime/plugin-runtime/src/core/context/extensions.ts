@@ -42,6 +42,18 @@ function ensureStore(context: object): ExtensionStore {
 }
 
 /**
+ * Removes the extension slot from a context object.
+ *
+ * The slot is an enumerable symbol-keyed property, so object spreads copy it
+ * onto derived objects. Call this on *copies* that form the public
+ * `RuntimeContext` value to keep internal state (router instances, helmet
+ * state, ...) unreachable from the public context object.
+ */
+export function stripRuntimeContextExtensions(context: object): void {
+  delete (context as ExtensibleContext)[EXTENSIONS_SLOT];
+}
+
+/**
  * Creates a typed accessor pair over the shared extension slot.
  *
  * The `id` must be globally unique (it is interned via `Symbol.for`); use a

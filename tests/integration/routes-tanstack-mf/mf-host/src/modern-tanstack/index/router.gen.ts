@@ -176,11 +176,17 @@ function modernLoaderToTanstack<TLoader extends (args: any) => any>(
 }
 
 import loader_0 from "../../routes/layout.loader";
+import component_0 from "@_modern_js_src/routes/page";
 import { loader as loader_1, action as action_1 } from "../../routes/mf/page.data";
 import { loader as loader_2 } from "../../routes/mf-not-found/page.data";
 import { loader as loader_3 } from "../../routes/mf-redirect/page.data";
+import component_1 from "@_modern_js_src/routes/mf/page";
+import component_2 from "@_modern_js_src/routes/mf-not-found/page";
+import component_3 from "@_modern_js_src/routes/mf-redirect/page";
+import component_4 from "@_modern_js_src/routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
+  component: component_4,
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
   staticData: createRouteStaticData({
     modernRouteId: "layout",
@@ -190,6 +196,7 @@ export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
 
 const route_page = createRoute({
   getParentRoute: () => rootRoute,
+  component: component_0,
   path: "/",
   staticData: createRouteStaticData({
     modernRouteId: "page",
@@ -198,6 +205,7 @@ const route_page = createRoute({
 
 const route_mf_page = createRoute({
   getParentRoute: () => rootRoute,
+  component: component_1,
   path: "mf",
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
   staticData: createRouteStaticData({
@@ -209,6 +217,7 @@ const route_mf_page = createRoute({
 
 const route_mfNotFound_page = createRoute({
   getParentRoute: () => rootRoute,
+  component: component_2,
   path: "mf-not-found",
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
   staticData: createRouteStaticData({
@@ -219,6 +228,7 @@ const route_mfNotFound_page = createRoute({
 
 const route_mfRedirect_page = createRoute({
   getParentRoute: () => rootRoute,
+  component: component_3,
   path: "mf-redirect",
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
   staticData: createRouteStaticData({

@@ -53,23 +53,41 @@ describe('wrapRuntimeContextProvider', () => {
     });
 
     // None of the router state may leak into string-key enumeration of
-    // either context value.
+    // either context value — each forbidden key is asserted individually so
+    // a partial leak fails too.
+    const forbiddenKeys = [
+      'routerFramework',
+      'routerInstance',
+      'routerRuntime',
+      'routerServerSnapshot',
+      'routerHydrationScript',
+      'routerMatchedRouteIds',
+      '_helmetContext',
+    ];
     for (const value of [runtimeValue, internalValue]) {
-      expect(Object.keys(value as object)).not.toEqual(
-        expect.arrayContaining([
-          'routerFramework',
-          'routerInstance',
-          'routerRuntime',
-          'routerServerSnapshot',
-          'routerHydrationScript',
-          'routerMatchedRouteIds',
-          '_helmetContext',
-        ]),
-      );
+      const keys = Object.keys(value as object);
+      for (const forbidden of forbiddenKeys) {
+        expect(keys).not.toContain(forbidden);
+      }
     }
     expect(runtimeValue?.routerFramework).toBeUndefined();
     expect(runtimeValue?.routerInstance).toBeUndefined();
     expect(runtimeValue?.routerServerSnapshot).toBeUndefined();
+
+    // The symbol-keyed extension slot must not be reachable from the PUBLIC
+    // context object either: spreads copy enumerable symbol properties, so
+    // the wrapper has to strip the slot from the public copy.
+    const extensionsSlot = Symbol.for('@modern-js/runtime:context-extensions');
+    expect(Object.getOwnPropertySymbols(runtimeValue as object)).not.toContain(
+      extensionsSlot,
+    );
+    expect(getRouterRuntimeState(runtimeValue as object)).toBeUndefined();
+    expect(getRouterServerSnapshot(runtimeValue as object)).toBeUndefined();
+
+    // ...while the internal context keeps carrying it.
+    expect(Object.getOwnPropertySymbols(internalValue as object)).toContain(
+      extensionsSlot,
+    );
   });
 
   it('should collect head tags in an isolated request context', () => {

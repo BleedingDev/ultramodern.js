@@ -21,7 +21,7 @@ export function getHelmetContext(
 
 export function ensureHelmetContext(context: object): HelmetContextSlot {
   const existing = helmetContextExtension.get(context);
-  if (existing) {
+  if (existing !== undefined) {
     return existing;
   }
 

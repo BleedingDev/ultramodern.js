@@ -6,6 +6,7 @@ import {
   type TInternalRuntimeContext,
   type TRuntimeContext,
 } from '../context';
+import { stripRuntimeContextExtensions } from '../context/extensions';
 import { ensureHelmetContext } from '../context/helmetContext';
 
 export function wrapRuntimeContextProvider(
@@ -36,6 +37,11 @@ export function wrapRuntimeContextProvider(
     context,
     ...rest,
   };
+  // Rest patterns copy enumerable symbol-keyed properties too, so the
+  // internal extension slot (router instance, helmet state, ...) would ride
+  // into the public context — strip it from the public copy. Internal readers
+  // keep using `internalContextValue`, which is the original object.
+  stripRuntimeContextExtensions(runtimeContextValue);
 
   return (
     <InternalRuntimeContext.Provider value={internalContextValue}>

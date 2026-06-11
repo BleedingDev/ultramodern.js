@@ -3,17 +3,36 @@ import path from 'path';
 
 const pnpmRoot = path.join(__dirname, '../../../node_modules/.pnpm');
 
-function resolvePnpmPackageEntry(prefix: string, modulePath: string) {
+// Resolve a dependency straight out of the pnpm store: this package was
+// removed from the workspace upstream (#7416) but its fork-retained tests
+// still run through the root rstest sweep, so nothing is linked into a
+// local node_modules. Missing entries must NOT throw at config-load time:
+// the root sweep loads every project config eagerly and a single throw
+// would abort the entire repo-wide run.
+function resolvePnpmPackageEntry(
+  prefix: string,
+  modulePath: string,
+): string | null {
   const entry = fs
     .readdirSync(pnpmRoot)
     .sort()
     .find(name => name.startsWith(prefix));
 
   if (!entry) {
-    throw new Error(`Failed to resolve pnpm package entry for ${prefix}`);
+    return null;
   }
 
   return path.join(pnpmRoot, entry, 'node_modules', modulePath);
+}
+
+function definedAliases(
+  aliases: Record<string, string | null>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(aliases).filter(
+      (pair): pair is [string, string] => pair[1] !== null,
+    ),
+  );
 }
 
 const commonConfig = {
@@ -38,7 +57,7 @@ const commonConfig = {
     },
   },
   resolve: {
-    alias: {
+    alias: definedAliases({
       debug: path.join(__dirname, 'tests/shims/debug.ts'),
       garfish: path.join(__dirname, 'tests/shims/garfish.ts'),
       '@modern-js/utils': path.join(
@@ -49,13 +68,13 @@ const commonConfig = {
         __dirname,
         '../../toolkit/utils/compiled/webpack-chain/index.js',
       ),
+      // `@modern-js/core` no longer exists anywhere in the lockfile
+      // (removed upstream in #7373); the tests rely on a local shim that
+      // recreates the legacy plugin-manager surface they consume.
+      '@modern-js/core': path.join(__dirname, 'tests/shims/modern-js-core.ts'),
       'hoist-non-react-statics': resolvePnpmPackageEntry(
         'hoist-non-react-statics@',
         'hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js',
-      ),
-      '@modern-js/core': resolvePnpmPackageEntry(
-        '@modern-js+core@',
-        '@modern-js/core/dist/index.js',
       ),
       react: resolvePnpmPackageEntry('react@', 'react/index.js'),
       'react/jsx-runtime': resolvePnpmPackageEntry(
@@ -71,7 +90,7 @@ const commonConfig = {
         'react-dom@',
         'react-dom/client.js',
       ),
-    },
+    }),
   },
 };
 

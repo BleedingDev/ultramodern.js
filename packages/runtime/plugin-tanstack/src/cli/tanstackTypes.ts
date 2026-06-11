@@ -172,12 +172,30 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   const statements: string[] = [];
 
   const loaderImportMap = new Map<string, string>();
+  const componentImportMap = new Map<string, string>();
   const searchContractImportMap = new Map<string, string>();
   const usedRouteVarNames = new Set<string>();
   let loaderIndex = 0;
+  let componentIndex = 0;
   let validateSearchIndex = 0;
   let loaderDepsIndex = 0;
   let routeIndex = 0;
+
+  const getImportNameForComponent = (componentPath: unknown) => {
+    if (typeof componentPath !== 'string' || componentPath.length === 0) {
+      return null;
+    }
+
+    const existing = componentImportMap.get(componentPath);
+    if (existing) {
+      return existing;
+    }
+
+    const componentName = `component_${componentIndex++}`;
+    imports.push(`import ${componentName} from ${quote(componentPath)};`);
+    componentImportMap.set(componentPath, componentName);
+    return componentName;
+  };
 
   const resolveRouteModuleNoExt = async (aliasedNoExtPath: string) => {
     const prefix = `${appContext.internalSrcAlias}/`;
@@ -323,6 +341,11 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
     const routeOpts: string[] = [`getParentRoute: () => ${parentVar},`];
 
+    const componentName = getImportNameForComponent((route as any)._component);
+    if (componentName) {
+      routeOpts.push(`component: ${componentName},`);
+    }
+
     if (isPathlessLayout(route)) {
       const id = (route as any).id as string | undefined;
       routeOpts.push(`id: ${quote(id || 'pathless')},`);
@@ -412,6 +435,14 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   );
 
   const rootOpts: string[] = [];
+
+  const rootComponentName = getImportNameForComponent(
+    (rootModern as any)?._component,
+  );
+  if (rootComponentName) {
+    rootOpts.push(`component: ${rootComponentName},`);
+  }
+
   if (rootLoaderName) {
     rootOpts.push(
       `loader: modernLoaderToTanstack({ hasSplat: false }, ${rootLoaderName}),`,

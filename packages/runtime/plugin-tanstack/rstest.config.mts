@@ -25,6 +25,7 @@ export default {
       include: [
         'tests/router/cli.test.ts',
         'tests/router/fastDefaults.test.ts',
+        'tests/router/register.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/tanstackTypes.test.ts',
         'tests/router/routeTree.test.ts',

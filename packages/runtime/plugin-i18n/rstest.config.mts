@@ -26,7 +26,7 @@ export default {
     withTestPreset({
       name: 'plugin-i18n-node',
       testEnvironment: 'node',
-      include: ['tests/localisedUrls.test.ts'],
+      include: ['tests/i18nUtils.test.ts', 'tests/localisedUrls.test.ts'],
       extends: commonConfig,
     }),
     withTestPreset({

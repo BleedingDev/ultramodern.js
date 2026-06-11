@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off
 /**
  * Fork-owned router-provider registry.
  *
@@ -27,6 +28,8 @@ type RouterProviderRegistry = {
   providers: Map<string, RouterProviderFactory>;
   defaultProvider?: string;
   nonDefaultProvider?: string;
+  /** Names that already produced a duplicate-registration warning. */
+  warnedDuplicates: Set<string>;
 };
 
 const REGISTRY_SLOT: unique symbol = Symbol.for(
@@ -35,7 +38,11 @@ const REGISTRY_SLOT: unique symbol = Symbol.for(
 
 function getRegistry(): RouterProviderRegistry {
   const host = globalThis as { [REGISTRY_SLOT]?: RouterProviderRegistry };
-  host[REGISTRY_SLOT] ??= { providers: new Map() };
+  host[REGISTRY_SLOT] ??= { providers: new Map(), warnedDuplicates: new Set() };
+  // The registry may have been created by an older copy of this module that
+  // predates the `warnedDuplicates` field (e.g. mixed versions in a Module
+  // Federation setup), so heal the shape defensively.
+  host[REGISTRY_SLOT].warnedDuplicates ??= new Set();
   return host[REGISTRY_SLOT];
 }
 
@@ -47,14 +54,25 @@ export function registerRouterProvider(
   const registry = getRegistry();
   const existing = registry.providers.get(name);
 
-  if (existing && existing !== factory) {
-    throw new Error(
-      `[@modern-js/runtime] A router provider named "${name}" is already registered with a different implementation. ` +
-        'Each router framework may only be provided by a single plugin — remove the duplicate router plugin from your setup.',
-    );
+  if (existing !== undefined) {
+    // Keep-first semantics. A same-name re-registration with a *different*
+    // factory is almost always two bundled copies of the same provider
+    // module — e.g. a Module Federation remote that does not share
+    // '@modern-js/plugin-tanstack/runtime' evaluates its own copy, which
+    // creates a fresh factory function per evaluation. That must not crash
+    // the app; the first registration wins and we warn once per name.
+    if (existing !== factory && !registry.warnedDuplicates.has(name)) {
+      registry.warnedDuplicates.add(name);
+      console.warn(
+        `[@modern-js/runtime] The router provider "${name}" was registered more than once with different module instances; keeping the first registration. ` +
+          'This usually means two copies of the providing plugin were bundled — for Module Federation, add the provider runtime ' +
+          "(e.g. '@modern-js/plugin-tanstack/runtime') to the shared modules of both the host and the remote to deduplicate it.",
+      );
+    }
+    return;
   }
 
-  if (!options.isDefault) {
+  if (options.isDefault !== true) {
     if (
       registry.nonDefaultProvider !== undefined &&
       registry.nonDefaultProvider !== name
@@ -76,7 +94,10 @@ export function resolveRouterProvider(
   framework?: RouterConfig['framework'],
 ): RouterProviderFactory {
   const registry = getRegistry();
-  const name = framework ?? registry.defaultProvider;
+  // `||` on purpose: a falsy framework value (empty string from env
+  // templating, `false`, `undefined`) falls back to the default provider
+  // instead of erroring on an unknown framework "".
+  const name = framework || registry.defaultProvider;
 
   if (name === undefined) {
     throw new Error(
@@ -85,7 +106,7 @@ export function resolveRouterProvider(
   }
 
   const factory = registry.providers.get(name);
-  if (factory) {
+  if (factory !== undefined) {
     return factory;
   }
 

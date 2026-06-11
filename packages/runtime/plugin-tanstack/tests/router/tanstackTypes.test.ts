@@ -70,6 +70,80 @@ describe('tanstack router type generation', () => {
     expect(routerGenTs).toContain('...modernTanstackRouterFastDefaults,');
   });
 
+  test('emits component imports for routes carrying _component', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+      appContext: {
+        srcDirectory,
+        internalSrcAlias: '@/_',
+      } as any,
+      entryName: 'index',
+      routes: [
+        {
+          type: 'nested',
+          id: 'layout',
+          isRoot: true,
+          _component: '@/_/routes/layout',
+          children: [
+            {
+              type: 'nested',
+              id: 'page',
+              index: true,
+              _component: '@/_/routes/page',
+            },
+            {
+              type: 'nested',
+              id: 'about/page',
+              path: 'about',
+              _component: '@/_/routes/about/page',
+            },
+            {
+              // Shares the page component module: the import must be reused.
+              type: 'nested',
+              id: 'about-alias/page',
+              path: 'about-alias',
+              _component: '@/_/routes/about/page',
+            },
+            {
+              // No _component: no component option may be emitted.
+              type: 'nested',
+              id: 'data-only/page',
+              path: 'data-only',
+            },
+          ],
+        },
+      ] as any,
+    });
+
+    // Children are emitted first, the root route component import last.
+    expect(routerGenTs).toContain('import component_0 from "@/_/routes/page";');
+    expect(routerGenTs).toContain(
+      'import component_1 from "@/_/routes/about/page";',
+    );
+    expect(routerGenTs).toContain(
+      'import component_2 from "@/_/routes/layout";',
+    );
+    // The shared module is imported exactly once.
+    expect(routerGenTs).not.toContain('component_3');
+    expect(
+      routerGenTs.match(/from "@\/_\/routes\/about\/page";/g),
+    ).toHaveLength(1);
+
+    expect(routerGenTs).toContain('component: component_0,');
+    // The shared component import is referenced by both aliased routes.
+    expect(routerGenTs.match(/component: component_1,/g)).toHaveLength(2);
+    // The root route gets its component option.
+    expect(routerGenTs).toContain('component: component_2,');
+
+    const dataOnlyRoute = routerGenTs
+      .split('const ')
+      .find(block => block.includes('path: "data-only",'));
+    expect(dataOnlyRoute).toBeDefined();
+    expect(dataOnlyRoute).not.toContain('component:');
+  });
+
   test('typechecks generated TanStack search contracts', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
