@@ -44,13 +44,20 @@ function createContract() {
         kind: 'shell',
         package: '@demo/shell-super-app',
         config: {
-          output: {
-            assetPrefix: {
+          source: {
+            siteUrl: {
               defaultLocalhostPort: 3020,
               envFallbackOrder: [
+                'MODERN_PUBLIC_SITE_URL',
                 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
                 'SHELL_SUPER_APP_PORT',
               ],
+            },
+          },
+          output: {
+            assetPrefix: {
+              envFallbackOrder: ['MODERN_ASSET_PREFIX'],
+              default: '/',
             },
           },
         },

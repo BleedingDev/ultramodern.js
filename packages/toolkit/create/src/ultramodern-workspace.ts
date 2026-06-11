@@ -40,6 +40,7 @@ const I18NEXT_VERSION = '26.3.1';
 const REACT_VERSION = '^19.2.7';
 const REACT_DOM_VERSION = '^19.2.7';
 const REACT_ROUTER_DOM_VERSION = '7.17.0';
+const NODE_VERSION = '26.3.0';
 const PNPM_VERSION = '11.5.3';
 const GENERATED_CONTRACT_PATH = '.modernjs/ultramodern-generated-contract.json';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
@@ -755,7 +756,7 @@ function createRootPackageJson(
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
     },
     engines: {
-      node: '>=20',
+      node: '>=26',
       pnpm: `>=${PNPM_VERSION} <11.6.0`,
     },
     workspaces: ['apps/*', 'verticals/*', 'packages/*'],
@@ -1290,6 +1291,8 @@ const envValue = (name: string) => {
 };
 const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
 const configuredCloudflareUrl = envValue('${createCloudflarePublicUrlEnv(app)}');
+const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX');
+const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX');
 const cloudflareWorkersDevSubdomain = envValue(
   'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
 );
@@ -1304,13 +1307,12 @@ const siteUrl =
   configuredCloudflareUrl ||
   inferredCloudflareUrl ||
   \`http://localhost:\${port}\`;
-// Asset origin prefers the per-app deployment URL (each MF app serves its own
-// assets). Without an explicit public URL, assets must stay origin-relative so
-// the app works behind tunnels and proxies (an absolute localhost assetPrefix
-// makes pages served via e.g. ngrok fetch scripts from localhost, which Chrome
-// blocks behind a Local Network Access permission prompt).
+// Asset loading is intentionally independent from the canonical site URL and
+// deployment public URL. Without an explicit asset prefix, assets stay
+// origin-relative so self-hosted apps, tunnels, and reverse proxies never leak
+// localhost URLs into production HTML.
 const assetPrefix =
-  configuredCloudflareUrl || configuredSiteUrl || inferredCloudflareUrl || '/';
+  configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/';
 
 if (
   cloudflareDeployEnabled &&
@@ -4638,11 +4640,7 @@ function createAppConfigContract(app: WorkspaceApp): JsonValue {
     },
     output: {
       assetPrefix: {
-        envFallbackOrder: [
-          createCloudflarePublicUrlEnv(app),
-          'MODERN_PUBLIC_SITE_URL',
-          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-        ],
+        envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
         default: '/',
       },
       disableTsChecker: true,
@@ -5088,6 +5086,12 @@ function createGeneratedContract(
       source: 'package.json',
       manager: 'pnpm',
       version: PNPM_VERSION,
+      toolchain: 'mise',
+    },
+    node: {
+      source: 'package.json engines.node and .mise.toml',
+      version: NODE_VERSION,
+      engineRange: '>=26',
       toolchain: 'mise',
     },
     versions: {
@@ -5920,6 +5924,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const packageScope = '${scope}';
+const expectedNodeVersion = '${NODE_VERSION}';
 const expectedPnpmVersion = '${PNPM_VERSION}';
 const tailwindEnabled = ${JSON.stringify(enableTailwind)};
 const fullStackVerticals = ${JSON.stringify(verticals, null, 2)};
@@ -6016,6 +6021,11 @@ const assertCloudflareQualityGates = (appId, qualityGates) => {
   assert(typeof qualityGates?.budgets?.mfManifestMaxBytes === 'number', \`\${appId} quality gates must define MF manifest byte budget\`);
   assert(qualityGates?.csp?.finalMode === '${qualityGates.csp.finalMode}', \`\${appId} CSP final mode decision is missing\`);
 };
+const extractAssetPrefixExpression = modernConfig => {
+  const match = /const assetPrefix =\\n(?<expression>[\\s\\S]*?);/u.exec(modernConfig);
+  assert(match?.groups?.expression, 'modern.config.ts must assign assetPrefix');
+  return match.groups.expression;
+};
 const expectedWorkerName = packageSuffix => \`\${packageScope}-\${packageSuffix}\`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
   \`__ULTRAMODERN_\${mfName
@@ -6040,6 +6050,7 @@ const activePnpmVersion = execFileSync('pnpm', ['--pm-on-fail=ignore', '--versio
   encoding: 'utf-8',
   stdio: ['ignore', 'pipe', 'pipe'],
 }).trim();
+const activeNodeVersion = process.versions.node;
 const minimumPnpmVersion = parseSemver(expectedPnpmVersion);
 const maximumPnpmVersion = {
   major: minimumPnpmVersion.major,
@@ -6047,11 +6058,17 @@ const maximumPnpmVersion = {
   patch: 0,
 };
 const currentPnpmVersion = parseSemver(activePnpmVersion);
+const minimumNodeVersion = { major: 26, minor: 0, patch: 0 };
+const currentNodeVersion = parseSemver(activeNodeVersion);
 
 assert(
   compareSemver(currentPnpmVersion, minimumPnpmVersion) >= 0 &&
     compareSemver(currentPnpmVersion, maximumPnpmVersion) < 0,
   \`Generated workspace requires pnpm >=\${expectedPnpmVersion} <\${maximumPnpmVersion.major}.\${maximumPnpmVersion.minor}.\${maximumPnpmVersion.patch}; active pnpm is \${activePnpmVersion}. Run mise install, then rerun pnpm from the activated shell.\`,
+);
+assert(
+  compareSemver(currentNodeVersion, minimumNodeVersion) >= 0,
+  \`Generated workspace requires Node >=26; active Node is \${activeNodeVersion}. Run mise install, then rerun node from the activated shell.\`,
 );
 
 const requiredPaths = [
@@ -6153,6 +6170,14 @@ const overlay = readJson('topology/local-overlays/development.json');
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(rootPackage.packageManager === \`pnpm@\${expectedPnpmVersion}\`, 'Root must pin pnpm');
+assert(rootPackage.engines?.node === '>=26', 'Root must require Node >=26');
+assert(generatedContract.node?.version === expectedNodeVersion, 'Generated contract must record the Node toolchain version');
+assert(generatedContract.node?.engineRange === '>=26', 'Generated contract must record the Node engine range');
+assert(readText('.mise.toml').includes(\`node = "\${expectedNodeVersion}"\`), 'mise must pin the generated Node version');
+assert(readText('.mise.toml').includes(\`pnpm = "\${expectedPnpmVersion}"\`), 'mise must pin the generated pnpm version');
+const workflowText = readText('.github/workflows/ultramodern-workspace-gates.yml');
+assert(workflowText.includes(\`node-version: "\${expectedNodeVersion}"\`), 'CI workflow must pin the generated Node version');
+assert(!workflowText.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24'), 'CI workflow must not carry the legacy Node 24 override');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json', 'Root must point at package source metadata');
 assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy, 'Root package source strategy must match metadata');
@@ -6276,11 +6301,18 @@ assert(shellContract?.deploy?.worker?.name === expectedWorkerName('shell-super-a
 assert(shellModernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName('shell-super-app') + "'"), 'Shell modern.config.ts must define the Cloudflare worker name');
 assert(shellModernConfig.includes('name: cloudflareWorkerName'), 'Shell modern.config.ts must wire deploy.worker.name');
 assert(shellModernConfig.includes('const assetPrefix ='), 'Shell modern.config.ts must derive a dedicated asset prefix');
+assert(shellModernConfig.includes("const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX')"), 'Shell asset prefix must support ULTRAMODERN_ASSET_PREFIX');
+assert(shellModernConfig.includes("const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX')"), 'Shell asset prefix must support MODERN_ASSET_PREFIX');
+const shellAssetPrefixExpression = extractAssetPrefixExpression(shellModernConfig);
+assert(shellAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'"), 'Shell asset prefix fallback order is incorrect');
+assert(!shellAssetPrefixExpression.includes('configuredSiteUrl') && !shellAssetPrefixExpression.includes('MODERN_PUBLIC_SITE_URL'), 'Shell asset prefix must not fall back to MODERN_PUBLIC_SITE_URL');
+assert(!shellAssetPrefixExpression.includes('configuredCloudflareUrl') && !shellAssetPrefixExpression.includes('ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP'), 'Shell asset prefix must not fall back to the per-app public URL');
+assert(!shellAssetPrefixExpression.includes('inferredCloudflareUrl') && !shellAssetPrefixExpression.includes('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN'), 'Shell asset prefix must not infer workers.dev URLs');
 assert(shellModernConfig.includes("assetPrefix: '/'"), 'Shell modern.config.ts must keep dev assets origin-relative');
 assert(shellModernConfig.includes('assetPrefix,'), 'Shell modern.config.ts must wire output.assetPrefix to the derived asset prefix');
 assert(shellContract?.config?.dev?.assetPrefix === '/', 'Shell dev asset prefix must stay origin-relative');
 assert(shellContract?.config?.output?.assetPrefix?.default === '/', 'Shell asset prefix must default to origin-relative paths');
-assert(JSON.stringify(shellContract?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']), 'Shell asset prefix env fallback order is incorrect');
+assert(JSON.stringify(shellContract?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), 'Shell asset prefix env fallback order is incorrect');
 assert(JSON.stringify(shellContract?.config?.source?.siteUrl?.envFallbackOrder) === JSON.stringify(['MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN', 'SHELL_SUPER_APP_PORT']), 'Shell site URL env fallback order is incorrect');
 assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
 assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
@@ -6360,11 +6392,18 @@ for (const vertical of fullStackVerticals) {
   assert(modernConfig.includes("const cloudflareWorkerName = '" + expectedWorkerName(vertical.id) + "'"), \`\${vertical.id} modern.config.ts must define the Cloudflare worker name\`);
   assert(modernConfig.includes('name: cloudflareWorkerName'), \`\${vertical.id} modern.config.ts must wire deploy.worker.name\`);
   assert(modernConfig.includes('const assetPrefix ='), \`\${vertical.id} modern.config.ts must derive a dedicated asset prefix\`);
+  assert(modernConfig.includes("const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX')"), \`\${vertical.id} asset prefix must support ULTRAMODERN_ASSET_PREFIX\`);
+  assert(modernConfig.includes("const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX')"), \`\${vertical.id} asset prefix must support MODERN_ASSET_PREFIX\`);
+  const verticalAssetPrefixExpression = extractAssetPrefixExpression(modernConfig);
+  assert(verticalAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'"), \`\${vertical.id} asset prefix fallback order is incorrect\`);
+  assert(!verticalAssetPrefixExpression.includes('configuredSiteUrl') && !verticalAssetPrefixExpression.includes('MODERN_PUBLIC_SITE_URL'), \`\${vertical.id} asset prefix must not fall back to MODERN_PUBLIC_SITE_URL\`);
+  assert(!verticalAssetPrefixExpression.includes('configuredCloudflareUrl') && !verticalAssetPrefixExpression.includes(\`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`), \`\${vertical.id} asset prefix must not fall back to the per-app public URL\`);
+  assert(!verticalAssetPrefixExpression.includes('inferredCloudflareUrl') && !verticalAssetPrefixExpression.includes('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN'), \`\${vertical.id} asset prefix must not infer workers.dev URLs\`);
   assert(modernConfig.includes("assetPrefix: '/'"), \`\${vertical.id} modern.config.ts must keep dev assets origin-relative\`);
   assert(modernConfig.includes('assetPrefix,'), \`\${vertical.id} modern.config.ts must wire output.assetPrefix to the derived asset prefix\`);
   assert(contractEntry?.config?.dev?.assetPrefix === '/', \`\${vertical.id} dev asset prefix must stay origin-relative\`);
   assert(contractEntry?.config?.output?.assetPrefix?.default === '/', \`\${vertical.id} asset prefix must default to origin-relative paths\`);
-  assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify([\`ULTRAMODERN_PUBLIC_URL_\${vertical.id.replace(/-/g, '_').toUpperCase()}\`, 'MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']), \`\${vertical.id} asset prefix env fallback order is incorrect\`);
+  assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), \`\${vertical.id} asset prefix env fallback order is incorrect\`);
   assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === \`\${vertical.apiPrefix}/effect/\${vertical.stem}/readiness\`, \`\${vertical.id} Cloudflare proof readiness route is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, \`\${vertical.id} Rspack uniqueName is incorrect\`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), \`\${vertical.id} Rspack chunkLoadingGlobal is incorrect\`);
@@ -8248,6 +8287,7 @@ export function generateUltramodernWorkspace(
   copyRootTemplate(options.targetDir, {
     packageName: options.packageName,
     packageScope: scope,
+    nodeVersion: NODE_VERSION,
     pnpmVersion: PNPM_VERSION,
     tailwindEnabled: String(enableTailwind),
   });

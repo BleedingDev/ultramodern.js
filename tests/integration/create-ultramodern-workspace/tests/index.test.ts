@@ -76,6 +76,20 @@ function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
 }
 
+function expectDedicatedAssetPrefixExpression(modernConfig: string) {
+  const assetPrefixMatch = modernConfig.match(
+    /const assetPrefix =\n(?<expression>[\s\S]*?);/u,
+  );
+  expect(assetPrefixMatch?.groups?.expression).toBeDefined();
+  const assetPrefixExpression = assetPrefixMatch?.groups?.expression ?? '';
+  expect(assetPrefixExpression).toContain(
+    "configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'",
+  );
+  expect(assetPrefixExpression).not.toMatch(
+    /configuredSiteUrl|MODERN_PUBLIC_SITE_URL|configuredCloudflareUrl|inferredCloudflareUrl/u,
+  );
+}
+
 function readPnpmConfig<T = any>(root: string, key: string): T | undefined {
   const env = { ...process.env };
   for (const envKey of Object.keys(env)) {
@@ -393,11 +407,7 @@ function expectAppConfigContract(
   });
   expect(contractEntry.config.dev).toEqual({ assetPrefix: '/' });
   expect(contractEntry.config.output.assetPrefix).toEqual({
-    envFallbackOrder: [
-      publicUrlEnv,
-      'MODERN_PUBLIC_SITE_URL',
-      'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-    ],
+    envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
     default: '/',
   });
   expect(contractEntry.config.source.siteUrl).toEqual({
@@ -831,8 +841,16 @@ describe('create-ultramodern-workspace', () => {
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
     expect(rootPackage.packageManager).toBe('pnpm@11.5.3');
+    expect(rootPackage.engines.node).toBe('>=26');
     expect(rootPackage.engines.pnpm).toBe('>=11.5.3 <11.6.0');
     expectPath(workspaceDir, '.mise.toml');
+    expect(readText(workspaceDir, '.mise.toml')).toContain('node = "26.3.0"');
+    const workflowText = readText(
+      workspaceDir,
+      '.github/workflows/ultramodern-workspace-gates.yml',
+    );
+    expect(workflowText).toContain('node-version: "26.3.0"');
+    expect(workflowText).not.toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
       'verticals/*',
@@ -1096,9 +1114,7 @@ describe('create-ultramodern-workspace', () => {
     expect(shellModernConfig).toContain('"script-src"');
     expect(shellModernConfig).toContain('"connect-src"');
     expect(shellModernConfig).toContain('const assetPrefix =');
-    expect(shellModernConfig).toMatch(
-      /const assetPrefix =\s*configuredCloudflareUrl \|\| configuredSiteUrl \|\| inferredCloudflareUrl \|\| '\/';/,
-    );
+    expectDedicatedAssetPrefixExpression(shellModernConfig);
     expect(shellModernConfig).toContain("assetPrefix: '/',");
     expect(shellModernConfig).toContain('assetPrefix,');
     expect(shellModernConfig).toMatch(
@@ -1630,9 +1646,7 @@ process.exit(1);
     );
     expect(catalogModernConfig).toContain("entry: './api/effect/index'");
     expect(catalogModernConfig).toContain('const assetPrefix =');
-    expect(catalogModernConfig).toMatch(
-      /const assetPrefix =\s*configuredCloudflareUrl \|\| configuredSiteUrl \|\| inferredCloudflareUrl \|\| '\/';/,
-    );
+    expectDedicatedAssetPrefixExpression(catalogModernConfig);
     expect(catalogModernConfig).toContain("assetPrefix: '/',");
     expect(catalogModernConfig).toContain('assetPrefix,');
     expect(catalogModernConfig).toMatch(
