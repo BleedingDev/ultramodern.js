@@ -10,12 +10,11 @@ import { applyPlugins } from './apply';
 import type { BaseEnv, ProdServerOptions } from './types';
 
 export type { ServerPlugin } from '@modern-js/server-core';
-export { type ApplyPlugins, applyPlugins } from './apply';
 export type {
   TelemetryCanaryDecision,
   TelemetryQueueStats,
   TelemetrySloAlert,
-} from './libs/telemetry';
+} from '@modern-js/server-runtime-extensions';
 export {
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
@@ -24,7 +23,8 @@ export {
   TelemetryCanaryOrchestrator,
   TelemetryRegistry,
   TelemetryStartupHealthError,
-} from './libs/telemetry';
+} from '@modern-js/server-runtime-extensions';
+export { type ApplyPlugins, applyPlugins } from './apply';
 export type { BaseEnv, ProdServerOptions } from './types';
 export { loadServerPlugins };
 

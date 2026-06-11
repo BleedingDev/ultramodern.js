@@ -1,9 +1,9 @@
+import { createDefaultPlugins, createServerBase } from '@modern-js/server-core';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createDefaultPlugins } from '../../src/plugins';
-import { createServerBase } from '../../src/serverBase';
-import { getDefaultAppContext, getDefaultConfig } from '../helpers';
+import { injectTelemetryPlugin } from '../src/telemetry';
+import { getDefaultAppContext, getDefaultConfig } from './helpers';
 
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'modern-telemetry-autopilot-'));
@@ -48,6 +48,7 @@ describe('telemetry autopilot runtime signal', () => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -122,6 +123,7 @@ describe('telemetry autopilot runtime signal', () => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -190,6 +192,7 @@ describe('telemetry autopilot runtime signal', () => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -273,6 +276,7 @@ describe('telemetry autopilot runtime signal', () => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -392,6 +396,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -466,6 +471,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();
@@ -577,6 +583,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
         ...createDefaultPlugins({
           logger: false,
         }),
+        injectTelemetryPlugin(),
       ]);
 
       await server.init();

@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import {
   type GateSnapshot,
   resolveContractGateSnapshotStore,
-} from '../../src/plugins/contractGateSnapshotStore';
+} from '../src/contractGateSnapshotStore';
 
 describe('contract gate snapshot store', () => {
   test('supports built-in http stateStore adapter', async () => {

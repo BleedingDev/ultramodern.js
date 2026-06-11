@@ -2,7 +2,7 @@ import {
   createOtlpTelemetryExporter,
   createVictoriaMetricsTelemetryExporter,
   TelemetryRegistry,
-} from '../../src/plugins/telemetry';
+} from '../src/telemetry';
 
 const createEnvelope = (partial: Record<string, unknown> = {}) => ({
   timestamp: Date.now(),

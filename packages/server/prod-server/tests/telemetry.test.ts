@@ -1,6 +1,3 @@
-import type { IncomingHttpHeaders } from 'http';
-import { createServer } from 'http';
-import type { AddressInfo } from 'net';
 import {
   createOtlpTelemetryExporter,
   createTelemetryAwareMetrics,
@@ -9,7 +6,10 @@ import {
   type TelemetryEnvelope,
   TelemetryRegistry,
   TelemetryStartupHealthError,
-} from '../src/libs/telemetry';
+} from '@modern-js/server-runtime-extensions';
+import type { IncomingHttpHeaders } from 'http';
+import { createServer } from 'http';
+import type { AddressInfo } from 'net';
 
 const createEnvelope = (
   partial: Partial<TelemetryEnvelope> = {},

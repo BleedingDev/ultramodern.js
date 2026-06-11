@@ -5,37 +5,8 @@ import {
   type ServerConfig,
   serverManager,
 } from '@modern-js/server-core';
-import type { ISAppContext } from '@modern-js/types';
 import {
-  createLogger,
-  dotenv,
-  dotenvExpand,
-  ensureAbsolutePath,
-  fs,
-  INTERNAL_SERVER_PLUGINS,
-  OUTPUT_CONFIG_FILE,
-  SHARED_DIR,
-} from '@modern-js/utils';
-import { promises as nodeFs } from 'fs';
-import type {
-  Server as httpServer,
-  IncomingMessage,
-  ServerResponse,
-} from 'http';
-import type { ListenOptions } from 'net';
-import path from 'path';
-import { ContractGateAutopilot } from '../libs/contractGateAutopilot';
-import {
-  getServerConfigPath,
-  loadConfig,
-  requireConfig,
-} from '../libs/loadConfig';
-import { metrics as defaultMetrics } from '../libs/metrics';
-import {
-  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
-  persistRuntimeFallbackContractGateInWorker,
-} from '../libs/runtimeFallbackWorkerLane';
-import {
+  ContractGateAutopilot,
   createOtlpTelemetryExporter,
   createRuntimeFallbackSignalRuntimeState,
   createTelemetryAwareMetrics,
@@ -57,7 +28,36 @@ import {
   TelemetryCanaryOrchestrator,
   type TelemetryCanaryStatusSnapshot,
   TelemetryRegistry,
-} from '../libs/telemetry';
+} from '@modern-js/server-runtime-extensions';
+import type { ISAppContext } from '@modern-js/types';
+import {
+  createLogger,
+  dotenv,
+  dotenvExpand,
+  ensureAbsolutePath,
+  fs,
+  INTERNAL_SERVER_PLUGINS,
+  OUTPUT_CONFIG_FILE,
+  SHARED_DIR,
+} from '@modern-js/utils';
+import { promises as nodeFs } from 'fs';
+import type {
+  Server as httpServer,
+  IncomingMessage,
+  ServerResponse,
+} from 'http';
+import type { ListenOptions } from 'net';
+import path from 'path';
+import {
+  getServerConfigPath,
+  loadConfig,
+  requireConfig,
+} from '../libs/loadConfig';
+import { metrics as defaultMetrics } from '../libs/metrics';
+import {
+  DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS,
+  persistRuntimeFallbackContractGateInWorker,
+} from '../libs/runtimeFallbackWorkerLane';
 import type {
   ModernServerInterface,
   ModernServerOptions,

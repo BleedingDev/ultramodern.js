@@ -1,14 +1,14 @@
-import fs from 'fs';
-import type { IncomingMessage, ServerResponse } from 'http';
-import os from 'os';
-import path from 'path';
-import { PassThrough } from 'stream';
 import {
   createRuntimeFallbackSignalRuntimeState,
   normalizeRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackTrustPolicy,
   TelemetryRegistry,
-} from '../src/libs/telemetry';
+} from '@modern-js/server-runtime-extensions';
+import fs from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
+import os from 'os';
+import path from 'path';
+import { PassThrough } from 'stream';
 import { Server } from '../src/server/index';
 
 const makeTempDir = () =>

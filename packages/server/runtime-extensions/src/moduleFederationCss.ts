@@ -1,10 +1,15 @@
 import { fileReader } from '@modern-js/runtime-utils/fileReader';
+import type {
+  Middleware,
+  ServerEnv,
+  ServerPlugin,
+} from '@modern-js/server-core';
 import type { Monitors } from '@modern-js/types';
-import { fs } from '@modern-js/utils';
+import { fs, isProd } from '@modern-js/utils';
 import path from 'path';
+import { parseServerRuntimeExtensionsEnv } from './env';
 
 const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
-const DEFAULT_REMOTE_MANIFEST_TIMEOUT = 1500;
 
 type ModuleFederationAssets = {
   css?: {
@@ -226,7 +231,9 @@ export const collectDirectRemoteModuleFederationCss = async (
     return [];
   }
 
-  const timeout = options.timeout ?? DEFAULT_REMOTE_MANIFEST_TIMEOUT;
+  const timeout =
+    options.timeout ??
+    parseServerRuntimeExtensionsEnv().mfRemoteManifestTimeoutMs;
   const cssAssets: string[] = [];
   const seen = new Set<string>();
 
@@ -279,3 +286,56 @@ export const collectDirectRemoteModuleFederationCss = async (
 
   return cssAssets;
 };
+
+/**
+ * Enriches the request-scoped server manifest with CSS assets collected from
+ * direct module federation remotes, so SSR/CSR-RSC rendering can inline
+ * `<link>` tags for remote CSS.
+ *
+ * This plugin must be registered after `injectResourcePlugin()` (which sets
+ * `serverManifest` on the request context). @modern-js/prod-server wires it
+ * into its plugin assembly for both production and dev servers.
+ */
+export const injectModuleFederationCssPlugin = (): ServerPlugin => ({
+  name: '@modern-js/inject-module-federation-css',
+
+  setup(api) {
+    api.onPrepare(() => {
+      const { middlewares, distDirectory: pwd } = api.getServerContext();
+
+      if (!pwd) {
+        return;
+      }
+
+      // In production, warm up the remote manifest fetch at prepare time,
+      // mirroring the server manifest warmup of injectResourcePlugin.
+      const warmupPromise = isProd()
+        ? collectDirectRemoteModuleFederationCss(pwd)
+        : undefined;
+
+      const handler: Middleware<ServerEnv> = async (c, next) => {
+        const serverManifest = c.get('serverManifest');
+
+        if (serverManifest && !serverManifest.moduleFederationCssAssets) {
+          const monitors = c.get('monitors');
+          const moduleFederationCssAssets = await (warmupPromise ||
+            collectDirectRemoteModuleFederationCss(pwd, {
+              monitors,
+            }));
+
+          c.set('serverManifest', {
+            ...serverManifest,
+            moduleFederationCssAssets,
+          });
+        }
+
+        await next();
+      };
+
+      middlewares.push({
+        name: 'inject-module-federation-css',
+        handler,
+      });
+    });
+  },
+});

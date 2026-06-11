@@ -1285,6 +1285,9 @@ importers:
       '@modern-js/server-core':
         specifier: workspace:*
         version: link:../core
+      '@modern-js/server-runtime-extensions':
+        specifier: workspace:*
+        version: link:../runtime-extensions
       '@modern-js/utils':
         specifier: workspace:*
         version: link:../../toolkit/utils
@@ -1316,6 +1319,43 @@ importers:
       lint-staged:
         specifier: ~17.0.5
         version: 17.0.5
+
+  packages/server/runtime-extensions:
+    dependencies:
+      '@modern-js/create-request':
+        specifier: workspace:*
+        version: link:../create-request
+      '@modern-js/runtime-utils':
+        specifier: workspace:*
+        version: link:../../toolkit/runtime-utils
+      '@modern-js/server-core':
+        specifier: workspace:*
+        version: link:../core
+      '@modern-js/utils':
+        specifier: workspace:*
+        version: link:../../toolkit/utils
+      '@swc/helpers':
+        specifier: ^0.5.23
+        version: 0.5.23
+    devDependencies:
+      '@modern-js/rslib':
+        specifier: workspace:*
+        version: link:../../../scripts/rslib
+      '@modern-js/types':
+        specifier: workspace:*
+        version: link:../../toolkit/types
+      '@rslib/core':
+        specifier: 0.21.5
+        version: 0.21.5(@module-federation/runtime-tools@2.5.1)(@typescript/native-preview@7.0.0-dev.20260606.1)(core-js@3.49.0)(typescript@6.0.3)
+      '@scripts/rstest-config':
+        specifier: workspace:*
+        version: link:../../../scripts/rstest-config
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260606.1
+        version: 7.0.0-dev.20260606.1
 
   packages/server/server:
     dependencies:
@@ -2493,6 +2533,8 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260606.1
         version: 7.0.0-dev.20260606.1
+
+  tests/integration/bff-corss-project/bff-api-app/dist-1/client: {}
 
   tests/integration/bff-corss-project/bff-client-app:
     dependencies:
@@ -3994,6 +4036,8 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4070,7 +4114,11 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
+
+  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 
@@ -19684,8 +19732,8 @@ snapshots:
 
   '@rslib/core@0.21.5(@module-federation/runtime-tools@2.5.1)(@typescript/native-preview@7.0.0-dev.20260606.1)(core-js@3.49.0)(typescript@6.0.3)':
     dependencies:
-      '@rsbuild/core': 2.0.9(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0)
-      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.9(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260606.1)(typescript@6.0.3)
+      '@rsbuild/core': 2.0.10(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0)
+      rsbuild-plugin-dts: 0.21.5(@rsbuild/core@2.0.10(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260606.1)(typescript@6.0.3)
     optionalDependencies:
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -26833,10 +26881,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.9(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260606.1)(typescript@6.0.3):
+  rsbuild-plugin-dts@0.21.5(@rsbuild/core@2.0.10(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260606.1)(typescript@6.0.3):
     dependencies:
       '@ast-grep/napi': 0.37.0
-      '@rsbuild/core': 2.0.9(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0)
+      '@rsbuild/core': 2.0.10(@module-federation/runtime-tools@2.5.1)(core-js@3.49.0)
     optionalDependencies:
       '@typescript/native-preview': 7.0.0-dev.20260606.1
       typescript: 6.0.3

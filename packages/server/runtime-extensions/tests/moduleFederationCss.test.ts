@@ -4,7 +4,7 @@ import path from 'node:path';
 import {
   collectDirectRemoteModuleFederationCss,
   collectModuleFederationManifestCss,
-} from '../../src/adapters/node/plugins/moduleFederationCss';
+} from '../src/moduleFederationCss';
 
 const tempDirs: string[] = [];
 

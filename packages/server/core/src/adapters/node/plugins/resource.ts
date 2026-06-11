@@ -19,7 +19,6 @@ import type {
   ServerPlugin,
 } from '../../../types';
 import { uniqueKeyByRoute } from '../../../utils';
-import { collectDirectRemoteModuleFederationCss } from './moduleFederationCss';
 
 export async function getHtmlTemplates(pwd: string, routes: ServerRoute[]) {
   // Only process routes with entryName, which are HTML template routes.
@@ -132,18 +131,12 @@ export async function getServerManifest(
     _ => ({}),
   );
 
-  const moduleFederationCssAssets =
-    await collectDirectRemoteModuleFederationCss(pwd, {
-      monitors,
-    });
-
   return {
     loaderBundles,
     renderBundles,
     loadableStats,
     routeManifest,
     nestedRoutesJson,
-    moduleFederationCssAssets,
   };
 }
 

@@ -17,6 +17,10 @@ import {
   loadCacheConfig,
   serverStaticPlugin,
 } from '@modern-js/server-core/node';
+import {
+  injectModuleFederationCssPlugin,
+  injectTelemetryPlugin,
+} from '@modern-js/server-runtime-extensions';
 import { createLogger, isProd, logger } from '@modern-js/utils';
 import type { ProdServerOptions } from './types';
 
@@ -95,9 +99,14 @@ export async function applyPlugins(
       logger:
         loggerOptions === false ? false : optLogger || getLogger(loggerOptions),
     }),
+    // ultramodern.js fork plugins live in @modern-js/server-runtime-extensions
+    // and are registered here (instead of inside server-core) for both the
+    // production server and the dev server, which share this plugin assembly.
+    injectTelemetryPlugin(),
     injectConfigMiddlewarePlugin(middlewares, renderMiddlewares),
     ...(options.plugins || []),
     injectResourcePlugin(),
+    injectModuleFederationCssPlugin(),
     injectRscManifestPlugin(enableRsc),
     serverStaticPlugin(),
     faviconPlugin(),

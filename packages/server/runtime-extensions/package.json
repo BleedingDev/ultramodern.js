@@ -1,0 +1,70 @@
+{
+  "name": "@modern-js/server-runtime-extensions",
+  "description": "Fork-owned ultramodern.js server runtime extensions: telemetry pipeline, contract-gate canary autopilot and module federation runtime helpers.",
+  "homepage": "https://modernjs.dev",
+  "bugs": "https://github.com/web-infra-dev/modern.js/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/modern.js",
+    "directory": "packages/server/runtime-extensions"
+  },
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "framework",
+    "modern",
+    "modern.js"
+  ],
+  "version": "3.2.1",
+  "types": "./src/index.ts",
+  "main": "./dist/cjs/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "modern:source": "./src/index.ts",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types/index.d.ts",
+        "./src/index.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "only-allow-pnpm",
+    "dev": "rslib build --watch",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "test": "rstest --passWithNoTests"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modern-js/create-request": "workspace:*",
+    "@modern-js/runtime-utils": "workspace:*",
+    "@modern-js/server-core": "workspace:*",
+    "@modern-js/utils": "workspace:*",
+    "@swc/helpers": "^0.5.23"
+  },
+  "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
+    "@modern-js/types": "workspace:*",
+    "@rslib/core": "0.21.5",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^25.9.1",
+    "@typescript/native-preview": "7.0.0-dev.20260606.1"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "types": "./dist/types/index.d.ts"
+  }
+}

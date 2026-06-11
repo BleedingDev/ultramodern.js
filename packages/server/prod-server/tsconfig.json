@@ -15,7 +15,6 @@
     "src/apply.ts",
     "src/types.ts",
     "src/libs/metrics.ts",
-    "src/libs/telemetry.ts",
     "src/modern-app-env.d.ts"
   ]
 }

@@ -4,7 +4,7 @@ import {
   isMfManifestAsset,
   isMfRemoteEntryAsset,
   resolveMfAssetCacheHeaders,
-} from '../../../server/core/src/plugins/mfCache';
+} from '../src/mfCache';
 
 describe('mf cache headers', () => {
   test('detects MF manifest assets', () => {

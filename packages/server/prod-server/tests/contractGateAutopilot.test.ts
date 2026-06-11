@@ -1,11 +1,11 @@
+import {
+  ContractGateAutopilot,
+  TelemetryCanaryOrchestrator,
+  TelemetryRegistry,
+} from '@modern-js/server-runtime-extensions';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { ContractGateAutopilot } from '../src/libs/contractGateAutopilot';
-import {
-  TelemetryCanaryOrchestrator,
-  TelemetryRegistry,
-} from '../src/libs/telemetry';
 
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'modern-contract-gate-autopilot-'));

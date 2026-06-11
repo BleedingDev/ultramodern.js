@@ -1,12 +1,17 @@
+import { parseTraceparent } from '@modern-js/create-request/server';
+import type {
+  Context,
+  Next,
+  ServerEnv,
+  ServerPlugin,
+  ServerTelemetryUserConfig,
+} from '@modern-js/server-core';
 import type {
   CoreMonitor,
   LogEvent,
   Metrics,
   MonitorEvent,
 } from '@modern-js/types';
-import type { ServerTelemetryUserConfig } from '../types/config';
-import type { ServerPlugin } from '../types/plugins';
-import type { Context, Next, ServerEnv } from '../types/server';
 import { ContractGateAutopilot } from './contractGateAutopilot';
 import {
   CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
@@ -16,6 +21,7 @@ import {
   resolveContractGateSnapshotPath,
   resolveContractGateSnapshotStore,
 } from './contractGateSnapshotStore';
+import { parseServerRuntimeExtensionsEnv } from './env';
 
 export type TelemetrySignalType = 'log' | 'metric' | 'trace';
 
@@ -193,9 +199,6 @@ type TelemetryMetricsTags = Record<string, unknown>;
 
 type TelemetryMetricsPrefixOrTags = string | TelemetryMetricsTags;
 
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
-const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
-const DEFAULT_VM_ENDPOINT = 'http://127.0.0.1:8428/api/v1/import/prometheus';
 const DEFAULT_TIMEOUT_MS = 5_000;
 export const DEFAULT_RUNTIME_FALLBACK_SIGNAL_ENDPOINT =
   '/_modern/contract-gates/runtime-fallback';
@@ -319,30 +322,6 @@ function normalizeLabels(labels: Record<string, unknown> | undefined) {
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function parseTraceparent(
-  header: string | undefined,
-): Pick<TelemetryEnvelope, 'traceId' | 'spanId'> | undefined {
-  if (!header) {
-    return undefined;
-  }
-
-  const match = header.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return undefined;
-  }
-
-  const traceId = match[1]?.toLowerCase();
-  const spanId = match[2]?.toLowerCase();
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-
-  return {
-    traceId,
-    spanId,
-  };
 }
 
 function extractError(args: unknown[]): TelemetryEnvelope['error'] | undefined {
@@ -513,7 +492,8 @@ function toPrometheusLine(
 export function createOtlpTelemetryExporter(
   options: OtlpExporterOptions = {},
 ): TelemetryExporter {
-  const endpoint = options.endpoint || DEFAULT_OTLP_ENDPOINT;
+  const endpoint =
+    options.endpoint || parseServerRuntimeExtensionsEnv().telemetryOtlpEndpoint;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const headers = {
     'content-type': 'application/json',
@@ -550,7 +530,9 @@ export function createOtlpTelemetryExporter(
 export function createVictoriaMetricsTelemetryExporter(
   options: VictoriaMetricsExporterOptions = {},
 ): TelemetryExporter {
-  const endpoint = options.endpoint || DEFAULT_VM_ENDPOINT;
+  const endpoint =
+    options.endpoint ||
+    parseServerRuntimeExtensionsEnv().telemetryVictoriaMetricsEndpoint;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const metricPrefix = sanitizeMetricName(options.metricPrefix || 'modernjs');
   const headers = {
@@ -1766,7 +1748,7 @@ function maybeWarnLegacyOtlpEndpoint(endpoint: string | undefined) {
   // Keep this warning lightweight and runtime-safe.
   // eslint-disable-next-line no-console
   console.warn(
-    `[telemetry] OTLP endpoint "${endpoint}" looks like a metrics path. UltraModern telemetry exporter expects log-style envelopes (default: ${DEFAULT_OTLP_ENDPOINT}).`,
+    `[telemetry] OTLP endpoint "${endpoint}" looks like a metrics path. UltraModern telemetry exporter expects log-style envelopes (default: ${parseServerRuntimeExtensionsEnv().telemetryOtlpEndpoint}).`,
   );
 }
 
@@ -1941,9 +1923,7 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
     const moduleName = telemetryConfig.module || 'server';
     const environmentName =
       telemetryConfig.environment ||
-      process.env.MODERN_ENV ||
-      process.env.NODE_ENV ||
-      'development';
+      parseServerRuntimeExtensionsEnv().environmentName;
 
     const registry = new TelemetryRegistry({
       service: serviceName,

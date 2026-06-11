@@ -1,6 +1,7 @@
 import { fs } from '@modern-js/utils';
 import { promises as nodeFs } from 'fs';
 import path from 'path';
+import { parseServerRuntimeExtensionsEnv } from './env';
 
 export const CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION = 1;
 export const DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH =
@@ -69,8 +70,12 @@ export type ContractGateSnapshotHttpStoreOptions = {
 const DEFAULT_HTTP_STORE_TIMEOUT_MS = 5_000;
 const BUILTIN_HTTP_STATE_STORE_MODULES = new Set([
   'http',
+  // historical aliases kept for config compatibility with the era when these
+  // modules lived inside @modern-js/server-core.
   '@modern-js/server-core/http',
   '@modern-js/server-core/contract-gate-http-store',
+  '@modern-js/server-runtime-extensions/http',
+  '@modern-js/server-runtime-extensions/contract-gate-http-store',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -303,7 +308,7 @@ export const resolveContractGateSnapshotPath = (
 ) => {
   const rawPath =
     configuredPath ||
-    process.env.MODERN_CONTRACT_GATES_FILE ||
+    parseServerRuntimeExtensionsEnv().contractGatesFile ||
     DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH;
   if (path.isAbsolute(rawPath)) {
     return rawPath;
