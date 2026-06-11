@@ -5,6 +5,7 @@ import {
   BFF_OPERATION_CONTEXT_HEADER,
   BFF_TRACEPARENT_HEADER,
   type OperationContext,
+  parseTraceparent,
 } from '@modern-js/create-request';
 
 export type EffectContext = {
@@ -28,8 +29,6 @@ type OperationContextStringField =
   | 'traceId'
   | 'spanId';
 
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
-
 const readHeader = (headers: Headers, header: string) => {
   const value = headers.get(header);
   return value && value.length > 0 ? value : undefined;
@@ -44,27 +43,6 @@ const copyStringField = (
   if (typeof value === 'string' && value.length > 0) {
     target[key] = value;
   }
-};
-
-const parseTraceparent = (traceparent?: string) => {
-  if (!traceparent) {
-    return undefined;
-  }
-
-  const match = traceparent.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, traceId, spanId] = match;
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-
-  return {
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
-  };
 };
 
 const readOperationContextDetails = (

@@ -1,4 +1,5 @@
 // @effect-diagnostics asyncFunction:off globalDate:off globalRandom:off globalTimers:off newPromise:off strictBooleanExpressions:off
+import { parseTraceparent } from '@modern-js/create-request';
 import { trace } from '@opentelemetry/api';
 
 export type DataRequestMode =
@@ -197,7 +198,6 @@ export const DEFAULT_DATA_ENVELOPE_HEADER = 'x-modernjs-data-envelope';
 export const DEFAULT_DATA_BATCH_ENDPOINT = '/_data/batch';
 export const DEFAULT_DATA_BATCH_HEADER = 'x-modernjs-data-batch';
 
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
 type DataTransportRequestInfo = string | URL | Request;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -344,26 +344,7 @@ function isValidHex(value: string, length: number): boolean {
 }
 
 export function parseTraceparentHeader(header: string): TraceContext | null {
-  const match = header.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return null;
-  }
-
-  const traceId = match[1]!.toLowerCase();
-  const spanId = match[2]!.toLowerCase();
-  const flags = match[3]!.toLowerCase();
-
-  if (isAllZeroHex(traceId) || isAllZeroHex(spanId)) {
-    return null;
-  }
-
-  const sampled = (Number.parseInt(flags, 16) & 0x1) === 1;
-
-  return {
-    traceId,
-    spanId,
-    sampled,
-  };
+  return parseTraceparent(header) ?? null;
 }
 
 export function formatTraceparentHeader(trace: TraceContext): string {

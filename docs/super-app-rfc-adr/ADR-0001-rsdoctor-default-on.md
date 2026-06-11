@@ -1,8 +1,13 @@
 # ADR-0001: RsDoctor Default-On in Normal Builds
 
-- Status: Implemented
+- Status: Reverted (2026-04-20, commit a210ac658d "refactor(builder): remove implicit rsdoctor default")
 - Date: 2026-02-21
 - Decision Type: Framework default behavior
+
+> **Reversal note:** The implicit RsDoctor default was removed because of build-time
+> overhead in normal iteration loops. Current behavior is opt-in; see
+> `packages/cli/builder/tests/rsdoctor.test.ts`, which asserts RsDoctor is NOT
+> enabled by default in either development or production builds.
 
 ## 1. Context
 

@@ -67,3 +67,6 @@ dist-ssg
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key
+
+# agent planning artifacts (local only)
+.codex/

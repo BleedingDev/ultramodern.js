@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from 'http';
 import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
+import { parseTraceparent as parseTraceparentHeader } from './traceparent';
 import { executeWithResilience } from './transport';
 import type {
   AllowCrossOriginEnvelope,
@@ -47,7 +48,6 @@ const isEmptyDomain = (domain?: string) =>
 const TRACEPARENT_HEADER = 'traceparent';
 const OPERATION_CONTEXT_DETAIL_HEADER =
   BFF_OPERATION_CONTEXT_DETAIL_HEADER satisfies 'x-modernjs-bff-operation-context';
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
 const isStrictDefaultRequestIdEnabled = () =>
   process.env.MODERN_BFF_STRICT_DEFAULT_REQUEST_ID === 'true';
 const isSecuredRequestId = (requestId: string) =>
@@ -99,27 +99,8 @@ const toOrigin = (value?: string) => {
   }
 };
 
-const parseTraceparent = (value: unknown) => {
-  const traceparent = firstHeaderValue(value as string | string[]);
-  if (typeof traceparent !== 'string') {
-    return undefined;
-  }
-
-  const match = traceparent.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, traceId, spanId] = match;
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-
-  return {
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
-  };
-};
+const parseTraceparentValue = (value: unknown) =>
+  parseTraceparentHeader(firstHeaderValue(value as string | string[]));
 
 const resolveSourceOrigin = (headers: Record<string, any>) => {
   const origin = toOrigin(firstHeaderValue(headers.origin));
@@ -188,7 +169,7 @@ const buildOperationContext = ({
           traceId: operationContext.traceId,
           spanId: operationContext.spanId,
         }
-      : parseTraceparent(traceparentValue);
+      : parseTraceparentValue(traceparentValue);
 
   return {
     requestId,
@@ -630,7 +611,7 @@ export const createRequest: RequestCreator<Fetch> = ((
     if (shouldRequireEnvelope) {
       const sourceOrigin = resolveSourceOrigin(webRequestHeaders);
       const targetOrigin = toOrigin(url);
-      const traceContext = parseTraceparent(
+      const traceContext = parseTraceparentValue(
         readHeader(headers, TRACEPARENT_HEADER),
       );
       const isCrossOrigin =
@@ -741,4 +722,5 @@ export const createUploader: UploadCreator = ({
 };
 
 export * from './requestContext';
+export * from './traceparent';
 export * from './types';

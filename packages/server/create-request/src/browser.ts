@@ -1,6 +1,7 @@
 import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
+import { parseTraceparent as parseTraceparentHeader } from './traceparent';
 import { executeWithResilience } from './transport';
 import type {
   AllowCrossOriginEnvelope,
@@ -41,7 +42,6 @@ const isEmptyDomain = (domain?: string) =>
 const TRACEPARENT_HEADER = 'traceparent';
 const OPERATION_CONTEXT_DETAIL_HEADER =
   BFF_OPERATION_CONTEXT_DETAIL_HEADER satisfies 'x-modernjs-bff-operation-context';
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
 const readProcessEnv = (key: string) => {
   if (
     typeof process === 'undefined' ||
@@ -104,27 +104,8 @@ const toOrigin = (value?: string) => {
   }
 };
 
-const parseTraceparent = (value: unknown) => {
-  const traceparent = firstHeaderValue(value);
-  if (typeof traceparent !== 'string') {
-    return undefined;
-  }
-
-  const match = traceparent.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, traceId, spanId] = match;
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-
-  return {
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
-  };
-};
+const parseTraceparentValue = (value: unknown) =>
+  parseTraceparentHeader(firstHeaderValue(value));
 
 const extractPathParamNames = (path: string): string[] =>
   Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).flatMap(([, key]) =>
@@ -175,7 +156,7 @@ const buildOperationContext = ({
           traceId: operationContext.traceId,
           spanId: operationContext.spanId,
         }
-      : parseTraceparent(traceparentValue);
+      : parseTraceparentValue(traceparentValue);
 
   return {
     requestId,
@@ -573,7 +554,7 @@ export const createRequest: RequestCreator = ((
       const sourceOrigin =
         typeof window !== 'undefined' ? window.location.origin : undefined;
       const targetOrigin = toOrigin(finalURL);
-      const traceContext = parseTraceparent(
+      const traceContext = parseTraceparentValue(
         readHeader(headers, TRACEPARENT_HEADER),
       );
       const isCrossOrigin =
@@ -690,4 +671,5 @@ export const createUploader: UploadCreator = ({
 };
 
 export * from './requestContext';
+export * from './traceparent';
 export * from './types';

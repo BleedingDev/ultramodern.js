@@ -1,8 +1,8 @@
+import { parseTraceparent } from './traceparent';
 import type { OperationContext } from './types';
 
 export const BFF_LOCALE_HEADER = 'accept-language';
 export const BFF_TRACEPARENT_HEADER = 'traceparent';
-const TRACEPARENT_REGEX = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/i;
 
 export type RequestContextInput = {
   headers?: Record<string, unknown>;
@@ -42,27 +42,6 @@ const readHeader = (
 
 const readString = (value: unknown) =>
   typeof value === 'string' && value.length > 0 ? value : undefined;
-
-function parseTraceparent(traceparent?: string) {
-  if (!traceparent) {
-    return undefined;
-  }
-
-  const match = traceparent.trim().match(TRACEPARENT_REGEX);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, traceId, spanId] = match;
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-
-  return {
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
-  };
-}
 
 function createOperationContextSnapshot(
   operationContext: OperationContext | undefined,

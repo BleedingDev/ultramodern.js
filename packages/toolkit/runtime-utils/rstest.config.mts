@@ -15,7 +15,7 @@ export default {
     withTestPreset({
       name: 'runtime-utils-client',
       root: __dirname,
-      testEnvironment: 'jsdom',
+      testEnvironment: 'happy-dom',
       include: [
         'tests/universal/cache-client.test.ts',
         'tests/browser/**/*.{test,spec}.{js,cjs,mjs,ts,tsx}',
