@@ -1,0 +1,69 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const generatedContractPath = path.join(
+  root,
+  '.modernjs/ultramodern-generated-contract.json',
+);
+const generatedContract = fs.existsSync(generatedContractPath)
+  ? JSON.parse(fs.readFileSync(generatedContractPath, 'utf-8'))
+  : undefined;
+const defaultAppDirs = {{defaultAppDirsJson}};
+
+const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  process.stdout.write(`Usage:
+  node scripts/assert-mf-types.mjs [app-dir...]
+
+Checks that every Module Federation remote with exposed modules emitted a non-empty dist/@mf-types.zip archive and uses the workspace TypeScript compiler.
+`);
+  process.exit(0);
+}
+
+const candidateDirs = args;
+const appDirs = candidateDirs.length
+  ? candidateDirs
+  : fs.existsSync(path.join(root, 'module-federation.config.ts'))
+    ? ['.']
+    : defaultAppDirs;
+
+for (const appDir of appDirs) {
+  const configPath = path.join(root, appDir, 'module-federation.config.ts');
+  if (!fs.existsSync(configPath)) {
+    throw new Error(
+      `Missing Module Federation config: ${path.relative(root, configPath)}`,
+    );
+  }
+
+  const contractEntry = generatedContract?.apps?.find(
+    app => app.path === appDir.replace(/\\/g, '/'),
+  );
+  if (
+    contractEntry &&
+    contractEntry.moduleFederation?.dts?.compilerInstance !==
+      '--package typescript -- tsc'
+  ) {
+    throw new Error(
+      `Module Federation DTS must use the workspace TypeScript compiler: ${appDir}`,
+    );
+  }
+
+  if (contractEntry && contractEntry.moduleFederation?.exposes?.length === 0) {
+    continue;
+  }
+
+  const typesArchivePath = path.join(root, appDir, 'dist/@mf-types.zip');
+  if (!fs.existsSync(typesArchivePath)) {
+    throw new Error(
+      `Missing Module Federation DTS archive: ${path.relative(root, typesArchivePath)}`,
+    );
+  }
+
+  const stats = fs.statSync(typesArchivePath);
+  if (stats.size === 0) {
+    throw new Error(
+      `Empty Module Federation DTS archive: ${path.relative(root, typesArchivePath)}`,
+    );
+  }
+}

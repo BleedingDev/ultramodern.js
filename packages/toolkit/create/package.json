@@ -46,6 +46,7 @@
   },
   "files": [
     "template-workspace",
+    "templates",
     "dist",
     "bin"
   ],

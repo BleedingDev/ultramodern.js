@@ -1,0 +1,203 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+} from '../src/ultramodern-workspace';
+
+/**
+ * Full relative-path manifest of a default (tailwind-enabled) workspace
+ * scaffold. Future refactors of the generator or its template trees must not
+ * silently drop or add generated files: update this snapshot intentionally.
+ */
+const expectedWorkspaceManifest = [
+  '.agents/agent-reference-repos.json',
+  '.agents/rstackjs-agent-skills-LICENSE',
+  '.agents/skills-lock.json',
+  '.agents/skills/rsbuild-best-practices/SKILL.md',
+  '.agents/skills/rsdoctor-analysis/SKILL.md',
+  '.agents/skills/rsdoctor-analysis/references/command-map.md',
+  '.agents/skills/rsdoctor-analysis/references/common-analysis-patterns.md',
+  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-common.md',
+  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-rspack.md',
+  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-webpack.md',
+  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor.md',
+  '.agents/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
+  '.agents/skills/rslib-best-practices/SKILL.md',
+  '.agents/skills/rslib-modern-package/SKILL.md',
+  '.agents/skills/rspack-best-practices/SKILL.md',
+  '.agents/skills/rspack-tracing/SKILL.md',
+  '.agents/skills/rspack-tracing/references/bottlenecks.md',
+  '.agents/skills/rspack-tracing/references/tracing-guide.md',
+  '.agents/skills/rspack-tracing/scripts/analyze_trace.js',
+  '.agents/skills/rstest-best-practices/SKILL.md',
+  '.codex/hooks.json',
+  '.github/renovate.json',
+  '.github/workflows/ultramodern-workspace-gates.yml',
+  '.gitignore',
+  '.mise.toml',
+  '.modernjs/ultramodern-generated-contract.json',
+  '.modernjs/ultramodern-package-source.json',
+  '.modernjs/ultramodern-workspace-template-manifest.json',
+  'AGENTS.md',
+  'README.md',
+  'apps/shell-super-app/locales/cs/shell.json',
+  'apps/shell-super-app/locales/cs/translation.json',
+  'apps/shell-super-app/locales/en/shell.json',
+  'apps/shell-super-app/locales/en/translation.json',
+  'apps/shell-super-app/modern.config.ts',
+  'apps/shell-super-app/module-federation.config.ts',
+  'apps/shell-super-app/package.json',
+  'apps/shell-super-app/postcss.config.mjs',
+  'apps/shell-super-app/src/effect/vertical-clients.ts',
+  'apps/shell-super-app/src/modern-app-env.d.ts',
+  'apps/shell-super-app/src/modern.runtime.ts',
+  'apps/shell-super-app/src/routes/[lang]/page.tsx',
+  'apps/shell-super-app/src/routes/[lang]/route.meta.ts',
+  'apps/shell-super-app/src/routes/index.css',
+  'apps/shell-super-app/src/routes/layout.tsx',
+  'apps/shell-super-app/src/routes/shell-frame.tsx',
+  'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
+  'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
+  'apps/shell-super-app/src/routes/vertical-components.tsx',
+  'apps/shell-super-app/src/ultramodern-build.ts',
+  'apps/shell-super-app/tailwind.config.ts',
+  'apps/shell-super-app/tsconfig.json',
+  'lefthook.yml',
+  'oxfmt.config.ts',
+  'oxlint.config.ts',
+  'package.json',
+  'packages/shared-contracts/package.json',
+  'packages/shared-contracts/src/index.ts',
+  'packages/shared-contracts/tsconfig.json',
+  'packages/shared-design-tokens/package.json',
+  'packages/shared-design-tokens/src/index.ts',
+  'packages/shared-design-tokens/src/tokens.css',
+  'packages/shared-design-tokens/tsconfig.json',
+  'packages/shared-effect-api/package.json',
+  'packages/shared-effect-api/src/index.ts',
+  'packages/shared-effect-api/tsconfig.json',
+  'pnpm-workspace.yaml',
+  'scripts/assert-mf-types.mjs',
+  'scripts/bootstrap-agent-skills.mjs',
+  'scripts/check-ultramodern-i18n-boundaries.mjs',
+  'scripts/generate-public-surface-assets.mjs',
+  'scripts/proof-cloudflare-version.mjs',
+  'scripts/setup-agent-reference-repos.mjs',
+  'scripts/ultramodern-cloudflare-proof.mjs',
+  'scripts/validate-ultramodern-workspace.mjs',
+  'topology/local-overlays/development.json',
+  'topology/ownership.json',
+  'topology/reference-topology.json',
+  'tsconfig.base.json',
+];
+
+/**
+ * Files added under verticals/<name>/ when a full-stack MicroVertical named
+ * "catalog" joins the workspace.
+ */
+const expectedVerticalManifest = [
+  'verticals/catalog/api/effect/index.ts',
+  'verticals/catalog/locales/cs/catalog.json',
+  'verticals/catalog/locales/cs/translation.json',
+  'verticals/catalog/locales/en/catalog.json',
+  'verticals/catalog/locales/en/translation.json',
+  'verticals/catalog/modern.config.ts',
+  'verticals/catalog/module-federation.config.ts',
+  'verticals/catalog/package.json',
+  'verticals/catalog/postcss.config.mjs',
+  'verticals/catalog/shared/effect/api.ts',
+  'verticals/catalog/src/components/catalog-widget.tsx',
+  'verticals/catalog/src/effect/catalog-client.ts',
+  'verticals/catalog/src/federation-entry.tsx',
+  'verticals/catalog/src/modern-app-env.d.ts',
+  'verticals/catalog/src/modern.runtime.ts',
+  'verticals/catalog/src/routes/[lang]/page.tsx',
+  'verticals/catalog/src/routes/[lang]/route.meta.ts',
+  'verticals/catalog/src/routes/index.css',
+  'verticals/catalog/src/routes/layout.tsx',
+  'verticals/catalog/src/routes/ultramodern-route-head.tsx',
+  'verticals/catalog/src/routes/ultramodern-route-metadata.ts',
+  'verticals/catalog/src/ultramodern-build.ts',
+  'verticals/catalog/tailwind.config.ts',
+  'verticals/catalog/tsconfig.json',
+];
+
+function listFiles(root: string, dir = root): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFiles(root, entryPath));
+    } else if (entry.isFile()) {
+      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
+    }
+  }
+  // Byte-order sort keeps the snapshot stable across machine locales.
+  return files.sort();
+}
+
+test('generated workspace file manifest matches the checked-in snapshot', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-workspace-manifest-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'manifest-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'manifest-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+    assert.deepEqual(listFiles(workspaceDir), expectedWorkspaceManifest);
+
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    assert.deepEqual(listFiles(workspaceDir), [
+      ...expectedWorkspaceManifest,
+      ...expectedVerticalManifest,
+    ]);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('scaffold without tailwind drops only the tailwind config files', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-workspace-manifest-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'manifest-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'manifest-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+    assert.deepEqual(
+      listFiles(workspaceDir),
+      expectedWorkspaceManifest.filter(
+        relativePath =>
+          relativePath !== 'apps/shell-super-app/postcss.config.mjs' &&
+          relativePath !== 'apps/shell-super-app/tailwind.config.ts',
+      ),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

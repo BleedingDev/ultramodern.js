@@ -1,0 +1,218 @@
+import {
+  appI18nNamespace,
+  remoteDependencyAlias,
+  resolveRemoteRefs,
+  shellApp,
+} from './descriptors';
+import { readFileTemplate, renderFileTemplate } from './fs-io';
+import { packageName, tailwindPrefixForApp } from './naming';
+import type { JsonValue, WorkspaceApp } from './types';
+
+export function createBoundaryDebugMetadata(
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): JsonValue {
+  return {
+    appId: shellApp.id,
+    boundaries: [shellApp, ...remotes].map(app => ({
+      appId: app.id,
+      label: app.displayName,
+      mfName: app.mfName,
+      ownerTeam: app.ownership.team,
+      packageName: packageName(scope, app.packageSuffix),
+      role: app.kind === 'shell' ? 'host' : 'vertical',
+    })),
+    schemaVersion: 1,
+  };
+}
+
+export function createAppEnvDts(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  const remoteModuleDeclarations = resolveRemoteRefs(app, remotes)
+    .flatMap(remote =>
+      Object.keys(remote.exposes ?? {})
+        .filter(expose => expose !== './Route')
+        .map(expose => {
+          const moduleName = `${remoteDependencyAlias(remote)}/${expose.replace(
+            /^\.\//u,
+            '',
+          )}`;
+          return `declare module '${moduleName}' {
+  const Component: React.ComponentType<Record<string, never>>;
+  export default Component;
+}
+`;
+        }),
+    )
+    .join('\n');
+
+  const reactTypeReference = remoteModuleDeclarations
+    ? "/// <reference types='react' />\n"
+    : '';
+  const siteUrlDeclaration = 'declare const ULTRAMODERN_SITE_URL: string;';
+
+  return `${reactTypeReference}/// <reference types='@modern-js/app-tools/types' />
+
+${siteUrlDeclaration}
+declare module '*.svg' {
+  const url: string;
+  export default url;
+}
+declare module '*.css';
+${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
+}
+
+export function createAppRuntimeConfig(
+  app: WorkspaceApp,
+  scope: string,
+  remotes: WorkspaceApp[] = [],
+): string {
+  const pluginsConfig =
+    app.kind === 'shell'
+      ? `  plugins: [
+    ultramodernBoundaryDebuggerPlugin({
+      metadata: ${JSON.stringify(
+        createBoundaryDebugMetadata(scope, remotes),
+        null,
+        6,
+      )
+        .split('\n')
+        .join('\n      ')},
+    }),
+  ],
+`
+      : '';
+
+  return `import { defineRuntimeConfig } from '@modern-js/runtime';
+${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import { createInstance } from 'i18next';
+import csResource from '../locales/cs/${appI18nNamespace(app)}.json';
+import enResource from '../locales/en/${appI18nNamespace(app)}.json';
+import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
+
+type LocaleResource = string | { readonly [key: string]: LocaleResource };
+
+const flattenLocaleResource = (
+  resource: LocaleResource,
+  prefix = '',
+): Record<string, string> => {
+  if (typeof resource === 'string') {
+    return prefix.length > 0 ? { [prefix]: resource } : {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(resource).flatMap(([key, value]) => {
+      const nextKey = prefix.length > 0 ? \`\${prefix}.\${key}\` : key;
+      return typeof value === 'string'
+        ? [[nextKey, value]]
+        : Object.entries(flattenLocaleResource(value, nextKey));
+    }),
+  );
+};
+
+const i18nInstance = createInstance();
+const resources = {
+  cs: { [ultramodernRouteNamespace]: flattenLocaleResource(csResource) },
+  en: { [ultramodernRouteNamespace]: flattenLocaleResource(enResource) },
+} as const;
+
+export default defineRuntimeConfig({
+  i18n: {
+    i18nInstance,
+    initOptions: {
+      defaultNS: ultramodernRouteNamespace,
+      fallbackLng: 'en',
+      interpolation: {
+        escapeValue: false,
+      },
+      ns: [ultramodernRouteNamespace, 'translation'],
+      resources,
+      supportedLngs: ['en', 'cs'],
+    },
+  },
+${pluginsConfig}
+  router: {
+    framework: 'tanstack',
+  },
+});
+`;
+}
+
+export function createCssTokenImport(scope: string): string {
+  return `@import '${packageName(scope, 'shared-design-tokens')}/tokens.css';\n`;
+}
+
+export function createTailwindImport(prefix: string): string {
+  return `@import 'tailwindcss' prefix(${prefix}) source(none);\n@source '..';\n`;
+}
+
+export function createShellStyles(
+  enableTailwind: boolean,
+  scope: string,
+): string {
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(shellApp)) : ''}${createCssTokenImport(
+    scope,
+  )}`;
+}
+
+export function createRemoteStyles(
+  enableTailwind: boolean,
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(app)) : ''}${createCssTokenImport(
+    scope,
+  )}`;
+}
+
+export function createAppStyles(
+  enableTailwind: boolean,
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  return app.kind === 'shell'
+    ? createShellStyles(enableTailwind, scope)
+    : createRemoteStyles(enableTailwind, scope, app);
+}
+
+export function createPostcssConfig(): string {
+  return `export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+`;
+}
+
+export function createTailwindConfig(): string {
+  return `import type { Config } from 'tailwindcss';
+
+export default {} satisfies Config;
+`;
+}
+
+export function createSharedDesignTokensCss(): string {
+  return `@theme {
+  --color-um-accent: #2f8f68;
+  --color-um-canvas: #f1eadc;
+  --color-um-foreground: #133225;
+  --color-um-link: #166b4b;
+  --color-um-surface: #f6fbf7;
+}
+`;
+}
+
+export function createRouteHeadModule(app: WorkspaceApp): string {
+  return renderFileTemplate('app/ultramodern-route-head.tsx', {
+    appDisplayNameJson: JSON.stringify(app.displayName),
+  });
+}
+
+export function createShellFrameComponent(): string {
+  return readFileTemplate('app/shell-frame.tsx');
+}
+
+export function createActionQueueStore(): string {
+  return readFileTemplate('app/action-queue-store.ts');
+}

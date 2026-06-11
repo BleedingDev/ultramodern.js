@@ -1,0 +1,277 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRouteHeadModule } from './app-files';
+import { writeFileReplacing } from './fs-io';
+import { relativeRootFor } from './naming';
+import {
+  createPublicHeadRobotsPolicy,
+  createPublicSurfaceContentExpansionPolicy,
+} from './policy';
+import {
+  createPublicRouteMetadata,
+  createRouteAliasPage,
+  createRouteMetadataModule,
+  createRouteMetaFilePath,
+  createRouteMetaModule,
+  createRouteOwnedI18nPaths,
+  createRoutePageFilePath,
+  isConcretePublicPath,
+  normalisePublicPath,
+} from './routes';
+import type {
+  JsonValue,
+  PublicRouteMetadata,
+  PublicSurfaceSitemapFields,
+  SupportedWorkspaceLanguage,
+  WorkspaceApp,
+} from './types';
+import { supportedWorkspaceLanguages } from './types';
+
+export const publicSurfaceManagedSourceAssetPaths = [
+  'config/public/robots.txt',
+  'config/public/sitemap.xml',
+  'config/public/site.webmanifest',
+] as const;
+export const publicSurfaceBaseOutputFiles = ['robots.txt'] as const;
+export const publicSurfacePublicRouteOutputFiles = [
+  'sitemap.xml',
+  'site.webmanifest',
+] as const;
+
+export type PublicSurfaceRouteEntry = PublicRouteMetadata & {
+  canonicalUrlPath: string;
+  localeUrlPaths: Record<SupportedWorkspaceLanguage, string>;
+} & PublicSurfaceSitemapFields;
+
+export type PublicSurfaceContentSource = {
+  entryExport: 'default-or-entries';
+  module: string;
+  routeId: string;
+};
+
+export function createLocalisedPublicPath(
+  pathname: string,
+  language: SupportedWorkspaceLanguage,
+): string {
+  const publicPath = normalisePublicPath(pathname);
+  return publicPath === '/' ? `/${language}` : `/${language}${publicPath}`;
+}
+
+export function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+export function createPublicSurfaceRouteEntries(
+  app: WorkspaceApp,
+): PublicSurfaceRouteEntry[] {
+  return createPublicRouteMetadata(app)
+    .map(route => {
+      const localeUrlPaths = Object.fromEntries(
+        supportedWorkspaceLanguages.map(language => [
+          language,
+          createLocalisedPublicPath(route.localisedPaths[language], language),
+        ]),
+      ) as Record<SupportedWorkspaceLanguage, string>;
+
+      if (!Object.values(localeUrlPaths).every(isConcretePublicPath)) {
+        return;
+      }
+
+      return {
+        ...route,
+        canonicalUrlPath: localeUrlPaths.en,
+        localeUrlPaths,
+      };
+    })
+    .filter((route): route is PublicSurfaceRouteEntry => route !== undefined)
+    .sort(
+      (left, right) =>
+        left.canonicalUrlPath.localeCompare(right.canonicalUrlPath) ||
+        left.id.localeCompare(right.id),
+    );
+}
+
+export function createPublicSurfaceContentSources(
+  _app: WorkspaceApp,
+): PublicSurfaceContentSource[] {
+  return [];
+}
+
+export function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
+  return uniqueSorted(
+    createPublicSurfaceRouteEntries(app).flatMap(route =>
+      supportedWorkspaceLanguages.map(
+        language => route.localeUrlPaths[language],
+      ),
+    ),
+  );
+}
+
+export function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
+  return [
+    ...publicSurfaceBaseOutputFiles,
+    ...(createPublicRouteMetadata(app).length > 0
+      ? publicSurfacePublicRouteOutputFiles
+      : []),
+  ];
+}
+
+export type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare';
+
+export function createPublicSurfaceGenerationCommand(
+  app: WorkspaceApp,
+  target: PublicSurfaceGenerationTarget,
+  requirePublicOrigin = false,
+): string {
+  return `node ${relativeRootFor(
+    app.directory,
+  )}/scripts/generate-public-surface-assets.mjs --app ${app.id} --target ${target}${
+    requirePublicOrigin ? ' --require-public-origin' : ''
+  }`;
+}
+
+export function workspaceAssetsForApp(
+  app: WorkspaceApp,
+): Record<string, string> {
+  void app;
+  return {};
+}
+
+export function rewriteWorkspaceAssetsForApp(
+  workspaceRoot: string,
+  app: WorkspaceApp,
+) {
+  for (const relativePath of publicSurfaceManagedSourceAssetPaths) {
+    fs.rmSync(path.join(workspaceRoot, app.directory, relativePath), {
+      force: true,
+    });
+  }
+  for (const [relativePath, content] of Object.entries(
+    workspaceAssetsForApp(app),
+  )) {
+    writeFileReplacing(
+      workspaceRoot,
+      `${app.directory}/${relativePath}`,
+      content,
+    );
+  }
+}
+
+export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
+  const files = createPublicSurfaceOutputFiles(app);
+  const contentExpansionPolicy = createPublicSurfaceContentExpansionPolicy();
+
+  return {
+    authoring: 'colocated-route-meta',
+    artifactLifecycle: 'build-and-deploy-output',
+    generatedManifest: './src/routes/ultramodern-route-metadata',
+    source: 'route-owned-public-routes',
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    outputRoot: 'dist/public',
+    cloudflareOutputRoot: '.output/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    files,
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    languages: [...supportedWorkspaceLanguages],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: contentExpansionPolicy.defaultProviderFile,
+      entryExport: 'default-or-entries',
+      paramsSource: 'params-or-localeParams',
+      draftPolicy: contentExpansionPolicy.draftPolicy,
+      indexablePolicy: contentExpansionPolicy.indexablePolicy,
+      lifecycle: 'executed-during-public-surface-generation',
+    },
+    contentSources: createPublicSurfaceContentSources(app),
+    publicRoutes: createPublicRouteMetadata(app),
+    routeEntries: createPublicSurfaceRouteEntries(app),
+    concreteUrlPaths: createPublicSurfaceUrlPaths(app),
+  };
+}
+
+export function createPublicHeadContract(): JsonValue {
+  const robotsPolicy = createPublicHeadRobotsPolicy();
+
+  return {
+    authoring: 'colocated-route-meta',
+    generator: './src/routes/ultramodern-route-head',
+    renderer: '@modern-js/runtime/head Helmet',
+    ssr: true,
+    title: {
+      required: true,
+      source: 'route.titleKey',
+    },
+    description: {
+      required: true,
+      source: 'route.descriptionKey',
+    },
+    canonical: {
+      publicIndexableOnly: true,
+      source: 'localized canonical route URL',
+    },
+    alternates: {
+      hreflang: [...supportedWorkspaceLanguages],
+      xDefault: 'en',
+    },
+    openGraph: {
+      publicIndexableOnly: true,
+      required: ['og:title', 'og:description', 'og:url', 'og:type'],
+    },
+    twitter: {
+      publicIndexableOnly: true,
+      required: ['twitter:card', 'twitter:title', 'twitter:description'],
+    },
+    structuredData: {
+      publicIndexableOnly: true,
+      type: 'WebPage',
+      sanitizesHtmlOpenBracket: true,
+    },
+    privateRouteRobots: robotsPolicy.privateRouteRobots,
+  };
+}
+
+export type PublicWebGeneratedFile = {
+  path: string;
+  content: string;
+};
+
+export type PublicWebAppArtifacts = {
+  routeMetadataFile: PublicWebGeneratedFile;
+  routeHeadFile: PublicWebGeneratedFile;
+  routeMetaFiles: PublicWebGeneratedFile[];
+  routeAliasFiles: PublicWebGeneratedFile[];
+  publicHead: JsonValue;
+  publicSurface: JsonValue;
+};
+
+export function createPublicWebAppArtifacts(
+  app: WorkspaceApp,
+): PublicWebAppArtifacts {
+  const routeMetadata = createRouteOwnedI18nPaths(app);
+
+  return {
+    routeMetadataFile: {
+      path: `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
+      content: createRouteMetadataModule(app),
+    },
+    routeHeadFile: {
+      path: `${app.directory}/src/routes/ultramodern-route-head.tsx`,
+      content: createRouteHeadModule(app),
+    },
+    routeMetaFiles: routeMetadata.map(route => ({
+      path: createRouteMetaFilePath(app, route.canonicalPath),
+      content: createRouteMetaModule(route),
+    })),
+    routeAliasFiles: routeMetadata
+      .filter(route => route.canonicalPath !== '/' && app.kind !== 'shell')
+      .map(route => ({
+        path: createRoutePageFilePath(app, route.canonicalPath),
+        content: createRouteAliasPage(route.canonicalPath),
+      })),
+    publicHead: createPublicHeadContract(),
+    publicSurface: createPublicSurfaceContract(app),
+  };
+}
