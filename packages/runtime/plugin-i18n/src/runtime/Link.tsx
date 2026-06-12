@@ -119,7 +119,17 @@ export interface LinkBaseProps extends AnchorRest {
   search?: string | Record<string, unknown>;
   hashScrollIntoView?: boolean | ScrollIntoViewOptions;
   replace?: boolean;
+  /**
+   * Prefetching behavior, forwarded to the underlying router link:
+   * react-router gets it verbatim (Modern.js `PrefetchLink` supports it),
+   * TanStack receives it as its native `preload` prop (`'none'` -> `false`).
+   * Stripped from plain `<a>` fallbacks (external / no-router targets).
+   */
   prefetch?: 'intent' | 'render' | 'viewport' | 'none';
+  /**
+   * Native preload value of the underlying router link. When set, it wins
+   * over `prefetch` on the TanStack branch.
+   */
   preload?: unknown;
   activeOptions?: LinkActiveOptions;
   /** Extra anchor props applied when the link is active. */
@@ -215,6 +225,8 @@ export const Link = <TTo extends string = string>(
     hashScrollIntoView,
     activeOptions,
     activeProps,
+    prefetch,
+    preload,
     ...rest
   } = props as LinkBaseProps & { to: string; params?: LinkParams };
 
@@ -320,12 +332,7 @@ export const Link = <TTo extends string = string>(
 
   // External targets and same-page anchors are vanilla links.
   if (!target) {
-    const {
-      prefetch: _prefetch,
-      preload: _preload,
-      replace: _replace,
-      ...anchorProps
-    } = rest;
+    const { replace: _replace, ...anchorProps } = rest;
 
     return (
       <a href={to} {...anchorProps}>
@@ -337,12 +344,7 @@ export const Link = <TTo extends string = string>(
   const { Link: RouterLink, hasRouter, framework } = adapter;
 
   if (!hasRouter || !RouterLink) {
-    const {
-      prefetch: _prefetch,
-      preload: _preload,
-      replace: _replace,
-      ...anchorProps
-    } = rest;
+    const { replace: _replace, ...anchorProps } = rest;
     const {
       className: activeClassName,
       style: activeStyle,
@@ -378,6 +380,17 @@ export const Link = <TTo extends string = string>(
   };
 
   if (framework === 'tanstack') {
+    // TanStack's prop is `preload`; map our react-router-flavored `prefetch`
+    // onto it (`'none'` -> `false`). An explicit native `preload` wins.
+    const tanstackPreload =
+      preload !== undefined
+        ? preload
+        : prefetch === undefined
+          ? undefined
+          : prefetch === 'none'
+            ? false
+            : prefetch;
+
     // Pass hash/search natively: string-concatenated targets silently break
     // TanStack navigation.
     return (
@@ -386,6 +399,7 @@ export const Link = <TTo extends string = string>(
         {...(target.searchObject ? { search: target.searchObject } : {})}
         {...(target.hash ? { hash: target.hash } : {})}
         {...(hashScrollIntoView === undefined ? {} : { hashScrollIntoView })}
+        {...(tanstackPreload === undefined ? {} : { preload: tanstackPreload })}
         {...rest}
         {...activeRest}
         {...activeAttributes}
@@ -400,6 +414,8 @@ export const Link = <TTo extends string = string>(
   return (
     <RouterLink
       to={target.href}
+      {...(prefetch === undefined ? {} : { prefetch })}
+      {...(preload === undefined ? {} : { preload })}
       {...rest}
       {...activeRest}
       {...activeAttributes}

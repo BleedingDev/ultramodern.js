@@ -275,6 +275,7 @@ async function expectOpenTelemetryTraceInBrowser(page: Page, port: number) {
     dbParentSpanId,
     dbTraceId,
     spanNames,
+    spansJson,
   ] = await Promise.all([
     page.$eval('.trace-status', el => el.textContent?.trim() ?? ''),
     page.$eval('.trace-id', el => el.textContent?.trim() ?? ''),
@@ -285,19 +286,50 @@ async function expectOpenTelemetryTraceInBrowser(page: Page, port: number) {
     page.$eval('.trace-db-parent-span-id', el => el.textContent?.trim() ?? ''),
     page.$eval('.trace-db-trace-id', el => el.textContent?.trim() ?? ''),
     page.$eval('.trace-span-names', el => el.textContent?.trim() ?? ''),
+    page.$eval('.trace-spans', el => el.textContent?.trim() ?? '[]'),
   ]);
 
   expect(status).toBe('ok');
   expect(traceId).toMatch(/^[0-9a-f]{32}$/);
   expect(rootSpanId).toMatch(/^[0-9a-f]{16}$/);
   expect(runSpanId).toMatch(/^[0-9a-f]{16}$/);
-  expect(runParentSpanId).toBe(rootSpanId);
+  expect(runParentSpanId).toMatch(/^[0-9a-f]{16}$/);
   expect(runTraceId).toBe(traceId);
   expect(dbParentSpanId).toBe(runSpanId);
   expect(dbTraceId).toBe(traceId);
   expect(spanNames.split(',')).toEqual(
     expect.arrayContaining(['bff.effect.db.query', 'bff.effect.trace.run']),
   );
+
+  // Every recorded server span for this traceId joined the browser-initiated
+  // trace, and the run span links back to the browser root span through the
+  // server-side span tree (http server spans in between are fine).
+  const spans = JSON.parse(spansJson) as Array<{
+    name: string;
+    traceId: string;
+    spanId: string;
+    parentSpanId?: string;
+  }>;
+  expect(spans.length).toBeGreaterThan(0);
+  for (const span of spans) {
+    expect(span.traceId).toBe(traceId);
+  }
+
+  const spansById = new Map(spans.map(span => [span.spanId, span]));
+  const visited = new Set<string>();
+  let cursor = spansById.get(runSpanId);
+  let reachedBrowserRoot = false;
+  while (cursor && !visited.has(cursor.spanId)) {
+    visited.add(cursor.spanId);
+    if (cursor.parentSpanId === rootSpanId) {
+      reachedBrowserRoot = true;
+      break;
+    }
+    cursor = cursor.parentSpanId
+      ? spansById.get(cursor.parentSpanId)
+      : undefined;
+  }
+  expect(reachedBrowserRoot).toBe(true);
 }
 
 describe('bff effect tests', () => {

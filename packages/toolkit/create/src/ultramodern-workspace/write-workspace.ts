@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import {
-  createActionQueueStore,
   createAppEnvDts,
   createAppRuntimeConfig,
   createAppStyles,
@@ -19,7 +18,6 @@ import {
 } from './contracts';
 import {
   createLayout,
-  createRecordsRemoteComponents,
   createRemoteEntry,
   createRemoteExposeComponent,
   createRemotePage,
@@ -42,10 +40,7 @@ import {
   createShellEffectClient,
 } from './effect-api';
 import { copyRootTemplate, writeFile, writeJson } from './fs-io';
-import {
-  createAppLocaleMessages,
-  createAppPublicLocaleMessages,
-} from './locales';
+import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
   createRemoteModuleFederationConfig,
@@ -66,16 +61,18 @@ import {
   createTsConfigBase,
 } from './package-json';
 import { resolvePackageSource } from './package-source';
-import {
-  createPublicWebAppArtifacts,
-  workspaceAssetsForApp,
-} from './public-surface';
+import { createPublicWebAppArtifacts } from './public-surface';
 import type {
   ResolvedPackageSource,
   UltramodernWorkspaceOptions,
   WorkspaceApp,
 } from './types';
-import { NODE_VERSION, PNPM_VERSION } from './versions';
+import {
+  NODE_FETCH_VERSION,
+  NODE_VERSION,
+  PNPM_VERSION,
+  TANSTACK_ROUTER_VERSION,
+} from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 
 export function writeApp(
@@ -183,11 +180,6 @@ export function writeApp(
       : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
   );
   writeAppFile('src/routes/layout.tsx', createLayout(resolvedApp.id));
-  for (const [relativePath, content] of Object.entries(
-    workspaceAssetsForApp(resolvedApp),
-  )) {
-    writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
-  }
   writeAppFile(
     'src/routes/[lang]/page.tsx',
     resolvedApp.kind === 'shell'
@@ -223,11 +215,7 @@ export function writeApp(
     writeFile(
       targetDir,
       `${resolvedApp.directory}/api/effect/index.ts`,
-      createEffectServiceEntry(
-        scope,
-        resolvedApp,
-        '../../shared/effect/api.ts',
-      ),
+      createEffectServiceEntry(resolvedApp, '../../shared/effect/api.ts'),
     );
     writeFile(
       targetDir,
@@ -238,19 +226,6 @@ export function writeApp(
 
   if (resolvedApp.kind === 'vertical') {
     writeAppFile('src/federation-entry.tsx', createRemoteEntry(resolvedApp));
-    if (resolvedApp.id === 'records') {
-      writeAppFile(
-        'src/components/vertical-components.tsx',
-        createRecordsRemoteComponents(scope, resolvedApp),
-      );
-    }
-    if (resolvedApp.id === 'actions') {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/src/action-queue-store.ts`,
-        createActionQueueStore(),
-      );
-    }
     for (const expose of Object.keys(resolvedApp.exposes ?? {})) {
       const outputPath = remoteComponentOutputPath(resolvedApp, expose);
 
@@ -264,21 +239,12 @@ export function writeApp(
   }
 }
 
-export function writeSharedPackages(
-  targetDir: string,
-  scope: string,
-  packageSource: ResolvedPackageSource,
-) {
+export function writeSharedPackages(targetDir: string, scope: string) {
   for (const sharedPackage of sharedPackages) {
     writeJson(
       targetDir,
       `${sharedPackage.directory}/package.json`,
-      createSharedPackage(
-        scope,
-        sharedPackage.id,
-        sharedPackage.description,
-        packageSource,
-      ),
+      createSharedPackage(scope, sharedPackage.id, sharedPackage.description),
     );
     writeJson(targetDir, `${sharedPackage.directory}/tsconfig.json`, {
       extends: `${relativeRootFor(sharedPackage.directory)}/tsconfig.base.json`,
@@ -308,11 +274,6 @@ export function writeSharedPackages(
     'packages/shared-design-tokens/src/tokens.css',
     createSharedDesignTokensCss(),
   );
-  writeFile(
-    targetDir,
-    'packages/shared-effect-api/src/index.ts',
-    createEffectSharedApi(),
-  );
 }
 
 export function generateUltramodernWorkspace(
@@ -330,6 +291,8 @@ export function generateUltramodernWorkspace(
     packageScope: scope,
     nodeVersion: NODE_VERSION,
     pnpmVersion: PNPM_VERSION,
+    nodeFetchVersion: NODE_FETCH_VERSION,
+    tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
     tailwindEnabled: String(enableTailwind),
   });
 
@@ -392,7 +355,7 @@ export function generateUltramodernWorkspace(
       initialVerticals,
     );
   }
-  writeSharedPackages(options.targetDir, scope, packageSource);
+  writeSharedPackages(options.targetDir, scope);
   writeGeneratedWorkspaceScripts(
     options.targetDir,
     scope,

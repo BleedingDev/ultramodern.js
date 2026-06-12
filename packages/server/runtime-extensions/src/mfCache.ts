@@ -1,3 +1,9 @@
+import type {
+  Middleware,
+  ServerEnv,
+  ServerPlugin,
+} from '@modern-js/server-core';
+
 const REMOTE_ENTRY_REGEXP = /(^|\/)remoteEntry(?:\.[a-zA-Z0-9_-]+)?\.js$/;
 
 function firstQueryValue(value: unknown): string | undefined {
@@ -63,3 +69,51 @@ export function resolveMfAssetCacheHeaders(
 
   return undefined;
 }
+
+/**
+ * Applies the documented MF asset cache-header policy (ADR-0002) to responses
+ * for module federation manifest/remoteEntry endpoints:
+ *
+ * - `mf-manifest.json` / `mf-stats.json` are never cached (`no-store`), so
+ *   hosts always observe remote redeploys;
+ * - `remoteEntry*.js` revalidates unless explicitly version-pinned via a
+ *   `mfv`/`v`/`version` query parameter, in which case it is immutable.
+ *
+ * Registered by @modern-js/prod-server next to the other fork plugins; the
+ * middleware runs in the `pre` phase so it wraps the static-file middleware
+ * that actually serves these assets.
+ */
+export const injectMfAssetCacheHeadersPlugin = (): ServerPlugin => ({
+  name: '@modern-js/inject-mf-asset-cache-headers',
+
+  setup(api) {
+    api.onPrepare(() => {
+      const { middlewares } = api.getServerContext();
+
+      const handler: Middleware<ServerEnv> = async (c, next) => {
+        await next();
+
+        // Never attach cache policies to error responses: an `immutable`
+        // 404 remoteEntry could otherwise be cached for a year.
+        if (!c.res || c.res.status >= 400) {
+          return;
+        }
+
+        const headers = resolveMfAssetCacheHeaders(c.req.path, c.req.query());
+        if (!headers) {
+          return;
+        }
+
+        for (const [name, value] of Object.entries(headers)) {
+          c.res.headers.set(name, value);
+        }
+      };
+
+      middlewares.push({
+        name: 'mf-asset-cache-headers',
+        handler,
+        order: 'pre',
+      });
+    });
+  },
+});

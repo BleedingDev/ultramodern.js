@@ -25,19 +25,10 @@ import {
   zephyrRemoteDependency,
 } from './descriptors';
 import {
-  createEffectSharedApiContract,
-  createEffectSharedApiImports,
   createShellEffectClient,
   effectApiTopologyMetadata,
-  verticalEffectApiExport,
 } from './effect-api';
-import {
-  assertSafeRelativePath,
-  ensureInsideRoot,
-  readJsonFile,
-  writeFileReplacing,
-  writeJsonFile,
-} from './fs-io';
+import { readJsonFile, writeFileReplacing, writeJsonFile } from './fs-io';
 import { createAppPublicLocaleMessages } from './locales';
 import { createShellModuleFederationConfig } from './module-federation';
 import {
@@ -69,31 +60,6 @@ import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-workspace';
 
 const FIRST_VERTICAL_PORT = 4101;
-
-export function appendEffectSharedApiContract(targetDir: string, service) {
-  const relativePath = 'packages/shared-effect-api/src/index.ts';
-  assertSafeRelativePath(relativePath);
-  const filePath = path.join(targetDir, relativePath);
-  ensureInsideRoot(targetDir, filePath);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing generated Effect API package: ${relativePath}`);
-  }
-  const current = fs.readFileSync(filePath, 'utf-8');
-  const apiExport = verticalEffectApiExport(service);
-  if (current.includes(`export const ${apiExport} =`)) {
-    return;
-  }
-  const contentWithImports = current.includes(
-    '@modern-js/plugin-bff/effect-client',
-  )
-    ? current.trimEnd()
-    : `${createEffectSharedApiImports()}\n${current.trimEnd()}`;
-  fs.writeFileSync(
-    filePath,
-    `${contentWithImports}\n\n${createEffectSharedApiContract(service)}`,
-    'utf-8',
-  );
-}
 
 export function existingPackageSource(
   workspaceRoot: string,

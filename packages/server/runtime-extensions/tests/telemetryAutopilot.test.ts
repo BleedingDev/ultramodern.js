@@ -32,6 +32,9 @@ describe('telemetry autopilot runtime signal', () => {
                 gateName: 'runtime-mf-fallback-health',
                 failureHoldMs: 5_000,
                 maxBodyBytes: 4_096,
+                auth: {
+                  expectedValue: 'accept-signal-token',
+                },
               },
             },
           },
@@ -59,6 +62,7 @@ describe('telemetry autopilot runtime signal', () => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'accept-signal-token',
           }),
           body: JSON.stringify({
             reason: 'remote_load_failed',
@@ -108,6 +112,9 @@ describe('telemetry autopilot runtime signal', () => {
                 enabled: true,
                 endpoint: '/_modern/contract-gates/runtime-fallback',
                 maxBodyBytes: 16,
+                auth: {
+                  expectedValue: 'oversize-signal-token',
+                },
               },
             },
           },
@@ -134,6 +141,7 @@ describe('telemetry autopilot runtime signal', () => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'oversize-signal-token',
           }),
           body: JSON.stringify({
             reason: 'x'.repeat(2_048),
@@ -381,6 +389,9 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
               runtimeFallbackSignal: {
                 enabled: true,
                 endpoint: '/_modern/contract-gates/runtime-fallback',
+                auth: {
+                  expectedValue: 'state-store-token',
+                },
               },
             },
           },
@@ -407,6 +418,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'state-store-token',
           }),
           body: JSON.stringify({
             reason: 'remote_mount_failed',
@@ -448,6 +460,9 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
               runtimeFallbackSignal: {
                 enabled: true,
                 endpoint: '/_modern/contract-gates/runtime-fallback',
+                auth: {
+                  expectedValue: 'trust-policy-token',
+                },
                 trustPolicy: {
                   allowedApps: ['crm-shell'],
                   allowedEntryOrigins: ['https://erp.example.com'],
@@ -482,6 +497,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'trust-policy-token',
           }),
           body: JSON.stringify({
             reason: 'remote_load_failed',
@@ -501,6 +517,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'trust-policy-token',
           }),
           body: JSON.stringify({
             reason: 'remote_load_failed',
@@ -520,6 +537,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'trust-policy-token',
           }),
           body: JSON.stringify({
             reason: 'remote_load_failed',
@@ -562,6 +580,9 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
               runtimeFallbackSignal: {
                 enabled: true,
                 endpoint: '/_modern/contract-gates/runtime-fallback',
+                auth: {
+                  expectedValue: 'rate-limit-token',
+                },
                 trustPolicy: {
                   allowedApps: ['crm-shell'],
                   dedupeWindowMs: 60_000,
@@ -601,6 +622,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'rate-limit-token',
           }),
           body: JSON.stringify(payload),
         },
@@ -614,6 +636,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'rate-limit-token',
           }),
           body: JSON.stringify(payload),
         },
@@ -631,6 +654,7 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
           method: 'POST',
           headers: new Headers({
             'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'rate-limit-token',
           }),
           body: JSON.stringify({
             ...payload,
@@ -640,6 +664,314 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
         {},
       );
       expect(secondUnique.status).toBe(429);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('keeps the runtime fallback signal endpoint disabled unless explicitly enabled', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            rollbackConsecutiveFailures: 1,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+              // no runtimeFallbackSignal config: the canary kill switch must
+              // stay OFF by default.
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await server.init();
+
+      const response = await server.request(
+        '/_modern/contract-gates/runtime-fallback',
+        {
+          method: 'POST',
+          headers: new Headers({
+            'content-type': 'application/json',
+          }),
+          body: JSON.stringify({
+            reason: 'remote_load_failed',
+            phase: 'load',
+            appName: 'dashboard',
+          }),
+        },
+        {},
+      );
+
+      expect(response.status).toBe(404);
+      expect(fs.existsSync(snapshotPath)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('refuses to enable the runtime fallback signal endpoint without an auth token', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+              runtimeFallbackSignal: {
+                enabled: true,
+                // no auth token configured: enabling must fail closed.
+              },
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await expect(server.init()).rejects.toThrow(
+        /requires an auth token|auth\.expectedValue/,
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rate limits cannot be reset by rotating payload identities', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            rollbackConsecutiveFailures: 1,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+              runtimeFallbackSignal: {
+                enabled: true,
+                endpoint: '/_modern/contract-gates/runtime-fallback',
+                auth: {
+                  expectedValue: 'rotation-token',
+                },
+                trustPolicy: {
+                  dedupeWindowMs: 0,
+                  maxSignalsPerWindow: 1,
+                  windowMs: 60_000,
+                },
+              },
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await server.init();
+
+      const sendSignal = (appName: string) =>
+        server.request(
+          '/_modern/contract-gates/runtime-fallback',
+          {
+            method: 'POST',
+            headers: new Headers({
+              'content-type': 'application/json',
+              'x-modernjs-runtime-signal-token': 'rotation-token',
+            }),
+            body: JSON.stringify({
+              reason: 'remote_load_failed',
+              phase: 'load',
+              appName,
+              entry: `https://${appName}.example.com/remoteEntry.js`,
+            }),
+          },
+          {},
+        );
+
+      const first = await sendSignal('app-a');
+      expect(first.status).toBe(202);
+
+      // A rotated appName/entry pair used to mint a fresh rate-limit bucket;
+      // the limiter is now keyed on connection identity instead.
+      const rotated = await sendSignal('app-b');
+      expect(rotated.status).toBe(429);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runtime status endpoint stays a bare health probe without configured auth', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await server.init();
+
+      const response = await server.request('/_modern/runtime/status', {}, {});
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as Record<string, unknown>;
+      expect(payload.ok).toBe(true);
+      expect(typeof payload.timestamp).toBe('number');
+      // No telemetry/canary/trust internals are disclosed without auth.
+      expect(payload.telemetry).toBeUndefined();
+      expect(payload.canary).toBeUndefined();
+      expect(payload.runtimeFallbackSignal).toBeUndefined();
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runtime status auth works even when the signal endpoint stays disabled', async () => {
+    const tempDir = makeTempDir();
+    const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: snapshotPath,
+              runtimeFallbackSignal: {
+                // endpoint stays disabled, but its auth config still guards
+                // the status endpoint detail view.
+                auth: {
+                  enabled: true,
+                  expectedValue: 'status-only-token',
+                },
+              },
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await server.init();
+
+      const signalResponse = await server.request(
+        '/_modern/contract-gates/runtime-fallback',
+        {
+          method: 'POST',
+          headers: new Headers({
+            'content-type': 'application/json',
+            'x-modernjs-runtime-signal-token': 'status-only-token',
+          }),
+          body: JSON.stringify({ appName: 'dashboard' }),
+        },
+        {},
+      );
+      expect(signalResponse.status).toBe(404);
+
+      const unauthorized = await server.request(
+        '/_modern/runtime/status',
+        {},
+        {},
+      );
+      expect(unauthorized.status).toBe(401);
+
+      const authorized = await server.request(
+        '/_modern/runtime/status',
+        {
+          method: 'GET',
+          headers: new Headers({
+            'x-modernjs-runtime-signal-token': 'status-only-token',
+          }),
+        },
+        {},
+      );
+      expect(authorized.status).toBe(200);
+      const payload = (await authorized.json()) as Record<string, any>;
+      expect(payload.ok).toBe(true);
+      expect(payload.canary?.enabled).toBe(true);
+      expect(payload.runtimeFallbackSignal?.enabled).toBe(false);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

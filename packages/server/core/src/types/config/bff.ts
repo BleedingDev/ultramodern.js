@@ -44,6 +44,16 @@ export interface BffCrossProjectPolicyUserConfig {
    */
   allowedNamespaces?: string[];
   /**
+   * Optional hook deriving a verified producer identity (namespace) from
+   * request headers, e.g. an mTLS subject or gateway-verified JWT claim.
+   * When provided, namespace checks bind to this verified value instead of
+   * the client-asserted requestId namespace; returning `undefined` denies
+   * the request. Without it the namespace checks are advisory only.
+   */
+  verifyProducerIdentity?: (
+    headers: Record<string, unknown>,
+  ) => string | undefined;
+  /**
    * Optional operation-contract map keyed by:
    * - `${METHOD}:${routePath}`
    * - `operation:${requestId}:${operationId}`

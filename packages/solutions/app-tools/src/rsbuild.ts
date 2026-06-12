@@ -1,11 +1,12 @@
 import { parseRspackConfig } from '@modern-js/builder';
+import { createConfigOptions } from '@modern-js/plugin/cli';
 import { INTERNAL_RUNTIME_PLUGINS } from '@modern-js/utils';
 import {
   builderPluginAdapterBasic,
   builderPluginAdapterHooks,
 } from './builder/shared/builderPlugins';
 import { DEFAULT_CONFIG_FILE } from './constants';
-import type { AppNormalizedConfig, AppUserConfig } from './types';
+import type { AppNormalizedConfig, AppTools, AppUserConfig } from './types';
 import { getConfigFile } from './utils/getConfigFile';
 import { loadInternalPlugins } from './utils/loadPlugins';
 
@@ -21,24 +22,6 @@ type ResolveModernRsbuildConfigOptions = {
   ) => AppUserConfig | Promise<AppUserConfig>;
 };
 
-type CreateConfigOptionsFn = (options: {
-  command: string;
-  cwd?: string;
-  configFile: string;
-  internalPlugins?: unknown[];
-  metaName?: string;
-  modifyModernConfig?: (
-    config: AppUserConfig,
-  ) => AppUserConfig | Promise<AppUserConfig>;
-}) => Promise<{
-  config: AppNormalizedConfig;
-  getAppContext: () => any;
-}>;
-
-const { createConfigOptions } = require('@modern-js/plugin/cli') as {
-  createConfigOptions: CreateConfigOptionsFn;
-};
-
 export async function resolveModernRsbuildConfig(
   options: ResolveModernRsbuildConfigOptions,
 ) {
@@ -52,14 +35,15 @@ export async function resolveModernRsbuildConfig(
     );
   }
 
-  const { config: modernConfig, getAppContext } = await createConfigOptions({
-    command: options.command,
-    cwd,
-    configFile,
-    internalPlugins: await loadInternalPlugins(cwd, INTERNAL_RUNTIME_PLUGINS),
-    metaName,
-    modifyModernConfig: options.modifyModernConfig,
-  });
+  const { config: modernConfig, getAppContext } =
+    await createConfigOptions<AppTools>({
+      command: options.command,
+      cwd,
+      configFile,
+      internalPlugins: await loadInternalPlugins(cwd, INTERNAL_RUNTIME_PLUGINS),
+      metaName,
+      modifyModernConfig: options.modifyModernConfig,
+    });
 
   const nonStandardConfig = {
     ...modernConfig,

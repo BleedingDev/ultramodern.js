@@ -11,18 +11,27 @@ export interface ResolvedLocalisedUrlsConfig {
 
 const LOCALE_PARAM_NAMES = new Set(['lang', 'locale', 'language']);
 
-export const normalisePathPattern = (path: string): string => {
+const normaliseSlashes = (path: string): string => {
   const withoutDuplicateSlashes = path.replace(/\/+/g, '/');
   const withLeadingSlash = withoutDuplicateSlashes.startsWith('/')
     ? withoutDuplicateSlashes
     : `/${withoutDuplicateSlashes}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1
-      ? withLeadingSlash.replace(/\/+$/, '')
-      : withLeadingSlash;
 
-  return withoutTrailingSlash.replace(/\[(.+?)\]/g, ':$1');
+  return withLeadingSlash.length > 1
+    ? withLeadingSlash.replace(/\/+$/, '')
+    : withLeadingSlash;
 };
+
+export const normalisePathPattern = (path: string): string =>
+  normaliseSlashes(path).replace(/\[(.+?)\]/g, ':$1');
+
+/**
+ * Normalise a concrete request pathname: slash cleanup only. Unlike
+ * {@link normalisePathPattern} it must not rewrite literal `[x]` segments to
+ * `:x` params — pathnames are values, not patterns.
+ */
+export const normalisePathname = (pathname: string): string =>
+  normaliseSlashes(pathname);
 
 const normaliseRoutePath = (path: string): string => {
   const normalized = normalisePathPattern(path);
@@ -63,18 +72,21 @@ const getLeadingLocaleParam = (path?: string): string | null => {
   return getLocaleParamSegment(segments[0] || '');
 };
 
+/**
+ * Localised URLs are strictly opt-in: only an explicit, non-empty map enables
+ * route expansion and validation. `true`, `false`, an empty map and absence
+ * all resolve to disabled, so upstream-style configs (`localePathRedirect` +
+ * `languages` without a map) keep plain locale-prefix behavior instead of
+ * failing the build for every route missing from a map they never wrote.
+ */
 export const resolveLocalisedUrlsConfig = (
   option: LocalisedUrlsOption | undefined,
 ): ResolvedLocalisedUrlsConfig => {
-  if (option === false) {
-    return { enabled: false, map: {} };
-  }
-
-  if (option && typeof option === 'object') {
+  if (option && typeof option === 'object' && Object.keys(option).length > 0) {
     return { enabled: true, map: option };
   }
 
-  return { enabled: true, map: {} };
+  return { enabled: false, map: {} };
 };
 
 const isLocaleParamPath = (path?: string): boolean => {
@@ -329,20 +341,40 @@ const compilePathPattern = (pattern: string) => {
   };
 };
 
+/**
+ * `decodeURIComponent` throws `URIError` on malformed percent-encoding
+ * (e.g. `%E0%A4%A`), which attacker-controlled request URLs can carry.
+ * Treat such segments as undecodable instead of throwing.
+ */
+const decodePathParam = (value: string): string | null => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+};
+
 export const matchPathPattern = (
   pathname: string,
   pattern: string,
 ): Record<string, string> | null => {
   const { names, regexp } = compilePathPattern(pattern);
-  const match = regexp.exec(normalisePathPattern(pathname));
+  const match = regexp.exec(normalisePathname(pathname));
   if (!match) {
     return null;
   }
 
-  return names.reduce<Record<string, string>>((params, name, index) => {
-    params[name] = decodeURIComponent(match[index + 1] || '');
-    return params;
-  }, {});
+  const params: Record<string, string> = {};
+  for (let index = 0; index < names.length; index++) {
+    const decoded = decodePathParam(match[index + 1] || '');
+    if (decoded === null) {
+      // Malformed encoding cannot identify a localised route: no match.
+      return null;
+    }
+    params[names[index]] = decoded;
+  }
+
+  return params;
 };
 
 export const buildPathFromPattern = (
@@ -373,7 +405,7 @@ export const resolveLocalisedPath = (
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
 ): string => {
-  const normalizedPathname = normalisePathPattern(pathname);
+  const normalizedPathname = normalisePathname(pathname);
 
   // Canonical keys take precedence: authors write language-agnostic paths,
   // which are the map keys, even when no language pattern equals the key.
@@ -423,7 +455,7 @@ export const resolveCanonicalLocalisedPath = (
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
 ): string => {
-  const normalizedPathname = normalisePathPattern(pathname);
+  const normalizedPathname = normalisePathname(pathname);
 
   for (const [canonicalPattern, localisedUrlEntry] of Object.entries(
     localisedUrls,

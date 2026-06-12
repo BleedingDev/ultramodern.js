@@ -2,7 +2,7 @@
 import type { AppToolsContext } from '@modern-js/app-tools';
 import { getPathWithoutExt, makeLegalIdentifier } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
-import { findExists, formatImportPath, fs, slash } from '@modern-js/utils';
+import { findExists, formatImportPath, slash } from '@modern-js/utils';
 import path from 'path';
 
 const JS_OR_TS_EXTS = [
@@ -167,6 +167,19 @@ function paramsTypeForCanonicalPath(canonicalPath: string): string {
     : 'Record<string, never>';
 }
 
+export type CollectCanonicalRoutesOptions = {
+  /**
+   * Whether a leading `:lang`/`:locale`/`:language` route param may be
+   * treated as an i18n locale prefix. This MUST only be enabled when
+   * `@modern-js/plugin-i18n` is actually installed: the emitted
+   * `declare module '@modern-js/plugin-i18n/runtime'` augmentation breaks
+   * typechecking (TS2664) for apps that hand-roll a `/:lang/` param without
+   * the plugin. Routes carrying `modernCanonicalPath` metadata are always
+   * honored — only plugin-i18n produces them.
+   */
+  localeParamHeuristic?: boolean;
+};
+
 /**
  * Derive the canonical (language-agnostic) route map for an entry: the
  * leading locale param is stripped and localized physical variants (routes
@@ -177,7 +190,9 @@ function paramsTypeForCanonicalPath(canonicalPath: string): string {
  */
 export function collectCanonicalRoutesForEntry(
   routes: (NestedRouteForCli | PageRoute)[],
+  options: CollectCanonicalRoutesOptions = {},
 ): Record<string, string> | null {
+  const { localeParamHeuristic = true } = options;
   const canonicalParams = new Map<string, string>();
   let hasI18nSurface = false;
 
@@ -208,7 +223,11 @@ export function collectCanonicalRoutesForEntry(
         .replace(/\[(.+?)\]/g, ':$1')
         .split('/')
         .filter(Boolean);
-      if (parentPath === '' && LOCALE_PARAM_SEGMENTS.has(segments[0])) {
+      if (
+        localeParamHeuristic &&
+        parentPath === '' &&
+        LOCALE_PARAM_SEGMENTS.has(segments[0])
+      ) {
         hasI18nSurface = true;
         segments.shift();
       }
@@ -247,29 +266,6 @@ export function collectCanonicalRoutesForEntry(
   );
 }
 
-export async function isTanstackRouterFrameworkEnabled(
-  appContext: AppToolsContext,
-): Promise<boolean> {
-  const runtimeConfigBase = path.join(
-    appContext.srcDirectory,
-    appContext.runtimeConfigFile,
-  );
-  const runtimeConfigFile = findExists(
-    JS_OR_TS_EXTS.map(ext => `${runtimeConfigBase}${ext}`),
-  );
-  if (!runtimeConfigFile) {
-    return false;
-  }
-
-  try {
-    const content = await fs.readFile(runtimeConfigFile, 'utf-8');
-    // Heuristic: allow both single and double quotes, tolerate whitespace/newlines.
-    return /framework\s*:\s*['"]tanstack['"]/.test(content);
-  } catch {
-    return false;
-  }
-}
-
 export async function generateTanstackRouterTypesSourceForEntry(opts: {
   appContext: AppToolsContext;
   entryName: string;
@@ -303,7 +299,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   const statements: string[] = [];
 
   const loaderImportMap = new Map<string, string>();
-  const componentImportMap = new Map<string, string>();
+  const componentImportMap = new Map<string, Promise<string | null>>();
   const searchContractImportMap = new Map<string, string>();
   const usedRouteVarNames = new Set<string>();
   let loaderIndex = 0;
@@ -312,20 +308,39 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   let loaderDepsIndex = 0;
   let routeIndex = 0;
 
-  const getImportNameForComponent = (componentPath: unknown) => {
+  const getImportNameForComponent = (
+    componentPath: unknown,
+  ): Promise<string | null> => {
     if (typeof componentPath !== 'string' || componentPath.length === 0) {
-      return null;
+      return Promise.resolve(null);
     }
 
-    const existing = componentImportMap.get(componentPath);
-    if (existing) {
-      return existing;
+    // Cache the in-flight promise: sibling routes sharing a component module
+    // are generated concurrently and must reuse one import.
+    let pendingImportName = componentImportMap.get(componentPath);
+    if (!pendingImportName) {
+      pendingImportName = (async () => {
+        // Resolve through the same machinery as loaders: the raw `_component`
+        // value carries the internal `@_modern_js_src` alias, which the app's
+        // tsconfig does not map — the generated file must use relative
+        // imports.
+        const resolvedNoExt = await resolveRouteModuleNoExt(componentPath);
+        if (!resolvedNoExt) {
+          return null;
+        }
+
+        const relImport = normalizeRelativeImport(
+          path.relative(outDir, resolvedNoExt),
+        );
+
+        const componentName = `component_${componentIndex++}`;
+        imports.push(`import ${componentName} from ${quote(relImport)};`);
+        return componentName;
+      })();
+      componentImportMap.set(componentPath, pendingImportName);
     }
 
-    const componentName = `component_${componentIndex++}`;
-    imports.push(`import ${componentName} from ${quote(componentPath)};`);
-    componentImportMap.set(componentPath, componentName);
-    return componentName;
+    return pendingImportName;
   };
 
   const resolveRouteModuleNoExt = async (aliasedNoExtPath: string) => {
@@ -472,7 +487,9 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
     const routeOpts: string[] = [`getParentRoute: () => ${parentVar},`];
 
-    const componentName = getImportNameForComponent((route as any)._component);
+    const componentName = await getImportNameForComponent(
+      (route as any)._component,
+    );
     if (componentName) {
       routeOpts.push(`component: ${componentName},`);
     }
@@ -567,7 +584,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
   const rootOpts: string[] = [];
 
-  const rootComponentName = getImportNameForComponent(
+  const rootComponentName = await getImportNameForComponent(
     (rootModern as any)?._component,
   );
   if (rootComponentName) {
@@ -591,177 +608,14 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
 
 import {
   createMemoryHistory,
-  modernTanstackRouterFastDefaults,
   createRootRouteWithContext,
   createRoute,
   createRouter,
-  notFound,
-  redirect,
+  createRouteStaticData,
+  type ModernRouterContext,
+  modernLoaderToTanstack,
+  modernTanstackRouterFastDefaults,
 } from '@modern-js/plugin-tanstack/runtime';
-
-type ModernRouterContext = {
-  request?: Request;
-  requestContext?: unknown;
-};
-
-function isResponse(value: unknown): value is Response {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    typeof (value as any).status === 'number' &&
-    typeof (value as any).headers === 'object'
-  );
-}
-
-const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
-function isRedirectResponse(res: Response) {
-  return redirectStatusCodes.has(res.status);
-}
-
-function throwTanstackRedirect(location: string) {
-  const target = location.length > 0 ? location : '/';
-  try {
-    void new URL(target);
-    throw redirect({ href: target });
-  } catch {
-    throw redirect({ to: target });
-  }
-}
-
-function mapParamsForModernLoader(params: Record<string, string>, hasSplat: boolean) {
-  if (!hasSplat) {
-    return params;
-  }
-
-  const { _splat, ...rest } = params as any;
-  if (typeof _splat !== 'undefined') {
-    return { ...rest, '*': _splat };
-  }
-  return rest;
-}
-
-function createRouteStaticData(opts: {
-  modernRouteId?: string;
-  modernRouteAction?: unknown;
-  modernRouteLoader?: unknown;
-}) {
-  const staticData: {
-    modernRouteId?: string;
-    modernRouteAction?: unknown;
-    modernRouteLoader?: unknown;
-  } = {};
-
-  if (typeof opts.modernRouteId === 'string' && opts.modernRouteId.length > 0) {
-    staticData.modernRouteId = opts.modernRouteId;
-  }
-
-  if (typeof opts.modernRouteLoader !== 'undefined') {
-    staticData.modernRouteLoader = opts.modernRouteLoader;
-  }
-
-  if (typeof opts.modernRouteAction !== 'undefined') {
-    staticData.modernRouteAction = opts.modernRouteAction;
-  }
-
-  return staticData;
-}
-
-function getLoaderSignal(ctx: any): AbortSignal {
-  const abortSignal = ctx?.abortController?.signal;
-  if (abortSignal instanceof AbortSignal) {
-    return abortSignal;
-  }
-  if (ctx?.signal instanceof AbortSignal) {
-    return ctx.signal;
-  }
-  return new AbortController().signal;
-}
-
-function getLoaderHref(ctx: any): string {
-  if (typeof ctx?.location === 'string') {
-    return ctx.location;
-  }
-
-  const publicHref = ctx?.location?.publicHref;
-  if (typeof publicHref === 'string') {
-    return publicHref;
-  }
-
-  const href = ctx?.location?.href;
-  if (typeof href === 'string') {
-    return href;
-  }
-
-  const urlHref = ctx?.location?.url?.href;
-  return typeof urlHref === 'string' ? urlHref : '';
-}
-
-function getLoaderParams(ctx: any): Record<string, string> {
-  return typeof ctx?.params === 'object' && ctx.params !== null ? ctx.params : {};
-}
-
-function handleModernLoaderResult<LoaderResult>(result: LoaderResult): LoaderResult {
-  if (isResponse(result)) {
-    if (isRedirectResponse(result)) {
-      const location = result.headers.get('Location') ?? '/';
-      throwTanstackRedirect(location);
-    }
-    if (result.status === 404) {
-      throw notFound();
-    }
-  }
-
-  return result;
-}
-
-function handleModernLoaderError(err: unknown): never {
-  if (isResponse(err)) {
-    if (isRedirectResponse(err)) {
-      const location = err.headers.get('Location') ?? '/';
-      throwTanstackRedirect(location);
-    }
-    if (err.status === 404) {
-      throw notFound();
-    }
-  }
-
-  throw err;
-}
-
-function modernLoaderToTanstack<TLoader extends (args: any) => any>(
-  opts: { hasSplat: boolean },
-  modernLoader: TLoader,
-) {
-  type LoaderResult = Awaited<ReturnType<TLoader>>;
-
-  return (ctx: any): Promise<LoaderResult> => {
-    try {
-      const signal = getLoaderSignal(ctx);
-      const baseRequest: Request | undefined =
-        ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
-
-      const href = getLoaderHref(ctx);
-
-      const request = baseRequest !== undefined
-        ? new Request(baseRequest, { signal })
-        : new Request(href, { signal });
-
-      const params = mapParamsForModernLoader(getLoaderParams(ctx), opts.hasSplat);
-
-      return Promise.resolve(
-        (modernLoader as any)({
-          request,
-          params,
-          context: ctx?.context?.requestContext,
-        }),
-      )
-        .then((result: LoaderResult) => handleModernLoaderResult(result))
-        .catch(handleModernLoaderError);
-    } catch (err) {
-      handleModernLoaderError(err);
-    }
-  };
-}
 
 ${imports.join('\n')}
 

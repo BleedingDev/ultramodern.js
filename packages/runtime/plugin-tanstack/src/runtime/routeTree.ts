@@ -1,6 +1,7 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
+
+import { DefaultNotFound } from '@modern-js/runtime/context';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
-import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type {
   AnyRoute,
   AnyRouter,
@@ -10,11 +11,15 @@ import {
   createRootRoute,
   createRoute,
   notFound,
-  redirect,
   rootRouteId,
 } from '@tanstack/react-router';
 import { createElement, type ElementType } from 'react';
-import { DefaultNotFound } from './DefaultNotFound';
+import {
+  isRedirectResponse,
+  isResponse,
+  isTanstackRedirect,
+  throwTanstackRedirect,
+} from './loaderBridge';
 import { withModernRouteMatchContext } from './outlet';
 import {
   isTanstackRscPayloadNavigationEnabled,
@@ -80,36 +85,6 @@ type ModernRouteObject = RouteObject & {
   loader?: ModernLoader;
   loaderDeps?: unknown;
   pendingComponent?: unknown;
-  shouldRevalidate?: ModernShouldRevalidate;
-  validateSearch?: unknown;
-};
-
-type ModernGeneratedRoute = (NestedRoute | PageRoute) & {
-  _component?: string;
-  action?: unknown;
-  children?: ModernGeneratedRoute[];
-  component?: unknown;
-  config?: { handle?: Record<string, unknown> } | unknown;
-  clientData?: unknown;
-  data?: string;
-  error?: unknown;
-  errorComponent?: unknown;
-  filename?: string;
-  handle?: Record<string, unknown>;
-  hasAction?: boolean;
-  hasClientLoader?: boolean;
-  hasLoader?: boolean;
-  inValidSSRRoute?: boolean;
-  id?: string;
-  index?: boolean;
-  isClientComponent?: boolean;
-  isRoot?: boolean;
-  lazyImport?: () => unknown;
-  loader?: ModernLoader;
-  loaderDeps?: unknown;
-  loading?: unknown;
-  pendingComponent?: unknown;
-  path?: string;
   shouldRevalidate?: ModernShouldRevalidate;
   validateSearch?: unknown;
 };
@@ -195,28 +170,6 @@ function toTanstackPath(pathname: string): string {
       return segment;
     })
     .join('/');
-}
-
-function isResponse(value: unknown): value is Response {
-  const record = value as { headers?: unknown; status?: unknown } | null;
-  return (
-    record != null &&
-    typeof record === 'object' &&
-    typeof record.status === 'number' &&
-    typeof record.headers === 'object'
-  );
-}
-
-function isTanstackRedirect(value: unknown): boolean {
-  return (
-    isResponse(value) &&
-    typeof (value as { options?: unknown }).options === 'object'
-  );
-}
-
-const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
-function isRedirectResponse(res: Response) {
-  return redirectStatusCodes.has(res.status);
 }
 
 function isModernDeferredData(
@@ -323,46 +276,6 @@ function createServerLazyImportComponent(
   return Component;
 }
 
-function isAbsoluteUrl(value: string) {
-  try {
-    void new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function throwTanstackRedirect(location: string) {
-  const target = location || '/';
-  // Prefer `to` for internal/relative redirects so basepath can be applied.
-  // Use `href` for absolute redirects (external).
-  if (isAbsoluteUrl(target)) {
-    throw redirect({ href: target });
-  }
-
-  throw redirect({ to: target });
-}
-
-function mapParamsForModernLoader({
-  modernRoute,
-  params,
-}: {
-  modernRoute: NestedRoute | PageRoute;
-  params: RouteParams;
-}) {
-  // React Router uses `*` for splat params, TanStack Router uses `_splat`.
-  if (modernRoute.type === 'nested' && modernRoute.path?.includes('*')) {
-    const { _splat, ...rest } = params as RouteParams & {
-      _splat?: string;
-    };
-    if (typeof _splat !== 'undefined') {
-      return { ...rest, '*': _splat };
-    }
-    return rest;
-  }
-  return params;
-}
-
 function createModernRequest(input: string, signal: AbortSignal) {
   return new Request(input, { signal });
 }
@@ -417,92 +330,6 @@ function createModernShouldReload(
     state.currentParams = nextParams;
 
     return typeof result === 'boolean' ? result : undefined;
-  };
-}
-
-function wrapModernLoader(
-  modernRoute: NestedRoute | PageRoute,
-  modernLoader: ModernLoader | undefined,
-  revalidationState?: RouteRevalidationState,
-  options: RouteTreeOptions = {},
-) {
-  const route = modernRoute as ModernGeneratedRoute;
-  return async (ctx: TanstackLoaderContext) => {
-    try {
-      if (revalidationState) {
-        rememberRouteLocation(revalidationState, ctx);
-      }
-
-      if (typeof route.lazyImport === 'function') {
-        try {
-          await route.lazyImport();
-        } catch {}
-      }
-
-      const signal: AbortSignal =
-        ctx?.abortController?.signal ||
-        ctx?.signal ||
-        new AbortController().signal;
-      const baseRequest: Request | undefined =
-        ctx?.context?.request instanceof Request
-          ? ctx.context.request
-          : undefined;
-
-      const href =
-        typeof ctx?.location === 'string'
-          ? ctx.location
-          : ctx?.location?.publicHref ||
-            ctx?.location?.href ||
-            ctx?.location?.url?.href ||
-            '';
-
-      const request =
-        baseRequest !== undefined
-          ? new Request(baseRequest, { signal })
-          : createModernRequest(href, signal);
-      const params = mapParamsForModernLoader({
-        modernRoute,
-        params: ctx.params || {},
-      });
-
-      const loadModernData = async () => {
-        const result = modernLoader
-          ? await modernLoader({
-              request,
-              params,
-              context: ctx?.context?.requestContext,
-            })
-          : null;
-
-        return normalizeModernLoaderResponse(result);
-      };
-
-      if (options.rscPayloadRouter && isTanstackRscPayloadNavigationEnabled()) {
-        return loadTanstackRscRouteData({
-          hasClientLoader:
-            route.hasClientLoader || typeof route.clientData !== 'undefined',
-          loadClientData: loadModernData,
-          request,
-          routeId: ctx.route?.id,
-        });
-      }
-
-      return loadModernData();
-    } catch (err) {
-      if (isResponse(err)) {
-        if (isTanstackRedirect(err)) {
-          throw err;
-        }
-        if (isRedirectResponse(err)) {
-          const location = err.headers.get('Location') || '/';
-          throwTanstackRedirect(location);
-        }
-        if (err.status === 404) {
-          throw notFound();
-        }
-      }
-      throw err;
-    }
   };
 }
 
@@ -645,15 +472,6 @@ function toRouteComponent(routeObject: RouteObject): unknown {
     return () => element;
   }
   return undefined;
-}
-
-function toModernRouteComponent(route: ModernGeneratedRoute): unknown {
-  const component = route.component || undefined;
-  if (typeof route.lazyImport === 'function' && component) {
-    return createServerLazyImportComponent(route.lazyImport, component);
-  }
-
-  return component;
 }
 
 function toErrorComponent(routeObject: RouteObject): unknown {
@@ -811,186 +629,6 @@ function createRouteFromRouteObject(opts: {
   }
 
   return route;
-}
-
-function createRouteFromModernRoute(opts: {
-  options?: RouteTreeOptions;
-  parent: AnyRoute;
-  modernRoute: NestedRoute | PageRoute;
-}): AnyRoute {
-  const { options = {}, parent, modernRoute } = opts;
-  const route = modernRoute as ModernGeneratedRoute;
-  const revalidationState: RouteRevalidationState = {};
-
-  const modernId = route.id;
-  const stableFallbackId =
-    modernId ||
-    route._component ||
-    route.filename ||
-    route.data ||
-    (typeof route.loader === 'function' ? route.id : undefined);
-
-  const pendingComponent = route.loading || route.pendingComponent;
-  const errorComponent = route.error || route.errorComponent;
-  const component = toModernRouteComponent(route);
-  const modernLoader = route.loader;
-  const modernAction = route.action;
-  const modernShouldRevalidate = route.shouldRevalidate;
-  const shouldReload = createModernShouldReload(
-    modernShouldRevalidate,
-    revalidationState,
-  );
-
-  // Pathless layout: no path segment, but must remain in the tree.
-  const isPathlessLayout =
-    route.type === 'nested' &&
-    typeof route.index !== 'boolean' &&
-    typeof route.path === 'undefined';
-
-  const isIndexRoute = route.type === 'nested' && Boolean(route.index);
-
-  const base: TanstackRouteOptions = {
-    getParentRoute: () => parent,
-    component: component || undefined,
-    pendingComponent: pendingComponent || undefined,
-    errorComponent: errorComponent || undefined,
-    validateSearch: route.validateSearch,
-    loaderDeps: route.loaderDeps,
-    staticData: createRouteStaticData({
-      modernRouteId: modernId,
-      modernRouteAction: modernAction,
-      modernRouteHandle: mergeModernRouteHandle(route),
-      modernRouteHasAction: route.hasAction || Boolean(modernAction),
-      modernRouteHasClientLoader:
-        route.hasClientLoader || typeof route.clientData !== 'undefined',
-      modernRouteHasLoader:
-        route.hasLoader || typeof modernLoader === 'function',
-      modernRouteIsClientComponent: route.isClientComponent,
-      modernRouteLoader: modernLoader,
-      modernRouteShouldRevalidate: modernShouldRevalidate,
-    }),
-    loader: wrapModernLoader(
-      modernRoute,
-      modernLoader,
-      revalidationState,
-      options,
-    ),
-  };
-  if (route.inValidSSRRoute) {
-    base.ssr = false;
-  }
-  if (shouldReload) {
-    base.shouldReload = shouldReload;
-  }
-
-  if (isPathlessLayout) {
-    // Use a stable custom id for pathless layouts to avoid hydration mismatch.
-    base.id = stableFallbackId || 'pathless';
-  } else {
-    const rawPath = route.path;
-    base.path = isIndexRoute ? '/' : toTanstackPath(rawPath || '');
-  }
-
-  const tanstackRoute = createTanstackRoute(base);
-  wrapRouteComponentWithModernContext(tanstackRoute, component, modernId);
-
-  const children = route.children as Array<NestedRoute | PageRoute> | undefined;
-  if (children && children.length > 0) {
-    const childRoutes = children.map(child =>
-      createRouteFromModernRoute({
-        options,
-        parent: tanstackRoute,
-        modernRoute: child,
-      }),
-    );
-    tanstackRoute.addChildren(childRoutes);
-  }
-
-  return tanstackRoute;
-}
-
-export function createRouteTreeFromModernRoutes(
-  routes: Array<NestedRoute | PageRoute>,
-  options: RouteTreeOptions = {},
-): ModernTanstackRootRoute {
-  const rootModern = routes.find(
-    r =>
-      r &&
-      (r as ModernGeneratedRoute).type === 'nested' &&
-      (r as ModernGeneratedRoute).isRoot,
-  ) as ModernGeneratedRoute | undefined;
-
-  const rootComponent = rootModern
-    ? toModernRouteComponent(rootModern)
-    : undefined;
-  const pendingComponent = rootModern?.loading;
-  const errorComponent = rootModern?.error;
-  const rootLoader = rootModern?.loader;
-  const rootAction = rootModern?.action;
-  const rootModernId = rootModern?.id;
-  const rootShouldRevalidate = rootModern?.shouldRevalidate;
-  const rootRevalidationState: RouteRevalidationState = {};
-  const rootShouldReload = createModernShouldReload(
-    rootShouldRevalidate,
-    rootRevalidationState,
-  );
-
-  const rootRouteOptions: TanstackRootRouteOptions = {
-    component: rootComponent || undefined,
-    pendingComponent: pendingComponent || undefined,
-    errorComponent: errorComponent || undefined,
-    validateSearch: rootModern?.validateSearch,
-    loaderDeps: rootModern?.loaderDeps,
-    notFoundComponent: DefaultNotFound,
-    staticData: createRouteStaticData({
-      modernRouteId: rootModernId,
-      modernRouteAction: rootAction,
-      modernRouteHandle: rootModern
-        ? mergeModernRouteHandle(rootModern)
-        : undefined,
-      modernRouteHasAction: rootModern?.hasAction || Boolean(rootAction),
-      modernRouteHasClientLoader:
-        rootModern?.hasClientLoader ||
-        typeof rootModern?.clientData !== 'undefined',
-      modernRouteHasLoader:
-        rootModern?.hasLoader || typeof rootLoader === 'function',
-      modernRouteIsClientComponent: rootModern?.isClientComponent,
-      modernRouteLoader: rootLoader,
-      modernRouteShouldRevalidate: rootShouldRevalidate,
-    }),
-    loader: rootModern
-      ? wrapModernLoader(rootModern, rootLoader, rootRevalidationState, options)
-      : undefined,
-  };
-  if (rootShouldReload) {
-    rootRouteOptions.shouldReload = rootShouldReload;
-  }
-  if (rootModern?.inValidSSRRoute) {
-    rootRouteOptions.ssr = false;
-  }
-
-  const rootRoute = createTanstackRootRoute(rootRouteOptions);
-  if (rootComponent) {
-    rootRoute.options.component = withModernRouteMatchContext(
-      rootComponent,
-      rootRouteId,
-    ) as typeof rootRoute.options.component;
-  }
-
-  const topLevel = rootModern
-    ? (rootModern.children as Array<NestedRoute | PageRoute>) || []
-    : routes;
-
-  const childRoutes = topLevel.map(child =>
-    createRouteFromModernRoute({
-      options,
-      parent: rootRoute,
-      modernRoute: child,
-    }),
-  );
-
-  rootRoute.addChildren(childRoutes);
-  return rootRoute as unknown as ModernTanstackRootRoute;
 }
 
 function getRootLikeRouteObject(routes: RouteObject[]) {

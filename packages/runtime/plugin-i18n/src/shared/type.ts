@@ -14,12 +14,14 @@ export interface BaseLocaleDetectionOptions {
   /**
    * Enables localised pathnames in addition to the locale prefix.
    *
-   * - `false`: keep only locale-prefix behavior (`/en/about`).
-   * - object: map canonical route paths to every configured language.
+   * - non-empty object: map canonical route paths to every configured
+   *   language; route generation then validates that every localisable route
+   *   path has entries for all configured languages.
+   * - absent / `false` / `true` / empty object: keep only locale-prefix
+   *   behavior (`/en/about`).
    *
-   * Defaults to `true` when `localePathRedirect` is enabled, so route
-   * generation validates that every localisable route path has entries for all
-   * configured languages.
+   * Strictly opt-in: without a map, `localePathRedirect` + `languages` behave
+   * exactly like upstream Modern.js.
    */
   localisedUrls?: LocalisedUrlsOption;
 }

@@ -37,6 +37,70 @@ function getApiOrigin(port: number) {
   return `http://127.0.0.1:${port}`;
 }
 
+const PRODUCER_REQUEST_ID = 'bff-api-app';
+
+/**
+ * Reads the operation manifest the producer SDK generator emits into every
+ * generated client module (`export const operationManifest = {...};`).
+ */
+function readProducerOperationManifest(clientRelativePath: string) {
+  const code = fs.readFileSync(
+    path.join(apiAppDir, clientRelativePath),
+    'utf8',
+  );
+  const match = code.match(
+    /export const operationManifest = (\{[\s\S]*?\n\});/,
+  );
+  if (!match) {
+    throw new Error(
+      `No operationManifest found in producer SDK artifact ${clientRelativePath}`,
+    );
+  }
+  return JSON.parse(match[1]) as {
+    operationVersion: number;
+    operations: Array<{
+      name: string;
+      httpMethod: string;
+      routePath: string;
+      schemaHash: string;
+    }>;
+  };
+}
+
+/**
+ * Builds the cross-project policy headers the generated SDK attaches to
+ * every request, stamped from the producer's own operation manifest.
+ */
+function producerPolicyHeaders(
+  clientRelativePath: string,
+  operationName: string,
+): Record<string, string> {
+  const manifest = readProducerOperationManifest(clientRelativePath);
+  const operation = manifest.operations.find(
+    item => item.name === operationName,
+  );
+  if (!operation) {
+    throw new Error(
+      `Operation "${operationName}" not found in ${clientRelativePath}`,
+    );
+  }
+  const operationId = `${PRODUCER_REQUEST_ID}:${operation.name}`;
+  return {
+    'x-modernjs-bff-envelope': JSON.stringify({
+      requestId: PRODUCER_REQUEST_ID,
+    }),
+    'x-operation-id': operationId,
+    'x-modernjs-bff-operation-context': JSON.stringify({
+      requestId: PRODUCER_REQUEST_ID,
+      operationId,
+      method: operation.httpMethod,
+      routePath: operation.routePath,
+      schemaHash: operation.schemaHash,
+      operationVersion: manifest.operationVersion,
+    }),
+  };
+}
+
 async function ensureProducerSdkGenerated(projectDir: string) {
   const hasProducerSdkArtifacts = producerSdkArtifacts.every(artifactPath =>
     fs.existsSync(path.join(projectDir, artifactPath)),
@@ -173,7 +237,23 @@ describe.sequential('corss project bff', () => {
     });
 
     test('support useContext', async () => {
-      const res = await fetch(`${host}:${port}${prefix}/context`);
+      // Bare cross-project requests carry no envelope/operation contract and
+      // are denied by the producer policy the hosted SDK force-enables.
+      const denied = await fetch(`${host}:${port}${prefix}/context`);
+      expect(denied.status).toBe(403);
+      await expect(denied.json()).resolves.toMatchObject({
+        code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
+      });
+
+      // A contract-stamped request (what the generated SDK sends) reaches
+      // the producer handler and its useContext response survives hosting.
+      const res = await fetch(`${host}:${port}${prefix}/context`, {
+        headers: producerPolicyHeaders(
+          'dist-1/client/context/index.js',
+          'default',
+        ),
+      });
+      expect(res.status).toBe(200);
       const info = await res.json();
       expect(res.headers.get('x-id')).toBe('1');
       expect(info.message).toBe('Hello Modern.js');
@@ -305,7 +385,23 @@ describe.sequential('corss project bff', () => {
     });
 
     test('support useContext', async () => {
-      const res = await fetch(`${host}:${port}${prefix}/context`);
+      // Bare cross-project requests carry no envelope/operation contract and
+      // are denied by the producer policy the hosted SDK force-enables.
+      const denied = await fetch(`${host}:${port}${prefix}/context`);
+      expect(denied.status).toBe(403);
+      await expect(denied.json()).resolves.toMatchObject({
+        code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
+      });
+
+      // A contract-stamped request (what the generated SDK sends) reaches
+      // the producer handler and its useContext response survives hosting.
+      const res = await fetch(`${host}:${port}${prefix}/context`, {
+        headers: producerPolicyHeaders(
+          'dist-1/client/context/index.js',
+          'default',
+        ),
+      });
+      expect(res.status).toBe(200);
       const info = await res.json();
       expect(res.headers.get('x-id')).toBe('1');
       expect(info.message).toBe('Hello Modern.js');

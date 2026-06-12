@@ -12,9 +12,10 @@ on:
         type: boolean
         default: false
 
+# id-token: write (OIDC for npm trusted publishing) is granted only on the
+# publish job below; every other job runs read-only.
 permissions:
   contents: read
-  id-token: write
 
 defaults:
   run:
@@ -136,6 +137,9 @@ jobs:
     name: Publish @bleedingdev packages
     runs-on: ubuntu-latest
     environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 45
     if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:

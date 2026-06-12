@@ -18,6 +18,7 @@ import {
   serverStaticPlugin,
 } from '@modern-js/server-core/node';
 import {
+  injectMfAssetCacheHeadersPlugin,
   injectModuleFederationCssPlugin,
   injectTelemetryPlugin,
 } from '@modern-js/server-runtime-extensions';
@@ -107,6 +108,7 @@ export async function applyPlugins(
     ...(options.plugins || []),
     injectResourcePlugin(),
     injectModuleFederationCssPlugin(),
+    injectMfAssetCacheHeadersPlugin(),
     injectRscManifestPlugin(enableRsc),
     serverStaticPlugin(),
     faviconPlugin(),

@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { fs } from '@modern-js/utils';
 import { promises as nodeFs } from 'fs';
 import path from 'path';
@@ -285,6 +286,15 @@ const ensureStoreShape = (
   }
 };
 
+/**
+ * Resolves a user-configured stateStore module specifier from the app, not
+ * from this framework package: relative paths resolve against appDirectory,
+ * and bare package specifiers resolve through the app's own module graph
+ * (`createRequire` anchored at the app package.json). Resolving from the
+ * framework package breaks app-installed stores under pnpm's strict
+ * node_modules layout. Bare specifiers fall back to framework-local
+ * resolution for stores installed alongside the framework.
+ */
 const resolveStoreModulePath = (appDirectory: string, modulePath: string) => {
   const normalized = modulePath.trim();
   if (!normalized) {
@@ -297,9 +307,18 @@ const resolveStoreModulePath = (appDirectory: string, modulePath: string) => {
     return normalized;
   }
 
-  return normalized.startsWith('.')
-    ? path.resolve(appDirectory, normalized)
-    : normalized;
+  if (normalized.startsWith('.')) {
+    return path.resolve(appDirectory, normalized);
+  }
+
+  const appRequire = createRequire(path.join(appDirectory, 'package.json'));
+  try {
+    return appRequire.resolve(normalized);
+  } catch (_error) {
+    // Fall back to this package's own resolution so stores installed next to
+    // the framework keep working.
+    return normalized;
+  }
 };
 
 export const resolveContractGateSnapshotPath = (

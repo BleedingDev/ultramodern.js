@@ -279,3 +279,80 @@ describe('cross-project policy', () => {
     expect(violation).toBeNull();
   });
 });
+
+describe('cross-project policy producer identity binding', () => {
+  const spoofableHeaders = {
+    'x-modernjs-bff-envelope': JSON.stringify({
+      requestId: 'crm.producer-a',
+    }),
+  };
+
+  test('denies when the client-asserted namespace does not match verified identity', () => {
+    // Spoofed-header case: the caller echoes an allowlisted requestId, but
+    // the verified channel (e.g. mTLS peer identity) says "billing".
+    const violation = evaluateCrossProjectPolicy(spoofableHeaders, {
+      enabled: true,
+      allowedNamespaces: ['crm'],
+      verifyProducerIdentity: () => 'billing',
+    });
+
+    expect(violation?.reason).toBe('producer_identity_mismatch');
+    expect(violation?.status).toBe(403);
+  });
+
+  test('denies when producer identity cannot be verified', () => {
+    const violation = evaluateCrossProjectPolicy(spoofableHeaders, {
+      enabled: true,
+      verifyProducerIdentity: () => undefined,
+    });
+
+    expect(violation?.reason).toBe('producer_identity_mismatch');
+  });
+
+  test('checks the allowlist against the verified namespace when identities match', () => {
+    const verifier = (headers: Record<string, unknown>) =>
+      typeof headers['x-verified-producer'] === 'string'
+        ? (headers['x-verified-producer'] as string)
+        : undefined;
+
+    const allowed = evaluateCrossProjectPolicy(
+      {
+        ...spoofableHeaders,
+        'x-verified-producer': 'crm',
+      },
+      {
+        enabled: true,
+        allowedNamespaces: ['crm'],
+        requireOperationContext: false,
+        verifyProducerIdentity: verifier,
+      },
+    );
+    expect(allowed).toBeNull();
+
+    const denied = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: 'billing.producer-z',
+        }),
+        'x-verified-producer': 'billing',
+      },
+      {
+        enabled: true,
+        allowedNamespaces: ['crm'],
+        requireOperationContext: false,
+        verifyProducerIdentity: verifier,
+      },
+    );
+    expect(denied?.reason).toBe('namespace_not_allowed');
+  });
+
+  test('without a verifier the namespace allowlist accepts client-asserted ids (documented limitation)', () => {
+    const result = evaluateCrossProjectPolicy(spoofableHeaders, {
+      enabled: true,
+      allowedNamespaces: ['crm'],
+      requireOperationContext: false,
+    });
+
+    expect(result).toBeNull();
+  });
+});

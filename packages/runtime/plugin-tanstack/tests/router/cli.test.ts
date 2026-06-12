@@ -6,7 +6,6 @@ import type { Entrypoint } from '@modern-js/types';
 import { fs, NESTED_ROUTE_SPEC_FILE } from '@modern-js/utils';
 import {
   createTanstackRsbuildRouteSplittingProfile,
-  isTanstackStartRouteModuleSource,
   tanstackRouterPlugin,
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
@@ -34,6 +33,8 @@ rstest.mock('@modern-js/runtime/cli', () => {
       (entrypoint.nestedRoutesEntry
         ? path.basename(entrypoint.nestedRoutesEntry)
         : null),
+    getEntrypointRoutesOwner: (entrypoint: any) =>
+      entrypoint.__modernRoutesOwner || null,
     // Forward through arrows: the mock factory is hoisted above the
     // `runtimeCliMocks` initializer, so it must not dereference it eagerly.
     handleFileChange: (...args: unknown[]) =>
@@ -318,6 +319,278 @@ describe('tanstack router cli plugin', () => {
     });
   });
 
+  test('injects the framework-resolving router wrapper for non-file-route entrypoints', async () => {
+    const taps: Record<string, any> = {};
+    const api = {
+      getAppContext: () => ({
+        srcDirectory: '/tmp/app/src',
+        metaName: 'modern-js',
+        serverRoutes: [{ entryName: 'custom', urlPath: '/' }],
+      }),
+      _internalRuntimePlugins: (tap: any) => {
+        taps.internalRuntimePlugins = tap;
+      },
+      checkEntryPoint: () => {},
+      config: () => {},
+      modifyEntrypoints: () => {},
+      generateEntryCode: () => {},
+      onFileChanged: () => {},
+      modifyFileSystemRoutes: () => {},
+      onBeforeGenerateRoutes: () => {},
+    };
+
+    tanstackRouterPlugin().setup!(api as any);
+
+    // Custom entry without a routes dir (e.g. `createRoutes` in
+    // modern.runtime.ts): installing the plugin is the explicit opt-in, no
+    // source sniffing — the wrapper plus the provider registration is
+    // injected through the package's own runtime/router module.
+    const customEntrypoint = {
+      entryName: 'custom',
+      isAutoMount: true,
+    } as Entrypoint;
+    expect(
+      taps.internalRuntimePlugins({ entrypoint: customEntrypoint, plugins: [] })
+        .plugins,
+    ).toEqual([
+      {
+        name: 'router',
+        path: '@modern-js/plugin-tanstack/runtime/router',
+        config: { serverBase: ['/'] },
+      },
+    ]);
+
+    // If the built-in router CLI already installed the internal router for
+    // this custom entry (explicit `runtime.router` config), only the module
+    // path is redirected so the TanStack provider registration is
+    // value-imported with it.
+    const existingRouterPlugin = {
+      name: 'router',
+      path: '@modern-js/runtime/router/internal',
+      config: { serverBase: ['/'] },
+    };
+    const { plugins } = taps.internalRuntimePlugins({
+      entrypoint: customEntrypoint,
+      plugins: [existingRouterPlugin],
+    });
+    expect(plugins).toHaveLength(1);
+    expect(plugins[0]).toEqual({
+      name: 'router',
+      path: '@modern-js/plugin-tanstack/runtime/router',
+      config: { serverBase: ['/'] },
+    });
+  });
+
+  test('leaves built-in and foreign-owned route entrypoints to their own router', () => {
+    const taps: Record<string, any> = {};
+    const api = {
+      getAppContext: () => ({
+        srcDirectory: '/tmp/app/src',
+        metaName: 'modern-js',
+        serverRoutes: [{ entryName: 'home', urlPath: '/' }],
+      }),
+      _internalRuntimePlugins: (tap: any) => {
+        taps.internalRuntimePlugins = tap;
+      },
+      checkEntryPoint: () => {},
+      config: () => {},
+      modifyEntrypoints: () => {},
+      generateEntryCode: () => {},
+      onFileChanged: () => {},
+      modifyFileSystemRoutes: () => {},
+      onBeforeGenerateRoutes: () => {},
+    };
+
+    tanstackRouterPlugin({ routesDir: 'ts-routes' }).setup!(api as any);
+
+    // A classic react-router file-route entry (src/<entry>/routes) living
+    // next to the TanStack entries: its internal router plugin must be left
+    // untouched — redirecting it through the TanStack wrapper would pull
+    // @tanstack/react-router into a pure react-router bundle.
+    const builtInEntrypoint = {
+      entryName: 'home',
+      isAutoMount: true,
+      nestedRoutesEntry: '/tmp/app/src/home/routes',
+      __modernRoutesDir: 'routes',
+    } as Entrypoint;
+    const { plugins: builtInPlugins } = taps.internalRuntimePlugins({
+      entrypoint: builtInEntrypoint,
+      plugins: [
+        {
+          name: 'router',
+          path: '@modern-js/runtime/router/internal',
+          config: { serverBase: ['/'] },
+        },
+      ],
+    });
+    expect(builtInPlugins).toEqual([
+      {
+        name: 'router',
+        path: '@modern-js/runtime/router/internal',
+        config: { serverBase: ['/'] },
+      },
+    ]);
+
+    // An entry tagged by another routes-owner plugin: nothing is pushed.
+    // The replaced sniffing path in @modern-js/runtime excluded
+    // plugin-owned entrypoints for the same reason — pushing a second
+    // `router` plugin can install two routers for one entry.
+    const foreignEntrypoint = {
+      entryName: 'home',
+      isAutoMount: true,
+      nestedRoutesEntry: '/tmp/app/src/home/acme-routes',
+      __modernRoutesDir: 'acme-routes',
+      __modernRoutesOwner: '@acme/plugin-file-router',
+    } as Entrypoint;
+    expect(
+      taps.internalRuntimePlugins({
+        entrypoint: foreignEntrypoint,
+        plugins: [],
+      }).plugins,
+    ).toEqual([]);
+
+    // The built-in pages/ convention is foreign too.
+    const pagesEntrypoint = {
+      entryName: 'home',
+      isAutoMount: true,
+      pageRoutesEntry: '/tmp/app/src/home/pages',
+    } as Entrypoint;
+    expect(
+      taps.internalRuntimePlugins({ entrypoint: pagesEntrypoint, plugins: [] })
+        .plugins,
+    ).toEqual([]);
+  });
+
+  test('source.include covers the package dist and TanStack runtime deps without string surgery', () => {
+    const taps: Record<string, any> = {};
+    const api = {
+      getAppContext: () => ({
+        srcDirectory: '/tmp/app/src',
+        serverRoutes: [],
+      }),
+      _internalRuntimePlugins: () => {},
+      checkEntryPoint: () => {},
+      config: (tap: any) => {
+        taps.config = tap;
+      },
+      modifyEntrypoints: () => {},
+      generateEntryCode: () => {},
+      onFileChanged: () => {},
+      modifyFileSystemRoutes: () => {},
+      onBeforeGenerateRoutes: () => {},
+    };
+
+    tanstackRouterPlugin().setup!(api as any);
+
+    const include = taps.config().source.include as Array<RegExp | string>;
+    const regexes = include.filter(
+      (entry): entry is RegExp => entry instanceof RegExp,
+    );
+    for (const dep of ['react-router', 'router-core', 'react-store']) {
+      const sample = `/repo/node_modules/@tanstack/${dep}/dist/esm/index.js`;
+      expect(regexes.some(regex => regex.test(sample))).toBe(true);
+    }
+
+    const stringEntries = include.filter(
+      (entry): entry is string => typeof entry === 'string',
+    );
+    expect(stringEntries).toHaveLength(1);
+    // The include must point at the package root (two levels above the cli
+    // build dir) so dist/esm, dist/esm-node and dist/cjs are all covered —
+    // the old `.replace('cjs', 'esm')` never matched the bundled dist/esm
+    // runtime when the CLI was loaded through the ESM condition.
+    expect(stringEntries[0]).toBe(path.resolve(__dirname, '..', '..'));
+    expect(stringEntries[0]).not.toContain('esm');
+  });
+
+  test('emits the plugin-i18n augmentation only when plugin-i18n is registered', async () => {
+    const langRoutes = [
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/about/page',
+                path: 'about',
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const runGenerate = async (registeredPlugins: Array<{ name: string }>) => {
+      const dir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
+      const srcDirectory = path.join(dir, 'src');
+      const entrypoint = {
+        entryName: 'main',
+        isAutoMount: true,
+        isMainEntry: true,
+        nestedRoutesEntry: path.join(srcDirectory, 'routes'),
+        __modernRoutesDir: 'routes',
+      } as Entrypoint;
+      runtimeCliMocks.handleGeneratorEntryCode.mockResolvedValueOnce({
+        main: langRoutes,
+      });
+
+      const taps: Record<string, any> = {};
+      const api = {
+        getAppContext: () => ({
+          srcDirectory,
+          internalSrcAlias: '@/_',
+          entrypoints: [entrypoint],
+          plugins: registeredPlugins,
+        }),
+        _internalRuntimePlugins: () => {},
+        checkEntryPoint: () => {},
+        config: () => {},
+        modifyEntrypoints: () => {},
+        generateEntryCode: (tap: any) => {
+          taps.generateEntryCode = tap;
+        },
+        onFileChanged: () => {},
+        modifyFileSystemRoutes: () => {},
+        onBeforeGenerateRoutes: () => {},
+      };
+
+      tanstackRouterPlugin().setup!(api as any);
+      await taps.generateEntryCode({ entrypoints: [entrypoint] });
+
+      const register = await readFile(
+        path.join(srcDirectory, 'modern-tanstack', 'register.gen.d.ts'),
+        'utf-8',
+      );
+      await rm(dir, { recursive: true, force: true });
+      return register;
+    };
+
+    // A hand-rolled `/:lang/` app WITHOUT plugin-i18n must not get the
+    // augmentation — it would reference an unresolvable module (TS2664).
+    const withoutI18n = await runGenerate([{ name: '@modern-js/app-tools' }]);
+    expect(withoutI18n).not.toContain('plugin-i18n');
+    expect(withoutI18n).not.toContain('UltramodernCanonicalRoutes');
+    expect(withoutI18n).toContain(
+      "declare module '@modern-js/plugin-tanstack/runtime'",
+    );
+
+    // With plugin-i18n registered the canonical route map is emitted.
+    const withI18n = await runGenerate([
+      { name: '@modern-js/app-tools' },
+      { name: '@modern-js/plugin-i18n' },
+    ]);
+    expect(withI18n).toContain(
+      "declare module '@modern-js/plugin-i18n/runtime'",
+    );
+    expect(withI18n).toContain("'/about': Record<string, never>;");
+  });
+
   test('generates plugin-owned TanStack route files through core route generation', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
@@ -505,38 +778,23 @@ describe('tanstack router cli plugin', () => {
     });
   });
 
-  test('documents why TanStack Start Rspack splitter is not registered for Modern routes', () => {
-    const profile = createTanstackRsbuildRouteSplittingProfile({});
-
-    expect(profile).toMatchObject({
+  test('route splitting profile carries only the rsbuild config production consumes', () => {
+    expect(createTanstackRsbuildRouteSplittingProfile({})).toEqual({
       defaultConfig: {
         output: {
           splitRouteChunks: true,
         },
       },
-      modernRouteChunks: {
-        enabled: true,
-        owner: 'modern',
-      },
-      builderChunkSplit: {
-        owner: 'modern-rsbuild',
-        preserved: true,
-      },
-      tanstackStartRspackSplitter: {
-        compatible: false,
-        clientDeleteNodes: ['ssr', 'server', 'headers'],
-      },
     });
     expect(
-      isTanstackStartRouteModuleSource(
-        "export const Route = createFileRoute('/dashboard')({ component })",
-      ),
-    ).toBe(true);
-    expect(
-      isTanstackStartRouteModuleSource(
-        'export const route = createRoute({ getParentRoute, path })',
-      ),
-    ).toBe(false);
+      createTanstackRsbuildRouteSplittingProfile({ routeCodeSplitting: false }),
+    ).toEqual({
+      defaultConfig: {
+        output: {
+          splitRouteChunks: false,
+        },
+      },
+    });
   });
 
   test('preserves user-selected route and builder chunk splitting modes', () => {

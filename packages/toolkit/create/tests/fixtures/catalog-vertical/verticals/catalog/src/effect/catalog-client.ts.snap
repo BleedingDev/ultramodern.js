@@ -1,0 +1,86 @@
+import {
+  Effect,
+  makeEffectHttpApiClient,
+  runEffectRequest,
+} from '@modern-js/plugin-bff/effect-client';
+import {
+  catalogApiContract,
+  catalogEffectApi,
+  catalogOperationContexts,
+} from '../../shared/effect/api';
+import type { OperationContext } from '../../shared/effect/api';
+
+export { Effect, runEffectRequest };
+
+export interface CatalogClientOptions {
+  baseUrl?: string | URL;
+  locale?: string;
+  operationContext?: OperationContext;
+  traceparent?: string;
+}
+
+export const createCatalogClient = (
+  options: CatalogClientOptions = {},
+) =>
+  makeEffectHttpApiClient(catalogEffectApi, {
+    baseUrl: options.baseUrl ?? catalogApiContract.apiPrefix,
+    requestContext: {
+      ...(options.locale === undefined ? {} : { locale: options.locale }),
+      ...(options.operationContext === undefined
+        ? {}
+        : { operationContext: options.operationContext }),
+      ...(options.traceparent === undefined
+        ? {}
+        : { traceparent: options.traceparent }),
+    },
+  });
+
+export const listCatalog = (
+  options: CatalogClientOptions & { limit?: number } = {},
+) =>
+  createCatalogClient({
+    ...options,
+    operationContext:
+      options.operationContext ?? catalogOperationContexts.list,
+  }).pipe(
+    Effect.flatMap(client =>
+      client.catalog.list({ query: { limit: options.limit } }),
+    ),
+  );
+
+export const getCatalogReadiness = (
+  options: CatalogClientOptions = {},
+) =>
+  createCatalogClient({
+    ...options,
+    operationContext:
+      options.operationContext ?? catalogOperationContexts.readiness,
+  }).pipe(
+    Effect.flatMap(client => client.catalog.readiness({})),
+  );
+
+export const getCatalog = (
+  id: string,
+  options: CatalogClientOptions = {},
+) =>
+  createCatalogClient({
+    ...options,
+    operationContext:
+      options.operationContext ?? catalogOperationContexts.get,
+  }).pipe(
+    Effect.flatMap(client => client.catalog.get({ params: { id } })),
+  );
+
+export const createCatalog = (
+  title: string,
+  options: CatalogClientOptions = {},
+) =>
+  createCatalogClient({
+    ...options,
+    operationContext:
+      options.operationContext ?? catalogOperationContexts.create,
+  }).pipe(
+    Effect.flatMap(client =>
+      client.catalog.create({ payload: { title } }),
+    ),
+  );

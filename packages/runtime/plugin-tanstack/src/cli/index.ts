@@ -25,7 +25,6 @@ import {
 import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
-  isTanstackRouterFrameworkEnabled,
 } from './tanstackTypes';
 
 export type {
@@ -34,13 +33,12 @@ export type {
 } from './routeSplitting';
 export {
   createTanstackRsbuildRouteSplittingProfile,
-  isTanstackStartRouteModuleSource,
   resolveTanstackRouteCodeSplittingEnabled,
 } from './routeSplitting';
 export {
+  type CollectCanonicalRoutesOptions,
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
-  isTanstackRouterFrameworkEnabled,
 } from './tanstackTypes';
 
 const DEFAULT_ROUTES_DIR = 'routes';
@@ -55,6 +53,7 @@ export type TanstackRouterPluginOptions = {
 
 type RuntimeRouterCliHelpers = {
   getEntrypointRoutesDir: (entrypoint: Entrypoint) => string | null;
+  getEntrypointRoutesOwner: (entrypoint: Entrypoint) => string | null;
   handleFileChange: (
     api: CLIPluginAPI<AppTools>,
     event: unknown,
@@ -95,7 +94,11 @@ function getRuntimeRouterCli(): RuntimeRouterCliHelpers {
 
   const cli =
     require('@modern-js/runtime/cli') as Partial<RuntimeRouterCliHelpers>;
-  if (cli.handleGeneratorEntryCode && cli.getEntrypointRoutesDir) {
+  if (
+    cli.handleGeneratorEntryCode &&
+    cli.getEntrypointRoutesDir &&
+    cli.getEntrypointRoutesOwner
+  ) {
     runtimeRouterCli = cli as RuntimeRouterCliHelpers;
     return runtimeRouterCli;
   }
@@ -204,11 +207,19 @@ export async function writeTanstackRouterTypesForEntries(opts: {
   appContext: AppToolsContext;
   generatedDirName?: string;
   routesByEntry: Record<string, (NestedRouteForCli | PageRoute)[]>;
+  /**
+   * Whether `@modern-js/plugin-i18n` is actually installed in the app. The
+   * `register.gen.d.ts` augmentation of '@modern-js/plugin-i18n/runtime' is
+   * only emitted when this is true — otherwise apps with a hand-rolled
+   * `/:lang/` param would fail typechecking on an unresolvable module.
+   */
+  i18nPluginInstalled?: boolean;
 }) {
   const {
     appContext,
     generatedDirName = DEFAULT_GENERATED_DIR_NAME,
     routesByEntry,
+    i18nPluginInstalled = false,
   } = opts;
 
   const entryNames = Object.keys(routesByEntry);
@@ -250,14 +261,22 @@ export async function writeTanstackRouterTypesForEntries(opts: {
   });
 
   // Merge the canonical (language-agnostic) route maps of every entry so the
-  // typed i18n Link covers all routes the app can navigate to.
+  // typed i18n Link covers all routes the app can navigate to. Only relevant
+  // when plugin-i18n is actually installed — without it the emitted module
+  // augmentation would reference an unresolvable module.
   let canonicalRoutes: Record<string, string> | null = null;
-  for (const entryName of registerEntries) {
-    const entryCanonicalRoutes = collectCanonicalRoutesForEntry(
-      routesByEntry[entryName],
-    );
-    if (entryCanonicalRoutes) {
-      canonicalRoutes = { ...entryCanonicalRoutes, ...(canonicalRoutes ?? {}) };
+  if (i18nPluginInstalled) {
+    for (const entryName of registerEntries) {
+      const entryCanonicalRoutes = collectCanonicalRoutesForEntry(
+        routesByEntry[entryName],
+        { localeParamHeuristic: true },
+      );
+      if (entryCanonicalRoutes) {
+        canonicalRoutes = {
+          ...entryCanonicalRoutes,
+          ...(canonicalRoutes ?? {}),
+        };
+      }
     }
   }
 
@@ -289,11 +308,38 @@ export function tanstackRouterPlugin(
         return getEntrypointRoutesDir(entrypoint) === routesDir;
       };
 
-      api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-        if (!isTanstackEntrypoint(entrypoint as Entrypoint)) {
-          return { entrypoint, plugins };
+      // Entrypoints claimed by another file-route convention — the built-in
+      // pages/ or routes/ entries of @modern-js/runtime's router plugin, or
+      // an entry tagged by a different routes-owner plugin. Their router
+      // runtime plugin must be left untouched: redirecting it through our
+      // wrapper would value-import the TanStack runtime into bundles that
+      // never use it, and pushing a second `router` plugin can install two
+      // routers for one entry.
+      const isForeignRouteEntrypoint = (entrypoint: Entrypoint) => {
+        const { getEntrypointRoutesDir, getEntrypointRoutesOwner } =
+          getRuntimeRouterCli();
+        if (getEntrypointRoutesOwner(entrypoint)) {
+          // Owned by some routes-owner plugin. TanStack-owned entries were
+          // already claimed by the isTanstackEntrypoint branch, so any owner
+          // seen here is foreign.
+          return true;
         }
+        if (entrypoint.pageRoutesEntry) {
+          return true;
+        }
+        return getEntrypointRoutesDir(entrypoint) !== null;
+      };
 
+      const isI18nPluginInstalled = () => {
+        const { plugins } = api.getAppContext() as {
+          plugins?: Array<{ name?: string }>;
+        };
+        return Boolean(
+          plugins?.some(plugin => plugin?.name === '@modern-js/plugin-i18n'),
+        );
+      };
+
+      api._internalRuntimePlugins(({ entrypoint, plugins }) => {
         const { metaName, serverRoutes } = api.getAppContext();
         const serverBase = serverRoutes
           .filter(
@@ -302,11 +348,44 @@ export function tanstackRouterPlugin(
           .map(route => route.urlPath)
           .sort((a, b) => (a.length - b.length > 0 ? -1 : 1));
 
-        plugins.push({
-          name: 'tanstackRouter',
-          path: `@${metaName}/plugin-tanstack/runtime`,
-          config: { serverBase },
-        });
+        if (isTanstackEntrypoint(entrypoint as Entrypoint)) {
+          plugins.push({
+            name: 'tanstackRouter',
+            path: `@${metaName}/plugin-tanstack/runtime`,
+            config: { serverBase },
+          });
+
+          return { entrypoint, plugins };
+        }
+
+        // Entries owned by the built-in router (classic routes/ or pages/
+        // conventions) or by another routes-owner plugin keep their own
+        // router runtime plugin untouched.
+        if (isForeignRouteEntrypoint(entrypoint as Entrypoint)) {
+          return { entrypoint, plugins };
+        }
+
+        // True custom entry without any file-route convention (`createRoutes`
+        // apps, hand-rolled App entries, ...): having this plugin installed
+        // is the explicit signal that the app routes through the
+        // router-provider registry — no source sniffing of modern.runtime.ts.
+        // Inject the framework-resolving router plugin of @modern-js/runtime
+        // through our own runtime/router module, so the TanStack provider
+        // registration is value-imported together with it and can never be
+        // tree-shaken away from the entry.
+        const routerWrapperPath = `@${metaName}/plugin-tanstack/runtime/router`;
+        const existingRouterPlugin = plugins.find(
+          plugin => plugin.name === 'router',
+        );
+        if (existingRouterPlugin) {
+          existingRouterPlugin.path = routerWrapperPath;
+        } else {
+          plugins.push({
+            name: 'router',
+            path: routerWrapperPath,
+            config: { serverBase },
+          });
+        }
 
         return { entrypoint, plugins };
       });
@@ -321,8 +400,18 @@ export function tanstackRouterPlugin(
         ...routeSplittingProfile.defaultConfig,
         source: {
           include: [
+            // TanStack Router and its runtime deps ship modern syntax and
+            // must be down-leveled for the app's browser targets.
             /[\\/]node_modules[\\/]@tanstack[\\/]react-router[\\/]/,
-            path.resolve(__dirname, '../runtime').replace('cjs', 'esm'),
+            /[\\/]node_modules[\\/]@tanstack[\\/]router-core[\\/]/,
+            /[\\/]node_modules[\\/]@tanstack[\\/]react-store[\\/]/,
+            // This package's own dist runtime, too. `__dirname` is
+            // dist/{cjs,esm-node}/cli (or src/cli in tests), so the package
+            // dist root is two levels up. Resolution-based — no string
+            // surgery: the old `.replace('cjs', 'esm')` corrupted workspace
+            // paths containing 'cjs' and, under the ESM CLI condition, never
+            // matched the dist/esm runtime that browsers actually bundle.
+            path.resolve(__dirname, '..', '..'),
           ],
         },
       }));
@@ -356,6 +445,7 @@ export function tanstackRouterPlugin(
           appContext: api.getAppContext(),
           generatedDirName,
           routesByEntry,
+          i18nPluginInstalled: isI18nPluginInstalled(),
         });
       });
 
@@ -381,6 +471,7 @@ export function tanstackRouterPlugin(
               appContext: api.getAppContext(),
               generatedDirName,
               routesByEntry,
+              i18nPluginInstalled: isI18nPluginInstalled(),
             });
           },
         });

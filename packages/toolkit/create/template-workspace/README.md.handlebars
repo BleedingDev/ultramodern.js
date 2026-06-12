@@ -7,8 +7,8 @@ UltraModern.js 3.0 SuperApp surface and starts with an explicit shell:
 
 - `apps/shell-super-app` owns shell route assembly, Module Federation host
   wiring, shared SSR/i18n runtime setup, and the boundary debugger.
-- `packages/shared-*` provide placeholders for cross-workspace contracts,
-  design tokens, and Effect API sharing.
+- `packages/shared-*` provide placeholders for cross-workspace contracts and
+  design tokens.
 - `verticals/*` is intentionally empty until a real business domain is added.
 
 Add a full-stack MicroVertical when the product needs one:
@@ -53,7 +53,7 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain baseline is Node `>=26` with pnpm `11.5.3`.
+The generated toolchain baseline is Node `>=26` with pnpm `{{pnpmVersion}}`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on that baseline; do not reintroduce Corepack or older pnpm aliases.
 
@@ -61,17 +61,16 @@ Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable.
 
-By default, `pnpm install` also prepares read-only agent reference repositories
-under `repos/` for Effect and UltraModern.js source lookup using squashed git
-subtrees. Disable this setup with
-`ULTRAMODERN_SKIP_AGENT_REPOS=1 pnpm install`, or rerun it
-explicitly with `pnpm agents:refs:install`.
+Read-only agent reference repositories under `repos/` (Effect and
+UltraModern.js source lookup using squashed git subtrees) are an explicit
+opt-in step: run `pnpm agents:refs:install` when you want them. `pnpm install`
+never clones repositories.
 
-Agent skills are prepared during `pnpm install` as a developer convenience.
-External skill repository failures do not block postinstall; strict installation
-is available with `pnpm skills:install`. Use
-`ULTRAMODERN_SKIP_AGENT_SKILLS=1` for a dependency install that avoids external
-skill repositories completely.
+Vendored agent skills ship with the scaffold. Clone-installed skills (such as
+the Module Federation `mf` skill) are fetched only when you explicitly run
+`pnpm skills:install`, or when `ULTRAMODERN_AGENT_SKILLS=1` is set during
+`pnpm install`. `pnpm skills:check` warns about missing clone-installed skills
+without failing the gate.
 
 The topology and ownership metadata are generated under `topology/`. The
 workspace also ships `.github/workflows/ultramodern-workspace-gates.yml` and

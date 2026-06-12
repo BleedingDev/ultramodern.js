@@ -132,7 +132,10 @@ export interface ServerTelemetryCanaryRuntimeFallbackSignalUserConfig {
   /**
    * Enable runtime MF fallback signal ingestion endpoint.
    *
-   * @default true
+   * Opt-in: when enabled, `auth` must be configured with a token
+   * (`expectedValue` or `expectedValueEnv`) or server setup throws.
+   *
+   * @default false
    */
   enabled?: boolean;
   /**

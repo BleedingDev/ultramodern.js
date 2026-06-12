@@ -114,3 +114,18 @@ describe('resolveCrossProjectPolicy', () => {
     });
   });
 });
+
+describe('resolveCrossProjectPolicy operation version', () => {
+  test('derived operation version flows into generated contracts', () => {
+    const resolved = resolveCrossProjectPolicy({
+      handlers: createHandlers(),
+      isCrossProjectServer: true,
+      requestId: 'crm',
+      operationVersion: 5,
+    });
+
+    expect(resolved?.expectedOperationContracts['GET:/hello']).toMatchObject({
+      operationVersion: 5,
+    });
+  });
+});

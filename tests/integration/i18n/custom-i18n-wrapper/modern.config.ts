@@ -16,7 +16,6 @@ export default defineConfig({
         fallbackLanguage: 'en',
         localePathRedirect: true,
         i18nextDetector: true,
-        localisedUrls: false,
       },
       backend: {
         enabled: true,

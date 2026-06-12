@@ -1,9 +1,14 @@
+import { createSyncHook } from '@modern-js/plugin';
 import type { RuntimePlugin } from '../../src/core';
+import * as contextSeam from '../../src/core/context';
 import type { RouterExtendsHooks } from '../../src/router/runtime/hooks';
+import * as routerHooks from '../../src/router/runtime/hooks';
 import {
   type RouterProviderFactory,
   registerRouterProvider,
+  reportUnsupportedProviderRegistryHooks,
   resolveRouterProvider,
+  routerProviderRegistryHooks,
   unsafe_resetRouterProvidersForTesting,
 } from '../../src/router/runtime/provider';
 
@@ -14,6 +19,67 @@ const createFactory = (name: string): RouterProviderFactory => {
       setup: () => undefined,
     }) as RuntimePlugin<{ extendHooks: RouterExtendsHooks }>;
 };
+
+describe('router provider registry hooks (single declaration source)', () => {
+  it('exposes exactly the six router hooks with the canonical instances', () => {
+    expect(routerProviderRegistryHooks).toEqual({
+      modifyRoutes: routerHooks.modifyRoutes,
+      onAfterCreateRouter: routerHooks.onAfterCreateRouter,
+      onAfterHydrateRouter: routerHooks.onAfterHydrateRouter,
+      onBeforeCreateRouter: routerHooks.onBeforeCreateRouter,
+      onBeforeCreateRoutes: routerHooks.onBeforeCreateRoutes,
+      onBeforeHydrateRouter: routerHooks.onBeforeHydrateRouter,
+    });
+    expect(Object.keys(routerProviderRegistryHooks)).toHaveLength(6);
+  });
+
+  it("is re-exported through the '@modern-js/runtime/context' seam", () => {
+    expect(contextSeam.routerProviderRegistryHooks).toBe(
+      routerProviderRegistryHooks,
+    );
+  });
+});
+
+describe('reportUnsupportedProviderRegistryHooks', () => {
+  it('warns about provider hooks outside the router hook contract instead of dropping them silently', () => {
+    const warnSpy = rstest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const unsupported = reportUnsupportedProviderRegistryHooks({
+        name: 'hooky-provider',
+        registryHooks: {
+          ...routerProviderRegistryHooks,
+          onSeventhHook: createSyncHook<() => void>(),
+        },
+      });
+
+      expect(unsupported).toEqual(['onSeventhHook']);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/hooky-provider.*onSeventhHook/s),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('stays silent for providers using exactly the canonical hook set', () => {
+    const warnSpy = rstest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        reportUnsupportedProviderRegistryHooks({
+          name: 'canonical-provider',
+          registryHooks: routerProviderRegistryHooks,
+        }),
+      ).toEqual([]);
+      expect(
+        reportUnsupportedProviderRegistryHooks({ name: 'hookless-provider' }),
+      ).toEqual([]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
 
 describe('router provider registry', () => {
   beforeEach(() => {
@@ -113,6 +179,51 @@ describe('router provider registry', () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it("resolves the resolving module's own default-provider copy, not the first-registered foreign copy", () => {
+    // Simulates an app-level Module Federation page: the host's runtime copy
+    // registers 'react-router' first; the remote's copy is kept out by
+    // keep-first semantics. The remote must still render with ITS OWN
+    // react-router plugin (whose closures read the remote's global context),
+    // not the host's copy — otherwise the bridged remote renders the host's
+    // routes.
+    const hostCopy = createFactory('react-router-host');
+    const remoteCopy = createFactory('react-router-remote');
+
+    registerRouterProvider('react-router', hostCopy, { isDefault: true });
+    registerRouterProvider('react-router', remoteCopy, { isDefault: true });
+
+    const localDefault = { name: 'react-router', factory: remoteCopy };
+    expect(resolveRouterProvider(undefined, { localDefault })).toBe(remoteCopy);
+    expect(resolveRouterProvider('react-router', { localDefault })).toBe(
+      remoteCopy,
+    );
+    // Without a local default the registry's keep-first answer still applies.
+    expect(resolveRouterProvider(undefined)).toBe(hostCopy);
+  });
+
+  it('ignores the local default when a non-default framework is configured', () => {
+    const reactRouter = createFactory('react-router');
+    const tanstack = createFactory('tanstack');
+    registerRouterProvider('react-router', reactRouter, { isDefault: true });
+    registerRouterProvider('tanstack', tanstack);
+
+    expect(
+      resolveRouterProvider('tanstack', {
+        localDefault: { name: 'react-router', factory: reactRouter },
+      }),
+    ).toBe(tanstack);
+  });
+
+  it('falls back to the local default when nothing is registered yet', () => {
+    const reactRouter = createFactory('react-router');
+
+    expect(
+      resolveRouterProvider(undefined, {
+        localDefault: { name: 'react-router', factory: reactRouter },
+      }),
+    ).toBe(reactRouter);
   });
 
   it('throws loudly when two competing non-default providers are registered', () => {

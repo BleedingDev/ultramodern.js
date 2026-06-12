@@ -26,18 +26,13 @@ import {
 } from '../../core/context';
 import { setServerPayload } from '../../core/context/serverPayload/index.server';
 import DeferredDataScripts from './DeferredDataScripts.node';
-import {
-  modifyRoutes as modifyRoutesHook,
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
-  onBeforeCreateRoutes as onBeforeCreateRoutesHook,
-  type RouterExtendsHooks,
-} from './hooks';
+import type { RouterExtendsHooks } from './hooks';
 import {
   applyRouterRuntimeState,
   createRouterServerSnapshot,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { routerProviderRegistryHooks } from './provider';
 import {
   createServerPayload,
   handleRSCRedirect,
@@ -90,12 +85,7 @@ export const routerPlugin = (
 }> => {
   return {
     name: '@modern-js/plugin-router',
-    registryHooks: {
-      onAfterCreateRouter: onAfterCreateRouterHook,
-      onBeforeCreateRouter: onBeforeCreateRouterHook,
-      modifyRoutes: modifyRoutesHook,
-      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
-    },
+    registryHooks: routerProviderRegistryHooks,
     setup: api => {
       let finalRouteConfig: any = {};
 

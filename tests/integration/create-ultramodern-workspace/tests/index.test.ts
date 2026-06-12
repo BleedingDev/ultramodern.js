@@ -826,10 +826,10 @@ describe('create-ultramodern-workspace', () => {
       'packages/shared-contracts/src/index.ts',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-design-tokens/src/tokens.css',
-      'packages/shared-effect-api/src/index.ts',
     ]) {
       expectPath(workspaceDir, relativePath);
     }
+    expectNoPath(workspaceDir, 'packages/shared-effect-api');
     expectNoPath(workspaceDir, 'verticals/workspace');
     expectNoPath(workspaceDir, 'verticals/records');
     expectNoPath(workspaceDir, 'verticals/actions');
@@ -897,8 +897,18 @@ describe('create-ultramodern-workspace', () => {
       'node ./scripts/bootstrap-agent-skills.mjs --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall && node ./scripts/setup-agent-reference-repos.mjs",
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
     );
+    expect(rootPackage.scripts['agents:refs:install']).toBe(
+      'node ./scripts/setup-agent-reference-repos.mjs',
+    );
+    const agentSkillsBootstrap = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mjs'),
+      'utf8',
+    );
+    expect(agentSkillsBootstrap).toContain('never installs system packages');
+    expect(agentSkillsBootstrap).not.toContain("run('brew'");
+    expect(agentSkillsBootstrap).not.toContain('runShell(');
     const agentReferenceRepoSetup = fs.readFileSync(
       path.join(workspaceDir, 'scripts/setup-agent-reference-repos.mjs'),
       'utf8',
@@ -1250,9 +1260,6 @@ describe('create-ultramodern-workspace', () => {
             workersDev: true,
             localhost: true,
           },
-          cookies: {
-            mutateSetCookie: false,
-          },
         },
         qualityGates: {
           publicRoutes: {
@@ -1316,7 +1323,10 @@ describe('create-ultramodern-workspace', () => {
       assetsBinding: 'ASSETS',
     });
     expect(topology.verticals).toEqual([]);
-    expect(topology.sharedPackages).toHaveLength(3);
+    expect(topology.sharedPackages).toHaveLength(2);
+    expect(
+      topology.sharedPackages.map((entry: { id: string }) => entry.id).sort(),
+    ).toEqual(['shared-contracts', 'shared-design-tokens']);
 
     const ownership = readJson(workspaceDir, 'topology/ownership.json');
     expect(
@@ -1921,13 +1931,7 @@ process.exit(1);
       'services/service-recommendations-effect/package.json',
     );
 
-    const sharedEffectPackage = readJson(
-      workspaceDir,
-      'packages/shared-effect-api/package.json',
-    );
-    expect(sharedEffectPackage.dependencies['@modern-js/plugin-bff']).toBe(
-      '3.2.0-ultramodern.0',
-    );
+    expectNoPath(workspaceDir, 'packages/shared-effect-api');
 
     const validationOutput = execFileSync(
       process.execPath,

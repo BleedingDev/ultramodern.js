@@ -1,3 +1,29 @@
+/**
+ * Cross-project BFF policy evaluator.
+ *
+ * THREAT MODEL — read before relying on this module:
+ *
+ * Every header this evaluator inspects (envelope, operation id, operation
+ * context details) is constructed by the CLIENT from public, open-source
+ * formats. Without an out-of-band identity binding the checks below are a
+ * version-skew and misconfiguration gate, not an authentication or
+ * authorization boundary: any caller can echo an allowed `requestId` and a
+ * matching operation context.
+ *
+ * To turn `allowedNamespaces` into a real control, supply
+ * {@link CrossProjectPolicyConfig.verifyProducerIdentity}: a server-side
+ * hook that derives the producer namespace from a VERIFIED channel (mTLS
+ * peer identity, gateway-authenticated JWT claims, service-mesh headers
+ * stripped at the edge, ...). When the hook is present, the client-asserted
+ * namespace must match the verified namespace and the allowlist is checked
+ * against the verified value — the envelope is no longer trusted for the
+ * authorization decision.
+ *
+ * Client-side counterparts in `@modern-js/create-request` (identity binding,
+ * operation contract validation) are developer-experience aids that fail
+ * fast in well-behaved clients; they protect nothing against a malicious
+ * caller.
+ */
 export const BFF_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
 export const BFF_OPERATION_CONTEXT_HEADER = 'x-operation-id';
 export const BFF_OPERATION_CONTEXT_DETAIL_HEADER =
@@ -22,7 +48,8 @@ export type CrossProjectPolicyViolationReason =
   | 'missing_operation_version'
   | 'unknown_operation_contract'
   | 'operation_schema_hash_mismatch'
-  | 'operation_version_mismatch';
+  | 'operation_version_mismatch'
+  | 'producer_identity_mismatch';
 
 export type CrossProjectPolicyViolation = {
   code: 'BFF_CROSS_PROJECT_POLICY_DENIED';
@@ -47,6 +74,21 @@ export interface CrossProjectPolicyConfig {
   expectedOperationContracts?: Record<string, CrossProjectOperationContract>;
   allowUnknownOperations?: boolean;
   denyStatus?: number;
+  /**
+   * Server-side hook binding the producer namespace to a VERIFIED identity
+   * channel (mTLS peer, gateway-authenticated JWT, mesh identity headers).
+   *
+   * When provided, the namespace asserted by the client envelope must match
+   * the namespace returned by this hook, and `allowedNamespaces` is checked
+   * against the verified value instead of the client-asserted one. Returning
+   * `undefined` (identity could not be verified) denies the request.
+   *
+   * Without this hook the namespace checks are advisory only — see the
+   * module-level threat model.
+   */
+  verifyProducerIdentity?: (
+    headers: Record<string, unknown>,
+  ) => string | undefined;
 }
 
 const normalizeHeaderName = (
@@ -165,15 +207,41 @@ export const evaluateCrossProjectPolicy = (
     );
   }
 
+  const claimedNamespace = extractNamespace(requestId);
+  let effectiveNamespace = claimedNamespace;
+  if (typeof policy.verifyProducerIdentity === 'function') {
+    const verifiedNamespaceRaw = policy.verifyProducerIdentity(headers);
+    const verifiedNamespace =
+      typeof verifiedNamespaceRaw === 'string'
+        ? verifiedNamespaceRaw.trim().toLowerCase()
+        : undefined;
+    if (!verifiedNamespace) {
+      return createViolation(
+        'producer_identity_mismatch',
+        'Producer identity could not be verified for this request',
+        status,
+      );
+    }
+    if (verifiedNamespace !== claimedNamespace) {
+      return createViolation(
+        'producer_identity_mismatch',
+        `Envelope namespace "${claimedNamespace || 'unknown'}" does not match verified producer identity "${verifiedNamespace}"`,
+        status,
+      );
+    }
+    // From here on, authorization decisions use the verified namespace, not
+    // the client-asserted envelope value.
+    effectiveNamespace = verifiedNamespace;
+  }
+
   const namespaces = (policy.allowedNamespaces || [])
     .map(item => item.trim().toLowerCase())
     .filter(Boolean);
   if (namespaces.length > 0) {
-    const namespace = extractNamespace(requestId);
-    if (!namespace || !namespaces.includes(namespace)) {
+    if (!effectiveNamespace || !namespaces.includes(effectiveNamespace)) {
       return createViolation(
         'namespace_not_allowed',
-        `Producer namespace "${namespace || 'unknown'}" is not allowed`,
+        `Producer namespace "${effectiveNamespace || 'unknown'}" is not allowed`,
         status,
       );
     }

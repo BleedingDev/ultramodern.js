@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRouteHeadModule } from './app-files';
-import { writeFileReplacing } from './fs-io';
 import { relativeRootFor } from './naming';
 import {
   createPublicHeadRobotsPolicy,
@@ -42,12 +41,6 @@ export type PublicSurfaceRouteEntry = PublicRouteMetadata & {
   canonicalUrlPath: string;
   localeUrlPaths: Record<SupportedWorkspaceLanguage, string>;
 } & PublicSurfaceSitemapFields;
-
-export type PublicSurfaceContentSource = {
-  entryExport: 'default-or-entries';
-  module: string;
-  routeId: string;
-};
 
 export function createLocalisedPublicPath(
   pathname: string,
@@ -93,12 +86,6 @@ export function createPublicSurfaceRouteEntries(
     );
 }
 
-export function createPublicSurfaceContentSources(
-  _app: WorkspaceApp,
-): PublicSurfaceContentSource[] {
-  return [];
-}
-
 export function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
   return uniqueSorted(
     createPublicSurfaceRouteEntries(app).flatMap(route =>
@@ -132,13 +119,11 @@ export function createPublicSurfaceGenerationCommand(
   }`;
 }
 
-export function workspaceAssetsForApp(
-  app: WorkspaceApp,
-): Record<string, string> {
-  void app;
-  return {};
-}
-
+/**
+ * Tombstone sweep: generated apps never ship hand-authored source assets under
+ * config/public, so reruns over an existing workspace remove any that crept
+ * in. The same path list feeds the generated validate script's assertions.
+ */
 export function rewriteWorkspaceAssetsForApp(
   workspaceRoot: string,
   app: WorkspaceApp,
@@ -147,15 +132,6 @@ export function rewriteWorkspaceAssetsForApp(
     fs.rmSync(path.join(workspaceRoot, app.directory, relativePath), {
       force: true,
     });
-  }
-  for (const [relativePath, content] of Object.entries(
-    workspaceAssetsForApp(app),
-  )) {
-    writeFileReplacing(
-      workspaceRoot,
-      `${app.directory}/${relativePath}`,
-      content,
-    );
   }
 }
 
@@ -185,7 +161,10 @@ export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
       indexablePolicy: contentExpansionPolicy.indexablePolicy,
       lifecycle: 'executed-during-public-surface-generation',
     },
-    contentSources: createPublicSurfaceContentSources(app),
+    // The default scaffold ships private-only routes; users add
+    // route-owned content sources when they opt routes into the public
+    // surface (consumed by scripts/generate-public-surface-assets.mjs).
+    contentSources: [],
     publicRoutes: createPublicRouteMetadata(app),
     routeEntries: createPublicSurfaceRouteEntries(app),
     concreteUrlPaths: createPublicSurfaceUrlPaths(app),

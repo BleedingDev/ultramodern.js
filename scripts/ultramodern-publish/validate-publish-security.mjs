@@ -115,8 +115,18 @@ function validateWorkflowContract() {
   const workflow = readText(publishWorkflowPath);
   requireIncludes(
     workflow,
-    'permissions:\n  contents: read\n  id-token: write',
+    'permissions:\n  contents: read',
     'publish workflow',
+  );
+  // OIDC mint capability must be scoped to the publish job alone, never
+  // granted workflow-wide where the build/staging jobs would inherit it.
+  if (workflow.includes('permissions:\n  contents: read\n  id-token: write')) {
+    fail('publish workflow must not grant id-token: write at workflow level');
+  }
+  requireIncludes(
+    workflow,
+    'permissions:\n      contents: read\n      id-token: write',
+    'publish workflow publish job',
   );
   requireIncludes(workflow, 'environment: npm-publish', 'publish workflow');
   requireIncludes(workflow, 'timeout-minutes:', 'publish workflow');

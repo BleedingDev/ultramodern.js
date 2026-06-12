@@ -27,6 +27,10 @@ const fixturesDir = path.join(__dirname, 'fixtures');
  *   is exercised.
  * - verticals/catalog/shared/effect/api.ts: fully code-generated Effect API
  *   contract file (no template on disk), the pure-codegen risk class.
+ * - verticals/catalog/src/effect/catalog-client.ts: the generated Effect
+ *   client. It once advertised locale/operationContext/traceparent options
+ *   and silently dropped them; the snapshot pins the requestContext wiring
+ *   into makeEffectHttpApiClient.
  * - verticals/catalog/src/routes/[lang]/page.tsx: the vertical page emitted
  *   by createRemotePage — inline-literal TSX codegen where an undeclared
  *   identifier (`supportedLanguages`) once shipped and broke typecheck of
@@ -44,6 +48,7 @@ const defaultScaffoldSnapshots = [
 const catalogVerticalSnapshots = [
   'scripts/validate-ultramodern-workspace.mjs',
   'verticals/catalog/shared/effect/api.ts',
+  'verticals/catalog/src/effect/catalog-client.ts',
   'verticals/catalog/src/routes/[lang]/page.tsx',
 ];
 
@@ -145,6 +150,33 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /const \{[^}]*\bsupportedLanguages\b[^}]*\} = useModernI18n\(\);/,
       'supportedLanguages must be destructured from useModernI18n() — otherwise the generated page references an undeclared identifier',
     );
+
+    // Regression: the generated Effect client once accepted
+    // locale/operationContext/traceparent options and then passed only
+    // { baseUrl } to makeEffectHttpApiClient, so no operation-context header
+    // was ever sent. Unlike the byte snapshot, these assertions survive a
+    // blind fixture regeneration: the client must forward all three options
+    // through the plugin-bff requestContext envelope.
+    const generatedClient = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/src/effect/catalog-client.ts'),
+      'utf-8',
+    );
+    assert.match(
+      generatedClient,
+      /requestContext: \{/,
+      'generated client must pass requestContext to makeEffectHttpApiClient',
+    );
+    for (const contextOption of [
+      'locale',
+      'operationContext',
+      'traceparent',
+    ] as const) {
+      assert.match(
+        generatedClient,
+        new RegExp(`\\{ ${contextOption}: options\\.${contextOption} \\}`),
+        `generated client must forward options.${contextOption} into requestContext`,
+      );
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

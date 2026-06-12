@@ -263,7 +263,7 @@ export function createRootPackageJson(
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
-        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall && node ./scripts/setup-agent-reference-repos.mjs",
+        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
       check:
         'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
     },
@@ -451,7 +451,6 @@ export function createSharedPackage(
   scope: string,
   id: string,
   description: string,
-  packageSource: ResolvedPackageSource,
 ): JsonValue {
   const packageJson: Record<string, JsonValue> = {
     private: true,
@@ -475,15 +474,6 @@ export function createSharedPackage(
     packageJson.exports = {
       ...(packageJson.exports as Record<string, JsonValue>),
       './tokens.css': './src/tokens.css',
-    };
-  }
-
-  if (id === 'shared-effect-api') {
-    packageJson.dependencies = {
-      '@modern-js/plugin-bff': modernPackageSpecifier(
-        '@modern-js/plugin-bff',
-        packageSource,
-      ),
     };
   }
 

@@ -38,10 +38,18 @@ export const ZH_LOCALE = {
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (默认 en；zh 需显式选择)',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 工作区样式',
+    optionBff:
+      '      --bff 保留默认的 Effect BFF 脚手架（每个 MicroVertical 自带 Effect BFF）',
+    optionBffRuntime:
+      '      --bff-runtime 选择 MicroVertical 脚手架的 BFF 运行时（支持: effect；默认: effect）',
     optionWorkspace:
       '      --workspace 对 @modern-js 依赖使用 workspace 协议（用于本地 monorepo 联调）',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source 选择 UltraModern 依赖来源（workspace 或 install；BleedingDev 默认使用 install alias）',
+    optionUltramodernPackageVersion:
+      '      --ultramodern-package-version 为 install 依赖来源固定精确的 BleedingDev 框架版本',
+    optionUltramodernPackageRegistry:
+      '      --ultramodern-package-registry install 依赖来源使用的 npm registry 地址',
     optionUltramodernPackageScope:
       '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
     optionUltramodernPackageNamePrefix:
@@ -59,15 +67,10 @@ export const ZH_LOCALE = {
     example5: '  pnpm dlx @bleedingdev/modern-js-create .',
     example6:
       '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
-    example7: '',
-    example8: '',
-    example9: '',
-    example10: '',
-    example11: '',
-    example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
+    example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {
-    message: '@bleedingdev/modern-js-create 版本: {version}',
+    message: '{name} 版本: {version}',
   },
 };

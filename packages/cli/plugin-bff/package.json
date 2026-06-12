@@ -80,6 +80,15 @@
       },
       "default": "./dist/cjs/runtime/effect-client/index.js"
     },
+    "./effect-client-runtime": {
+      "types": "./dist/types/runtime/effect-client/runtime.d.ts",
+      "modern:source": "./src/runtime/effect-client/runtime.ts",
+      "node": {
+        "import": "./dist/esm-node/runtime/effect-client/runtime.mjs",
+        "require": "./dist/cjs/runtime/effect-client/runtime.js"
+      },
+      "default": "./dist/esm/runtime/effect-client/runtime.mjs"
+    },
     "./data-platform": {
       "types": "./dist/types/runtime/data-platform/index.d.ts",
       "node": {
@@ -118,6 +127,9 @@
       ],
       "effect-client": [
         "./dist/types/runtime/effect-client/index.d.ts"
+      ],
+      "effect-client-runtime": [
+        "./dist/types/runtime/effect-client/runtime.d.ts"
       ],
       "data-platform": [
         "./dist/types/runtime/data-platform/index.d.ts"

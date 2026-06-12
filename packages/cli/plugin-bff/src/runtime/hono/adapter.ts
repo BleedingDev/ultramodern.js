@@ -11,6 +11,11 @@ import { Hono, run } from '@modern-js/server-core';
 
 import { isProd, logger } from '@modern-js/utils';
 import createHonoRoutes from '../../utils/createHonoRoutes';
+import {
+  checkCrossProjectPolicyResponse,
+  type ResolvedCrossProjectPolicy,
+  resolveAdapterCrossProjectPolicy,
+} from '../../utils/crossProjectServerPolicy';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 const kParentHonoVars = Symbol.for('modernjs.hono.parentVars');
@@ -25,6 +30,8 @@ export class HonoAdapter {
   apiServer: Hono | null = null;
   api: ServerPluginAPI;
   isHono = true;
+  prefix = '/api';
+  crossProjectPolicy: ResolvedCrossProjectPolicy | undefined;
   constructor(api: ServerPluginAPI) {
     this.api = api;
   }
@@ -44,6 +51,34 @@ export class HonoAdapter {
       order: 'post',
       before,
     }));
+
+    this.crossProjectPolicy = resolveAdapterCrossProjectPolicy(
+      this.api,
+      (apiHandlerInfos as APIHandlerInfo[]) || [],
+    );
+    if (this.crossProjectPolicy) {
+      // Enforce the cross-project policy ahead of every BFF route. Without
+      // this middleware the generated SDK's force-enabled policy config was
+      // a silent no-op in the hono lane.
+      const policyMiddleware: MiddlewareHandler = async (c, next) => {
+        const denial = checkCrossProjectPolicyResponse(
+          c.req.header(),
+          this.crossProjectPolicy,
+        );
+        if (denial) {
+          return denial;
+        }
+        await next();
+      };
+      this.apiMiddleware.unshift({
+        name: 'bff-cross-project-policy',
+        path: `${this.prefix}/*`,
+        method: 'all',
+        handler: policyMiddleware,
+        order: 'post',
+        before,
+      });
+    }
   };
 
   registerApiRoutes = async () => {
@@ -146,6 +181,8 @@ export class HonoAdapter {
       this.isHono = false;
       return;
     }
+
+    this.prefix = prefix || this.prefix;
 
     const { middlewares: globalMiddlewares } = this.api.getServerContext();
 

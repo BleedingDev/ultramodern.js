@@ -1,4 +1,15 @@
 // @effect-diagnostics asyncFunction:off globalDate:off globalRandom:off globalTimers:off newPromise:off strictBooleanExpressions:off
+/**
+ * Data-platform envelope (`x-modernjs-data-envelope`): the TRANSPORT/CACHE
+ * contract of the effect lane — protocol versioning, cache scope keys,
+ * selection plans, batching and hydration checksums.
+ *
+ * Boundary note (one envelope system per concern): cross-project
+ * AUTHORIZATION is the bff-core policy's job (`x-modernjs-bff-envelope` +
+ * operation contracts, evaluated server-side in both the hono and effect
+ * lanes). Nothing in this module is a trust boundary; treat every value
+ * here as client-asserted cache metadata.
+ */
 import { parseTraceparent } from '@modern-js/create-request';
 import { trace } from '@opentelemetry/api';
 

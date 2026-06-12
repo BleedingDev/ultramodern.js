@@ -5,7 +5,9 @@ import {
   createHttpApiHandler,
   type EffectBffOpenApiConfig,
   type EffectDataPlatformValidationOptions,
+  type EffectRequestValidator,
   type EffectRuntimeLayer,
+  isValidatorAwareHandlerFactory,
 } from './handler';
 import type { EffectContext } from './operation-context';
 
@@ -17,6 +19,7 @@ export type EffectBffRequestHandler = (
 export type EffectBffHandlerFactory = (options?: {
   openapi?: EffectBffOpenApiConfig;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  validateRequest?: EffectRequestValidator;
 }) => {
   handler: EffectBffRequestHandler;
   dispose: () => Promise<void>;
@@ -33,11 +36,30 @@ export type EffectApiModule = {
 export type LoadedEffectBffHandler = {
   handler: EffectBffRequestHandler;
   dispose?: () => Promise<void>;
+  /**
+   * True when the handler is known to apply `validateRequest` internally
+   * (including per batched item): `{ api, layer }` modules resolved through
+   * `createHttpApiHandler`, and `createHandler` factories branded by
+   * `defineEffectBff` (see `EFFECT_VALIDATOR_AWARE_FACTORY`). Plain
+   * `handler` exports and unbranded custom factories leave this unset; the
+   * adapter middleware must enforce the policy itself for those.
+   */
+  appliesRequestValidator?: boolean;
 };
 
 export type ResolveEffectBffModuleHandlerOptions = {
   openapi?: EffectBffOpenApiConfig;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  /**
+   * Server-seam request validator (cross-project policy). Applied by
+   * `createHttpApiHandler` to direct, batched and rpc requests.
+   *
+   * Note: plain `handler` exports and unbranded custom `createHandler`
+   * factories bypass this seam — the effect adapter enforces the policy in
+   * its middleware for those shapes instead (see
+   * `LoadedEffectBffHandler.appliesRequestValidator`).
+   */
+  validateRequest?: EffectRequestValidator;
   onWarning?: (message: string) => void;
 };
 
@@ -87,14 +109,18 @@ function callEffectBffRequestHandler(
   return context === undefined ? handler(request) : handler(request, context);
 }
 
-function createLoadedHandler(webHandler: {
-  handler: EffectBffRequestHandler;
-  dispose: () => Promise<void>;
-}): LoadedEffectBffHandler {
+function createLoadedHandler(
+  webHandler: {
+    handler: EffectBffRequestHandler;
+    dispose: () => Promise<void>;
+  },
+  appliesRequestValidator: boolean,
+): LoadedEffectBffHandler {
   return {
     handler: (request, context) =>
       callEffectBffRequestHandler(webHandler.handler, request, context),
     dispose: webHandler.dispose,
+    ...(appliesRequestValidator ? { appliesRequestValidator: true } : {}),
   };
 }
 
@@ -109,6 +135,7 @@ function createLoadedHttpApiHandler(
       return webHandler.handler(request, effectContext);
     },
     dispose: webHandler.dispose,
+    appliesRequestValidator: true,
   };
 }
 
@@ -153,11 +180,24 @@ function resolveNormalizedEffectBffModuleHandler(
   }
 
   if (typeof normalizedModule.createHandler === 'function') {
-    const webHandler = normalizedModule.createHandler({
+    const factory = normalizedModule.createHandler;
+    // Only `defineEffectBff`-branded factories are guaranteed to forward
+    // `validateRequest` into `createHttpApiHandler`. A hand-written factory
+    // matching the same shape may ignore it, so treat it like a plain
+    // `handler` export: the adapter middleware enforces the policy on the
+    // outer request instead of silently skipping enforcement.
+    const validatorAware = isValidatorAwareHandlerFactory(factory);
+    if (!validatorAware && options.validateRequest !== undefined) {
+      options.onWarning?.(
+        '[BFF][Effect] Custom createHandler export detected: it cannot be verified to apply validateRequest (cross-project policy), so the policy is enforced by the adapter middleware on the outer request. Batched calls will be denied at the batch POST (it carries no per-operation contract); export defineEffectBff(...) to get per-batch-item enforcement.',
+      );
+    }
+    const webHandler = factory({
       openapi: options.openapi,
       dataPlatform: options.dataPlatform,
+      validateRequest: options.validateRequest,
     });
-    return createLoadedHandler(webHandler);
+    return createLoadedHandler(webHandler, validatorAware);
   }
 
   if (isEffectApiDefinition(normalizedModule)) {
@@ -169,6 +209,7 @@ function resolveNormalizedEffectBffModuleHandler(
       layer: normalizedModule.layer,
       openapi: options.openapi,
       dataPlatform: options.dataPlatform,
+      validateRequest: options.validateRequest,
     });
     return createLoadedHttpApiHandler(webHandler);
   }

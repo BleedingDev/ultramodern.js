@@ -1,20 +1,10 @@
-import { createSyncHook } from '@modern-js/plugin';
-import type { TRuntimeContext } from '@modern-js/runtime/context';
-import type { RouteObject } from '@modern-js/runtime-utils/router';
-import type { RouterLifecycleContext } from './lifecycle';
-
-const modifyRoutes = createSyncHook<(routes: RouteObject[]) => RouteObject[]>();
-const onBeforeCreateRoutes =
-  createSyncHook<(context: TRuntimeContext) => void>();
-const onBeforeCreateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
-const onAfterCreateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
-const onBeforeHydrateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
-const onAfterHydrateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
-
+/**
+ * The router hooks are owned by @modern-js/runtime — this module re-exports
+ * the canonical instances through the `/context` seam, so the TanStack
+ * provider taps and calls the exact same hooks the built-in router wrapper
+ * registers. Creating separate hook instances here would silently split the
+ * hook registry between the wrapper and this provider.
+ */
 export {
   modifyRoutes,
   onAfterCreateRouter,
@@ -22,13 +12,6 @@ export {
   onBeforeCreateRouter,
   onBeforeCreateRoutes,
   onBeforeHydrateRouter,
-};
-
-export type RouterExtendsHooks = {
-  modifyRoutes: typeof modifyRoutes;
-  onBeforeCreateRoutes: typeof onBeforeCreateRoutes;
-  onBeforeCreateRouter: typeof onBeforeCreateRouter;
-  onAfterCreateRouter: typeof onAfterCreateRouter;
-  onBeforeHydrateRouter: typeof onBeforeHydrateRouter;
-  onAfterHydrateRouter: typeof onAfterHydrateRouter;
-};
+  type RouterExtendsHooks,
+  routerProviderRegistryHooks,
+} from '@modern-js/runtime/context';

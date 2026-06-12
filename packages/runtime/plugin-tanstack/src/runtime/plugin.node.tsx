@@ -17,7 +17,6 @@ import {
   type RequestContext,
   storage,
 } from '@modern-js/runtime-utils/node';
-import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
 import {
@@ -30,15 +29,7 @@ import { attachRouterServerSsrUtils } from '@tanstack/router-core/ssr/server';
 import type React from 'react';
 import { useContext } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
-import {
-  modifyRoutes as modifyRoutesHook,
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onAfterHydrateRouter as onAfterHydrateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
-  onBeforeCreateRoutes as onBeforeCreateRoutesHook,
-  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
-  type RouterExtendsHooks,
-} from './hooks';
+import { type RouterExtendsHooks, routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterServerPrepareResult,
@@ -301,20 +292,6 @@ function createGetSsrHref(request: Request): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
-  return routes
-    .filter(route => !(route.path === '*' && !route.id && !route.loader))
-    .map(route => {
-      if (!route.children?.length) {
-        return route;
-      }
-      return {
-        ...route,
-        children: stripSyntheticNotFoundRoute(route.children),
-      };
-    });
-}
-
 function collectRouterErrors(
   tanstackRouter: AnyRouter,
 ): Record<string, unknown> | undefined {
@@ -346,14 +323,7 @@ export const tanstackRouterPlugin = (
 ): TanstackRouterRuntimePlugin => {
   const plugin: TanstackRouterRuntimePlugin = {
     name: '@modern-js/plugin-router-tanstack',
-    registryHooks: {
-      modifyRoutes: modifyRoutesHook,
-      onAfterCreateRouter: onAfterCreateRouterHook,
-      onAfterHydrateRouter: onAfterHydrateRouterHook,
-      onBeforeCreateRouter: onBeforeCreateRouterHook,
-      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
-      onBeforeHydrateRouter: onBeforeHydrateRouterHook,
-    },
+    registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
       api.onBeforeRender(async (context, interrupt) => {
         const pluginConfig = api.getRuntimeConfig() as {
@@ -389,12 +359,7 @@ export const tanstackRouterPlugin = (
               routesConfig: finalRouteConfig,
               ssrMode: context.ssrContext?.mode,
             }) || [];
-        const normalizedRouteObjects = createRoutes
-          ? routeObjects
-          : stripSyntheticNotFoundRoute(routeObjects);
-        const modifiedRouteObjects = hooks.modifyRoutes.call(
-          normalizedRouteObjects,
-        );
+        const modifiedRouteObjects = hooks.modifyRoutes.call(routeObjects);
 
         if (!modifiedRouteObjects.length) {
           return;

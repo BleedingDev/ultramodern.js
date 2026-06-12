@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { parseTraceparent } from '@modern-js/create-request/server';
 import type {
   Context,
@@ -12,6 +13,7 @@ import type {
   Metrics,
   MonitorEvent,
 } from '@modern-js/types';
+import { logger } from '@modern-js/utils';
 import { ContractGateAutopilot } from './contractGateAutopilot';
 import {
   CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
@@ -1529,6 +1531,45 @@ export function normalizeRuntimeFallbackSignalAuthConfig(
   };
 }
 
+/**
+ * Normalizes the auth config for the runtime fallback signal endpoint when the
+ * endpoint itself is enabled. The endpoint can persist failing contract gates
+ * (a canary kill switch), so it always requires a token: auth cannot be
+ * disabled and a token must be configured via `auth.expectedValue` or
+ * `auth.expectedValueEnv`.
+ */
+export function normalizeRequiredRuntimeFallbackSignalAuthConfig(
+  configured: Parameters<typeof normalizeRuntimeFallbackSignalAuthConfig>[0],
+): RuntimeFallbackSignalAuthConfig {
+  if (configured?.enabled === false) {
+    throw new Error(
+      '[telemetry.canary.autopilot.runtimeFallbackSignal] the endpoint cannot be enabled with auth disabled; configure auth.expectedValue or auth.expectedValueEnv',
+    );
+  }
+
+  try {
+    return normalizeRuntimeFallbackSignalAuthConfig({
+      ...configured,
+      enabled: true,
+    });
+  } catch (_error) {
+    throw new Error(
+      '[telemetry.canary.autopilot.runtimeFallbackSignal] enabling the endpoint requires an auth token; configure auth.expectedValue or auth.expectedValueEnv',
+    );
+  }
+}
+
+/**
+ * Constant-time token comparison. Both sides are hashed first so neither the
+ * comparison time nor the early length check leaks information about the
+ * expected secret.
+ */
+function safeTokenEquals(candidate: string, expected: string) {
+  const candidateDigest = createHash('sha256').update(candidate).digest();
+  const expectedDigest = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(candidateDigest, expectedDigest);
+}
+
 export function enforceRuntimeFallbackSignalAuthToken(
   token: string | undefined,
   authConfig: RuntimeFallbackSignalAuthConfig,
@@ -1537,7 +1578,11 @@ export function enforceRuntimeFallbackSignalAuthToken(
     return;
   }
 
-  if (!token || token !== authConfig.expectedValue) {
+  if (
+    !token ||
+    !authConfig.expectedValue ||
+    !safeTokenEquals(token, authConfig.expectedValue)
+  ) {
     throw createRuntimeSignalError(
       'runtime fallback signal auth failed',
       'UNAUTHORIZED',
@@ -1650,9 +1695,19 @@ function cleanupRuntimeFallbackSignalRuntimeState(
   });
 }
 
+export type RuntimeFallbackSignalSource = {
+  /**
+   * Server-trusted connection identity (socket remote address). Never derive
+   * this from request headers or the payload: both are attacker-controlled
+   * and would let callers reset their own rate-limit budget.
+   */
+  remoteAddress?: string;
+};
+
 export function enforceRuntimeFallbackSignalTrustPolicy(
   payload: Record<string, unknown>,
   runtimeSignalContext: RuntimeFallbackSignalTrustContext,
+  source: RuntimeFallbackSignalSource = {},
 ) {
   const { trustPolicy, runtimeState } = runtimeSignalContext;
   const now = Date.now();
@@ -1719,7 +1774,11 @@ export function enforceRuntimeFallbackSignalTrustPolicy(
     runtimeState.dedupeByFingerprint.set(dedupeFingerprint, now);
   }
 
-  const sourceKey = `${appName}@${entryOrigin || 'unknown'}`;
+  // Rate-limit on the server-observed connection identity, not on
+  // payload-derived values (appName/entryOrigin) that an attacker can rotate
+  // to mint fresh rate-limit budgets.
+  const remoteAddress = source.remoteAddress?.trim();
+  const sourceKey = remoteAddress || 'unknown-remote';
   const rateState = runtimeState.rateLimitBySource.get(sourceKey);
   if (!rateState || now - rateState.windowStartedAt > trustPolicy.windowMs) {
     runtimeState.rateLimitBySource.set(sourceKey, {
@@ -1902,6 +1961,62 @@ export const hasEnabledTelemetryExporters = (
       config?.exporters?.victoriaMetrics?.enabled,
   );
 
+/**
+ * Builds the registry SLO options from `server.telemetry.slo`, attaching a
+ * logger sink so threshold breaches surface as server warnings (parity with
+ * the pre-extraction prod-server harness).
+ */
+export const resolveTelemetrySloOptions = (
+  sloConfig: ServerTelemetryUserConfig['slo'],
+  warnSink: (message: string) => void = message => logger.warn(message),
+): NonNullable<TelemetryRegistryOptions['slo']> => ({
+  queueUtilizationWarnThreshold: sloConfig?.queueUtilizationWarnThreshold,
+  queueDroppedWarnThreshold: sloConfig?.queueDroppedWarnThreshold,
+  alertCooldownMs: sloConfig?.alertCooldownMs,
+  onAlert: alert => {
+    warnSink(
+      `[telemetry.slo] ${alert.type} threshold=${alert.threshold} value=${alert.value} depth=${alert.queueDepth}/${alert.queueCapacity} dropped=${alert.totalDropped}`,
+    );
+  },
+});
+
+const getRequestRemoteAddress = (c: Context<ServerEnv>) => {
+  const env = c.env as
+    | {
+        node?: {
+          req?: {
+            socket?: {
+              remoteAddress?: string;
+            };
+          };
+        };
+      }
+    | undefined;
+  const remoteAddress = env?.node?.req?.socket?.remoteAddress;
+  return typeof remoteAddress === 'string' && remoteAddress.trim().length > 0
+    ? remoteAddress.trim()
+    : undefined;
+};
+
+/**
+ * Active telemetry lane disposers, flushed by a single shared process
+ * `beforeExit` hook (a per-lane listener would accumulate listeners across
+ * dev-server restarts and embedded multi-server setups).
+ */
+const activeTelemetryLaneClosers = new Set<() => Promise<void>>();
+let telemetryBeforeExitHookInstalled = false;
+const ensureTelemetryBeforeExitHook = () => {
+  if (telemetryBeforeExitHookInstalled) {
+    return;
+  }
+  telemetryBeforeExitHookInstalled = true;
+  process.on('beforeExit', () => {
+    for (const close of [...activeTelemetryLaneClosers]) {
+      void close();
+    }
+  });
+};
+
 export const injectTelemetryPlugin = (): ServerPlugin => ({
   name: '@modern-js/inject-telemetry',
   setup(api) {
@@ -1934,11 +2049,13 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       maxBatchSize: telemetryConfig.maxBatchSize,
       maxQueueSize: telemetryConfig.maxQueueSize,
       redactionKeys: telemetryConfig.redactionKeys,
+      slo: resolveTelemetrySloOptions(telemetryConfig.slo),
     });
 
     let canaryOrchestrator: TelemetryCanaryOrchestrator | undefined;
     let contractGateAutopilot: ContractGateAutopilot | undefined;
     let runtimeFallbackSignalConfig: RuntimeFallbackSignalConfig | undefined;
+    let runtimeStatusAuthConfig: RuntimeFallbackSignalAuthConfig | undefined;
     let gateSnapshotStorePromise:
       | Promise<ContractGateSnapshotStore>
       | undefined;
@@ -1986,7 +2103,10 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
 
         const runtimeSignalConfig =
           canaryConfig.autopilot?.runtimeFallbackSignal;
-        const runtimeSignalEnabled = runtimeSignalConfig?.enabled ?? true;
+        // The signal endpoint can persist failing contract gates and force
+        // the canary orchestrator into rollback, so it is opt-in (default
+        // OFF) and requires a configured auth token when enabled.
+        const runtimeSignalEnabled = runtimeSignalConfig?.enabled === true;
         if (runtimeSignalEnabled && gateSnapshotStorePromise) {
           runtimeFallbackSignalConfig = {
             endpoint: resolveRuntimeFallbackSignalEndpoint(
@@ -2006,7 +2126,7 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
               runtimeSignalConfig?.maxBodyBytes ??
                 DEFAULT_RUNTIME_FALLBACK_MAX_BODY_BYTES,
             ),
-            auth: normalizeRuntimeFallbackSignalAuthConfig(
+            auth: normalizeRequiredRuntimeFallbackSignalAuthConfig(
               runtimeSignalConfig?.auth,
             ),
             trustPolicy: normalizeRuntimeFallbackTrustPolicy(
@@ -2016,6 +2136,15 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
           };
         }
       }
+
+      // The runtime status endpoint exposes detail only to authenticated
+      // callers. Auth can be configured through runtimeFallbackSignal.auth
+      // even when the signal endpoint itself stays disabled.
+      runtimeStatusAuthConfig =
+        runtimeFallbackSignalConfig?.auth ??
+        normalizeRuntimeFallbackSignalAuthConfig(
+          canaryConfig.autopilot?.runtimeFallbackSignal?.auth,
+        );
     }
 
     if (runtimeFallbackSignalConfig) {
@@ -2035,6 +2164,9 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
             const trustResult = enforceRuntimeFallbackSignalTrustPolicy(
               payload,
               signalConfig,
+              {
+                remoteAddress: getRequestRemoteAddress(c),
+              },
             );
             if (trustResult.deduped) {
               return c.json({ ok: true, deduped: true }, 202);
@@ -2066,12 +2198,20 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       order: 'pre',
       handler: async (c: Context<ServerEnv>) => {
         try {
-          if (runtimeFallbackSignalConfig?.auth.enabled) {
-            enforceRuntimeFallbackSignalAuthToken(
-              c.req.header(runtimeFallbackSignalConfig.auth.headerName),
-              runtimeFallbackSignalConfig.auth,
-            );
+          // Telemetry/canary/trust internals are only disclosed to
+          // authenticated callers. Without a configured auth token the
+          // endpoint stays a bare health probe.
+          if (!runtimeStatusAuthConfig?.enabled) {
+            return c.json({
+              ok: true,
+              timestamp: Date.now(),
+            });
           }
+
+          enforceRuntimeFallbackSignalAuthToken(
+            c.req.header(runtimeStatusAuthConfig.headerName),
+            runtimeStatusAuthConfig,
+          );
 
           return c.json({
             ok: true,
@@ -2168,12 +2308,42 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       },
     });
 
+    let telemetryLaneClosed = false;
+    const closeTelemetryLane = async () => {
+      if (telemetryLaneClosed) {
+        return;
+      }
+      telemetryLaneClosed = true;
+      activeTelemetryLaneClosers.delete(closeTelemetryLane);
+      contractGateAutopilot?.stop();
+      canaryOrchestrator?.stop();
+      await registry.shutdown();
+    };
+
     let prepared = false;
     api.onPrepare(async () => {
       if (prepared) {
         return;
       }
       prepared = true;
+
+      // Shutdown path for the telemetry lane: flush pending envelopes and
+      // stop canary/autopilot pollers when the node server closes (this also
+      // covers dev-server restarts, which close the previous node server
+      // before assembling a new one) with process beforeExit as the
+      // final-flush floor when no node server handle exists.
+      const { nodeServer } = api.getServerContext() as {
+        nodeServer?: {
+          once?: (event: string, listener: () => void) => unknown;
+        };
+      };
+      if (nodeServer && typeof nodeServer.once === 'function') {
+        nodeServer.once('close', () => {
+          void closeTelemetryLane();
+        });
+      }
+      activeTelemetryLaneClosers.add(closeTelemetryLane);
+      ensureTelemetryBeforeExitHook();
 
       if (telemetryConfig.exporters?.otlp?.enabled) {
         maybeWarnLegacyOtlpEndpoint(telemetryConfig.exporters.otlp.endpoint);

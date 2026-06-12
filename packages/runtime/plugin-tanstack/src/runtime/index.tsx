@@ -113,6 +113,13 @@ export {
   RouteActionResponseError,
   useFetcher,
 } from './dataMutation';
+export type { ModernRouterContext } from './loaderBridge';
+export {
+  createRouteStaticData,
+  isAbsoluteUrl,
+  modernLoaderToTanstack,
+  throwTanstackRedirect,
+} from './loaderBridge';
 export { Outlet } from './outlet';
 export {
   tanstackRouterPlugin,

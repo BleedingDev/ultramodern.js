@@ -139,11 +139,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: ${{ github.event.inputs.workers_dev_subdomain }}
+          # Route dispatch inputs through env (never inline into the shell):
+          # create_package is free text and this job holds live credentials.
+          CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
+          SCALE_PROFILE_INPUT: ${{ github.event.inputs.scale_profile || 'erp-10' }}
         run: |
           node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
-            --create-package "${{ github.event.inputs.create_package }}" \
+            --create-package "$CREATE_PACKAGE_INPUT" \
             --project-name ultramodern-ci-superapp \
-            --scale-profile "${{ github.event.inputs.scale_profile }}" \
+            --scale-profile "$SCALE_PROFILE_INPUT" \
             --out .modern/production-readiness/cloudflare-deploy-proof.json \
             --deploy-cloudflare
 

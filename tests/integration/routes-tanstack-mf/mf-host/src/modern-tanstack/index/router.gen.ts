@@ -3,187 +3,24 @@
 
 import {
   createMemoryHistory,
-  modernTanstackRouterFastDefaults,
   createRootRouteWithContext,
   createRoute,
   createRouter,
-  notFound,
-  redirect,
+  createRouteStaticData,
+  type ModernRouterContext,
+  modernLoaderToTanstack,
+  modernTanstackRouterFastDefaults,
 } from '@modern-js/plugin-tanstack/runtime';
 
-type ModernRouterContext = {
-  request?: Request;
-  requestContext?: unknown;
-};
-
-function isResponse(value: unknown): value is Response {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    typeof (value as any).status === 'number' &&
-    typeof (value as any).headers === 'object'
-  );
-}
-
-const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
-function isRedirectResponse(res: Response) {
-  return redirectStatusCodes.has(res.status);
-}
-
-function throwTanstackRedirect(location: string) {
-  const target = location.length > 0 ? location : '/';
-  try {
-    void new URL(target);
-    throw redirect({ href: target });
-  } catch {
-    throw redirect({ to: target });
-  }
-}
-
-function mapParamsForModernLoader(params: Record<string, string>, hasSplat: boolean) {
-  if (!hasSplat) {
-    return params;
-  }
-
-  const { _splat, ...rest } = params as any;
-  if (typeof _splat !== 'undefined') {
-    return { ...rest, '*': _splat };
-  }
-  return rest;
-}
-
-function createRouteStaticData(opts: {
-  modernRouteId?: string;
-  modernRouteAction?: unknown;
-  modernRouteLoader?: unknown;
-}) {
-  const staticData: {
-    modernRouteId?: string;
-    modernRouteAction?: unknown;
-    modernRouteLoader?: unknown;
-  } = {};
-
-  if (typeof opts.modernRouteId === 'string' && opts.modernRouteId.length > 0) {
-    staticData.modernRouteId = opts.modernRouteId;
-  }
-
-  if (typeof opts.modernRouteLoader !== 'undefined') {
-    staticData.modernRouteLoader = opts.modernRouteLoader;
-  }
-
-  if (typeof opts.modernRouteAction !== 'undefined') {
-    staticData.modernRouteAction = opts.modernRouteAction;
-  }
-
-  return staticData;
-}
-
-function getLoaderSignal(ctx: any): AbortSignal {
-  const abortSignal = ctx?.abortController?.signal;
-  if (abortSignal instanceof AbortSignal) {
-    return abortSignal;
-  }
-  if (ctx?.signal instanceof AbortSignal) {
-    return ctx.signal;
-  }
-  return new AbortController().signal;
-}
-
-function getLoaderHref(ctx: any): string {
-  if (typeof ctx?.location === 'string') {
-    return ctx.location;
-  }
-
-  const publicHref = ctx?.location?.publicHref;
-  if (typeof publicHref === 'string') {
-    return publicHref;
-  }
-
-  const href = ctx?.location?.href;
-  if (typeof href === 'string') {
-    return href;
-  }
-
-  const urlHref = ctx?.location?.url?.href;
-  return typeof urlHref === 'string' ? urlHref : '';
-}
-
-function getLoaderParams(ctx: any): Record<string, string> {
-  return typeof ctx?.params === 'object' && ctx.params !== null ? ctx.params : {};
-}
-
-function handleModernLoaderResult<LoaderResult>(result: LoaderResult): LoaderResult {
-  if (isResponse(result)) {
-    if (isRedirectResponse(result)) {
-      const location = result.headers.get('Location') ?? '/';
-      throwTanstackRedirect(location);
-    }
-    if (result.status === 404) {
-      throw notFound();
-    }
-  }
-
-  return result;
-}
-
-function handleModernLoaderError(err: unknown): never {
-  if (isResponse(err)) {
-    if (isRedirectResponse(err)) {
-      const location = err.headers.get('Location') ?? '/';
-      throwTanstackRedirect(location);
-    }
-    if (err.status === 404) {
-      throw notFound();
-    }
-  }
-
-  throw err;
-}
-
-function modernLoaderToTanstack<TLoader extends (args: any) => any>(
-  opts: { hasSplat: boolean },
-  modernLoader: TLoader,
-) {
-  type LoaderResult = Awaited<ReturnType<TLoader>>;
-
-  return (ctx: any): Promise<LoaderResult> => {
-    try {
-      const signal = getLoaderSignal(ctx);
-      const baseRequest: Request | undefined =
-        ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
-
-      const href = getLoaderHref(ctx);
-
-      const request = baseRequest !== undefined
-        ? new Request(baseRequest, { signal })
-        : new Request(href, { signal });
-
-      const params = mapParamsForModernLoader(getLoaderParams(ctx), opts.hasSplat);
-
-      return Promise.resolve(
-        (modernLoader as any)({
-          request,
-          params,
-          context: ctx?.context?.requestContext,
-        }),
-      )
-        .then((result: LoaderResult) => handleModernLoaderResult(result))
-        .catch(handleModernLoaderError);
-    } catch (err) {
-      handleModernLoaderError(err);
-    }
-  };
-}
-
 import loader_0 from "../../routes/layout.loader";
-import component_0 from "@_modern_js_src/routes/page";
+import component_0 from "../../routes/page";
 import { loader as loader_1, action as action_1 } from "../../routes/mf/page.data";
 import { loader as loader_2 } from "../../routes/mf-not-found/page.data";
 import { loader as loader_3 } from "../../routes/mf-redirect/page.data";
-import component_1 from "@_modern_js_src/routes/mf/page";
-import component_2 from "@_modern_js_src/routes/mf-not-found/page";
-import component_3 from "@_modern_js_src/routes/mf-redirect/page";
-import component_4 from "@_modern_js_src/routes/layout";
+import component_1 from "../../routes/mf/page";
+import component_2 from "../../routes/mf-not-found/page";
+import component_3 from "../../routes/mf-redirect/page";
+import component_4 from "../../routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   component: component_4,

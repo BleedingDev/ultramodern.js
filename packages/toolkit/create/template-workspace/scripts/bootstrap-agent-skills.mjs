@@ -37,45 +37,14 @@ const commandExists = command => {
   }
 };
 
-const runShell = script =>
-  run('sh', ['-lc', script], {
-    stdio: 'inherit',
-  });
-
-const installGit = () => {
+const requireGit = () => {
   if (commandExists('git')) {
     return;
   }
 
-  if (commandExists('brew')) {
-    run('brew', ['install', 'git'], { stdio: 'inherit' });
-  } else if (process.platform === 'linux' && commandExists('apt-get')) {
-    const sudo =
-      typeof process.getuid === 'function' && process.getuid() === 0
-        ? ''
-        : 'sudo ';
-    runShell(`${sudo}apt-get update && ${sudo}apt-get install -y git`);
-  } else if (process.platform === 'linux' && commandExists('dnf')) {
-    const sudo =
-      typeof process.getuid === 'function' && process.getuid() === 0
-        ? ''
-        : 'sudo ';
-    runShell(`${sudo}dnf install -y git`);
-  } else if (process.platform === 'linux' && commandExists('yum')) {
-    const sudo =
-      typeof process.getuid === 'function' && process.getuid() === 0
-        ? ''
-        : 'sudo ';
-    runShell(`${sudo}yum install -y git`);
-  } else if (process.platform === 'linux' && commandExists('apk')) {
-    runShell('apk add --no-cache git');
-  }
-
-  if (!commandExists('git')) {
-    throw new Error(
-      'Git is required for UltraModern setup. Install git and run pnpm skills:install again.',
-    );
-  }
+  throw new Error(
+    'Git is required to install agent skills. Install git yourself (for example "brew install git" or "sudo apt-get install git") and run pnpm skills:install again. This script never installs system packages on your behalf.',
+  );
 };
 
 const isInsideGitWorkTree = () => {
@@ -183,13 +152,15 @@ const requiredCloneSources = sources.filter(
 const optionalCloneSources = sources.filter(
   source => source.install === 'clone-if-authorized',
 );
-const requiredSkills = [
-  ...(lock.baseline ?? []),
-  ...requiredCloneSources.flatMap(source => source.baseline ?? []),
-].filter(
-  (skill, index, skills) =>
-    skills.findIndex(candidate => candidate.name === skill.name) === index,
+const cloneSourceSkillNames = new Set(
+  [...requiredCloneSources, ...optionalCloneSources].flatMap(source =>
+    (source.baseline ?? []).map(skill => skill.name),
+  ),
 );
+const vendoredRequiredSkills = (lock.baseline ?? []).filter(
+  skill => !cloneSourceSkillNames.has(skill.name),
+);
+const cloneOptIn = truthy(process.env.ULTRAMODERN_AGENT_SKILLS);
 
 if (skipRequested) {
   const reason = 'agent skills bootstrap skipped by environment';
@@ -203,12 +174,15 @@ if (skipRequested) {
 }
 
 if (checkOnly) {
-  const missingRequired = requiredSkills
+  const missingVendored = vendoredRequiredSkills
     .map(skill => skill.name)
     .filter(
       skillName => !fs.existsSync(path.join(installDir, skillName, 'SKILL.md')),
     );
-  const missingOptional = optionalCloneSources.flatMap(source =>
+  const missingCloneInstalled = [
+    ...requiredCloneSources,
+    ...optionalCloneSources,
+  ].flatMap(source =>
     (source.baseline ?? [])
       .map(skill => skill.name)
       .filter(
@@ -217,27 +191,33 @@ if (checkOnly) {
       ),
   );
 
-  if (missingRequired.length > 0) {
+  if (missingVendored.length > 0) {
     console.error(
-      `Required agent skills not installed: ${missingRequired.join(', ')}. Run pnpm skills:install.`,
+      `Required agent skills not installed: ${missingVendored.join(', ')}. Run pnpm skills:install.`,
     );
     process.exit(1);
   }
 
-  if (missingOptional.length > 0) {
+  if (missingCloneInstalled.length > 0) {
     console.warn(
-      `Private skills not installed: ${missingOptional.join(', ')}. Run pnpm skills:install if you have access.`,
+      `Clone-installed agent skills not present: ${missingCloneInstalled.join(', ')}. Run pnpm skills:install to fetch them.`,
     );
   } else {
-    console.log('Required and private agent skills are installed.');
-    process.exit(0);
+    console.log('All pinned agent skills are installed.');
   }
-  console.log('Required agent skills are installed.');
+  process.exit(0);
+}
+
+if (postinstall && !cloneOptIn) {
+  console.log(
+    'Skipping agent skill repository clones during postinstall. Run pnpm skills:install (or set ULTRAMODERN_AGENT_SKILLS=1 before installing) to fetch them.',
+  );
+  installLefthook();
   process.exit(0);
 }
 
 fs.mkdirSync(installDir, { recursive: true });
-installGit();
+requireGit();
 initializeGitRepository();
 
 for (const source of [...requiredCloneSources, ...optionalCloneSources]) {

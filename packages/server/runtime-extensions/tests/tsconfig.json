@@ -3,9 +3,9 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "isolatedModules": true,
     "types": ["node", "@rstest/core/globals"],
+    "rootDir": "..",
     "outDir": "./dist"
   }
 }

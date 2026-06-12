@@ -234,7 +234,7 @@ export function createPackageSourceMetadata(
     },
     validation: {
       validator: 'scripts/validate-ultramodern-workspace.mjs',
-      strategyAwareChecks: ['generated-validator', 'contract-doctor'],
+      strategyAwareChecks: ['generated-validator'],
     },
   };
 }

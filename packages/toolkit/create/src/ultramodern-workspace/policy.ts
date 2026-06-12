@@ -81,11 +81,9 @@ export function createCloudflareSecurityContract(): JsonValue {
       localhost: true,
       previewHostnames: [],
     },
-    cookies: {
-      mutateSetCookie: false,
-      reason:
-        'Generated Cloudflare worker does not own application Set-Cookie headers.',
-    },
+    // No `cookies` block: deploy.worker.security.cookies is a deprecated
+    // no-op (the worker never owned Set-Cookie); CORS defaults are correct
+    // for federated workspaces (assets wildcard, BFF/SSR same-origin).
   };
 }
 

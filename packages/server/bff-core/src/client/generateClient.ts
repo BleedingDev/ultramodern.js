@@ -2,24 +2,27 @@ import type { HttpMethodDecider } from '@modern-js/types';
 import * as path from 'path';
 import { ApiRouter } from '../router';
 import {
-  createOperationEntries,
+  buildOperationContractMap,
   createOperationSchemaHash,
+  deriveOperationVersion,
 } from '../security/operationContracts';
 import { Err, Ok, type Result } from './result';
 
 /**
- * Get package name from package.json file
+ * Get package name/version from package.json file
  * @param appDir - Application directory path
- * @returns Package name or undefined if not found
+ * @returns Package info, empty when package.json is missing or invalid
  */
-const getPackageName = (appDir: string): string | undefined => {
+const getPackageInfo = (
+  appDir: string,
+): { name?: string; version?: string } => {
   try {
     const packageJsonPath = path.resolve(appDir, './package.json');
     const packageJson = require(packageJsonPath);
-    return packageJson.name;
+    return { name: packageJson.name, version: packageJson.version };
   } catch (error) {
-    // If package.json doesn't exist or is invalid, return undefined
-    return undefined;
+    // If package.json doesn't exist or is invalid, return empty info
+    return {};
   }
 };
 
@@ -73,13 +76,38 @@ export const generateClient = async ({
     return Err(`generate client error: Cannot require module ${resourcePath}`);
   }
 
-  const operationEntries = createOperationEntries(handlerInfos);
-  const operationVersion = 1;
+  const normalizedRequestId = requestId || 'default';
+  const operationVersion = deriveOperationVersion(
+    getPackageInfo(appDir).version,
+  );
+  const operationContracts = buildOperationContractMap({
+    handlers: handlerInfos,
+    requestId: normalizedRequestId,
+    operationVersion,
+  });
+  const operationEntries = handlerInfos
+    .map(handlerInfo => {
+      const upperHttpMethod = handlerInfo.httpMethod.toUpperCase();
+      const contract =
+        operationContracts[`${upperHttpMethod}:${handlerInfo.routePath}`];
+      return {
+        name: handlerInfo.name,
+        httpMethod: upperHttpMethod,
+        routePath: handlerInfo.routePath,
+        schemaHash: contract?.schemaHash ?? '',
+      };
+    })
+    .sort((a, b) => {
+      const keyA = `${a.routePath}:${a.httpMethod}:${a.name}`;
+      const keyB = `${b.routePath}:${b.httpMethod}:${b.name}`;
+      return keyA.localeCompare(keyB);
+    });
   const schemaHash = createOperationSchemaHash(
     operationEntries,
-    requestId || 'default',
+    normalizedRequestId,
   );
 
+  let hasUploadHandler = false;
   let handlersCode = '';
   for (const handlerInfo of handlerInfos) {
     const { name, httpMethod, routePath, action } = handlerInfo;
@@ -89,18 +117,37 @@ export const generateClient = async ({
     }
     const upperHttpMethod = httpMethod.toUpperCase();
 
+    const operationSchemaHash =
+      operationContracts[`${upperHttpMethod}:${routePath}`]?.schemaHash ?? '';
+    const operationContext = {
+      operationId: name,
+      routePath,
+      method: upperHttpMethod,
+      schemaHash: operationSchemaHash,
+      operationVersion,
+    };
+
+    if (action === 'upload') {
+      hasUploadHandler = true;
+      const uploadOptions = {
+        path: routePath,
+        ...(domain ? { domain } : {}),
+        ...(requestId ? { requestId } : {}),
+        ...(requestId ? { operationContext } : {}),
+      };
+      handlersCode += `export ${exportStatement} createUploader(${JSON.stringify(
+        uploadOptions,
+      )});
+      `;
+      continue;
+    }
+
     const serializedRouteName = JSON.stringify(routePath);
     const serializedMethod = JSON.stringify(upperHttpMethod);
     const serializedMethodDecider = JSON.stringify(
       httpMethodDecider ? httpMethodDecider : 'functionName',
     );
-    const serializedOperationContext = JSON.stringify({
-      operationId: name,
-      routePath,
-      method: upperHttpMethod,
-      schemaHash,
-      operationVersion,
-    });
+    const serializedOperationContext = JSON.stringify(operationContext);
     const tailArgs = `, ${
       fetcher ? 'fetch' : 'undefined'
     }, ${requestId ? JSON.stringify(requestId) : 'undefined'}, ${serializedOperationContext}`;
@@ -119,11 +166,14 @@ export const generateClient = async ({
 
   const serializedRequestCreator = JSON.stringify(requestCreator);
   const serializedFetcher = fetcher ? JSON.stringify(fetcher) : undefined;
+  const namedRequestImports = `createRequest${
+    hasUploadHandler ? ', createUploader' : ''
+  }`;
   const importCode = requestId
     ? `import * as requestRuntime from ${serializedRequestCreator};
-const { createRequest } = requestRuntime;
+const { ${namedRequestImports} } = requestRuntime;
 ${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`
-    : `import { createRequest } from ${serializedRequestCreator};
+    : `import { ${namedRequestImports} } from ${serializedRequestCreator};
 ${serializedFetcher ? `import { fetch } from ${serializedFetcher};\n` : ''}`;
 
   const bootstrapCode = requestId

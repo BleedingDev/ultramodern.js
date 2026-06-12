@@ -14,11 +14,59 @@
  */
 import type { RuntimePlugin } from '../../core';
 import type { RouterExtendsHooks } from './hooks';
+import {
+  modifyRoutes,
+  onAfterCreateRouter,
+  onAfterHydrateRouter,
+  onBeforeCreateRouter,
+  onBeforeCreateRoutes,
+  onBeforeHydrateRouter,
+} from './hooks';
 import type { RouterConfig } from './types';
+
+/**
+ * The single declaration source for the router hook registry. Every router
+ * provider (built-in react-router, @modern-js/plugin-tanstack, ...) and the
+ * framework-resolving wrapper plugin register exactly these instances, so the
+ * hook set is defined once and providers cannot drift apart.
+ */
+export const routerProviderRegistryHooks: RouterExtendsHooks = {
+  modifyRoutes,
+  onBeforeCreateRoutes,
+  onBeforeCreateRouter,
+  onAfterCreateRouter,
+  onBeforeHydrateRouter,
+  onAfterHydrateRouter,
+};
 
 export type RouterProviderPlugin = RuntimePlugin<{
   extendHooks: RouterExtendsHooks;
 }>;
+
+/**
+ * Guard for the wrapper plugin (`router/internal`): a resolved provider is
+ * only invoked through `setup`, so registry hooks outside the canonical
+ * router hook contract cannot be registered for it. Returns the offending
+ * hook names and warns once so they are surfaced instead of silently dropped.
+ */
+export function reportUnsupportedProviderRegistryHooks(providerPlugin: {
+  name?: string;
+  registryHooks?: Record<string, unknown>;
+}): string[] {
+  const unsupportedHookNames = Object.keys(
+    providerPlugin.registryHooks ?? {},
+  ).filter(hookName => !(hookName in routerProviderRegistryHooks));
+
+  if (unsupportedHookNames.length > 0) {
+    console.warn(
+      `[@modern-js/runtime] The router provider "${providerPlugin.name}" declares registry hooks outside the router hook contract: ${unsupportedHookNames.join(
+        ', ',
+      )}. These hooks are not registered when the provider is resolved through \`runtime.router.framework\` — declare them on a separate runtime plugin instead.`,
+    );
+  }
+
+  return unsupportedHookNames;
+}
 
 export type RouterProviderFactory = (
   userConfig: Partial<RouterConfig>,
@@ -104,17 +152,38 @@ export function registerRouterProvider(
 
 export function resolveRouterProvider(
   framework?: RouterConfig['framework'],
+  options: {
+    /**
+     * The resolving module's own copy of a provider. The registry is
+     * realm-global with keep-first semantics, so in a page hosting several
+     * independent Modern.js apps (Module Federation app-level remotes) the
+     * first-loaded copy of a provider would otherwise win for *every* app —
+     * a foreign factory closes over the foreign app's global context (routes,
+     * App, runtime hooks) and renders the wrong app inside the resolving one.
+     * When the resolved name matches `localDefault.name`, the local factory
+     * is returned instead of whatever copy registered first.
+     */
+    localDefault?: { name: string; factory: RouterProviderFactory };
+  } = {},
 ): RouterProviderFactory {
   const registry = getRegistry();
   // `||` on purpose: a falsy framework value (empty string from env
   // templating, `false`, `undefined`) falls back to the default provider
   // instead of erroring on an unknown framework "".
-  const name = framework || registry.defaultProvider;
+  const name =
+    framework || registry.defaultProvider || options.localDefault?.name;
 
   if (name === undefined) {
     throw new Error(
       '[@modern-js/runtime] No default router provider is registered. This is a bug in the runtime setup.',
     );
+  }
+
+  if (
+    options.localDefault !== undefined &&
+    name === options.localDefault.name
+  ) {
+    return options.localDefault.factory;
   }
 
   const factory = registry.providers.get(name);

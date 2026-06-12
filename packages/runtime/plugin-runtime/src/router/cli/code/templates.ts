@@ -229,22 +229,17 @@ export const fileSystemRoutes = async ({
     'map.json',
   );
 
+  // Must stay a static default/named import: @swc/plugin-loadable-components
+  // only rewrites `loadable(...)` call sites whose binding is imported as
+  // `default`/`lazy` from the configured source. Routing the binding through a
+  // runtime interop helper leaves the call sites untransformed, which breaks
+  // string-mode SSR ("SSR requires `@loadable/babel-plugin`"). ESM/CJS interop
+  // (e.g. Cloudflare double-default wrapping) is handled inside
+  // `@<metaName>/runtime/loadable` itself (src/exports/loadable.ts), which
+  // always exports a callable default and a named `lazy`.
   const importLazyCode = `
     import { lazy } from "react";
-    import * as loadableModule from "@${metaName}/runtime/loadable"
-
-    const resolveLoadableExport = module => {
-      const candidates = [module, module.default, module.default?.default];
-      const loadable = candidates.find(candidate => typeof candidate === 'function');
-
-      if (!loadable) {
-        throw new TypeError('Modern.js runtime loadable export must resolve to a function');
-      }
-
-      return loadable;
-    };
-    const loadable = resolveLoadableExport(loadableModule);
-    const loadableLazy = loadableModule.lazy || loadableModule.default?.lazy || loadable.lazy;
+    import loadable, { lazy as loadableLazy } from "@${metaName}/runtime/loadable"
   `;
 
   let rootLayoutCode = ``;

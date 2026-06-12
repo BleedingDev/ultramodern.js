@@ -50,5 +50,8 @@ jobs:
         with:
           node-version: 24
 
+      - name: Run validator unit tests
+        run: node --test scripts/security/__tests__/*.test.mjs
+
       - name: Validate workflow security
         run: node scripts/security/validate-github-workflows.mjs

@@ -3,7 +3,20 @@ const MODERN_WORKER_MANIFEST = p_workerManifest;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
 const remoteJsonPromises = new Map();
-const CORS_HEADERS = {
+const CORS_POLICY = MODERN_WORKER_MANIFEST.security?.cors || {};
+const ASSET_CORS_ENABLED = CORS_POLICY.assets !== false;
+const APP_CORS_ALLOWED_ORIGINS = (CORS_POLICY.allowedOrigins || []).map(
+  origin => String(origin).toLowerCase(),
+);
+const APP_CORS_ALLOWED_METHODS = (
+  CORS_POLICY.allowedMethods?.length
+    ? CORS_POLICY.allowedMethods
+    : ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+).join(', ');
+const APP_CORS_ALLOWED_HEADERS = (
+  CORS_POLICY.allowedHeaders?.length ? CORS_POLICY.allowedHeaders : ['*']
+).join(', ');
+const ASSET_CORS_HEADERS = {
   'access-control-allow-headers': '*',
   'access-control-allow-methods': 'GET, HEAD, OPTIONS',
   'access-control-allow-origin': '*',
@@ -12,10 +25,73 @@ const CORS_HEADERS = {
 globalThis.__dirname ??= '/';
 globalThis.__filename ??= '/index.js';
 
-function withCorsHeaders(response) {
+function getAllowedAppCorsOrigin(request) {
+  if (APP_CORS_ALLOWED_ORIGINS.length === 0) {
+    return null;
+  }
+
+  const origin = request.headers.get('origin');
+
+  if (!origin) {
+    return null;
+  }
+
+  if (APP_CORS_ALLOWED_ORIGINS.includes('*')) {
+    return '*';
+  }
+
+  return APP_CORS_ALLOWED_ORIGINS.includes(origin.toLowerCase())
+    ? origin
+    : null;
+}
+
+function appendVaryOrigin(headers) {
+  const vary = headers.get('vary');
+
+  if (!vary) {
+    headers.set('vary', 'origin');
+    return;
+  }
+
+  const varyValues = vary.split(',').map(value => value.trim().toLowerCase());
+
+  if (!varyValues.includes('origin')) {
+    headers.set('vary', `${vary}, origin`);
+  }
+}
+
+function withAppCorsHeaders(response, request) {
+  const allowedOrigin = getAllowedAppCorsOrigin(request);
+
+  if (!allowedOrigin) {
+    return response;
+  }
+
   const headers = new Headers(response.headers);
 
-  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+  if (!headers.has('access-control-allow-origin')) {
+    headers.set('access-control-allow-origin', allowedOrigin);
+  }
+
+  if (allowedOrigin !== '*') {
+    appendVaryOrigin(headers);
+  }
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+function withAssetCorsHeaders(response) {
+  if (!ASSET_CORS_ENABLED) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+
+  for (const [name, value] of Object.entries(ASSET_CORS_HEADERS)) {
     if (!headers.has(name)) {
       headers.set(name, value);
     }
@@ -179,7 +255,7 @@ function isFingerprintedAssetPathname(pathname) {
 }
 
 function withAssetHeaders(response, request) {
-  const corsResponse = withCorsHeaders(response);
+  const corsResponse = withAssetCorsHeaders(response);
   const headers = new Headers(corsResponse.headers);
   const { pathname } = new URL(request.url);
 
@@ -194,13 +270,50 @@ function withAssetHeaders(response, request) {
   });
 }
 
-function createCorsPreflightResponse(request) {
+async function createCorsPreflightResponse(request, env) {
   if (request.method !== 'OPTIONS') {
     return null;
   }
 
+  const allowedOrigin = getAllowedAppCorsOrigin(request);
+
+  if (allowedOrigin) {
+    const headers = new Headers({
+      'access-control-allow-headers': APP_CORS_ALLOWED_HEADERS,
+      'access-control-allow-methods': APP_CORS_ALLOWED_METHODS,
+      'access-control-allow-origin': allowedOrigin,
+    });
+
+    if (allowedOrigin !== '*') {
+      headers.set('vary', 'origin');
+    }
+
+    return new Response(null, {
+      headers,
+      status: 204,
+    });
+  }
+
+  if (!ASSET_CORS_ENABLED) {
+    return null;
+  }
+
+  const assets = env?.[ASSETS_BINDING];
+
+  if (!assets || typeof assets.fetch !== 'function') {
+    return null;
+  }
+
+  const assetResponse = await assets.fetch(
+    new Request(request.url, { method: 'HEAD' }),
+  );
+
+  if (!assetResponse || assetResponse.status === 404) {
+    return null;
+  }
+
   return new Response(null, {
-    headers: CORS_HEADERS,
+    headers: ASSET_CORS_HEADERS,
     status: 204,
   });
 }
@@ -888,7 +1001,10 @@ async function dispatchBffRequest(request, env) {
 
 export default {
   async fetch(request, env, ctx) {
-    const corsPreflightResponse = createCorsPreflightResponse(request);
+    const corsPreflightResponse = await createCorsPreflightResponse(
+      request,
+      env,
+    );
 
     if (corsPreflightResponse) {
       return finalizeResponseForRequest(corsPreflightResponse, request);
@@ -903,7 +1019,10 @@ export default {
     const bffResponse = await dispatchBffRequest(request, env);
 
     if (bffResponse) {
-      return finalizeResponseForRequest(withCorsHeaders(bffResponse), request);
+      return finalizeResponseForRequest(
+        withAppCorsHeaders(bffResponse, request),
+        request,
+      );
     }
 
     const route = findRoute(request);
@@ -914,7 +1033,7 @@ export default {
       !routeMatchesExactly(route, pathname)
     ) {
       return finalizeResponseForRequest(
-        withCorsHeaders(new Response('Not found', { status: 404 })),
+        withAppCorsHeaders(new Response('Not found', { status: 404 }), request),
         request,
       );
     }
@@ -923,8 +1042,9 @@ export default {
       const renderableRequest = createRenderableRequest(request);
 
       return finalizeResponseForRequest(
-        withCorsHeaders(
+        withAppCorsHeaders(
           await dispatchRouteWorker(route, renderableRequest, env, ctx),
+          request,
         ),
         request,
       );
@@ -937,7 +1057,7 @@ export default {
     }
 
     return finalizeResponseForRequest(
-      withCorsHeaders(new Response('Not found', { status: 404 })),
+      withAppCorsHeaders(new Response('Not found', { status: 404 }), request),
       request,
     );
   },

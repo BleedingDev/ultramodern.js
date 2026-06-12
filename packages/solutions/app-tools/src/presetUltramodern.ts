@@ -1,17 +1,201 @@
-import {
-  type AppBaselineOptions,
-  createAppBaselineConfig,
-  withAppBaseline,
-} from './baseline';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { mergeConfig } from '@modern-js/plugin/cli';
+import type { RspackChain } from '@rsbuild/core';
 import type { AppUserConfig } from './types';
 
-export interface PresetUltramodernOptions extends AppBaselineOptions {}
+const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
+const DEFAULT_VICTORIA_METRICS_ENDPOINT =
+  'http://127.0.0.1:8428/api/v1/import/prometheus';
+
+export interface PresetUltramodernOptions {
+  /**
+   * Stable producer identity used by BFF cross-project clients.
+   * @default "app"
+   */
+  appId?: string;
+  /**
+   * Enable BFF requestId contract by default.
+   * @default true
+   */
+  enableBffRequestId?: boolean;
+  /**
+   * Enable telemetry contract by default.
+   * Exporters are still configured separately by applications.
+   * @default true
+   */
+  enableTelemetry?: boolean;
+  /**
+   * Enable telemetry exporters.
+   *
+   * By default each exporter is enabled only when its endpoint is explicitly
+   * configured (via the matching option or environment variable), so a bare
+   * preset app boots in production without local collectors.
+   * Set `true` to force both exporters on with their default localhost
+   * endpoints, or `false` to disable exporters entirely.
+   * @default undefined (endpoint-driven)
+   */
+  enableTelemetryExporters?: boolean;
+  /**
+   * OTLP exporter endpoint. Setting it (or the environment variable)
+   * enables the OTLP exporter unless `enableTelemetryExporters` is `false`.
+   * @default process.env.MODERN_TELEMETRY_OTLP_ENDPOINT || 'http://127.0.0.1:4318/v1/logs'
+   */
+  otlpEndpoint?: string;
+  /**
+   * VictoriaMetrics exporter endpoint. Setting it (or the environment
+   * variable) enables the VictoriaMetrics exporter unless
+   * `enableTelemetryExporters` is `false`.
+   * @default process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT || 'http://127.0.0.1:8428/api/v1/import/prometheus'
+   */
+  victoriaMetricsEndpoint?: string;
+  /**
+   * Enable fail-loud startup probing for telemetry exporters.
+   * Probes only run for exporters that are actually enabled.
+   * @default true
+   */
+  telemetryFailLoudStartup?: boolean;
+  /**
+   * Enable app-level Module Federation SSR handshake by default.
+   * @default true
+   */
+  enableModuleFederationSSR?: boolean;
+}
+
+const resolveReactRouterPackageDir = (appDirectory: string) => {
+  const localRequire = createRequire(path.join(appDirectory, 'package.json'));
+  try {
+    const reactRouterDomPackageJson = localRequire.resolve(
+      'react-router-dom/package.json',
+      { paths: [appDirectory] },
+    );
+    const reactRouterPackageJson = localRequire.resolve(
+      'react-router/package.json',
+      { paths: [path.dirname(reactRouterDomPackageJson)] },
+    );
+    return path.dirname(reactRouterPackageJson);
+  } catch {
+    return undefined;
+  }
+};
+
+const setReactRouterBridgeSafeAliases = (
+  chain: RspackChain,
+  { isProd }: { isProd: boolean },
+) => {
+  const chainContext = chain.get('context');
+  const appDirectory =
+    typeof chainContext === 'string' && chainContext.length > 0
+      ? chainContext
+      : process.cwd();
+  const reactRouterPackageDir = resolveReactRouterPackageDir(appDirectory);
+  if (!reactRouterPackageDir) {
+    return;
+  }
+
+  const productionEntry = path.join(
+    reactRouterPackageDir,
+    'dist/production/index.mjs',
+  );
+  const developmentEntry = path.join(
+    reactRouterPackageDir,
+    'dist/development/index.mjs',
+  );
+
+  chain.resolve.alias.set(
+    'react-router$',
+    isProd ? productionEntry : developmentEntry,
+  );
+  chain.resolve.alias.set(
+    'react-router/dist/production/index.js',
+    productionEntry,
+  );
+  chain.resolve.alias.set(
+    'react-router/dist/development/index.js',
+    developmentEntry,
+  );
+};
 
 export const createPresetUltramodernConfig = (
   options: PresetUltramodernOptions = {},
-): AppUserConfig => createAppBaselineConfig(options);
+): AppUserConfig => {
+  const {
+    appId = 'app',
+    enableBffRequestId = true,
+    enableTelemetry = true,
+    enableTelemetryExporters,
+    otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
+    victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
+    telemetryFailLoudStartup = true,
+    enableModuleFederationSSR = true,
+  } = options;
+
+  const server: NonNullable<AppUserConfig['server']> = {};
+
+  if (enableTelemetry) {
+    server.telemetry = {
+      enabled: true,
+      failLoudStartup: telemetryFailLoudStartup,
+    };
+
+    if (enableTelemetryExporters !== false) {
+      const exporters: NonNullable<
+        NonNullable<typeof server.telemetry>['exporters']
+      > = {};
+
+      if (enableTelemetryExporters === true || otlpEndpoint) {
+        exporters.otlp = {
+          enabled: true,
+          endpoint: otlpEndpoint || DEFAULT_OTLP_ENDPOINT,
+        };
+      }
+
+      if (enableTelemetryExporters === true || victoriaMetricsEndpoint) {
+        exporters.victoriaMetrics = {
+          enabled: true,
+          endpoint:
+            victoriaMetricsEndpoint || DEFAULT_VICTORIA_METRICS_ENDPOINT,
+        };
+      }
+
+      if (Object.keys(exporters).length > 0) {
+        server.telemetry.exporters = exporters;
+      }
+    }
+  }
+
+  if (enableModuleFederationSSR) {
+    server.ssr = {
+      mode: 'stream',
+      moduleFederationAppSSR: true,
+    };
+  }
+
+  const presetConfig: AppUserConfig = {
+    output: {
+      // Keep build artifacts predictable across apps.
+      precompress: true,
+    },
+    server,
+    tools: {
+      bundlerChain: setReactRouterBridgeSafeAliases,
+    },
+  };
+
+  if (enableBffRequestId) {
+    presetConfig.bff = {
+      requestId: appId,
+    };
+  }
+
+  return presetConfig;
+};
 
 export const presetUltramodern = (
   config: AppUserConfig,
   options: PresetUltramodernOptions = {},
-): AppUserConfig => withAppBaseline(config, options);
+): AppUserConfig =>
+  mergeConfig([
+    createPresetUltramodernConfig(options),
+    config,
+  ]) as AppUserConfig;

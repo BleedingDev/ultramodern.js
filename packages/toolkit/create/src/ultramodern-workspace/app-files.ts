@@ -212,7 +212,3 @@ export function createRouteHeadModule(app: WorkspaceApp): string {
 export function createShellFrameComponent(): string {
   return readFileTemplate('app/shell-frame.tsx');
 }
-
-export function createActionQueueStore(): string {
-  return readFileTemplate('app/action-queue-store.ts');
-}

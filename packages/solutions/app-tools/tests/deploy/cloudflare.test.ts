@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
+import type { CloudflareWorkerSecurityConfig } from '../../src/types/config/deploy';
 
 const tempDirectories: string[] = [];
 
@@ -357,9 +358,60 @@ describe('cloudflare deploy preset', () => {
         localhost: true,
         previewHostnames: [],
       },
+      cors: {
+        assets: true,
+        allowedOrigins: [],
+        allowedMethods: [
+          'GET',
+          'HEAD',
+          'POST',
+          'PUT',
+          'PATCH',
+          'DELETE',
+          'OPTIONS',
+        ],
+        allowedHeaders: ['*'],
+      },
+    });
+    // The write-only cookies block is gone from the manifest.
+    expect(workerManifest.security.cookies).toBeUndefined();
+  });
+
+  it('accepts the deprecated write-only cookies option as a typed no-op', async () => {
+    // `modern create` workspaces (toolkit/create policy.ts
+    // createCloudflareSecurityContract) still emit a `cookies` block into
+    // generated modern.config.ts files. Until the generator drops it, the
+    // block must stay assignable to the public config type (`satisfies`
+    // below locks that in under tsc/tsgo) and must remain a runtime no-op:
+    // it never reaches the worker manifest.
+    const generatedSecurity = {
+      enabled: true,
+      noindex: {
+        workersDev: true,
+        localhost: true,
+        previewHostnames: [],
+      },
       cookies: {
         mutateSetCookie: false,
+        reason:
+          'Generated Cloudflare worker does not own application Set-Cookie headers.',
       },
+    } satisfies CloudflareWorkerSecurityConfig;
+
+    const { outputDirectory } = await createFixture({
+      workerSecurity: generatedSecurity,
+    });
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(workerManifest.security.cookies).toBeUndefined();
+    expect(workerManifest.security.cors).toMatchObject({
+      assets: true,
+      allowedOrigins: [],
     });
   });
 
@@ -636,7 +688,9 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(404);
-    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    // Application responses (including 404s) carry no CORS headers unless
+    // deploy.worker.security.cors is configured.
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await response.text()).toBe('Not found');
   });
@@ -716,6 +770,8 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
+    // SSR responses are same-origin by default: no wildcard CORS leak.
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
     await expect(response.json()).resolves.toEqual({
       pathname: '/dashboard/settings',
       entryName: 'main',
@@ -1169,12 +1225,147 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    // BFF responses are same-origin by default: no wildcard CORS leak.
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
     await expect(response.json()).resolves.toEqual({
       pathname: '/effect/recommendations',
       originalPath: '/commerce-api/effect/recommendations',
       method: 'GET',
       envValue: 'edge-env',
     });
+  });
+
+  it('applies configured CORS origins to BFF and SSR responses', async () => {
+    const { outputDirectory } = await createFixture({
+      workerSecurity: {
+        cors: {
+          allowedOrigins: ['https://shell.example.com'],
+        },
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const env = {
+      TEST_VALUE: 'edge-env',
+      ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+    };
+
+    const allowedBffResponse = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/recommendations', {
+        headers: { origin: 'https://shell.example.com' },
+      }),
+      env,
+    );
+
+    expect(allowedBffResponse.status).toBe(200);
+    expect(allowedBffResponse.headers.get('access-control-allow-origin')).toBe(
+      'https://shell.example.com',
+    );
+    expect(allowedBffResponse.headers.get('vary')).toContain('origin');
+
+    const disallowedBffResponse = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/recommendations', {
+        headers: { origin: 'https://evil.example.com' },
+      }),
+      env,
+    );
+
+    expect(
+      disallowedBffResponse.headers.get('access-control-allow-origin'),
+    ).toBeNull();
+
+    const ssrResponse = await worker.fetch(
+      new Request('https://example.com/dashboard/settings', {
+        headers: { origin: 'https://shell.example.com' },
+      }),
+      env,
+    );
+
+    expect(ssrResponse.status).toBe(200);
+    expect(ssrResponse.headers.get('access-control-allow-origin')).toBe(
+      'https://shell.example.com',
+    );
+  });
+
+  it('answers application CORS preflights only for configured origins', async () => {
+    const { outputDirectory } = await createFixture({
+      workerSecurity: {
+        cors: {
+          allowedOrigins: ['https://shell.example.com'],
+        },
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const env = {
+      ASSETS: {
+        fetch: async () => new Response('missing', { status: 404 }),
+      },
+    };
+
+    const allowedPreflight = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/recommendations', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://shell.example.com',
+          'access-control-request-method': 'POST',
+        },
+      }),
+      env,
+    );
+
+    expect(allowedPreflight.status).toBe(204);
+    expect(allowedPreflight.headers.get('access-control-allow-origin')).toBe(
+      'https://shell.example.com',
+    );
+    // The advertised methods cover what the BFF actually serves.
+    expect(
+      allowedPreflight.headers.get('access-control-allow-methods'),
+    ).toContain('POST');
+
+    const disallowedPreflight = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/recommendations', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://evil.example.com',
+          'access-control-request-method': 'POST',
+        },
+      }),
+      env,
+    );
+
+    // Not answered as a CORS preflight; the OPTIONS request falls through to
+    // the BFF handler and gets no CORS headers.
+    expect(
+      disallowedPreflight.headers.get('access-control-allow-origin'),
+    ).toBeNull();
+  });
+
+  it('can disable wildcard CORS on asset responses', async () => {
+    const { outputDirectory } = await createFixture({
+      workerSecurity: {
+        cors: {
+          assets: false,
+        },
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/static/app.js'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });
 });

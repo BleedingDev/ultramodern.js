@@ -54,6 +54,14 @@
     "@types/node": "^25.9.3",
     "@typescript/native-preview": "7.0.0-dev.20260610.1"
   },
+  "peerDependencies": {
+    "@typescript/native-preview": ">=7.0.0-dev.0"
+  },
+  "peerDependenciesMeta": {
+    "@typescript/native-preview": {
+      "optional": true
+    }
+  },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

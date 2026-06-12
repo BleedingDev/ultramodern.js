@@ -25,6 +25,7 @@ export {
 } from './env';
 export {
   getRequestPathname,
+  injectMfAssetCacheHeadersPlugin,
   isMfManifestAsset,
   isMfRemoteEntryAsset,
   resolveMfAssetCacheHeaders,
@@ -32,9 +33,14 @@ export {
 export {
   type CollectDirectRemoteModuleFederationCssOptions,
   collectDirectRemoteModuleFederationCss,
+  collectDirectRemoteModuleFederationCssWithMeta,
   collectModuleFederationManifestCss,
+  createModuleFederationCssCollector,
   injectModuleFederationCssPlugin,
+  type ModuleFederationCssCollectorOptions,
+  type ModuleFederationCssPluginOptions,
   type ModuleFederationManifest,
+  type RemoteModuleFederationCssCollection,
 } from './moduleFederationCss';
 export {
   createOtlpTelemetryExporter,
@@ -49,17 +55,20 @@ export {
   getRuntimeSignalErrorStatusCode,
   hasEnabledTelemetryExporters,
   injectTelemetryPlugin,
+  normalizeRequiredRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackSignalAuthConfig,
   normalizeRuntimeFallbackTrustPolicy,
   type OtlpExporterOptions,
   parseRuntimeFallbackSignalPayloadFromRawBody,
   type RuntimeFallbackSignalAuthConfig,
   type RuntimeFallbackSignalRuntimeState,
+  type RuntimeFallbackSignalSource,
   type RuntimeFallbackSignalTrustContext,
   type RuntimeFallbackSignalTrustPolicy,
   type RuntimeSignalError,
   type RuntimeSignalErrorCode,
   resolveRuntimeFallbackSignalEndpoint,
+  resolveTelemetrySloOptions,
   type TelemetryCanaryDecision,
   TelemetryCanaryOrchestrator,
   type TelemetryCanaryStatusSnapshot,

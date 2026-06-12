@@ -47,6 +47,13 @@
       },
       "default": "./dist/esm/runtime/index.mjs"
     },
+    "./runtime/router": {
+      "types": "./dist/types/runtime/router.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/router.mjs"
+      },
+      "default": "./dist/esm/runtime/router.mjs"
+    },
     "./runtime/rsc": {
       "types": "./dist/types/runtime/rsc/index.d.ts",
       "default": "./dist/esm/runtime/rsc/index.mjs"
@@ -70,6 +77,9 @@
       ],
       "runtime": [
         "./dist/types/runtime/index.d.ts"
+      ],
+      "runtime/router": [
+        "./dist/types/runtime/router.d.ts"
       ],
       "runtime/rsc": [
         "./dist/types/runtime/rsc/index.d.ts"
@@ -120,9 +130,17 @@
   },
   "sideEffects": [
     "./src/runtime/register.ts",
+    "./src/runtime/index.tsx",
+    "./src/runtime/router.ts",
     "./dist/esm/runtime/register.mjs",
+    "./dist/esm/runtime/index.mjs",
+    "./dist/esm/runtime/router.mjs",
     "./dist/esm-node/runtime/register.mjs",
-    "./dist/cjs/runtime/register.js"
+    "./dist/esm-node/runtime/index.mjs",
+    "./dist/esm-node/runtime/router.mjs",
+    "./dist/cjs/runtime/register.js",
+    "./dist/cjs/runtime/index.js",
+    "./dist/cjs/runtime/router.js"
   ],
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

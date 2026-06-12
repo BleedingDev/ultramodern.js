@@ -1,12 +1,14 @@
-import type { APIHandlerInfo } from '../router';
 import type {
   CrossProjectOperationContract,
   CrossProjectPolicyConfig,
 } from './crossProjectPolicy';
-import { buildOperationContractMap } from './operationContracts';
+import {
+  buildOperationContractMap,
+  type OperationContractSource,
+} from './operationContracts';
 
 /**
- * Runtime input collected by BFF server adapters (express/koa/...) before
+ * Runtime input collected by BFF server adapters (hono/effect/...) before
  * the cross-project policy can be enforced.
  *
  * `crossProjectPolicy` accepts the raw `bff.crossProjectPolicy` user config —
@@ -16,11 +18,16 @@ import { buildOperationContractMap } from './operationContracts';
 export interface ResolveCrossProjectPolicyInput {
   crossProjectPolicy?: CrossProjectPolicyConfig;
   /** Registered API handlers used to derive the operation-contract map. */
-  handlers: APIHandlerInfo[];
+  handlers: OperationContractSource[];
   /** Logical producer ID (`bff.requestId`). */
   requestId?: string;
   /** Marker injected by generated cross-project SDK plugins. */
   isCrossProjectServer?: boolean;
+  /**
+   * Producer contract version (usually derived from the producer
+   * package.json major via `deriveOperationVersion`).
+   */
+  operationVersion?: number;
 }
 
 /**
@@ -50,8 +57,13 @@ export type ResolvedCrossProjectPolicy = CrossProjectPolicyConfig & {
 export const resolveCrossProjectPolicy = (
   input: ResolveCrossProjectPolicyInput,
 ): ResolvedCrossProjectPolicy | undefined => {
-  const { crossProjectPolicy, handlers, requestId, isCrossProjectServer } =
-    input;
+  const {
+    crossProjectPolicy,
+    handlers,
+    requestId,
+    isCrossProjectServer,
+    operationVersion,
+  } = input;
   if (!crossProjectPolicy && !isCrossProjectServer) {
     return undefined;
   }
@@ -64,6 +76,7 @@ export const resolveCrossProjectPolicy = (
   const generatedContracts = buildOperationContractMap({
     handlers,
     requestId: effectiveRequestId,
+    operationVersion,
   });
 
   return {

@@ -25,8 +25,9 @@
         "path": "tests/integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js",
         "includes": [
           "const operationManifest =",
-          "\"version\":1",
-          "\"appNamespace\":\"bff-api-app\"",
+          "\"operationVersion\"",
+          "\"schemaHash\"",
+          "\"appNamespace\"",
           "export { client, createEffectRequestContext, operationManifest };"
         ]
       },
@@ -66,29 +67,57 @@
         "id": "tanstack-loader-string-router-contract",
         "path": "tests/integration/routes-tanstack/src/modern-tanstack/string/router.gen.ts",
         "includes": [
-          "function modernLoaderToTanstack",
-          "ctx?.abortController?.signal",
-          "throwTanstackRedirect(location)",
-          "throw notFound()"
+          "} from '@modern-js/plugin-tanstack/runtime';",
+          "modernLoaderToTanstack,",
+          "loader: modernLoaderToTanstack({ hasSplat:",
+          "staticData: createRouteStaticData({",
+          "modernRouteId:"
         ]
       },
       {
         "id": "tanstack-loader-stream-router-contract",
         "path": "tests/integration/routes-tanstack/src/modern-tanstack/stream/router.gen.ts",
         "includes": [
-          "function modernLoaderToTanstack",
-          "mapParamsForModernLoader",
+          "} from '@modern-js/plugin-tanstack/runtime';",
+          "modernLoaderToTanstack,",
+          "loader: modernLoaderToTanstack({ hasSplat:",
+          "route_stream_redirect_page",
+          "staticData: createRouteStaticData({"
+        ]
+      },
+      {
+        "id": "tanstack-loader-bridge-runtime-contract",
+        "path": "packages/runtime/plugin-tanstack/src/runtime/loaderBridge.ts",
+        "includes": [
+          "export function modernLoaderToTanstack",
+          "ctx?.abortController?.signal",
+          "mapSplatParamsForModernLoader",
           "throwTanstackRedirect(location)",
           "throw notFound()"
         ]
       },
       {
-        "id": "tanstack-create-routes-register-contract",
-        "path": "tests/integration/routes-tanstack-create-routes/src/modern-tanstack/register.gen.d.ts",
+        "id": "tanstack-register-augmentation-contract",
+        "path": "tests/integration/routes-tanstack/src/modern-tanstack/register.gen.d.ts",
         "includes": [
           "declare module '@modern-js/plugin-tanstack/runtime'",
           "interface Register",
-          "router: typeof router0;"
+          "router: typeof router0 | typeof router1;"
+        ]
+      },
+      {
+        "id": "tanstack-create-routes-register-contract",
+        "path": "packages/runtime/plugin-tanstack/src/runtime/router.ts",
+        "includes": [
+          "import './register';",
+          "export { routerPlugin } from '@modern-js/runtime/router/internal';"
+        ]
+      },
+      {
+        "id": "tanstack-router-provider-registration-contract",
+        "path": "packages/runtime/plugin-tanstack/src/runtime/register.ts",
+        "includes": [
+          "registerRouterProvider('tanstack', tanstackRouterProviderFactory);"
         ]
       },
       {
@@ -113,16 +142,21 @@
       {
         "id": "plugin-runtime-ssr-string-sanitization-contract",
         "path": "packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts",
-        "includes": ["unsafeHeaders", "window._SSR_DATA", "window._ROUTER_DATA"]
+        "includes": [
+          "unsafeHeaders",
+          "window._SSR_DATA",
+          "window._ROUTER_DATA"
+        ]
       },
       {
         "id": "tanstack-mf-host-router-contract",
         "path": "tests/integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts",
         "includes": [
-          "function modernLoaderToTanstack",
+          "} from '@modern-js/plugin-tanstack/runtime';",
+          "modernLoaderToTanstack,",
           "route_mf_page",
           "path: \"mf\"",
-          "createMemoryHistory"
+          "history: createMemoryHistory({"
         ]
       },
       {
@@ -180,9 +214,17 @@
         "path": "packages/server/create-request/src/node.ts",
         "includes": [
           "OPERATION_CONTEXT_DETAIL_HEADER",
+          "attachOperationContext"
+        ]
+      },
+      {
+        "id": "audit-context-trace-propagation-core-contract",
+        "path": "packages/server/create-request/src/policyCore.ts",
+        "includes": [
           "traceparent",
           "traceId",
-          "spanId"
+          "spanId",
+          "buildOperationContext"
         ]
       },
       {

@@ -8,9 +8,14 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   type-check:
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    # Never run untrusted fork-PR code on (potentially) self-hosted runners.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Print runner context
@@ -41,7 +46,7 @@ jobs:
       - name: Nx Cache
         id: nx-cache
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .nx/cache
           key: nx-${{ github.base_ref }}-${{ github.ref_name }}-${{ github.sha }}
@@ -59,3 +64,7 @@ jobs:
         # The root `prepare` script is a deliberate no-op in CI
         # (scripts/prepare-root.mjs); run the build gate explicitly.
         run: mise exec -- pnpm run prepare-build
+
+      - name: Validate critical packages with tsgo
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: mise exec -- pnpm run validate:tsgo

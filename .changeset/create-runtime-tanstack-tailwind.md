@@ -1,15 +1,11 @@
 ---
 '@modern-js/create': minor
-'@modern-js/runtime': minor
 ---
 
-feat(create): support `--router tanstack` and `--tailwind` scaffolding
+feat(create): scaffold TanStack Router and Tailwind CSS projects
 
-- add router selection for React Router / TanStack Router in `@modern-js/create`
-- add Tailwind CSS v4 scaffold option (`--tailwind`) with `postcss.config.mjs` and `tailwind.config.ts`
+- new projects scaffold TanStack Router via `@modern-js/plugin-tanstack` (the original `--router` flag was superseded by the UltraModern workspace default)
+- add Tailwind CSS v4 scaffolding (default on, `--tailwind`/`--no-tailwind` flags) with `postcss.config.mjs` and `tailwind.config.ts`
 - update create template output and docs for combined TanStack + Tailwind initialization
 
-feat(runtime): expose TanStack Router runtime entrypoint
-
-- add `@modern-js/runtime/tanstack-router` export for route component integration
-- add TanStack route generation/runtime support and integration coverage
+Note: the `@modern-js/runtime` TanStack entrypoint originally introduced alongside this work was consolidated into `@modern-js/plugin-tanstack` before release; see the `tanstack-single-source-consolidation` changeset for the runtime story that actually ships.

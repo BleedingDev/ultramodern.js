@@ -103,12 +103,51 @@ const parseResponseBody = async (response: Response) => {
   }
 };
 
-const printOutput = (payload: unknown, jsonOnly?: boolean) => {
-  if (jsonOnly) {
-    console.log(JSON.stringify(payload, null, 2));
-    return;
+const INDENT_STEP = '  ';
+
+const formatScalar = (value: unknown) =>
+  typeof value === 'string' ? value : (JSON.stringify(value) ?? 'undefined');
+
+const formatHumanReadableLines = (value: unknown, indent: string): string[] => {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return [`${indent}(empty)`];
+    }
+    return value.flatMap(entry =>
+      entry !== null && typeof entry === 'object'
+        ? [
+            `${indent}-`,
+            ...formatHumanReadableLines(entry, indent + INDENT_STEP),
+          ]
+        : [`${indent}- ${formatScalar(entry)}`],
+    );
   }
-  console.log(JSON.stringify(payload, null, 2));
+
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      return [`${indent}(empty)`];
+    }
+    return entries.flatMap(([key, entry]) =>
+      entry !== null && typeof entry === 'object'
+        ? [
+            `${indent}${key}:`,
+            ...formatHumanReadableLines(entry, indent + INDENT_STEP),
+          ]
+        : [`${indent}${key}: ${formatScalar(entry)}`],
+    );
+  }
+
+  return [`${indent}${formatScalar(value)}`];
+};
+
+export const formatRuntimeOutput = (payload: unknown, jsonOnly?: boolean) =>
+  jsonOnly
+    ? JSON.stringify(payload, null, 2)
+    : formatHumanReadableLines(payload, '').join('\n');
+
+const printOutput = (payload: unknown, jsonOnly?: boolean) => {
+  console.log(formatRuntimeOutput(payload, jsonOnly));
 };
 
 export const createRuntimeFallbackSignalPayload = (

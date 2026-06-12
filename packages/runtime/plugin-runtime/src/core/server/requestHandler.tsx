@@ -12,10 +12,7 @@ import {
   parseQuery,
 } from '@modern-js/runtime-utils/universal/request';
 import React, { Fragment } from 'react';
-import {
-  cleanupRouterRuntimeState,
-  getRouterServerSnapshot,
-} from '../../router/runtime/lifecycle';
+import { getRouterServerSnapshot } from '../../router/runtime/lifecycle';
 import { handleRSCRedirect } from '../../router/runtime/rsc-router';
 import {
   getGlobalInternalRuntimeContext,
@@ -27,6 +24,7 @@ import { getServerPayload } from '../context/serverPayload';
 import { createRoot } from '../react';
 import type { SSRServerContext } from '../types';
 import { CHUNK_CSS_PLACEHOLDER } from './constants';
+import { createRouterCleanup } from './routerCleanup';
 import { SSRErrors } from './tracer';
 import { getSSRConfigByEntry, getSSRMode } from './utils';
 
@@ -289,6 +287,8 @@ export const createRequestHandler: CreateRequestHandler = async (
           basename: ssrContext.baseUrl || '/',
         };
 
+        const routerCleanup = createRouterCleanup(context, options.onError);
+
         try {
           const beforeRenderResult = await runBeforeRender(context);
 
@@ -375,15 +375,21 @@ export const createRequestHandler: CreateRequestHandler = async (
           });
 
           if (responseProxy.status !== -1) {
-            return new Response(response.body, {
-              status: responseProxy.status,
-              headers: response.headers,
-            });
+            return routerCleanup.deferUntilBodyDone(
+              new Response(response.body, {
+                status: responseProxy.status,
+                headers: response.headers,
+              }),
+            );
           }
 
-          return response;
+          return routerCleanup.deferUntilBodyDone(response);
         } finally {
-          await cleanupRouterRuntimeState(context);
+          // Streamed bodies defer the router cleanup until the response body
+          // finishes; everything else (redirects, errors) cleans up here.
+          if (!routerCleanup.deferred) {
+            await routerCleanup.run();
+          }
         }
       },
     );

@@ -33,6 +33,13 @@ const semverPattern =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const LEGACY_MODERN_JS_FLAG = '--legacy-modern-js';
 const LEGACY_MODERN_JS_CONFIRMATION = 'USE LEGACY MODERN.JS';
+const WORKSPACE_PROTOCOL_FLAG = '--workspace';
+const BFF_FLAG = '--bff';
+const BFF_RUNTIME_OPTION = '--bff-runtime';
+const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
+const REGISTRY_LOOKUP_TIMEOUT_MS = 15_000;
+
+type SupportedBffRuntime = (typeof SUPPORTED_BFF_RUNTIMES)[number];
 
 function getOptionValue(args: string[], names: string[]): string | undefined {
   for (const name of names) {
@@ -83,8 +90,9 @@ function getBleedingDevFrameworkVersion(
 
 function showVersion() {
   const createPackage = readCreatePackageJson();
+  const name = createPackage.name || '@modern-js/create';
   const version = createPackage.version || 'unknown';
-  console.log(i18n.t(localeKeys.version.message, { version }));
+  console.log(i18n.t(localeKeys.version.message, { name, version }));
   process.exit(0);
 }
 
@@ -99,40 +107,26 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionHelp));
   console.log(i18n.t(localeKeys.help.optionVersion));
   console.log(i18n.t(localeKeys.help.optionLang));
-  if (localeKeys.help.optionTailwind) {
-    console.log(i18n.t(localeKeys.help.optionTailwind));
-  }
-  if (localeKeys.help.optionUltramodernPackageSource) {
-    console.log(i18n.t(localeKeys.help.optionUltramodernPackageSource));
-  }
-  if (localeKeys.help.optionUltramodernPackageScope) {
-    console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
-  }
-  if (localeKeys.help.optionUltramodernPackageNamePrefix) {
-    console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
-  }
-  if (localeKeys.help.optionVertical) {
-    console.log(i18n.t(localeKeys.help.optionVertical));
-  }
-  if (localeKeys.help.optionLegacyModernJs) {
-    console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
-  }
+  console.log(i18n.t(localeKeys.help.optionTailwind));
+  console.log(i18n.t(localeKeys.help.optionBff));
+  console.log(i18n.t(localeKeys.help.optionBffRuntime));
+  console.log(i18n.t(localeKeys.help.optionWorkspace));
+  console.log(i18n.t(localeKeys.help.optionUltramodernPackageSource));
+  console.log(i18n.t(localeKeys.help.optionUltramodernPackageVersion));
+  console.log(i18n.t(localeKeys.help.optionUltramodernPackageRegistry));
+  console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
+  console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
+  console.log(i18n.t(localeKeys.help.optionVertical));
+  console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
   console.log(i18n.t(localeKeys.help.example1));
   console.log(i18n.t(localeKeys.help.example2));
-  if (localeKeys.help.example4) {
-    console.log(i18n.t(localeKeys.help.example4));
-  }
-  if (localeKeys.help.example5) {
-    console.log(i18n.t(localeKeys.help.example5));
-  }
-  if (localeKeys.help.example6) {
-    console.log(i18n.t(localeKeys.help.example6));
-  }
-  if (localeKeys.help.example12) {
-    console.log(i18n.t(localeKeys.help.example12));
-  }
+  console.log(i18n.t(localeKeys.help.example3));
+  console.log(i18n.t(localeKeys.help.example4));
+  console.log(i18n.t(localeKeys.help.example5));
+  console.log(i18n.t(localeKeys.help.example6));
+  console.log(i18n.t(localeKeys.help.example7));
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');
@@ -203,6 +197,46 @@ function delegateLegacyModernJsSetup(args: string[]) {
   throw new Error(
     'Legacy Modern.js setup requires pnpm or npx to run @modern-js/create.',
   );
+}
+
+// The UltraModern scaffold ships exactly one BFF shape: every MicroVertical
+// exposes an Effect BFF (plugin-bff runtimeFramework 'effect'). `--bff` keeps
+// working as an explicit opt-in to that default; `--bff-runtime` selects the
+// runtime and rejects anything the workspace generator cannot scaffold (the
+// pre-UltraModern hono single-app scaffold was removed together with the old
+// CLI).
+function detectBffRuntime(args: string[]): SupportedBffRuntime {
+  if (args.some(arg => arg.startsWith(`${BFF_FLAG}=`))) {
+    console.error(
+      `${BFF_FLAG} does not accept a value. Use: ${BFF_RUNTIME_OPTION} <runtime>`,
+    );
+    process.exit(1);
+  }
+
+  const runtimeRequested = args.some(
+    arg =>
+      arg === BFF_RUNTIME_OPTION || arg.startsWith(`${BFF_RUNTIME_OPTION}=`),
+  );
+  if (!runtimeRequested) {
+    return 'effect';
+  }
+
+  const runtime = getOptionValue(args, [BFF_RUNTIME_OPTION]);
+  if (!runtime) {
+    console.error(
+      `${BFF_RUNTIME_OPTION} requires a value (supported: ${SUPPORTED_BFF_RUNTIMES.join(', ')})`,
+    );
+    process.exit(1);
+  }
+
+  if (!(SUPPORTED_BFF_RUNTIMES as readonly string[]).includes(runtime)) {
+    console.error(
+      `Unsupported BFF runtime "${runtime}". UltraModern workspaces scaffold an Effect BFF for every MicroVertical (supported: ${SUPPORTED_BFF_RUNTIMES.join(', ')}).`,
+    );
+    process.exit(1);
+  }
+
+  return runtime as SupportedBffRuntime;
 }
 
 function detectTailwindFlag(): boolean {
@@ -282,7 +316,9 @@ function hasExplicitUltramodernPackageSource(
   return value ? configuredValue === value : configuredValue !== undefined;
 }
 
-function readBleedingDevFrameworkVersionFromRegistry(): string {
+function readBleedingDevFrameworkVersionFromRegistry(
+  fallbackVersion: string,
+): string {
   const envVersion = process.env[BLEEDINGDEV_FRAMEWORK_VERSION_ENV]?.trim();
   if (envVersion) {
     if (!semverPattern.test(envVersion)) {
@@ -295,28 +331,33 @@ function readBleedingDevFrameworkVersionFromRegistry(): string {
   }
 
   try {
-    const rawVersion = runSetupCommand('npm', [
-      'view',
-      `${BLEEDINGDEV_CREATE_PACKAGE}@latest`,
-      'ultramodern.frameworkVersion',
-      '--json',
-    ]).trim();
+    const rawVersion = runSetupCommand(
+      'npm',
+      [
+        'view',
+        `${BLEEDINGDEV_CREATE_PACKAGE}@latest`,
+        'ultramodern.frameworkVersion',
+        '--json',
+      ],
+      { timeoutMs: REGISTRY_LOOKUP_TIMEOUT_MS },
+    ).trim();
     const version = JSON.parse(rawVersion);
     if (typeof version === 'string' && semverPattern.test(version)) {
       return version;
     }
   } catch {
-    // Fall through to the actionable error below.
+    // Fall through to the offline-safe fallback below.
   }
 
-  console.error(
+  console.warn(
     [
-      `Could not resolve ${BLEEDINGDEV_CREATE_PACKAGE}@latest ultramodern.frameworkVersion.`,
-      'Pass --workspace to use local workspace protocol dependencies,',
+      `Could not resolve ${BLEEDINGDEV_CREATE_PACKAGE}@latest ultramodern.frameworkVersion from the npm registry.`,
+      `Falling back to the packaged framework version ${fallbackVersion}.`,
+      `Pass ${WORKSPACE_PROTOCOL_FLAG} to use local workspace protocol dependencies,`,
       'or pass --ultramodern-package-version with the exact BleedingDev framework cohort.',
     ].join(' '),
   );
-  process.exit(1);
+  return fallbackVersion;
 }
 
 function resolveInstallBackedPackageSource(
@@ -342,7 +383,9 @@ function resolveInstallBackedPackageSource(
       explicitVersion ??
       (isBleedingDevCreatePackage(createPackage)
         ? packageSource.modernPackageVersion
-        : readBleedingDevFrameworkVersionFromRegistry()),
+        : readBleedingDevFrameworkVersionFromRegistry(
+            packageSource.modernPackageVersion,
+          )),
     aliasScope,
     aliasPackageNamePrefix:
       getOptionValue(args, ['--ultramodern-package-name-prefix']) ??
@@ -356,7 +399,21 @@ function resolveWorkspacePackageSource(
   createPackage: CreatePackageJson,
   packageSource: UltramodernPackageSource,
 ): UltramodernPackageSource {
-  if (hasExplicitUltramodernPackageSource(args, 'workspace')) {
+  const workspaceProtocolRequested = args.includes(WORKSPACE_PROTOCOL_FLAG);
+  if (
+    workspaceProtocolRequested &&
+    hasExplicitUltramodernPackageSource(args, 'install')
+  ) {
+    console.error(
+      `${WORKSPACE_PROTOCOL_FLAG} conflicts with --ultramodern-package-source=install`,
+    );
+    process.exit(1);
+  }
+
+  if (
+    workspaceProtocolRequested ||
+    hasExplicitUltramodernPackageSource(args, 'workspace')
+  ) {
     return {
       ...packageSource,
       strategy: 'workspace',
@@ -370,12 +427,17 @@ function resolveWorkspacePackageSource(
 function runSetupCommand(
   command: string,
   args: string[],
-  options: { cwd?: string; stdio?: 'ignore' | 'inherit' } = {},
+  options: {
+    cwd?: string;
+    stdio?: 'ignore' | 'inherit';
+    timeoutMs?: number;
+  } = {},
 ) {
   return execFileSync(command, args, {
     cwd: options.cwd,
     encoding: 'utf-8',
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
+    timeout: options.timeoutMs,
   });
 }
 
@@ -388,35 +450,14 @@ function commandExists(command: string): boolean {
   }
 }
 
-function installGitForGeneratedProject() {
+function assertGitAvailableForGeneratedProject() {
   if (commandExists('git')) {
     return;
   }
 
-  const runShell = (script: string) =>
-    runSetupCommand('sh', ['-lc', script], { stdio: 'inherit' });
-  const sudo =
-    typeof process.getuid === 'function' && process.getuid() === 0
-      ? ''
-      : 'sudo ';
-
-  if (commandExists('brew')) {
-    runSetupCommand('brew', ['install', 'git'], { stdio: 'inherit' });
-  } else if (process.platform === 'linux' && commandExists('apt-get')) {
-    runShell(`${sudo}apt-get update && ${sudo}apt-get install -y git`);
-  } else if (process.platform === 'linux' && commandExists('dnf')) {
-    runShell(`${sudo}dnf install -y git`);
-  } else if (process.platform === 'linux' && commandExists('yum')) {
-    runShell(`${sudo}yum install -y git`);
-  } else if (process.platform === 'linux' && commandExists('apk')) {
-    runShell('apk add --no-cache git');
-  }
-
-  if (!commandExists('git')) {
-    throw new Error(
-      'Git is required for UltraModern setup. Install git and rerun create, or run pnpm skills:install after installing git.',
-    );
-  }
+  throw new Error(
+    'Git is required for UltraModern setup. Install git yourself (for example "brew install git" or "sudo apt-get install git") and rerun create. This tool never installs system packages on your behalf.',
+  );
 }
 
 function isInsideGitWorkTree(targetDir: string): boolean {
@@ -432,7 +473,7 @@ function isInsideGitWorkTree(targetDir: string): boolean {
 }
 
 function initializeGeneratedGitRepository(targetDir: string) {
-  installGitForGeneratedProject();
+  assertGitAvailableForGeneratedProject();
   if (isInsideGitWorkTree(targetDir)) {
     return;
   }
@@ -471,6 +512,7 @@ async function getProjectName(): Promise<{
   const optionWithValue = new Set([
     '--lang',
     '-l',
+    BFF_RUNTIME_OPTION,
     '--ultramodern-package-source',
     '--ultramodern-package-version',
     '--ultramodern-package-registry',
@@ -484,7 +526,8 @@ async function getProjectName(): Promise<{
     '-v',
     '--tailwind',
     '--no-tailwind',
-    '--workspace',
+    BFF_FLAG,
+    WORKSPACE_PROTOCOL_FLAG,
     '--vertical',
     LEGACY_MODERN_JS_FLAG,
   ]);
@@ -504,6 +547,7 @@ async function getProjectName(): Promise<{
 
     if (
       arg.startsWith('--lang=') ||
+      arg.startsWith(`${BFF_RUNTIME_OPTION}=`) ||
       arg.startsWith('--ultramodern-package-source=') ||
       arg.startsWith('--ultramodern-package-version=') ||
       arg.startsWith('--ultramodern-package-registry=') ||
@@ -564,6 +608,12 @@ async function main() {
     delegateLegacyModernJsSetup(args);
     return;
   }
+
+  // Validate the BFF flag surface before any prompt or filesystem write so an
+  // unsupported runtime never leaves a half-created project behind. The
+  // returned runtime is always 'effect' today: the workspace generator bakes
+  // the Effect BFF into every scaffolded vertical.
+  detectBffRuntime(args);
 
   console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
   const { name: projectName, useCurrentDir } = await getProjectName();

@@ -8,6 +8,16 @@ import type { ServerPayload } from './serverPayload/index';
 // @modern-js/plugin-tanstack, ...) and the SSR pipeline. Exported from the
 // `/context` subpath so router plugins can use it without pulling the
 // react-router based runtime in.
+export { DefaultNotFound } from '../../router/runtime/DefaultNotFound';
+export {
+  modifyRoutes,
+  onAfterCreateRouter,
+  onAfterHydrateRouter,
+  onBeforeCreateRouter,
+  onBeforeCreateRoutes,
+  onBeforeHydrateRouter,
+  type RouterExtendsHooks,
+} from '../../router/runtime/hooks';
 export {
   applyRouterRuntimeState,
   applyRouterServerPrepareResult,
@@ -26,7 +36,16 @@ export {
   type RouterProviderPlugin,
   registerRouterProvider,
   resolveRouterProvider,
+  routerProviderRegistryHooks,
 } from '../../router/runtime/provider';
+export type {
+  BuiltInRouterFramework,
+  InternalRouterRuntimeState,
+  InternalRouterServerSnapshot,
+  RouterFramework,
+  RouterRouteMatchSnapshot,
+  RouterServerPrepareResult,
+} from '../../router/runtime/types';
 export {
   createRuntimeContextExtension,
   type RuntimeContextExtension,

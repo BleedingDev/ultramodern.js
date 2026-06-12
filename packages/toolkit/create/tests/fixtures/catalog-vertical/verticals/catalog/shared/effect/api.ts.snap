@@ -52,7 +52,13 @@ export interface OperationContext {
   method: string;
   operationId: string;
   routePath: string;
-  source: string;
+  source:
+    | 'client'
+    | 'server'
+    | 'generated-client'
+    | 'effect-adapter'
+    | 'data-platform'
+    | 'unknown';
   traceId?: string;
 }
 

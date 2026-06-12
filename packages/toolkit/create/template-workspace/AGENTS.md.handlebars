@@ -6,7 +6,7 @@ instructions, not optional reading.
 
 ## Quality Gates
 
-Generated workspaces target Node `>=26` and pnpm `11.5.3`. Keep
+Generated workspaces target Node `>=26` and pnpm `{{pnpmVersion}}`. Keep
 `packageManager`, `.mise.toml`, generated validation, and CI aligned to that
 baseline; do not reintroduce Corepack or older pnpm aliases.
 
@@ -19,7 +19,7 @@ baseline; do not reintroduce Corepack or older pnpm aliases.
 - `pnpm check` is a local convenience aggregate for the primitive gates.
 - Generated CI runs primitive gates as separate matrix jobs instead of calling `pnpm check`.
 - Generated Codex stop hooks and subagent-stop hooks run `pnpm format && pnpm lint:fix && pnpm check`.
-- `postinstall` formats the generated tree, initializes Git when needed, prepares agent skills and reference repos, then installs `lefthook`. Generated `lefthook.yml` runs separate format and lint-fix commands on pre-commit; pre-push runs read-only primitive gates in parallel.
+- `postinstall` formats the generated tree and installs `lefthook`. It never clones repositories or installs system packages; agent skill repos and reference repos are explicit opt-in steps (`pnpm skills:install`, `pnpm agents:refs:install`). Generated `lefthook.yml` runs separate format and lint-fix commands on pre-commit; pre-push runs read-only primitive gates in parallel.
 
 ## Localized Routes
 
@@ -48,7 +48,7 @@ Use these skills when the task touches the matching subsystem:
 - `rstest-best-practices`: Rstest configuration, test writing, mocking, snapshots, coverage, and CI test behavior.
 - `mf`: Module Federation docs, Modern.js integration, DTS/type checks, shared dependency checks, runtime errors, and observability troubleshooting.
 
-The public `module-federation/agent-skills` repository is installed during `pnpm install` and `pnpm skills:install`. Postinstall mode skips unavailable clone sources instead of blocking dependency installation; `pnpm skills:install` remains strict for required public skills. Use `ULTRAMODERN_SKIP_AGENT_SKILLS=1` when an install must avoid external skill repositories completely. `pnpm skills:check` fails when the required public `mf` skill is missing unless that skip flag is set.
+The public `module-federation/agent-skills` repository is installed only when you explicitly run `pnpm skills:install` (or set `ULTRAMODERN_AGENT_SKILLS=1` before `pnpm install`). Postinstall never clones repositories. `pnpm skills:install` remains strict for required public skills. `pnpm skills:check` fails when a vendored skill is missing and warns when clone-installed skills such as `mf` have not been fetched yet.
 
 ## Private Skills
 
@@ -62,12 +62,12 @@ The installer copies only the pinned private skills from `.agents/skills-lock.js
 
 ## Agent Reference Repositories
 
-The workspace installs read-only source references under `repos/` by default during `pnpm install` using `git subtree add --squash`. These repositories are reference material for coding agents, not application source:
+The workspace can install read-only source references under `repos/` with the explicit `pnpm agents:refs:install` command using `git subtree add --squash`. These repositories are reference material for coding agents, not application source:
 
 - `repos/effect` from `Effect-TS/effect`.
 - `repos/ultramodern.js` from `BleedingDev/ultramodern.js`.
 
-Agents may read files under `repos/` to understand upstream patterns, APIs, and project conventions. Do not edit files under `repos/`, import from them, or make production code depend on them. To skip this setup, run installs with `ULTRAMODERN_SKIP_AGENT_REPOS=1`.
+Agents may read files under `repos/` to understand upstream patterns, APIs, and project conventions. Do not edit files under `repos/`, import from them, or make production code depend on them. `ULTRAMODERN_SKIP_AGENT_REPOS=1` disables the installer even when invoked explicitly.
 
 ## Project Priorities
 

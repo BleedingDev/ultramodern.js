@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import {
+  NODE_FETCH_VERSION,
+  PNPM_VERSION,
+  TANSTACK_ROUTER_VERSION,
+} from '../src/ultramodern-workspace/versions';
+
+const templateWorkspaceDir = path.resolve(__dirname, '../template-workspace');
+
+const readTemplate = (relativePath: string) =>
+  fs.readFileSync(path.join(templateWorkspaceDir, relativePath), 'utf-8');
+
+/**
+ * versions.ts is the single source of truth for every pin baked into
+ * generated workspaces. The static templates must consume those pins through
+ * handlebars placeholders instead of re-hardcoding them, otherwise a version
+ * bump silently leaves generated workspaces with conflicting pins (a
+ * pnpm-workspace override wins over package.json dependencies).
+ */
+test('static templates read version pins from versions.ts placeholders', () => {
+  const pnpmWorkspaceTemplate = readTemplate('pnpm-workspace.yaml.handlebars');
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'@tanstack\/react-router': \{\{tanstackRouterVersion\}\}/,
+    'pnpm-workspace override must use the tanstackRouterVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /node-fetch: '\{\{nodeFetchVersion\}\}'/,
+    'pnpm-workspace override must use the nodeFetchVersion placeholder',
+  );
+  assert.doesNotMatch(
+    pnpmWorkspaceTemplate,
+    new RegExp(TANSTACK_ROUTER_VERSION.replace(/\./g, '\\.')),
+    'pnpm-workspace template must not re-hardcode the TanStack Router pin',
+  );
+
+  assert.match(
+    readTemplate('AGENTS.md.handlebars'),
+    /pnpm `\{\{pnpmVersion\}\}`/,
+    'AGENTS.md must use the pnpmVersion placeholder',
+  );
+  assert.match(
+    readTemplate('README.md.handlebars'),
+    /pnpm `\{\{pnpmVersion\}\}`/,
+    'README.md must use the pnpmVersion placeholder',
+  );
+});
+
+test('generated workspace renders the pins from versions.ts', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-version-pins-'));
+  const workspaceDir = path.join(tempRoot, 'pins-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'pins-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+
+    const readGenerated = (relativePath: string) =>
+      fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8');
+
+    const pnpmWorkspace = readGenerated('pnpm-workspace.yaml');
+    assert.ok(
+      pnpmWorkspace.includes(
+        `'@tanstack/react-router': ${TANSTACK_ROUTER_VERSION}`,
+      ),
+      'generated pnpm-workspace override must match TANSTACK_ROUTER_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),
+      'generated pnpm-workspace override must match NODE_FETCH_VERSION',
+    );
+    assert.ok(
+      !pnpmWorkspace.includes('{{'),
+      'generated pnpm-workspace.yaml must not leak placeholders',
+    );
+
+    for (const relativePath of ['AGENTS.md', 'README.md']) {
+      const rendered = readGenerated(relativePath);
+      assert.ok(
+        rendered.includes(`pnpm \`${PNPM_VERSION}\``),
+        `${relativePath} must render PNPM_VERSION from versions.ts`,
+      );
+    }
+
+    const rootPackage = JSON.parse(readGenerated('package.json'));
+    assert.equal(rootPackage.packageManager, `pnpm@${PNPM_VERSION}`);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

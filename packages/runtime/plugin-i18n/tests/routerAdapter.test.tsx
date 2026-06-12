@@ -300,11 +300,13 @@ describe('i18n router adapter', () => {
     );
 
     const linkProps = capturedTanstackLinkProps.at(-1);
+    // TanStack has no `prefetch` prop: the explicit native `preload` wins and
+    // `prefetch` must not be forwarded.
     expect(linkProps).toMatchObject({
       to: '/cs/podminky-pouzivani',
-      prefetch: 'viewport',
       preload: 'intent',
     });
+    expect(linkProps.prefetch).toBeUndefined();
   });
 
   test('does not leak warmup props to fallback anchors', async () => {

@@ -27,15 +27,7 @@ import {
 import { hydrate as hydrateTanstackRouter } from '@tanstack/react-router/ssr/client';
 import { useContext, useMemo } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
-import {
-  modifyRoutes as modifyRoutesHook,
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onAfterHydrateRouter as onAfterHydrateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
-  onBeforeCreateRoutes as onBeforeCreateRoutesHook,
-  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
-  type RouterExtendsHooks,
-} from './hooks';
+import { type RouterExtendsHooks, routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterRuntimeState,
@@ -302,33 +294,12 @@ function ModernRouterClient({ router }: { router: AnyRouter }) {
   return <RouterProvider router={router} />;
 }
 
-function stripSyntheticNotFoundRoute(routes: RouteObject[]): RouteObject[] {
-  return routes
-    .filter(route => !(route.path === '*' && !route.id && !route.loader))
-    .map(route => {
-      if (!route.children?.length) {
-        return route;
-      }
-      return {
-        ...route,
-        children: stripSyntheticNotFoundRoute(route.children),
-      };
-    });
-}
-
 export const tanstackRouterPlugin = (
   userConfig: Partial<RouterConfig> = {},
 ): TanstackRouterRuntimePlugin => {
   const plugin: TanstackRouterRuntimePlugin = {
     name: '@modern-js/plugin-router-tanstack',
-    registryHooks: {
-      modifyRoutes: modifyRoutesHook,
-      onAfterCreateRouter: onAfterCreateRouterHook,
-      onAfterHydrateRouter: onAfterHydrateRouterHook,
-      onBeforeCreateRouter: onBeforeCreateRouterHook,
-      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
-      onBeforeHydrateRouter: onBeforeHydrateRouterHook,
-    },
+    registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
       const hooks = api.getHooks();
       let cachedRouteObjects: RouteObject[] | undefined;
@@ -364,12 +335,8 @@ export const tanstackRouterPlugin = (
               routesConfig: finalRouteConfig,
             }) || [];
 
-        const normalizedRouteObjects = createRoutes
-          ? routeObjects
-          : stripSyntheticNotFoundRoute(routeObjects);
-
         cachedRouteObjects = hooks.modifyRoutes.call(
-          normalizedRouteObjects,
+          routeObjects,
         ) as RouteObject[];
         return cachedRouteObjects;
       };

@@ -24,19 +24,12 @@ import {
   InternalRuntimeContext,
 } from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
-import {
-  modifyRoutes as modifyRoutesHook,
-  onAfterCreateRouter as onAfterCreateRouterHook,
-  onAfterHydrateRouter as onAfterHydrateRouterHook,
-  onBeforeCreateRouter as onBeforeCreateRouterHook,
-  onBeforeCreateRoutes as onBeforeCreateRoutesHook,
-  onBeforeHydrateRouter as onBeforeHydrateRouterHook,
-  type RouterExtendsHooks,
-} from './hooks';
+import type { RouterExtendsHooks } from './hooks';
 import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { routerProviderRegistryHooks } from './provider';
 import { createClientRouterFromPayload } from './rsc-router';
 import type { RouterConfig, Routes } from './types';
 import {
@@ -83,14 +76,7 @@ export const routerPlugin = (
 }> => {
   return {
     name: '@modern-js/plugin-router',
-    registryHooks: {
-      onAfterCreateRouter: onAfterCreateRouterHook,
-      onAfterHydrateRouter: onAfterHydrateRouterHook,
-      onBeforeCreateRouter: onBeforeCreateRouterHook,
-      modifyRoutes: modifyRoutesHook,
-      onBeforeCreateRoutes: onBeforeCreateRoutesHook,
-      onBeforeHydrateRouter: onBeforeHydrateRouterHook,
-    },
+    registryHooks: routerProviderRegistryHooks,
     setup: api => {
       const routesContainer = {
         current: [] as RouteObject[],

@@ -13,7 +13,8 @@ stays small:
   `ContractGateAutopilot` and the file/HTTP contract-gate snapshot stores.
 - **Module federation runtime helpers** — remote CSS collection for SSR
   (`collectDirectRemoteModuleFederationCss`, `injectModuleFederationCssPlugin()`)
-  and MF asset cache-header policies (`resolveMfAssetCacheHeaders`).
+  and MF asset cache-header policies (`resolveMfAssetCacheHeaders`,
+  `injectMfAssetCacheHeadersPlugin()`).
 
 ## Registration
 
@@ -24,9 +25,21 @@ plugin chain. `@modern-js/prod-server` registers them in its plugin assembly
 identically:
 
 - `injectTelemetryPlugin()` — no-op unless `server.telemetry` is configured.
+  The runtime-fallback-signal endpoint is opt-in
+  (`canary.autopilot.runtimeFallbackSignal.enabled: true`) and requires an
+  auth token (`auth.expectedValue` / `auth.expectedValueEnv`); the
+  `/_modern/runtime/status` endpoint returns a bare health probe unless the
+  caller authenticates with that token.
 - `injectModuleFederationCssPlugin()` — no-op unless the dist directory
   contains an `mf-manifest.json` host manifest. Must be registered after
-  `injectResourcePlugin()` so the request-scoped server manifest exists.
+  `injectResourcePlugin()` so the request-scoped server manifest exists. In
+  production the remote CSS collection is cached with a 30s TTL (configurable
+  via the plugin's `remoteCssCacheTtlMs` option) instead of being pinned at
+  boot.
+- `injectMfAssetCacheHeadersPlugin()` — applies the ADR-0002 MF cache-header
+  policy to `mf-manifest.json`/`mf-stats.json` (`no-store`) and
+  `remoteEntry*.js` (revalidate, or `immutable` when version-pinned via
+  `?mfv=`) responses served by the static middleware.
 
 ## Environment variables
 

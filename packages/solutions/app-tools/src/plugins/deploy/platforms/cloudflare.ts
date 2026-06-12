@@ -23,6 +23,15 @@ const DEFAULT_SECURITY_HEADERS = {
   permissionsPolicy:
     'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
 } as const;
+const DEFAULT_CORS_ALLOWED_METHODS = [
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+];
 const DEFAULT_CSP_DIRECTIVES: Record<string, string[]> = {
   'base-uri': [`'self'`],
   'connect-src': [`'self'`, 'https:', 'http:', 'wss:', 'ws:'],
@@ -179,6 +188,22 @@ const createNoindexPolicy = (
   };
 };
 
+const createCloudflareWorkerCorsPolicy = (
+  cors: CloudflareWorkerSecurityConfig['cors'],
+) => ({
+  assets: cors?.assets ?? true,
+  allowedOrigins: normalizeDirectiveValues(cors?.allowedOrigins ?? []),
+  allowedMethods: cors?.allowedMethods?.length
+    ? normalizeDirectiveValues(
+        cors.allowedMethods.map(method => method.toUpperCase()),
+      )
+    : DEFAULT_CORS_ALLOWED_METHODS,
+  allowedHeaders: cors?.allowedHeaders?.length
+    ? normalizeDirectiveValues(cors.allowedHeaders)
+    : ['*'],
+  reason: cors?.reason,
+});
+
 const createCloudflareWorkerSecurityPolicy = (
   modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
 ) => {
@@ -187,6 +212,7 @@ const createCloudflareWorkerSecurityPolicy = (
   if (security?.enabled === false) {
     return {
       enabled: false,
+      cors: createCloudflareWorkerCorsPolicy(security.cors),
       reason: security.reason,
     };
   }
@@ -208,12 +234,7 @@ const createCloudflareWorkerSecurityPolicy = (
       security?.contentSecurityPolicy,
     ),
     noindex: createNoindexPolicy(security?.noindex),
-    cookies: {
-      mutateSetCookie: false,
-      reason:
-        security?.cookies?.reason ??
-        'Cloudflare worker does not own application Set-Cookie headers.',
-    },
+    cors: createCloudflareWorkerCorsPolicy(security?.cors),
     reason: security?.reason,
   };
 };

@@ -212,14 +212,23 @@ const getHostManifest = async (
   }
 };
 
-export const collectDirectRemoteModuleFederationCss = async (
+export type RemoteModuleFederationCssCollection = {
+  assets: string[];
+  /**
+   * True when at least one remote manifest fetch failed, i.e. `assets` may be
+   * incomplete and should not be cached long-term.
+   */
+  errored: boolean;
+};
+
+export const collectDirectRemoteModuleFederationCssWithMeta = async (
   pwd: string,
   options: CollectDirectRemoteModuleFederationCssOptions = {},
-) => {
+): Promise<RemoteModuleFederationCssCollection> => {
   const hostManifest = await getHostManifest(pwd, options.monitors);
 
   if (!hostManifest) {
-    return [];
+    return { assets: [], errored: false };
   }
 
   const fetcher = options.fetcher || globalThis.fetch?.bind(globalThis);
@@ -228,61 +237,174 @@ export const collectDirectRemoteModuleFederationCss = async (
       options.monitors,
       'Skip module federation remote CSS collection because fetch is unavailable.',
     );
-    return [];
+    return { assets: [], errored: false };
   }
 
   const timeout = options.timeout ?? DEFAULT_REMOTE_MANIFEST_TIMEOUT;
+
+  // Fetch all remote manifests in parallel so SSR latency is bounded by the
+  // slowest remote rather than the sum of all remotes.
+  const remoteResults = await Promise.all(
+    (hostManifest.remotes || []).map(
+      async (remote): Promise<{ assets: string[]; errored: boolean }> => {
+        if (!remote.entry) {
+          return { assets: [], errored: false };
+        }
+
+        const remoteEntry = normalizeRemoteEntry(remote.entry);
+        if (!remoteEntry) {
+          return { assets: [], errored: false };
+        }
+
+        let remoteManifestUrl: string;
+        try {
+          remoteManifestUrl = new URL(remoteEntry).toString();
+        } catch {
+          warn(
+            options.monitors,
+            'Skip module federation remote CSS collection for non-absolute manifest URL %s',
+            remoteEntry,
+          );
+          return { assets: [], errored: false };
+        }
+
+        try {
+          const remoteManifest = await fetchJsonWithTimeout(
+            remoteManifestUrl,
+            fetcher,
+            timeout,
+          );
+          return {
+            assets: collectModuleFederationManifestCss(
+              remoteManifest,
+              remoteManifestUrl,
+            ),
+            errored: false,
+          };
+        } catch (error) {
+          warn(
+            options.monitors,
+            'Load module federation remote manifest %s failed, error = %s',
+            remoteManifestUrl,
+            error instanceof Error ? error.message : error,
+          );
+          return { assets: [], errored: true };
+        }
+      },
+    ),
+  );
+
   const cssAssets: string[] = [];
   const seen = new Set<string>();
-
-  for (const remote of hostManifest.remotes || []) {
-    if (!remote.entry) {
-      continue;
-    }
-
-    const remoteEntry = normalizeRemoteEntry(remote.entry);
-    if (!remoteEntry) {
-      continue;
-    }
-
-    let remoteManifestUrl: string;
-    try {
-      remoteManifestUrl = new URL(remoteEntry).toString();
-    } catch {
-      warn(
-        options.monitors,
-        'Skip module federation remote CSS collection for non-absolute manifest URL %s',
-        remoteEntry,
-      );
-      continue;
-    }
-
-    try {
-      const remoteManifest = await fetchJsonWithTimeout(
-        remoteManifestUrl,
-        fetcher,
-        timeout,
-      );
-      for (const asset of collectModuleFederationManifestCss(
-        remoteManifest,
-        remoteManifestUrl,
-      )) {
-        if (!seen.has(asset)) {
-          seen.add(asset);
-          cssAssets.push(asset);
-        }
+  let errored = false;
+  for (const result of remoteResults) {
+    errored = errored || result.errored;
+    for (const asset of result.assets) {
+      if (!seen.has(asset)) {
+        seen.add(asset);
+        cssAssets.push(asset);
       }
-    } catch (error) {
-      warn(
-        options.monitors,
-        'Load module federation remote manifest %s failed, error = %s',
-        remoteManifestUrl,
-        error instanceof Error ? error.message : error,
-      );
     }
   }
 
-  return cssAssets;
+  return { assets: cssAssets, errored };
+};
+
+export const collectDirectRemoteModuleFederationCss = async (
+  pwd: string,
+  options: CollectDirectRemoteModuleFederationCssOptions = {},
+) => {
+  const { assets } = await collectDirectRemoteModuleFederationCssWithMeta(
+    pwd,
+    options,
+  );
+  return assets;
+};
+
+export type ModuleFederationCssCollectorOptions =
+  CollectDirectRemoteModuleFederationCssOptions & {
+    /**
+     * How long a successful remote CSS collection may be served from cache.
+     * `0` disables caching (beyond in-flight request coalescing).
+     */
+    ttlMs?: number;
+    /** Clock override for tests. */
+    now?: () => number;
+  };
+
+/**
+ * TTL cache around remote MF CSS collection. Remote manifests mutate
+ * independently of the host (that is the point of module federation), so the
+ * collection must expire: a boot-time-forever cache serves stale or broken
+ * CSS links after any remote redeploy.
+ *
+ * Error handling: a collection where any remote fetch failed is never cached.
+ * The last known-good asset list is served instead (stale-on-error) and the
+ * next request retries the collection.
+ */
+export const createModuleFederationCssCollector = (
+  pwd: string,
+  options: ModuleFederationCssCollectorOptions = {},
+) => {
+  const { ttlMs = 0, now = Date.now, ...collectOptions } = options;
+  const normalizedTtlMs = Math.max(0, ttlMs);
+
+  let cached: { assets: string[]; expiresAt: number } | undefined;
+  let lastGoodAssets: string[] | undefined;
+  let inflight: Promise<string[]> | undefined;
+
+  const refresh = (monitors?: Monitors) => {
+    const promise = collectDirectRemoteModuleFederationCssWithMeta(pwd, {
+      ...collectOptions,
+      monitors: monitors ?? collectOptions.monitors,
+    })
+      .then(result => {
+        if (!result.errored) {
+          lastGoodAssets = result.assets;
+          cached = {
+            assets: result.assets,
+            expiresAt: now() + normalizedTtlMs,
+          };
+          return result.assets;
+        }
+
+        // Error path: invalidate so the next request retries, and serve the
+        // last known-good list when one exists.
+        cached = undefined;
+        return lastGoodAssets ?? result.assets;
+      })
+      .finally(() => {
+        if (inflight === promise) {
+          inflight = undefined;
+        }
+      });
+
+    inflight = promise;
+    return promise;
+  };
+
+  return {
+    collect(monitors?: Monitors): Promise<string[]> {
+      if (cached && now() < cached.expiresAt) {
+        return Promise.resolve(cached.assets);
+      }
+      if (inflight) {
+        return inflight;
+      }
+      return refresh(monitors);
+    },
+  };
+};
+
+const DEFAULT_REMOTE_CSS_CACHE_TTL_MS = 30_000;
+
+export type ModuleFederationCssPluginOptions = {
+  /**
+   * TTL for the cached remote CSS collection in production.
+   *
+   * @default 30000 in production, 0 (no caching) otherwise
+   */
+  remoteCssCacheTtlMs?: number;
 };
 
 /**
@@ -290,11 +412,17 @@ export const collectDirectRemoteModuleFederationCss = async (
  * direct module federation remotes, so SSR/CSR-RSC rendering can inline
  * `<link>` tags for remote CSS.
  *
+ * In production the collection is cached with a TTL (default 30s) instead of
+ * being pinned at boot: remote manifests change on every remote redeploy, and
+ * fetch failures must not pin an empty/partial list for the process lifetime.
+ *
  * This plugin must be registered after `injectResourcePlugin()` (which sets
  * `serverManifest` on the request context). @modern-js/prod-server wires it
  * into its plugin assembly for both production and dev servers.
  */
-export const injectModuleFederationCssPlugin = (): ServerPlugin => ({
+export const injectModuleFederationCssPlugin = (
+  options: ModuleFederationCssPluginOptions = {},
+): ServerPlugin => ({
   name: '@modern-js/inject-module-federation-css',
 
   setup(api) {
@@ -305,21 +433,27 @@ export const injectModuleFederationCssPlugin = (): ServerPlugin => ({
         return;
       }
 
-      // In production, warm up the remote manifest fetch at prepare time,
-      // mirroring the server manifest warmup of injectResourcePlugin.
-      const warmupPromise = isProd()
-        ? collectDirectRemoteModuleFederationCss(pwd)
-        : undefined;
+      const ttlMs = Math.max(
+        0,
+        options.remoteCssCacheTtlMs ??
+          (isProd() ? DEFAULT_REMOTE_CSS_CACHE_TTL_MS : 0),
+      );
+      const collector = createModuleFederationCssCollector(pwd, { ttlMs });
+
+      if (isProd()) {
+        // Warm up the remote manifest fetch at prepare time, mirroring the
+        // server manifest warmup of injectResourcePlugin, so the first
+        // request does not pay the collection latency. Failures are retried
+        // on the next request instead of failing startup.
+        collector.collect().catch(() => {});
+      }
 
       const handler: Middleware<ServerEnv> = async (c, next) => {
         const serverManifest = c.get('serverManifest');
 
         if (serverManifest && !serverManifest.moduleFederationCssAssets) {
           const monitors = c.get('monitors');
-          const moduleFederationCssAssets = await (warmupPromise ||
-            collectDirectRemoteModuleFederationCss(pwd, {
-              monitors,
-            }));
+          const moduleFederationCssAssets = await collector.collect(monitors);
 
           c.set('serverManifest', {
             ...serverManifest,

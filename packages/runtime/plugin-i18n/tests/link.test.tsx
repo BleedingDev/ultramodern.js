@@ -46,10 +46,13 @@ const requestContext = {
 
 const capturedLinkProps: any[] = [];
 
+// Mirrors the real TanStack Link contract: it consumes its own props
+// (`preload`, `search`, `hash`, ...) and spreads everything else onto the
+// anchor. Deliberately does NOT strip `prefetch` — TanStack has no such prop,
+// so a forwarded `prefetch` would leak into the DOM and fail assertions.
 const TanstackLink = ({ to, children, ...props }: any) => {
   capturedLinkProps.push({ to, ...props });
   const {
-    prefetch: _prefetch,
     preload: _preload,
     search: _search,
     hash: _hash,
@@ -376,6 +379,53 @@ describe('framework Link', () => {
     const link = rendered.container.querySelector('[data-testid="f"]');
     expect(link?.getAttribute('href')).toBe('/cs/produkty/bota?tag=x#detail');
     expect(link?.hasAttribute('prefetch')).toBe(false);
+  });
+
+  test('maps prefetch to the TanStack preload prop', async () => {
+    const router = createTanstackRouter('/en/products', 'en');
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider value={providerValue('en')}>
+        <Link to="/products" data-testid="pf" prefetch="intent">
+          Products
+        </Link>
+      </ModernI18nProvider>,
+      createTanstackRuntimeContext(router),
+    );
+
+    const props = capturedLinkProps.at(-1);
+    expect(props.preload).toBe('intent');
+    expect(props.prefetch).toBeUndefined();
+
+    const link = rendered.container.querySelector('[data-testid="pf"]');
+    expect(link?.hasAttribute('prefetch')).toBe(false);
+  });
+
+  test('maps prefetch="none" to preload={false}; explicit preload wins', async () => {
+    const router = createTanstackRouter('/en/products', 'en');
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider value={providerValue('en')}>
+        <Link to="/products" data-testid="none" prefetch="none">
+          Products
+        </Link>
+        <Link
+          to="/products"
+          data-testid="explicit"
+          prefetch="intent"
+          preload="viewport"
+        >
+          Products
+        </Link>
+      </ModernI18nProvider>,
+      createTanstackRuntimeContext(router),
+    );
+
+    const noneProps = capturedLinkProps[capturedLinkProps.length - 2];
+    expect(noneProps.preload).toBe(false);
+    expect(noneProps.prefetch).toBeUndefined();
+
+    const explicitProps = capturedLinkProps.at(-1);
+    expect(explicitProps.preload).toBe('viewport');
+    expect(explicitProps.prefetch).toBeUndefined();
   });
 
   test('marks the canonical target active on any localized variant', async () => {

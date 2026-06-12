@@ -2,6 +2,7 @@ import { fs, getAliasConfig, logger } from '@modern-js/utils';
 import { spawn } from 'child_process';
 import path from 'path';
 import type { CompileFunc } from '../../common';
+import { rewriteImportSpecifiers } from './importRewriter';
 import {
   createTsconfigPathsMatcher,
   getNotAliasedPath,
@@ -20,9 +21,6 @@ type TsgoConfig = {
   include?: string[];
 };
 
-const importSpecifierRE =
-  /((?:from\s*|import\s*\(\s*|require\s*\(\s*)['"])([^'"]+)(['"])/g;
-
 const copyFiles = async (from: string, to: string, appDirectory: string) => {
   if (await fs.pathExists(from)) {
     const relativePath = path.relative(appDirectory, from);
@@ -35,22 +33,33 @@ const copyFiles = async (from: string, to: string, appDirectory: string) => {
   }
 };
 
-const createResolvedTsgoConfig = async (
+// Distinguishes concurrent compiles within the same process (plugin-bff and
+// app-tools both call into this compiler) so their temp configs cannot clash.
+let resolvedConfigCount = 0;
+
+export const createResolvedTsgoConfig = async (
   appDirectory: string,
   tsconfigPath: string,
   distDir: string,
   sourceDirs: string[],
-  moduleType?: 'module' | 'commonjs',
+  moduleType: 'module' | 'commonjs' | undefined,
+  tsgoBinPath: string,
 ) => {
-  const output = await runTsgo(['--showConfig', '-p', tsconfigPath], {
-    cwd: path.dirname(tsconfigPath),
-  });
+  const tsconfigDir = path.dirname(tsconfigPath);
+  const output = await runTsgo(
+    tsgoBinPath,
+    ['--showConfig', '-p', tsconfigPath],
+    {
+      cwd: tsconfigDir,
+    },
+  );
   const config = JSON.parse(output.stdout) as TsgoConfig;
 
   config.compilerOptions ??= {};
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
-  config.files = filterSourceFiles(appDirectory, sourceDirs, config.files);
+  // `--showConfig` emits `files` relative to the tsconfig directory.
+  config.files = filterSourceFiles(tsconfigDir, sourceDirs, config.files);
   delete config.include;
 
   // TS-Go v7 removed baseUrl and the node10/moduleResolution=node spelling.
@@ -82,11 +91,11 @@ const createResolvedTsgoConfig = async (
     delete config.compilerOptions.moduleResolution;
   }
 
-  // Keep the generated config beside the app tsconfig so relative `files` and
-  // `paths` entries keep the same base directory.
+  // Keep the generated config beside the app tsconfig so the relative `files`
+  // and `paths` entries emitted by `--showConfig` keep the same base directory.
   const resolvedConfigPath = path.join(
-    appDirectory,
-    `.tsgo.${process.pid}.resolved.json`,
+    tsconfigDir,
+    `.tsgo.${process.pid}.${resolvedConfigCount++}.resolved.json`,
   );
   await fs.writeFile(resolvedConfigPath, JSON.stringify(config, null, 2));
 
@@ -94,7 +103,7 @@ const createResolvedTsgoConfig = async (
 };
 
 const filterSourceFiles = (
-  appDirectory: string,
+  tsconfigDir: string,
   sourceDirs: string[],
   files: string[] = [],
 ) => {
@@ -104,7 +113,7 @@ const filterSourceFiles = (
 
   return files.filter(fileName => {
     const absoluteFileName = path
-      .resolve(appDirectory, fileName)
+      .resolve(tsconfigDir, fileName)
       .split(path.sep)
       .join(path.posix.sep);
 
@@ -116,6 +125,7 @@ const filterSourceFiles = (
 };
 
 const runTsgo = (
+  tsgoBinPath: string,
   args: string[],
   options: {
     cwd: string;
@@ -124,7 +134,7 @@ const runTsgo = (
 ) =>
   new Promise<{ stdout: string; stderr: string; code: number }>(
     (resolve, reject) => {
-      const child = spawn(process.execPath, [getTsgoBinPath(), ...args], {
+      const child = spawn(process.execPath, [tsgoBinPath, ...args], {
         cwd: options.cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -151,11 +161,33 @@ const runTsgo = (
     },
   );
 
-const getTsgoBinPath = () =>
-  path.join(
-    path.dirname(require.resolve('@typescript/native-preview/package.json')),
-    'bin/tsgo.js',
-  );
+// Resolve the tsgo binary from the app first (so apps control the compiler
+// version), then from this package's own dependency tree (covering hoisted
+// installs, where @modern-js/builder pulls the package in). The `resolvePaths`
+// parameter exists for tests.
+export const getTsgoBinPath = (
+  appDirectory: string,
+  resolvePaths: string[] = [appDirectory, __dirname],
+) => {
+  try {
+    const pkgPath = require.resolve('@typescript/native-preview/package.json', {
+      paths: resolvePaths,
+    });
+    return path.join(path.dirname(pkgPath), 'bin/tsgo.js');
+  } catch {
+    throw new Error(
+      'tsgo could not be found! Please install "@typescript/native-preview" in your project to compile BFF/server code.',
+    );
+  }
+};
+
+// Map emitted output extensions back to the source extensions that can have
+// produced them (tsgo emits .mts -> .mjs, .cts -> .cjs, .ts/.tsx -> .js).
+const OUTPUT_SOURCE_EXTENSIONS: Record<string, string[]> = {
+  '.js': ['.ts', '.tsx', '.js', '.jsx'],
+  '.mjs': ['.mts', '.mjs'],
+  '.cjs': ['.cts', '.cjs'],
+};
 
 const getSourceFileForOutput = (
   appDirectory: string,
@@ -165,19 +197,32 @@ const getSourceFileForOutput = (
   const relativeOutput = path.relative(distDir, outputFile);
   const parsed = path.parse(relativeOutput);
   const sourceBase = path.join(appDirectory, parsed.dir, parsed.name);
+  const extensions =
+    OUTPUT_SOURCE_EXTENSIONS[parsed.ext] ?? OUTPUT_SOURCE_EXTENSIONS['.js'];
 
-  return (
-    findExistingSource(`${sourceBase}.ts`) ||
-    findExistingSource(`${sourceBase}.tsx`) ||
-    findExistingSource(`${sourceBase}.js`) ||
-    findExistingSource(`${sourceBase}.jsx`)
-  );
+  for (const extension of extensions) {
+    const candidate = `${sourceBase}${extension}`;
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
 };
 
-const findExistingSource = (filePath: string) =>
-  fs.existsSync(filePath) ? filePath : undefined;
+const sourceMappingUrlRE = /^\/\/[#@] sourceMappingURL=.*$/gm;
 
-const rewriteOutputSpecifiers = async (
+// Rewriting specifiers changes column offsets without regenerating the map,
+// so a stale map must not ship with the rewritten output: drop the pragma and
+// the sibling .map file. Outputs that are not rewritten keep their maps.
+const dropStaleSourceMap = async (outputFile: string, content: string) => {
+  const mapFile = `${outputFile}.map`;
+  if (await fs.pathExists(mapFile)) {
+    await fs.remove(mapFile);
+  }
+  return content.replace(sourceMappingUrlRE, '');
+};
+
+export const rewriteOutputSpecifiers = async (
   appDirectory: string,
   distDir: string,
   baseUrl: string,
@@ -202,28 +247,14 @@ const rewriteOutputSpecifiers = async (
       }
 
       const content = await fs.readFile(file, 'utf8');
-      let changed = false;
-      const rewritten = content.replace(
-        importSpecifierRE,
-        (match, prefix: string, specifier: string, suffix: string) => {
-          const nextSpecifier = getNotAliasedPath(
-            sourceFile,
-            matcher,
-            specifier,
-            moduleType,
-          );
-
-          if (!nextSpecifier || nextSpecifier === specifier) {
-            return match;
-          }
-
-          changed = true;
-          return `${prefix}${nextSpecifier}${suffix}`;
-        },
+      const { content: rewritten, changed } = rewriteImportSpecifiers(
+        content,
+        specifier =>
+          getNotAliasedPath(sourceFile, matcher, specifier, moduleType),
       );
 
       if (changed) {
-        await fs.writeFile(file, rewritten);
+        await fs.writeFile(file, await dropStaleSourceMap(file, rewritten));
       }
     }),
   );
@@ -261,6 +292,8 @@ export const compileByTs: CompileFunc = async (
   });
   const { paths = {}, absoluteBaseUrl = './' } = aliasOption;
 
+  const tsgoBinPath = getTsgoBinPath(appDirectory);
+
   const { config: tsgoConfig, resolvedConfigPath } =
     await createResolvedTsgoConfig(
       appDirectory,
@@ -268,12 +301,18 @@ export const compileByTs: CompileFunc = async (
       distDir,
       sourceDirs,
       compileOptions.moduleType,
+      tsgoBinPath,
     );
-  const result = await runTsgo(['-p', resolvedConfigPath], {
-    cwd: appDirectory,
-    reject: false,
-  });
-  await fs.remove(resolvedConfigPath);
+
+  let result;
+  try {
+    result = await runTsgo(tsgoBinPath, ['-p', resolvedConfigPath], {
+      cwd: appDirectory,
+      reject: false,
+    });
+  } finally {
+    await fs.remove(resolvedConfigPath);
+  }
 
   if (result.stderr) {
     logger.error(result.stderr);

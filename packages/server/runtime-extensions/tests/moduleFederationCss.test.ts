@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   collectDirectRemoteModuleFederationCss,
+  collectDirectRemoteModuleFederationCssWithMeta,
   collectModuleFederationManifestCss,
+  createModuleFederationCssCollector,
 } from '../src/moduleFederationCss';
 
 const tempDirs: string[] = [];
@@ -205,5 +207,186 @@ describe('module federation css collection', () => {
     ]);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags partial collections as errored when a remote manifest fails', async () => {
+    const pwd = await createTempDir();
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        remotes: [
+          {
+            entry: 'https://remote-a.example.com/mf-manifest.json',
+          },
+          {
+            entry: 'https://remote-b.example.com/mf-manifest.json',
+          },
+        ],
+      }),
+    );
+
+    const fetcher = rs.fn(async (url: string) => {
+      if (url.includes('remote-b')) {
+        return new Response('boom', { status: 500 });
+      }
+      return Response.json({
+        exposes: [
+          {
+            assets: {
+              css: {
+                sync: ['static/css/a.css'],
+              },
+            },
+          },
+        ],
+      });
+    });
+
+    const result = await collectDirectRemoteModuleFederationCssWithMeta(pwd, {
+      fetcher,
+      monitors: { warn: rs.fn() } as any,
+    });
+
+    expect(result.errored).toBe(true);
+    expect(result.assets).toEqual([
+      'https://remote-a.example.com/static/css/a.css',
+    ]);
+  });
+});
+
+describe('module federation css collector cache', () => {
+  const writeHostManifest = async () => {
+    const pwd = await createTempDir();
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        remotes: [
+          {
+            entry: 'https://remote-a.example.com/mf-manifest.json',
+          },
+        ],
+      }),
+    );
+    return pwd;
+  };
+
+  const remoteManifestWithCss = (cssAsset: string) =>
+    Response.json({
+      metaData: {
+        publicPath: 'https://cdn.example.com/a/',
+      },
+      exposes: [
+        {
+          assets: {
+            css: {
+              sync: [cssAsset],
+            },
+          },
+        },
+      ],
+    });
+
+  it('serves cached assets within the ttl and refetches after expiry', async () => {
+    const pwd = await writeHostManifest();
+
+    let nowMs = 10_000;
+    let cssAsset = 'static/css/one.css';
+    const fetcher = rs.fn(async () => remoteManifestWithCss(cssAsset));
+
+    const collector = createModuleFederationCssCollector(pwd, {
+      fetcher,
+      ttlMs: 5_000,
+      now: () => nowMs,
+    });
+
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // The remote redeployed, but the cache is still fresh.
+    cssAsset = 'static/css/two.css';
+    nowMs += 4_999;
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Past the ttl the collection is refreshed and picks up the redeploy.
+    nowMs += 2;
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/two.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache errored collections and serves the last good list', async () => {
+    const pwd = await writeHostManifest();
+
+    let nowMs = 10_000;
+    let failing = false;
+    const fetcher = rs.fn(async () => {
+      if (failing) {
+        return new Response('boom', { status: 500 });
+      }
+      return remoteManifestWithCss('static/css/one.css');
+    });
+
+    const collector = createModuleFederationCssCollector(pwd, {
+      fetcher,
+      ttlMs: 5_000,
+      now: () => nowMs,
+      monitors: { warn: rs.fn() } as any,
+    });
+
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Cache expired and the remote is now failing: serve last-good...
+    nowMs += 5_001;
+    failing = true;
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // ...and do NOT cache the failure: the next request retries immediately.
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+
+    failing = false;
+    expect(await collector.collect()).toEqual([
+      'https://cdn.example.com/a/static/css/one.css',
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
+  it('coalesces concurrent collections into a single in-flight fetch', async () => {
+    const pwd = await writeHostManifest();
+
+    const fetcher = rs.fn(async () =>
+      remoteManifestWithCss('static/css/one.css'),
+    );
+    const collector = createModuleFederationCssCollector(pwd, {
+      fetcher,
+      ttlMs: 0,
+    });
+
+    const [first, second] = await Promise.all([
+      collector.collect(),
+      collector.collect(),
+    ]);
+
+    expect(first).toEqual(['https://cdn.example.com/a/static/css/one.css']);
+    expect(second).toEqual(first);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // ttlMs 0 keeps the previous per-request freshness for dev.
+    await collector.collect();
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

@@ -62,20 +62,35 @@ describe('tanstack router type generation', () => {
     );
     expect(routerGenTs).toContain('modernRouteLoader: loader_0');
     expect(routerGenTs).toContain('modernRouteAction: action_0');
-    expect(routerGenTs).toContain('modernRouteId?: string;');
-    expect(routerGenTs).not.toContain(
-      'return Object.keys(staticData).length > 0 ? staticData : undefined;',
-    );
     expect(routerGenTs).toContain(
       "} from '@modern-js/plugin-tanstack/runtime';",
     );
     expect(routerGenTs).toContain('modernTanstackRouterFastDefaults,');
     expect(routerGenTs).toContain('...modernTanstackRouterFastDefaults,');
+
+    // The loader-bridge helpers are imported from the package runtime instead
+    // of being inlined into every generated file (bugfixes ship via package
+    // update, and the broken inline absolute-redirect handler is gone).
+    expect(routerGenTs).toContain('createRouteStaticData,');
+    expect(routerGenTs).toContain('modernLoaderToTanstack,');
+    expect(routerGenTs).toContain('type ModernRouterContext,');
+    expect(routerGenTs).not.toContain('function modernLoaderToTanstack');
+    expect(routerGenTs).not.toContain('function createRouteStaticData');
+    expect(routerGenTs).not.toContain('function throwTanstackRedirect');
   });
 
-  test('emits component imports for routes carrying _component', async () => {
+  test('emits resolvable relative component imports for routes carrying _component', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
+    for (const componentFile of [
+      'routes/layout.tsx',
+      'routes/page.tsx',
+      'routes/about/page.tsx',
+    ]) {
+      const componentPath = path.join(srcDirectory, componentFile);
+      await mkdir(path.dirname(componentPath), { recursive: true });
+      await writeFile(componentPath, 'export default () => null;');
+    }
 
     const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
       appContext: {
@@ -121,17 +136,22 @@ describe('tanstack router type generation', () => {
     });
 
     // Children are emitted first, the root route component import last.
-    expect(routerGenTs).toContain('import component_0 from "@/_/routes/page";');
+    // Imports are relative (resolved like loader modules) — the raw
+    // `@/_` internal alias is not mapped by app tsconfigs.
     expect(routerGenTs).toContain(
-      'import component_1 from "@/_/routes/about/page";',
+      'import component_0 from "../../routes/page";',
     );
     expect(routerGenTs).toContain(
-      'import component_2 from "@/_/routes/layout";',
+      'import component_1 from "../../routes/about/page";',
     );
+    expect(routerGenTs).toContain(
+      'import component_2 from "../../routes/layout";',
+    );
+    expect(routerGenTs).not.toContain('@/_/routes');
     // The shared module is imported exactly once.
     expect(routerGenTs).not.toContain('component_3');
     expect(
-      routerGenTs.match(/from "@\/_\/routes\/about\/page";/g),
+      routerGenTs.match(/from "\.\.\/\.\.\/routes\/about\/page";/g),
     ).toHaveLength(1);
 
     expect(routerGenTs).toContain('component: component_0,');
@@ -206,13 +226,17 @@ describe('tanstack router type generation', () => {
         '    options: TOptions;',
         '    addChildren<TChildren extends readonly unknown[]>(children: TChildren): Route<TOptions> & { children: TChildren };',
         '  };',
+        '  export type ModernRouterContext = {',
+        '    request?: Request;',
+        '    requestContext?: unknown;',
+        '  };',
         '  export function createMemoryHistory(options: unknown): unknown;',
         '  export const modernTanstackRouterFastDefaults: Record<string, unknown>;',
         '  export function createRootRouteWithContext<TContext>(): <TOptions extends RouteOptions>(options: TOptions) => Route<TOptions>;',
         '  export function createRoute<TOptions extends RouteOptions>(options: TOptions): Route<TOptions>;',
         '  export function createRouter<TOptions extends Record<string, unknown>>(options: TOptions): TOptions;',
-        '  export function notFound(): never;',
-        '  export function redirect(options: unknown): never;',
+        '  export function createRouteStaticData(opts: { modernRouteId?: string; modernRouteAction?: unknown; modernRouteLoader?: unknown }): Record<string, unknown>;',
+        '  export function modernLoaderToTanstack<TLoader extends (args: never) => unknown>(opts: { hasSplat: boolean }, modernLoader: TLoader): (ctx: unknown) => Promise<Awaited<ReturnType<TLoader>>>;',
         '}',
       ].join('\n'),
     );
@@ -345,6 +369,66 @@ describe('collectCanonicalRoutesForEntry', () => {
     ] as any);
 
     expect(result).toBeNull();
+  });
+
+  test('ignores a leading :lang param when the locale-param heuristic is disabled (no plugin-i18n)', () => {
+    const routes = [
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(lang)/layout',
+            path: ':lang',
+            children: [
+              {
+                type: 'nested',
+                id: '(lang)/about/page',
+                path: 'about',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any;
+
+    // Without plugin-i18n, a hand-rolled `/:lang/` param must NOT trigger the
+    // i18n surface (the emitted module augmentation would break typechecking).
+    expect(
+      collectCanonicalRoutesForEntry(routes, { localeParamHeuristic: false }),
+    ).toBeNull();
+    // With plugin-i18n installed the heuristic strips the locale prefix.
+    expect(
+      collectCanonicalRoutesForEntry(routes, { localeParamHeuristic: true }),
+    ).toEqual({
+      '/about': 'Record<string, never>',
+    });
+  });
+
+  test('still honors modernCanonicalPath metadata when the heuristic is disabled', () => {
+    const result = collectCanonicalRoutesForEntry(
+      [
+        {
+          type: 'nested',
+          id: 'layout',
+          isRoot: true,
+          children: [
+            {
+              type: 'nested',
+              id: '(lang)/products/(slug)/page',
+              path: 'products/:slug',
+              modernCanonicalPath: '/products/:slug',
+            },
+          ],
+        },
+      ] as any,
+      { localeParamHeuristic: false },
+    );
+
+    expect(result).not.toBeNull();
+    expect(result!['/products/$slug']).toBe('{ "slug": string }');
   });
 
   test('strips leading :lang param and maps index under :lang to "/"', () => {

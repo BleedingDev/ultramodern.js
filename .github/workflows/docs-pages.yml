@@ -34,7 +34,7 @@ jobs:
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
 
       - name: Install Dependencies
-        run: mise exec -- pnpm install --no-frozen-lockfile
+        run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Resolve docs base
         run: |

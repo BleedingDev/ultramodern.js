@@ -123,6 +123,44 @@ describe('fileSystemRoutes', () => {
     expect(code).toContain('"component": component_0');
     expect(code).not.toContain('lazy(() => import(/* webpackMode: "eager" */');
   });
+
+  test('imports loadable statically so the swc loadable transform can rewrite string-SSR route components', async () => {
+    const routes = [
+      {
+        path: '/',
+        _component: '@_modern_js_src/routes/layout.tsx',
+        id: 'layout',
+        type: 'nested' as const,
+        children: [
+          {
+            path: 'about',
+            _component: '@_modern_js_src/routes/about/page.tsx',
+            id: 'about/page',
+            type: 'nested' as const,
+          },
+        ],
+      },
+    ];
+
+    const code = await fileSystemRoutes({
+      metaName: 'modern-js',
+      entryName: 'main',
+      routes,
+      internalDirectory: '',
+      ssrMode: 'string',
+      splitRouteChunks: true,
+    });
+
+    // @swc/plugin-loadable-components matches `default`/`lazy` imported
+    // directly from the runtime loadable export; an indirect (namespace +
+    // helper) binding leaves loadable() call sites untransformed and string
+    // SSR throws "SSR requires `@loadable/babel-plugin`".
+    expect(code).toContain(
+      'import loadable, { lazy as loadableLazy } from "@modern-js/runtime/loadable"',
+    );
+    expect(code).not.toContain('resolveLoadableExport');
+    expect(code).toMatch(/"component": loadable\(/);
+  });
 });
 
 describe('routesForServer', () => {

@@ -27,13 +27,12 @@
       "includes": [
         "x-modernjs-bff-operation-context",
         "traceparent",
-        "traceId",
-        "spanId"
+        "attachOperationContext"
       ]
     },
     {
-      "id": "cross-project-operation-context-browser",
-      "path": "packages/server/create-request/src/browser.ts",
+      "id": "cross-project-operation-context-core",
+      "path": "packages/server/create-request/src/policyCore.ts",
       "includes": [
         "x-modernjs-bff-operation-context",
         "traceparent",
@@ -51,5 +50,12 @@
       ]
     }
   ],
-  "scanExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+  "scanExtensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs"
+  ]
 }

@@ -96,7 +96,7 @@ describe('telemetry envelope traceparent tagging (W3C strict)', () => {
             const { middlewares } = api.getServerContext();
             middlewares.push({
               name: 'emit-traceparent-probe',
-              handler: async c => {
+              handler: async (c: any) => {
                 const probeName = c.req.header('x-probe-name') || 'probe';
                 c.get('monitors')?.info(probeName);
                 return c.json({ ok: true });

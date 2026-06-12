@@ -2,9 +2,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { printOxlintOutput, runOxlintRules } from './oxlint';
 
-type WorkspaceSourceCheckOptions = {
+export type WorkspaceSourceCheckOptions = {
   readonly cwd?: string;
   readonly sourceRoots?: readonly string[];
+  /**
+   * Locale codes whose `locales/<locale>/*.json` resources are plural-checked
+   * and must be registered in each app's `src/modern.runtime.ts`.
+   * Defaults to `['en', 'cs']` (the UltraModern workspace convention).
+   * Pass an empty array to opt out of the runtime/locale resource checks.
+   */
+  readonly locales?: readonly string[];
+  /**
+   * Per-locale plural-category overrides. Locales absent from this map
+   * resolve their categories through `Intl.PluralRules(locale)` (CLDR
+   * cardinal rules), e.g. `['one', 'other']` for `en` and
+   * `['one', 'few', 'many', 'other']` for `cs`.
+   */
+  readonly pluralCategories?: Readonly<Record<string, readonly string[]>>;
 };
 
 type LocaleJson = {
@@ -14,6 +28,8 @@ type LocaleJson = {
 export const WORKSPACE_SOURCE_SUCCESS =
   'UltraModern i18n and boundary guardrails validated';
 
+const DEFAULT_LOCALES = ['en', 'cs'] as const;
+
 const ignoredDirectories = new Set([
   '.modern',
   '.modernjs',
@@ -21,6 +37,9 @@ const ignoredDirectories = new Set([
   'dist',
   'node_modules',
 ]);
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
 const normalizePath = (filePath: string): string =>
   filePath.replaceAll('\\', '/');
@@ -55,38 +74,58 @@ const walk = (directory: string, files: string[] = []): string[] => {
 const isSourceFile = (filePath: string): boolean =>
   /\.(?:ts|tsx|js|jsx)$/u.test(filePath);
 
-const isLocaleJson = (root: string, filePath: string): boolean =>
-  /\/locales\/(?:en|cs)\/[^/]+\.json$/u.test(
-    `/${relativePath(root, filePath)}`,
+const createLocaleJsonMatcher = (
+  locales: readonly string[],
+): ((root: string, filePath: string) => boolean) => {
+  const pattern = new RegExp(
+    `/locales/(?:${locales.map(escapeRegExp).join('|')})/[^/]+\\.json$`,
+    'u',
   );
+  return (root, filePath) => pattern.test(`/${relativePath(root, filePath)}`);
+};
+
+const resolvePluralCategories = (
+  locale: string,
+  overrides: Readonly<Record<string, readonly string[]>> | undefined,
+): readonly string[] =>
+  overrides?.[locale] ??
+  new Intl.PluralRules(locale).resolvedOptions().pluralCategories;
 
 const readText = (filePath: string): string =>
   fs.readFileSync(filePath, 'utf-8');
+
+const localeImportPattern = (locale: string): RegExp =>
+  new RegExp(
+    `import\\s+(?:\\*\\s+as\\s+)?[A-Za-z_$][\\w$]*\\s+from\\s+['"]\\.\\./locales/${escapeRegExp(
+      locale,
+    )}/[^'"]+\\.json['"]`,
+    'u',
+  );
 
 const checkRuntimeResources = (
   root: string,
   filePath: string,
   text: string,
+  locales: readonly string[],
 ): void => {
   const relative = relativePath(root, filePath);
   if (!relative.endsWith('/src/modern.runtime.ts')) {
     return;
   }
 
-  const importsLocaleResources =
-    /import\s+csResource\s+from\s+['"]\.\.\/locales\/cs\/[^'"]+\.json['"]/u.test(
-      text,
-    ) &&
-    /import\s+enResource\s+from\s+['"]\.\.\/locales\/en\/[^'"]+\.json['"]/u.test(
-      text,
-    );
+  const missingLocales = locales.filter(
+    locale => !localeImportPattern(locale).test(text),
+  );
+  const registersResources =
+    /initOptions\s*:\s*\{[\s\S]*?\bresources\s*[,:}]/u.test(text);
 
-  if (
-    !importsLocaleResources ||
-    !/initOptions\s*:\s*\{[\s\S]*?\bresources\s*,/u.test(text)
-  ) {
+  if (missingLocales.length > 0 || !registersResources) {
+    const detail =
+      missingLocales.length > 0
+        ? `missing locale JSON imports for: ${missingLocales.join(', ')}`
+        : 'initOptions does not register a `resources` entry';
     throw new Error(
-      `${relative} must register locale JSON resources in modern.runtime.ts so Worker SSR and hydration use the same first-render translations.`,
+      `${relative} must register locale JSON resources in modern.runtime.ts so Worker SSR and hydration use the same first-render translations (${detail}).`,
     );
   }
 };
@@ -111,11 +150,10 @@ const checkPluralResources = (
   root: string,
   filePath: string,
   json: LocaleJson,
+  requiredSuffixes: readonly string[],
+  pluralSuffixPattern: RegExp,
 ): void => {
   const relative = relativePath(root, filePath);
-  const language = relative.split('/locales/')[1]?.split('/')[0];
-  const requiredSuffixes =
-    language === 'cs' ? ['one', 'few', 'many', 'other'] : ['one', 'other'];
   const groups = new Map<string, Set<string>>();
 
   visitLocaleKeys(json, (key, value, pathParts) => {
@@ -123,7 +161,7 @@ const checkPluralResources = (
       return;
     }
 
-    const suffixMatch = key.match(/^(.*)_(one|few|many|other)$/u);
+    const suffixMatch = key.match(pluralSuffixPattern);
     if (!suffixMatch) {
       throw new Error(
         `${relative} key ${pathParts.join('.')} contains {{count}} but is not plural-suffixed.`,
@@ -152,25 +190,55 @@ const checkPluralResources = (
 const runRuntimeAndLocaleResourceChecks = (
   root: string,
   sourceRoots: readonly string[],
+  locales: readonly string[],
+  pluralCategories: Readonly<Record<string, readonly string[]>> | undefined,
 ): void => {
+  if (locales.length === 0) {
+    return;
+  }
+
+  const isLocaleJson = createLocaleJsonMatcher(locales);
+  const localeCategories = new Map(
+    locales.map(locale => [
+      locale,
+      resolvePluralCategories(locale, pluralCategories),
+    ]),
+  );
+  const pluralSuffixPattern = new RegExp(
+    `^(.*)_(${[...new Set([...localeCategories.values()].flat())]
+      .map(escapeRegExp)
+      .join('|')})$`,
+    'u',
+  );
+
   const files = sourceRoots.flatMap(sourceRoot =>
     walk(path.join(root, sourceRoot)),
   );
 
   for (const filePath of files.filter(isSourceFile)) {
-    checkRuntimeResources(root, filePath, readText(filePath));
+    checkRuntimeResources(root, filePath, readText(filePath), locales);
   }
 
   for (const filePath of files.filter(filePath =>
     isLocaleJson(root, filePath),
   )) {
-    checkPluralResources(root, filePath, JSON.parse(readText(filePath)));
+    const relative = relativePath(root, filePath);
+    const language = relative.split('/locales/')[1]?.split('/')[0] ?? '';
+    checkPluralResources(
+      root,
+      filePath,
+      JSON.parse(readText(filePath)),
+      localeCategories.get(language) ?? [],
+      pluralSuffixPattern,
+    );
   }
 };
 
 export const runWorkspaceSourceCheck = ({
   cwd = process.cwd(),
   sourceRoots = ['apps', 'verticals'],
+  locales = DEFAULT_LOCALES,
+  pluralCategories,
 }: WorkspaceSourceCheckOptions = {}): number => {
   const oxlintResult = runOxlintRules({
     cwd,
@@ -203,7 +271,12 @@ export const runWorkspaceSourceCheck = ({
   }
 
   try {
-    runRuntimeAndLocaleResourceChecks(cwd, sourceRoots);
+    runRuntimeAndLocaleResourceChecks(
+      cwd,
+      sourceRoots,
+      locales,
+      pluralCategories,
+    );
   } catch (error) {
     console.error(
       error instanceof Error

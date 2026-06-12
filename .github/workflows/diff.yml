@@ -8,6 +8,10 @@ on:
       - main
       - main-ultramodern
 
+# Default to read-only; the Build job elevates only what rsdoctor needs.
+permissions:
+  contents: read
+
 jobs:
   Build:
     runs-on: ubuntu-latest
@@ -24,7 +28,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup mise
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
         with:
           install: true
 
@@ -48,4 +52,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           file_path: 'benchmark/bundle-diff/dist/rsdoctor-data.json'
-          target_branch: 'main'
+          target_branch: 'main-ultramodern'

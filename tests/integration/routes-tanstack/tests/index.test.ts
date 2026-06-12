@@ -18,6 +18,16 @@ const tsgoBin = path.join(
   'bin/tsgo.js',
 );
 
+// The repo's rstest harness has no expect-puppeteer, so assert page text
+// through puppeteer directly (waitForFunction keeps streamed SSR stable).
+async function expectPageTextContent(target: Page, expected: string) {
+  await target.waitForFunction(
+    text => (document.body?.textContent || '').includes(text as string),
+    { timeout: 10_000 },
+    expected,
+  );
+}
+
 async function fetchHtml(url: string) {
   const res = await fetch(url, {
     headers: {
@@ -88,14 +98,14 @@ describe('routes-tanstack', () => {
     await page.goto(`http://localhost:${appPort}/string`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('string-layout');
-    await (expect(page) as any).toMatchTextContent('string-index:index');
+    await expectPageTextContent(page, 'string-layout');
+    await expectPageTextContent(page, 'string-index:index');
 
     await page.goto(`http://localhost:${appPort}/stream`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('stream-layout');
-    await (expect(page) as any).toMatchTextContent('stream-index:index');
+    await expectPageTextContent(page, 'stream-layout');
+    await expectPageTextContent(page, 'stream-index:index');
     expect(errors).toEqual([]);
   });
 
@@ -151,22 +161,22 @@ describe('routes-tanstack', () => {
     await page.goto(`http://localhost:${appPort}/string/optional`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('string-optional:none');
+    await expectPageTextContent(page, 'string-optional:none');
 
     await page.goto(`http://localhost:${appPort}/string/optional/456`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('string-optional:456');
+    await expectPageTextContent(page, 'string-optional:456');
 
     await page.goto(`http://localhost:${appPort}/stream/optional`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('stream-optional:none');
+    await expectPageTextContent(page, 'stream-optional:none');
 
     await page.goto(`http://localhost:${appPort}/stream/optional/456`, {
       waitUntil: ['networkidle0'],
     });
-    await (expect(page) as any).toMatchTextContent('stream-optional:456');
+    await expectPageTextContent(page, 'stream-optional:456');
 
     expect(errors).toEqual([]);
   });
@@ -184,7 +194,7 @@ describe('routes-tanstack', () => {
       waitUntil: ['networkidle0'],
     });
     expect(page.url()).toBe(`http://localhost:${appPort}/stream/user/123`);
-    await (expect(page) as any).toMatchTextContent('stream-user:123');
+    await expectPageTextContent(page, 'stream-user:123');
     expect(errors).toEqual([]);
   });
 

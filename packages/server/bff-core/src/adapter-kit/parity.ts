@@ -7,21 +7,30 @@ import { HttpMethod } from '../types';
  * Adapter parity (conformance) kit.
  *
  * One shared table of scenarios executed against every BFF server adapter
- * (express, koa, ...) in its own test harness. Each scenario asserts the
- * adapters produce identical observable results: HTTP status, payload value
- * and policy-rejection reason.
+ * in its own test harness. Each scenario asserts the adapters produce
+ * identical observable results: HTTP status, payload value and
+ * policy-rejection reason.
  *
- * Transport details intentionally NOT asserted: express serializes scalar
- * bodies as JSON while koa sends `text/plain`; {@link toParityResult}
+ * The express/koa adapters were removed from the fork; their expectations
+ * are retained in the per-adapter drift pins as documentation of the
+ * historical behavior. The live consumer of this table is the hono lane
+ * (`@modern-js/plugin-bff` runs it against `createHonoRoutes` plus the
+ * cross-project policy middleware).
+ *
+ * Transport details intentionally NOT asserted: express serialized scalar
+ * bodies as JSON while koa sent `text/plain`; {@link toParityResult}
  * normalizes both to the decoded payload value before comparison.
  *
  * Intentionally OUT OF SCOPE (known, accepted adapter drift — do not add
  * scenarios without deciding the drift first):
- * - operator route-middlewares: express applies them, koa ignores them;
- * - multipart/form-data: payload shapes differ (formidable vs koa-body);
+ * - operator route-middlewares: express applied them, koa ignored them;
+ * - multipart/form-data: payload shapes differ per body parser;
  * - undefined-returning plain handlers are pinned via a per-adapter
- *   scenario below: express ends the response 200/empty, koa leaves
- *   `ctx.body` unset and serves its stock 404 ("Not Found").
+ *   scenario below: express ended the response 200/empty, koa served its
+ *   stock 404 ("Not Found"), hono serves its stock "404 Not Found";
+ * - farrow schema-mode handlers are pinned per-adapter below: express/koa
+ *   unwrapped the result envelope (200/400/500), the hono lane has no
+ *   schema-mode unwrapping and passes the raw envelope through.
  */
 
 export const PARITY_REQUEST_ID = 'crm';
@@ -137,7 +146,7 @@ const envelopeHeader = (requestId: unknown) =>
 const detailHeader = (details: Record<string, unknown>) =>
   JSON.stringify(details);
 
-export type ParityAdapterId = 'express' | 'koa';
+export type ParityAdapterId = 'express' | 'koa' | 'hono';
 
 export type ParityExpectation =
   | { kind: 'payload'; status: number; payload: unknown }
@@ -207,6 +216,7 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
         expectations: {
           express: { status: 200, payload: undefined },
           koa: { status: 404, payload: 'Not Found' },
+          hono: { status: 404, payload: '404 Not Found' },
         },
       },
     },
@@ -239,7 +249,7 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
       },
     },
     {
-      name: 'schema handler success',
+      name: 'schema handler success (pinned adapter drift)',
       policy: false,
       request: {
         method: 'patch',
@@ -247,10 +257,22 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
         headers: { 'content-type': 'application/json' },
         body: { id: 777 },
       },
-      expected: { kind: 'payload', status: 200, payload: { id: 777 } },
+      expected: {
+        kind: 'perAdapter',
+        expectations: {
+          express: { status: 200, payload: { id: 777 } },
+          koa: { status: 200, payload: { id: 777 } },
+          // The hono lane has no farrow schema-mode unwrapping: the raw
+          // result envelope is passed through as JSON.
+          hono: {
+            status: 200,
+            payload: { type: 'HandleSuccess', value: { id: 777 } },
+          },
+        },
+      },
     },
     {
-      name: 'schema handler input validation error',
+      name: 'schema handler input validation error (pinned adapter drift)',
       policy: false,
       request: {
         method: 'patch',
@@ -258,10 +280,20 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
         headers: { 'content-type': 'application/json' },
         body: { id: 'aaa' },
       },
-      expected: { kind: 'payload', status: 400, payload: 'invalid input' },
+      expected: {
+        kind: 'perAdapter',
+        expectations: {
+          express: { status: 400, payload: 'invalid input' },
+          koa: { status: 400, payload: 'invalid input' },
+          hono: {
+            status: 200,
+            payload: { type: 'InputValidationError', message: 'invalid input' },
+          },
+        },
+      },
     },
     {
-      name: 'schema handler output validation error',
+      name: 'schema handler output validation error (pinned adapter drift)',
       policy: false,
       request: {
         method: 'patch',
@@ -269,7 +301,20 @@ export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
         headers: { 'content-type': 'application/json' },
         body: { id: 'boom' },
       },
-      expected: { kind: 'payload', status: 500, payload: 'invalid output' },
+      expected: {
+        kind: 'perAdapter',
+        expectations: {
+          express: { status: 500, payload: 'invalid output' },
+          koa: { status: 500, payload: 'invalid output' },
+          hono: {
+            status: 200,
+            payload: {
+              type: 'OutputValidationError',
+              message: 'invalid output',
+            },
+          },
+        },
+      },
     },
     {
       name: 'policy pass with full operation context',

@@ -4,8 +4,7 @@ import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, logger } from '@modern-js/utils';
 import path from 'path';
 import {
-  generateEffectClientCode,
-  renderEffectClientDeclaration,
+  generateEffectClient,
   resolveEffectEntryFile,
 } from './effectClientGenerator';
 
@@ -504,7 +503,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
           relativeDistPath: draftOptions.relativeDistPath,
         });
 
-        const effectClientCode = await generateEffectClientCode({
+        const effectClientArtifacts = await generateEffectClient({
           appDir: draftOptions.appDir,
           apiDir: draftOptions.apiDir,
           resourcePath: effectEntryFile,
@@ -518,7 +517,7 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
           dataPlatformBatch: draftOptions.effectDataPlatformBatch,
         });
 
-        if (effectClientCode) {
+        if (effectClientArtifacts) {
           const targetTypeFile = effectFileDetails.targetDir.replace(
             /\.js$/,
             '.d.ts',
@@ -526,11 +525,11 @@ async function clientGenerator(draftOptions: APILoaderOptions) {
 
           await writeTargetFile(
             effectFileDetails.absTargetDir,
-            effectClientCode,
+            effectClientArtifacts.code,
           );
           await writeTargetFile(
             path.resolve(targetTypeFile),
-            renderEffectClientDeclaration(),
+            effectClientArtifacts.declaration,
           );
           generatedSourceList.push(effectFileDetails);
         }

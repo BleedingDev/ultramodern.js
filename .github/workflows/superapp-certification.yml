@@ -31,6 +31,9 @@ on:
   schedule:
     - cron: '17 2 * * 1-5'
 
+permissions:
+  contents: read
+
 jobs:
   superapp-certification:
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
@@ -42,7 +45,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup mise
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
         with:
           install: true
 

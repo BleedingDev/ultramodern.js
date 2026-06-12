@@ -156,7 +156,8 @@ export type CrossProjectPolicyViolationReason =
   | 'missing_operation_version'
   | 'unknown_operation_contract'
   | 'operation_schema_hash_mismatch'
-  | 'operation_version_mismatch';
+  | 'operation_version_mismatch'
+  | 'producer_identity_mismatch';
 
 export type CrossProjectPolicyViolation = {
   code: 'BFF_CROSS_PROJECT_POLICY_DENIED';
@@ -226,6 +227,7 @@ export type UploadCreatorOptions = {
   path: string;
   domain?: string;
   requestId?: string;
+  operationContext?: OperationContext;
 };
 
 export type UploadCreator = (options: UploadCreatorOptions) => Sender;

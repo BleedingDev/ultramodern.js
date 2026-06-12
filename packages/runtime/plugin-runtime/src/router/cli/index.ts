@@ -8,7 +8,6 @@ import type {
 } from '@modern-js/types';
 import {
   filterRoutesForServer,
-  findExists,
   fs,
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
@@ -37,34 +36,6 @@ export {
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
 } from './handler';
-
-const JS_OR_TS_EXTS = [
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  '.mjs',
-  '.mts',
-  '.cjs',
-  '.cts',
-] as const;
-
-function hasRouterConfigInRuntimeFile(runtimeConfigBase: string) {
-  const runtimeConfigFile = findExists(
-    JS_OR_TS_EXTS.map(ext => `${runtimeConfigBase}${ext}`),
-  );
-
-  if (!runtimeConfigFile) {
-    return false;
-  }
-
-  try {
-    const content = fs.readFileSync(runtimeConfigFile, 'utf-8');
-    return /router\s*:/.test(content);
-  } catch {
-    return false;
-  }
-}
 
 type RouteEntrypointLike = {
   entry?: string;
@@ -124,15 +95,11 @@ export const routerPlugin = (): CliPlugin<AppTools> => ({
     });
 
     api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-      const { serverRoutes, metaName, srcDirectory, runtimeConfigFile } =
-        api.getAppContext();
+      const { serverRoutes, metaName } = api.getAppContext();
       const normalizedConfig = api.getNormalizedConfig() as any;
       const hasUserRouterConfig =
         normalizedConfig.router &&
         Object.keys(normalizedConfig.router).length > 0;
-      const hasRuntimeRouterConfig = hasRouterConfigInRuntimeFile(
-        path.join(srcDirectory, runtimeConfigFile),
-      );
       const serverBase = serverRoutes
         .filter(
           (route: ServerRoute) => route.entryName === entrypoint.entryName,
@@ -140,10 +107,14 @@ export const routerPlugin = (): CliPlugin<AppTools> => ({
         .map(route => route.urlPath)
         .sort((a, b) => (a.length - b.length > 0 ? -1 : 1));
 
+      // No source sniffing here: custom (non-file-route) entrypoints get the
+      // built-in router either through an explicit `router` config flag or
+      // because an installed router-provider plugin (e.g.
+      // @modern-js/plugin-tanstack) injects the framework-resolving router
+      // plugin for them itself.
       const shouldInstallBuiltInRouter =
         isBuiltInRouteEntrypoint(entrypoint) ||
-        (!isPluginOwnedRouteEntrypoint(entrypoint) &&
-          (hasUserRouterConfig || hasRuntimeRouterConfig));
+        (!isPluginOwnedRouteEntrypoint(entrypoint) && hasUserRouterConfig);
 
       if (shouldInstallBuiltInRouter) {
         plugins.push({

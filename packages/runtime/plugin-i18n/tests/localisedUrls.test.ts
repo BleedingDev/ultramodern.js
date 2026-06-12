@@ -1,5 +1,6 @@
 import type { NestedRouteForCli } from '@modern-js/types';
 import { describe, expect, test } from '@rstest/core';
+import { i18nPlugin as i18nCliPlugin } from '../src/cli';
 import {
   collectApiPrefixes,
   i18nServerPlugin,
@@ -7,7 +8,9 @@ import {
 } from '../src/server';
 import {
   applyLocalisedUrlsToRoutes,
+  matchPathPattern,
   resolveLocalisedPath,
+  resolveLocalisedUrlsConfig,
   validateLocalisedUrls,
 } from '../src/shared/localisedUrls';
 
@@ -30,6 +33,74 @@ const createRequestContext = (pathname: string) =>
       url: `http://localhost${pathname}`,
     },
   }) as any;
+
+describe('resolveLocalisedUrlsConfig', () => {
+  test('is opt-in: only a non-empty map enables the feature', () => {
+    const map = { '/about': { en: '/about', cs: '/o-nas' } };
+    expect(resolveLocalisedUrlsConfig(map)).toEqual({ enabled: true, map });
+  });
+
+  test('absent, boolean and empty-map options resolve to disabled', () => {
+    const disabled = { enabled: false, map: {} };
+    expect(resolveLocalisedUrlsConfig(undefined)).toEqual(disabled);
+    expect(resolveLocalisedUrlsConfig(false)).toEqual(disabled);
+    expect(resolveLocalisedUrlsConfig(true)).toEqual(disabled);
+    expect(resolveLocalisedUrlsConfig({})).toEqual(disabled);
+  });
+});
+
+describe('cli modifyFileSystemRoutes', () => {
+  const setupModifyRoutes = (localeDetection: Record<string, unknown>) => {
+    let modifyRoutes:
+      | ((args: { entrypoint: any; routes: any[] }) => {
+          entrypoint: any;
+          routes: any[];
+        })
+      | undefined;
+
+    i18nCliPlugin({ localeDetection }).setup({
+      _internalRuntimePlugins: () => {},
+      modifyFileSystemRoutes: (fn: any) => {
+        modifyRoutes = fn;
+      },
+      _internalServerPlugins: () => {},
+    } as any);
+
+    expect(modifyRoutes).toBeDefined();
+    return modifyRoutes!;
+  };
+
+  test('upstream-style configs without a map keep routes untouched', () => {
+    const modifyRoutes = setupModifyRoutes({
+      localePathRedirect: true,
+      languages: ['en', 'cs'],
+    });
+    const routes = [createRoute(':lang', [createRoute('about')])];
+
+    const result = modifyRoutes({ entrypoint: { entryName: 'main' }, routes });
+
+    expect(result.routes).toBe(routes);
+  });
+
+  test('a configured map still expands localised route aliases', () => {
+    const modifyRoutes = setupModifyRoutes({
+      localePathRedirect: true,
+      languages: ['en', 'cs'],
+      localisedUrls: {
+        '/about': { en: '/about', cs: '/o-nas' },
+      },
+    });
+    const routes = [createRoute(':lang', [createRoute('about')])];
+
+    const result = modifyRoutes({ entrypoint: { entryName: 'main' }, routes });
+
+    const localeRoute = result.routes[0] as NestedRouteForCli;
+    expect(localeRoute.children?.map(route => route.path)).toEqual([
+      'about',
+      'o-nas',
+    ]);
+  });
+});
 
 describe('localisedUrls', () => {
   test('requires every localisable route path to define every language', () => {
@@ -198,6 +269,47 @@ describe('localisedUrls', () => {
   });
 });
 
+describe('matchPathPattern decoding', () => {
+  test('decodes valid percent-encoded params', () => {
+    expect(
+      matchPathPattern('/produkty/%C4%8Derven%C3%A1', '/produkty/:slug'),
+    ).toEqual({ slug: 'červená' });
+  });
+
+  test('treats malformed percent-encoding as no match instead of throwing', () => {
+    expect(() =>
+      matchPathPattern('/produkty/%E0%A4%A', '/produkty/:slug'),
+    ).not.toThrow();
+    expect(
+      matchPathPattern('/produkty/%E0%A4%A', '/produkty/:slug'),
+    ).toBeNull();
+  });
+
+  test('keeps literal bracket segments in pathnames (no pattern rewrite)', () => {
+    expect(matchPathPattern('/produkty/[x]', '/produkty/:slug')).toEqual({
+      slug: '[x]',
+    });
+  });
+
+  test('resolveLocalisedPath returns malformed paths unchanged', () => {
+    const localisedUrls = {
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+    };
+
+    expect(
+      resolveLocalisedPath(
+        '/produkty/%E0%A4%A',
+        'en',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/produkty/%E0%A4%A');
+  });
+});
+
 describe('i18n server API prefix skips', () => {
   test('collects API route prefixes and normalized BFF config prefixes', () => {
     expect(
@@ -270,6 +382,66 @@ describe('i18n server API prefix skips', () => {
       expect(response).toBeUndefined();
       expect(nextCalls).toBe(1);
     }
+  });
+
+  test('canonical redirect survives malformed percent-encoding', async () => {
+    const middlewares: any[] = [];
+    const routes = [{ entryName: 'main', entryPath: '', urlPath: '/' }];
+    let prepare: (() => void) | undefined;
+
+    i18nServerPlugin({
+      localeDetection: {
+        fallbackLanguage: 'en',
+        languages: ['en', 'cs'],
+        localePathRedirect: true,
+        localisedUrls: {
+          '/products/:slug': {
+            en: '/products/:slug',
+            cs: '/produkty/:slug',
+          },
+        },
+      },
+      staticRoutePrefixes: [],
+    }).setup({
+      getServerConfig: () => ({}),
+      getServerContext: () => ({ middlewares, routes }),
+      onPrepare: fn => {
+        prepare = fn;
+      },
+    } as any);
+
+    prepare?.();
+
+    const redirectMiddleware = middlewares.find(
+      middleware => middleware.name === 'i18n-server-middleware',
+    );
+    const createContext = (pathname: string) =>
+      ({
+        req: {
+          url: `http://localhost${pathname}`,
+          header: () => ({ host: 'localhost' }),
+        },
+        get: () => null,
+        redirect: (url: string) => ({ redirectedTo: url }),
+      }) as any;
+
+    // Sanity: well-formed non-canonical slugs still redirect.
+    const redirected = await redirectMiddleware.handler(
+      createContext('/cs/products/bota'),
+      async () => {},
+    );
+    expect(redirected).toEqual({ redirectedTo: '/cs/produkty/bota' });
+
+    // Malformed encoding must fall through to next() instead of throwing.
+    let nextCalls = 0;
+    const response = await redirectMiddleware.handler(
+      createContext('/cs/produkty/%E0%A4%A'),
+      async () => {
+        nextCalls++;
+      },
+    );
+    expect(response).toBeUndefined();
+    expect(nextCalls).toBe(1);
   });
 
   test('uses /api as the BFF prefix when BFF config is present without prefix', async () => {

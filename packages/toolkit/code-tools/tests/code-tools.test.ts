@@ -289,6 +289,170 @@ export function App() {
     expect(combinedOutput(result)).toContain('data-mf-* boundary attributes');
   });
 
+  test('workspace runner accepts renamed locale resource identifiers and explicit resources property', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell/src/modern.runtime.ts',
+      `
+import czechShell from '../locales/cs/shell.json';
+import englishShell from '../locales/en/shell.json';
+
+const localeResources = {
+  cs: czechShell,
+  en: englishShell,
+};
+
+export default {
+  i18n: {
+    initOptions: {
+      resources: localeResources
+    },
+  },
+};
+`,
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/en/shell.json',
+      JSON.stringify({ title: 'shell' }),
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/cs/shell.json',
+      JSON.stringify({ title: 'shell' }),
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({ cwd: root, sourceRoots: ['apps'] }),
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.logs).toContain(
+      'UltraModern i18n and boundary guardrails validated',
+    );
+    expect(result.errors).toEqual([]);
+  });
+
+  test('workspace runner plural-checks additional configured locales instead of bypassing them', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell/src/modern.runtime.ts',
+      `
+import deResource from '../locales/de/shell.json';
+import enResource from '../locales/en/shell.json';
+
+const resources = {
+  de: deResource,
+  en: enResource,
+};
+
+export default {
+  i18n: {
+    initOptions: {
+      resources,
+    },
+  },
+};
+`,
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/en/shell.json',
+      JSON.stringify({
+        items_one: '{{count}} item',
+        items_other: '{{count}} items',
+      }),
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/de/shell.json',
+      JSON.stringify({
+        items_one: '{{count}} Artikel',
+      }),
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: ['en', 'de'],
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors.join('\n')).toContain(
+      'plural group .items is missing _other',
+    );
+  });
+
+  test('workspace runner requires imports for every configured locale and honors plural-category overrides', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell/src/modern.runtime.ts',
+      `
+import enResource from '../locales/en/shell.json';
+import xxResource from '../locales/xx/shell.json';
+
+const resources = {
+  en: enResource,
+  xx: xxResource,
+};
+
+export default {
+  i18n: {
+    initOptions: {
+      resources,
+    },
+  },
+};
+`,
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/en/shell.json',
+      JSON.stringify({
+        items_one: '{{count}} item',
+        items_other: '{{count}} items',
+      }),
+    );
+    writeFile(
+      root,
+      'apps/shell/locales/xx/shell.json',
+      JSON.stringify({
+        items_other: '{{count}} items',
+      }),
+    );
+
+    const passing = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: ['en', 'xx'],
+        pluralCategories: { xx: ['other'] },
+      }),
+    );
+
+    expect(passing.exitCode).toBe(0);
+    expect(passing.errors).toEqual([]);
+
+    const missingImport = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: ['en', 'xx', 'fr'],
+        pluralCategories: { xx: ['other'] },
+      }),
+    );
+
+    expect(missingImport.exitCode).toBe(1);
+    expect(missingImport.errors.join('\n')).toContain(
+      'missing locale JSON imports for: fr',
+    );
+  });
+
   test('workspace runner keeps runtime resource and plural-resource checks', () => {
     const root = trackTempRoot();
     writeFile(

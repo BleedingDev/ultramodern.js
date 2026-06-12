@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import type { ServerRoute } from '@modern-js/types';
 import {
+  dynamicImport,
   fs as fse,
   getMeta,
   ROUTE_SPEC_FILE,
@@ -56,70 +58,36 @@ export const getTemplatePath = (file: string) =>
 export const readTemplate = async (file: string) =>
   (await fse.readFile(getTemplatePath(file))).toString();
 
-const localRequire = createRequire(path.join(__dirname, 'package.json'));
-
-const findNearestPackageJson = (resolvedEntry: string) => {
-  let currentDir = path.dirname(resolvedEntry);
-
-  while (currentDir !== path.dirname(currentDir)) {
-    const manifestPath = path.join(currentDir, 'package.json');
-    if (fse.existsSync(manifestPath)) {
-      return manifestPath;
-    }
-    currentDir = path.dirname(currentDir);
-  }
-};
-
-const splitPackageSpecifier = (entry: string) => {
-  const segments = entry.split('/');
-
-  if (entry.startsWith('@')) {
-    const [scope, name, ...rest] = segments;
-    return {
-      packageName: `${scope}/${name}`,
-      exportKey: rest.length > 0 ? `./${rest.join('/')}` : '.',
-    };
-  }
-
-  const [name, ...rest] = segments;
-  return {
-    packageName: name,
-    exportKey: rest.length > 0 ? `./${rest.join('/')}` : '.',
-  };
-};
-
 export const resolveESMDependency = async (entry: string) => {
+  const conditions = new Set(['node', 'import', 'module', 'default']);
+
   try {
-    const { packageName, exportKey } = splitPackageSpecifier(entry);
-    const resolvedEntry = localRequire.resolve(entry);
-    const packageJsonPath = findNearestPackageJson(
-      localRequire.resolve(packageName),
-    );
-
-    if (!packageJsonPath) {
-      return normalizePath(resolvedEntry);
-    }
-
-    const packageDir = path.dirname(packageJsonPath);
-    const packageJson = fse.readJSONSync(packageJsonPath) as {
-      exports?: Record<string, any>;
+    // `dynamicImport` keeps the import() expression intact in the CJS dist,
+    // which is required because import-meta-resolve is ESM-only. But the
+    // wrapper is a `new Function(...)` import with no module referrer, so a
+    // bare specifier would resolve from process.cwd() — the user's app dir at
+    // deploy time, where import-meta-resolve is not installed under pnpm's
+    // strict layout. Resolve it from this package first so the import is
+    // cwd-independent.
+    const resolverPath = pathToFileURL(
+      createRequire(__filename).resolve('import-meta-resolve'),
+    ).href;
+    const { moduleResolve } = (await dynamicImport(resolverPath)) as {
+      moduleResolve: (
+        specifier: string,
+        base: URL,
+        conditions?: Set<string>,
+        preserveSymlinks?: boolean,
+      ) => URL;
     };
-    const exportConfig = packageJson.exports?.[exportKey];
-
-    if (typeof exportConfig === 'string') {
-      return normalizePath(path.join(packageDir, exportConfig));
-    }
-
-    const esmExportPath =
-      exportConfig?.node?.import ||
-      exportConfig?.import ||
-      exportConfig?.default;
-
-    if (typeof esmExportPath === 'string') {
-      return normalizePath(path.join(packageDir, esmExportPath));
-    }
-
-    return normalizePath(resolvedEntry);
+    return normalizePath(
+      moduleResolve(
+        entry,
+        pathToFileURL(`${__dirname}/`),
+        conditions,
+        false,
+      ).pathname.replace(/^\/(\w):/, '$1:'),
+    );
   } catch (err) {
     // ignore
   }

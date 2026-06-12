@@ -12,6 +12,7 @@ type TraceViewModel = {
   dbParentSpanId: string;
   dbTraceId: string;
   spanNames: string;
+  spansJson: string;
 };
 
 function randomHex(bytes: number) {
@@ -41,6 +42,7 @@ export default function TracePage() {
     dbParentSpanId: '',
     dbTraceId: '',
     spanNames: '',
+    spansJson: '[]',
   });
 
   useEffect(() => {
@@ -62,7 +64,15 @@ export default function TracePage() {
         const runSpan = spans.find(
           span => span.name === 'bff.effect.trace.run',
         );
-        const dbSpan = spans.find(span => span.name === 'bff.effect.db.query');
+        // The db span is the child of the run span: pair them structurally
+        // instead of taking the first name match.
+        const dbSpan = runSpan
+          ? spans.find(
+              span =>
+                span.name === 'bff.effect.db.query' &&
+                span.parentSpanId === runSpan.spanId,
+            )
+          : undefined;
 
         if (runSpan && dbSpan) {
           if (!mounted) {
@@ -81,6 +91,7 @@ export default function TracePage() {
               .map(span => span.name)
               .sort()
               .join(','),
+            spansJson: JSON.stringify(spans),
           });
           return;
         }
@@ -125,6 +136,7 @@ export default function TracePage() {
       <div className="trace-db-parent-span-id">{model.dbParentSpanId}</div>
       <div className="trace-db-trace-id">{model.dbTraceId}</div>
       <div className="trace-span-names">{model.spanNames}</div>
+      <div className="trace-spans">{model.spansJson}</div>
     </div>
   );
 }

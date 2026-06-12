@@ -61,7 +61,8 @@ export interface OutputUserConfig
   /**
    * Generate precompressed static assets by using compression-webpack-plugin.
    * `true` means enabling both gzip and brotli with default options.
-   * @default true
+   * Disabled unless explicitly configured; `presetUltramodern` enables it.
+   * @default false
    */
   precompress?: boolean | PrecompressConfig;
 }

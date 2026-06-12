@@ -60,7 +60,7 @@ describe('plugin registration', () => {
             const { middlewares } = api.getServerContext();
             middlewares.push({
               name: 'stub-inject-server-manifest',
-              handler: async (c, next) => {
+              handler: async (c: any, next: any) => {
                 c.set('serverManifest', { loaderBundles: {} } as any);
                 await next();
               },
@@ -76,7 +76,7 @@ describe('plugin registration', () => {
             const { middlewares } = api.getServerContext();
             middlewares.push({
               name: 'capture-server-manifest',
-              handler: async c => {
+              handler: async (c: any) => {
                 observedManifest = c.get('serverManifest') as unknown as Record<
                   string,
                   unknown

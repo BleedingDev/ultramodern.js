@@ -151,7 +151,13 @@ export interface OperationContext {
   method: string;
   operationId: string;
   routePath: string;
-  source: string;
+  source:
+    | 'client'
+    | 'server'
+    | 'generated-client'
+    | 'effect-adapter'
+    | 'data-platform'
+    | 'unknown';
   traceId?: string;
 }
 
@@ -227,25 +233,17 @@ export const ${groupName}ApiContract = {
 `;
 }
 
-export function createEffectSharedApi(service?: {
+export function createEffectSharedApi(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }): string {
-  if (service) {
-    return `${createEffectSharedApiImports()}
+  return `${createEffectSharedApiImports()}
 ${createEffectSharedApiContract(service)}`;
-  }
-
-  return `export const sharedEffectApiPackage = {
-  scope: 'external-effect-api-contracts',
-} as const;
-`;
 }
 
 export function createEffectServiceEntry(
-  scope: string,
   service: { id: string; effectApi?: WorkspaceEffectApi },
-  contractImportPath = packageName(scope, 'shared-effect-api'),
+  contractImportPath: string,
 ): string {
   const apiExport = verticalEffectApiExport(service);
   const groupName = verticalEffectGroupName(service);
@@ -408,6 +406,15 @@ export const ${createClientName} = (
 ) =>
   makeEffectHttpApiClient(${apiExport}, {
     baseUrl: options.baseUrl ?? ${contractExport}ApiContract.apiPrefix,
+    requestContext: {
+      ...(options.locale === undefined ? {} : { locale: options.locale }),
+      ...(options.operationContext === undefined
+        ? {}
+        : { operationContext: options.operationContext }),
+      ...(options.traceparent === undefined
+        ? {}
+        : { traceparent: options.traceparent }),
+    },
   });
 
 export const ${listName} = (
@@ -526,58 +533,6 @@ export function createEffectDomainOperations(app: {
   const stem = effectApiStem(app);
   const group = verticalEffectGroupName(app);
   const basePath = `/effect/${stem}`;
-
-  if (stem === 'actions') {
-    return {
-      actionQueue: {
-        client: 'listActions',
-        method: 'GET',
-        path: basePath,
-        resource: 'action-queue',
-        owner: app.id,
-      },
-      actionMutation: {
-        client: 'createActions',
-        method: 'POST',
-        path: basePath,
-        resource: 'action',
-        owner: app.id,
-      },
-      actionStatus: {
-        client: 'getActions',
-        method: 'GET',
-        path: `${basePath}/:id`,
-        resource: 'action-status',
-        owner: app.id,
-      },
-    };
-  }
-
-  if (stem === 'records') {
-    return {
-      recordDetail: {
-        client: 'getRecords',
-        method: 'GET',
-        path: `${basePath}/:id`,
-        resource: 'record',
-        owner: app.id,
-      },
-      recordDraft: {
-        client: 'createRecords',
-        method: 'POST',
-        path: basePath,
-        resource: 'record-draft',
-        owner: app.id,
-      },
-      recordList: {
-        client: 'listRecords',
-        method: 'GET',
-        path: basePath,
-        resource: 'records',
-        owner: app.id,
-      },
-    };
-  }
 
   return {
     workspaceFeed: {

@@ -313,7 +313,10 @@ describe('telemetry exporters', () => {
     ]);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const [url, init] = mockFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe('http://localhost:4318/v1/logs');
     expect(init.method).toBe('POST');
     const payload = JSON.parse(String(init.body)) as {
@@ -344,7 +347,10 @@ describe('telemetry exporters', () => {
     ]);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const [url, init] = mockFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe('http://localhost:8428/api/v1/import/prometheus');
     expect(init.method).toBe('POST');
     const body = String(init.body);

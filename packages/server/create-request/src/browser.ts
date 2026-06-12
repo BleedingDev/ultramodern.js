@@ -1,7 +1,22 @@
 import { compile } from 'path-to-regexp';
 import { stringify } from 'qs';
 import { handleRes } from './handleRes';
-import { parseTraceparent as parseTraceparentHeader } from './traceparent';
+import {
+  attachOperationContextHeaders,
+  buildEnvelopeHeaderValue,
+  deleteHeader,
+  extractPathParamNames,
+  IdentityBindingViolationError,
+  isEmptyDomain,
+  isSecuredRequestId,
+  ProducerDomainNotConfiguredError,
+  parseTraceparentValue,
+  readHeader,
+  resolveConfiguredRequest,
+  TRACEPARENT_HEADER,
+  toOrigin,
+  writeHeader,
+} from './policyCore';
 import { executeWithResilience } from './transport';
 import type {
   AllowCrossOriginEnvelope,
@@ -9,9 +24,7 @@ import type {
   IdentityBindingOptions,
   IdentityBindingViolation,
   IOptions,
-  OperationContext,
   OperationContractOptions,
-  OperationContractViolation,
   RequestCreator,
   RequestCreatorOptions,
   Sender,
@@ -26,6 +39,14 @@ import {
 } from './types';
 import { getUploadPayload } from './utiles';
 
+export {
+  CrossOriginEnvelopePolicyError,
+  IdentityBindingViolationError,
+  OperationContractViolationError,
+  ProducerClientNotInitializedError,
+  ProducerDomainNotConfiguredError,
+} from './policyCore';
+
 const realRequest: Map<string, typeof fetch> = new Map();
 
 const realAllowedHeaders: Map<string, string[]> = new Map();
@@ -37,80 +58,12 @@ const realTransportResilience: Map<string, TransportResilienceOptions> =
 const realIdentityBinding: Map<string, IdentityBindingOptions> = new Map();
 const realOperationContract: Map<string, OperationContractOptions> = new Map();
 const domainMap: Map<string, string> = new Map();
-const isEmptyDomain = (domain?: string) =>
-  typeof domain !== 'string' || domain.trim() === '';
-const TRACEPARENT_HEADER = 'traceparent';
+
 const OPERATION_CONTEXT_DETAIL_HEADER =
   BFF_OPERATION_CONTEXT_DETAIL_HEADER satisfies 'x-modernjs-bff-operation-context';
-const readProcessEnv = (key: string) => {
-  if (
-    typeof process === 'undefined' ||
-    typeof process.env === 'undefined' ||
-    typeof process.env[key] !== 'string'
-  ) {
-    return undefined;
-  }
 
-  return process.env[key];
-};
-const isStrictDefaultRequestIdEnabled = () =>
-  readProcessEnv('MODERN_BFF_STRICT_DEFAULT_REQUEST_ID') === 'true';
-const isSecuredRequestId = (requestId: string) =>
-  requestId !== 'default' || isStrictDefaultRequestIdEnabled();
-
-const firstHeaderValue = (value: unknown) =>
-  Array.isArray(value) ? value[0] : value;
-
-const findHeaderKey = (headers: Record<string, any>, header: string) => {
-  const normalized = header.toLowerCase();
-  return Object.keys(headers).find(key => key.toLowerCase() === normalized);
-};
-
-const readHeader = (headers: Record<string, any>, header: string) => {
-  const key = findHeaderKey(headers, header);
-  return typeof key === 'string' ? headers[key] : undefined;
-};
-
-const writeHeader = (
-  headers: Record<string, any>,
-  header: string,
-  value: unknown,
-) => {
-  if (typeof value === 'undefined') {
-    return;
-  }
-  const key = findHeaderKey(headers, header);
-  if (typeof key === 'string' && key !== header) {
-    delete headers[key];
-  }
-  headers[header] = value;
-};
-
-const deleteHeader = (headers: Record<string, any>, header: string) => {
-  const key = findHeaderKey(headers, header);
-  if (typeof key === 'string') {
-    delete headers[key];
-  }
-};
-
-const toOrigin = (value?: string) => {
-  if (!value) {
-    return undefined;
-  }
-  try {
-    return new URL(value).origin;
-  } catch (error) {
-    return undefined;
-  }
-};
-
-const parseTraceparentValue = (value: unknown) =>
-  parseTraceparentHeader(firstHeaderValue(value));
-
-const extractPathParamNames = (path: string): string[] =>
-  Array.from(path.matchAll(/:([A-Za-z0-9_]+)/g)).flatMap(([, key]) =>
-    key ? [key] : [],
-  );
+const resolveBrowserOrigin = () =>
+  typeof window !== 'undefined' ? window.location.origin : undefined;
 
 const originFetch = (...params: Parameters<typeof fetch>) => {
   const [url, init] = params;
@@ -121,190 +74,50 @@ const originFetch = (...params: Parameters<typeof fetch>) => {
   return fetch(url, init).then(handleRes);
 };
 
-const buildOperationContext = ({
-  requestId,
-  method,
-  path,
-  operationContext,
-  traceparent,
-}: {
-  requestId: string;
-  method: string;
-  path: string;
-  operationContext?: OperationContext | undefined;
-  traceparent?: unknown;
-}) => {
-  const routePath = operationContext?.routePath || path;
-  const operationMethod = (
-    operationContext?.method ||
-    method ||
-    'GET'
-  ).toUpperCase();
-  const rawOperationId =
-    operationContext?.operationId || `${operationMethod}:${routePath}`;
-  const operationId = rawOperationId.startsWith(`${requestId}:`)
-    ? rawOperationId
-    : `${requestId}:${rawOperationId}`;
-  const traceparentValue =
-    operationContext?.traceparent ||
-    (typeof firstHeaderValue(traceparent) === 'string'
-      ? String(firstHeaderValue(traceparent))
-      : undefined);
-  const parsedTraceContext =
-    operationContext?.traceId && operationContext?.spanId
-      ? {
-          traceId: operationContext.traceId,
-          spanId: operationContext.spanId,
-        }
-      : parseTraceparentValue(traceparentValue);
-
-  return {
-    requestId,
-    operationId,
-    routePath,
-    method: operationMethod,
-    ...(operationContext?.schemaHash
-      ? { schemaHash: operationContext.schemaHash }
-      : {}),
-    ...(typeof operationContext?.operationVersion === 'number'
-      ? { operationVersion: operationContext.operationVersion }
-      : {}),
-    ...(traceparentValue ? { traceparent: traceparentValue } : {}),
-    ...(parsedTraceContext
-      ? {
-          traceId: parsedTraceContext.traceId,
-          spanId: parsedTraceContext.spanId,
-        }
-      : {}),
-  };
-};
-
-export class ProducerClientNotInitializedError extends Error {
-  readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';
-
-  constructor(requestId: string) {
-    super(
-      `Producer client "${requestId}" is not initialized. Call initProducerClient() (or configure()) before using generated APIs for this requestId.`,
-    );
-    this.name = 'ProducerClientNotInitializedError';
-  }
-}
-
-export class ProducerDomainNotConfiguredError extends Error {
-  readonly code = 'BFF_PRODUCER_DOMAIN_NOT_CONFIGURED';
-
-  constructor(requestId: string) {
-    super(
-      `Producer client "${requestId}" must provide setDomain() during configure().`,
-    );
-    this.name = 'ProducerDomainNotConfiguredError';
-  }
-}
-
-export class CrossOriginEnvelopePolicyError extends Error {
-  readonly code = 'BFF_CROSS_ORIGIN_ENVELOPE_NOT_ALLOWED';
-
-  constructor(requestId: string, sourceOrigin?: string, targetOrigin?: string) {
-    super(
-      `Cross-origin envelope is not allowed for producer "${requestId}" (${sourceOrigin || 'unknown-origin'} -> ${targetOrigin || 'unknown-origin'}). Configure allowCrossOriginEnvelope to explicitly allow this flow.`,
-    );
-    this.name = 'CrossOriginEnvelopePolicyError';
-  }
-}
-
-export class IdentityBindingViolationError extends Error {
-  readonly code = 'BFF_IDENTITY_BINDING_VIOLATION';
-
-  readonly violation: IdentityBindingViolation;
-
-  constructor(violation: IdentityBindingViolation) {
-    super(
-      `Identity header "${violation.header}" for producer "${violation.requestId}" was rejected by server-derived identity binding.`,
-    );
-    this.name = 'IdentityBindingViolationError';
-    this.violation = violation;
-  }
-}
-
-export class OperationContractViolationError extends Error {
-  readonly code = 'BFF_OPERATION_CONTRACT_VIOLATION';
-
-  readonly violation: OperationContractViolation;
-
-  constructor(violation: OperationContractViolation) {
-    super(
-      `Operation contract violation "${violation.reason}" for producer "${violation.requestId}" operation "${violation.operationId}".`,
-    );
-    this.name = 'OperationContractViolationError';
-    this.violation = violation;
-  }
-}
-
-const validateOperationContract = (
+const attachEnvelopeHeaderIfRequired = (
+  headers: Record<string, any>,
   requestId: string,
-  contextPayload: ReturnType<typeof buildOperationContext>,
+  finalURL: string,
 ) => {
-  const operationContract = realOperationContract.get(requestId);
-  const operationContractEnabled =
-    operationContract?.enabled ?? isSecuredRequestId(requestId);
-
-  if (!operationContractEnabled) {
+  const shouldRequireEnvelope =
+    realRequireEnvelope.get(requestId) ?? isSecuredRequestId(requestId);
+  if (!shouldRequireEnvelope) {
     return;
   }
 
-  const strict = operationContract?.strict ?? true;
-  const requireSchemaHash = operationContract?.requireSchemaHash ?? true;
-  const requireOperationVersion =
-    operationContract?.requireOperationVersion ?? true;
-
-  const maybeReportViolation = (
-    reason: OperationContractViolation['reason'],
-  ) => {
-    const violation: OperationContractViolation = {
-      requestId,
-      target: 'browser',
-      operationId: contextPayload.operationId,
-      routePath: contextPayload.routePath,
-      method: contextPayload.method,
-      schemaHash:
-        typeof contextPayload.schemaHash === 'string'
-          ? contextPayload.schemaHash
-          : undefined,
-      operationVersion:
-        typeof contextPayload.operationVersion === 'number'
-          ? contextPayload.operationVersion
-          : undefined,
-      reason,
-    };
-    operationContract?.onViolation?.(violation);
-    if (strict) {
-      throw new OperationContractViolationError(violation);
-    }
-  };
-
-  if (requireSchemaHash && typeof contextPayload.schemaHash !== 'string') {
-    maybeReportViolation('missing_schema_hash');
-  }
-
-  if (
-    requireOperationVersion &&
-    typeof contextPayload.operationVersion !== 'number'
-  ) {
-    maybeReportViolation('missing_operation_version');
-  }
+  headers[ENVELOPE_HEADER] = buildEnvelopeHeaderValue({
+    requestId,
+    target: 'browser',
+    sourceOrigin: resolveBrowserOrigin(),
+    targetOrigin: toOrigin(finalURL),
+    traceContext: parseTraceparentValue(
+      readHeader(headers, TRACEPARENT_HEADER),
+    ),
+    allowCrossOriginEnvelope: realAllowCrossOriginEnvelope.get(requestId),
+  });
 };
 
-const getConfiguredRequest = (requestId: string, fallback: typeof fetch) => {
-  const configuredRequest = realRequest.get(requestId);
-  if (configuredRequest) {
-    return configuredRequest;
+const attachSecuredOperationHeaders = (
+  headers: Record<string, any>,
+  requestId: string,
+  method: string,
+  path: string,
+  operationContext: RequestCreatorOptions['operationContext'],
+) => {
+  if (!isSecuredRequestId(requestId)) {
+    return;
   }
-
-  if (requestId !== 'default') {
-    throw new ProducerClientNotInitializedError(requestId);
-  }
-
-  return fallback;
+  attachOperationContextHeaders({
+    headers,
+    requestId,
+    target: 'browser',
+    method,
+    path,
+    operationContext,
+    operationContract: realOperationContract.get(requestId),
+    operationContextHeader: OPERATION_CONTEXT_HEADER,
+    operationContextDetailHeader: OPERATION_CONTEXT_DETAIL_HEADER,
+  });
 };
 
 export const configure = (options: IOptions) => {
@@ -411,7 +224,7 @@ export const createRequest: RequestCreator = ((
   const keyNames = extractPathParamNames(path);
 
   const sender: Sender = async (...args) => {
-    const fetcher = getConfiguredRequest(requestId, fetch);
+    const fetcher = resolveConfiguredRequest(realRequest, requestId, fetch);
 
     let body;
     let finalURL: string;
@@ -548,84 +361,14 @@ export const createRequest: RequestCreator = ((
     }
     finalURL = `${configDomain || ''}${finalURL}`;
 
-    const shouldRequireEnvelope =
-      realRequireEnvelope.get(requestId) ?? isSecuredRequestId(requestId);
-    if (shouldRequireEnvelope) {
-      const sourceOrigin =
-        typeof window !== 'undefined' ? window.location.origin : undefined;
-      const targetOrigin = toOrigin(finalURL);
-      const traceContext = parseTraceparentValue(
-        readHeader(headers, TRACEPARENT_HEADER),
-      );
-      const isCrossOrigin =
-        Boolean(sourceOrigin) &&
-        Boolean(targetOrigin) &&
-        sourceOrigin !== targetOrigin;
-      if (isCrossOrigin) {
-        const policy = realAllowCrossOriginEnvelope.get(requestId);
-        const isAllowed =
-          typeof policy === 'function'
-            ? policy({
-                requestId,
-                sourceOrigin,
-                targetOrigin,
-                target: 'browser',
-              })
-            : policy === true;
-        if (!isAllowed) {
-          throw new CrossOriginEnvelopePolicyError(
-            requestId,
-            sourceOrigin,
-            targetOrigin,
-          );
-        }
-      }
-      headers[ENVELOPE_HEADER] = JSON.stringify({
-        requestId,
-        target: 'browser',
-        timestamp: Date.now(),
-        sourceOrigin,
-        targetOrigin,
-        ...(traceContext
-          ? {
-              traceId: traceContext.traceId,
-              spanId: traceContext.spanId,
-            }
-          : {}),
-      });
-    }
-
-    if (isSecuredRequestId(requestId)) {
-      if (
-        typeof readHeader(headers, TRACEPARENT_HEADER) === 'undefined' &&
-        operationContext?.traceparent
-      ) {
-        writeHeader(headers, TRACEPARENT_HEADER, operationContext.traceparent);
-      }
-      const contextPayload = buildOperationContext({
-        requestId,
-        method,
-        path,
-        operationContext,
-        traceparent: readHeader(headers, TRACEPARENT_HEADER),
-      });
-      validateOperationContract(requestId, contextPayload);
-
-      if (
-        typeof readHeader(headers, OPERATION_CONTEXT_HEADER) === 'undefined'
-      ) {
-        writeHeader(
-          headers,
-          OPERATION_CONTEXT_HEADER,
-          contextPayload.operationId,
-        );
-      }
-      writeHeader(
-        headers,
-        OPERATION_CONTEXT_DETAIL_HEADER,
-        JSON.stringify(contextPayload),
-      );
-    }
+    attachEnvelopeHeaderIfRequired(headers, requestId, finalURL);
+    attachSecuredOperationHeaders(
+      headers,
+      requestId,
+      method,
+      path,
+      operationContext,
+    );
 
     return executeWithResilience({
       requestId,
@@ -649,16 +392,31 @@ export const createUploader: UploadCreator = ({
   path,
   domain,
   requestId = 'default',
+  operationContext,
 }) => {
   const getFinalPath = compile(path, { encode: encodeURIComponent });
   const sender: Sender = (...args) => {
-    const fetcher = getConfiguredRequest(requestId, originFetch);
+    const fetcher = resolveConfiguredRequest(
+      realRequest,
+      requestId,
+      originFetch,
+    );
 
-    const { body, headers, params } = getUploadPayload(args);
+    const { body, headers: uploadHeaders, params } = getUploadPayload(args);
+    const headers: Record<string, any> = { ...uploadHeaders };
     const finalPath = getFinalPath(params);
 
     const configDomain = domainMap.get(requestId);
     const finalURL = `${configDomain || domain || ''}${finalPath}`;
+
+    attachEnvelopeHeaderIfRequired(headers, requestId, finalURL);
+    attachSecuredOperationHeaders(
+      headers,
+      requestId,
+      'POST',
+      path,
+      operationContext,
+    );
 
     return fetcher(finalURL, {
       method: 'POST',

@@ -56,11 +56,6 @@ export const sharedPackages = [
     directory: 'packages/shared-design-tokens',
     description: 'Design token placeholders consumed by shell and verticals.',
   },
-  {
-    id: 'shared-effect-api',
-    directory: 'packages/shared-effect-api',
-    description: 'Shared Effect API type placeholders for vertical clients.',
-  },
 ];
 
 export function createNeutralOwnership(

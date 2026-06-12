@@ -42,10 +42,18 @@ export const EN_LOCALE = {
     optionLang: '  -l, --lang     Set the language (en default; zh opt-in)',
     optionTailwind:
       '      --no-tailwind Disable default Tailwind CSS v4 workspace styling',
+    optionBff:
+      '      --bff Keep the default Effect BFF scaffolding (every MicroVertical ships an Effect BFF)',
+    optionBffRuntime:
+      '      --bff-runtime Select the BFF runtime for scaffolded MicroVerticals (supported: effect; default: effect)',
     optionWorkspace:
       '      --workspace Use workspace protocol for @modern-js dependencies (for local monorepo testing)',
     optionUltramodernPackageSource:
       '      --ultramodern-package-source Select UltraModern package source (workspace or install; BleedingDev defaults to install aliases)',
+    optionUltramodernPackageVersion:
+      '      --ultramodern-package-version Pin the exact BleedingDev framework cohort for install package sources',
+    optionUltramodernPackageRegistry:
+      '      --ultramodern-package-registry npm registry URL used for install package sources',
     optionUltramodernPackageScope:
       '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
     optionUltramodernPackageNamePrefix:
@@ -63,15 +71,10 @@ export const EN_LOCALE = {
     example5: '  pnpm dlx @bleedingdev/modern-js-create .',
     example6:
       '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
-    example7: '',
-    example8: '',
-    example9: '',
-    example10: '',
-    example11: '',
-    example12: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
+    example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {
-    message: '@bleedingdev/modern-js-create version: {version}',
+    message: '{name} version: {version}',
   },
 };

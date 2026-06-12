@@ -8,7 +8,13 @@ import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
 } from '../../../utils/fixtureLock';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 import { ensurePluginDataLoaderRuntimeBuilt } from '../test/pluginDataLoaderRuntime';
+
+// The beforeAll queues on the routes-tanstack-mf fixture lock (shared with
+// the dev/serve/deploy suites, which hold it for up to 10 minutes) before
+// rebuilding all three federated apps.
+setSuiteTimeout(1000 * 60 * 20);
 
 const projectRoot = path.resolve(__dirname, '../../..');
 const tanstackMfRoot = path.join(projectRoot, 'integration/routes-tanstack-mf');
@@ -190,6 +196,9 @@ describe('tanstack + module federation contracts', () => {
     const tanstackDataMutationRuntime = readFixture(
       '../packages/runtime/plugin-tanstack/src/runtime/dataMutation.tsx',
     );
+    const loaderBridgeRuntime = readFixture(
+      '../packages/runtime/plugin-tanstack/src/runtime/loaderBridge.ts',
+    );
     const ssrDataRuntime = readFixture(
       '../packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts',
     );
@@ -306,10 +315,15 @@ describe('tanstack + module federation contracts', () => {
             'loader: modernLoaderToTanstack({ hasSplat: false }, loader_1)',
           );
           expect(generatedRouter).toContain('modernRouteLoader: loader_1');
-          expect(generatedRouter).toContain(
+          // The request/context handoff lives in the shared loader bridge
+          // imported from the package runtime (not inlined per app).
+          expect(generatedRouter).toMatch(
+            /import \{[^}]*\bmodernLoaderToTanstack\b[^}]*\} from '@modern-js\/plugin-tanstack\/runtime';/s,
+          );
+          expect(loaderBridgeRuntime).toContain(
             'const baseRequest: Request | undefined =',
           );
-          expect(generatedRouter).toContain(
+          expect(loaderBridgeRuntime).toContain(
             'context: ctx?.context?.requestContext',
           );
         },
@@ -346,8 +360,12 @@ describe('tanstack + module federation contracts', () => {
           expect(generatedRouter).toContain(
             'modernRouteId: "mf-redirect/page"',
           );
-          expect(generatedRouter).toContain('throwTanstackRedirect(location)');
-          expect(generatedRouter).toContain('throw notFound();');
+          // Redirect/notFound translation is performed by the shared loader
+          // bridge the generated router imports from the package runtime.
+          expect(loaderBridgeRuntime).toContain(
+            'throwTanstackRedirect(location)',
+          );
+          expect(loaderBridgeRuntime).toContain('throw notFound();');
         },
       },
       {
@@ -491,27 +509,42 @@ describe('tanstack + module federation contracts', () => {
     const code = readFixture(
       'integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts',
     );
+    const loaderBridge = readFixture(
+      '../packages/runtime/plugin-tanstack/src/runtime/loaderBridge.ts',
+    );
 
-    expect(code).toContain('function createRouteStaticData');
-    expect(code).toContain('function modernLoaderToTanstack');
-    expect(code).toContain('throwTanstackRedirect(location)');
-    expect(code).toContain('throw notFound();');
+    // The bridge helpers are imported from the package runtime instead of
+    // being inlined into every generated router.
+    expect(code).toMatch(
+      /import \{[^}]*\bmodernLoaderToTanstack\b[^}]*\} from '@modern-js\/plugin-tanstack\/runtime';/s,
+    );
+    expect(code).toMatch(
+      /import \{[^}]*\bcreateRouteStaticData\b[^}]*\} from '@modern-js\/plugin-tanstack\/runtime';/s,
+    );
+    expect(code).not.toContain('function modernLoaderToTanstack');
+    expect(code).not.toContain('function createRouteStaticData');
+
     expect(code).toContain('route_mf_page');
     expect(code).toContain('path: "mf"');
     expect(code).toContain('route_mfNotFound_page');
     expect(code).toContain('path: "mf-not-found"');
     expect(code).toContain('route_mfRedirect_page');
     expect(code).toContain('path: "mf-redirect"');
-    expect(code).toContain('createMemoryHistory');
-    expect(code).toContain('const request = baseRequest');
-    expect(code).toContain('const baseRequest: Request | undefined =');
-    expect(code).toContain('requestContext?: unknown;');
-    expect(code).toContain('context: ctx?.context?.requestContext');
+    expect(code).toContain('history: createMemoryHistory({');
     expect(code).toContain('staticData: createRouteStaticData({');
     expect(code).toContain('modernRouteId: "mf/page"');
     expect(code).toContain('modernRouteLoader: loader_1');
     expect(code).toContain('import { loader as loader_1, action as action_1 }');
     expect(code).toContain('modernRouteAction: action_1');
+
+    // Request construction, context handoff, and redirect/notFound mapping
+    // live in the shared bridge module.
+    expect(loaderBridge).toContain('const baseRequest: Request | undefined =');
+    expect(loaderBridge).toContain('new Request(baseRequest, { signal })');
+    expect(loaderBridge).toContain('requestContext?: unknown;');
+    expect(loaderBridge).toContain('context: ctx?.context?.requestContext');
+    expect(loaderBridge).toContain('throwTanstackRedirect(location)');
+    expect(loaderBridge).toContain('throw notFound();');
   });
 
   test('host effect boundary uses shared request-context propagation helper', () => {

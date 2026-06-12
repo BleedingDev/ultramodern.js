@@ -15,6 +15,7 @@ import { ssrPlugin } from './ssr';
 
 export {
   getEntrypointRoutesDir,
+  getEntrypointRoutesOwner,
   handleFileChange,
   handleGeneratorEntryCode,
   handleModifyEntrypoints,

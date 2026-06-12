@@ -30,6 +30,7 @@ export default {
         'tests/i18nUtils.test.ts',
         'tests/localisedUrls.test.ts',
         'tests/linkTypes.test.ts',
+        'tests/backendDefaults.test.ts',
       ],
       extends: commonConfig,
     }),

@@ -56,17 +56,6 @@ const Page = () => {
       });
     }
   };
-  const uploadMockImageViaFetch = async (mockImage: File) => {
-    const formData = new FormData();
-    formData.append('images', mockImage);
-    const response = await fetch('/bff-api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const body = await response.json();
-    setFileNameFromUploadResponse(body);
-  };
-
   const click = () => {
     if (!file) {
       return;
@@ -75,18 +64,18 @@ const Page = () => {
       files: {
         images: file,
       },
-    }).catch(() => undefined);
+    }).then(setFileNameFromUploadResponse);
   };
 
   useEffect(() => {
+    // No fetch fallback on purpose: the test must fail when the generated
+    // upload client breaks instead of silently downgrading to raw fetch.
     const mockImage = getMockImage();
     upload({
       files: {
         images: mockImage,
       },
-    })
-      .then(setFileNameFromUploadResponse)
-      .catch(() => uploadMockImageViaFetch(mockImage));
+    }).then(setFileNameFromUploadResponse);
   }, []);
 
   return (

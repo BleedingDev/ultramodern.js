@@ -2,7 +2,6 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute, PageRoute, SSRMode } from '@modern-js/types';
 import React from 'react';
-import { DefaultNotFound } from './DefaultNotFound';
 
 type RouterConfig = {
   routesConfig: {
@@ -106,11 +105,9 @@ export function getRouteObjects(
     }
   }
 
-  routeObjects.push({
-    path: '*',
-    element: <DefaultNotFound />,
-  });
-
+  // No synthetic `{ path: '*' }` 404 route here: TanStack Router handles
+  // not-found matches through the root route's `notFoundComponent`
+  // (see routeTree.ts), so the react-router style catch-all is unnecessary.
   return routeObjects;
 }
 

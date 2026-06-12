@@ -10,6 +10,9 @@ on:
       - main
       - main-ultramodern
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest

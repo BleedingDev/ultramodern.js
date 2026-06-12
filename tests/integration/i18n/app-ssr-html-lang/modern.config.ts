@@ -17,7 +17,6 @@ export default defineConfig({
         i18nextDetector: false,
         languages: ['zh', 'en'],
         fallbackLanguage: 'en',
-        localisedUrls: false,
       },
       backend: {
         enabled: true,

@@ -228,6 +228,48 @@ export type EffectDataPlatformValidationOptions = {
   batch?: EffectDataPlatformBatchOptions;
 };
 
+/**
+ * Server-seam request validator applied to every HttpApi request — direct,
+ * batched (per item) and rpc. Returning a Response short-circuits the
+ * request; returning `null`/`undefined` lets it through. Used by the effect
+ * adapter to enforce the cross-project policy at one seam so batched items
+ * cannot bypass it.
+ */
+export type EffectRequestValidator = (
+  request: Request,
+) => Response | null | undefined;
+
+/**
+ * Brand stamped on `createHandler` factories that are guaranteed to forward
+ * `options.validateRequest` into `createHttpApiHandler` — i.e. the policy
+ * seam runs inside the produced handler, including per batched item.
+ *
+ * `defineEffectBff` brands its factory automatically. Hand-written factories
+ * are NOT assumed to honor `validateRequest` (the option is newer than the
+ * factory shape), so the effect adapter falls back to middleware enforcement
+ * for unbranded factories instead of silently skipping the policy. Custom
+ * factories that do forward `validateRequest` into `createHttpApiHandler`
+ * may opt in by setting this symbol property to `true`.
+ *
+ * Registered via `Symbol.for` so independently loaded runtime copies agree.
+ */
+export const EFFECT_VALIDATOR_AWARE_FACTORY: symbol = Symbol.for(
+  'modernjs.effect.validatorAware',
+);
+
+/**
+ * True when `factory` is branded as validator-aware (see
+ * {@link EFFECT_VALIDATOR_AWARE_FACTORY}).
+ */
+export function isValidatorAwareHandlerFactory(factory: unknown): boolean {
+  return (
+    typeof factory === 'function' &&
+    (factory as unknown as Record<symbol, unknown>)[
+      EFFECT_VALIDATOR_AWARE_FACTORY
+    ] === true
+  );
+}
+
 export type EffectBffHandlerFactory<
   TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
@@ -235,6 +277,7 @@ export type EffectBffHandlerFactory<
   openapi?: EffectBffOpenApiConfig;
   rpc?: Partial<EffectRpcBffHandlerOptions>;
   dataPlatform?: Partial<EffectDataPlatformValidationOptions>;
+  validateRequest?: EffectRequestValidator;
 }) => ReturnType<typeof createHttpApiHandler>;
 
 export type EffectBffRuntime<
@@ -594,6 +637,16 @@ function createInvalidEnvelopeResponse(message: string, errors?: string[]) {
   );
 }
 
+/**
+ * Validates the `x-modernjs-data-envelope` header (the data-platform
+ * transport/cache contract: protocol version, scope, selection plan).
+ *
+ * This is NOT a security boundary: the envelope is client-constructed cache
+ * metadata used for batching, scope keys and hydration. Cross-project
+ * authorization runs through the bff-core policy evaluator wired in via
+ * `validateRequest` (see `EffectRequestValidator`), which both the direct
+ * and batched request paths hit before this check.
+ */
 function validateDataPlatformRequestEnvelope(
   request: Request,
   options: EffectDataPlatformValidationOptions | undefined,
@@ -726,14 +779,62 @@ export function defineEffectBff<
         definition.dataPlatform,
         options?.dataPlatform,
       ),
+      validateRequest: options?.validateRequest,
     });
   };
-  const client = undefined as unknown as EffectApiPromiseClientFromApi<TApi>;
+  // Brand the factory so module resolution (and the effect adapter) can
+  // trust that `validateRequest` is enforced inside the produced handler —
+  // unbranded factories get adapter-middleware enforcement instead.
+  Object.defineProperty(createHandler, EFFECT_VALIDATOR_AWARE_FACTORY, {
+    value: true,
+  });
+  const client = createLoaderMaterializedClientPlaceholder<TApi>();
   return {
     ...definition,
     createHandler,
     client,
   };
+}
+
+const LOADER_CLIENT_IGNORED_KEYS = new Set<PropertyKey>([
+  'then',
+  'catch',
+  'finally',
+  'toJSON',
+  '$$typeof',
+]);
+
+/**
+ * `defineEffectBff(...).client` is only materialized when the entry module
+ * is imported through the `@api/effect/*` transform (the webpack/rspack
+ * loader swaps the module for generated client code). Importing the entry
+ * directly (server code, scripts, tests) used to return a `client` typed as
+ * fully functional but `undefined` at runtime — a bare TypeError with zero
+ * explanation. This placeholder keeps the type contract while failing with
+ * an actionable error on first property access.
+ */
+function createLoaderMaterializedClientPlaceholder<
+  TApi extends HttpApi.AnyWithProps,
+>(): EffectApiPromiseClientFromApi<TApi> {
+  const explain = (property: PropertyKey): never => {
+    throw new Error(
+      `[BFF][Effect] effectBff.client.${String(property)} is not available here: the typed client only exists when this module is imported through the "@api/effect/*" transformed path (the BFF loader replaces it with generated client code). On the server, use HttpApiClient or call the Effect layer directly.`,
+    );
+  };
+
+  return new Proxy(Object.create(null), {
+    get(_target, property) {
+      // Keep async/inspection protocols (await, console.log, React internals)
+      // from throwing so the placeholder stays inert until really used.
+      if (
+        typeof property === 'symbol' ||
+        LOADER_CLIENT_IGNORED_KEYS.has(property)
+      ) {
+        return undefined;
+      }
+      return explain(property);
+    },
+  }) as EffectApiPromiseClientFromApi<TApi>;
 }
 
 export function defineEffectRpcBff<
@@ -765,6 +866,7 @@ export function createHttpApiHandler<
   openapi?: EffectBffOpenApiConfig;
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  validateRequest?: EffectRequestValidator;
 }) {
   const apiLayer = options.layer.pipe(Layer.provide(HttpServer.layerServices));
   const openApiLayer = createOpenApiLayer(options.api, options.openapi);
@@ -802,6 +904,12 @@ export function createHttpApiHandler<
     request: Request,
     context?: Parameters<typeof httpApiHandler.handler>[1],
   ) => {
+    // Policy seam first: every HttpApi request — direct or batched item —
+    // passes through here, so batch fan-out cannot bypass the validator.
+    const policyDenial = options.validateRequest?.(request);
+    if (policyDenial) {
+      return policyDenial;
+    }
     const validationError = validateDataPlatformRequestEnvelope(
       request,
       options.dataPlatform,
@@ -1068,6 +1176,9 @@ export function createHttpApiHandler<
   ) => {
     const pathname = getRequestPathname(request);
     if (batchEnabled && pathname === batchPath) {
+      // The outer batch POST is transport, not an API operation: each
+      // batched item is dispatched through withDataPlatformValidation and
+      // therefore hits the policy seam individually.
       return handleBatchRequest(request, context);
     }
     return withDataPlatformValidation(request, context);
@@ -1091,6 +1202,10 @@ export function createHttpApiHandler<
       context?: Parameters<typeof rpcHandler.handler>[1],
     ) => {
       if (isRpcRequest(request, rpcPath)) {
+        const policyDenial = options.validateRequest?.(request);
+        if (policyDenial) {
+          return policyDenial;
+        }
         return rpcHandler.handler(
           request,
           context ?? emptyEffectServiceContext,
