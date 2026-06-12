@@ -1,6 +1,7 @@
 export type {
   APIServerStartInput,
   CacheConfig,
+  FallbackContext,
   FallbackInput,
   FallbackReason,
   FileChangeEvent,
