@@ -3,7 +3,12 @@
 - Status: Accepted (documents the existing contract; no new behavior)
 - Date: 2026-06-11
 - Decision Type: Runtime composition contract
-- Related: ADR-0002 (app-level MF SSR), ADR-0011 (MF vs Garfish parity contract, Proposed)
+- Related: ADR-0002 (app-level MF SSR), ADR-0011 (MF vs Garfish parity contract, Retired 2026-06-12)
+
+> **Update (2026-06-12 fork cleanup):** the Garfish composition lane
+> (`packages/runtime/plugin-garfish`) was deleted; Module Federation is the
+> sole composition lane. The Garfish masterApp descriptions and
+> `plugin-garfish/src/**` path references below are historical.
 
 > **Scope note:** this ADR documents the contract as implemented after the
 > router consolidation, which has landed: all TanStack code lives in

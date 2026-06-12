@@ -3,12 +3,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const {
-  getScenarioIdsForThresholdProfile,
-} = require('../superapp-k6/scenario-catalog');
-const {
-  getAutocannonThresholdProfileDefinition,
-} = require('../superapp-k6/autocannon-probes');
 
 const repoRoot = path.resolve(__dirname, '../..');
 const defaultRunId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -89,68 +83,6 @@ function command(id, commandLine, options = {}) {
 
 function artifactDir(outDir, name) {
   return path.join(outDir, 'artifacts', name);
-}
-
-function shellArg(value) {
-  return JSON.stringify(String(value));
-}
-
-function autocannonRuntimeArgs(runtime) {
-  return [
-    runtime.workers && `--autocannon-workers ${runtime.workers}`,
-    runtime.connections && `--autocannon-connections ${runtime.connections}`,
-    runtime.durationSeconds &&
-      `--autocannon-duration-seconds ${runtime.durationSeconds}`,
-    runtime.timeoutSeconds &&
-      `--autocannon-timeout-seconds ${runtime.timeoutSeconds}`,
-    runtime.pipelining && `--autocannon-pipelining ${runtime.pipelining}`,
-  ].filter(Boolean);
-}
-
-function superappLoadThresholdCommands(thresholdProfile, outDir) {
-  const scenarioIds = getScenarioIdsForThresholdProfile(thresholdProfile);
-  const autocannonProfile =
-    getAutocannonThresholdProfileDefinition(thresholdProfile);
-  const commonEnv = {
-    SUPERAPP_K6_CERTIFICATION: '1',
-    SUPERAPP_K6_THRESHOLD_PROFILE: thresholdProfile,
-  };
-
-  return [
-    command(
-      `superapp-k6-${thresholdProfile}-thresholds`,
-      [
-        'node scripts/superapp-k6/run-superapp-k6.js',
-        `--profile ${thresholdProfile}`,
-        `--threshold-profile ${thresholdProfile}`,
-        `--scenario ${scenarioIds.join(',')}`,
-        `--output-dir ${shellArg(
-          artifactDir(outDir, `k6-${thresholdProfile}-thresholds`),
-        )}`,
-      ].join(' '),
-      {
-        env: commonEnv,
-        profile: thresholdProfile,
-      },
-    ),
-    command(
-      `superapp-autocannon-${thresholdProfile}-thresholds`,
-      [
-        'node scripts/superapp-k6/run-superapp-k6.js',
-        `--profile ${thresholdProfile}`,
-        `--threshold-profile ${thresholdProfile}`,
-        `--autocannon-probes ${autocannonProfile.probeIds.join(',')}`,
-        ...autocannonRuntimeArgs(autocannonProfile.runtime),
-        `--output-dir ${shellArg(
-          artifactDir(outDir, `autocannon-${thresholdProfile}-thresholds`),
-        )}`,
-      ].join(' '),
-      {
-        env: commonEnv,
-        profile: thresholdProfile,
-      },
-    ),
-  ];
 }
 
 function certificationCommands(profile, outDir) {
@@ -259,34 +191,6 @@ function certificationCommands(profile, outDir) {
         profile: 'release',
       },
     ),
-    command(
-      'superapp-portfolio-load',
-      `${rstest} integration/superapp-portfolio/tests/load.test.ts`,
-      {
-        cwd: path.join(repoRoot, 'tests'),
-        env: {
-          SUPERAPP_PORTFOLIO_LOAD: '1',
-          SUPERAPP_PORTFOLIO_LOAD_DURATION_MS: '12000',
-          SUPERAPP_PORTFOLIO_LOAD_CONCURRENCY: '24',
-          SUPERAPP_PORTFOLIO_LOAD_ARTIFACT_DIR: artifactDir(
-            outDir,
-            'portfolio-load',
-          ),
-        },
-        profile: 'release',
-      },
-    ),
-    ...superappLoadThresholdCommands('release', outDir),
-    command(
-      'superapp-torture-harness-contract',
-      `node scripts/superapp-certification/validate-harness-contract.js --out-dir "${artifactDir(
-        outDir,
-        'torture-harness',
-      )}"`,
-      {
-        profile: 'release',
-      },
-    ),
   ];
 
   const nightly = [
@@ -335,26 +239,6 @@ function certificationCommands(profile, outDir) {
         profile: 'nightly',
       },
     ),
-    command(
-      'superapp-portfolio-load-boundary',
-      `${rstest} integration/superapp-portfolio/tests/load.test.ts`,
-      {
-        cwd: path.join(repoRoot, 'tests'),
-        env: {
-          SUPERAPP_PORTFOLIO_LOAD: '1',
-          SUPERAPP_PORTFOLIO_LOAD_DURATION_MS: '30000',
-          SUPERAPP_PORTFOLIO_LOAD_CONCURRENCY: '384',
-          SUPERAPP_PORTFOLIO_LOAD_P95_MS: '5000',
-          SUPERAPP_PORTFOLIO_LOAD_MAX_MS: '15000',
-          SUPERAPP_PORTFOLIO_LOAD_ARTIFACT_DIR: artifactDir(
-            outDir,
-            'portfolio-load-boundary',
-          ),
-        },
-        profile: 'nightly',
-      },
-    ),
-    ...superappLoadThresholdCommands('nightly', outDir),
   ];
 
   if (profile === 'smoke') {
@@ -588,5 +472,4 @@ if (require.main === module) {
 module.exports = {
   certificationCommands,
   parseArgs,
-  superappLoadThresholdCommands,
 };

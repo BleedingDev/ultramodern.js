@@ -138,6 +138,13 @@ async function expectLegacyLambdaRoutesBlocked(port: number) {
 
   const managedResponse = await fetch(`${host}:${port}/bff-api/error/managed`);
   expect(managedResponse.status).toBe(404);
+
+  // The lambda handler at api/lambda/index.ts maps to the bff prefix root;
+  // the effect runtime must 404 it without leaking the lambda body.
+  const indexResponse = await fetch(`${host}:${port}/bff-api/`);
+  expect(indexResponse.status).toBe(404);
+  const indexBody = await indexResponse.text();
+  expect(indexBody).not.toContain('Hello from index lambda in effect mode');
 }
 
 function expectDurationHeader(

@@ -7,8 +7,6 @@ const assert = require('node:assert/strict');
 const {
   extractImportSpecifiers,
   runBoundaryGuardChecks,
-  validateOwnershipBlastRadius,
-  validateOwnershipContractShape,
   validateImportGuards,
   validateProfileShape,
   validateRequiredSnippets,
@@ -17,149 +15,9 @@ const {
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'modern-boundary-guards-'));
 
-const IMPACT_RULE_THEN_KEY = 'then';
-
 const removeDir = directory => {
   fs.rmSync(directory, { recursive: true, force: true });
 };
-
-const makeOwnershipContract = () => ({
-  schemaVersion: 1,
-  contractId: 'mv-test-ownership',
-  principals: [
-    {
-      id: 'team:checkout',
-      type: 'team',
-      displayName: 'Checkout Team',
-    },
-    {
-      id: 'team:catalog',
-      type: 'team',
-      displayName: 'Catalog Team',
-    },
-    {
-      id: 'team:platform',
-      type: 'team',
-      displayName: 'Platform Team',
-    },
-  ],
-  ownershipTargets: {
-    routes: [
-      {
-        id: 'route:checkout',
-        vertical: 'checkout',
-        owners: ['team:checkout'],
-        routePatterns: ['/checkout/**'],
-      },
-      {
-        id: 'route:catalog',
-        vertical: 'catalog',
-        owners: ['team:catalog'],
-        routePatterns: ['/catalog/**'],
-      },
-    ],
-    remotes: [],
-    services: [],
-    sharedPackages: [
-      {
-        id: 'pkg:design-system',
-        vertical: 'platform',
-        owners: ['team:platform'],
-        packageNames: ['@modern-js/design-system'],
-        publicApiRefs: ['design-system-public-api'],
-        allowedConsumerVerticals: ['checkout', 'catalog'],
-      },
-    ],
-  },
-  pathRules: [
-    {
-      id: 'checkout-route-paths',
-      targetId: 'route:checkout',
-      includeGlobs: ['apps/checkout/**'],
-      rule: 'owned',
-      requiresApprovalGateIds: ['owning-vertical'],
-    },
-    {
-      id: 'design-system-paths',
-      targetId: 'pkg:design-system',
-      includeGlobs: ['packages/design-system/**'],
-      rule: 'shared-api-only',
-      requiresApprovalGateIds: ['platform-owner'],
-    },
-  ],
-  dependencyGraphImpact: {
-    graphSources: [
-      {
-        id: 'test-import-graph',
-        type: 'import-graph',
-        path: 'graph.json',
-      },
-    ],
-    impactRules: [
-      {
-        id: 'cross-vertical-consumer-impact',
-        when: {
-          crossesVertical: true,
-        },
-        [IMPACT_RULE_THEN_KEY]: {
-          riskTier: 'high',
-          requireApprovalGateIds: ['impacted-vertical'],
-          blockIfUnownedConsumer: true,
-        },
-      },
-    ],
-    requiredOutputs: [
-      'changed-targets',
-      'direct-consumers',
-      'cross-vertical-consumers',
-      'approval-plan',
-    ],
-  },
-  approvalGates: [
-    {
-      id: 'owning-vertical',
-      name: 'Owning vertical approval',
-      requiredApprovals: {
-        minimumCount: 1,
-        principalTypes: ['team'],
-        mustIncludeOwningVertical: true,
-      },
-    },
-    {
-      id: 'impacted-vertical',
-      name: 'Impacted vertical approval',
-      requiredApprovals: {
-        minimumCount: 1,
-        principalTypes: ['team'],
-        mustIncludeImpactedVerticals: true,
-      },
-    },
-    {
-      id: 'platform-owner',
-      name: 'Platform owner approval',
-      requiredApprovals: {
-        minimumCount: 1,
-        principalTypes: ['team'],
-        mustIncludePlatformOwner: true,
-      },
-    },
-  ],
-  extractionBoundaryChecks: {
-    noCrossVerticalImports: true,
-    allowedCrossingModes: ['api-only', 'remote-contract-only'],
-    requiredBoundaryRefs: ['auth', 'session', 'trace'],
-    remoteExtractionReadiness: [
-      'stable-route-ownership',
-      'loader-bridge-contract',
-      'fallback-ui',
-    ],
-    serviceExtractionReadiness: [
-      'api-contract',
-      'auth-boundary',
-      'trace-boundary',
-    ],
-  },
-});
 
 test('validateProfileShape accepts valid profile schema', () => {
   const profile = {
@@ -180,31 +38,6 @@ test('validateProfileShape accepts valid profile schema', () => {
         includes: ['token'],
       },
     ],
-  };
-
-  assert.doesNotThrow(() => validateProfileShape(profile));
-});
-
-test('validateProfileShape accepts optional ownership gate inputs', () => {
-  const profile = {
-    schemaVersion: 1,
-    contractPath: 'contract.json',
-    moduleManifests: ['manifest.json'],
-    importGuards: [],
-    requiredSnippets: [],
-    ownershipGate: {
-      contractPath: 'ownership.json',
-      changedPaths: ['apps/checkout/page.tsx'],
-      dependencyGraph: {
-        consumers: [
-          {
-            id: 'catalog-consumer',
-            targetId: 'route:catalog',
-          },
-        ],
-      },
-      approvedGateIds: ['owning-vertical'],
-    },
   };
 
   assert.doesNotThrow(() => validateProfileShape(profile));
@@ -304,90 +137,6 @@ test('validateRequiredSnippets detects order violations', () => {
   } finally {
     removeDir(dir);
   }
-});
-
-test('validateOwnershipContractShape accepts Wave 0 ownership schema concepts', () => {
-  assert.doesNotThrow(() =>
-    validateOwnershipContractShape(makeOwnershipContract()),
-  );
-});
-
-test('validateOwnershipBlastRadius detects unowned changed paths', () => {
-  const contract = makeOwnershipContract();
-  const report = validateOwnershipBlastRadius({
-    contract,
-    ownershipGate: {
-      contract,
-      changedPaths: ['apps/unknown/page.tsx'],
-    },
-  });
-
-  assert.equal(report.violations.length, 1);
-  assert.equal(report.violations[0].type, 'ownership-unowned-changed-path');
-});
-
-test('validateOwnershipBlastRadius requires approvals for cross-vertical consumers', () => {
-  const contract = makeOwnershipContract();
-  const report = validateOwnershipBlastRadius({
-    contract,
-    ownershipGate: {
-      contract,
-      changedPaths: ['apps/checkout/page.tsx'],
-      dependencyGraph: {
-        consumers: [
-          {
-            id: 'catalog-route-consumer',
-            targetId: 'route:catalog',
-            depth: 1,
-          },
-        ],
-      },
-      approvedGateIds: ['owning-vertical'],
-    },
-  });
-
-  assert.equal(report.crossesVertical, true);
-  assert.deepEqual(report.requiredGateIds, [
-    'impacted-vertical',
-    'owning-vertical',
-  ]);
-  assert.equal(report.violations.length, 1);
-  assert.equal(report.violations[0].type, 'ownership-missing-approval-gate');
-  assert.equal(report.violations[0].gateId, 'impacted-vertical');
-});
-
-test('validateOwnershipBlastRadius accepts owned graph impact with approval plan', () => {
-  const contract = makeOwnershipContract();
-  const report = validateOwnershipBlastRadius({
-    contract,
-    ownershipGate: {
-      contract,
-      changedPaths: ['packages/design-system/button.tsx'],
-      dependencyGraph: {
-        crossVerticalConsumers: [
-          {
-            id: 'checkout-route-consumer',
-            targetId: 'route:checkout',
-            depth: 2,
-          },
-        ],
-      },
-      approvals: [
-        {
-          gateId: 'platform-owner',
-          principalIds: ['team:platform'],
-        },
-        {
-          gateId: 'impacted-vertical',
-          principalIds: ['team:checkout'],
-        },
-      ],
-    },
-  });
-
-  assert.equal(report.crossesVertical, true);
-  assert.equal(report.violations.length, 0);
-  assert.equal(report.changedTargets[0].targetId, 'pkg:design-system');
 });
 
 test('runBoundaryGuardChecks validates happy path', () => {

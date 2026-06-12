@@ -38,67 +38,6 @@ jobs:
       - name: Run script test suites
         run: pnpm run test:scripts
 
-  mcp-cli-parity:
-    name: MCP/CLI capability parity
-    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
-    timeout-minutes: 10
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup mise
-        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
-        with:
-          install: true
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 20
-
-      - name: Validate MCP/CLI parity
-        run: pnpm run validate:mcp-cli-parity
-
-  # Experimental benchmark lane: numbers are environment-sensitive, so this
-  # job is advisory-only and intentionally excluded from the nightly signal.
-  worker-lane-resilience-gate:
-    name: Runtime resilience worker-lane gate (experimental)
-    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
-    timeout-minutes: 15
-    continue-on-error: true
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup mise
-        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
-        with:
-          install: true
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 20
-
-      - name: Run worker-lane benchmark gate
-        run: pnpm run benchmark:runtime-resilience:worker-lane-gate
-
   superapp-upstream-drift:
     name: SuperApp upstream drift probe
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
@@ -243,9 +182,6 @@ jobs:
       - name: Run superapp-portfolio tests
         env:
           SUPERAPP_PORTFOLIO_SECURITY: '1'
-          SUPERAPP_PORTFOLIO_LOAD: '1'
-          SUPERAPP_PORTFOLIO_LOAD_DURATION_MS: '12000'
-          SUPERAPP_PORTFOLIO_LOAD_CONCURRENCY: '24'
           SUPERAPP_PILOT_CHAOS: '1'
           SUPERAPP_PORTFOLIO_STRESS: '1'
           SUPERAPP_PORTFOLIO_STRESS_CYCLES: '6'
@@ -260,7 +196,6 @@ jobs:
           integration/superapp-portfolio/tests/effect-tanstack-contract-behavior.test.ts
           integration/superapp-portfolio/tests/effect-tanstack-contract-coverage-artifact.test.ts
           integration/superapp-portfolio/tests/effect-tanstack-contract-map.test.ts
-          integration/superapp-portfolio/tests/load.test.ts
           integration/superapp-portfolio/tests/nightly.test.ts
           integration/superapp-portfolio/tests/pilot-chaos.test.ts
           integration/superapp-portfolio/tests/security.test.ts
@@ -332,7 +267,6 @@ jobs:
     if: always()
     needs:
       - script-tests
-      - mcp-cli-parity
       - superapp-upstream-drift
       - superapp-erp-tests
       - superapp-portfolio-tests

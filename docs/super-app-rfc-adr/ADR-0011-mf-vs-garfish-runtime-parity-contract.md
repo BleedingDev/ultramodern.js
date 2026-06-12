@@ -1,6 +1,6 @@
 # ADR-0011: MF vs Garfish Runtime Parity Contract
 
-- Status: Proposed (Wave 0 contract)
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The Garfish compat lane (`packages/runtime/plugin-garfish`) was deleted; Module Federation is the sole micro-frontend runtime surface and no client emitter of `modernjs:mv-runtime-parity` / runtime-fallback telemetry exists anymore (the server telemetry endpoint in `@modern-js/server-runtime-extensions` and the app-tools `modern runtime` fallback-signal CLI remain).
 - Date: 2026-04-28
 - Decision Type: Runtime governance and parity contract
 - Depends on:

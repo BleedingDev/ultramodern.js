@@ -15,8 +15,7 @@ on:
   push:
     branches:
       - main
-      - ultramodern
-      - v4
+      - main-ultramodern
     paths:
       - 'scripts/module-sdk-contracts/**'
       - 'scripts/boundary-guards/**'

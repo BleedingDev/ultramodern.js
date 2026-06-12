@@ -5,7 +5,6 @@
 '@modern-js/runtime': patch
 '@modern-js/bff-core': patch
 '@modern-js/server-core': patch
-'@modern-js/plugin-koa': patch
 '@modern-js/plugin-polyfill': patch
 '@modern-js/server': patch
 '@modern-js/app-tools': patch

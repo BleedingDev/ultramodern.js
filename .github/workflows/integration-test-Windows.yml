@@ -4,7 +4,7 @@ name: Integration Test(Windows)
 on:
   # Triggers the workflow on pull request events but only for the main branch
   push:
-    branches: [main, renovate/main-rsbuild]
+    branches: [main, main-ultramodern, renovate/main-rsbuild]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -67,7 +67,9 @@ jobs:
 
       - name: Prepare
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm run prepare
+        # The root `prepare` script is a deliberate no-op in CI
+        # (scripts/prepare-root.mjs); run the build gate explicitly.
+        run: pnpm run prepare-build
 
       - name: Install Puppeteer
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}

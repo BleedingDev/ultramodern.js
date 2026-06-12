@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - main-ultramodern
   pull_request:
     branches:
       - main
+      - main-ultramodern
 
 jobs:
   check:

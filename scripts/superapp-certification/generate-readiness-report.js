@@ -107,7 +107,6 @@ function readSummaries(options) {
 function commandDimensions(id) {
   const mappings = [
     [/^(lint|changeset|package-json|dependencies)$/, ['contract']],
-    [/torture-harness-contract/, ['contract', 'performance']],
     [/superapp-(erp|portfolio)-smoke/, ['integration']],
     [/stress/, ['stress', 'performance']],
     [/soak|nightly/, ['soak', 'performance']],
@@ -127,7 +126,7 @@ function suiteDimensions(summary) {
     [/mf|module-federation/, ['module-federation']],
     [/browser/, ['browser']],
     [/pilot|chaos/, ['integration', 'stress', 'performance']],
-    [/stress|load/, ['stress', 'performance']],
+    [/stress/, ['stress', 'performance']],
     [/soak|nightly/, ['soak', 'performance']],
     [/portfolio|erp/, ['integration']],
   ];
@@ -150,9 +149,13 @@ function normalizeSummaryStatus(summary) {
   const failureCount =
     Number(summary.failedCount || 0) +
     Number(summary.failedCommandCount || 0) +
-    Number(summary.unexpectedErrorCount || 0);
-  if (failureCount > 0) {
+    Number(summary.unexpectedErrorCount || 0) +
+    (Array.isArray(summary.budgetFailures) ? summary.budgetFailures.length : 0);
+  if (summary.status === 'failed' || failureCount > 0) {
     return 'failed';
+  }
+  if (summary.status === 'unknown' || summary.status === 'skipped') {
+    return 'skipped';
   }
   if (summary.dryRun) {
     return 'planned';

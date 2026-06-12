@@ -1,6 +1,6 @@
 # ADR-0012: MV Topology Manifest and Zephyr Profile
 
-- Status: Proposed
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. `scripts/mv-zephyr-profile` (the only structural validator of `contracts/mv-topology-manifest.schema.json`) was deleted as orphaned; the schema is now documentation-only with no in-repo validator.
 - Date: 2026-04-28
 - Decision Type: Delivery contract
 - Related:

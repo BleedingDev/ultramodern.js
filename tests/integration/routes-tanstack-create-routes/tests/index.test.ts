@@ -11,6 +11,9 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+
+setSuiteTimeout(1000 * 60 * 5);
 
 const appDir = path.resolve(__dirname, '../');
 
@@ -23,7 +26,6 @@ describe('routes-tanstack-create-routes', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 5);
     releaseFixtureLock = await acquireFixtureLock(appDir);
     await modernBuild(appDir);
     appPort = await getPort();

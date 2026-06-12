@@ -1,6 +1,6 @@
 # DIAG-0001: RsDoctor Diagnostics Artifact Contract
 
-- Status: Active
+- Status: Reverted (2026-06-12, aligning with its dependency ADR-0001, already reverted). The only code containing the contract writer (the orphaned `packages/builder` cluster) was deleted in the fork cleanup with no live producer of `ultramodern-diagnostics.json` ever shipped; the `rsdoctor-artifact-contract` rc-contract-profile gate target was removed alongside. If the artifact is ever wanted, it must be reimplemented in `packages/cli/builder/src/plugins/rsdoctor.ts` with an integration test.
 - Date: 2026-02-22
 - Related Beads: `modernjs-44t.5.3`
 - Depends on:

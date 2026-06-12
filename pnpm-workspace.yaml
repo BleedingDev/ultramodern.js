@@ -8,7 +8,6 @@ packages:
   - 'packages/generator/plugins/*'
   - 'packages/review/*'
   - 'packages/server/*'
-  - 'packages/builder/*'
   - 'packages/module/*'
   - 'packages/solutions/*'
   - 'packages/toolkit/*'

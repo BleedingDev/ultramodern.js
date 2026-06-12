@@ -1,6 +1,6 @@
 # CI-HARDENING-0001: MV Tier Budgets and Flake Policy
 
-- Status: Active
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. `scripts/mv-ci-hardening` (profile + validator) and `.github/workflows/mv-ci-hardening.yml` were deleted; this doc certified tier budgets for commands no CI executed.
 - Date: 2026-04-28
 - Related ADR: `ADR-0010-mv-wave0-contract-first-gates.md`
 - Related CI Map: `CI-GATES-0001-check-and-artifact-map.md`
@@ -46,10 +46,10 @@ Golden through a separate policy change.
 The deterministic validator is local to this lane:
 
 ```bash
-node scripts/mv-ci-hardening/validate-ci-hardening.js
+node scripts/mv-ci-hardening/validate-ci-hardening.js  # removed 2026-06-12; script deleted
 ```
 
-It reads `scripts/mv-ci-hardening/mv-ci-hardening-profile.json` and rejects:
+It read `scripts/mv-ci-hardening/mv-ci-hardening-profile.json` (deleted 2026-06-12) and rejects:
 
 1. Missing required Golden, Compat, or Experimental tier definitions.
 2. Check runtime or timeout budgets above the owning tier.

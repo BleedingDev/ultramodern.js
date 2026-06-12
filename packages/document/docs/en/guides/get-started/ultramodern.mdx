@@ -30,7 +30,7 @@ UltraModern.js additions are designed as the default product surface for new Sup
 
 | Area | Modern.js 3.0 baseline | UltraModern.js 3.0 |
 | --- | --- | --- |
-| Build diagnostics | RsDoctor is generally opt-in | Adds `performance.rsdoctor`, default-on diagnostics in production Rspack builds, and `.rsdoctor/ultramodern-diagnostics.json` contract artifact |
+| Build diagnostics | RsDoctor is generally opt-in | Adds a first-class `performance.rsdoctor` config surface (opt-in; the earlier default-on behavior and diagnostics contract artifact were reverted) |
 | Output and static serving | Precompression behavior is app-defined | Enables `output.precompress` by default and serves `.br` / `.gz` variants via `Accept-Encoding` negotiation |
 | BFF runtime and contracts | Standard BFF runtime/client generation | Adds `requestId`-aware producer isolation, fail-fast initialization checks, and operation/trace correlation headers |
 | BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |

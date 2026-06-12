@@ -52,7 +52,3 @@ One dynamic indirection cannot be statically parsed:
 `server.telemetry.canary.autopilot.runtimeFallbackSignal.auth.expectedValueEnv`
 names an arbitrary environment variable that holds the expected runtime-signal
 auth token; it is read when the auth config is normalized.
-
-`MODERN_RUNTIME_FALLBACK_WORKER_LANE` is consumed by the
-`@modern-js/prod-server` legacy harness (worker-lane gate persistence), not by
-this package.

@@ -1,6 +1,6 @@
 # ADR-0014: Micro Vertical Template Supply-Chain Policy
 
-- Status: Proposed
+- Status: Retired (2026-06-12) — MV governance layer removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The enforcement story relied on the removed mv gate family (ADR-0010/0012/0015, LANE-POLICY-0001, CI-HARDENING-0001).
 - Date: 2026-04-28
 - Depends on:
   - `DELIVERY-0001-micro-vertical-reference-delivery.md`

@@ -14,15 +14,21 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `GOVERNANCE-0001-micro-vertical-extraction-governance.md`
 - `OPERATIONS-0001-micro-vertical-certification-and-operations.md`
 - `ADOPTION-0001-micro-vertical-downstream-adoption-package.md`
+- `DELIVERY-0001-micro-vertical-reference-delivery.md`
 - `REVIEW-0001-architecture-board-log.md`
 - `GATES-0001-ticket-execution-gates.md`
 - `CI-GATES-0001-check-and-artifact-map.md`
-- `LANE-POLICY-0001-golden-compat-experimental.md`
-- `CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md`
+- `LANE-POLICY-0001-golden-compat-experimental.md` (Retired 2026-06-12)
+- `CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md` (Retired 2026-06-12)
 - `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
+- `MIGRATION-PLAYBOOK-0002-ultramodern-shared-checks.md`
 - `SUNSET-DECISION-0001-compatibility-lanes.md`
 - `DEPENDENCY-0001-parallel-lane-matrix.md`
-- `DIAG-0001-rsdoctor-diagnostics-contract.md`
+- `DIAG-0001-rsdoctor-diagnostics-contract.md` (Reverted 2026-06-12)
+- `CLOUDFLARE-ZEPHYR-0001-ultramodern-worker-ssr.md`
+- `PREFLIGHT-0001-ultramodern-superapp-readiness.md` (Retired 2026-06-12)
+- `PUBLISH-SECURITY-RUNBOOK.md`
+- `ZEROPS-0001-ultramodern-full-stack-node-proof.md`
 - `ADR-0001-rsdoctor-default-on.md`
 - `ADR-0002-app-level-mf-ssr-strategy.md`
 - `ADR-0003-effect-only-mf-data-fetch-reliability.md`
@@ -31,19 +37,22 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0006-boundary-anti-pattern-checks.md`
 - `ADR-0007-module-certification-gates.md`
 - `ADR-0008-bun-superapp-smoke-gates.md`
-- `ADR-0009-mcp-cli-capability-parity.md`
-- `ADR-0010-mv-wave0-contract-first-gates.md`
-- `ADR-0011-mf-vs-garfish-runtime-parity-contract.md`
-- `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
+- `ADR-0009-mcp-cli-capability-parity.md` (Retired 2026-06-12)
+- `ADR-0010-mv-wave0-contract-first-gates.md` (Retired 2026-06-12)
+- `ADR-0011-mf-vs-garfish-runtime-parity-contract.md` (Retired 2026-06-12)
+- `ADR-0012-mv-topology-manifest-and-zephyr-profile.md` (Retired 2026-06-12)
 - `ADR-0013-mv-ds-platform-contract.md`
-- `ADR-0014-mv-template-supply-chain-policy.md`
-- `ADR-0015-mv-ownership-and-blast-radius-gates.md`
+- `ADR-0014-mv-template-supply-chain-policy.md` (Retired 2026-06-12)
+- `ADR-0015-mv-ownership-and-blast-radius-gates.md` (Retired 2026-06-12)
 - `ADR-0016-ultramodern-opinionated-defaults-contract.md`
 - `ADR-0017-superapp-composition-router-framework-coordination.md`
-- `contracts/ai-capabilities.json`
+- `contracts/ai-capabilities.json` (spec-only since 2026-06-12; no code consumers)
 - `contracts/mv-runtime-parity-contract.json`
-- `contracts/mv-topology-manifest.schema.json`
+- `contracts/mv-topology-manifest.schema.json` (no in-repo validator since 2026-06-12)
 - `contracts/mv-template-manifest.schema.json`
-- `contracts/mv-ownership.schema.json`
+- `contracts/mv-ownership.schema.json` (schema-only since 2026-06-12; no code consumers)
+- `contracts/module-sdk-contracts.json`
+- `contracts/module-manifest.example.json`
+- `evidence/` (frozen gate evidence snapshots)
 - `IMPLEMENTATION-BACKLOG.md`
 - `RELEASE-V4-BACKPORT-PLAN.md`

@@ -1,7 +1,0 @@
-// Rstest Snapshot v1
-
-exports[`plugin-garfish > cli addRuntimeExports 1`] = `
-[
-  "export { hoistNonReactStatics } from '@modern-js/plugin-garfish/deps'",
-]
-`;

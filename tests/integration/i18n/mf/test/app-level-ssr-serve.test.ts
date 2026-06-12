@@ -4,7 +4,10 @@ import {
   modernBuild,
   modernServe,
 } from '../../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../../utils/setSuiteTimeout';
 import { acquireTestLock, conditionalTest } from '../../test-utils';
+
+setSuiteTimeout(1000 * 60 * 8);
 
 async function waitForAppReady(
   port: number,
@@ -65,7 +68,6 @@ describe('mf-i18n app-level SSR serve mode', () => {
   let consumerApp: unknown;
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 8);
     releaseLock = await acquireTestLock('i18n-mf');
 
     await modernBuild(componentProviderDir, [], {

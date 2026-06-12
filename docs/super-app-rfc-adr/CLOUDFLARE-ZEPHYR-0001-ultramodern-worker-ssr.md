@@ -61,13 +61,15 @@ Local validation must run through Wrangler, not a static file server:
 ```bash
 MODERN_PUBLIC_SITE_URL=https://ultramodern.example.test pnpm --dir <vertical> run cloudflare:build
 pnpm --dir <vertical> exec wrangler dev --config .output/wrangler.json --port 8787
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-explore \
-  --bff /explore-api/effect/explore/readiness \
-  --expect-en "Explore Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
 ```
+
+> **Note (2026-06-12):** the repo-local no-deploy Worker + ASSETS-emulation
+> validator (`scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js`)
+> was removed in the fork cleanup. Evidence collection now goes through the
+> generated workspace's own proof scripts
+> (`scripts/ultramodern-cloudflare-proof.mjs` and
+> `scripts/proof-cloudflare-version.mjs`, exposed as `pnpm cloudflare:proof`),
+> as exercised by `scripts/ultramodern-production-readiness/run-published-create-proof.mjs`.
 
 `MODERN_PUBLIC_SITE_URL` in this validation path is canonical/SEO-only. JS,
 CSS, and static assets use `MODERN_ASSET_PREFIX`, then
@@ -81,30 +83,9 @@ The local evidence bundle proves:
 - the app-owned Effect readiness route returns BFF JSON.
 - UI and BFF markers share the same build identity.
 
-For generated Tractor workspaces, use app-owned readiness routes:
-
-```bash
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-explore \
-  --bff /explore-api/effect/explore/readiness \
-  --expect-en "Explore Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
-
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-decide \
-  --bff /decide-api/effect/decide/readiness \
-  --expect-en "Decide Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-decide-local.json
-
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-checkout \
-  --bff /checkout-api/effect/checkout/readiness \
-  --expect-en "Checkout Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-checkout-local.json
-```
+For generated workspaces, the workspace-owned proof covers each app's
+readiness route, SSR HTML, MF manifest, locale JSON, and build markers via
+`pnpm cloudflare:proof` (see note above).
 
 After deploying public Workers, run the generated public URL proof:
 
@@ -136,31 +117,13 @@ These URLs prove Zephyr upload/auth integration for that generated boundary.
 They do not prove the current Tractor Explore/Decide/Checkout live full-stack
 version switching claim.
 
-For Tractor, live evidence is captured through
-`scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js`. The
-harness records the shell selector plus v1/v2 targets for Explore, Decide, and
-Checkout. Each target must include app UID, selector, manifest URL, runtime URL,
-Effect readiness URL, and expected UI/API/CSS/i18n markers.
-
-Dry-run evidence:
-
-```bash
-node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js \
-  --dry-run \
-  --out .codex/reports/zephyr-live/tractor-dry-run.json
-```
-
-Live evidence:
-
-```bash
-ZE_ENV=staging \
-ZE_USER_EMAIL=user@example.com \
-ZE_SERVER_TOKEN=... \
-node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js \
-  --live \
-  --config .codex/zephyr-live/tractor-staging.json \
-  --out .codex/reports/zephyr-live/tractor-staging-live.json
-```
+> **Removed (2026-06-12):** the Tractor live-evidence harness
+> (`scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js`) was
+> deleted in the fork cleanup — it hardcoded the retired Tractor
+> Explore/Decide/Checkout topology. Live version-switching evidence for current
+> workspaces must come from the workspace-owned proof scripts plus a manual or
+> future harness; the upload-side helper (`scripts/ultramodern-zephyr-ssr-upload`)
+> is retained and remains the supported tool.
 
 ## Remaining Live Proof
 

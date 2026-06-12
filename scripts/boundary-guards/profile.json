@@ -8,7 +8,6 @@
     {
       "id": "core-no-domain-or-vendor-connector-imports",
       "roots": [
-        "packages/builder",
         "packages/runtime",
         "packages/server",
         "packages/toolkit",
@@ -22,30 +21,6 @@
     }
   ],
   "requiredSnippets": [
-    {
-      "id": "mf-runtime-trust-before-registration",
-      "path": "packages/runtime/plugin-garfish/src/runtime/plugin.tsx",
-      "includes": [
-        "enforceRemoteTrustPolicy",
-        "validateRuntimeCompatibility",
-        "GarfishInstance.registerApp",
-        "emitErrorFallbackTelemetry"
-      ],
-      "orderedIncludes": [
-        "await enforceRemoteTrustPolicy",
-        "validateRuntimeCompatibility(apps, {",
-        "GarfishInstance.registerApp"
-      ]
-    },
-    {
-      "id": "mf-fallback-telemetry-load-unmount",
-      "path": "packages/runtime/plugin-garfish/src/runtime/utils/apps.tsx",
-      "includes": [
-        "emitFallbackTelemetry",
-        "reason: 'entry_load_failed'",
-        "reason: 'lifecycle_failed'"
-      ]
-    },
     {
       "id": "cross-project-operation-context-node",
       "path": "packages/server/create-request/src/node.ts",

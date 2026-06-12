@@ -1,5 +1,5 @@
 /**
- * End-to-end exit-code contracts for the six gate validator CLIs that share
+ * End-to-end exit-code contracts for the gate validator CLIs that share
  * scripts/lib/validation-kit.js. Valid input must exit 0, broken input must
  * exit 1 with the validator's failure prefix on stderr.
  */
@@ -13,7 +13,6 @@ const test = require('node:test');
 const repoRoot = path.resolve(__dirname, '../../..');
 const contractPath =
   'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json';
-const aiContractPath = 'docs/super-app-rfc-adr/contracts/ai-capabilities.json';
 
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'validator-cli-'));
@@ -106,51 +105,6 @@ test('boundary-guards CLI fails on an unsupported profile schemaVersion', () => 
   }
 });
 
-test('mv-lane-policy CLI passes on the canonical policy', () => {
-  const result = runCli('scripts/mv-lane-policy/validate-lane-policy.js', []);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /Validated \d+ MV lane definitions/);
-});
-
-test('mv-lane-policy CLI fails on an under-gated lane fixture', () => {
-  const result = runCli('scripts/mv-lane-policy/validate-lane-policy.js', [
-    '--lanes',
-    'scripts/mv-lane-policy/__fixtures__/under-gated-golden.json',
-  ]);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /missing required gate/);
-});
-
-test('mv-ci-hardening CLI passes on the canonical profile', () => {
-  const result = runCli('scripts/mv-ci-hardening/validate-ci-hardening.js', []);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /"status": "passed"/);
-});
-
-test('mv-ci-hardening CLI fails on an unsupported schemaVersion', () => {
-  const dir = makeTempDir();
-  try {
-    const validProfile = JSON.parse(
-      fs.readFileSync(
-        path.join(repoRoot, 'scripts/mv-ci-hardening/__fixtures__/valid-profile.json'),
-        'utf8',
-      ),
-    );
-    const brokenProfile = writeJson(dir, 'profile.json', {
-      ...validProfile,
-      schemaVersion: 2,
-    });
-    const result = runCli('scripts/mv-ci-hardening/validate-ci-hardening.js', [
-      '--profile',
-      brokenProfile,
-    ]);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /Unsupported profile schemaVersion: 2/);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test('release-gates CLI passes on module certification evidence', () => {
   const dir = makeTempDir();
   try {
@@ -219,45 +173,6 @@ test('release-gates snapshot CLI validates a well-formed snapshot', () => {
     );
     assert.equal(missingGate.status, 1);
     assert.match(missingGate.stderr, /missing required gate "absent-gate"/);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('ai-capabilities CLI passes on the repo contract', () => {
-  const dir = makeTempDir();
-  try {
-    const result = runCli('scripts/ai-capabilities/validate-mcp-cli-parity.js', [
-      '--contract',
-      aiContractPath,
-      '--out',
-      path.join(dir, 'parity.json'),
-    ]);
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /\[mcp-cli-parity\] validation passed/);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('ai-capabilities CLI fails on an unsupported schemaVersion', () => {
-  const dir = makeTempDir();
-  try {
-    const brokenContract = writeJson(dir, 'ai-capabilities.json', {
-      schemaVersion: 2,
-      capabilities: [],
-    });
-    const result = runCli('scripts/ai-capabilities/validate-mcp-cli-parity.js', [
-      '--contract',
-      brokenContract,
-      '--out',
-      path.join(dir, 'parity.json'),
-    ]);
-    assert.equal(result.status, 1);
-    assert.match(
-      result.stderr,
-      /Unsupported AI capability contract schemaVersion: 2/,
-    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

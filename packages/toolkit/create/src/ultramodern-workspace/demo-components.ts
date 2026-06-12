@@ -269,7 +269,7 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 
   return `${effectBffImport}
 export default function ${toPascalCase(app.id)}Home() {
-  const { i18nInstance, language } = useModernI18n();
+  const { i18nInstance, language, supportedLanguages } = useModernI18n();
   const t = i18nInstance['t'].bind(i18nInstance);
 ${effectBffState}  return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">

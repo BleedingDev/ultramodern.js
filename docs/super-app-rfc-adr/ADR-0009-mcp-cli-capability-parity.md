@@ -1,6 +1,6 @@
 # ADR-0009: MCP Capability Parity via CLI
 
-- Status: In Progress
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The entire implementation (`scripts/ai-capabilities` bridge/adapter/parity validator, the nightly `mcp-cli-parity` job, the npm scripts, and the rc-contract-profile targets) was deleted as dead: the bridge used LSP `Content-Length` framing that no MCP client can speak, and the parity gate was tautological. `contracts/ai-capabilities.json` is retained as a spec-only document with zero code consumers.
 - Date: 2026-02-26
 - Decision Type: Tooling and operational contract
 - Depends on:

@@ -2,7 +2,7 @@ name: Type Check
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, main-ultramodern]
 
   merge_group:
 
@@ -56,4 +56,6 @@ jobs:
 
       - name: Type Check
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: mise exec -- pnpm run prepare
+        # The root `prepare` script is a deliberate no-op in CI
+        # (scripts/prepare-root.mjs); run the build gate explicitly.
+        run: mise exec -- pnpm run prepare-build

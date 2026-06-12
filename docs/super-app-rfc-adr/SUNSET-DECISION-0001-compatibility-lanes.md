@@ -1,6 +1,6 @@
 # SUNSET-DECISION-0001: Compatibility Lane Sunset Path
 
-- Status: Proposed
+- Status: Superseded by events (2026-06-12 fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`). The Garfish compat lane (`packages/runtime/plugin-garfish`) was deleted outright, so Module Federation is the sole micro-frontend runtime surface: the ADR-0011 parity-evidence preconditions referenced in §1 item 2 and §8 item 3 are moot (ADR-0011 is itself Retired), and the Compat lane described below no longer exists in this repo. The `evidence/mv-production-rollout/**` documents cited in §1 are frozen historical snapshots — the drills and fixtures that generated them were removed with the MV governance layer.
 - Date: 2026-04-29
 - Related Plan: `.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md`
 - Related Lanes: `uw4-03`, `uw4-04`

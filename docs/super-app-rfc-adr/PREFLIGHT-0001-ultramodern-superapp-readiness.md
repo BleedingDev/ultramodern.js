@@ -1,5 +1,7 @@
 # PREFLIGHT-0001: UltraModern SuperApp Readiness
 
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. Everything this doc documents was deleted: `pnpm run validate:ultramodern-preflight`, `scripts/ultramodern-preflight/run-preflight.js`, `scripts/ultramodern-contract-doctor`, and `scripts/superapp-local-control-plane` (dry-run and live modes). The chain was broken against the current workspace generator (the doctor pinned tanstack 1.170.8 vs generated 1.170.15 and expected a retired remotes topology), failing 15 checks on every fresh workspace with no CI consumer. The surviving validation is `tests/integration/create-ultramodern-workspace` plus each generated workspace's own `scripts/validate-ultramodern-workspace.mjs` (`pnpm ultramodern:check`). The commands below are retained for historical reference only and no longer run.
+
 ## Goal
 
 Prove the framework entrypoint before a team writes business-domain SuperApp

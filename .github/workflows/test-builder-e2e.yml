@@ -2,7 +2,7 @@ name: E2E Test (Builder)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, main-ultramodern]
 
   merge_group:
 

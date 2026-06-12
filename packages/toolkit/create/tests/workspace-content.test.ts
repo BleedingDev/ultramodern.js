@@ -27,6 +27,10 @@ const fixturesDir = path.join(__dirname, 'fixtures');
  *   is exercised.
  * - verticals/catalog/shared/effect/api.ts: fully code-generated Effect API
  *   contract file (no template on disk), the pure-codegen risk class.
+ * - verticals/catalog/src/routes/[lang]/page.tsx: the vertical page emitted
+ *   by createRemotePage — inline-literal TSX codegen where an undeclared
+ *   identifier (`supportedLanguages`) once shipped and broke typecheck of
+ *   every --vertical workspace.
  *
  * Inputs are pinned (modernVersion, packageSource specifier, scope), so the
  * output is deterministic. If a content change is deliberate, regenerate the
@@ -40,6 +44,7 @@ const defaultScaffoldSnapshots = [
 const catalogVerticalSnapshots = [
   'scripts/validate-ultramodern-workspace.mjs',
   'verticals/catalog/shared/effect/api.ts',
+  'verticals/catalog/src/routes/[lang]/page.tsx',
 ];
 
 function assertContentSnapshot(
@@ -118,6 +123,28 @@ test('rendered contents of the highest-risk generated files match the checked-in
     for (const relativePath of catalogVerticalSnapshots) {
       assertContentSnapshot(workspaceDir, 'catalog-vertical', relativePath);
     }
+
+    // Regression: the vertical page once read the bare identifier
+    // `supportedLanguages` without declaring it, so every --vertical
+    // workspace failed `tsgo --noEmit` with TS2304 (ReferenceError at
+    // render). Unlike the byte snapshot above, this assertion survives a
+    // blind fixture regeneration: the identifier the page maps over must be
+    // destructured from useModernI18n(), the same i18n runtime source the
+    // page already uses for `i18nInstance` and `language`.
+    const verticalPage = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/src/routes/[lang]/page.tsx'),
+      'utf-8',
+    );
+    assert.match(
+      verticalPage,
+      /\{supportedLanguages\.map\(/,
+      'expected the vertical page to render the language switcher from supportedLanguages',
+    );
+    assert.match(
+      verticalPage,
+      /const \{[^}]*\bsupportedLanguages\b[^}]*\} = useModernI18n\(\);/,
+      'supportedLanguages must be destructured from useModernI18n() — otherwise the generated page references an undeclared identifier',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

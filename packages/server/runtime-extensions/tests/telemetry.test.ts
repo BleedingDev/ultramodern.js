@@ -1,7 +1,10 @@
 import {
   createOtlpTelemetryExporter,
+  createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
+  type TelemetryEnvelope,
   TelemetryRegistry,
+  TelemetryStartupHealthError,
 } from '../src/telemetry';
 
 const createEnvelope = (partial: Record<string, unknown> = {}) => ({
@@ -123,6 +126,167 @@ describe('telemetry registry', () => {
     expect(item?.attributes?.token).toBe('[REDACTED]');
     expect(item?.attributes?.nested?.token).toBe('[REDACTED]');
     expect(item?.attributes?.nested?.keep).toBe(true);
+  });
+
+  test('wraps metrics and preserves trace tags in envelopes', async () => {
+    const emitted: TelemetryEnvelope[] = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'memory',
+      async emit(batch) {
+        emitted.push(...batch);
+      },
+    });
+
+    const base = {
+      gauges: rs.fn(),
+      emitCounter: rs.fn(),
+      emitTimer: rs.fn(),
+    };
+    const metrics = createTelemetryAwareMetrics(base as any, registry);
+    metrics.emitCounter('server.request.count', 1, {
+      pathname: '/foo',
+      trace_id: '11112222333344445555666677778888',
+    });
+    metrics.emitTimer('server.request.cost', 25, {
+      pathname: '/foo',
+      span_id: '1111222233334444',
+    });
+
+    await registry.flush();
+    await registry.shutdown();
+
+    expect(base.emitCounter).toHaveBeenCalledTimes(1);
+    expect(base.emitTimer).toHaveBeenCalledTimes(1);
+
+    const countEnvelope = emitted.find(
+      item => item.name === 'server.request.count',
+    )!;
+    const timerEnvelope = emitted.find(
+      item => item.name === 'server.request.cost',
+    )!;
+
+    expect(countEnvelope.unit).toBe('count');
+    expect(countEnvelope.traceId).toBe('11112222333344445555666677778888');
+    expect(timerEnvelope.unit).toBe('ms');
+    expect(timerEnvelope.spanId).toBe('1111222233334444');
+  });
+
+  test('emits queue depth and utilization metrics during flush', async () => {
+    const emitted: TelemetryEnvelope[] = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 10,
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'memory',
+      async emit(batch) {
+        emitted.push(...batch);
+      },
+    });
+
+    registry.enqueue(createEnvelope({ name: 'a' }));
+    registry.enqueue(createEnvelope({ name: 'b' }));
+    await registry.flush();
+
+    const depthEnvelope = emitted.find(
+      item => item.name === 'telemetry.queue.depth',
+    );
+    const utilizationEnvelope = emitted.find(
+      item => item.name === 'telemetry.queue.utilization',
+    );
+    expect(depthEnvelope?.value).toBe(2);
+    expect(utilizationEnvelope?.value).toBe(0.2);
+    await registry.shutdown();
+  });
+
+  test('exposes queue stats and emits SLO alerts for utilization and dropped envelopes', async () => {
+    const alerts: Array<{ type: string; value: number }> = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 2,
+      flushIntervalMs: 60_000,
+      slo: {
+        queueUtilizationWarnThreshold: 0.5,
+        queueDroppedWarnThreshold: 1,
+        alertCooldownMs: 0,
+        onAlert(alert) {
+          alerts.push({ type: alert.type, value: alert.value });
+        },
+      },
+    });
+
+    registry.enqueue(createEnvelope({ name: 'first' }));
+    registry.enqueue(createEnvelope({ name: 'second' }));
+    registry.enqueue(createEnvelope({ name: 'third' }));
+
+    const queueStats = registry.getQueueStats();
+    expect(queueStats.depth).toBe(2);
+    expect(queueStats.capacity).toBe(2);
+    expect(queueStats.utilization).toBe(1);
+    expect(queueStats.pendingDropped).toBe(1);
+    expect(queueStats.totalDropped).toBe(1);
+    expect(alerts.some(item => item.type === 'queue.utilization')).toBe(true);
+    expect(alerts.some(item => item.type === 'queue.drop')).toBe(true);
+    await registry.shutdown();
+  });
+
+  test('startup health check fails loud by default when exporter is unhealthy', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'failing',
+      async emit() {
+        throw new Error('connection refused');
+      },
+    });
+
+    await expect(registry.startupHealthCheck()).rejects.toBeInstanceOf(
+      TelemetryStartupHealthError,
+    );
+    const health = registry.getExporterHealth();
+    expect(health).toHaveLength(1);
+    expect(health[0].healthy).toBe(false);
+    expect(health[0].failures).toBeGreaterThan(0);
+    await registry.shutdown();
+  });
+
+  test('startup health check can degrade without throwing when failLoud is false', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    await registry.register({
+      name: 'failing',
+      async emit() {
+        throw new Error('connection refused');
+      },
+    });
+
+    await expect(
+      registry.startupHealthCheck({ failLoud: false }),
+    ).resolves.toBeUndefined();
+    const health = registry.getExporterHealth();
+    expect(health).toHaveLength(1);
+    expect(health[0].healthy).toBe(false);
+    expect(health[0].failures).toBeGreaterThan(0);
+    await registry.shutdown();
   });
 });
 

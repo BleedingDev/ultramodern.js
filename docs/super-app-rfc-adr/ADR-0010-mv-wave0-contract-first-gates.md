@@ -1,6 +1,6 @@
 # ADR-0010: MV Wave 0 Contract-First Gates
 
-- Status: Proposed
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The `scripts/wave0-mv-contracts` gate script and the `validate:wave0-mv-contracts` npm script were removed (wave 1 completed 2026-04; the token-grep mechanism is superseded by the release-gates `migrationContracts` engine).
 - Date: 2026-04-28
 - Decision Type: Program governance
 - Related Plan: `.codex/plans/ultramodern-wave0-contract-first-execution.plan.md`
@@ -40,7 +40,7 @@ Required artifacts:
 The gate is validated by:
 
 ```bash
-pnpm run validate:wave0-mv-contracts
+pnpm run validate:wave0-mv-contracts  # removed 2026-06-12; script and gate deleted
 ```
 
 The command is intentionally docs-and-contract focused. It proves that Wave 0 has a complete contract baseline; it does not replace Wave 1 implementation tests.
@@ -100,6 +100,6 @@ Every Wave 1 implementation stream must inherit these controls from Wave 0:
 1. All required Wave 0 artifacts are present.
 2. JSON contracts parse and expose expected contract sections.
 3. ADRs include status metadata and acceptance criteria.
-4. `pnpm run validate:wave0-mv-contracts` exits successfully.
+4. `pnpm run validate:wave0-mv-contracts` exits successfully. (Removed 2026-06-12 — the script and npm entry no longer exist.)
 5. Wave 1 remains blocked until the validation command is green.
 

@@ -156,15 +156,12 @@ For the generated Tractor workspace, add these scaffold-specific gates:
 mise exec -- pnpm ultramodern:check
 mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-explore \
-  --bff /explore-api/effect/explore/readiness \
-  --expect-en "Explore Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
-node scripts/ultramodern-zephyr-live-evidence/run-zephyr-live-evidence.js \
-  --dry-run \
-  --out .codex/reports/zephyr-live/tractor-dry-run.json
+# Cloudflare evidence comes from the generated workspace's own proof scripts
+# (scripts/ultramodern-cloudflare-proof.mjs + scripts/proof-cloudflare-version.mjs,
+# exercised by scripts/ultramodern-production-readiness/run-published-create-proof.mjs).
+# The repo-local ultramodern-cloudflare-ssr-validation and
+# ultramodern-zephyr-live-evidence scripts were removed in the 2026-06-12 cleanup.
+mise exec -- pnpm cloudflare:proof
 ```
 
 Promotion to a public environment additionally requires:

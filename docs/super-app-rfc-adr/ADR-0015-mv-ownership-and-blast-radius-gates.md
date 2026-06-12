@@ -1,6 +1,6 @@
 # ADR-0015: Micro Vertical Ownership And Blast Radius Gates
 
-- Status: Proposed
+- Status: Retired, never implemented (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The ownership/blast-radius validator half was removed from `scripts/boundary-guards/validator.js` (it had no contract instance, no `ownershipGate` profile wiring, and no `changedPaths` producer). `contracts/mv-ownership.schema.json` is retained as schema-only with zero code consumers.
 - Date: 2026-04-28
 - Related Graph: `ultramodern-complete-mv-delivery-waves-plus-5-plans-10989c3972`
 - Related Todos: `uw0-04`, `uw0-08`

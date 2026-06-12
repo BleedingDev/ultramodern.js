@@ -22,6 +22,8 @@ export default defineConfig({
         externals: [
           {
             '@modern-js/render/rsc': 'module-import @modern-js/render/rsc',
+            '@modern-js/render/rsc-worker':
+              'module-import @modern-js/render/rsc-worker',
           },
         ],
       },

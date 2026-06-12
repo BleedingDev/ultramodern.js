@@ -41,7 +41,7 @@ This order is intentional:
 | How do we certify production readiness? | `OPERATIONS-0001-micro-vertical-certification-and-operations.md` |
 | Which contracts are machine-readable? | `docs/super-app-rfc-adr/contracts/` |
 | Which gates prove the package still works? | `CI-GATES-0001-check-and-artifact-map.md` |
-| How do we prove Cloudflare and Zephyr behavior? | `CLOUDFLARE-ZEPHYR-0001-ultramodern-worker-ssr.md`, `scripts/ultramodern-cloudflare-ssr-validation/README.md`, and `scripts/ultramodern-zephyr-live-evidence/README.md` |
+| How do we prove Cloudflare and Zephyr behavior? | `CLOUDFLARE-ZEPHYR-0001-ultramodern-worker-ssr.md` plus the generated workspace's own proof scripts (`scripts/ultramodern-cloudflare-proof.mjs`, `scripts/proof-cloudflare-version.mjs`; `pnpm cloudflare:proof`) |
 
 ## 4. Tractor Reference Architecture
 
@@ -86,12 +86,9 @@ Use local Cloudflare validation for `.output` evidence and generated public URL
 proof after deployment:
 
 ```bash
-node scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js \
-  --root-dir apps/remotes/remote-explore \
-  --bff /explore-api/effect/explore/readiness \
-  --expect-en "Explore Remote" \
-  --match-build-marker \
-  --out .codex/reports/cloudflare-ssr/remote-explore-local.json
+# Run from the generated workspace (repo-local validate-cloudflare-ssr.js was
+# removed in the 2026-06-12 cleanup):
+pnpm cloudflare:proof -- --require-public-urls
 
 ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \

@@ -11,20 +11,6 @@ export interface MicroFrontend {
    */
   externalBasicLibrary?: boolean;
   moduleApp?: string;
-  /**
-   * Runtime compatibility digest exposed in remote contracts (manifest / remote entry).
-   */
-  runtimeDigest?: string;
-  /**
-   * SRI-style integrity token for the remote entry contract.
-   * Example: `sha256-<base64Digest>`.
-   */
-  integrity?: string;
-  /**
-   * Opaque attestation token exposed in remote runtime metadata.
-   * Can be validated by the host via runtime `remoteTrust.attestations`.
-   */
-  attestation?: string;
 }
 
 export type DeployTarget =

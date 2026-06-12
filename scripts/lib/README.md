@@ -2,7 +2,7 @@
 
 Shared, dependency-free helpers for the `scripts/` gate validators
 (`module-sdk-contracts`, `boundary-guards`, `mv-lane-policy`,
-`mv-ci-hardening`, `release-gates`, `ai-capabilities`, and friends).
+`mv-ci-hardening`, `release-gates`, and friends).
 
 - `validation-kit.js` — JSON loading with path-aware parse errors, file
   existence checks, primitive shape guards (`ensureObject`, `ensureString`,
@@ -18,11 +18,11 @@ Rules:
 
 ## Observable behavior deltas vs the pre-consolidation validators
 
-Porting the validators onto `validation-kit.js` introduced exactly three
-observable CLI behavior changes. Everything else (flags, `--help` output,
-success paths, and all other messages and exit codes) is byte-identical to
-the standalone validators. No in-repo consumer parses validator output;
-workflows consume exit codes only.
+Porting the validators onto `validation-kit.js` introduced exactly two
+observable CLI behavior changes in the surviving validators. Everything else
+(flags, `--help` output, success paths, and all other messages and exit
+codes) is byte-identical to the standalone validators. No in-repo consumer
+parses validator output; workflows consume exit codes only.
 
 1. **Malformed JSON input (all ported validators).** `readJsonFile` wraps the
    raw `JSON.parse` error with the offending path.
@@ -40,10 +40,3 @@ workflows consume exit codes only.
      exit code 0.
    - New: `profile.checks[0].owner must not use placeholder value
      "to-be-filled"`; exit code 1.
-
-3. **`ai-capabilities` schema-version mismatch message.** The shared
-   `ensureSchemaVersion` helper labels the contract and states the expected
-   version.
-   - Old: `Unsupported schemaVersion: 2.`; exit code 1.
-   - New: `Unsupported AI capability contract schemaVersion: 2. Expected 1.`;
-     exit code 1.

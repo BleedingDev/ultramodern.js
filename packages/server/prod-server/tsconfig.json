@@ -4,18 +4,9 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "esModuleInterop": true,
     "paths": {},
     "rootDir": "./src"
   },
-  "include": [
-    "src/index.ts",
-    "src/netlify.ts",
-    "src/apply.ts",
-    "src/types.ts",
-    "src/server/index.ts",
-    "src/libs/runtimeFallbackWorkerLane.ts",
-    "src/modern-app-env.d.ts"
-  ]
+  "include": ["src"]
 }

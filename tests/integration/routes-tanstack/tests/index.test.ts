@@ -8,6 +8,9 @@ import {
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+
+setSuiteTimeout(1000 * 60 * 5);
 
 const appDir = path.resolve(__dirname, '../');
 const tsgoBin = path.join(
@@ -33,7 +36,6 @@ describe('routes-tanstack', () => {
   const errors: string[] = [];
 
   beforeAll(async () => {
-    jest.setTimeout(1000 * 60 * 5);
     await modernBuild(appDir);
 
     // Prove TanStack Router type-safety via TS-Go (route paths/params/loaderData).

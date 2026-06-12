@@ -10,7 +10,7 @@ git diff $(git merge-base origin/main HEAD) --name-status -M -- packages
 
 `M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and not listed.
 
-Fork-**added** files and packages (`@modern-js/plugin-tanstack`, the rewritten `plugin-garfish` contents, `@modern-js/server-runtime-extensions` — `packages/server/runtime-extensions`, where the telemetry/contract-gate/MF-cache/MF-CSS server modules live — `app-tools/src/baseline.ts`, the prod-server worker lane, etc.) are fork-owned by definition and not listed here.
+Fork-**added** files and packages (`@modern-js/plugin-tanstack`, `@modern-js/server-runtime-extensions` — `packages/server/runtime-extensions`, where the telemetry/contract-gate/MF-cache/MF-CSS server modules live — `app-tools/src/baseline.ts`, etc.) are fork-owned by definition and not listed here.
 
 Legend:
 
@@ -20,7 +20,7 @@ Legend:
 
 Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing is an upstreamable bug fix.** Upstream returns `[]` cast to `MatchedRoute` when nothing matches, so callers destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, `render.ts:82`, returns `[undefined, {}]`). PR this upstream; until then, always keep the fork side in merges.
 
-Total at last audit (2026-06-11, post fix-round, working tree): 539 modified, 19 deleted, 3 renamed.
+Total at last audit (2026-06-12, post brutal-cleanup, working tree): 538 modified, 19 deleted, 3 renamed.
 
 ---
 
@@ -81,6 +81,7 @@ Type-cast strictness fix on ipx basename + toolchain configs.
 - `src/core/context/*`, `src/core/browser/*`, `src/core/compat/*` — [F] `TInternalRuntimeContext` extensions.
 - `src/router/cli/*` — [F] routes owner metadata (`BUILT_IN_ROUTES_OWNER`), config-routes converter, template generation.
 - `src/document/*`, `src/exports/*`, `src/rsc/*`, `static/modern-inline.js` — [M]/[F] smaller adaptations.
+- `tsconfig.json` — [M] `rootDir`/`baseUrl` only (the `src/ssr` exclude hunk was reverted when the orphaned legacy `src/ssr` copies were deleted in the 2026-06-12 cleanup).
 - `tests/*` — track the above.
 
 ### render (7 files) — [F]
@@ -117,7 +118,7 @@ Breaking major-version runtime dep migrations, not mechanical churn: ua-parser-j
 
 ### prod-server (5 files) — [F]
 
-Telemetry re-export surface (re-exported from `@modern-js/server-runtime-extensions` — see `src/apply.ts:23`, `src/index.ts:17`), typed `createProdServer`, netlify entry. (The runtime-fallback worker lane lives in fork-added files: `src/libs/runtimeFallbackWorkerLane.ts`, `src/server/modernServerSplit.ts`; MF cache headers now live in `@modern-js/server-runtime-extensions`.)
+Telemetry re-export surface (re-exported from `@modern-js/server-runtime-extensions` — see `src/apply.ts:23`, `src/index.ts:17`), typed `createProdServer`, netlify entry. (MF cache headers now live in `@modern-js/server-runtime-extensions`.)
 
 ### server (16 files) — [M]
 
@@ -135,7 +136,7 @@ TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths mat
 
 - config/initialize, `src/index.ts`, types — wiring for fork-added `baseline.ts` (`presetUltramodern` defaults: telemetry, MF SSR).
 - `src/builder/generator/getBuilderEnvironments.ts` — Effect BFF worker entry + Cloudflare worker compat template resolution.
-- `src/plugins/deploy/*` — platform entries + `deploy.microFrontend.{runtimeDigest,integrity,attestation}` trust contract (ADR-0002 §10-11).
+- `src/plugins/deploy/*` — platform entries. (The `deploy.microFrontend.{runtimeDigest,integrity,attestation}` trust-contract fields were removed in the 2026-06-12 cleanup; `MicroFrontend` is back to upstream shape.)
 - `src/commands/*` — dev/build/serve hooks + `modern runtime status|fallback-signal` registration (EPIC-7).
 - `src/plugins/analyze/*` — entry/routes-owner integration.
 - esm register hooks, utils, tests — [M]/track the above.
@@ -160,15 +161,14 @@ Mostly import/type re-export hygiene; plus duplicate-plugin detection across int
 
 ### sandpack-react (2 files) — [M]
 
-Build script (node strip-types + `tsgo:dts`) and dependency alignment.
+Build script (node strip-types + `tsgo:dts`) and dependency alignment. File inventory changed in the 2026-06-12 cleanup: the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again (matching upstream), and the upstream single-app MWA template content is vendored at `scripts/mwa-template/` (see Appendix A).
 
-### types (7 files) — [F]
+### types (6 files) — [F]
 
-Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validateSearch`), `unsafeHeaders`, `cacheConfig`.
+Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validateSearch`), `unsafeHeaders`, `cacheConfig`. (`common/index.d.ts` matches the upstream baseline again — the fork-added babel/moduleSdk re-exports were removed and `common/moduleSdk.d.ts` deleted in the 2026-06-12 cleanup.)
 
-### utils (21 files) — mixed
+### utils (20 files) — mixed
 
-- `src/cli/runtimeExports.ts` — [F] file-flush rewrite of runtime exports generation.
 - `compiled/pkg-up/*` — [F] vendored compiled blob replaced with a readable reimplementation (same API).
 - `src/cli/constants.ts` — [F] fork constants (`NESTED_ROUTE_SPEC_FILE`, etc.).
 - rest (logger, version, require, is/get) — [M] reordering + strictness.
@@ -186,8 +186,8 @@ These files exist upstream but not in the fork. On merge they conflict as delete
 - `packages/runtime/render/modern.config.js` — build config replaced by fork-added `rslib.config.mts`. Keep deleted; port upstream build-config changes into the rslib config.
 - `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` — the TS compile path was rebuilt around tsgo (see the `server/utils` entry above). Keep deleted; re-express upstream loader fixes in the fork's tsgo compiler path under `src/compilers/typescript/`.
 - `packages/solutions/app-tools/src/esm/ts-node-loader.mjs` + `packages/solutions/app-tools/tests/utils/ts-node-loader.test.ts` — ts-node ESM loader dropped for the tsgo toolchain; the fork keeps `src/esm/register-esm.mjs` and `src/esm/ts-paths-loader.mjs`. Keep deleted; map upstream loader changes onto `ts-paths-loader.mjs`.
-- `packages/toolkit/create/template/**` (14 files: `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). Keep deleted; mirror upstream template-content changes in the workspace templates only where they still apply.
-- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version.
+- `packages/toolkit/create/template/**` (14 files: `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). Keep deleted; mirror upstream template-content changes in the workspace templates only where they still apply. The upstream single-app template content is additionally vendored byte-identically at `packages/toolkit/sandpack-react/scripts/mwa-template/` (with `biome.json` stored as `biome.json.handlebars`) as the source of the Sandpack `web-app` template — mirror upstream `create/template` content changes there too.
+- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version. `template.mts` now renders `scripts/mwa-template/` (upstream MWA content) instead of `template-workspace`, and the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again, matching upstream.
 
 ## Appendix B — renamed + modified upstream files (3): follow the rename
 
@@ -197,6 +197,24 @@ Git resolves these only with rename detection on (`-M`); without it they look li
 - `packages/runtime/plugin-runtime/scripts/gen-static.ts` → `scripts/gen-static.mts` (R075, ~25% modified) — ESM script for the tsgo toolchain. Follow the rename; port upstream script logic into the `.mts` file.
 
 ---
+
+## Appendix C — 2026-06-12 brutal-cleanup removals (fork-added code; keep deleted on sync)
+
+The fork-audit cleanup (see `docs/research/fork-audit-2026-06-12-findings.md`) deleted the following **fork-added** code. None of it exists upstream at the baseline, so a sync never resurrects it — this list exists so the deletions are not mistaken for merge losses.
+
+Packages:
+
+- `packages/runtime/plugin-garfish` — the fork-rewritten Garfish compat lane (trust/compatibility/fallback-telemetry/cache-policy). Module Federation is the sole micro-frontend runtime surface (ADR-0011 retired). Upstream removed its own plugin-garfish before the baseline; keep deleted.
+- `packages/server/plugin-koa`, `packages/server/plugin-express` — fork-resurrected v2 BFF adapter packages (re-added in 42e2dcf66f, absent upstream since v3, both `private: true` and unpublished). Deleted per findings server-lane#3 / xcut-dead-features#3: the v3 BFF pipeline is hono/effect-only (`BffRuntimeFramework` in `packages/server/core/src/types/config/bff.ts`) and the adapters' node-style handlers could not satisfy the hono `prepareApiServer` contract. Hono-side cross-project enforcement lives in plugin-bff's `crossProjectApiPlugin`; coverage lives in bff-core's `crossProjectPolicy`/`resolveCrossProjectPolicy`/`adapterKit` tests.
+- `packages/builder/**` (5 stale orphan files) — upstream removed `packages/builder` in 4df6c876aa; the fork copies (incl. the DIAG-0001 `performance.ts` diagnostics writer that never had a live producer) are deleted.
+- `packages/runtime/plugin-runtime/src/ssr/**` (4 orphaned legacy SSR copies), `packages/toolkit/runtime-utils/src/universal/async_storage.server.worker.ts`, `packages/toolkit/types/common/moduleSdk.d.ts` — fork-added orphans, deleted.
+- prod-server zombie lane: `src/server/{index,modernServerSplit}.ts`, `src/libs/{runtimeFallbackWorkerLane,loadConfig,metrics}.ts`, `src/utils.ts` and the worker-lane config surface; `benchmark/runtime-resilience`. The live telemetry lane is `@modern-js/server-runtime-extensions`.
+
+Scripts and CI (fork-added; ~repo-tooling only):
+
+- MV governance layer (~6,550 LOC) per scripts-mv#1..#10: `scripts/mv-zephyr-profile`, `scripts/mv-production-rollout`, `scripts/mv-ci-hardening`, `scripts/mv-lane-policy`, `scripts/wave0-mv-contracts`, 3 of 5 `scripts/mv-integration-pilot` drills, and both `.github/workflows/mv-*.yml`. Kept: the `validate:mv-topology-smoke` lane (reference-topology + design-system-bad-release-drill).
+- SuperApp load/preflight chain: `scripts/superapp-k6` (5.2k-line lane that could never execute — k6/autocannon installed nowhere, every invocation skip-passed against a server that was never started; scripts-superapp#1), `scripts/superapp-load` (third load engine, single consumer; xcut-scripts-duplication#8), `scripts/ultramodern-preflight` + `scripts/ultramodern-contract-doctor` + `scripts/superapp-local-control-plane` (chain broken on every fresh workspace, wired to no CI; scripts-ultramodern#1-2), `scripts/superapp-certification/validate-harness-contract.js` (vacuous gate; scripts-superapp#4). Certification profiles slimmed (release 16→12, nightly 22→15 commands); the readiness report no longer converts skipped/budget-failed artifacts into passed evidence (scripts-superapp#2). Surviving validation: `tests/integration/create-ultramodern-workspace` plus each generated workspace's own `scripts/validate-ultramodern-workspace.mjs`.
+- Dead script families per scripts-misc: `scripts/ultramodern-version-switching` (tautological self-simulation), `scripts/ultramodern-cloudflare-ssr-validation` (duplicated the workspace cloudflare proof; retired Tractor defaults), `scripts/ultramodern-zephyr-live-evidence` (hardcoded retired Tractor topology), `scripts/ai-capabilities` (LSP-framed MCP bridge no MCP client can speak + tautological parity gate), `scripts/test-orchestrator` (no consumer), `scripts/ultramodern-publish/resolve-affected-packages.mjs` (contradicted the enforced full-cohort publish). The ownership/blast-radius module was removed from `scripts/boundary-guards/validator.js`. **Retained:** `scripts/ultramodern-zephyr-ssr-upload` (live upload-side tool, CLOUDFLARE-ZEPHYR-0001).
 
 ## Sync guidance
 

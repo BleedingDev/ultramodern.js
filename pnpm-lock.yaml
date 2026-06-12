@@ -137,8 +137,6 @@ importers:
         specifier: ^6.1.3
         version: 6.1.3
 
-  benchmark/runtime-resilience: {}
-
   packages/cli/adapter-rstest:
     dependencies:
       '@modern-js/app-tools':
@@ -262,9 +260,6 @@ importers:
       postcss-initial:
         specifier: 4.0.1
         version: 4.0.1(postcss@8.5.15)
-      postcss-load-config:
-        specifier: 6.0.1
-        version: 6.0.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(yaml@2.9.0)
       postcss-media-minmax:
         specifier: 5.0.0
         version: 5.0.0(postcss@8.5.15)
@@ -1141,116 +1136,6 @@ importers:
       nock:
         specifier: ^14.0.15
         version: 14.0.15
-
-  packages/server/plugin-express:
-    dependencies:
-      '@modern-js/bff-core':
-        specifier: workspace:*
-        version: link:../bff-core
-      '@modern-js/server-core':
-        specifier: workspace:*
-        version: link:../core
-      '@modern-js/utils':
-        specifier: workspace:*
-        version: link:../../toolkit/utils
-      cookie-parser:
-        specifier: ^1.4.7
-        version: 1.4.7
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-      finalhandler:
-        specifier: ^2.1.1
-        version: 2.1.1
-      formidable:
-        specifier: ^3.5.4
-        version: 3.5.4
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      type-is:
-        specifier: ^2.1.0
-        version: 2.1.0
-    devDependencies:
-      '@scripts/rstest-config':
-        specifier: workspace:*
-        version: link:../../../scripts/rstest-config
-      '@types/cookie-parser':
-        specifier: ^1.4.10
-        version: 1.4.10(@types/express@5.0.6)
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      '@types/finalhandler':
-        specifier: ^1.2.4
-        version: 1.2.4
-      '@types/formidable':
-        specifier: ^3.4.6
-        version: 3.5.1
-      '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
-      '@types/supertest':
-        specifier: ^7.2.0
-        version: 7.2.0
-      '@types/type-is':
-        specifier: ^1.6.7
-        version: 1.6.7
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260610.1
-        version: 7.0.0-dev.20260610.1
-      supertest:
-        specifier: ^7.2.2
-        version: 7.2.2
-
-  packages/server/plugin-koa:
-    dependencies:
-      '@koa/router':
-        specifier: ^15.6.0
-        version: 15.6.0(koa@3.2.1)
-      '@modern-js/bff-core':
-        specifier: workspace:*
-        version: link:../bff-core
-      '@modern-js/server-core':
-        specifier: workspace:*
-        version: link:../core
-      '@modern-js/utils':
-        specifier: workspace:*
-        version: link:../../toolkit/utils
-      koa:
-        specifier: 3.2.1
-        version: 3.2.1
-      koa-body:
-        specifier: ^8.0.0
-        version: 8.0.0
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      type-is:
-        specifier: ^2.1.0
-        version: 2.1.0
-    devDependencies:
-      '@scripts/rstest-config':
-        specifier: workspace:*
-        version: link:../../../scripts/rstest-config
-      '@types/koa':
-        specifier: 3.0.3
-        version: 3.0.3
-      '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
-      '@types/supertest':
-        specifier: ^7.2.0
-        version: 7.2.0
-      '@types/type-is':
-        specifier: ^1.6.7
-        version: 1.6.7
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260610.1
-        version: 7.0.0-dev.20260610.1
-      supertest:
-        specifier: ^7.2.2
-        version: 7.2.2
 
   packages/server/plugin-polyfill:
     dependencies:
@@ -2665,43 +2550,6 @@ importers:
         version: 7.0.0-dev.20260610.1
 
   tests/integration/bff-effect:
-    dependencies:
-      '@modern-js/plugin-bff':
-        specifier: workspace:*
-        version: link:../../../packages/cli/plugin-bff
-      '@modern-js/runtime':
-        specifier: workspace:*
-        version: link:../../../packages/runtime/plugin-runtime
-      '@modern-js/server-runtime':
-        specifier: workspace:*
-        version: link:../../../packages/server/server-runtime
-      react:
-        specifier: ^19.2.7
-        version: 19.2.7
-      react-dom:
-        specifier: ^19.2.7
-        version: 19.2.7(react@19.2.7)
-    devDependencies:
-      '@modern-js/app-tools':
-        specifier: workspace:*
-        version: link:../../../packages/solutions/app-tools
-      '@types/jest':
-        specifier: ^30.0.0
-        version: 30.0.0
-      '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
-      '@types/react':
-        specifier: ^19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260610.1
-        version: 7.0.0-dev.20260610.1
-
-  tests/integration/bff-effect-lambda-only:
     dependencies:
       '@modern-js/plugin-bff':
         specifier: workspace:*
@@ -6509,9 +6357,6 @@ packages:
     resolution: {integrity: sha512-j5C6NyfKevIxsfLK8KwO1C0vvP7k1+h4A9cFpc+cr6mEwCc1sPkr17dzh0Ke6k9U5pQccAQoXdcNBl3IYa4+ZQ==}
     deprecated: the package is rather renamed to @formatjs/ecma-abstract with some changes in functionality (primarily selectUnit is removed and we don't plan to make any further changes to this package
 
-  '@hapi/bourne@3.0.0':
-    resolution: {integrity: sha512-Waj1cwPXJDucOib4a3bAISsKJVb15MKi9IvmTI/7ssVEm6sywXGjVJDhl6/umt1pK1ZS7PacXU3A1PmFKHEZ2w==}
-
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
@@ -7292,12 +7137,6 @@ packages:
 
   '@juggle/resize-observer@3.4.0':
     resolution: {integrity: sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA==}
-
-  '@koa/router@15.6.0':
-    resolution: {integrity: sha512-iEOXlvGIBqSNkGXrg0XtMARAOm5zA24oedXxiTGEkrD4JgwVjfRDddCQvW1s4WEcwDYvyecRbf8BikXsuEEj8w==}
-    engines: {node: '>= 20'}
-    peerDependencies:
-      koa: ^2.0.0 || ^3.0.0
 
   '@lezer/common@1.5.1':
     resolution: {integrity: sha512-6YRVG9vBkaY7p1IVxL4s44n5nUnaNnGM2/AckNgYOnxTG2kWh1vR8BMxPseWPjRNpb5VtXnMpeYAEAADoRV1Iw==}
@@ -9679,9 +9518,6 @@ packages:
   '@types/cloneable-readable@2.0.3':
     resolution: {integrity: sha512-+Ihof4L4iu9k4WTzYbJSkzUxt6f1wzXn6u48fZYxgST+BsC9bBHTOJ59Buy1/4sC9j7ZWF7bxDf/n/mrtk/nzw==}
 
-  '@types/co-body@6.1.3':
-    resolution: {integrity: sha512-UhuhrQ5hclX6UJctv5m4Rfp52AfG9o9+d9/HwjxhVB5NjXxr5t9oKgJxN8xRHgr35oo8meUEHUPFWiKg6y71aA==}
-
   '@types/connect-history-api-fallback@1.5.4':
     resolution: {integrity: sha512-n6Cr2xS1h4uAulPRdlw6Jl6s1oG8KrVilPN2yUITEs+K48EzMJJ3W1xy8K5eWuFvjp3R74AOIGSmp2UfBJ8HFw==}
 
@@ -9690,11 +9526,6 @@ packages:
 
   '@types/content-disposition@0.5.9':
     resolution: {integrity: sha512-8uYXI3Gw35MhiVYhG3s295oihrxRyytcRHjSjqnqZVDDy/xcGBRny7+Xj1Wgfhv5QzRtN2hB2dVRBUX9XW3UcQ==}
-
-  '@types/cookie-parser@1.4.10':
-    resolution: {integrity: sha512-B4xqkqfZ8Wek+rCOeRxsjMS9OgvzebEzzLYw7NHYuvzb7IdxOkI0ZHGgeEBX4PUM7QGVvNSK60T3OvWj3YfBRg==}
-    peerDependencies:
-      '@types/express': '*'
 
   '@types/cookiejar@2.1.5':
     resolution: {integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==}
@@ -9821,12 +9652,6 @@ packages:
 
   '@types/express@5.0.6':
     resolution: {integrity: sha512-sKYVuV7Sv9fbPIt/442koC7+IIwK5olP1KWeD88e/idgoJqDm3JV/YUiPwkoKK92ylff2MGxSz1CSjsXelx0YA==}
-
-  '@types/finalhandler@1.2.4':
-    resolution: {integrity: sha512-ojpQ5ywnKZko/+tw8lR4xvUN5Uvfnar4ZtfpoLG1TdxlmiIqcQGUbXmc9iV5ud7J6rRtacNbwTkCE98NmsBPYw==}
-
-  '@types/formidable@3.5.1':
-    resolution: {integrity: sha512-aFQijSGbD8JCeEST2LEbwR7faHynbt43lojLIcTM/QhB2U06h41ZVRFVEql+Z1xdL+aKGIzm69V/P/uSW9N6XA==}
 
   '@types/fs-extra@11.0.4':
     resolution: {integrity: sha512-yTbItCNreRooED33qjunPthRcSjERP1r4MqCZc7wv0u2sUkzTFp45tgUfS5+r7FrZPdmCCNflLhVSP/o+SemsQ==}
@@ -10811,10 +10636,6 @@ packages:
     resolution: {integrity: sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==}
     engines: {node: '>=0.10.0'}
 
-  co-body@6.2.0:
-    resolution: {integrity: sha512-Kbpv2Yd1NdL1V/V4cwLVxraHDV6K8ayohr2rmH0J87Er8+zJjcTa6dAn9QMPC9CRgU8+aNajKbSf1TzDB1yKPA==}
-    engines: {node: '>=8.0.0'}
-
   co@4.6.0:
     resolution: {integrity: sha512-QVb0dM5HvG+uaxitm8wONl7jltx8dqhfU33DcqtOZcLSVIKSDDLDi7+0LbAKiyI8hD9u42m2YxXSkMGWThaecQ==}
     engines: {iojs: '>= 1.0.0', node: '>= 0.12.0'}
@@ -10935,13 +10756,6 @@ packages:
 
   cookie-es@3.1.1:
     resolution: {integrity: sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==}
-
-  cookie-parser@1.4.7:
-    resolution: {integrity: sha512-nGUvgXnotP3BsjiLX2ypbQnWoGUPIIfHQNZkkC668ntrzGWEZVW70HDEB1qnNGMicPje6EttlIgzo51YSwNQGw==}
-    engines: {node: '>= 0.8.0'}
-
-  cookie-signature@1.0.6:
-    resolution: {integrity: sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==}
 
   cookie-signature@1.2.2:
     resolution: {integrity: sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg==}
@@ -12377,10 +12191,6 @@ packages:
       typescript:
         optional: true
 
-  iconv-lite@0.4.24:
-    resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
-    engines: {node: '>=0.10.0'}
-
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
@@ -12439,10 +12249,6 @@ packages:
   indent-string@4.0.0:
     resolution: {integrity: sha512-EdDDZu4A2OyIK7Lr/2zG+w5jmbuk1DVBnEwREQvBzspBJkCEbRa8GxU1lghYcaGJCnRWibjDXlq779X1/y5xwg==}
     engines: {node: '>=8'}
-
-  inflation@2.1.0:
-    resolution: {integrity: sha512-t54PPJHG1Pp7VQvxyVCJ9mBbjG3Hqryges9bXoOO6GExCPa+//i/d5GSuFtpx3ALLd7lgIAur6zrIlBQyJuMlQ==}
-    engines: {node: '>= 0.8.0'}
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
@@ -12994,9 +12800,6 @@ packages:
 
   knitwork@1.3.0:
     resolution: {integrity: sha512-4LqMNoONzR43B1W0ek0fhXMsDNW/zxa1NdFAVMY+k28pgZLovR4G3PB5MrpTxCy1QaZCqNoiaKPr5w5qZHfSNw==}
-
-  koa-body@8.0.0:
-    resolution: {integrity: sha512-gJNvXtezVmS/oAX8dJt5yG+DpnKP9dHsY0RXmynO6iQfY1yPDLMddpkspiBeU2uYExJHqcaHY9Ap2gTi+b7vbQ==}
 
   koa-compose@4.1.0:
     resolution: {integrity: sha512-8ODW8TrDuMYvXRwra/Kh7/rJo9BtOfPc6qO8eAfC80CnCvSjSl0bkRM24X6/XBBEyj0v1nRUQ1LyOy3dbqOWXw==}
@@ -14246,24 +14049,6 @@ packages:
     peerDependencies:
       postcss: ^8.0.0
 
-  postcss-load-config@6.0.1:
-    resolution: {integrity: sha512-oPtTM4oerL+UXmx+93ytZVN82RrlY/wPUV8IeDxFrzIjXOLF1pN+EmKPLbubvKHT2HC20xXsCAH2Z+CKV6Oz/g==}
-    engines: {node: '>= 18'}
-    peerDependencies:
-      jiti: '>=1.21.0'
-      postcss: '>=8.0.9'
-      tsx: ^4.8.1
-      yaml: '>=2.8.3'
-    peerDependenciesMeta:
-      jiti:
-        optional: true
-      postcss:
-        optional: true
-      tsx:
-        optional: true
-      yaml:
-        optional: true
-
   postcss-media-minmax@5.0.0:
     resolution: {integrity: sha512-yDUvFf9QdFZTuCUg0g0uNSHVlJ5X1lSzDZjPSFaiCWvjgsvu8vEVxtahPrLMinIDEEGnx6cBe6iqdx5YWz08wQ==}
     engines: {node: '>=10.0.0'}
@@ -14642,10 +14427,6 @@ packages:
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
-
-  raw-body@2.5.3:
-    resolution: {integrity: sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==}
-    engines: {node: '>= 0.8'}
 
   raw-body@3.0.2:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
@@ -17394,8 +17175,6 @@ snapshots:
     dependencies:
       emojis-list: 3.0.0
 
-  '@hapi/bourne@3.0.0': {}
-
   '@iconify/types@2.0.0': {}
 
   '@iconify/utils@3.1.3':
@@ -18172,16 +17951,6 @@ snapshots:
       tslib: 2.8.1
 
   '@juggle/resize-observer@3.4.0': {}
-
-  '@koa/router@15.6.0(koa@3.2.1)':
-    dependencies:
-      debug: 4.4.3
-      http-errors: 2.0.1
-      koa: 3.2.1
-      koa-compose: 4.1.0
-      path-to-regexp: 8.4.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@lezer/common@1.5.1': {}
 
@@ -21030,11 +20799,6 @@ snapshots:
     dependencies:
       '@types/node': 25.9.1
 
-  '@types/co-body@6.1.3':
-    dependencies:
-      '@types/node': 25.9.3
-      '@types/qs': 6.15.1
-
   '@types/connect-history-api-fallback@1.5.4':
     dependencies:
       '@types/express-serve-static-core': 5.1.1
@@ -21045,10 +20809,6 @@ snapshots:
       '@types/node': 25.9.3
 
   '@types/content-disposition@0.5.9': {}
-
-  '@types/cookie-parser@1.4.10(@types/express@5.0.6)':
-    dependencies:
-      '@types/express': 5.0.6
 
   '@types/cookiejar@2.1.5': {}
 
@@ -21208,14 +20968,6 @@ snapshots:
       '@types/body-parser': 1.19.6
       '@types/express-serve-static-core': 5.1.1
       '@types/serve-static': 2.2.0
-
-  '@types/finalhandler@1.2.4':
-    dependencies:
-      '@types/node': 25.9.1
-
-  '@types/formidable@3.5.1':
-    dependencies:
-      '@types/node': 25.9.1
 
   '@types/fs-extra@11.0.4':
     dependencies:
@@ -22284,14 +22036,6 @@ snapshots:
 
   cluster-key-slot@1.1.1: {}
 
-  co-body@6.2.0:
-    dependencies:
-      '@hapi/bourne': 3.0.0
-      inflation: 2.1.0
-      qs: 6.15.2
-      raw-body: 2.5.3
-      type-is: 1.6.18
-
   co@4.6.0: {}
 
   collapse-white-space@2.1.0: {}
@@ -22377,13 +22121,6 @@ snapshots:
   cookie-es@1.2.3: {}
 
   cookie-es@3.1.1: {}
-
-  cookie-parser@1.4.7:
-    dependencies:
-      cookie: 0.7.2
-      cookie-signature: 1.0.6
-
-  cookie-signature@1.0.6: {}
 
   cookie-signature@1.2.2: {}
 
@@ -24082,10 +23819,6 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  iconv-lite@0.4.24:
-    dependencies:
-      safer-buffer: 2.1.2
-
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
@@ -24126,8 +23859,6 @@ snapshots:
   imurmurhash@0.1.4: {}
 
   indent-string@4.0.0: {}
-
-  inflation@2.1.0: {}
 
   inflight@1.0.6:
     dependencies:
@@ -24860,16 +24591,6 @@ snapshots:
       is-buffer: 1.1.6
 
   knitwork@1.3.0: {}
-
-  koa-body@8.0.0:
-    dependencies:
-      '@types/co-body': 6.1.3
-      '@types/formidable': 3.5.1
-      '@types/koa': 3.0.3
-      co-body: 6.2.0
-      formidable: 3.5.4
-      type-fest: 5.6.0
-      zod: 4.4.3
 
   koa-compose@4.1.0: {}
 
@@ -26533,15 +26254,6 @@ snapshots:
     dependencies:
       postcss: 8.5.15
 
-  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(yaml@2.9.0):
-    dependencies:
-      lilconfig: 3.1.3
-    optionalDependencies:
-      jiti: 2.7.0
-      postcss: 8.5.15
-      tsx: 4.22.4
-      yaml: 2.9.0
-
   postcss-media-minmax@5.0.0(postcss@8.5.15):
     dependencies:
       postcss: 8.5.15
@@ -26912,13 +26624,6 @@ snapshots:
   radix3@1.1.2: {}
 
   range-parser@1.2.1: {}
-
-  raw-body@2.5.3:
-    dependencies:
-      bytes: 3.1.2
-      http-errors: 2.0.1
-      iconv-lite: 0.4.24
-      unpipe: 1.0.0
 
   raw-body@3.0.2:
     dependencies:

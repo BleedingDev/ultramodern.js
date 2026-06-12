@@ -1,13 +1,13 @@
 # LANE-POLICY-0001: Golden, Compat, and Experimental MV Lanes
 
-- Status: Active
+- Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. `scripts/mv-lane-policy/lane-policy.json`, `validate-lane-policy.js`, and `.github/workflows/mv-lane-policy.yml` were deleted; no package or test consumed the golden/compat/experimental tiers.
 - Date: 2026-04-29
 - Decision Type: Lane governance and enforcement policy
 - Related:
   - `ADR-0010-mv-wave0-contract-first-gates.md`
   - `CI-GATES-0001-check-and-artifact-map.md`
-  - `scripts/mv-lane-policy/lane-policy.json`
-  - `scripts/mv-lane-policy/validate-lane-policy.js`
+  - `scripts/mv-lane-policy/lane-policy.json` (deleted 2026-06-12)
+  - `scripts/mv-lane-policy/validate-lane-policy.js` (deleted 2026-06-12)
 
 ## 1. Purpose
 

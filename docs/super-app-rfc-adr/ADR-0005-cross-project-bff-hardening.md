@@ -152,9 +152,8 @@ Behavior change for producer clients:
    - validates producer namespace against optional allowlist
    - validates operation-context consistency (`x-operation-id`)
    - returns explicit deny reasons with deterministic status codes
-2. Added framework-level enforcement middleware in both API runtimes:
-   - `@modern-js/plugin-express`
-   - `@modern-js/plugin-koa`
+2. Framework-level enforcement:
+   - the express/koa adapter packages were removed in the 2026-06-12 fork cleanup (the v3 BFF pipeline is hono/effect-only); hono-side cross-project enforcement lives in plugin-bff's `crossProjectApiPlugin`
    - deny responses use explicit policy error payload (`BFF_CROSS_PROJECT_POLICY_DENIED`)
 3. Added config surface under `bff.crossProjectPolicy`:
    - `enabled`
@@ -167,10 +166,10 @@ Behavior change for producer clients:
    - `x-modernjs-bff-operation-context`
 5. Validation coverage:
    - `packages/server/bff-core/tests/crossProjectPolicy.test.ts`
+   - `packages/server/bff-core/tests/resolveCrossProjectPolicy.test.ts`
+   - `packages/server/bff-core/tests/adapterKit.test.ts`
    - `packages/server/create-request/tests/node.test.ts`
    - `packages/server/create-request/tests/browser.test.ts`
-   - `packages/server/plugin-express/tests/*.test.ts`
-   - `packages/server/plugin-koa/tests/*.test.ts`
 
 ## 14. Audit Context Propagation Notes (2026-02-22)
 

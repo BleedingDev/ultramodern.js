@@ -103,63 +103,17 @@
       },
       {
         "id": "plugin-runtime-ssr-stream-sanitization-contract",
-        "path": "packages/runtime/plugin-runtime/src/ssr/serverRender/renderToStream/buildTemplate.after.ts",
+        "path": "packages/runtime/plugin-runtime/src/core/server/stream/afterTemplate.ts",
         "includes": [
-          "sanitizeSSRPayload",
           "unsafeHeaders",
           "window._SSR_DATA",
-          "enableUnsafeCtx"
+          "SSR_DATA_PLACEHOLDER"
         ]
       },
       {
         "id": "plugin-runtime-ssr-string-sanitization-contract",
-        "path": "packages/runtime/plugin-runtime/src/ssr/serverRender/renderToString/entry.ts",
-        "includes": [
-          "sanitizeSSRPayload",
-          "unsafeHeaders: this.pluginConfig.unsafeHeaders",
-          "window._SSR_DATA",
-          "window._ROUTER_DATA"
-        ]
-      },
-      {
-        "id": "plugin-garfish-runtime-compatibility-contract",
-        "path": "packages/runtime/plugin-garfish/src/runtime/compatibility.ts",
-        "includes": [
-          "MV_RUNTIME_INCOMPATIBLE",
-          "missing_remote_digest",
-          "digest_mismatch",
-          "validateRuntimeCompatibility"
-        ]
-      },
-      {
-        "id": "plugin-garfish-remote-trust-contract",
-        "path": "packages/runtime/plugin-garfish/src/runtime/trust.ts",
-        "includes": [
-          "MV_ORIGIN_ISOLATION_VIOLATION",
-          "origin_isolation_violation",
-          "integrity_mismatch",
-          "attestation_mismatch"
-        ]
-      },
-      {
-        "id": "plugin-garfish-fallback-telemetry-contract",
-        "path": "packages/runtime/plugin-garfish/src/runtime/fallbackTelemetry.ts",
-        "includes": [
-          "modernjs:mv-runtime-parity",
-          "runtime_incompatible",
-          "inferFallbackReason",
-          "emitFallbackTelemetry"
-        ]
-      },
-      {
-        "id": "plugin-garfish-cache-policy-contract",
-        "path": "packages/runtime/plugin-garfish/src/runtime/cachePolicy.ts",
-        "includes": [
-          "CACHE_VERSION_QUERY_KEY = 'mfv'",
-          "applyMfEntryCachePolicy",
-          "runtimeDigest",
-          "manifestRuntimeDigest"
-        ]
+        "path": "packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts",
+        "includes": ["unsafeHeaders", "window._SSR_DATA", "window._ROUTER_DATA"]
       },
       {
         "id": "tanstack-mf-host-router-contract",
@@ -202,38 +156,6 @@
         ]
       },
       {
-        "id": "ai-capability-contract",
-        "path": "docs/super-app-rfc-adr/contracts/ai-capabilities.json",
-        "includes": [
-          "\"runtime.status.read\"",
-          "\"runtime.fallback.signal.write\"",
-          "\"inputSchema\"",
-          "\"argMap\"",
-          "\"mcp\"",
-          "\"cli\""
-        ]
-      },
-      {
-        "id": "mcp-cli-bridge-contract",
-        "path": "scripts/ai-capabilities/mcp-cli-bridge.js",
-        "includes": [
-          "tools/list",
-          "tools/call",
-          "buildCliInvocation",
-          "Content-Length"
-        ]
-      },
-      {
-        "id": "mcp-adapter-generator-contract",
-        "path": "scripts/ai-capabilities/generate-mcp-adapter.js",
-        "includes": [
-          "adapter-manifest",
-          "mcporter",
-          "mcp-cli-bridge.js",
-          "createMcpAdapterManifest"
-        ]
-      },
-      {
         "id": "runtime-cli-command-contract",
         "path": "packages/solutions/app-tools/src/commands/runtime.ts",
         "includes": [
@@ -241,27 +163,6 @@
           "command('status')",
           "command('fallback-signal')",
           "createRuntimeFallbackSignalPayload"
-        ]
-      },
-      {
-        "id": "runtime-resilience-benchmark-contract",
-        "path": "benchmark/runtime-resilience/run.js",
-        "includes": [
-          "runtime-resilience-benchmark",
-          "statusPhase",
-          "fallbackPhase",
-          "workerLanePhase",
-          "summarizeLatencies"
-        ]
-      },
-      {
-        "id": "runtime-fallback-worker-lane-contract",
-        "path": "packages/server/prod-server/src/libs/runtimeFallbackWorkerLane.ts",
-        "includes": [
-          "DEFAULT_RUNTIME_FALLBACK_WORKER_TIMEOUT_MS",
-          "worker_lane_timeout",
-          "runtime-mf-fallback-signal",
-          "persistRuntimeFallbackContractGateInWorker"
         ]
       },
       {
@@ -282,15 +183,6 @@
           "traceparent",
           "traceId",
           "spanId"
-        ]
-      },
-      {
-        "id": "rsdoctor-artifact-contract",
-        "path": "packages/builder/builder/src/plugins/performance.ts",
-        "includes": [
-          "ultramodern-diagnostics.json",
-          ".rsdoctor",
-          "schemaVersion: 1"
         ]
       },
       {
@@ -398,15 +290,10 @@
     "pnpm --dir packages/cli/plugin-bff exec rstest run tests/regression.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/create-request test",
     "pnpm --filter @modern-js/bff-core test",
-    "pnpm --filter @modern-js/plugin-express test",
-    "pnpm --filter @modern-js/plugin-koa test",
     "pnpm --dir packages/solutions/app-tools exec rstest run tests/index.test.ts tests/baseline.test.ts tests/presetUltramodern.test.ts --passWithNoTests",
-    "pnpm exec rstest run -c packages/runtime/plugin-garfish/rstest.config.mts packages/runtime/plugin-garfish/tests/reliabilityMatrix.test.ts packages/runtime/plugin-garfish/tests/compatibility.test.ts packages/runtime/plugin-garfish/tests/trust.test.ts packages/runtime/plugin-garfish/tests/cachePolicy.test.ts packages/runtime/plugin-garfish/tests/fallbackTelemetry.test.ts packages/runtime/plugin-garfish/tests/runtimePlugin.test.tsx --passWithNoTests",
     "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
-    "pnpm --filter @modern-js/prod-server test -- telemetry.test.ts runtimeSignals.test.ts runtimeFallbackWorkerLane.test.ts",
-    "pnpm run validate:mcp-cli-parity",
-    "pnpm run generate:mcp-adapter",
-    "pnpm run benchmark:runtime-resilience:worker-lane-gate",
+    "pnpm --filter @modern-js/prod-server test -- applyPlugins.test.ts",
+    "pnpm --filter @modern-js/server-runtime-extensions test -- telemetry.test.ts telemetryCanaryOrchestrator.test.ts contractGateAutopilot.test.ts",
     "pnpm --dir tests run test:superapp-contracts"
   ]
 }

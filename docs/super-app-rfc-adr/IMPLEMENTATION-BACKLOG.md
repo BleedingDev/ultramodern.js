@@ -48,23 +48,12 @@
 - EPIC-6 in progress:
   - runtime status endpoint `/_modern/runtime/status` is implemented in framework telemetry plugin with machine-readable payload shape.
   - runtime status endpoint auth guard is wired to runtime signal auth policy when enabled.
-  - runtime resilience benchmark harness is added at `benchmark/runtime-resilience` with latency percentile reporting.
-  - runtime fallback signal worker-lane pilot is implemented in `@modern-js/prod-server` with opt-in `workerLane.enabled` and deterministic fallback-to-main-thread behavior.
-  - worker-lane benchmark gate mode is added:
-    - `pnpm run benchmark:runtime-resilience:worker-lane-gate`
-- EPIC-7 in progress:
-  - runtime CLI parity commands are implemented:
+  - (2026-06-12 fork cleanup) the runtime-resilience benchmark harness, the prod-server worker-lane pilot, and the worker-lane benchmark gate were removed — the pilot was a silent no-op wired only into the deleted dead prod-server harness, and the `server.telemetry...workerLane` config surface has been removed from server-core types.
+- EPIC-7 partially retired (see ADR-0009, Retired 2026-06-12):
+  - runtime CLI parity commands remain implemented:
     - `modern runtime status`
     - `modern runtime fallback-signal`
-  - capability contract and parity validator are implemented:
-    - `docs/super-app-rfc-adr/contracts/ai-capabilities.json`
-    - `pnpm run validate:mcp-cli-parity`
-  - contract-driven MCP adapter artifacts are generated:
-    - `pnpm run generate:mcp-adapter`
-    - `.modern/mcp/adapter-manifest.json`
-    - `.modern/mcporter.json`
-  - MCP CLI bridge server is implemented:
-    - `pnpm run serve:mcp-cli-bridge`
+  - the MCP lane (`scripts/ai-capabilities` parity validator, adapter generator, and CLI bridge plus their npm scripts and gates) was deleted in the fork cleanup; `contracts/ai-capabilities.json` is spec-only with no code consumers.
 
 ## EPIC-1: RsDoctor Default-On (ADR-0001)
 

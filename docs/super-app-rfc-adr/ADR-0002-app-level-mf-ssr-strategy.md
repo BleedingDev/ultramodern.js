@@ -92,6 +92,13 @@ Adopt an SSR strategy for app-level MF:
 
 ## 10. Runtime Compatibility Handshake Notes (2026-02-22)
 
+> **Removed (2026-06-12 fork cleanup):** sections 10 and 11 documented the
+> Garfish-lane trust surface. `packages/runtime/plugin-garfish` was deleted and
+> the `deploy.microFrontend.{runtimeDigest,integrity,attestation}` fields were
+> removed from app-tools (`MicroFrontend` is back to upstream shape), so the
+> handshake/trust/attestation ordering below no longer exists in code. Kept for
+> historical reference; see `docs/research/fork-audit-2026-06-12-findings.md`.
+
 - Added host/remote runtime digest handshake support in `@modern-js/plugin-garfish` runtime:
   - host policy: `runtimeCompatibility.hostDigest`
   - mode: `off | warn | strict` (default `strict` when host digest is configured)

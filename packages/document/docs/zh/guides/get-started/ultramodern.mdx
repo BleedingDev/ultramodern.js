@@ -30,7 +30,7 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 
 | 领域 | Modern.js 3.0 基线 | UltraModern.js 3.0 |
 | --- | --- | --- |
-| 构建诊断能力 | RsDoctor 多为显式开启 | 新增 `performance.rsdoctor`，并在 Rspack 生产构建默认开启，同时产出 `.rsdoctor/ultramodern-diagnostics.json` 契约文件 |
+| 构建诊断能力 | RsDoctor 多为显式开启 | 新增一等的 `performance.rsdoctor` 配置项（按需开启；早期的默认开启行为与诊断契约产物已回退） |
 | 输出与静态资源回源 | 预压缩策略通常由业务自定义 | 默认开启 `output.precompress`，并按 `Accept-Encoding` 协商 `.br` / `.gz` 回源 |
 | BFF 运行时与契约 | 提供标准 BFF 运行时与客户端生成能力 | 增加 `requestId` 维度隔离、初始化 fail-fast 校验与操作/追踪关联 Header |
 | BFF 运行时选型 | Modern.js 3.0 基线仅提供 Hono 运行时路径（无内建 Effect 运行时） | 将 Effect 设为默认运行时，并采用严格运行时拆分（`effect` -> `api/effect`，`hono` -> `api/lambda`），同时补齐 Effect-Schema-first 契约与 MF failure-injection 覆盖 |
