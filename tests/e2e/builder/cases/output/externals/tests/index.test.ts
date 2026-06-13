@@ -73,7 +73,15 @@ test('externalizes node:async_hooks as a module worker import', async () => {
             },
             externals: {
               async_hooks: 'module-import node:async_hooks',
+              buffer: 'module-import node:buffer',
+              crypto: 'module-import node:crypto',
+              path: 'module-import node:path',
+              util: 'module-import node:util',
               'node:async_hooks': 'module-import node:async_hooks',
+              'node:buffer': 'module-import node:buffer',
+              'node:crypto': 'module-import node:crypto',
+              'node:path': 'module-import node:path',
+              'node:util': 'module-import node:util',
             },
             externalsType: 'module-import',
           });
@@ -89,9 +97,19 @@ test('externalizes node:async_hooks as a module worker import', async () => {
   const files = await builder.unwrapOutputJSON();
 
   const content = files[Object.keys(files).find(file => file.endsWith('.js'))!];
-  expect(content).toContain('node:async_hooks');
-  expect(content).toMatch(/from\s*["']node:async_hooks["']/);
+  for (const builtin of [
+    'node:async_hooks',
+    'node:buffer',
+    'node:crypto',
+    'node:path',
+    'node:util',
+  ]) {
+    expect(content).toContain(builtin);
+    expect(content).toMatch(new RegExp(`from\\s*["']${builtin}["']`));
+  }
   expect(content).not.toContain('from "async_hooks"');
+  expect(content).not.toContain('createRequire(import.meta.url)');
+  expect(content).not.toContain('node:module');
   expect(content).not.toContain('Reading from "node:async_hooks"');
 
   builder.clean();

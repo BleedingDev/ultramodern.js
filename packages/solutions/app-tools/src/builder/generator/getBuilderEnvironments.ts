@@ -15,6 +15,20 @@ import type { AppToolsContext } from '../../types/plugin';
 const BFF_EFFECT_WORKER_ENTRY_NAME = '__modern_bff_effect';
 const BFF_EFFECT_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
 const JS_OR_TS_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const CLOUDFLARE_WORKER_NODE_BUILTINS = [
+  'async_hooks',
+  'buffer',
+  'crypto',
+  'events',
+  'fs/promises',
+  'module',
+  'path',
+  'process',
+  'stream',
+  'string_decoder',
+  'url',
+  'util',
+];
 const CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR = path.resolve(
   __dirname,
   '../../plugins/deploy/platforms/templates',
@@ -92,6 +106,19 @@ function setAliasIfPresent(
 
 function getCloudflareWorkerCompatFile(file: string) {
   return path.join(CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR, file);
+}
+
+function getCloudflareWorkerNodeExternals() {
+  return Object.fromEntries(
+    CLOUDFLARE_WORKER_NODE_BUILTINS.flatMap(builtin => {
+      const nodeBuiltin = `node:${builtin}`;
+
+      return [
+        [builtin, `module-import ${nodeBuiltin}`],
+        [nodeBuiltin, `module-import ${nodeBuiltin}`],
+      ];
+    }),
+  );
 }
 
 function getEffectBffEntry(
@@ -298,10 +325,7 @@ export function getBuilderEnvironments(
                   experiments: {
                     outputModule: true,
                   },
-                  externals: {
-                    async_hooks: 'module-import node:async_hooks',
-                    'node:async_hooks': 'module-import node:async_hooks',
-                  },
+                  externals: getCloudflareWorkerNodeExternals(),
                   externalsType: 'module-import',
                 });
                 chain.output
