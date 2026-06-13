@@ -244,7 +244,7 @@
     "cookie": "1.1.1",
     "entities": "^8.0.0",
     "es-module-lexer": "^2.1.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "invariant": "^2.2.4",
     "isbot": "5.1.42",
     "react-helmet-async": "3.0.0",
