@@ -300,6 +300,7 @@
         "path": "packages/toolkit/create/README.md",
         "includes": [
           "pnpm dlx @bleedingdev/modern-js-create .",
+          "Do not shorten it to",
           "UltraModern SuperApp workspace",
           "pnpm check",
           "pnpm dlx @bleedingdev/modern-js-create catalog --vertical"
@@ -312,6 +313,7 @@
           "create package to create SuperApp\nworkspaces",
           "pnpm dlx @bleedingdev/modern-js-create .",
           "@bleedingdev/modern-js-create",
+          "Do not shorten it to",
           "pnpm dlx @bleedingdev/modern-js-create transportation --vertical"
         ]
       },

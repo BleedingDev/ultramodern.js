@@ -12,7 +12,7 @@ import fsKit from '../lib/fs-kit.js';
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const { parseCliArgs } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
-const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
+const defaultCreatePackage = '@bleedingdev/modern-js-create';
 const defaultProjectName = 'ultramodern-ci-superapp';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
 const browserSmokeScript = path.join(
@@ -66,6 +66,7 @@ function parseArgs(argv) {
       verticalCount: undefined,
       out: defaultOut,
       deployCloudflare: false,
+      commandContractOnly: false,
     },
     options: {
       'create-package': {
@@ -89,6 +90,10 @@ function parseArgs(argv) {
       },
       'deploy-cloudflare': {
         key: 'deployCloudflare',
+        type: 'boolean',
+      },
+      'command-contract-only': {
+        key: 'commandContractOnly',
         type: 'boolean',
       },
     },
@@ -210,6 +215,15 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
+function createCleanPnpmDlxEnv(root) {
+  return {
+    XDG_CACHE_HOME: path.join(root, 'xdg'),
+    npm_config_cache: path.join(root, 'npm-cache'),
+    npm_config_store_dir: path.join(root, 'store'),
+    pnpm_config_store_dir: path.join(root, 'store'),
+  };
+}
+
 function readJsonIfExists(filePath) {
   if (!fs.existsSync(filePath)) {
     return undefined;
@@ -261,12 +275,17 @@ function resolveCreatePackage(specifier) {
   return {
     packageName,
     version,
+    dlxSpecifier: specifier,
     frameworkVersion:
       typeof frameworkVersion === 'string' && frameworkVersion.length > 0
         ? frameworkVersion
         : version,
     exactSpecifier: `${packageName}@${version}`,
   };
+}
+
+function createPnpmDlxArgs(createPackage, forwardedArgs) {
+  return ['dlx', createPackage.dlxSpecifier, ...forwardedArgs];
 }
 
 function bleedingdevAlias(modernPackageName) {
@@ -413,26 +432,19 @@ function packageScriptExists(projectDir, scriptName) {
   return typeof packageJson.scripts?.[scriptName] === 'string';
 }
 
-function createWorkspace(workDir, projectName, createPackage) {
+function createWorkspace(workDir, projectName, createPackage, env) {
   run(
     'pnpm',
-    ['dlx', createPackage.exactSpecifier, projectName, '--lang', 'en'],
-    { cwd: workDir },
+    createPnpmDlxArgs(createPackage, [projectName, '--lang', 'en']),
+    { cwd: workDir, env },
   );
 }
 
-function addVertical(projectDir, vertical, createPackage) {
+function addVertical(projectDir, vertical, createPackage, env) {
   run(
     'pnpm',
-    [
-      'dlx',
-      createPackage.exactSpecifier,
-      vertical,
-      '--vertical',
-      '--lang',
-      'en',
-    ],
-    { cwd: projectDir },
+    createPnpmDlxArgs(createPackage, [vertical, '--vertical', '--lang', 'en']),
+    { cwd: projectDir, env },
   );
 }
 
@@ -606,10 +618,12 @@ async function main() {
   const workDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-production-readiness-'),
   );
+  const pnpmDlxEnv = createCleanPnpmDlxEnv(path.join(workDir, 'pnpm-dlx'));
   const projectDir = path.join(workDir, options.projectName);
   const summary = {
     schemaVersion: 1,
     createPackage: undefined,
+    createCommand: undefined,
     projectDir,
     scaleProfile: options.scaleProfile,
     verticals: options.verticals,
@@ -623,15 +637,23 @@ async function main() {
       resolveCreatePackage(options.createPackage),
     );
     summary.createPackage = createPackage;
+    summary.createCommand = {
+      runner: 'pnpm dlx',
+      packageSpecifier: createPackage.dlxSpecifier,
+      command: ['pnpm', ...createPnpmDlxArgs(createPackage, ['<project>'])]
+        .join(' '),
+      cache: 'temporary pnpm store/cache for create and vertical dlx commands',
+    };
 
     timedStep(summary, 'workspaceCreation', () =>
-      createWorkspace(workDir, options.projectName, createPackage),
+      createWorkspace(workDir, options.projectName, createPackage, pnpmDlxEnv),
     );
+    summary.checks.push('pnpm-dlx-clean-cache-command-contract');
     summary.verticalAddTimings = [];
     timedStep(summary, 'addVerticals', () => {
       for (const vertical of options.verticals) {
         const startedAt = performance.now();
-        addVertical(projectDir, vertical, createPackage);
+        addVertical(projectDir, vertical, createPackage, pnpmDlxEnv);
         summary.verticalAddTimings.push({
           vertical,
           status: 'pass',
@@ -677,6 +699,17 @@ async function main() {
       packageCohortAssertion,
     );
     summary.checks.push('workspace-published-cohort-alignment');
+
+    if (options.commandContractOnly) {
+      summary.checks.push('command-contract-only');
+      summary.ok = true;
+      writeJsonFile(options.out, summary, { atomic: false });
+      await writeStream(
+        process.stdout,
+        `[ultramodern-production-readiness] pass: ${options.out}\n`,
+      );
+      return 0;
+    }
 
     timedStep(summary, 'install', () =>
       run('pnpm', ['install'], { cwd: projectDir }),
@@ -767,6 +800,8 @@ if (
 
 export {
   assertGeneratedCohort,
+  createCleanPnpmDlxEnv,
+  createPnpmDlxArgs,
   createTopologyEvidence,
   generateVerticalNames,
   parseArgs,

@@ -1,5 +1,9 @@
 UltraModern.js 提供 BleedingDev create 包来创建 SuperApp workspace，不需要全局安装，直接使用 `pnpm dlx` 按需运行即可。
 
+pnpm 支持的命令契约是 scoped package specifier：
+`pnpm dlx @bleedingdev/modern-js-create <target>`。不要简写成
+`pnpm dlx modern-js-create`；npm 上没有这个未加 scope 的包。
+
 你可以在当前已有的空目录中初始化项目：
 
 ```bash

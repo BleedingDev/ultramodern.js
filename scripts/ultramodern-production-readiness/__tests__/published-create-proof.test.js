@@ -63,6 +63,12 @@ test('generates readable first-ten verticals and deterministic safe names above 
 test('parses scale profile and legacy custom vertical count requests', async () => {
   const { parseArgs } = await loadProof();
 
+  assert.equal(
+    parseArgs([]).createPackage,
+    '@bleedingdev/modern-js-create',
+  );
+  assert.equal(parseArgs(['--command-contract-only']).commandContractOnly, true);
+
   const profiled = parseArgs([
     '--scale-profile',
     'erp-25',
@@ -85,6 +91,46 @@ test('parses scale profile and legacy custom vertical count requests', async () 
     () => parseArgs(['--scale-profile=erp-25']),
     /^Error: Unknown argument: --scale-profile=erp-25$/,
   );
+});
+
+test('builds the supported pnpm dlx package command contract', async () => {
+  const { createCleanPnpmDlxEnv, createPnpmDlxArgs } = await loadProof();
+
+  assert.deepEqual(
+    createPnpmDlxArgs(
+      { dlxSpecifier: '@bleedingdev/modern-js-create' },
+      ['my-super-app', '--lang', 'en'],
+    ),
+    [
+      'dlx',
+      '@bleedingdev/modern-js-create',
+      'my-super-app',
+      '--lang',
+      'en',
+    ],
+  );
+  assert.deepEqual(
+    createPnpmDlxArgs(
+      { dlxSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120' },
+      ['catalog', '--vertical', '--lang', 'en'],
+    ),
+    [
+      'dlx',
+      '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
+      'catalog',
+      '--vertical',
+      '--lang',
+      'en',
+    ],
+  );
+
+  const root = path.join(os.tmpdir(), 'published-create-dlx-cache');
+  assert.deepEqual(createCleanPnpmDlxEnv(root), {
+    XDG_CACHE_HOME: path.join(root, 'xdg'),
+    npm_config_cache: path.join(root, 'npm-cache'),
+    npm_config_store_dir: path.join(root, 'store'),
+    pnpm_config_store_dir: path.join(root, 'store'),
+  });
 });
 
 test('asserts generated cohorts from package source metadata and framework version', async () => {

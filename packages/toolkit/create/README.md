@@ -17,6 +17,12 @@ UltraModern SuperApp workspace.
 pnpm dlx @bleedingdev/modern-js-create my-workspace
 ```
 
+The supported pnpm command contract is the scoped package specifier above:
+`pnpm dlx @bleedingdev/modern-js-create <target>`. Do not shorten it to
+`pnpm dlx modern-js-create`; there is no unscoped `modern-js-create` npm
+package. Release proof runs this scoped form from a temporary pnpm store/cache
+so it cannot pass because of a local link cache.
+
 To initialize the empty directory you are already in, pass `.` explicitly:
 
 ```bash

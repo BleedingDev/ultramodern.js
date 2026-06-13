@@ -61,6 +61,11 @@ workspace root with the UltraModern add flow. The add flow derives paths,
 package names, ports, Module Federation names, topology entries, overlays,
 ownership, and root dev scripts from the requested name and kind.
 
+The supported pnpm invocation is the scoped package specifier,
+`pnpm dlx @bleedingdev/modern-js-create <target>`. The bare
+`pnpm dlx modern-js-create` lookup is not supported because no unscoped
+`modern-js-create` package is published.
+
 ### 3.1 Initial workspace
 
 ```bash
