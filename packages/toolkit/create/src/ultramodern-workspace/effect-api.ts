@@ -77,6 +77,313 @@ export function verticalEffectNotFoundSchemaExport(service: {
   return `${toCamelCase(verticalEffectErrorStem(service))}NotFoundSchema`;
 }
 
+function serviceHasCheckoutCartState(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  return effectApiStem(service) === 'checkout';
+}
+
+function createCheckoutCartSharedSchemas(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `
+export const checkoutCartLineSchema = Schema.Struct({
+  sku: Schema.String,
+  name: Schema.String,
+  quantity: Schema.Finite,
+  unitPriceCents: Schema.Finite,
+});
+
+export const checkoutCartSchema = Schema.Struct({
+  lines: Schema.Array(checkoutCartLineSchema),
+  subtotalCents: Schema.Finite,
+  totalQuantity: Schema.Finite,
+});
+
+export const checkoutAddCartItemPayloadSchema = Schema.Struct({
+  sku: Schema.String,
+  name: Schema.optional(Schema.String),
+  quantity: Schema.Finite,
+  unitPriceCents: Schema.optional(Schema.Finite),
+});
+
+export const checkoutRemoveCartItemPayloadSchema = Schema.Struct({
+  sku: Schema.String,
+});
+`;
+}
+
+function createCheckoutCartEndpointDefinitions(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `
+    .add(
+      HttpApiEndpoint.get('getCart', '/effect/checkout/cart', {
+        success: checkoutCartSchema,
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('addCartItem', '/effect/checkout/cart/items', {
+        payload: checkoutAddCartItemPayloadSchema,
+        success: checkoutCartSchema,
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('removeCartItem', '/effect/checkout/cart/remove', {
+        payload: checkoutRemoveCartItemPayloadSchema,
+        success: checkoutCartSchema,
+      }),
+    )
+    .add(
+      HttpApiEndpoint.post('clearCart', '/effect/checkout/cart/clear', {
+        success: checkoutCartSchema,
+      }),
+    )`;
+}
+
+function createCheckoutCartOperationContexts(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  const apiName = verticalEffectApiName(service);
+  const groupName = verticalEffectGroupName(service);
+
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `
+  addCartItem: {
+    method: 'POST',
+    operationId: '${apiName}:${groupName}:addCartItem',
+    routePath: '/effect/checkout/cart/items',
+    source: 'generated-client',
+  },
+  clearCart: {
+    method: 'POST',
+    operationId: '${apiName}:${groupName}:clearCart',
+    routePath: '/effect/checkout/cart/clear',
+    source: 'generated-client',
+  },
+  getCart: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:getCart',
+    routePath: '/effect/checkout/cart',
+    source: 'generated-client',
+  },
+  removeCartItem: {
+    method: 'POST',
+    operationId: '${apiName}:${groupName}:removeCartItem',
+    routePath: '/effect/checkout/cart/remove',
+    source: 'generated-client',
+  },`;
+}
+
+function createCheckoutCartApiContractFields(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `  checkoutCartPath: '${effectApiPrefix(service)}/effect/checkout/cart',
+`;
+}
+
+function createCheckoutCartServerState(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `
+type CheckoutCartLine = {
+  sku: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+};
+
+const checkoutCartLines = new Map<string, CheckoutCartLine>();
+
+const createCheckoutCartSnapshot = () => {
+  const lines = [...checkoutCartLines.values()].sort((left, right) =>
+    left.sku.localeCompare(right.sku),
+  );
+  return {
+    lines,
+    subtotalCents: lines.reduce(
+      (total, line) => total + line.quantity * line.unitPriceCents,
+      0,
+    ),
+    totalQuantity: lines.reduce((total, line) => total + line.quantity, 0),
+  };
+};
+`;
+}
+
+function createCheckoutCartServerHandlers(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  const groupName = verticalEffectGroupName(service);
+
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  return `
+      .handle('getCart', () =>
+        Effect.sync(() => createCheckoutCartSnapshot()).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.checkout.getCart', {
+            attributes: operationAttributes(${groupName}OperationContexts.getCart),
+            kind: 'server',
+          }),
+        ),
+      )
+      .handle('addCartItem', ({ payload }) =>
+        Effect.sync(() => {
+          const existingLine = checkoutCartLines.get(payload.sku);
+          checkoutCartLines.set(payload.sku, {
+            sku: payload.sku,
+            name: payload.name ?? existingLine?.name ?? payload.sku,
+            quantity: (existingLine?.quantity ?? 0) + payload.quantity,
+            unitPriceCents:
+              payload.unitPriceCents ?? existingLine?.unitPriceCents ?? 0,
+          });
+          return createCheckoutCartSnapshot();
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.checkout.addCartItem', {
+            attributes: operationAttributes(${groupName}OperationContexts.addCartItem),
+            kind: 'server',
+          }),
+        ),
+      )
+      .handle('removeCartItem', ({ payload }) =>
+        Effect.sync(() => {
+          checkoutCartLines.delete(payload.sku);
+          return createCheckoutCartSnapshot();
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.checkout.removeCartItem', {
+            attributes: operationAttributes(${groupName}OperationContexts.removeCartItem),
+            kind: 'server',
+          }),
+        ),
+      )
+      .handle('clearCart', () =>
+        Effect.sync(() => {
+          checkoutCartLines.clear();
+          return createCheckoutCartSnapshot();
+        }).pipe(
+          Effect.withSpan('ultramodern.effect.${groupName}.checkout.clearCart', {
+            attributes: operationAttributes(${groupName}OperationContexts.clearCart),
+            kind: 'server',
+          }),
+        ),
+      )`;
+}
+
+function createCheckoutCartClientExports(service: {
+  id: string;
+  effectApi?: WorkspaceEffectApi;
+}) {
+  if (!serviceHasCheckoutCartState(service)) {
+    return '';
+  }
+
+  const stem = effectApiStem(service);
+  const groupName = verticalEffectGroupName(service);
+  const pascalStem = toPascalCase(stem);
+  const clientOptionsName = `${pascalStem}ClientOptions`;
+  const createClientName = `create${pascalStem}Client`;
+
+  return `
+export interface CheckoutCartLine {
+  sku: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+}
+
+export interface CheckoutCart {
+  lines: readonly CheckoutCartLine[];
+  subtotalCents: number;
+  totalQuantity: number;
+}
+
+export interface CheckoutAddCartItemInput {
+  sku: string;
+  name?: string;
+  quantity: number;
+  unitPriceCents?: number;
+}
+
+export const getCheckoutCart = (
+  options: ${clientOptionsName} = {},
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.getCart,
+  }).pipe(
+    Effect.flatMap(client => client.${groupName}.getCart({})),
+  );
+
+export const addCheckoutCartItem = (
+  payload: CheckoutAddCartItemInput,
+  options: ${clientOptionsName} = {},
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.addCartItem,
+  }).pipe(
+    Effect.flatMap(client =>
+      client.${groupName}.addCartItem({ payload }),
+    ),
+  );
+
+export const removeCheckoutCartItem = (
+  sku: string,
+  options: ${clientOptionsName} = {},
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.removeCartItem,
+  }).pipe(
+    Effect.flatMap(client =>
+      client.${groupName}.removeCartItem({ payload: { sku } }),
+    ),
+  );
+
+export const clearCheckoutCart = (
+  options: ${clientOptionsName} = {},
+) =>
+  ${createClientName}({
+    ...options,
+    operationContext:
+      options.operationContext ?? ${groupName}OperationContexts.clearCart,
+  }).pipe(
+    Effect.flatMap(client => client.${groupName}.clearCart({})),
+  );
+`;
+}
+
 export function createEffectSharedApiImports(): string {
   return `import {
   HttpApi,
@@ -135,6 +442,7 @@ export const ${readinessSchemaExport} = Schema.Struct({
 export const ${createPayloadSchemaExport} = Schema.Struct({
   title: Schema.String,
 });
+${createCheckoutCartSharedSchemas(service)}
 
 export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundErrorExport}>()(
   '${notFoundErrorExport}',
@@ -194,10 +502,11 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
           item: ${schemaExport},
         }),
       }),
-    ),
+    )${createCheckoutCartEndpointDefinitions(service)},
 );
 
 export const ${groupName}OperationContexts = {
+${createCheckoutCartOperationContexts(service)}
   create: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:create',
@@ -227,7 +536,7 @@ export const ${groupName}OperationContexts = {
 export const ${groupName}ApiContract = {
   apiPrefix: '${apiPrefix}',
   basePath: '${apiPrefix}/effect/${stem}',
-  ownerId: '${service.id}',
+${createCheckoutCartApiContractFields(service)}  ownerId: '${service.id}',
   readinessPath: '${apiPrefix}/effect/${stem}/readiness',
 } as const;
 `;
@@ -271,6 +580,7 @@ const ${groupName}Items = [
     title: 'Wire a real ${stem} source here',
   },
 ];
+${createCheckoutCartServerState(service)}
 
 const operationAttributes = (operationContext: OperationContext) => ({
     'modernjs.operation.id': operationContext.operationId,
@@ -350,7 +660,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
             kind: 'server',
           }),
         ),
-      ),
+      )${createCheckoutCartServerHandlers(service)},
 );
 
 const layer = HttpApiBuilder.layer(${apiExport}).pipe(
@@ -466,6 +776,7 @@ export const ${createName} = (
       client.${groupName}.create({ payload: { title } }),
     ),
   );
+${createCheckoutCartClientExports(service)}
 `;
 }
 
@@ -478,8 +789,18 @@ export function createShellEffectClient(
       const stem = effectApiStem(remote);
       const pascalStem = toPascalCase(stem);
       const pascalSingular = toPascalCase(verticalEffectErrorStem(remote));
+      const checkoutCartExports = serviceHasCheckoutCartState(remote)
+        ? `  addCheckoutCartItem,
+  clearCheckoutCart,
+  getCheckoutCart,
+  removeCheckoutCartItem,
+  type CheckoutAddCartItemInput,
+  type CheckoutCart,
+  type CheckoutCartLine,
+`
+        : '';
       return `export {
-  create${pascalSingular},
+${checkoutCartExports}  create${pascalSingular},
   create${pascalStem}Client,
   get${pascalSingular},
   get${pascalStem}Readiness,
@@ -533,8 +854,41 @@ export function createEffectDomainOperations(app: {
   const stem = effectApiStem(app);
   const group = verticalEffectGroupName(app);
   const basePath = `/effect/${stem}`;
+  const checkoutCartOperations = serviceHasCheckoutCartState(app)
+    ? {
+        checkoutCartAddItem: {
+          client: 'addCheckoutCartItem',
+          method: 'POST',
+          path: '/effect/checkout/cart/items',
+          resource: 'checkout-cart',
+          owner: app.id,
+        },
+        checkoutCartClear: {
+          client: 'clearCheckoutCart',
+          method: 'POST',
+          path: '/effect/checkout/cart/clear',
+          resource: 'checkout-cart',
+          owner: app.id,
+        },
+        checkoutCartRead: {
+          client: 'getCheckoutCart',
+          method: 'GET',
+          path: '/effect/checkout/cart',
+          resource: 'checkout-cart',
+          owner: app.id,
+        },
+        checkoutCartRemoveItem: {
+          client: 'removeCheckoutCartItem',
+          method: 'POST',
+          path: '/effect/checkout/cart/remove',
+          resource: 'checkout-cart',
+          owner: app.id,
+        },
+      }
+    : {};
 
   return {
+    ...checkoutCartOperations,
     workspaceFeed: {
       client: `list${toPascalCase(stem)}`,
       method: 'GET',
@@ -596,10 +950,35 @@ export function createEffectOperationContract(target: {
   effectApi?: WorkspaceEffectApi;
 }): JsonValue {
   const stem = effectApiStem(target);
+  const checkoutCartOperations = serviceHasCheckoutCartState(target)
+    ? {
+        addCartItem: {
+          method: 'POST',
+          path: '/effect/checkout/cart/items',
+          source: 'generated-client',
+        },
+        clearCart: {
+          method: 'POST',
+          path: '/effect/checkout/cart/clear',
+          source: 'generated-client',
+        },
+        getCart: {
+          method: 'GET',
+          path: '/effect/checkout/cart',
+          source: 'generated-client',
+        },
+        removeCartItem: {
+          method: 'POST',
+          path: '/effect/checkout/cart/remove',
+          source: 'generated-client',
+        },
+      }
+    : {};
   return {
     group: verticalEffectGroupName(target),
     notFound: verticalEffectNotFoundErrorExport(target),
     operations: {
+      ...checkoutCartOperations,
       list: {
         method: 'GET',
         path: `/effect/${stem}`,
