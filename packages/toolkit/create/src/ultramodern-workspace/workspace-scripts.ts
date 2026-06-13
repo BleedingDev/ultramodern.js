@@ -78,8 +78,8 @@ export function createWorkspaceValidationScript(
   const oldRemotePaths = ['apps/remotes'];
   const expectedBuildScript =
     remotes.length > 0
-      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types'
-      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types';
+      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness'
+      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness';
   const expectedCloudflareBuildScript =
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types'
@@ -143,6 +143,18 @@ export function createCloudflareVersionProofScript(): string {
   return readFileTemplate('workspace-scripts/proof-cloudflare-version.mjs');
 }
 
+export function createPerformanceReadinessConfigScript(): string {
+  return readFileTemplate(
+    'workspace-scripts/ultramodern-performance-readiness.config.mjs',
+  );
+}
+
+export function createPerformanceReadinessScript(): string {
+  return readFileTemplate(
+    'workspace-scripts/ultramodern-performance-readiness.mjs',
+  );
+}
+
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   scope: string,
@@ -178,5 +190,15 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/proof-cloudflare-version.mjs',
     createCloudflareVersionProofScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/ultramodern-performance-readiness.config.mjs',
+    createPerformanceReadinessConfigScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/ultramodern-performance-readiness.mjs',
+    createPerformanceReadinessScript(),
   );
 }

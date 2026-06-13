@@ -77,7 +77,10 @@ function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
 }
 
-function runPerformanceReadiness(workspaceDir: string, env = {}) {
+function runPerformanceReadiness(
+  workspaceDir: string,
+  env: Record<string, string> = {},
+) {
   return execFileSync(
     process.execPath,
     ['scripts/ultramodern-performance-readiness.mjs'],
@@ -1326,9 +1329,9 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts.postinstall).toBe(
       "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
     );
-    expect(rootPackage.scripts.check.endsWith('&& pnpm performance:readiness')).toBe(
-      true,
-    );
+    expect(
+      rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
+    ).toBe(true);
     expect(rootPackage.scripts['agents:refs:install']).toBe(
       'node ./scripts/setup-agent-reference-repos.mjs',
     );

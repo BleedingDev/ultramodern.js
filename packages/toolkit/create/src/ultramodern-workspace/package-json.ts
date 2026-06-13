@@ -244,7 +244,7 @@ export function createRootPackageJson(
           `pnpm --filter ${packageName(scope, remote.packageSuffix)} dev`,
         ]),
       ),
-      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types`,
+      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness`,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint apps verticals packages',
@@ -260,12 +260,14 @@ export function createRootPackageJson(
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mjs --check',
       'mf:types': 'node ./scripts/assert-mf-types.mjs',
+      'performance:readiness':
+        'node ./scripts/ultramodern-performance-readiness.mjs',
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
       check:
-        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check',
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check && pnpm performance:readiness',
     },
     engines: {
       node: '>=26',

@@ -266,6 +266,16 @@ export function createAppConfigContract(app: WorkspaceApp): JsonValue {
       splitRouteChunks: true,
     },
     performance: {
+      readinessDiagnostics: {
+        default: 'enabled',
+        optOut: {
+          env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+          config: 'scripts/ultramodern-performance-readiness.config.mjs',
+        },
+        report:
+          '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+        failOn: 'framework-invariant',
+      },
       rsdoctor: {
         enabledByEnv: 'ULTRAMODERN_RSDOCTOR=true',
         disableClientServer: true,
@@ -302,6 +312,85 @@ export function createAppConfigContract(app: WorkspaceApp): JsonValue {
           },
         }
       : {}),
+  };
+}
+
+export function createPerformanceReadinessContract(): JsonValue {
+  return {
+    schemaVersion: 1,
+    default: 'enabled',
+    mode: 'diagnostic',
+    scope: 'ultramodern-generated-and-framework-owned',
+    report: {
+      script: 'scripts/ultramodern-performance-readiness.mjs',
+      config: 'scripts/ultramodern-performance-readiness.config.mjs',
+      defaultPath:
+        '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+      deterministic: true,
+    },
+    optOut: {
+      env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+      config: {
+        path: 'scripts/ultramodern-performance-readiness.config.mjs',
+        field: 'enabled',
+        value: false,
+      },
+    },
+    failurePolicy: {
+      defaultFailOn: 'framework-invariant',
+      allowedValues: ['framework-invariant', 'never'],
+      rejects: [
+        'accessibility-certification',
+        'product-ui-scoring',
+        'marketing-copy-scoring',
+        'broad-compliance-engine',
+        'rsdoctor-artifact-revival',
+      ],
+    },
+    signals: [
+      {
+        id: 'bfcache',
+        title: 'BFCache diagnostics',
+        ownedCheck: 'generated-runtime-static-analysis',
+        invariant:
+          'Generated UltraModern files must not install beforeunload or unload handlers.',
+      },
+      {
+        id: 'core-web-vitals-rum',
+        title: 'Core Web Vitals/RUM readiness',
+        ownedCheck: 'preset-telemetry-contract',
+        invariant:
+          'UltraModern preset telemetry must remain enabled by default without requiring local collectors.',
+      },
+      {
+        id: 'duplicate-prefetch-warmup',
+        title: 'Duplicate prefetch/warmup waste',
+        ownedCheck: 'topology-and-route-contract',
+        invariant:
+          'Generated route URLs, remote refs, and manifest URLs must stay deterministic and duplicate-free.',
+      },
+      {
+        id: 'cache-policy-sanity',
+        title: 'Cache policy sanity',
+        ownedCheck: 'generated-cloudflare-contract',
+        invariant:
+          'Generated Cloudflare contracts must retain CSS cache-control and public-surface cache expectations.',
+      },
+      {
+        id: 'save-data-behavior',
+        title: 'Save-Data behavior',
+        ownedCheck: 'framework-router-contract',
+        invariant:
+          'Automatic framework warmup must remain skippable by browser Save-Data policy.',
+      },
+      {
+        id: 'cloudflare-ssr-cache-hints',
+        title: 'Cloudflare SSR response and caching hints',
+        ownedCheck: 'generated-cloudflare-proof-contract',
+        invariant:
+          'Generated Cloudflare SSR proof routes and response/cache hint contracts must be present.',
+      },
+    ],
   };
 }
 
@@ -604,6 +693,7 @@ export function createGeneratedContract(
       zephyrAgent: ZEPHYR_AGENT_VERSION,
       wrangler: WRANGLER_VERSION,
     },
+    performanceReadiness: createPerformanceReadinessContract(),
     cssFederation: createCssFederationContract(scope),
     apps: apps.map(app =>
       createAppGeneratedContract(scope, app, apps, enableTailwind),
@@ -737,6 +827,7 @@ export function createTemplateManifest(
         'pnpm install',
         'pnpm run i18n:boundaries',
         'pnpm run contract:check',
+        'pnpm run performance:readiness',
       ],
     },
   };
