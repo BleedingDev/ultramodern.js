@@ -341,9 +341,13 @@ function BoundaryDebugger({
           {boxes.map(box => (
             <div
               key={box.id}
+              data-modern-boundary-overlay=""
+              data-modern-boundary-overlay-id={box.id}
+              data-modern-boundary-overlay-label={box.label}
               style={{
                 border: `2px solid ${box.color}`,
                 borderRadius: 8,
+                boxSizing: 'border-box',
                 boxShadow: `0 0 0 1px rgba(255,255,255,.72), 0 6px 20px color-mix(in srgb, ${box.color} 20%, transparent)`,
                 height: box.height,
                 left: box.left,

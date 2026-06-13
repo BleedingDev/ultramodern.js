@@ -545,6 +545,12 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
             appName: 'crm-shell',
             entry: 'https://erp.example.com/remoteEntry.js',
             runtimeDigest: 'digest-crm-v1',
+            metadata: {
+              compatibility: {
+                '@tanstack/react-router': '1.170.15',
+              },
+              remote: 'remote/Widget',
+            },
           }),
         },
         {},
@@ -557,6 +563,14 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
       expect(snapshot.gates?.['runtime-mf-fallback-health']?.passed).toBe(
         false,
       );
+      expect(
+        snapshot.gates?.['runtime-mf-fallback-health']?.metadata?.metadata
+          ?.compatibility?.['@tanstack/react-router'],
+      ).toBe('1.170.15');
+      expect(
+        snapshot.gates?.['runtime-mf-fallback-health']?.metadata?.metadata
+          ?.remote,
+      ).toBe('remote/Widget');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

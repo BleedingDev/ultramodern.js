@@ -92,19 +92,25 @@ export default function MfPage() {
         </>
       ) : (
         <>
-          <RemoteErrorBoundary fallbackId="remote-error">
+          <RemoteErrorBoundary fallbackId="remote-error" remote="remote/Widget">
             <React.Suspense fallback={<div id="remote-loading">loading</div>}>
               <RemoteWidget />
             </React.Suspense>
           </RemoteErrorBoundary>
-          <RemoteErrorBoundary fallbackId="remote-mutator-error">
+          <RemoteErrorBoundary
+            fallbackId="remote-mutator-error"
+            remote="remote/Mutator"
+          >
             <React.Suspense
               fallback={<div id="remote-mutator-loading">loading</div>}
             >
               <RemoteMutator />
             </React.Suspense>
           </RemoteErrorBoundary>
-          <RemoteErrorBoundary fallbackId="remote2-error">
+          <RemoteErrorBoundary
+            fallbackId="remote2-error"
+            remote="remote2/Panel"
+          >
             <React.Suspense fallback={<div id="remote2-loading">loading</div>}>
               <RemotePanel />
             </React.Suspense>

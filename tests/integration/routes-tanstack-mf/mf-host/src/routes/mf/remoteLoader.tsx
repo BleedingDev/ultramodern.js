@@ -1,4 +1,11 @@
 // @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off
+
+import {
+  createModuleFederationFallbackTelemetry,
+  emitModuleFederationFallbackTelemetry,
+  type ModuleFederationFallbackTelemetryPayload,
+  toModuleFederationFallbackAttributes,
+} from '@modern-js/runtime/module-federation';
 import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 import * as React from 'react';
 import {
@@ -150,12 +157,16 @@ export function lazyRemoteComponent<
 
 type RemoteErrorBoundaryProps = {
   fallbackId: string;
+  remote: RemoteModuleKey;
   children: React.ReactNode;
 };
 
 type RemoteErrorBoundaryState = {
   error: Error | null;
+  telemetry: ModuleFederationFallbackTelemetryPayload | null;
 };
+
+const CLIENT_REMOTE_FALLBACK_EVENT = 'mf.client.remote.fallback';
 
 export class RemoteErrorBoundary extends React.Component<
   RemoteErrorBoundaryProps,
@@ -163,23 +174,64 @@ export class RemoteErrorBoundary extends React.Component<
 > {
   state: RemoteErrorBoundaryState = {
     error: null,
+    telemetry: null,
   };
 
-  static getDerivedStateFromError(error: Error): RemoteErrorBoundaryState {
+  static getDerivedStateFromError(
+    error: Error,
+  ): Partial<RemoteErrorBoundaryState> {
     return {
       error,
     };
   }
 
+  componentDidCatch(error: Error) {
+    const classification = classifyRemoteLoadFailure(error);
+    const telemetry = createModuleFederationFallbackTelemetry({
+      appName: 'routes-tanstack-mf-host',
+      classification,
+      entry: typeof window === 'undefined' ? undefined : window.location.href,
+      error,
+      eventName: CLIENT_REMOTE_FALLBACK_EVENT,
+      exportName: 'default',
+      phase: 'load',
+      remote: this.props.remote,
+    });
+
+    this.setState({ telemetry });
+    void emitModuleFederationFallbackTelemetry({
+      appName: telemetry.appName,
+      classification,
+      entry: telemetry.entry,
+      error,
+      eventName: telemetry.eventName,
+      exportName: 'default',
+      metadata: telemetry.metadata,
+      phase: telemetry.phase,
+      remote: this.props.remote,
+      status: 'degraded',
+    });
+  }
+
   render() {
     if (this.state.error) {
       const classification = classifyRemoteLoadFailure(this.state.error);
+      const telemetry =
+        this.state.telemetry ??
+        createModuleFederationFallbackTelemetry({
+          appName: 'routes-tanstack-mf-host',
+          classification,
+          error: this.state.error,
+          eventName: CLIENT_REMOTE_FALLBACK_EVENT,
+          exportName: 'default',
+          phase: 'load',
+          remote: this.props.remote,
+        });
       return (
         <div
           id={this.props.fallbackId}
+          {...toModuleFederationFallbackAttributes(telemetry)}
           data-mf-fallback-contract="typed-ssr-fallback-client-hydration"
-          data-mf-fallback-classification={classification}
-          data-mf-telemetry-event="mf.client.remote.fallback"
         >
           remote-load-error:{this.state.error.name}
         </div>

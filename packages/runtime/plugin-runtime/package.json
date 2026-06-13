@@ -65,6 +65,10 @@
       "types": "./dist/types/boundary-debugger/index.d.ts",
       "default": "./dist/esm/boundary-debugger/index.mjs"
     },
+    "./module-federation": {
+      "types": "./dist/types/module-federation/index.d.ts",
+      "default": "./dist/esm/module-federation/index.mjs"
+    },
     "./ssr": {
       "types": "./dist/types/core/server/index.d.ts",
       "default": "./dist/esm/core/server/index.mjs"
@@ -172,6 +176,9 @@
       ],
       "boundary-debugger": [
         "./dist/types/boundary-debugger/index.d.ts"
+      ],
+      "module-federation": [
+        "./dist/types/module-federation/index.d.ts"
       ],
       "document": [
         "./dist/types/document/index.d.ts"

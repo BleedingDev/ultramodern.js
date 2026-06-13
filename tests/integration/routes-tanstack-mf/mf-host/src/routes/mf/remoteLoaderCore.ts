@@ -1,14 +1,18 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off
+import {
+  classifyModuleFederationFallback,
+  type ModuleFederationFallbackClassification,
+  ModuleFederationRemoteComponentContractError,
+  ModuleFederationRemoteLoadError,
+  ModuleFederationRemoteLoadTimeoutError,
+} from '@modern-js/runtime/module-federation';
+
 export const DEFAULT_REMOTE_TIMEOUT_MS = 4000;
 export const DEFAULT_REMOTE_RETRIES = 1;
 export const DEFAULT_REMOTE_RETRY_DELAY_MS = 200;
 
 export type RemoteLoadFailureClassification =
-  | 'timeout'
-  | 'network'
-  | 'contract'
-  | 'version-skew'
-  | 'remote-unavailable';
+  ModuleFederationFallbackClassification;
 
 export type LoadRemoteModuleBaseOptions<TModule> = {
   timeoutMs?: number;
@@ -18,34 +22,23 @@ export type LoadRemoteModuleBaseOptions<TModule> = {
   waitImpl?: (ms: number) => Promise<void>;
 };
 
-export class RemoteLoadTimeoutError extends Error {
+export class RemoteLoadTimeoutError extends ModuleFederationRemoteLoadTimeoutError {
   constructor(remote: string, timeoutMs: number) {
-    super(`Loading remote "${remote}" timed out after ${timeoutMs}ms`);
+    super(remote, timeoutMs);
     this.name = 'RemoteLoadTimeoutError';
   }
 }
 
-export class RemoteLoadError extends Error {
-  readonly remote: string;
-  readonly attempts: number;
-  readonly causeError: Error;
-
+export class RemoteLoadError extends ModuleFederationRemoteLoadError {
   constructor(remote: string, attempts: number, causeError: Error) {
-    super(
-      `Unable to load remote "${remote}" after ${attempts} attempt${attempts > 1 ? 's' : ''}: ${causeError.message}`,
-    );
+    super(remote, attempts, causeError);
     this.name = 'RemoteLoadError';
-    this.remote = remote;
-    this.attempts = attempts;
-    this.causeError = causeError;
   }
 }
 
-export class RemoteComponentContractError extends Error {
+export class RemoteComponentContractError extends ModuleFederationRemoteComponentContractError {
   constructor(remote: string, exportName: string) {
-    super(
-      `Remote "${remote}" export "${exportName}" is not a valid React component`,
-    );
+    super(remote, exportName);
     this.name = 'RemoteComponentContractError';
   }
 }
@@ -98,26 +91,7 @@ function isRetryableRemoteError(error: Error) {
 export function classifyRemoteLoadFailure(
   error: Error,
 ): RemoteLoadFailureClassification {
-  if (error instanceof RemoteLoadError) {
-    return classifyRemoteLoadFailure(error.causeError);
-  }
-  if (error instanceof RemoteLoadTimeoutError) {
-    return 'timeout';
-  }
-  if (error instanceof RemoteComponentContractError) {
-    return 'contract';
-  }
-
-  const message = error.message;
-  if (
-    /version|requiredVersion|singleton|share scope|shared module/i.test(message)
-  ) {
-    return 'version-skew';
-  }
-  if (/network|fetch|script|timeout|chunk|loading/i.test(message)) {
-    return 'network';
-  }
-  return 'remote-unavailable';
+  return classifyModuleFederationFallback(error);
 }
 
 function isComponentType(value: unknown) {

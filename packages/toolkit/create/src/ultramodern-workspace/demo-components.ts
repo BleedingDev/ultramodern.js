@@ -94,7 +94,13 @@ export function createShellRemoteComponents(
     .join('\n');
   const federationImports =
     widgetRemotes.length > 0
-      ? `import { createLazyComponent } from '@module-federation/bridge-react';
+      ? `import {
+  classifyModuleFederationFallback,
+  createModuleFederationFallbackTelemetry,
+  emitModuleFederationFallbackTelemetry,
+  toModuleFederationFallbackAttributes,
+} from '@modern-js/runtime/module-federation';
+import { createLazyComponent } from '@module-federation/bridge-react';
 import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -110,11 +116,39 @@ ${serverImports}
 const loadRemoteComponent = (specifier: string) =>
   loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
 
-const remoteFallback =
+const createRemoteFallback = (specifier: string) =>
   ({ error }: { error: Error }) => {
     const { i18nInstance } = useModernI18n();
     const t = i18nInstance['t'].bind(i18nInstance);
-    return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name}>{t('shell.remoteUnavailable')}</div>;
+    const classification = classifyModuleFederationFallback(error);
+    const telemetry = createModuleFederationFallbackTelemetry({
+      appName: '${shellApp.id}',
+      classification,
+      entry: typeof window === 'undefined' ? undefined : window.location.href,
+      error,
+      eventName: 'mf.client.remote.fallback',
+      exportName: 'default',
+      phase: 'load',
+      remote: specifier,
+      status: 'degraded',
+    });
+
+    useEffect(() => {
+      void emitModuleFederationFallbackTelemetry({
+        appName: telemetry.appName,
+        classification,
+        entry: telemetry.entry,
+        error,
+        eventName: telemetry.eventName,
+        exportName: 'default',
+        metadata: telemetry.metadata,
+        phase: telemetry.phase,
+        remote: specifier,
+        status: 'degraded',
+      });
+    }, [classification, error, specifier, telemetry]);
+
+    return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name} {...toModuleFederationFallbackAttributes(telemetry)}>{t('shell.remoteUnavailable')}</div>;
   };
 
 const createHydratedRemote =
@@ -136,7 +170,7 @@ const createHydratedRemote =
       }
       return createLazyComponent({
         export: 'default',
-        fallback: remoteFallback,
+        fallback: createRemoteFallback(specifier),
         instance,
         loader: () => loadRemoteComponent(specifier),
         loading: <ServerComponent />,

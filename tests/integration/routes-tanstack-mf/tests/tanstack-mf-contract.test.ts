@@ -278,10 +278,10 @@ describe('tanstack + module federation contracts', () => {
           expect(remoteLoader).toContain(
             'toModuleFederationFallbackAttributes(telemetry)',
           );
-          expect(remoteLoader).toContain('emitModuleFederationFallbackTelemetry');
           expect(remoteLoader).toContain(
-            "appName: 'routes-tanstack-mf-host'",
+            'emitModuleFederationFallbackTelemetry',
           );
+          expect(remoteLoader).toContain("appName: 'routes-tanstack-mf-host'");
           expect(remoteLoader).toContain("mode === 'version-skew'");
           for (const config of [hostConfig, remoteConfig, remoteTwoConfig]) {
             expect(config).toContain("mode: 'stream'");
