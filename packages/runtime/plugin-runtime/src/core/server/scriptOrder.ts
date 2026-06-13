@@ -1,7 +1,21 @@
+import { getRouterMatchedRouteIds } from '../../router/runtime/lifecycle';
+import type { TInternalRuntimeContext } from '../context';
+import { CHUNK_JS_PLACEHOLDER } from './constants';
+import { safeReplace } from './utils';
+
+type RouteAssetManifest = {
+  assets?: string[];
+};
+
 type ScriptTagMatch = {
   index: number;
   tag: string;
   src: string;
+};
+
+type ScriptChunkLike = {
+  filename?: string;
+  url?: string;
 };
 
 function getScriptTags(template: string): ScriptTagMatch[] {
@@ -28,6 +42,78 @@ function isEntryScript(src: string, entryName: string, asyncEntry: boolean) {
   );
 }
 
+const dedupeByUrl = <T extends ScriptChunkLike>(chunks: T[]) => {
+  const seen = new Set<string>();
+  return chunks.filter(chunk => {
+    if (!chunk.url || seen.has(chunk.url)) {
+      return false;
+    }
+    seen.add(chunk.url);
+    return true;
+  });
+};
+
+const isAsyncEntryScriptChunk = (chunk: ScriptChunkLike, entryName: string) => {
+  if (!chunk.url?.endsWith('.js')) {
+    return false;
+  }
+
+  const asyncEntryName = `async-${entryName}`;
+  const filename = chunk.filename || chunk.url;
+  const basename = filename.split('/').pop() || filename;
+  return (
+    basename === `${asyncEntryName}.js` ||
+    basename.startsWith(`${asyncEntryName}.`) ||
+    basename.startsWith(`${asyncEntryName}-`)
+  );
+};
+
+function getRouteAssets(runtimeContext: TInternalRuntimeContext) {
+  return runtimeContext.routeManifest?.routeAssets as
+    | Record<string, RouteAssetManifest | undefined>
+    | undefined;
+}
+
+export function getMatchedRouteAssets(runtimeContext: TInternalRuntimeContext) {
+  const routeAssets = getRouteAssets(runtimeContext);
+  if (!routeAssets) {
+    return [];
+  }
+
+  const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
+  return matchedRouteIds.flatMap(routeId => routeAssets[routeId]?.assets ?? []);
+}
+
+export const orderHydrationScriptChunks = <T extends ScriptChunkLike>({
+  asyncEntryChunks,
+  collectedChunks,
+  matchedRouteChunks,
+  entryName,
+}: {
+  asyncEntryChunks: T[];
+  collectedChunks: T[];
+  matchedRouteChunks: T[];
+  entryName: string;
+}) => {
+  const asyncEntryScriptChunks: T[] = [];
+  const asyncEntryDependencyChunks: T[] = [];
+
+  for (const chunk of asyncEntryChunks) {
+    if (isAsyncEntryScriptChunk(chunk, entryName)) {
+      asyncEntryScriptChunks.push(chunk);
+    } else {
+      asyncEntryDependencyChunks.push(chunk);
+    }
+  }
+
+  return dedupeByUrl([
+    ...asyncEntryDependencyChunks,
+    ...collectedChunks,
+    ...matchedRouteChunks,
+    ...asyncEntryScriptChunks,
+  ]);
+};
+
 export function injectBeforeHydrationEntryScript(
   template: string,
   scripts: string,
@@ -49,4 +135,62 @@ export function injectBeforeHydrationEntryScript(
   return `${template.slice(0, target.index)}${scripts}${template.slice(
     target.index,
   )}`;
+}
+
+export function replaceChunkJsPlaceholder(
+  template: string,
+  scripts: string,
+  entryName?: string,
+  placeholder = CHUNK_JS_PLACEHOLDER,
+) {
+  if (!scripts) {
+    return safeReplace(template, placeholder, '');
+  }
+
+  const withoutPlaceholder = safeReplace(template, placeholder, '');
+  const withEarlyScripts = injectBeforeHydrationEntryScript(
+    withoutPlaceholder,
+    scripts,
+    entryName,
+  );
+
+  if (withEarlyScripts !== withoutPlaceholder) {
+    return withEarlyScripts;
+  }
+
+  return safeReplace(template, placeholder, scripts);
+}
+
+export function createRouteHydrationScriptTags(
+  runtimeContext: TInternalRuntimeContext,
+  entryName: string,
+  options: {
+    nonce?: string;
+    template?: string;
+  } = {},
+) {
+  const { nonce, template } = options;
+  const routeAssets = getRouteAssets(runtimeContext);
+  if (!routeAssets) {
+    return '';
+  }
+
+  const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
+  const assetEntries = [
+    ...matchedRouteIds.map(routeId => routeAssets[routeId]),
+    routeAssets[`async-${entryName}`],
+  ].filter(Boolean);
+  const jsAssets = Array.from(
+    new Set(
+      assetEntries.flatMap(entry =>
+        (entry.assets ?? []).filter((asset: string) => asset.endsWith('.js')),
+      ),
+    ),
+  );
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
+
+  return jsAssets
+    .filter(asset => !template?.includes(asset))
+    .map(asset => `<script src=${asset}${nonceAttr}></script>`)
+    .join(' ');
 }

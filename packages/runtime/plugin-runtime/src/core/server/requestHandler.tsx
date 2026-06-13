@@ -24,7 +24,7 @@ import { getServerPayload } from '../context/serverPayload';
 import { createRoot } from '../react';
 import type { SSRServerContext } from '../types';
 import { CHUNK_CSS_PLACEHOLDER } from './constants';
-import { createRouterCleanup } from './routerCleanup';
+import { type RouterCleanup, withRouterCleanup } from './routerCleanup';
 import { SSRErrors } from './tracer';
 import { getSSRConfigByEntry, getSSRMode } from './utils';
 
@@ -114,6 +114,99 @@ const processRedirect = (
     return handleRSCRedirect(headers, ctx.basename, status);
   }
   return new Response(null, { status, headers });
+};
+
+const applyRouterSnapshotResult = (
+  context: TInternalRuntimeContext,
+  onError: RequestHandlerOptions['onError'],
+): void => {
+  const routerServerSnapshot = getRouterServerSnapshot(context);
+  const routerStatusCode =
+    routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
+  if (routerStatusCode && routerStatusCode !== 200) {
+    context.ssrContext?.response.status(routerStatusCode);
+  }
+
+  const errors = Object.values(
+    (routerServerSnapshot?.errors ||
+      context.routerContext?.errors ||
+      {}) as Record<string, Error>,
+  );
+  if (errors.length > 0) {
+    onError(errors[0], SSRErrors.LOADER_ERROR);
+  }
+};
+
+const createLoaderRedirectResponse = (
+  beforeRenderResult: Response | undefined,
+  redirectCtx: RedirectContext,
+): Response | undefined => {
+  if (!beforeRenderResult || !isRedirectStatus(beforeRenderResult.status)) {
+    return;
+  }
+
+  if (beforeRenderResult.headers.has('X-Modernjs-Redirect')) {
+    return beforeRenderResult;
+  }
+
+  const redirectUrl = beforeRenderResult.headers.get('Location') || '/';
+  return processRedirect(
+    new Headers({ Location: redirectUrl }),
+    beforeRenderResult.status,
+    redirectCtx,
+  );
+};
+
+const renderRequest = async (
+  request: Request,
+  Root: React.ComponentType,
+  context: TInternalRuntimeContext,
+  options: RequestHandlerOptions,
+  handleRequest: HandleRequest,
+  enableRsc: boolean,
+): Promise<Response> => {
+  if (enableRsc) {
+    return handleRSCRequest(request, Root, context, options, handleRequest);
+  }
+
+  return handleRequest(request, Root, {
+    ...options,
+    runtimeContext: context,
+  });
+};
+
+const finalizeRenderResponse = (
+  response: Response,
+  responseProxy: ResponseProxy,
+  redirectCtx: RedirectContext,
+  routerCleanup: RouterCleanup,
+): Response => {
+  if (
+    responseProxy.status !== -1 &&
+    isRedirectStatus(responseProxy.status) &&
+    responseProxy.headers.Location
+  ) {
+    return processRedirect(
+      new Headers(responseProxy.headers),
+      responseProxy.status,
+      redirectCtx,
+    );
+  }
+
+  Object.entries(responseProxy.headers).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+
+  if (responseProxy.status !== -1) {
+    return routerCleanup.deferUntilBodyDone(
+      new Response(response.body, {
+        status: responseProxy.status,
+        headers: response.headers,
+      }),
+    );
+  }
+
+  return routerCleanup.deferUntilBodyDone(response);
 };
 
 function createSSRContext(
@@ -287,110 +380,49 @@ export const createRequestHandler: CreateRequestHandler = async (
           basename: ssrContext.baseUrl || '/',
         };
 
-        const routerCleanup = createRouterCleanup(context, options.onError);
+        return withRouterCleanup(
+          context,
+          options.onError,
+          async routerCleanup => {
+            const beforeRenderResult = await runBeforeRender(context);
 
-        try {
-          const beforeRenderResult = await runBeforeRender(context);
+            applyRouterSnapshotResult(context, options.onError);
 
-          // Support data loader to return `new Response` and set status code
-          const routerServerSnapshot = getRouterServerSnapshot(context);
-          const routerStatusCode =
-            routerServerSnapshot?.statusCode ??
-            context.routerContext?.statusCode;
-          if (routerStatusCode && routerStatusCode !== 200) {
-            context.ssrContext?.response.status(routerStatusCode);
-          }
-
-          // log error by monitors when data loader throw error
-          const errors = Object.values(
-            (routerServerSnapshot?.errors ||
-              context.routerContext?.errors ||
-              {}) as Record<string, Error>,
-          );
-          if (errors.length > 0) {
-            options.onError(errors[0], SSRErrors.LOADER_ERROR);
-          }
-
-          // Handle redirect from loader (beforeRenderResult)
-          if (
-            typeof Response !== 'undefined' &&
-            beforeRenderResult instanceof Response &&
-            isRedirectStatus(beforeRenderResult.status)
-          ) {
-            // Already in RSC format (from plugin.node.tsx), return directly
-            if (beforeRenderResult.headers.has('X-Modernjs-Redirect')) {
-              return beforeRenderResult;
+            if (typeof Response !== 'undefined') {
+              const redirectResponse = createLoaderRedirectResponse(
+                beforeRenderResult,
+                redirectCtx,
+              );
+              if (redirectResponse) {
+                return redirectResponse;
+              }
             }
-            // Convert to appropriate format
-            const redirectUrl =
-              beforeRenderResult.headers.get('Location') || '/';
-            return processRedirect(
-              new Headers({ Location: redirectUrl }),
-              beforeRenderResult.status,
-              redirectCtx,
-            );
-          }
 
-          if (!createRequestOptions?.enableRsc) {
-            const { htmlTemplate } = options.resource;
-            options.resource.htmlTemplate = htmlTemplate.replace(
-              '</head>',
-              `${CHUNK_CSS_PLACEHOLDER}</head>`,
-            );
-          }
+            if (!createRequestOptions?.enableRsc) {
+              const { htmlTemplate } = options.resource;
+              options.resource.htmlTemplate = htmlTemplate.replace(
+                '</head>',
+                `${CHUNK_CSS_PLACEHOLDER}</head>`,
+              );
+            }
 
-          let response: Response;
-
-          if (createRequestOptions?.enableRsc) {
-            response = await handleRSCRequest(
+            const response = await renderRequest(
               request,
               Root,
               context,
               options,
               handleRequest,
+              !!createRequestOptions?.enableRsc,
             );
-          } else {
-            response = await handleRequest(request, Root, {
-              ...options,
-              runtimeContext: context,
-            });
-          }
 
-          // Handle redirect from component render (via responseProxy)
-          if (
-            responseProxy.status !== -1 &&
-            isRedirectStatus(responseProxy.status) &&
-            responseProxy.headers.Location
-          ) {
-            return processRedirect(
-              new Headers(responseProxy.headers),
-              responseProxy.status,
+            return finalizeRenderResponse(
+              response,
+              responseProxy,
               redirectCtx,
+              routerCleanup,
             );
-          }
-
-          // Apply non-redirect responseProxy headers/status to response
-          Object.entries(responseProxy.headers).forEach(([key, value]) => {
-            response.headers.set(key, value);
-          });
-
-          if (responseProxy.status !== -1) {
-            return routerCleanup.deferUntilBodyDone(
-              new Response(response.body, {
-                status: responseProxy.status,
-                headers: response.headers,
-              }),
-            );
-          }
-
-          return routerCleanup.deferUntilBodyDone(response);
-        } finally {
-          // Streamed bodies defer the router cleanup until the response body
-          // finishes; everything else (redirects, errors) cleans up here.
-          if (!routerCleanup.deferred) {
-            await routerCleanup.run();
-          }
-        }
+          },
+        );
       },
     );
   };

@@ -30,6 +30,24 @@ export type RouterCleanup = {
   deferUntilBodyDone: (response: Response) => Response;
 };
 
+export async function withRouterCleanup<T>(
+  runtimeContext: TInternalRuntimeContext,
+  onError: OnError,
+  callback: (routerCleanup: RouterCleanup) => Promise<T>,
+): Promise<T> {
+  const routerCleanup = createRouterCleanup(runtimeContext, onError);
+
+  try {
+    return await callback(routerCleanup);
+  } finally {
+    // Streamed bodies defer the router cleanup until the response body
+    // finishes; everything else (redirects, errors) cleans up here.
+    if (!routerCleanup.deferred) {
+      await routerCleanup.run();
+    }
+  }
+}
+
 export function createRouterCleanup(
   runtimeContext: TInternalRuntimeContext,
   onError: OnError,

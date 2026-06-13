@@ -2,16 +2,16 @@
 import { serializeJson } from '@modern-js/runtime-utils/node';
 import type { HeadersData } from '@modern-js/runtime-utils/universal/request';
 import type { IncomingHttpHeaders } from 'http';
-import {
-  getRouterHydrationScripts,
-  getRouterMatchedRouteIds,
-} from '../../../router/runtime/lifecycle';
+import { getRouterHydrationScripts } from '../../../router/runtime/lifecycle';
 import { type RenderLevel, SSR_DATA_JSON_ID } from '../../constants';
 import type { TInternalRuntimeContext } from '../../context';
 import type { SSRContainer } from '../../types';
 import { SSR_DATA_PLACEHOLDER } from '../constants';
 import type { HandleRequestConfig } from '../requestHandler';
-import { injectBeforeHydrationEntryScript } from '../scriptOrder';
+import {
+  createRouteHydrationScriptTags,
+  replaceChunkJsPlaceholder,
+} from '../scriptOrder';
 import { type BuildHtmlCb, buildHtml, type SSRConfig } from '../shared';
 import { attributesToString, safeReplace } from '../utils';
 
@@ -44,43 +44,19 @@ export function buildShellAfterTemplate(
   ];
 
   async function injectJs(template: string, entryName: string, nonce?: string) {
-    const { routeManifest } = runtimeContext;
-    if (!routeManifest) return template;
-    const { routeAssets } = routeManifest;
-    if (!routeAssets) return template;
-    const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
-    const assetEntries = [
-      ...matchedRouteIds.map(routeId => routeAssets[routeId]),
-      routeAssets[`async-${entryName}`],
-    ].filter(Boolean);
-    const jsAssets = Array.from(
-      new Set(
-        assetEntries.flatMap(entry =>
-          (entry.assets ?? []).filter((asset: string) => asset.endsWith('.js')),
-        ),
-      ),
-    );
-    const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
-    const jsChunkStr = jsAssets
-      .filter(asset => !template.includes(asset))
-      .map(asset => `<script src=${asset}${nonceAttr}></script>`)
-      .join(' ');
-    if (jsChunkStr) {
-      const withoutPlaceholder = safeReplace(
+    const jsChunkStr = createRouteHydrationScriptTags(
+      runtimeContext,
+      entryName,
+      {
+        nonce,
         template,
-        '<!--<?- chunksMap.js ?>-->',
-        '',
-      );
-      const withEarlyScripts = injectBeforeHydrationEntryScript(
-        withoutPlaceholder,
-        jsChunkStr,
-        entryName,
-      );
-      return withEarlyScripts !== withoutPlaceholder
-        ? withEarlyScripts
-        : safeReplace(template, '<!--<?- chunksMap.js ?>-->', jsChunkStr);
+      },
+    );
+    if (!jsChunkStr) {
+      return template;
     }
-    return template;
+
+    return replaceChunkJsPlaceholder(template, jsChunkStr, entryName);
   }
 
   return buildHtml(afterAppTemplate, callbacks);

@@ -10,12 +10,11 @@ import { getGlobalInternalRuntimeContext } from '../../context';
 import { wrapRuntimeContextProvider } from '../../react/wrapper';
 import {
   CHUNK_CSS_PLACEHOLDER,
-  CHUNK_JS_PLACEHOLDER,
   HTML_PLACEHOLDER,
   SSR_DATA_PLACEHOLDER,
 } from '../constants';
 import { createReplaceHelemt, getHelmetData } from '../helmet';
-import { injectBeforeHydrationEntryScript } from '../scriptOrder';
+import { replaceChunkJsPlaceholder } from '../scriptOrder';
 import { type BuildHtmlCb, buildHtml, type RenderString } from '../shared';
 import { SSRErrors, SSRTimings, type Tracer } from '../tracer';
 import { getSSRConfigByEntry, safeReplace } from '../utils';
@@ -169,24 +168,8 @@ function createReplaceSSRDataScript(data: string): BuildHtmlCb {
 }
 
 function createReplaceChunkJs(js: string, entryName?: string): BuildHtmlCb {
-  return (template: string) => {
-    if (!js) {
-      return safeReplace(template, CHUNK_JS_PLACEHOLDER, '');
-    }
-
-    const withoutPlaceholder = safeReplace(template, CHUNK_JS_PLACEHOLDER, '');
-    const withEarlyScripts = injectBeforeHydrationEntryScript(
-      withoutPlaceholder,
-      js,
-      entryName,
-    );
-
-    if (withEarlyScripts !== withoutPlaceholder) {
-      return withEarlyScripts;
-    }
-
-    return safeReplace(template, CHUNK_JS_PLACEHOLDER, js);
-  };
+  return (template: string) =>
+    replaceChunkJsPlaceholder(template, js, entryName);
 }
 
 function createReplaceChunkCss(css: string): BuildHtmlCb {
