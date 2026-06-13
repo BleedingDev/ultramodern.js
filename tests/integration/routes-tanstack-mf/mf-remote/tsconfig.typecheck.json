@@ -6,19 +6,11 @@
     "moduleResolution": "Bundler",
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true,
-    "paths": {
-      "@modern-js/plugin-tanstack/runtime": [
-        "./src/type-tests/plugin-tanstack-runtime-shim.d.ts"
-      ]
-    }
+    "noFallthroughCasesInSwitch": true
   },
   "include": [
     "src/type-tests/env-shim.d.ts",
-    "src/type-tests/runtime-router-shim.d.ts",
-    "src/type-tests/plugin-tanstack-runtime-shim.d.ts",
-    "src/type-tests/effect-client-shim.d.ts",
-    "src/type-tests/effect-server-shim.d.ts",
+    "src/type-tests/package-surface.ts",
     "src/components/**/*.tsx",
     "src/routes/**/*.tsx",
     "api/**/*.ts",

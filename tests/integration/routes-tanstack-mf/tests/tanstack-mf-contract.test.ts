@@ -269,11 +269,18 @@ describe('tanstack + module federation contracts', () => {
           );
           expect(hostPage).toContain('remote2-panel:pending');
           expect(remoteLoader).toContain('import { loadRemote }');
+          expect(remoteLoader).toContain(
+            "from '@modern-js/runtime/module-federation'",
+          );
           expect(remoteLoader).toContain('if (typeof window ===');
           expect(remoteLoader).toContain('React.lazy');
           expect(remoteLoader).toContain('classifyRemoteLoadFailure');
           expect(remoteLoader).toContain(
-            'data-mf-fallback-classification={classification}',
+            'toModuleFederationFallbackAttributes(telemetry)',
+          );
+          expect(remoteLoader).toContain('emitModuleFederationFallbackTelemetry');
+          expect(remoteLoader).toContain(
+            "appName: 'routes-tanstack-mf-host'",
           );
           expect(remoteLoader).toContain("mode === 'version-skew'");
           for (const config of [hostConfig, remoteConfig, remoteTwoConfig]) {
@@ -376,6 +383,7 @@ describe('tanstack + module federation contracts', () => {
           expect(remoteLoader).toContain('RemoteLoadError');
           expect(remoteLoader).toContain('RemoteComponentContractError');
           expect(remoteLoader).toContain('mfRemoteFailure');
+          expect(remoteLoader).toContain('remote: RemoteModuleKey');
           expect(remoteLoader).toContain('remote-load-error:');
         },
       },
@@ -503,6 +511,55 @@ describe('tanstack + module federation contracts', () => {
     expect(remote2Shared).toContain('@tanstack/react-router');
     expect(remoteManifest.remotes).toEqual([]);
     expect(remote2Manifest.remotes).toEqual([]);
+  });
+
+  test('committed host federation types are explicit goldens for exposed remotes', () => {
+    const readMfType = (relativePath: string) =>
+      readFixture(
+        `integration/routes-tanstack-mf/mf-host/@mf-types/${relativePath}`,
+      );
+
+    const goldenReadme = readMfType('README.md');
+    const rootTypes = readMfType('index.d.ts');
+    const remoteApis = readMfType('remote/apis.d.ts');
+    const remote2Apis = readMfType('remote2/apis.d.ts');
+
+    expect(goldenReadme).toContain('intentionally committed test data');
+    expect(rootTypes).toContain('declare module "@module-federation/runtime"');
+    expect(rootTypes).toContain(
+      'declare module "@module-federation/enhanced/runtime"',
+    );
+    expect(rootTypes).toContain(
+      'declare module "@module-federation/runtime-tools"',
+    );
+    expect(rootTypes).toContain(
+      'declare module "@module-federation/modern-js-v3/runtime"',
+    );
+    expect(remoteApis).toContain(
+      "export type RemoteKeys = 'remote/Widget' | 'remote/Mutator';",
+    );
+    expect(remoteApis).toContain(
+      "T extends 'remote/Mutator' ? typeof import('remote/Mutator')",
+    );
+    expect(remoteApis).toContain(
+      "T extends 'remote/Widget' ? typeof import('remote/Widget')",
+    );
+    expect(remote2Apis).toContain("export type RemoteKeys = 'remote2/Panel';");
+    expect(remote2Apis).toContain(
+      "T extends 'remote2/Panel' ? typeof import('remote2/Panel')",
+    );
+
+    for (const [publicModule, compiledType] of [
+      ['remote/Widget.d.ts', './compiled-types/src/components/Widget'],
+      ['remote/Mutator.d.ts', './compiled-types/src/components/Mutator'],
+      ['remote2/Panel.d.ts', './compiled-types/src/components/Panel'],
+    ]) {
+      const moduleTypes = readMfType(publicModule);
+      expect(moduleTypes).toContain(`export * from '${compiledType}';`);
+      expect(moduleTypes).toContain(
+        `export { default } from '${compiledType}';`,
+      );
+    }
   });
 
   test('generated host tanstack router preserves loader bridge for MF routes', () => {

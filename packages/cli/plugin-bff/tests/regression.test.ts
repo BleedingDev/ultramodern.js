@@ -36,6 +36,17 @@ describe('plugin-bff regressions', () => {
     expect(packageJson.typesVersions['*']['hono-server']).toEqual([
       './dist/types/runtime/hono/index.d.ts',
     ]);
+    expect(packageJson.exports['./effect-client']).toEqual({
+      types: './dist/types/runtime/effect-client/index.d.ts',
+      node: {
+        import: './dist/esm-node/runtime/effect-client/index.mjs',
+        require: './dist/cjs/runtime/effect-client/index.js',
+      },
+      default: './dist/cjs/runtime/effect-client/index.js',
+    });
+    expect(packageJson.typesVersions['*']['effect-client']).toEqual([
+      './dist/types/runtime/effect-client/index.d.ts',
+    ]);
   });
 
   test('effect adapter strips API prefix in enableHandleWeb mode', async () => {

@@ -94,6 +94,27 @@ describe('@modern-js/runtime/tanstack-router deprecated alias', () => {
     delete (globalThis as SlotHost)[COMPAT_BINDINGS_SLOT];
   });
 
+  it('package manifest exposes the router subpath used by app fixtures', () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(runtimePackageRoot, 'package.json'), 'utf8'),
+    ) as {
+      exports: Record<string, unknown>;
+      typesVersions?: Record<string, Record<string, string[]>>;
+    };
+
+    expect(packageJson.exports['./router']).toEqual({
+      types: './dist/types/router/index.d.ts',
+      'react-server': {
+        types: './dist/types/router/runtime/rsc.d.ts',
+        default: './dist/esm/router/runtime/rsc.mjs',
+      },
+      default: './dist/esm/router/index.mjs',
+    });
+    expect(packageJson.typesVersions?.['*']?.router).toEqual([
+      './dist/types/router/index.d.ts',
+    ]);
+  });
+
   it('exports the restored Modern.js bindings without importing TanStack Router', () => {
     expect(typeof Form).toBe('function');
     expect(typeof Link).toBe('function');

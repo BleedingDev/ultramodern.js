@@ -2,6 +2,7 @@
 import {
   defineEffectBff,
   Effect,
+  Headers,
   HttpApiBuilder,
   HttpTraceContext,
   Layer,
@@ -73,7 +74,7 @@ const traceSpanProcessor: TraceSpanProcessor = {
 const greetingsLayer = HttpApiBuilder.group(
   remoteEffectApi,
   'greetings',
-  (handlers: any) => {
+  handlers => {
     const handledHello = handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from remote Effect API',
@@ -85,10 +86,13 @@ const greetingsLayer = HttpApiBuilder.group(
       'traceChild',
       ({ headers, request }: TraceHandlerArgs) => {
         const locale = request.headers['accept-language'] ?? undefined;
-        const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
-          onNone: () => undefined,
-          onSome: (value: unknown) => value,
-        });
+        const parentSpan = Option.match(
+          HttpTraceContext.w3c(Headers.fromInput(request.headers)),
+          {
+            onNone: () => undefined,
+            onSome: value => value,
+          },
+        );
         return Effect.gen(function* () {
           yield* Effect.succeed('ok').pipe(
             Effect.withSpan('mf.remote.trace.db.query', {
@@ -140,7 +144,7 @@ const layer = HttpApiBuilder.layer(remoteEffectApi).pipe(
       resource: {
         serviceName: 'modernjs-mf-remote-tests',
       },
-    })),
+    })).pipe(Layer.orDie),
   ),
 );
 

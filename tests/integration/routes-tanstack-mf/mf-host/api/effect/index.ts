@@ -3,6 +3,7 @@ import { createRequestContextHeaders } from '@modern-js/plugin-bff/client';
 import {
   defineEffectBff,
   Effect,
+  Headers,
   HttpApiBuilder,
   HttpTraceContext,
   Layer,
@@ -114,7 +115,7 @@ const traceSpanProcessor: TraceSpanProcessor = {
 const greetingsLayer = HttpApiBuilder.group(
   hostEffectApi,
   'greetings',
-  (handlers: any) => {
+  handlers => {
     const handledHello = handlers.handle('hello', () =>
       Effect.succeed({
         message: 'Hello from host Effect API',
@@ -127,10 +128,13 @@ const greetingsLayer = HttpApiBuilder.group(
       ({ headers, request }: TraceHandlerArgs) => {
         const incomingTrace = parseTraceparent(headers.traceparent);
         const locale = request.headers['accept-language'] ?? undefined;
-        const parentSpan = Option.match(HttpTraceContext.w3c(request.headers), {
-          onNone: () => undefined,
-          onSome: (value: unknown) => value,
-        });
+        const parentSpan = Option.match(
+          HttpTraceContext.w3c(Headers.fromInput(request.headers)),
+          {
+            onNone: () => undefined,
+            onSome: value => value,
+          },
+        );
 
         return Effect.gen(function* () {
           const syntheticHostRunSpanId = createSpanId();
@@ -239,7 +243,7 @@ const layer = HttpApiBuilder.layer(hostEffectApi).pipe(
       resource: {
         serviceName: 'modernjs-mf-host-tests',
       },
-    })),
+    })).pipe(Layer.orDie),
   ),
 );
 
