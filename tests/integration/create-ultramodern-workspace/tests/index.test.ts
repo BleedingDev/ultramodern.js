@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
@@ -74,6 +75,21 @@ function readText(root: string, relativePath: string) {
 
 function readJson<T = any>(root: string, relativePath: string): T {
   return JSON.parse(readText(root, relativePath));
+}
+
+function runPerformanceReadiness(workspaceDir: string, env = {}) {
+  return execFileSync(
+    process.execPath,
+    ['scripts/ultramodern-performance-readiness.mjs'],
+    {
+      cwd: workspaceDir,
+      env: {
+        ...process.env,
+        ...env,
+      },
+      stdio: 'pipe',
+    },
+  ).toString();
 }
 
 function expectDedicatedAssetPrefixExpression(modernConfig: string) {
@@ -400,6 +416,18 @@ function expectAppConfigContract(
     html: {
       outputStructure: 'flat',
     },
+    performance: {
+      readinessDiagnostics: {
+        default: 'enabled',
+        failOn: 'framework-invariant',
+        optOut: {
+          env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+          config: 'scripts/ultramodern-performance-readiness.config.mjs',
+        },
+        report:
+          '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+      },
+    },
     source: {
       mainEntryName: 'index',
       siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
@@ -545,7 +573,409 @@ function envWithoutGeneratedPublicUrls(publicUrlEnvNames: string[]) {
   return env;
 }
 
-function expectGeneratedCloudflareProofContract(
+function normalizeUrlWithTrailingSlash(url: string) {
+  return url.endsWith('/') ? url : `${url}/`;
+}
+
+function proofSecurityHeaders(
+  app: ReturnType<typeof getGeneratedAppContract>,
+  options: {
+    contentType?: string;
+    noindex?: boolean;
+    cacheControl?: string;
+    cors?: boolean;
+    html?: boolean;
+    status?: number;
+  } = {},
+) {
+  const headers = app.deploy.cloudflare.security.headers;
+  return {
+    'access-control-allow-origin': options.cors ? '*' : undefined,
+    'cache-control': options.cacheControl ?? 'public, max-age=60',
+    'content-security-policy-report-only': options.html
+      ? "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'"
+      : undefined,
+    'content-type': options.contentType ?? 'text/plain; charset=utf-8',
+    'permissions-policy': headers.permissionsPolicy,
+    'referrer-policy': headers.referrerPolicy,
+    'x-content-type-options': headers.contentTypeOptions,
+    'x-robots-tag': options.noindex ? 'noindex, nofollow' : undefined,
+  };
+}
+
+function proofResponse(
+  app: ReturnType<typeof getGeneratedAppContract>,
+  body: string,
+  options: Parameters<typeof proofSecurityHeaders>[1] = {},
+) {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(
+    proofSecurityHeaders(app, options),
+  )) {
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+  return new Response(body, {
+    headers,
+    status: options.status ?? 200,
+  });
+}
+
+function proofHtml(
+  app: ReturnType<typeof getGeneratedAppContract>,
+  publicUrl: string,
+  route: string,
+  options: {
+    canonical?: boolean;
+    indexable?: boolean;
+  } = {},
+) {
+  const appId =
+    app.styling.federation.rootSelector.match(/data-app-id="([^"]+)"/u)?.[1] ??
+    app.id;
+  const canonicalUrl = new URL(route, normalizeUrlWithTrailingSlash(publicUrl));
+  const alternates = app.routes.publicHead?.alternates?.hreflang ?? [];
+  return `<!doctype html>
+<html>
+  <head>
+    <title>${app.id}</title>
+    <meta name="description" content="${app.id} generated proof">
+    <meta name="robots" content="${options.indexable ? 'index, follow' : 'noindex, nofollow'}">
+    ${
+      options.canonical
+        ? `<link rel="canonical" href="${canonicalUrl}">
+    ${alternates
+      .map((language: string) => {
+        const localePath =
+          app.routes.publicSurface.routeEntries?.[0]?.localeUrlPaths?.[
+            language
+          ] ?? route;
+        return `<link rel="alternate" hreflang="${language}" href="${new URL(
+          localePath,
+          normalizeUrlWithTrailingSlash(publicUrl),
+        )}">`;
+      })
+      .join('\n    ')}
+    <link rel="alternate" hreflang="x-default" href="${canonicalUrl}">
+    <meta property="og:title" content="${app.id}">
+    <meta property="og:description" content="${app.id}">
+    <meta property="og:url" content="${canonicalUrl}">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="${app.id}">
+    <meta name="twitter:description" content="${app.id}">
+    <script type="application/ld+json">{"@context":"https://schema.org"}</script>`
+        : ''
+    }
+  </head>
+  <body>
+    <main data-app-id="${appId}">
+      <span data-build-marker="${app.marker.build}"></span>
+    </main>
+  </body>
+</html>`;
+}
+
+async function importGeneratedCloudflareProofHelper(workspaceDir: string) {
+  const helperUrl = pathToFileURL(
+    path.join(workspaceDir, 'scripts/ultramodern-cloudflare-proof.mjs'),
+  );
+  return import(`${helperUrl.href}?proof-test=${Date.now()}-${Math.random()}`);
+}
+
+async function withGeneratedProofFetch<T>(
+  app: ReturnType<typeof getGeneratedAppContract>,
+  publicUrl: string,
+  routes: Map<string, Response>,
+  callback: () => Promise<T>,
+) {
+  const originalFetch = globalThis.fetch;
+  const isPreview = new URL(publicUrl).hostname.endsWith('.workers.dev');
+  globalThis.fetch = (async input => {
+    const url = new URL(String(input));
+    const response = routes.get(url.pathname);
+    if (!response) {
+      return new Response('missing fake route', {
+        status: 500,
+        headers: proofSecurityHeaders(app, {
+          contentType: 'text/plain',
+          noindex: isPreview,
+        }),
+      });
+    }
+    return response.clone();
+  }) as typeof fetch;
+
+  try {
+    return await callback();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+function createGeneratedProofRoutes(
+  app: ReturnType<typeof getGeneratedAppContract>,
+  publicUrl: string,
+  options: {
+    publicSurface?: boolean;
+  } = {},
+) {
+  const isPreview = new URL(publicUrl).hostname.endsWith('.workers.dev');
+  const routes = app.deploy.cloudflare.routes ?? {};
+  const ssrRoute = routes.ssr ?? '/en';
+  const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
+  const localeRoute = routes.locale ?? `/locales/en/${app.i18n.namespace}.json`;
+  const notFoundRoute =
+    app.deploy.cloudflare.qualityGates.statusCodes.notFoundRoute ??
+    '/__ultramodern-smoke-missing';
+  const cssRoute = '/assets/generated-proof.css';
+  const fakeRoutes = new Map<string, Response>();
+  const publicRoute =
+    app.routes.publicSurface.routeEntries?.[0]?.localeUrlPaths?.en ?? ssrRoute;
+
+  fakeRoutes.set(
+    ssrRoute,
+    proofResponse(app, proofHtml(app, publicUrl, ssrRoute), {
+      contentType: 'text/html; charset=utf-8',
+      html: true,
+      noindex: isPreview,
+    }),
+  );
+  fakeRoutes
+    .get(ssrRoute)!
+    .headers.set('link', `<${cssRoute}>; rel=preload; as=style`);
+  fakeRoutes.set(
+    notFoundRoute,
+    proofResponse(app, '<!doctype html><title>Not found</title>', {
+      contentType: 'text/html; charset=utf-8',
+      html: true,
+      noindex: isPreview,
+      status: app.deploy.cloudflare.qualityGates.statusCodes.unknownRouteStatus,
+    }),
+  );
+  fakeRoutes.set(
+    '/robots.txt',
+    proofResponse(
+      app,
+      options.publicSurface
+        ? `User-agent: *\nAllow: /\nSitemap: ${new URL(
+            '/sitemap.xml',
+            normalizeUrlWithTrailingSlash(publicUrl),
+          )}\n`
+        : 'User-agent: *\nDisallow: /\n',
+      {
+        contentType: 'text/plain; charset=utf-8',
+        noindex: isPreview,
+      },
+    ),
+  );
+  fakeRoutes.set(
+    cssRoute,
+    proofResponse(app, '[data-app-id] { color: currentColor; }', {
+      cacheControl: 'public, max-age=31536000, immutable',
+      contentType: 'text/css; charset=utf-8',
+      noindex: isPreview,
+    }),
+  );
+  fakeRoutes.set(
+    manifestRoute,
+    proofResponse(
+      app,
+      JSON.stringify({
+        metaData: { publicPath: normalizeUrlWithTrailingSlash(publicUrl) },
+        remoteEntry: 'remoteEntry.js',
+      }),
+      {
+        contentType: 'application/json; charset=utf-8',
+        cors: true,
+        noindex: isPreview,
+      },
+    ),
+  );
+  fakeRoutes.set(
+    localeRoute,
+    proofResponse(app, JSON.stringify({ [app.i18n.namespace]: {} }), {
+      contentType: 'application/json; charset=utf-8',
+      cors: true,
+      noindex: isPreview,
+    }),
+  );
+
+  if (options.publicSurface) {
+    fakeRoutes.set(
+      publicRoute,
+      proofResponse(
+        app,
+        proofHtml(app, publicUrl, publicRoute, {
+          canonical: true,
+          indexable: !isPreview,
+        }),
+        {
+          contentType: 'text/html; charset=utf-8',
+          html: true,
+          noindex: isPreview,
+        },
+      ),
+    );
+    fakeRoutes.set(
+      '/sitemap.xml',
+      proofResponse(
+        app,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<urlset>${app.routes.publicSurface.concreteUrlPaths
+          .map(
+            (urlPath: string) =>
+              `<url><loc>${new URL(
+                urlPath,
+                normalizeUrlWithTrailingSlash(publicUrl),
+              )}</loc></url>`,
+          )
+          .join('')}</urlset>`,
+        {
+          contentType: 'application/xml; charset=utf-8',
+          noindex: isPreview,
+        },
+      ),
+    );
+    fakeRoutes.set(
+      '/site.webmanifest',
+      proofResponse(app, JSON.stringify({ name: app.id, start_url: '/' }), {
+        contentType: 'application/manifest+json; charset=utf-8',
+        noindex: isPreview,
+      }),
+    );
+  }
+
+  if (routes.effectReadiness) {
+    fakeRoutes.set(
+      routes.effectReadiness,
+      proofResponse(
+        app,
+        JSON.stringify({ marker: { build: app.marker.build } }),
+        {
+          contentType: 'application/json; charset=utf-8',
+          noindex: isPreview,
+        },
+      ),
+    );
+  }
+
+  return fakeRoutes;
+}
+
+function withPublicProofSurface(
+  app: ReturnType<typeof getGeneratedAppContract>,
+) {
+  const publicApp = structuredClone(app);
+  publicApp.routes.publicSurface.publicRoutes = [
+    {
+      canonicalPath: '/proof-public',
+      id: 'proof-public',
+      ownerAppId: app.id,
+    },
+  ];
+  publicApp.routes.publicSurface.routeEntries = [
+    {
+      localeUrlPaths: {
+        en: '/en/proof-public',
+        cs: '/cs/proof-public',
+      },
+    },
+  ];
+  publicApp.routes.publicSurface.concreteUrlPaths = [
+    '/en/proof-public',
+    '/cs/proof-public',
+  ];
+  publicApp.routes.publicSurface.files = [
+    'robots.txt',
+    'sitemap.xml',
+    'site.webmanifest',
+  ];
+  return publicApp;
+}
+
+async function expectGeneratedCloudflareProofBehavior(
+  workspaceDir: string,
+  apps: Array<ReturnType<typeof getGeneratedAppContract>>,
+) {
+  const { validateApp } =
+    await importGeneratedCloudflareProofHelper(workspaceDir);
+
+  for (const app of apps) {
+    const privateUrl = `https://${app.id}.example.workers.dev`;
+    const privateEvidence = await withGeneratedProofFetch(
+      app,
+      privateUrl,
+      createGeneratedProofRoutes(app, privateUrl),
+      () => validateApp(app, privateUrl),
+    );
+    expect(
+      privateEvidence.assertions.every(
+        (assertion: { status: string }) => assertion.status === 'pass',
+      ),
+    ).toBe(true);
+    expect(
+      privateEvidence.assertions.map(
+        (assertion: { type: string }) => assertion.type,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'public-surface-private-robots',
+        'security-noindex',
+        'ssr-head-private-canonical',
+      ]),
+    );
+    expect(
+      privateEvidence.assertions.some(
+        (assertion: { type: string }) =>
+          assertion.type === 'public-surface-sitemap',
+      ),
+    ).toBe(false);
+
+    const publicApp = withPublicProofSurface(app);
+    const productionUrl = `https://${app.id}.example.com`;
+    const productionEvidence = await withGeneratedProofFetch(
+      publicApp,
+      productionUrl,
+      createGeneratedProofRoutes(publicApp, productionUrl, {
+        publicSurface: true,
+      }),
+      () => validateApp(publicApp, productionUrl),
+    );
+    expect(
+      productionEvidence.assertions.find(
+        (assertion: { type: string }) => assertion.type === 'indexing-policy',
+      ),
+    ).toMatchObject({
+      htmlRobotsIndexable: true,
+      mode: 'production',
+      status: 'pass',
+      xRobotsTag: null,
+    });
+
+    const previewUrl = `https://${app.id}.example.workers.dev`;
+    const previewEvidence = await withGeneratedProofFetch(
+      publicApp,
+      previewUrl,
+      createGeneratedProofRoutes(publicApp, previewUrl, {
+        publicSurface: true,
+      }),
+      () => validateApp(publicApp, previewUrl),
+    );
+    expect(
+      previewEvidence.assertions.find(
+        (assertion: { type: string }) => assertion.type === 'indexing-policy',
+      ),
+    ).toMatchObject({
+      mode: 'preview',
+      status: 'pass',
+      xRobotsTag: 'noindex, nofollow',
+    });
+  }
+}
+
+async function expectGeneratedCloudflareProofContract(
   workspaceDir: string,
   appIds: string[],
 ) {
@@ -627,18 +1057,7 @@ function expectGeneratedCloudflareProofContract(
     ]),
   );
 
-  expect(proofHelperScript).toContain('ssrHtmlMaxBytes ?? 250_000');
-  expect(proofHelperScript).toContain('mfManifestMaxBytes ?? 500_000');
-  expect(proofHelperScript).toContain('localeJsonMaxBytes ?? 100_000');
-  expect(proofHelperScript).toContain('sitemapXmlMaxBytes ?? 500_000');
-  expect(proofHelperScript).toContain('cssAssetMaxBytes ?? 750_000');
-  expect(proofHelperScript).toContain('content-security-policy-report-only');
-  expect(proofHelperScript).toContain('x-robots-tag');
-  expect(proofHelperScript).toContain('noindex, nofollow');
-  expect(proofHelperScript).toContain('.workers.dev');
-  expect(proofHelperScript).toContain(
-    'production public route must be indexable',
-  );
+  await expectGeneratedCloudflareProofBehavior(workspaceDir, apps);
 
   for (const app of apps) {
     expect(app.deploy.cloudflare.publicUrlEnv).toBe(
@@ -773,7 +1192,7 @@ describe('create-ultramodern-workspace', () => {
     }
   });
 
-  test('scaffolds a shell-only UltraModern SuperApp workspace', () => {
+  test('scaffolds a shell-only UltraModern SuperApp workspace', async () => {
     const workspaceDir = path.join(tempRoot, 'ultra-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--lang', 'en']);
@@ -801,6 +1220,8 @@ describe('create-ultramodern-workspace', () => {
       'scripts/validate-ultramodern-workspace.mjs',
       'scripts/ultramodern-cloudflare-proof.mjs',
       'scripts/proof-cloudflare-version.mjs',
+      'scripts/ultramodern-performance-readiness.config.mjs',
+      'scripts/ultramodern-performance-readiness.mjs',
       'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
@@ -820,6 +1241,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/locales/cs/translation.json',
       'apps/shell-super-app/locales/cs/shell.json',
       'apps/shell-super-app/src/routes/index.css',
+      'apps/shell-super-app/src/routes/ultramodern-jsonld.ts',
       'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
       'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
       'apps/shell-super-app/src/routes/[lang]/route.meta.ts',
@@ -868,9 +1290,12 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['mf:types']).toBe(
       'node ./scripts/assert-mf-types.mjs',
     );
+    expect(rootPackage.scripts['performance:readiness']).toBe(
+      'node ./scripts/ultramodern-performance-readiness.mjs',
+    );
     expectPath(workspaceDir, 'scripts/generate-public-surface-assets.mjs');
     expect(rootPackage.scripts.build).toBe(
-      'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types',
+      'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness',
     );
     expect(rootPackage.scripts['cloudflare:build']).toBe(
       'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types',
@@ -881,7 +1306,9 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['cloudflare:proof']).toBe(
       'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
-    expectGeneratedCloudflareProofContract(workspaceDir, ['shell-super-app']);
+    await expectGeneratedCloudflareProofContract(workspaceDir, [
+      'shell-super-app',
+    ]);
     expect(rootPackage.scripts.format).toBe("oxfmt . '!repos/**'");
     expect(rootPackage.scripts['format:check']).toBe(
       "oxfmt --check . '!repos/**'",
@@ -898,6 +1325,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(rootPackage.scripts.postinstall).toBe(
       "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
+    );
+    expect(rootPackage.scripts.check.endsWith('&& pnpm performance:readiness')).toBe(
+      true,
     );
     expect(rootPackage.scripts['agents:refs:install']).toBe(
       'node ./scripts/setup-agent-reference-repos.mjs',
@@ -994,6 +1424,33 @@ describe('create-ultramodern-workspace', () => {
     const generatedContract = readGeneratedContract(workspaceDir);
     expect(generatedContract.apps.map(app => app.id)).toEqual([
       'shell-super-app',
+    ]);
+    expect(generatedContract.performanceReadiness).toMatchObject({
+      default: 'enabled',
+      mode: 'diagnostic',
+      scope: 'ultramodern-generated-and-framework-owned',
+      report: {
+        script: 'scripts/ultramodern-performance-readiness.mjs',
+        config: 'scripts/ultramodern-performance-readiness.config.mjs',
+        defaultPath:
+          '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+        deterministic: true,
+      },
+      optOut: {
+        env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+      },
+    });
+    expect(
+      generatedContract.performanceReadiness.signals.map(
+        (signal: { id: string }) => signal.id,
+      ),
+    ).toEqual([
+      'bfcache',
+      'core-web-vitals-rum',
+      'duplicate-prefetch-warmup',
+      'cache-policy-sanity',
+      'save-data-behavior',
+      'cloudflare-ssr-cache-hints',
     ]);
 
     for (const packagePath of appPackagePaths) {
@@ -1172,6 +1629,14 @@ describe('create-ultramodern-workspace', () => {
         canonical: {
           publicIndexableOnly: true,
         },
+        structuredData: {
+          publicIndexableOnly: true,
+          optional: true,
+          source: 'route.jsonLd',
+          inference: false,
+          helperModule: './src/routes/ultramodern-jsonld',
+          sanitizesHtmlOpenBracket: true,
+        },
         privateRouteRobots: 'noindex, nofollow',
       },
     });
@@ -1207,6 +1672,21 @@ describe('create-ultramodern-workspace', () => {
     expect(shellRouteHead).toContain('property="og:title"');
     expect(shellRouteHead).toContain('name="twitter:card"');
     expect(shellRouteHead).toContain('application/ld+json');
+    expect(shellRouteHead).toContain('route?.jsonLd');
+    expect(shellRouteHead).not.toContain("'@type': 'WebPage'");
+    const shellJsonLdHelpers = readText(
+      workspaceDir,
+      'apps/shell-super-app/src/routes/ultramodern-jsonld.ts',
+    );
+    expect(shellJsonLdHelpers).toContain('export const defineRouteJsonLd');
+    expect(shellJsonLdHelpers).toContain('export const webPageJsonLd');
+    expect(shellJsonLdHelpers).toContain('export const webApplicationJsonLd');
+    expect(shellJsonLdHelpers).toContain(
+      'export const softwareApplicationJsonLd',
+    );
+    expect(shellJsonLdHelpers).toContain('export const breadcrumbListJsonLd');
+    expect(shellJsonLdHelpers).toContain('export const faqPageJsonLd');
+    expect(shellJsonLdHelpers).toContain('export const organizationJsonLd');
     const sharedContracts = readText(
       workspaceDir,
       'packages/shared-contracts/src/index.ts',
@@ -1355,6 +1835,7 @@ describe('create-ultramodern-workspace', () => {
       'pnpm install',
       'pnpm run i18n:boundaries',
       'pnpm run contract:check',
+      'pnpm run performance:readiness',
     ]);
     expect(manifest.validation.postMaterializationValidation).toEqual([
       'ultramodern-workspace-contract-check',
@@ -1417,6 +1898,84 @@ describe('create-ultramodern-workspace', () => {
     expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
+
+    const readinessOutput = runPerformanceReadiness(workspaceDir);
+    expect(readinessOutput.trim()).toBe(
+      'UltraModern performance readiness diagnostics reported',
+    );
+    const readinessReportPath =
+      '.codex/reports/performance-readiness/ultramodern-performance-readiness.json';
+    const readinessReport = readJson(workspaceDir, readinessReportPath);
+    expect(readinessReport).toMatchObject({
+      schemaVersion: 1,
+      profile: 'ultramodern-performance-readiness-diagnostics-v1',
+      status: 'pass',
+      defaultOn: true,
+      failOn: 'framework-invariant',
+      signals: [
+        'bfcache',
+        'core-web-vitals-rum',
+        'duplicate-prefetch-warmup',
+        'cache-policy-sanity',
+        'save-data-behavior',
+        'cloudflare-ssr-cache-hints',
+      ],
+    });
+    expect(readinessReport.apps).toEqual([
+      {
+        id: 'shell-super-app',
+        path: 'apps/shell-super-app',
+        signals: readinessReport.signals.map((id: string) =>
+          expect.objectContaining({
+            id,
+            severity: 'diagnostic',
+            status: 'pass',
+          }),
+        ),
+      },
+    ]);
+    const firstReadinessReportText = readText(
+      workspaceDir,
+      readinessReportPath,
+    );
+    runPerformanceReadiness(workspaceDir);
+    expect(readText(workspaceDir, readinessReportPath)).toBe(
+      firstReadinessReportText,
+    );
+    const readinessConfigPath =
+      'scripts/ultramodern-performance-readiness.config.mjs';
+    const readinessConfig = readText(workspaceDir, readinessConfigPath);
+    expect(readinessConfig).toContain(
+      'UltramodernPerformanceReadinessDiagnosticsConfig',
+    );
+    writeText(
+      workspaceDir,
+      readinessConfigPath,
+      readinessConfig.replace('enabled: true', 'enabled: false'),
+    );
+    const disabledReadinessOutput = runPerformanceReadiness(workspaceDir);
+    expect(disabledReadinessOutput.trim()).toBe(
+      'UltraModern performance readiness diagnostics disabled',
+    );
+    expect(readJson(workspaceDir, readinessReportPath)).toMatchObject({
+      schemaVersion: 1,
+      profile: 'ultramodern-performance-readiness-diagnostics-v1',
+      status: 'disabled',
+      defaultOn: true,
+      optOut: `${readinessConfigPath}#enabled=false`,
+      apps: [],
+    });
+    writeText(workspaceDir, readinessConfigPath, readinessConfig);
+    const envDisabledReadinessOutput = runPerformanceReadiness(workspaceDir, {
+      ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS: 'false',
+    });
+    expect(envDisabledReadinessOutput.trim()).toBe(
+      'UltraModern performance readiness diagnostics disabled',
+    );
+    expect(readJson(workspaceDir, readinessReportPath)).toMatchObject({
+      status: 'disabled',
+      optOut: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+    });
 
     const shellHeaderPath =
       'apps/shell-super-app/src/routes/vertical-components.tsx';
@@ -1524,7 +2083,7 @@ process.exit(1);
     expect(publicSurfaceHelp).toContain('UltramodernPublicSitemapEntry[]');
   });
 
-  test('adds a full-stack MicroVertical to an existing workspace', () => {
+  test('adds a full-stack MicroVertical to an existing workspace', async () => {
     const workspaceDir = path.join(tempRoot, 'ultra-add-remote-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--lang', 'en']);
@@ -1547,6 +2106,7 @@ process.exit(1);
       'verticals/catalog/src/routes/[lang]/page.tsx',
       'verticals/catalog/src/routes/[lang]/route.meta.ts',
       'verticals/catalog/src/routes/index.css',
+      'verticals/catalog/src/routes/ultramodern-jsonld.ts',
       'verticals/catalog/src/routes/ultramodern-route-head.tsx',
       'verticals/catalog/src/federation-entry.tsx',
       'verticals/catalog/src/components/catalog-widget.tsx',
@@ -1692,6 +2252,11 @@ process.exit(1);
       publicHead: {
         generator: './src/routes/ultramodern-route-head',
         ssr: true,
+        structuredData: {
+          optional: true,
+          source: 'route.jsonLd',
+          inference: false,
+        },
       },
     });
     expect(catalogContract.routes.owned).toEqual([
@@ -1719,7 +2284,7 @@ process.exit(1);
       'verticals/catalog',
       catalogContract.routes,
     );
-    expectGeneratedCloudflareProofContract(workspaceDir, [
+    await expectGeneratedCloudflareProofContract(workspaceDir, [
       'shell-super-app',
       'catalog',
     ]);

@@ -618,21 +618,25 @@ async function validatePublicSurface(evidence, app, publicUrl) {
   });
 }
 
-async function validateApp(app, publicUrl) {
+function createAppEvidence(app, publicUrl) {
   const cloudflare = app.deploy?.cloudflare;
-  const routes = cloudflare?.routes ?? {};
-  const evidence = {
+
+  return {
     appId: app.id,
     publicUrl,
     workerName: cloudflare?.workerName,
     publicUrlEnv: cloudflare?.publicUrlEnv,
     assertions: [],
   };
+}
+
+async function validateSsrEvidence(evidence, app, publicUrl, routes) {
+  const cloudflare = app.deploy?.cloudflare;
+  const qualityGates = cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
 
   const ssrRoute = routes.ssr ?? '/en';
   const ssr = await fetchText(joinUrl(publicUrl, ssrRoute));
-  const qualityGates = cloudflare?.qualityGates ?? {};
-  const budgets = qualityGates.budgets ?? {};
   evidence.assertions.push({
     type: 'ssr',
     route: ssrRoute,
@@ -656,6 +660,10 @@ async function validateApp(app, publicUrl) {
   await validateNotFound(evidence, app, publicUrl);
   await validatePublicSurface(evidence, app, publicUrl);
 
+  return ssr;
+}
+
+function validateUiMarkerEvidence(evidence, app, ssr) {
   const uiMarker = extractUiMarker(ssr.body);
   evidence.assertions.push({
     type: 'ui-marker',
@@ -664,7 +672,9 @@ async function validateApp(app, publicUrl) {
     status: uiMarker === app.marker?.build ? 'pass' : 'fail',
   });
   assert(uiMarker === app.marker?.build, `${app.id} UI marker mismatch`);
+}
 
+function validateCssRootMarkerEvidence(evidence, app, ssr) {
   const cssRootSelector = app.styling?.federation?.rootSelector;
   const expectedAppId = cssRootSelector?.match(/data-app-id="([^"]+)"/u)?.[1];
   evidence.assertions.push({
@@ -679,6 +689,9 @@ async function validateApp(app, publicUrl) {
     expectedAppId && ssr.body.includes(`data-app-id="${expectedAppId}"`),
     `${app.id} SSR response is missing CSS root marker ${cssRootSelector}`,
   );
+}
+
+function validateCssPreloadLinkEvidence(evidence, app, ssr) {
   const cssPreloadLinkHeader = ssr.link ?? '';
   evidence.assertions.push({
     type: 'css-preload-link-header',
@@ -694,7 +707,18 @@ async function validateApp(app, publicUrl) {
       cssPreloadLinkHeader.includes('as=style'),
     `${app.id} SSR response is missing CSS preload Link headers`,
   );
+}
+
+async function validateRenderedAssetEvidence(evidence, app, publicUrl, ssr) {
+  validateUiMarkerEvidence(evidence, app, ssr);
+  validateCssRootMarkerEvidence(evidence, app, ssr);
+  validateCssPreloadLinkEvidence(evidence, app, ssr);
   await validateCssAsset(evidence, app, publicUrl, ssr);
+}
+
+async function validateModuleFederationManifestEvidence(evidence, app, publicUrl, routes) {
+  const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
   const manifest = await fetchText(joinUrl(publicUrl, manifestRoute));
@@ -742,6 +766,11 @@ async function validateApp(app, publicUrl) {
     manifestPublicPath === expectedPublicPath,
     `${app.id} MF manifest publicPath must resolve remote assets from ${expectedPublicPath}`,
   );
+}
+
+async function validateI18nEvidence(evidence, app, publicUrl, routes) {
+  const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
+  const budgets = qualityGates.budgets ?? {};
 
   const localeRoute = routes.locale ?? `/locales/en/${app.i18n?.namespace}.json`;
   const locale = await fetchText(joinUrl(publicUrl, localeRoute));
@@ -783,7 +812,9 @@ async function validateApp(app, publicUrl) {
     localeJson && Object.hasOwn(localeJson, app.i18n?.namespace),
     `${app.id} locale JSON is missing namespace ${app.i18n?.namespace}`,
   );
+}
 
+async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
   if (routes.effectReadiness) {
     const readiness = await fetchText(joinUrl(publicUrl, routes.effectReadiness));
     const readinessJson = parseMaybeJson(readiness.body);
@@ -802,6 +833,17 @@ async function validateApp(app, publicUrl) {
     );
     assert(apiMarker === app.marker?.build, `${app.id} API marker mismatch`);
   }
+}
+
+async function validateApp(app, publicUrl) {
+  const routes = app.deploy?.cloudflare?.routes ?? {};
+  const evidence = createAppEvidence(app, publicUrl);
+
+  const ssr = await validateSsrEvidence(evidence, app, publicUrl, routes);
+  await validateRenderedAssetEvidence(evidence, app, publicUrl, ssr);
+  await validateModuleFederationManifestEvidence(evidence, app, publicUrl, routes);
+  await validateI18nEvidence(evidence, app, publicUrl, routes);
+  await validateReadinessEvidence(evidence, app, publicUrl, routes);
 
   return evidence;
 }
