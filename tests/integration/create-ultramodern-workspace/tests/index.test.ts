@@ -1695,7 +1695,7 @@ describe('create-ultramodern-workspace', () => {
       'packages/shared-contracts/src/index.ts',
     );
     expect(sharedContracts).toContain(
-      'export type UltramodernPublicSitemapEntry',
+      'export interface UltramodernPublicSitemapEntry',
     );
     expect(sharedContracts).toContain('localeParams?:');
     expect(shellContract.deploy).toMatchObject({

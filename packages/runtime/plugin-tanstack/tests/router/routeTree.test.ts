@@ -81,9 +81,11 @@ type TestRouter = {
   looseRoutesById: Partial<Record<string, TestRoute>>;
   state: {
     matches: Array<{
+      error?: unknown;
       loaderData?: unknown;
       routeId: string;
     }>;
+    statusCode?: number;
   };
 };
 
@@ -197,6 +199,28 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(rootMatch?.loaderData).toEqual({ root: 'ok' });
     expect(userMatch?.loaderData).toEqual({ id: '123' });
+  });
+
+  test('reports native TanStack unknown routes as HTTP 404', async () => {
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'known',
+            path: 'known',
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/missing');
+
+    expect(router.state.statusCode).toBe(404);
   });
 
   test('does not force Suspense wrappers for ordinary generated routes', async () => {
@@ -704,6 +728,35 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(loaderData?.immediate).toBe('ok');
     await expect(loaderData?.later).resolves.toBe('done');
+  });
+
+  test('preserves returned non-404 Response loaders as loader data', async () => {
+    const response = new Response('route status payload', { status: 500 });
+    const routes: TestRouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'broken',
+            path: 'broken',
+            loader: () => response,
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/broken');
+    const brokenMatch = router.state.matches.find(
+      match => match.routeId === '/broken',
+    );
+
+    expect(router.state.statusCode).toBe(200);
+    expect(brokenMatch?.loaderData).toBe(response);
+    expect(brokenMatch?.error).toBeUndefined();
   });
 
   test('preserves generated client metadata through RouteObject conversion', () => {

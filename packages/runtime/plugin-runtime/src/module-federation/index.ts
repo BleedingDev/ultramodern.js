@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off extendsNativeError:off globalFetch:off strictBooleanExpressions:off
 export const MODULE_FEDERATION_FALLBACK_SIGNAL_EVENT =
   'modernjs:mf-runtime-fallback';
 
@@ -143,7 +144,7 @@ export function classifyModuleFederationFallback(
 export function createModuleFederationFallbackTelemetry(
   input: ModuleFederationFallbackTelemetryInput,
 ): ModuleFederationFallbackTelemetryPayload {
-  const error = input.error ? toError(input.error) : undefined;
+  const error = input.error !== undefined ? toError(input.error) : undefined;
   const status = input.status ?? 'degraded';
   const eventName =
     input.eventName ??
@@ -237,7 +238,7 @@ export async function emitModuleFederationFallbackTelemetry(
   const headers = new Headers({
     'content-type': 'application/json',
   });
-  if (options.authToken) {
+  if (options.authToken !== undefined && options.authToken.length > 0) {
     headers.set(
       options.authHeaderName ?? DEFAULT_RUNTIME_FALLBACK_SIGNAL_AUTH_HEADER,
       options.authToken,

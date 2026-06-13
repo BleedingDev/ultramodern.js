@@ -22,6 +22,24 @@ function isTrackedPromise(value: any): value is TrackedPromise {
 }
 
 const DEFERRED_VALUE_PLACEHOLDER_PREFIX = '__deferred_promise:';
+
+function serializeDeferredError(error: Error) {
+  if (
+    process.env.NODE_ENV !== 'development' &&
+    process.env.NODE_ENV !== 'test'
+  ) {
+    return {
+      message: 'Unexpected Server Error',
+      stack: undefined,
+    };
+  }
+
+  return {
+    message: error.message,
+    stack: error.stack,
+  };
+}
+
 export function createDeferredReadableStream(
   deferredData: DeferredData,
   signal: AbortSignal,
@@ -88,10 +106,7 @@ function enqueueTrackedPromise(
     controller.enqueue(
       encoder.encode(
         `error:${serializeJson({
-          [settledKey]: {
-            message: _error.message,
-            stack: _error.stack,
-          },
+          [settledKey]: serializeDeferredError(_error),
         })}\n\n`,
       ),
     );

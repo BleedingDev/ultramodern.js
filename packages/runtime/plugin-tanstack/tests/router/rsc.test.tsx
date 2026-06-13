@@ -1,3 +1,4 @@
+import { UNSAFE_ErrorResponseImpl as ErrorResponseImpl } from '@modern-js/runtime-utils/router';
 import type React from 'react';
 import { isValidElement } from 'react';
 import { createRscProxy } from '../../src/runtime/rsc/createRscProxy';
@@ -28,6 +29,16 @@ async function readAll(stream: ReadableStream<Uint8Array>) {
   }
 
   return chunks;
+}
+
+function withNodeEnv<T>(value: string, callback: () => T): T {
+  const original = process.env.NODE_ENV;
+  process.env.NODE_ENV = value;
+  try {
+    return callback();
+  } finally {
+    process.env.NODE_ENV = original;
+  }
 }
 
 describe('tanstack rsc runtime helpers', () => {
@@ -147,6 +158,65 @@ describe('tanstack rsc runtime helpers', () => {
     expect(
       (payload.loaderData as Record<string, unknown>)['/products'],
     ).toBeUndefined();
+  });
+
+  test('redacts production TanStack RSC server payload errors', () => {
+    const routeError = new ErrorResponseImpl(
+      500,
+      'secret status text',
+      'route secret',
+      true,
+    );
+    const serverError = new Error('server secret');
+    serverError.stack = 'stack secret';
+
+    const payload = withNodeEnv('production', () =>
+      createTanstackRscServerPayload({
+        state: {
+          location: { href: '/products' },
+          matches: [
+            {
+              error: serverError,
+              params: {},
+              pathname: '/',
+              pathnameBase: '/',
+              route: { id: '__root__' },
+              routeId: '__root__',
+            },
+            {
+              error: routeError,
+              params: {},
+              pathname: '/products',
+              pathnameBase: '/products',
+              route: {
+                id: '/products',
+                parentRoute: { id: '__root__' },
+                options: { path: 'products' },
+              },
+              routeId: '/products',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(payload.errors).toMatchObject({
+      __root__: {
+        message: 'Unexpected Server Error',
+        stack: undefined,
+        __type: 'Error',
+      },
+      '/products': {
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: 'Unexpected Server Error',
+        __type: 'RouteErrorResponse',
+      },
+    });
+    expect(JSON.stringify(payload.errors)).not.toContain('server secret');
+    expect(JSON.stringify(payload.errors)).not.toContain('route secret');
+    expect(JSON.stringify(payload.errors)).not.toContain('secret status text');
+    expect(JSON.stringify(payload.errors)).not.toContain('stack secret');
   });
 
   test('converts TanStack RSC redirects to Modern RSC navigation headers', () => {

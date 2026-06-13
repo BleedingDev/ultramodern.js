@@ -100,6 +100,10 @@ Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这�
 `/locales/{{lng}}/{{ns}}.json` 提供动态后端 JSON。路由 owner 需要同时维护本地化路径和
 locale resource JSON。
 
+JSON-LD 是可选的路由 metadata，不会自动推断。私有路由和不可索引路由默认不输出
+JSON-LD。公开路由 owner 可以在本地化路径旁显式添加 `jsonLd`，并使用生成的
+`src/routes/ultramodern-jsonld.ts` helper 编写常见 schema.org 结构。
+
 生成契约会在 `.modernjs/ultramodern-generated-contract.json` 中写入
 `cssFederation`：
 

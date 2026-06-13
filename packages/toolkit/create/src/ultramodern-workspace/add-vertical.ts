@@ -193,6 +193,11 @@ export function rewriteShellAppFiles(
   );
   writeFileReplacing(
     workspaceRoot,
+    publicWeb.jsonLdHelperFile.path,
+    publicWeb.jsonLdHelperFile.content,
+  );
+  writeFileReplacing(
+    workspaceRoot,
     publicWeb.routeMetadataFile.path,
     publicWeb.routeMetadataFile.content,
   );

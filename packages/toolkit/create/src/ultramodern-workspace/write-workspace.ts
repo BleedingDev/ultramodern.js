@@ -117,6 +117,11 @@ export function writeApp(
   );
   writeFile(
     targetDir,
+    publicWeb.jsonLdHelperFile.path,
+    publicWeb.jsonLdHelperFile.content,
+  );
+  writeFile(
+    targetDir,
     publicWeb.routeMetadataFile.path,
     publicWeb.routeMetadataFile.content,
   );

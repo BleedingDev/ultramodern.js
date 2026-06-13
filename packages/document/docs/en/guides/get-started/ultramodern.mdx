@@ -108,6 +108,11 @@ translated path segments on top of `localePathRedirect`. The i18n plugin also
 serves dynamic backend JSON from `/locales/{{lng}}/{{ns}}.json`. The route owner
 changes localized paths and locale resource JSON together.
 
+JSON-LD is optional route metadata, not inferred output. Private and
+non-indexable routes emit no JSON-LD by default. Public route owners can add
+`jsonLd` beside localized paths and use the generated
+`src/routes/ultramodern-jsonld.ts` helpers for common schema.org shapes.
+
 The generated contract writes `.modernjs/ultramodern-generated-contract.json`
 with a `cssFederation` section:
 

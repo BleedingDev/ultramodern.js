@@ -11,6 +11,9 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+export type JsonObject = { [key: string]: JsonValue };
+export type RouteJsonLd = JsonObject | JsonObject[];
+
 export function sortJsonValue(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {
     return value.map(sortJsonValue);
@@ -84,6 +87,7 @@ export type RouteOwnedI18nPath = {
   public: boolean;
   indexable: boolean;
   publicSurface: RoutePublicSurface;
+  jsonLd?: RouteJsonLd;
 };
 
 export type PublicRouteMetadata = {
@@ -94,6 +98,7 @@ export type PublicRouteMetadata = {
   ownerAppId: string;
   titleKey: string;
   descriptionKey: string;
+  jsonLd?: RouteJsonLd;
 };
 
 export type PublicSitemapChangeFrequency =

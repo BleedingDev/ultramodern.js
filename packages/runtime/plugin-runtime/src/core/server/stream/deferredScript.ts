@@ -39,13 +39,17 @@ export function toErrorInfo(error: unknown): {
   message: string;
   stack?: string;
 } {
+  if (process.env.NODE_ENV === 'production') {
+    return { message: 'Unexpected Server Error' };
+  }
+
   if (error && typeof error === 'object') {
     const maybeMsg = (error as { message?: unknown }).message;
     const maybeStack = (error as { stack?: string }).stack;
     return {
       message:
         typeof maybeMsg === 'string' ? maybeMsg : String(maybeMsg ?? error),
-      stack: process.env.NODE_ENV !== 'production' ? maybeStack : undefined,
+      stack: maybeStack,
     };
   }
   return { message: String(error) };

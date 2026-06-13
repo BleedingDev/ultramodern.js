@@ -7,6 +7,7 @@ import {
   createPublicSurfaceContentExpansionPolicy,
 } from './policy';
 import {
+  createJsonLdHelperModule,
   createPublicRouteMetadata,
   createRouteAliasPage,
   createRouteMetadataModule,
@@ -205,7 +206,18 @@ export function createPublicHeadContract(): JsonValue {
     },
     structuredData: {
       publicIndexableOnly: true,
-      type: 'WebPage',
+      optional: true,
+      source: 'route.jsonLd',
+      inference: false,
+      helperModule: './src/routes/ultramodern-jsonld',
+      helperTypes: [
+        'WebPage',
+        'WebApplication',
+        'SoftwareApplication',
+        'BreadcrumbList',
+        'FAQPage',
+        'Organization',
+      ],
       sanitizesHtmlOpenBracket: true,
     },
     privateRouteRobots: robotsPolicy.privateRouteRobots,
@@ -218,6 +230,7 @@ export type PublicWebGeneratedFile = {
 };
 
 export type PublicWebAppArtifacts = {
+  jsonLdHelperFile: PublicWebGeneratedFile;
   routeMetadataFile: PublicWebGeneratedFile;
   routeHeadFile: PublicWebGeneratedFile;
   routeMetaFiles: PublicWebGeneratedFile[];
@@ -232,6 +245,10 @@ export function createPublicWebAppArtifacts(
   const routeMetadata = createRouteOwnedI18nPaths(app);
 
   return {
+    jsonLdHelperFile: {
+      path: `${app.directory}/src/routes/ultramodern-jsonld.ts`,
+      content: createJsonLdHelperModule(),
+    },
     routeMetadataFile: {
       path: `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
       content: createRouteMetadataModule(app),

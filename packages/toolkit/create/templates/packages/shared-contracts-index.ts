@@ -7,7 +7,7 @@ export type UltramodernPublicSitemapChangeFrequency =
   | 'yearly'
   | 'never';
 
-export type UltramodernPublicSitemapEntry = {
+export interface UltramodernPublicSitemapEntry {
   /**
    * Params used to expand every localized route pattern, for example
    * { slug: 'platform-story' } for /talks/:slug.
@@ -22,7 +22,7 @@ export type UltramodernPublicSitemapEntry = {
   lastModified?: string;
   changeFrequency?: UltramodernPublicSitemapChangeFrequency;
   priority?: number;
-};
+}
 
 export type UltramodernPerformanceReadinessSignalId =
   | 'bfcache'
@@ -32,7 +32,7 @@ export type UltramodernPerformanceReadinessSignalId =
   | 'save-data-behavior'
   | 'cloudflare-ssr-cache-hints';
 
-export type UltramodernPerformanceReadinessDiagnosticsConfig = {
+export interface UltramodernPerformanceReadinessDiagnosticsConfig {
   /**
    * Default-on. Set to false only for an explicit local or CI fast path.
    */
@@ -51,9 +51,10 @@ export type UltramodernPerformanceReadinessDiagnosticsConfig = {
       }
     >
   >;
-};
+}
 
 export const ultramodernWorkspaceContract = {
+  ownership: 'topology/ownership.json',
   performanceReadiness: {
     defaultOn: true,
     optOut: 'scripts/ultramodern-performance-readiness.config.mjs#enabled=false',
@@ -68,7 +69,6 @@ export const ultramodernWorkspaceContract = {
       'cloudflare-ssr-cache-hints',
     ],
   },
-  ownership: 'topology/ownership.json',
   preset: 'presetUltramodern',
   topology: 'topology/reference-topology.json',
 } as const;
@@ -306,8 +306,8 @@ const normalizeCheckoutLine = (
   }
 
   return {
-    sku: line.sku,
     quantity: line.quantity,
+    sku: line.sku,
     ...(line.name === undefined ? {} : { name: line.name }),
     ...(line.unitPriceCents === undefined
       ? {}
@@ -361,8 +361,8 @@ export const applyCheckoutCartEvent = (
   const lines = cart.lines.map(normalizeCheckoutLine);
   const existingIndex = lines.findIndex(line => line.sku === addPayload.sku);
   const nextLine = normalizeCheckoutLine({
-    sku: addPayload.sku,
     quantity: addPayload.quantity,
+    sku: addPayload.sku,
     ...(addPayload.name === undefined ? {} : { name: addPayload.name }),
     ...(addPayload.unitPriceCents === undefined
       ? {}

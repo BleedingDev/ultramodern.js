@@ -3,12 +3,15 @@ import { Helmet } from '@modern-js/runtime/head';
 import {
   ultramodernRouteMetadata,
 } from './ultramodern-route-metadata';
+import type { RouteJsonLd } from './ultramodern-jsonld';
 
 const appName = "Shell Super App";
 const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
-type RouteMetadata = (typeof ultramodernRouteMetadata)[number];
+type RouteMetadata = (typeof ultramodernRouteMetadata)[number] & {
+  readonly jsonLd?: RouteJsonLd;
+};
 
 const routeMetadata = ultramodernRouteMetadata as readonly RouteMetadata[];
 
@@ -86,7 +89,7 @@ const absoluteUrl = (pathname: string) => {
   return `${origin}${pathname}`;
 };
 
-const sanitiseJsonLd = (value: unknown) =>
+const sanitiseJsonLd = (value: RouteJsonLd) =>
   JSON.stringify(value).replaceAll('<', '\\u003c');
 
 export const UltramodernRouteHead = () => {
@@ -98,21 +101,7 @@ export const UltramodernRouteHead = () => {
   const description = route ? t(route.descriptionKey) : appName;
   const canonicalUrl = absoluteUrl(alternates[fallbackLanguage] ?? `/${fallbackLanguage}`);
   const indexable = route?.public === true && route?.indexable === true;
-  const jsonLd = indexable
-    ? {
-        '@context': 'https://schema.org',
-        '@type': 'WebPage',
-        description,
-        inLanguage: supportedLanguages.join(','),
-        isPartOf: {
-          '@type': 'WebSite',
-          name: appName,
-          url: absoluteUrl('/'),
-        },
-        name: title,
-        url: canonicalUrl,
-      }
-    : undefined;
+  const jsonLd = indexable ? route?.jsonLd : undefined;
 
   return (
     <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>

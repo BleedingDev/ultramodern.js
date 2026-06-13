@@ -1,8 +1,27 @@
 import {
+  createStaticHandler,
+  UNSAFE_ErrorResponseImpl as ErrorResponseImpl,
+} from '@modern-js/runtime-utils/router';
+import { toErrorInfo } from '../../src/core/server/stream/deferredScript';
+import { serializeErrors as serializeServerErrors } from '../../src/core/server/utils';
+import {
+  createRouteObjectsFromConfig,
   getLocation,
+  renderRoutes,
+  serializeErrors as serializeRouterErrors,
   standardSlash,
   urlJoin,
 } from '../../src/router/runtime/utils';
+
+function withNodeEnv<T>(nodeEnv: string, callback: () => T): T {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = nodeEnv;
+  try {
+    return callback();
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+  }
+}
 
 describe('test runtime router utils', () => {
   it('should get location correctly', () => {
@@ -53,5 +72,155 @@ describe('test runtime router utils', () => {
     expect(urlJoin('/a', '/b/')).toBe('/a/b');
     expect(urlJoin('', '/b')).toBe('/b');
     expect(urlJoin('a', '/b')).toBe('/a/b');
+  });
+
+  it('adds a 404 loader to object-route catch-all routes', async () => {
+    const routes = createRouteObjectsFromConfig({
+      routesConfig: {
+        routes: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'root',
+            isRoot: true,
+            path: '/',
+          },
+        ],
+      },
+    });
+
+    const { query } = createStaticHandler(routes || []);
+    const context = await query(new Request('http://localhost/missing'));
+
+    expect(context).not.toBeInstanceOf(Response);
+    expect((context as { statusCode: number }).statusCode).toBe(404);
+  });
+
+  it('adds a 404 loader to JSX catch-all routes', async () => {
+    const routes = renderRoutes({
+      routesConfig: {
+        routes: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'root',
+            isRoot: true,
+            path: '/',
+          },
+        ],
+      },
+    });
+
+    const catchAllRoute = routes?.at(-1) as
+      | { props?: { loader?: () => Response; path?: string } }
+      | undefined;
+    const response = catchAllRoute?.props?.loader?.();
+
+    expect(catchAllRoute?.props?.path).toBe('*');
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.status).toBe(404);
+  });
+
+  it('keeps object-route loader failures at HTTP 500', async () => {
+    const routes = createRouteObjectsFromConfig({
+      routesConfig: {
+        routes: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'root',
+            isRoot: true,
+            path: '/',
+            children: [
+              {
+                type: 'nested',
+                origin: 'config',
+                id: 'broken',
+                path: 'broken',
+                loader: () => {
+                  throw new Error('loader failed');
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const { query } = createStaticHandler(routes || []);
+    const context = await query(new Request('http://localhost/broken'));
+
+    expect(context).not.toBeInstanceOf(Response);
+    expect((context as { statusCode: number }).statusCode).toBe(500);
+  });
+
+  it('redacts production route error messages and stacks for router hydration', () => {
+    const secretError = new Error('database password leaked');
+    secretError.stack = 'secret stack';
+    const routeError = new ErrorResponseImpl(
+      500,
+      'secret status text',
+      'secret response body',
+      true,
+    );
+
+    const routerSerialized = withNodeEnv('production', () =>
+      serializeRouterErrors({
+        root: secretError,
+        route: routeError,
+      } as any),
+    ) as Record<string, any>;
+    const serverSerialized = withNodeEnv('production', () =>
+      serializeServerErrors({
+        root: secretError,
+        route: routeError,
+      } as any),
+    ) as Record<string, any>;
+
+    for (const serialized of [routerSerialized, serverSerialized]) {
+      expect(serialized.root).toMatchObject({
+        message: 'Unexpected Server Error',
+        stack: undefined,
+        __type: 'Error',
+      });
+      expect(serialized.route).toMatchObject({
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: 'Unexpected Server Error',
+        __type: 'RouteErrorResponse',
+      });
+      expect(JSON.stringify(serialized)).not.toContain('database password');
+      expect(JSON.stringify(serialized)).not.toContain('secret stack');
+      expect(JSON.stringify(serialized)).not.toContain('secret response body');
+      expect(JSON.stringify(serialized)).not.toContain('secret status text');
+    }
+  });
+
+  it('redacts production streaming deferred error messages and stacks', () => {
+    const error = new Error('deferred stream secret');
+    error.stack = 'deferred stack secret';
+
+    const serialized = withNodeEnv('production', () => toErrorInfo(error));
+
+    expect(serialized).toEqual({
+      message: 'Unexpected Server Error',
+    });
+    expect(JSON.stringify(serialized)).not.toContain('deferred stream secret');
+    expect(JSON.stringify(serialized)).not.toContain('deferred stack secret');
+  });
+
+  it('preserves development route error diagnostics', () => {
+    const error = new Error('development detail');
+    error.stack = 'development stack';
+
+    const serialized = withNodeEnv('development', () =>
+      serializeRouterErrors({ root: error } as any),
+    ) as Record<string, any>;
+
+    expect(serialized.root).toMatchObject({
+      message: 'development detail',
+      stack: 'development stack',
+      __type: 'Error',
+    });
   });
 });

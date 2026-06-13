@@ -168,6 +168,13 @@ describe('modernLoaderToTanstack', () => {
     expect(isNotFound(thrown)).toBe(true);
   });
 
+  test('preserves returned non-404 error Responses as loader results', async () => {
+    const response = new Response('loader exploded', { status: 500 });
+    const loader = modernLoaderToTanstack({ hasSplat: false }, () => response);
+
+    await expect(loader(baseCtx)).resolves.toBe(response);
+  });
+
   test('translates redirect Responses thrown synchronously by the loader', () => {
     const loader = modernLoaderToTanstack({ hasSplat: false }, () => {
       throw new Response(null, {

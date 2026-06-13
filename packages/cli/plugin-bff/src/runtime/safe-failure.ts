@@ -68,12 +68,15 @@ export const createSafeFailureResponse = (error: unknown): Response => {
       status,
     },
   };
+  const headers: Record<string, string> = {
+    'content-type': 'application/json; charset=utf-8',
+  };
+  if (retryAfter !== undefined) {
+    headers['Retry-After'] = retryAfter;
+  }
 
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...(retryAfter ? { 'Retry-After': retryAfter } : {}),
-    },
+    headers,
   });
 };

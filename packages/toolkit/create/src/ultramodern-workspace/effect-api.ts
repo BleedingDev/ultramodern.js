@@ -411,6 +411,15 @@ export function createEffectSharedApiContract(service: {
   const groupName = verticalEffectGroupName(service);
   const stem = effectApiStem(service);
   const apiPrefix = effectApiPrefix(service);
+  const checkoutCartSharedSchemas = createCheckoutCartSharedSchemas(service);
+  const checkoutCartSharedSchemaSection =
+    checkoutCartSharedSchemas === '' ? '' : `${checkoutCartSharedSchemas}\n`;
+  const checkoutCartOperationContexts =
+    createCheckoutCartOperationContexts(service).trimStart();
+  const checkoutCartOperationContextEntries =
+    checkoutCartOperationContexts === ''
+      ? ''
+      : `${checkoutCartOperationContexts}\n`;
 
   return `export const ${markerSchemaExport} = Schema.Struct({
   appId: Schema.String,
@@ -442,9 +451,8 @@ export const ${readinessSchemaExport} = Schema.Struct({
 export const ${createPayloadSchemaExport} = Schema.Struct({
   title: Schema.String,
 });
-${createCheckoutCartSharedSchemas(service)}
 
-export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundErrorExport}>()(
+${checkoutCartSharedSchemaSection}export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundErrorExport}>()(
   '${notFoundErrorExport}',
   {
     id: Schema.String,
@@ -506,8 +514,7 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
 );
 
 export const ${groupName}OperationContexts = {
-${createCheckoutCartOperationContexts(service)}
-  create: {
+${checkoutCartOperationContextEntries}  create: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:create',
     routePath: '/effect/${stem}',
@@ -689,6 +696,7 @@ export function createEffectClient(
   const readinessName = `get${toPascalCase(stem)}Readiness`;
   const getName = `get${toPascalCase(singular)}`;
   const createName = `create${toPascalCase(singular)}`;
+  const checkoutCartClientExports = createCheckoutCartClientExports(service);
 
   return `import {
   Effect,
@@ -775,8 +783,7 @@ export const ${createName} = (
     Effect.flatMap(client =>
       client.${groupName}.create({ payload: { title } }),
     ),
-  );
-${createCheckoutCartClientExports(service)}
+  );${checkoutCartClientExports}
 `;
 }
 

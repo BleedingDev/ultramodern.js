@@ -1,5 +1,6 @@
-// @effect-diagnostics asyncFunction:off globalFetch:off strictBooleanExpressions:off
+// @effect-diagnostics asyncFunction:off globalFetch:off processEnv:off strictBooleanExpressions:off
 import type { PayloadRoute, ServerPayload } from '@modern-js/runtime/context';
+import { isRouteErrorResponse } from '@modern-js/runtime-utils/router';
 import { notFound, redirect } from '@tanstack/react-router';
 
 type PayloadDecoder = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
@@ -103,6 +104,48 @@ function toPayloadRoute(match: RouterMatchLike): PayloadRoute | undefined {
   };
 }
 
+function shouldRedactServerError(status = 500) {
+  return (
+    status >= 500 &&
+    process.env.NODE_ENV !== 'development' &&
+    process.env.NODE_ENV !== 'test'
+  );
+}
+
+function serializePayloadError(error: unknown): unknown {
+  if (isRouteErrorResponse(error)) {
+    if (shouldRedactServerError(error.status)) {
+      return {
+        status: error.status,
+        statusText: 'Internal Server Error',
+        data: 'Unexpected Server Error',
+        __type: 'RouteErrorResponse',
+      };
+    }
+
+    return { ...error, __type: 'RouteErrorResponse' };
+  }
+
+  if (error instanceof Error) {
+    if (shouldRedactServerError()) {
+      return {
+        message: 'Unexpected Server Error',
+        stack: undefined,
+        __type: 'Error',
+      };
+    }
+
+    return {
+      message: error.message,
+      stack: error.stack,
+      __type: 'Error',
+      ...(error.name !== 'Error' ? { __subType: error.name } : {}),
+    };
+  }
+
+  return error;
+}
+
 export function createTanstackRscServerPayload(
   router: TanstackPayloadRouterLike,
   options: {
@@ -133,7 +176,7 @@ export function createTanstackRscServerPayload(
     }
 
     if (typeof match.error !== 'undefined') {
-      errors[payloadRoute.id] = match.error;
+      errors[payloadRoute.id] = serializePayloadError(match.error);
     }
   }
 

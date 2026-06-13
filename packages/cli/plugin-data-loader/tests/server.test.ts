@@ -1,3 +1,5 @@
+import { DeferredData } from '@modern-js/runtime-utils/browser';
+import { UNSAFE_ErrorResponseImpl as ErrorResponseImpl } from '@modern-js/runtime-utils/router';
 import { createWebRequest, sendResponse } from '@modern-js/server-core/node';
 import type { ServerRoute } from '@modern-js/types';
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -6,8 +8,34 @@ import qs from 'querystring';
 import request from 'supertest';
 import { LOADER_ID_PARAM } from '../src/common/constants';
 import { handleRequest } from '../src/runtime';
+import {
+  errorResponseToJson,
+  serializeError,
+  serializeErrors,
+} from '../src/runtime/errors';
+import { createDeferredReadableStream } from '../src/runtime/response';
 
-describe('handleRequest', () => {
+function withNodeEnv<T>(nodeEnv: string, callback: () => T): T {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = nodeEnv;
+  const restore = () => {
+    process.env.NODE_ENV = previousNodeEnv;
+  };
+
+  try {
+    const result = callback();
+    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+      return Promise.resolve(result).finally(restore) as T;
+    }
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
+  }
+}
+
+describe.sequential('handleRequest', () => {
   const serverLoaders = path.join(
     __dirname,
     './fixtures',
@@ -238,5 +266,74 @@ describe('handleRequest', () => {
       res.headers['content-type'].includes('application/json'),
     ).toBeTruthy();
     expect(res.body.message).toBe('throw error by loader4');
+  });
+
+  test('redacts production loader and route error serialization', async () => {
+    const secretError = new Error('loader secret');
+    secretError.stack = 'loader stack';
+    const routeError = new ErrorResponseImpl(
+      500,
+      'secret status text',
+      'route secret',
+      true,
+    );
+
+    const serializedError = withNodeEnv('production', () =>
+      serializeError(secretError),
+    );
+    const serializedErrors = withNodeEnv('production', () =>
+      serializeErrors({
+        root: secretError,
+        route: routeError,
+      } as any),
+    ) as Record<string, any>;
+    const response = withNodeEnv('production', () =>
+      errorResponseToJson(routeError),
+    );
+    const responseBody = (await response.json()) as Record<string, unknown>;
+
+    expect(serializedError).toEqual({
+      message: 'Unexpected Server Error',
+      stack: undefined,
+    });
+    expect(serializedErrors.root).toMatchObject({
+      message: 'Unexpected Server Error',
+      stack: undefined,
+      __type: 'Error',
+    });
+    expect(serializedErrors.route).toMatchObject({
+      status: 500,
+      statusText: 'Internal Server Error',
+      data: 'Unexpected Server Error',
+      __type: 'RouteErrorResponse',
+    });
+    expect(response.status).toBe(500);
+    expect(response.statusText).toBe('Internal Server Error');
+    expect(responseBody).toEqual({
+      message: 'Unexpected Server Error',
+    });
+    expect(JSON.stringify(serializedErrors)).not.toContain('loader secret');
+    expect(JSON.stringify(serializedErrors)).not.toContain('route secret');
+    expect(JSON.stringify(serializedErrors)).not.toContain(
+      'secret status text',
+    );
+    expect(JSON.stringify(responseBody)).not.toContain('route secret');
+  });
+
+  test('redacts production deferred error chunks', async () => {
+    const deferredData = new DeferredData({
+      delayed: Promise.reject(new Error('deferred secret')),
+    });
+    const body = await withNodeEnv('production', () =>
+      new Response(
+        createDeferredReadableStream(
+          deferredData,
+          new AbortController().signal,
+        ),
+      ).text(),
+    );
+
+    expect(body).toContain('Unexpected Server Error');
+    expect(body).not.toContain('deferred secret');
   });
 });

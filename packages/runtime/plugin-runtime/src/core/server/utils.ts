@@ -1,4 +1,4 @@
-// @effect-diagnostics strictBooleanExpressions:off
+// @effect-diagnostics processEnv:off strictBooleanExpressions:off
 import type { ServerUserConfig } from '@modern-js/app-tools';
 import {
   isRouteErrorResponse,
@@ -49,18 +49,58 @@ export function serializeErrors(
     // Hey you!  If you change this, please change the corresponding logic in
     // deserializeErrors
     if (isRouteErrorResponse(val)) {
-      serialized[key] = { ...val, __type: 'RouteErrorResponse' };
+      serialized[key] = serializeRouteErrorResponse(val);
     } else if (val instanceof Error) {
-      serialized[key] = {
-        message: val.message,
-        stack: val.stack,
-        __type: 'Error',
-      };
+      serialized[key] = serializeError(val);
     } else {
       serialized[key] = val;
     }
   }
   return serialized;
+}
+
+function shouldRedactServerError() {
+  return (
+    process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'
+  );
+}
+
+function serializeError(error: Error) {
+  if (shouldRedactServerError()) {
+    return {
+      message: 'Unexpected Server Error',
+      stack: undefined,
+      __type: 'Error',
+    };
+  }
+
+  return {
+    message: error.message,
+    stack: error.stack,
+    __type: 'Error',
+  };
+}
+
+function serializeRouteErrorResponse(error: unknown) {
+  if (!isRouteErrorResponse(error)) {
+    return error;
+  }
+
+  if (error.status >= 500 && shouldRedactServerError()) {
+    return {
+      status: error.status,
+      statusText: 'Internal Server Error',
+      data: 'Unexpected Server Error',
+      __type: 'RouteErrorResponse',
+    };
+  }
+
+  return {
+    status: error.status,
+    statusText: error.statusText,
+    data: error.data,
+    __type: 'RouteErrorResponse',
+  };
 }
 
 export function getSSRConfigByEntry(

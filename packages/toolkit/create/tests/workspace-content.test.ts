@@ -93,6 +93,58 @@ test('rendered contents of the highest-risk generated files match the checked-in
       assertContentSnapshot(workspaceDir, 'default-scaffold', relativePath);
     }
 
+    const shellRouteHead = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      shellRouteHead,
+      /const jsonLd = indexable \? route\?\.jsonLd : undefined;/,
+      'generated route head must read JSON-LD only from explicit route metadata',
+    );
+    assert.doesNotMatch(
+      shellRouteHead,
+      /'@type': 'WebPage'/,
+      'generated route head must not infer WebPage JSON-LD automatically',
+    );
+    const shellRouteMetadata = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
+      ),
+      'utf-8',
+    );
+    assert.doesNotMatch(
+      shellRouteMetadata,
+      /jsonLd/u,
+      'default private route metadata must not emit JSON-LD',
+    );
+    const shellJsonLdHelpers = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/ultramodern-jsonld.ts',
+      ),
+      'utf-8',
+    );
+    for (const helperName of [
+      'defineRouteJsonLd',
+      'webPageJsonLd',
+      'webApplicationJsonLd',
+      'softwareApplicationJsonLd',
+      'breadcrumbListJsonLd',
+      'faqPageJsonLd',
+      'organizationJsonLd',
+    ] as const) {
+      assert.match(
+        shellJsonLdHelpers,
+        new RegExp(`export const ${helperName}\\b`),
+        `generated JSON-LD helper module must export ${helperName}`,
+      );
+    }
+
     // Provenance contract: the manifest must point at the live module
     // generator (the pre-split monolith path is gone) and the integrity
     // checksums must cover both template trees that produce output.

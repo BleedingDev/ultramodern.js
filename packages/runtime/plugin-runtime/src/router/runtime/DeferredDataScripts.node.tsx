@@ -10,6 +10,28 @@ import { ROUTER_DATA_JSON_ID } from '../../core/constants';
 import { modernInline, runWindowFnStr } from './constants';
 import { serializeErrors } from './utils';
 
+function toDeferredErrorInfo(error: unknown): {
+  message: string;
+  stack?: string;
+} {
+  if (process.env.NODE_ENV === 'production') {
+    return { message: 'Unexpected Server Error' };
+  }
+
+  if (error && typeof error === 'object') {
+    const maybeMessage = (error as { message?: unknown }).message;
+    return {
+      message:
+        typeof maybeMessage === 'string'
+          ? maybeMessage
+          : String(maybeMessage ?? error),
+      stack: (error as { stack?: string }).stack,
+    };
+  }
+
+  return { message: String(error) };
+}
+
 /**
  * DeferredDataScripts only renders in server side,
  * it doesn't need to be hydrated in client side.
@@ -80,13 +102,7 @@ const DeferredDataScripts = (props?: {
           } else {
             const trackedPromise = deferredData.data[key] as TrackedPromise;
             if (typeof trackedPromise._error !== 'undefined') {
-              const error = {
-                message: trackedPromise._error.message,
-                stack:
-                  process.env.NODE_ENV !== 'production'
-                    ? trackedPromise._error.stack
-                    : undefined,
-              };
+              const error = toDeferredErrorInfo(trackedPromise._error);
 
               return {
                 key,
