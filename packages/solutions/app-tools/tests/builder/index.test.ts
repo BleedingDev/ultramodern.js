@@ -236,6 +236,11 @@ describe('create builder Options', () => {
         experiments: {
           outputModule: true,
         },
+        externals: {
+          async_hooks: 'node:async_hooks',
+          'node:async_hooks': 'node:async_hooks',
+        },
+        externalsType: 'module',
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).toHaveBeenCalledWith('webworker');
@@ -281,8 +286,8 @@ describe('create builder Options', () => {
         /app-tools[/\\]src[/\\]plugins[/\\]deploy[/\\]platforms[/\\]templates[/\\]cloudflare-worker-path\.mjs$/,
       );
       expect(aliases.get('node:path$')).toBe(aliases.get('path$'));
-      expect(fallbacks.get('async_hooks')).toBe(false);
-      expect(fallbacks.get('node:async_hooks')).toBe(false);
+      expect(fallbacks.has('async_hooks')).toBe(false);
+      expect(fallbacks.has('node:async_hooks')).toBe(false);
       expect(fallbacks.get('fs')).toBe(false);
       expect(fallbacks.get('node:fs')).toBe(false);
     } finally {

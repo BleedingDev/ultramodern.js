@@ -298,6 +298,11 @@ export function getBuilderEnvironments(
                   experiments: {
                     outputModule: true,
                   },
+                  externals: {
+                    async_hooks: 'node:async_hooks',
+                    'node:async_hooks': 'node:async_hooks',
+                  },
+                  externalsType: 'module',
                 });
                 chain.output
                   .module(true)
@@ -404,8 +409,6 @@ export function getBuilderEnvironments(
                   'react-server-dom-rspack/client.node',
                   'react-server-dom-rspack/client.edge',
                 );
-                chain.resolve.fallback.set('async_hooks', false);
-                chain.resolve.fallback.set('node:async_hooks', false);
                 chain.resolve.fallback.set('fs', false);
                 chain.resolve.fallback.set('node:fs', false);
               },
