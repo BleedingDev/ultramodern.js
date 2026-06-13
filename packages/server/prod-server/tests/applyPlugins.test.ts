@@ -321,4 +321,80 @@ describe('applyPlugins fork plugin assembly', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  test('returns safe BFF failure envelopes and maintenance Retry-After from prod error fallback', async () => {
+    const tempDir = makeTempDir();
+
+    try {
+      const options = {
+        pwd: tempDir,
+        serverConfigPath: path.join(tempDir, 'modern.server.js'),
+        appContext: {
+          apiDirectory: '',
+          lambdaDirectory: '',
+          appDirectory: tempDir,
+        },
+        config: {
+          html: {},
+          output: {},
+          source: {},
+          tools: {},
+          server: {
+            logger: false,
+          },
+          bff: {
+            prefix: '/api',
+          },
+          dev: {},
+          security: {},
+        },
+        serverConfig: {
+          middlewares: [
+            {
+              name: 'throw-bff-error',
+              path: '/api/*',
+              handler: (c: any) => {
+                if (c.req.path.includes('maintenance')) {
+                  throw Object.assign(new Error('maintenance detail'), {
+                    status: 503,
+                    retryAfterSeconds: 90,
+                  });
+                }
+                throw new Error('raw secret detail');
+              },
+            },
+          ],
+        },
+      } as unknown as ProdServerOptions;
+
+      const server = createServerBase(options);
+      await applyPlugins(server, options);
+      await server.init();
+
+      const failure = await server.request('/api/failure', {}, {});
+      expect(failure.status).toBe(500);
+      await expect(failure.json()).resolves.toEqual({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Internal Server Error',
+          status: 500,
+        },
+      });
+
+      const maintenance = await server.request('/api/maintenance', {}, {});
+      expect(maintenance.status).toBe(503);
+      expect(maintenance.headers.get('Retry-After')).toBe('90');
+      await expect(maintenance.json()).resolves.toEqual({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Service Unavailable',
+          status: 503,
+        },
+      });
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

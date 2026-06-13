@@ -1,5 +1,6 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
 
+import { createSafeFailureResponse } from '../safe-failure';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
@@ -107,26 +108,7 @@ function createEdgeEffectContext(
 }
 
 function createRuntimeErrorResponse(error: unknown) {
-  const status =
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof error.status === 'number'
-      ? error.status
-      : 500;
-
-  return new Response(
-    JSON.stringify({
-      message:
-        error instanceof Error ? error.message : '[BFF] Internal Server Error',
-    }),
-    {
-      status,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-      },
-    },
-  );
+  return createSafeFailureResponse(error);
 }
 
 export async function dispatchEffectBffRequest(

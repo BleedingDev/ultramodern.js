@@ -105,6 +105,87 @@ describe('plugin-bff regressions', () => {
     expect(response?.status).toBe(200);
   });
 
+  test('effect adapter preserves onError before safe maintenance fallback', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const onErrorCalls: Array<{
+      error: unknown;
+      canJson: boolean;
+    }> = [];
+    const maintenanceError = Object.assign(new Error('maintenance detail'), {
+      status: 503,
+      retryAfterMs: 2500,
+    });
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+      getServerConfig() {
+        return {
+          onError: (error: unknown, context: { json?: unknown }) => {
+            onErrorCalls.push({
+              error,
+              canJson: typeof context.json === 'function',
+            });
+          },
+        };
+      },
+    } as unknown;
+
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: () => Promise<Response>;
+    };
+
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async () => {
+        throw maintenanceError;
+      };
+    };
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: false,
+    });
+
+    const middleware = middlewares[0];
+    expect(middleware).toBeDefined();
+
+    const response = (await middleware.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/effect/maintenance'),
+          path: '/api/effect/maintenance',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(onErrorCalls).toEqual([
+      {
+        error: maintenanceError,
+        canJson: true,
+      },
+    ]);
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get('Retry-After')).toBe('3');
+    await expect(response?.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Service Unavailable',
+        status: 503,
+      },
+    });
+  });
+
   test.each([
     {
       surface: 'dev mounted web middleware',

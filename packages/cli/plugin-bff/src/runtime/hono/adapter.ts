@@ -16,6 +16,7 @@ import {
   type ResolvedCrossProjectPolicy,
   resolveAdapterCrossProjectPolicy,
 } from '../../utils/crossProjectServerPolicy';
+import { createSafeFailureResponse } from '../safe-failure';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 const kParentHonoVars = Symbol.for('modernjs.hono.parentVars');
@@ -150,25 +151,7 @@ export class HonoAdapter {
       } catch (configError) {
         logger.error(`Error in serverConfig.onError handler: ${configError}`);
       }
-      const status =
-        typeof err === 'object' &&
-        err !== null &&
-        'status' in err &&
-        typeof err.status === 'number'
-          ? err.status
-          : 500;
-      return new Response(
-        JSON.stringify({
-          message:
-            err instanceof Error ? err.message : '[BFF] Internal Server Error',
-        }),
-        {
-          status,
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-          },
-        },
-      );
+      return createSafeFailureResponse(err);
     });
   };
 

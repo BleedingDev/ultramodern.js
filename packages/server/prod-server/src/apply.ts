@@ -3,6 +3,7 @@ import type { Http2SecureServer } from 'node:http2';
 import {
   createDefaultPlugins,
   createErrorHtml,
+  createSafeJsonFailureResponse,
   ErrorDigest,
   faviconPlugin,
   injectConfigMiddlewarePlugin,
@@ -78,12 +79,7 @@ export async function applyPlugins(
     );
 
     if (isApiPath) {
-      return c.json(
-        {
-          message: (err as any)?.message || '[BFF] Internal Server Error',
-        },
-        (err as any)?.status || 500,
-      );
+      return createSafeJsonFailureResponse(err);
     } else {
       return c.html(createErrorHtml(500), 500);
     }

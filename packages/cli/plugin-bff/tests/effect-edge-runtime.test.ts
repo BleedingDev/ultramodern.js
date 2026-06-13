@@ -78,7 +78,12 @@ describe('effect edge runtime', () => {
     expect(response.status).toBe(500);
     expect(response.headers.get('content-type')).toContain('application/json');
     await expect(response.json()).resolves.toEqual({
-      message: 'edge handler failed',
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal Server Error',
+        status: 500,
+      },
     });
   });
 
@@ -93,7 +98,46 @@ describe('effect edge runtime', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      message: '[BFF][Effect] Effect handler must return a Response instance.',
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal Server Error',
+        status: 500,
+      },
+    });
+  });
+
+  test('wraps maintenance errors with Retry-After when no onError response is returned', async () => {
+    const maintenance = Object.assign(new Error('maintenance detail'), {
+      status: 503,
+      retryAfter: '180',
+    });
+    const onErrorCalls: unknown[] = [];
+
+    const response = await dispatchEffectBffRequest(
+      () => {
+        throw maintenance;
+      },
+      new Request('http://localhost/api/effect/maintenance'),
+      {
+        prefix: '/api',
+        onError: error => {
+          onErrorCalls.push(error);
+          return undefined as unknown as Response;
+        },
+      },
+    );
+
+    expect(onErrorCalls).toEqual([maintenance]);
+    expect(response.status).toBe(503);
+    expect(response.headers.get('Retry-After')).toBe('180');
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Service Unavailable',
+        status: 503,
+      },
     });
   });
 

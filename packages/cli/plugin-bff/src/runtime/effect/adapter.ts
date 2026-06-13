@@ -21,6 +21,7 @@ import {
   type ResolvedCrossProjectPolicy,
   resolveAdapterCrossProjectPolicy,
 } from '../../utils/crossProjectServerPolicy';
+import { createSafeFailureResponse } from '../safe-failure';
 import {
   createEffectOperationContext,
   type EffectContext,
@@ -470,28 +471,7 @@ export class EffectAdapter {
       logger.error(`Error in serverConfig.onError handler: ${configError}`);
     }
 
-    const status =
-      typeof error === 'object' &&
-      error !== null &&
-      'status' in error &&
-      typeof error.status === 'number'
-        ? error.status
-        : 500;
-
-    return new Response(
-      JSON.stringify({
-        message:
-          error instanceof Error
-            ? error.message
-            : '[BFF] Internal Server Error',
-      }),
-      {
-        status,
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-        },
-      },
-    );
+    return createSafeFailureResponse(error);
   }
 
   private ensureJsonContext(c: Context): Context {

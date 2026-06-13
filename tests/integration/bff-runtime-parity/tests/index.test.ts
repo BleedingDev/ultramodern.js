@@ -319,10 +319,26 @@ describe.each<Mode>(['dev', 'prod'])('bff runtime parity (%s)', mode => {
     expect(honoSnapshot.error.status).toBe(500);
     expect(effectSnapshot.error.status).toBe(500);
     expect(effectSnapshot.error.body).toEqual(honoSnapshot.error.body);
+    expect(effectSnapshot.error.body).toEqual({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal Server Error',
+        status: 500,
+      },
+    });
 
     expect(honoSnapshot.exception.status).toBe(401);
     expect(effectSnapshot.exception.status).toBe(401);
     expect(effectSnapshot.exception.body).toEqual(honoSnapshot.exception.body);
+    expect(effectSnapshot.exception.body).toEqual({
+      success: false,
+      error: {
+        code: 'REQUEST_FAILED',
+        message: 'Request failed',
+        status: 401,
+      },
+    });
 
     expect(honoSnapshot.managedError.status).toBe(501);
     expect(effectSnapshot.managedError.status).toBe(501);
