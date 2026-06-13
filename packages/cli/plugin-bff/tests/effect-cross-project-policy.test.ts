@@ -19,6 +19,7 @@ import { EffectAdapter } from '../src/runtime/effect/adapter';
 import {
   collectEffectEndpoints,
   createEffectEndpointContractHash,
+  extractHttpApiFromModule,
   toOperationContractSources,
 } from '../src/runtime/effect/endpoint-contracts';
 import {
@@ -58,6 +59,23 @@ const reflect: Parameters<typeof collectEffectEndpoints>[0] = (
   });
 
 const collectEndpoints = () => collectEffectEndpoints(reflect, pingApi, PREFIX);
+
+describe('effect endpoint contract module extraction', () => {
+  test('propagates zero-arg default factory failures', async () => {
+    const error = new Error('factory failed');
+
+    await expect(
+      extractHttpApiFromModule(
+        {
+          default: () => {
+            throw error;
+          },
+        },
+        HttpApi.isHttpApi,
+      ),
+    ).rejects.toThrow(error);
+  });
+});
 
 const resolvePolicy = (
   extraPolicy: Record<string, unknown> = {},

@@ -9,9 +9,9 @@ import {
   SUPERAPP_TANSTACK_MUTATION_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_QUERY_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_ROUTE_CONTRACTS,
-} from '../shared/effect-tanstack-contract-map.js';
-import { createInitialPortfolioState } from '../shared/portfolio-state.js';
-import { createSuperAppWorkloadValidationArtifact } from '../shared/workload-validation-artifact.js';
+} from '../shared/effect-tanstack-contract-map';
+import { createInitialPortfolioState } from '../shared/portfolio-state';
+import { createSuperAppWorkloadValidationArtifact } from '../shared/workload-validation-artifact';
 
 describe('superapp effect and tanstack contract map', () => {
   test('maps every current Effect BFF endpoint to stable cache and mutation boundaries', () => {
@@ -19,6 +19,9 @@ describe('superapp effect and tanstack contract map', () => {
       SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS.map(endpoint => endpoint.id),
     ).toEqual([
       'effect.bootstrap',
+      'effect.erpBootstrap',
+      'effect.decideErpApproval',
+      'effect.sendErpChat',
       'effect.runWorkflow',
       'effect.runPilot',
       'effect.securityProbe',
@@ -31,6 +34,9 @@ describe('superapp effect and tanstack contract map', () => {
       ),
     ).toEqual([
       '/bff-api/effect/bootstrap',
+      '/bff-api/effect/apps/enterprise-mega-erp/erp/bootstrap',
+      '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/:id/decision',
+      '/bff-api/effect/apps/enterprise-mega-erp/erp/chat/send',
       '/bff-api/effect/apps/:appId/workflow',
       '/bff-api/effect/pilot/:scenario/run',
       '/bff-api/effect/security/probe',
@@ -106,8 +112,23 @@ describe('superapp effect and tanstack contract map', () => {
     expect(
       SUPERAPP_TANSTACK_ROUTE_CONTRACTS.find(
         route => route.path === '/apps/$appId',
+      )?.bffEndpointIds,
+    ).toEqual([
+      'effect.bootstrap',
+      'effect.erpBootstrap',
+      'effect.runWorkflow',
+      'effect.decideErpApproval',
+      'effect.sendErpChat',
+    ]);
+    expect(
+      SUPERAPP_TANSTACK_ROUTE_CONTRACTS.find(
+        route => route.path === '/apps/$appId',
       )?.mutationKeyIds,
-    ).toEqual(['portfolio.workflow.run']);
+    ).toEqual([
+      'portfolio.workflow.run',
+      'portfolio.erp.approval.decide',
+      'portfolio.erp.chat.send',
+    ]);
 
     const mappedDomainRoutes = SUPERAPP_PORTFOLIO_DOMAIN_ROUTE_CONTRACTS.map(
       route => ({
@@ -161,6 +182,12 @@ describe('superapp effect and tanstack contract map', () => {
     expect(
       invalidationByEndpoint.get('effect.runWorkflow')?.stateScopes,
     ).toEqual(['events', 'apps.openWork', 'summary.eventCount']);
+    expect(
+      invalidationByEndpoint.get('effect.decideErpApproval')?.stateScopes,
+    ).toEqual(['erp.approvals', 'erp.summary.pendingApprovals']);
+    expect(
+      invalidationByEndpoint.get('effect.sendErpChat')?.stateScopes,
+    ).toEqual(['erp.chat', 'erp.summary.urgentMessages']);
 
     expect(
       SUPERAPP_TANSTACK_MUTATION_KEY_TEMPLATES.map(template => [
@@ -172,6 +199,8 @@ describe('superapp effect and tanstack contract map', () => {
       ['portfolio.pilot.run', 'effect.runPilot'],
       ['portfolio.security.probe', 'effect.securityProbe'],
       ['portfolio.failure.inject', 'effect.injectFailure'],
+      ['portfolio.erp.approval.decide', 'effect.decideErpApproval'],
+      ['portfolio.erp.chat.send', 'effect.sendErpChat'],
       ['portfolio.reset', 'effect.reset'],
     ]);
   });

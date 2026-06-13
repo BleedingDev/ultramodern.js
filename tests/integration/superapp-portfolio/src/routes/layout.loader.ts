@@ -1,7 +1,7 @@
 import {
   createInitialPortfolioState,
   summarizePortfolio,
-} from '../../shared/portfolio-state.js';
+} from '../../shared/portfolio-state';
 
 export default () => {
   const state = createInitialPortfolioState();

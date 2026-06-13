@@ -1,4 +1,4 @@
-import { createInitialPortfolioState } from '../../../../shared/portfolio-state.js';
+import { createInitialPortfolioState } from '../../../../shared/portfolio-state';
 
 export const loader = ({ params }: { params: Record<string, string> }) => {
   const app = createInitialPortfolioState().apps.find(

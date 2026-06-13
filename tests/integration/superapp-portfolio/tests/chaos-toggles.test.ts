@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -10,11 +11,11 @@ import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 import {
   createSuperAppWorkloadChaosFailureTaxonomy,
   type WorkloadChaosFailureCase,
-} from '../shared/workload-chaos-failure-taxonomy.js';
+} from '../shared/workload-chaos-failure-taxonomy';
 import {
   defaultEndpointForChaosFailure,
   type SuperAppChaosToggleEndpoint,
-} from '../shared/workload-chaos-toggles.js';
+} from '../shared/workload-chaos-toggles';
 
 dns.setDefaultResultOrder('ipv4first');
 setSuiteTimeout(1000 * 60 * 8);
@@ -462,7 +463,9 @@ describe('superapp portfolio chaos toggles', () => {
   let app: Awaited<ReturnType<typeof modernServe>> | undefined;
 
   beforeAll(async () => {
-    const build = await modernBuild(appDir);
+    const build = await buildFixtureOnce(appDir, {
+      build: () => modernBuild(appDir),
+    });
     expect(build.code).toBe(0);
     port = await getPort();
     app = await modernServe(appDir, port, {

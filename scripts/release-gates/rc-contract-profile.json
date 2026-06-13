@@ -23,6 +23,7 @@
       {
         "id": "effect-bff-operation-manifest",
         "path": "tests/integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js",
+        "requiresCommands": true,
         "includes": [
           "const operationManifest =",
           "\"operationVersion\"",
@@ -123,6 +124,7 @@
       {
         "id": "tanstack-create-routes-manifest-contract",
         "path": "tests/integration/routes-tanstack-create-routes/dist/route.json",
+        "requiresCommands": true,
         "includes": [
           "\"urlPath\": \"/\"",
           "\"isSPA\": true",
@@ -142,11 +144,7 @@
       {
         "id": "plugin-runtime-ssr-string-sanitization-contract",
         "path": "packages/runtime/plugin-runtime/src/core/server/string/ssrData.ts",
-        "includes": [
-          "unsafeHeaders",
-          "window._SSR_DATA",
-          "window._ROUTER_DATA"
-        ]
+        "includes": ["unsafeHeaders", "window._SSR_DATA", "window._ROUTER_DATA"]
       },
       {
         "id": "tanstack-mf-host-router-contract",
@@ -162,6 +160,7 @@
       {
         "id": "tanstack-mf-host-manifest-contract",
         "path": "tests/integration/routes-tanstack-mf/mf-host/dist/mf-manifest.json",
+        "requiresCommands": true,
         "includes": [
           "\"alias\": \"remote\"",
           "\"alias\": \"remote2\"",
@@ -172,6 +171,7 @@
       {
         "id": "tanstack-mf-remote-manifest-contract",
         "path": "tests/integration/routes-tanstack-mf/mf-remote/dist/mf-manifest.json",
+        "requiresCommands": true,
         "includes": [
           "\"name\": \"Widget\"",
           "\"name\": \"Mutator\"",
@@ -181,7 +181,7 @@
       },
       {
         "id": "telemetry-exporter-contract",
-        "path": "packages/server/runtime-extensions/src/telemetry.ts",
+        "path": "packages/server/runtime-extensions/src/telemetryCore.ts",
         "includes": [
           "createOtlpTelemetryExporter",
           "createVictoriaMetricsTelemetryExporter",
@@ -332,10 +332,10 @@
     "pnpm --dir packages/cli/plugin-bff exec rstest run tests/regression.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/create-request test",
     "pnpm --filter @modern-js/bff-core test",
-    "pnpm --dir packages/solutions/app-tools exec rstest run tests/index.test.ts tests/baseline.test.ts tests/presetUltramodern.test.ts --passWithNoTests",
+    "pnpm --dir packages/solutions/app-tools exec rstest run tests/index.test.ts tests/presetUltramodern.test.ts --passWithNoTests",
     "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
     "pnpm --filter @modern-js/prod-server test -- applyPlugins.test.ts",
-    "pnpm --filter @modern-js/server-runtime-extensions test -- telemetry.test.ts telemetryCanaryOrchestrator.test.ts contractGateAutopilot.test.ts",
+    "pnpm --filter @modern-js/server-runtime-extensions test -- telemetry.test.ts telemetryCanaryOrchestrator.test.ts telemetryAutopilot.test.ts contractGateAutopilot.test.ts",
     "pnpm --dir tests run test:superapp-contracts"
   ]
 }

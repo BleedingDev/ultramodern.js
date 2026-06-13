@@ -1,11 +1,11 @@
 import {
   createInitialPortfolioState,
   summarizePortfolio,
-} from '../shared/portfolio-state.js';
+} from '../shared/portfolio-state';
 import {
   createSuperAppWorkloadResetSeedMetadata,
   createSuperAppWorkloadSeed,
-} from '../shared/workload-reset-seed.js';
+} from '../shared/workload-reset-seed';
 
 describe('superapp workload reset and seed metadata', () => {
   test('publishes deterministic reset metadata with stable helpers and sample windows', () => {

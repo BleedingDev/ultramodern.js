@@ -3,18 +3,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { writeJsonFile } = require('../../lib/fs-kit');
 
 async function loadProof() {
   return import('../run-published-create-proof.mjs');
 }
 
 function writeJson(root, relativePath, value) {
-  const filePath = path.join(root, relativePath);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  writeJsonFile(path.join(root, relativePath), value, { atomic: false });
 }
 
-test('defines ERP scale profiles for 10, 25, and 50 verticals', async () => {
+test('defines generated workspace scale profiles for 10, 25, and 50 verticals', async () => {
   const { scaleProfiles } = await loadProof();
 
   assert.deepEqual(
@@ -81,6 +80,10 @@ test('parses scale profile and legacy custom vertical count requests', async () 
   assert.throws(
     () => parseArgs(['--scale-profile', 'erp-25', '--vertical-count', '10']),
     /does not match --scale-profile erp-25/,
+  );
+  assert.throws(
+    () => parseArgs(['--scale-profile=erp-25']),
+    /^Error: Unknown argument: --scale-profile=erp-25$/,
   );
 });
 

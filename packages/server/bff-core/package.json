@@ -27,15 +27,6 @@
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
-    },
-    "./adapter-parity": {
-      "types": "./dist/types/adapter-kit/parity.d.ts",
-      "modern:source": "./src/adapter-kit/parity.ts",
-      "node": {
-        "import": "./dist/esm-node/adapter-kit/parity.mjs",
-        "require": "./dist/cjs/adapter-kit/parity.js"
-      },
-      "default": "./dist/cjs/adapter-kit/parity.js"
     }
   },
   "scripts": {

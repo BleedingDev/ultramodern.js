@@ -9,7 +9,7 @@ import {
 } from '../runtime/i18n/detection/config.js';
 import type { LanguageDetectorOptions } from '../runtime/i18n/instance';
 import {
-  resolveLocalisedPath,
+  localiseTargetPathname,
   resolveLocalisedUrlsConfig,
 } from '../shared/localisedUrls.js';
 import type { LocaleDetectionOptions } from '../shared/type';
@@ -314,22 +314,12 @@ const buildLocalizedUrl = (
     ? pathname.slice(basePath.length)
     : pathname;
 
-  const segments = remainingPath.split('/').filter(Boolean);
-  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
-  const pathWithoutLanguage =
-    segments.length > 0 && languages.includes(segments[0])
-      ? `/${segments.slice(1).join('/')}`
-      : remainingPath;
-  const resolvedPath = localisedUrlsConfig.enabled
-    ? resolveLocalisedPath(
-        pathWithoutLanguage,
-        language,
-        languages,
-        localisedUrlsConfig.map,
-      )
-    : pathWithoutLanguage;
-  const resolvedSegments = resolvedPath.split('/').filter(Boolean);
-  const newPathname = `/${[language, ...resolvedSegments].join('/')}`;
+  const newPathname = localiseTargetPathname(
+    remainingPath,
+    language,
+    languages,
+    localisedUrls,
+  );
   // Handle root path case to avoid double slashes like //en
   const suffix = `${url.search}${url.hash}`;
   const localizedUrl =

@@ -9,7 +9,7 @@ import type {
   PilotScenario,
   PilotScenarioPlan,
   PortfolioApp,
-} from '../../shared/portfolio-state.js';
+} from '../../shared/portfolio-state';
 
 type BootstrapData = Awaited<
   ReturnType<typeof effectBff.client.portfolio.bootstrap>

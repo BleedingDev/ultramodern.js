@@ -1,17 +1,12 @@
 // @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 /// <reference path="./ssr-shim.d.ts" />
 
-import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';
-import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import {
   getGlobalEnableRsc,
-  getGlobalLayoutApp,
-  getGlobalRoutes,
   InternalRuntimeContext,
   type ServerPayload,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
-import { merge } from '@modern-js/runtime-utils/merge';
 import {
   createRequestContext,
   type RequestContext,
@@ -29,7 +24,7 @@ import { attachRouterServerSsrUtils } from '@tanstack/router-core/ssr/server';
 import type React from 'react';
 import { useContext } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
-import { type RouterExtendsHooks, routerProviderRegistryHooks } from './hooks';
+import { routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterServerPrepareResult,
@@ -37,6 +32,12 @@ import {
   getRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
+import {
+  getFinalRouteConfig,
+  getMergedRouterConfig,
+  type TanstackRouterPluginAPI,
+  type TanstackRouterRuntimePlugin,
+} from './pluginCore';
 import {
   createRouteTreeFromRouteObjects,
   getModernRouteIdsFromMatches,
@@ -56,25 +57,6 @@ type ModernTanstackRouterContext = {
   request: Request;
   requestContext: RequestContext<Record<string, unknown>>;
 };
-
-type TanstackRouterRuntimeConfig = {
-  plugins?: TanstackRouterRuntimePlugin[];
-  router?: Partial<RouterConfig>;
-  [key: string]: unknown;
-};
-
-type TanstackRouterRuntimeExtends = Required<
-  RuntimePluginExtends<TanstackRouterRuntimeConfig, TInternalRuntimeContext>
-> & {
-  extendHooks: RouterExtendsHooks;
-};
-
-type TanstackRouterPluginAPI = RuntimePluginAPI<TanstackRouterRuntimeExtends>;
-
-type TanstackRouterRuntimePlugin = Plugin<
-  TanstackRouterPluginAPI,
-  TInternalRuntimeContext
->;
 
 const setTanstackRscServerPayload = (payload: ServerPayload) => {
   const storageContext = storage.useContext?.() as
@@ -326,25 +308,15 @@ export const tanstackRouterPlugin = (
     registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
       api.onBeforeRender(async (context, interrupt) => {
-        const pluginConfig = api.getRuntimeConfig() as {
-          router?: Partial<RouterConfig>;
-        };
-        const mergedConfig = merge(
-          pluginConfig.router || {},
-          userConfig,
-        ) as RouterConfig;
+        const mergedConfig = getMergedRouterConfig(api, userConfig);
         const serializationAdapters = getGlobalEnableRsc()
           ? (await import('./rsc/server')).getTanstackRscSerializationAdapters()
           : undefined;
         const enableRsc = getGlobalEnableRsc();
 
-        const { basename = '', routesConfig, createRoutes } = mergedConfig;
+        const { basename = '', createRoutes } = mergedConfig;
 
-        const finalRouteConfig = {
-          routes: getGlobalRoutes(),
-          globalApp: getGlobalLayoutApp(),
-          ...routesConfig,
-        };
+        const finalRouteConfig = getFinalRouteConfig(mergedConfig);
 
         if (!finalRouteConfig.routes && !createRoutes) {
           return;

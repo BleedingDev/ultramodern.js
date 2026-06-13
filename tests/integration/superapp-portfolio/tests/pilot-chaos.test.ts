@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -128,7 +129,9 @@ async function expectRejectedWithoutStateDrift(input: {
         return;
       }
 
-      const build = await modernBuild(appDir);
+      const build = await buildFixtureOnce(appDir, {
+        build: () => modernBuild(appDir),
+      });
       expect(build.code).toBe(0);
       const port = await getPort();
       baseUrl = `http://localhost:${port}`;

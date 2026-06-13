@@ -2,59 +2,69 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import cliKit from '../lib/cli-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+const { parseCliArgs } = cliKit;
 
-function parseArgs(argv) {
-  const options = {
-    manifest: path.join(
-      repoRoot,
-      '.modern',
-      'bleedingdev-publish',
-      'manifest.json',
-    ),
-    repository: 'BleedingDev/ultramodern.js',
-    file: 'publish-bleedingdev.yml',
-    environment: undefined,
-    delayMs: 2000,
-    dryRun: false,
-    yes: true,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--') {
-      continue;
-    }
-
-    const readValue = () => {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error(`${arg} requires a value`);
-      }
-      index += 1;
-      return value;
-    };
-
-    if (arg === '--manifest') {
-      options.manifest = path.resolve(readValue());
-    } else if (arg === '--repository' || arg === '--repo') {
-      options.repository = readValue();
-    } else if (arg === '--file') {
-      options.file = readValue();
-    } else if (arg === '--environment' || arg === '--env') {
-      options.environment = readValue();
-    } else if (arg === '--delay-ms') {
-      options.delayMs = Number(readValue());
-    } else if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg === '--no-yes') {
-      options.yes = false;
-    } else {
+function rejectInlineOptionSyntax(argv) {
+  for (const arg of argv) {
+    if (/^--[^=]+=/.test(arg)) {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
+}
 
+function parseArgs(argv) {
+  rejectInlineOptionSyntax(argv);
+
+  const options = parseCliArgs(argv, {
+    defaults: {
+      manifest: path.join(
+        repoRoot,
+        '.modern',
+        'bleedingdev-publish',
+        'manifest.json',
+      ),
+      repository: 'BleedingDev/ultramodern.js',
+      file: 'publish-bleedingdev.yml',
+      environment: undefined,
+      delayMs: '2000',
+      dryRun: false,
+      yes: true,
+    },
+    ignoreTerminator: true,
+    options: {
+      manifest: {},
+      repository: {},
+      repo: {
+        key: 'repository',
+      },
+      file: {},
+      environment: {},
+      env: {
+        key: 'environment',
+      },
+      'delay-ms': {
+        key: 'delayMs',
+      },
+      'dry-run': {
+        key: 'dryRun',
+        type: 'boolean',
+      },
+      'no-yes': {
+        key: 'yes',
+        type: 'boolean',
+      },
+    },
+  });
+
+  if (argv.includes('--no-yes')) {
+    options.yes = false;
+  }
+
+  options.manifest = path.resolve(options.manifest);
+  options.delayMs = Number(options.delayMs);
   if (!Number.isFinite(options.delayMs) || options.delayMs < 0) {
     throw new Error('--delay-ms must be a non-negative number');
   }

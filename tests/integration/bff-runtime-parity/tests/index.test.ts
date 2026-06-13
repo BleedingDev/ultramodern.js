@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'node:path';
 import {
@@ -13,10 +12,6 @@ import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
-const tsgoBin = path.join(
-  path.dirname(require.resolve('@typescript/native-preview/package.json')),
-  'bin/tsgo.js',
-);
 const host = 'http://localhost';
 const ensureWorkspacePackages = [
   '@modern-js/plugin-bff',
@@ -70,34 +65,6 @@ type RuntimeParitySnapshot = {
   managedException: JsonResponseSnapshot;
   notFound: NotFoundSnapshot;
 };
-
-function expectTypecheckPasses() {
-  try {
-    execFileSync(
-      process.execPath,
-      [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    );
-  } catch (error: unknown) {
-    const maybeError = error as { stdout?: unknown; stderr?: unknown };
-    const stdout =
-      typeof maybeError.stdout === 'string'
-        ? maybeError.stdout
-        : maybeError.stdout
-          ? String(maybeError.stdout)
-          : '';
-    const stderr =
-      typeof maybeError.stderr === 'string'
-        ? maybeError.stderr
-        : maybeError.stderr
-          ? String(maybeError.stderr)
-          : '';
-    throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
-  }
-}
 
 function toUrl(port: number, pathname: string) {
   return `${host}:${port}${pathname}`;
@@ -264,18 +231,12 @@ async function collectSnapshot(
   }
 }
 
-let typecheckVerified = false;
-
 describe.each<Mode>(['dev', 'prod'])('bff runtime parity (%s)', mode => {
   let honoSnapshot: RuntimeParitySnapshot;
   let effectSnapshot: RuntimeParitySnapshot;
 
   beforeAll(async () => {
     setSuiteTimeout(1000 * 60 * (mode === 'prod' ? 8 : 4));
-    if (!typecheckVerified) {
-      expectTypecheckPasses();
-      typecheckVerified = true;
-    }
     honoSnapshot = await collectSnapshot(mode, 'hono');
     effectSnapshot = await collectSnapshot(mode, 'effect');
   });

@@ -1,6 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { readJsonFile } = require('../lib/validation-kit');
+const {
+  ensureArray,
+  ensureBoolean,
+  ensureObject,
+  ensureString,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const REQUIRED_ENVS = ['development', 'staging', 'production'];
@@ -12,30 +18,6 @@ const DEFAULT_TOPOLOGY_PATH = path.resolve(
   __dirname,
   '__fixtures__/reference-topology.json',
 );
-
-const ensureObject = (value, context) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${context} must be an object`);
-  }
-};
-
-const ensureString = (value, context) => {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${context} must be a non-empty string`);
-  }
-};
-
-const ensureBoolean = (value, context) => {
-  if (typeof value !== 'boolean') {
-    throw new Error(`${context} must be a boolean`);
-  }
-};
-
-const ensureArray = (value, context) => {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array`);
-  }
-};
 
 const ensureUniqueIds = (items, context) => {
   const seen = new Set();

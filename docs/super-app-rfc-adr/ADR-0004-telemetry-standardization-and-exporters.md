@@ -78,7 +78,7 @@ Introduce a framework telemetry standardization layer with pluggable exporters.
 
 ## 9. Implementation Notes (2026-02-21)
 
-- Canonical telemetry envelope, batching queue, redaction, and exporter registry are implemented in server core.
+- Canonical telemetry envelope, batching queue, redaction, and exporter registry are implemented in `@modern-js/server-runtime-extensions`; `server-core` carries only the public config/type surface.
 - First-party exporters are implemented and tested:
   - OTLP exporter.
   - VictoriaMetrics exporter.
@@ -91,8 +91,10 @@ Introduce a framework telemetry standardization layer with pluggable exporters.
   - `telemetry.queue.dropped`
 - SLO alert thresholds are configurable via `server.telemetry.slo` and are wired to runtime warning hooks for early degradation detection.
 - Validation coverage:
-  - `packages/server/prod-server/tests/telemetry.test.ts`
-  - `pnpm --filter @modern-js/prod-server test -- --runInBand`
+  - `packages/server/runtime-extensions/tests/telemetry.test.ts`
+  - `packages/server/runtime-extensions/tests/telemetryCanaryOrchestrator.test.ts`
+  - `packages/server/runtime-extensions/tests/contractGateAutopilot.test.ts`
+  - `pnpm --filter @modern-js/server-runtime-extensions test -- telemetry.test.ts telemetryCanaryOrchestrator.test.ts contractGateAutopilot.test.ts`
 
 ## 10. Canary Rollout and Rollback Notes (2026-02-22)
 
@@ -119,13 +121,15 @@ Introduce a framework telemetry standardization layer with pluggable exporters.
     - `telemetry.canary.promote`
     - `telemetry.canary.rollback`
 - Validation coverage:
-  - `packages/server/prod-server/tests/telemetry.test.ts`
-  - `pnpm --filter @modern-js/prod-server test -- --runInBand`
+  - `packages/server/runtime-extensions/tests/telemetryCanaryOrchestrator.test.ts`
+  - `packages/server/runtime-extensions/tests/telemetryAutopilot.test.ts`
+  - `packages/server/runtime-extensions/tests/contractGateAutopilot.test.ts`
+  - `pnpm --filter @modern-js/server-runtime-extensions test -- telemetryCanaryOrchestrator.test.ts telemetryAutopilot.test.ts contractGateAutopilot.test.ts`
 
 ## 11. Release-Candidate Contract Gate Pipeline Notes (2026-02-22)
 
-- Added release-candidate contract gate workflow:
-  - `.github/workflows/release-contract-gates.yml`
+- Added release-candidate contract gate workflow, now consolidated into:
+  - `.github/workflows/contract-gates.yml` (`profile: rc-contract`)
 - Added gate validator tooling:
   - `scripts/release-gates/validate-release-candidate-gates.js`
   - `scripts/release-gates/validator.js`

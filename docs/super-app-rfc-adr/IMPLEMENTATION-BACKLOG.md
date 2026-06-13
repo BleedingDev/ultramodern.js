@@ -42,7 +42,7 @@
 
 - EPIC-1 complete (later reverted): RsDoctor defaults were enabled in production with opt-out and non-blocking plugin defaults.
 - EPIC-2 complete: cross-project BFF now enforces prefix/runtime compatibility and generated runtime/bootstrap contracts.
-- EPIC-3 complete: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters are in framework core.
+- EPIC-3 complete: telemetry envelope/registry plus OTLP and VictoriaMetrics exporters live in `@modern-js/server-runtime-extensions`; framework core carries the config/type surface.
 - EPIC-4 complete: routes MF reliability and distributed trace assertions are active in both build and serve integration suites.
 - EPIC-5 alpha complete: app-level MF SSR path is feature-flagged and covered by i18n MF integration tests.
 - EPIC-6 in progress:
@@ -119,10 +119,10 @@
 | --- | --- | --- | --- | --- | --- |
 | E6-T1 | Define versioned runtime status/graph API schema for MF remotes, BFF producer bindings, compatibility, trust, and telemetry health | AI Platform + Runtime Federation | 2d | Parallel | None |
 | E6-T2 | Expose read-only runtime operator endpoints and snapshot resources for CI/agents | AI Platform + Observability Platform | 3d | Sequential after E6-T1 | E6-T1 |
-| E6-T3 | Unify runtime fallback signal policy between server-core and prod-server code paths | Observability Platform | 2d | Parallel with E6-T1 | None |
+| E6-T3 | **Retired 2026-06-12:** runtime fallback signal policy is centralized in `@modern-js/server-runtime-extensions`; `prod-server` registers the plugin and no separate prod-server policy path remains. | Observability Platform | 0d | Complete | None |
 | E6-T4 | Add strict-mode digest flow validation between client fallback payload and server trust policy | Runtime Federation + Observability Platform | 2d | Sequential after E6-T3 | E6-T3 |
 | E6-T5 | Add runtime resilience benchmark harness for fallback latency, remote jitter, and BFF degradation | QA Infra + Runtime Federation | 3d | Sequential after E6-T1 | E6-T1 |
-| E6-T6 | Add selective worker-lane pilot for high-frequency transforms with guarded fallback-to-main-thread behavior | Runtime Federation | 3d | Sequential after E6-T5 | E6-T5 |
+| E6-T6 | **Retired 2026-06-12:** the server-side runtime fallback worker-lane pilot, benchmark harness, gate, and config surface were removed as a silent no-op. | Runtime Federation | 0d | Complete | E6-T5 |
 
 ## EPIC-7: MCP Capability Parity via CLI (ADR-0009)
 

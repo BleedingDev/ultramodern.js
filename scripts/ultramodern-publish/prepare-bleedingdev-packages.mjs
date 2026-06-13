@@ -5,9 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import cliKit from '../lib/cli-kit.js';
+import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const execFileAsync = promisify(execFile);
+const { parseCliArgs } = cliKit;
+const { readJsonFile, writeJsonFile } = fsKit;
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
@@ -18,6 +22,45 @@ const createTemplateRequiredFiles = [
   'template-workspace/.gitignore.handlebars',
   'template-workspace/.mise.toml.handlebars',
 ];
+const cliValueOptions = new Set([
+  '--scope',
+  '--prefix',
+  '--version',
+  '--tag',
+  '--out',
+  '--repository-url',
+  '--homepage',
+  '--bugs-url',
+  '--publish-concurrency',
+]);
+const cliBooleanOptions = new Set([
+  '--publish',
+  '--publish-existing',
+  '--dry-run',
+]);
+
+function rejectInlineOptionSyntax(argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--') {
+      continue;
+    }
+    if (/^--[^=]+=/.test(arg)) {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+    if (cliValueOptions.has(arg)) {
+      const value = argv[index + 1];
+      if (value) {
+        index += 1;
+      }
+      continue;
+    }
+    if (cliBooleanOptions.has(arg)) {
+      continue;
+    }
+    return;
+  }
+}
 
 function parsePublishConcurrency(value) {
   if (!/^[1-9]\d*$/.test(value)) {
@@ -33,76 +76,84 @@ function parsePublishConcurrency(value) {
 }
 
 function parseArgs(argv) {
-  const options = {
-    scope: 'bleedingdev',
-    prefix: 'modern-js-',
-    version: undefined,
-    tag: 'latest',
-    out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
-    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
-    homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
-    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
-    publish: false,
-    publishExisting: false,
-    dryRun: false,
-    publishConcurrency: 8,
-  };
+  rejectInlineOptionSyntax(argv);
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--') {
-      continue;
-    }
+  const options = parseCliArgs(argv, {
+    defaults: {
+      scope: 'bleedingdev',
+      prefix: 'modern-js-',
+      version: undefined,
+      dependencyVersion: null,
+      tag: 'latest',
+      packages: null,
+      out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
+      repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+      homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
+      bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+      publish: false,
+      publishExisting: false,
+      dryRun: false,
+      noSkipExisting: false,
+      publishConcurrency: 8,
+    },
+    ignoreTerminator: true,
+    options: {
+      scope: {},
+      prefix: {},
+      version: {},
+      'dependency-version': {
+        key: 'dependencyVersion',
+        requiredValue: false,
+      },
+      tag: {},
+      packages: {
+        requiredValue: false,
+      },
+      out: {},
+      'repository-url': {
+        key: 'repositoryUrl',
+      },
+      homepage: {},
+      'bugs-url': {
+        key: 'bugsUrl',
+      },
+      publish: {
+        type: 'boolean',
+      },
+      'publish-existing': {
+        key: 'publishExisting',
+        type: 'boolean',
+      },
+      'dry-run': {
+        key: 'dryRun',
+        type: 'boolean',
+      },
+      'no-skip-existing': {
+        key: 'noSkipExisting',
+        type: 'boolean',
+      },
+      'publish-concurrency': {
+        key: 'publishConcurrency',
+      },
+    },
+  });
 
-    const readValue = () => {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error(`${arg} requires a value`);
-      }
-      index += 1;
-      return value;
-    };
+  if (options.dependencyVersion !== null) {
+    throw new Error(
+      '--dependency-version is forbidden; BleedingDev publishes a single full framework cohort per version',
+    );
+  }
 
-    if (arg === '--scope') {
-      options.scope = readValue().replace(/^@/, '');
-    } else if (arg === '--prefix') {
-      options.prefix = readValue();
-    } else if (arg === '--version') {
-      options.version = readValue();
-    } else if (arg === '--dependency-version') {
-      throw new Error(
-        '--dependency-version is forbidden; BleedingDev publishes a single full framework cohort per version',
-      );
-    } else if (arg === '--tag') {
-      options.tag = readValue();
-    } else if (arg === '--packages') {
-      throw new Error(
-        '--packages is forbidden; BleedingDev publishes every public @modern-js/* package together',
-      );
-    } else if (arg === '--out') {
-      options.out = path.resolve(readValue());
-    } else if (arg === '--repository-url') {
-      options.repositoryUrl = readValue();
-    } else if (arg === '--homepage') {
-      options.homepage = readValue();
-    } else if (arg === '--bugs-url') {
-      options.bugsUrl = readValue();
-    } else if (arg === '--publish') {
-      options.publish = true;
-    } else if (arg === '--publish-existing') {
-      options.publishExisting = true;
-      options.publish = true;
-    } else if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg === '--no-skip-existing') {
-      throw new Error(
-        '--no-skip-existing is forbidden; exact-version reuse is controlled by the full-cohort registry gate',
-      );
-    } else if (arg === '--publish-concurrency') {
-      options.publishConcurrency = parsePublishConcurrency(readValue());
-    } else {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
+  if (options.packages !== null) {
+    throw new Error(
+      '--packages is forbidden; BleedingDev publishes every public @modern-js/* package together',
+    );
+  }
+
+  if (options.noSkipExisting) {
+    throw new Error(
+      '--no-skip-existing is forbidden; exact-version reuse is controlled by the full-cohort registry gate',
+    );
   }
 
   if (!options.version) {
@@ -111,7 +162,15 @@ function parseArgs(argv) {
     );
   }
 
+  options.scope = options.scope.replace(/^@/, '');
+  options.out = path.resolve(options.out);
+  options.publish = options.publish || options.publishExisting;
+  options.publishConcurrency = parsePublishConcurrency(
+    options.publishConcurrency,
+  );
   options.dependencyVersion = options.version;
+  delete options.packages;
+  delete options.noSkipExisting;
 
   if (
     !Number.isInteger(options.publishConcurrency) ||
@@ -122,15 +181,6 @@ function parseArgs(argv) {
   }
 
   return options;
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-function writeJson(filePath, value) {
-  fs.writeFileSync(`${filePath}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  fs.renameSync(`${filePath}.tmp`, filePath);
 }
 
 function assertTrustedPublishContext() {
@@ -228,7 +278,7 @@ function rewritePackageMetadata(packageJson, options) {
 function collectModernPackages(options) {
   const allPackages = collectPackageJsonFiles(path.join(repoRoot, 'packages'))
     .map(packageJsonPath => {
-      const packageJson = readJson(packageJsonPath);
+      const packageJson = readJsonFile(packageJsonPath);
       return {
         packageJsonPath,
         dir: path.dirname(packageJsonPath),
@@ -691,7 +741,7 @@ function validateNoWorkspaceProtocol(packageJson, packageName, blockName) {
 function validatePublishManifest(manifest) {
   validateFullCohortManifest(manifest);
   for (const item of manifest.packages) {
-    const packageJson = readJson(
+    const packageJson = readJsonFile(
       path.join(repoRoot, item.packageDir, 'package.json'),
     );
     if (packageJson.name !== item.targetName) {
@@ -725,7 +775,7 @@ function validatePublishManifest(manifest) {
 }
 
 async function publishPackage(packageDir, options) {
-  const packageJson = readJson(path.join(packageDir, 'package.json'));
+  const packageJson = readJsonFile(path.join(packageDir, 'package.json'));
   const args = [
     'publish',
     packageDir,
@@ -862,7 +912,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
 
   if (options.publishExisting) {
-    const manifest = readJson(path.join(options.out, 'manifest.json'));
+    const manifest = readJsonFile(path.join(options.out, 'manifest.json'));
     if (manifest.version !== options.version) {
       throw new Error(
         `Publish manifest version ${manifest.version} does not match --version ${options.version}`,
@@ -906,10 +956,10 @@ async function main() {
       path.join(stageDir, targetName.replaceAll('/', '__')),
     );
     const packageJsonPath = path.join(packageDir, 'package.json');
-    const packageJson = readJson(packageJsonPath);
+    const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
     normalizeDeclaredTypePaths(packageDir, packageJson);
-    writeJson(packageJsonPath, packageJson);
+    writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
 
     manifest.packages.push({
@@ -920,7 +970,7 @@ async function main() {
     });
   }
 
-  writeJson(path.join(options.out, 'manifest.json'), manifest);
+  writeJsonFile(path.join(options.out, 'manifest.json'), manifest);
   validatePublishManifest(manifest);
 
   console.log(

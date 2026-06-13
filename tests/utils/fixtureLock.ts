@@ -7,12 +7,50 @@ export type ReleaseFixtureLock = () => Promise<void>;
 
 const pollInterval = 200;
 const staleLockAge = 10 * 60 * 1000;
+const heartbeatInterval = 30 * 1000;
 
 function resolveLockDir(fixtureDir: string) {
   const realPath = path.resolve(fixtureDir);
   const digest = crypto.createHash('sha1').update(realPath).digest('hex');
 
   return path.join(os.tmpdir(), `modernjs-fixture-${digest}.lock`);
+}
+
+function isProcessAlive(pid: unknown) {
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+async function readLockOwner(lockDir: string) {
+  try {
+    const rawOwner = await fs.readFile(
+      path.join(lockDir, 'owner.json'),
+      'utf8',
+    );
+    return JSON.parse(rawOwner) as {
+      pid?: unknown;
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function isStaleLock(lockDir: string) {
+  const owner = await readLockOwner(lockDir);
+  if (owner && isProcessAlive(owner.pid)) {
+    return false;
+  }
+
+  const stat = await fs.stat(lockDir);
+  return Date.now() - stat.mtimeMs > staleLockAge;
 }
 
 export async function acquireFixtureLock(
@@ -23,16 +61,22 @@ export async function acquireFixtureLock(
   while (true) {
     try {
       await fs.mkdir(lockDir);
+      const ownerPath = path.join(lockDir, 'owner.json');
       await fs.writeFile(
-        path.join(lockDir, 'owner.json'),
+        ownerPath,
         JSON.stringify({
           pid: process.pid,
           fixtureDir: path.resolve(fixtureDir),
           acquiredAt: new Date().toISOString(),
         }),
       );
+      const heartbeat = setInterval(() => {
+        void fs.utimes(ownerPath, new Date(), new Date()).catch(() => {});
+      }, heartbeatInterval);
+      heartbeat.unref();
 
       return async () => {
+        clearInterval(heartbeat);
         await fs.rm(lockDir, { recursive: true, force: true });
       };
     } catch (error: unknown) {
@@ -41,8 +85,7 @@ export async function acquireFixtureLock(
       }
 
       try {
-        const stat = await fs.stat(lockDir);
-        if (Date.now() - stat.mtimeMs > staleLockAge) {
+        if (await isStaleLock(lockDir)) {
           await fs.rm(lockDir, { recursive: true, force: true });
           continue;
         }

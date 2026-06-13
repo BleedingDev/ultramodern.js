@@ -114,7 +114,7 @@ independently:
 
 | Composition | Coverage |
 | --- | --- |
-| TanStack single app + Effect BFF + string SSR | `tests/integration/superapp-erp`, `tests/integration/superapp-portfolio` (+ `superapp-browser-matrix` runtime-matrix tests) |
+| TanStack single app + Effect BFF + string SSR | `tests/integration/superapp-portfolio` (including the folded MegaERP approval/chat flows) + `superapp-browser-matrix` runtime-matrix tests |
 | TanStack + Module Federation host/remotes (incl. the `moduleFederationAppSSR: true` runtime contract — `tests/tanstack-mf-contract.test.ts:249` — and remote-loader reliability) | `tests/integration/routes-tanstack-mf` |
 | react-router + app-level MF SSR + i18n (the suite that asserts the `MODERN_MF_APP_SSR` env marker, `test/app-level-ssr-serve.test.ts:43`) | `tests/integration/i18n/mf` |
 | Garfish masterApp (any router) | **Unit tests only**: `packages/runtime/plugin-garfish/tests/` (trust, compatibility, fallbackTelemetry, cachePolicy, runtimePlugin, reliabilityMatrix) |

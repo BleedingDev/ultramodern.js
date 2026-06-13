@@ -153,6 +153,14 @@
   border-left: 4px solid #b7791f;
 }
 
+.erp-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid #d3dde1;
+  padding-top: 16px;
+}
+
 button {
   width: fit-content;
   margin-top: 16px;

@@ -1,16 +1,11 @@
 // @effect-diagnostics globalConsole:off strictBooleanExpressions:off
 /// <reference path="./ssr-shim.d.ts" />
 
-import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';
-import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import {
   getGlobalEnableRsc,
-  getGlobalLayoutApp,
-  getGlobalRoutes,
   InternalRuntimeContext,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
-import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import {
@@ -27,13 +22,19 @@ import {
 import { hydrate as hydrateTanstackRouter } from '@tanstack/react-router/ssr/client';
 import { useContext, useMemo } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
-import { type RouterExtendsHooks, routerProviderRegistryHooks } from './hooks';
+import { routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
 import { withModernRouteMatchContext } from './outlet';
+import {
+  getFinalRouteConfig,
+  getMergedRouterConfig,
+  type TanstackRouterPluginAPI,
+  type TanstackRouterRuntimePlugin,
+} from './pluginCore';
 import { Link } from './prefetchLink';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
@@ -85,25 +86,6 @@ type RouterWithPreloadableRoutes = AnyRouter & {
     }
   >;
 };
-
-type TanstackRouterRuntimeConfig = {
-  plugins?: TanstackRouterRuntimePlugin[];
-  router?: Partial<RouterConfig>;
-  [key: string]: unknown;
-};
-
-type TanstackRouterRuntimeExtends = Required<
-  RuntimePluginExtends<TanstackRouterRuntimeConfig, TInternalRuntimeContext>
-> & {
-  extendHooks: RouterExtendsHooks;
-};
-
-type TanstackRouterPluginAPI = RuntimePluginAPI<TanstackRouterRuntimeExtends>;
-
-type TanstackRouterRuntimePlugin = Plugin<
-  TanstackRouterPluginAPI,
-  TInternalRuntimeContext
->;
 
 function normalizeBase(b: string) {
   if (b.length > 1 && b.endsWith('/')) {
@@ -309,12 +291,7 @@ export const tanstackRouterPlugin = (
       let cachedRouter: AnyRouter | null = null;
       let cachedRouterBasepath: string | null = null;
 
-      const getMergedConfig = () => {
-        const pluginConfig = api.getRuntimeConfig() as {
-          router?: Partial<RouterConfig>;
-        };
-        return merge(pluginConfig.router || {}, userConfig) as RouterConfig;
-      };
+      const getMergedConfig = () => getMergedRouterConfig(api, userConfig);
 
       const getRouteObjects = () => {
         if (typeof cachedRouteObjects !== 'undefined') {
@@ -322,12 +299,8 @@ export const tanstackRouterPlugin = (
         }
 
         const mergedConfig = getMergedConfig();
-        const { routesConfig, createRoutes } = mergedConfig;
-        const finalRouteConfig = {
-          routes: getGlobalRoutes(),
-          globalApp: getGlobalLayoutApp(),
-          ...routesConfig,
-        };
+        const { createRoutes } = mergedConfig;
+        const finalRouteConfig = getFinalRouteConfig(mergedConfig);
 
         const routeObjects = createRoutes
           ? createRoutes()

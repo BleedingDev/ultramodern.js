@@ -4,7 +4,7 @@ import {
   type GateSnapshot,
   type GateSnapshotGateValue,
 } from './contractGateSnapshotStore';
-import type { TelemetryCanaryOrchestrator } from './telemetry';
+import type { TelemetryCanaryOrchestrator } from './telemetryCore';
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_GATE_STALE_AFTER_MS = 10 * 60_000;

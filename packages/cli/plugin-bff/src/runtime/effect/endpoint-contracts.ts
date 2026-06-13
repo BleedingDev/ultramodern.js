@@ -120,11 +120,17 @@ export function collectEffectEndpoints(
 export function toOperationContractSources(
   endpoints: EffectEndpointMeta[],
 ): OperationContractSource[] {
-  return endpoints.map(endpoint => ({
+  return endpoints.map(createEffectOperationContractSource);
+}
+
+export function createEffectOperationContractSource(
+  endpoint: EffectEndpointMeta,
+): OperationContractSource {
+  return {
     name: endpoint.endpointName,
     httpMethod: endpoint.method,
     routePath: endpoint.routePath,
-  }));
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,13 +157,9 @@ export async function extractHttpApiFromModule(
     return entry.api as HttpApiLike;
   }
   if (typeof entry === 'function' && entry.length === 0) {
-    try {
-      const output = await (entry as () => unknown | Promise<unknown>)();
-      if (isRecord(output) && isHttpApi(output.api)) {
-        return output.api as HttpApiLike;
-      }
-    } catch {
-      return null;
+    const output = await (entry as () => unknown | Promise<unknown>)();
+    if (isRecord(output) && isHttpApi(output.api)) {
+      return output.api as HttpApiLike;
     }
   }
   return null;
@@ -172,11 +174,7 @@ export function createEffectEndpointContractHash(
   requestId: string,
 ): string {
   return createOperationContractHash(
-    {
-      name: endpoint.endpointName,
-      httpMethod: endpoint.method,
-      routePath: endpoint.routePath,
-    },
+    createEffectOperationContractSource(endpoint),
     requestId,
   );
 }

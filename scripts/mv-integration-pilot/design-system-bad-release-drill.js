@@ -1,5 +1,11 @@
 const path = require('path');
-const { readJsonFile } = require('../lib/validation-kit');
+const {
+  ensureArray,
+  ensureObject,
+  ensureString,
+  ensureUniqueIds,
+  readJsonFile,
+} = require('../lib/validation-kit');
 
 const SCHEMA_VERSION = 1;
 const CONSUMER_STATUSES = new Set(['affected', 'unaffected']);
@@ -8,36 +14,6 @@ const DEFAULT_DRILL_PATH = path.resolve(
   __dirname,
   '__fixtures__/design-system-bad-release.json',
 );
-
-const ensureObject = (value, context) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${context} must be an object`);
-  }
-};
-
-const ensureArray = (value, context) => {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array`);
-  }
-};
-
-const ensureString = (value, context) => {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${context} must be a non-empty string`);
-  }
-};
-
-const ensureUniqueIds = (items, context) => {
-  const seen = new Set();
-  items.forEach((item, index) => {
-    ensureObject(item, `${context}[${index}]`);
-    ensureString(item.id, `${context}[${index}].id`);
-    if (seen.has(item.id)) {
-      throw new Error(`${context} contains duplicate id "${item.id}"`);
-    }
-    seen.add(item.id);
-  });
-};
 
 const ensureStringArray = (value, context) => {
   ensureArray(value, context);

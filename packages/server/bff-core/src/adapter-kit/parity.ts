@@ -11,11 +11,13 @@ import { HttpMethod } from '../types';
  * identical observable results: HTTP status, payload value and
  * policy-rejection reason.
  *
- * The express/koa adapters were removed from the fork; their expectations
- * are retained in the per-adapter drift pins as documentation of the
- * historical behavior. The live consumer of this table is the hono lane
+ * The express/koa adapters were removed from the fork, and this is internal
+ * test support rather than a package subpath. Their expectations are retained
+ * in the per-adapter drift pins as documentation of the historical behavior.
+ * The live executable consumer of this table is the hono lane test
  * (`@modern-js/plugin-bff` runs it against `createHonoRoutes` plus the
- * cross-project policy middleware).
+ * cross-project policy middleware), while bff-core tests validate the table
+ * shape and assertion helpers.
  *
  * Transport details intentionally NOT asserted: express serialized scalar
  * bodies as JSON while koa sent `text/plain`; {@link toParityResult}

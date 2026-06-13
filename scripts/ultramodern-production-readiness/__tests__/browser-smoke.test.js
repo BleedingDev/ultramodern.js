@@ -128,6 +128,41 @@ test('creates local and public smoke targets from the generated contract', async
   );
 });
 
+test('parses browser smoke CLI options with stable validation behavior', async () => {
+  const { parseArgs } = await loadSmoke();
+  const parsed = parseArgs([
+    '--project-dir',
+    '.',
+    '--artifact-dir',
+    '.modern/browser-artifacts',
+    '--out',
+    '.modern/browser-summary.json',
+    '--mode',
+    'public',
+    '--public-url',
+    'shell-super-app=https://shell.example.test/',
+    '--require-public-urls',
+    '--timeout-ms',
+    '30000',
+  ]);
+
+  assert.equal(path.isAbsolute(parsed.projectDir), true);
+  assert.equal(path.isAbsolute(parsed.artifactDir), true);
+  assert.equal(path.isAbsolute(parsed.out), true);
+  assert.equal(parsed.mode, 'public');
+  assert.equal(
+    parsed.publicUrls['shell-super-app'],
+    'https://shell.example.test/',
+  );
+  assert.equal(parsed.requirePublicUrls, true);
+  assert.equal(parsed.timeoutMs, 30_000);
+
+  assert.throws(
+    () => parseArgs(['--project-dir=.']),
+    /^Error: Unknown argument: --project-dir=.$/,
+  );
+});
+
 test('orders local smoke startup so remotes are ready before shell', async () => {
   const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
   const contract = createContract();

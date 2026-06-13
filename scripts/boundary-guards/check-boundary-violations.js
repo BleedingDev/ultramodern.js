@@ -1,30 +1,26 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const { parseCliArgs } = require('../lib/cli-kit');
 const { runBoundaryGuardChecks } = require('./validator');
 
 const parseArgs = argv => {
-  const parsed = {
-    profilePath: 'scripts/boundary-guards/profile.json',
-    allowEmptyManifests: false,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    switch (arg) {
-      case '--profile':
-        parsed.profilePath = argv[index + 1];
-        index += 1;
-        break;
-      case '--allow-empty-manifests':
-        parsed.allowEmptyManifests = true;
-        break;
-      default:
-        throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
-
-  return parsed;
+  return parseCliArgs(argv, {
+    defaults: {
+      profilePath: 'scripts/boundary-guards/profile.json',
+      allowEmptyManifests: false,
+    },
+    options: {
+      profile: {
+        key: 'profilePath',
+        requiredValue: false,
+      },
+      'allow-empty-manifests': {
+        key: 'allowEmptyManifests',
+        type: 'boolean',
+      },
+    },
+  });
 };
 
 const main = () => {

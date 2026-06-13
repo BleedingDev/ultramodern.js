@@ -9,12 +9,12 @@ import {
   type WorkloadChaosFailureSeverity,
   type WorkloadChaosFailureTaxonomy,
   type WorkloadChaosTelemetryRedactionExpectation,
-} from './workload-chaos-failure-taxonomy.js';
+} from './workload-chaos-failure-taxonomy';
 import type {
   WorkloadScenarioId,
   WorkloadTenantId,
-} from './workload-domain-catalog.js';
-import type { WorkloadScenarioProfileId } from './workload-scenario-profiles.js';
+} from './workload-domain-catalog';
+import type { WorkloadScenarioProfileId } from './workload-scenario-profiles';
 
 export type SuperAppChaosMatrixArtifactStatus = 'passed' | 'failed';
 

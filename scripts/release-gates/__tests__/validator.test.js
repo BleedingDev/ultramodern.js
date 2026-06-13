@@ -183,6 +183,39 @@ test('validateMigrationContracts auto-builds missing dist artifacts when enabled
   }
 });
 
+test('validateMigrationContracts can skip command-required generated artifacts', () => {
+  const dir = makeTempDir();
+  try {
+    const staticPath = path.join(dir, 'static-contract.txt');
+    fs.writeFileSync(staticPath, 'static contract');
+
+    const report = validateMigrationContracts({
+      rootDir: dir,
+      skipCommandRequiredTargets: true,
+      targets: [
+        {
+          id: 'static-contract',
+          path: 'static-contract.txt',
+          includes: ['static contract'],
+        },
+        {
+          id: 'generated-contract',
+          path: 'integration/demo-app/dist/client/index.js',
+          includes: ['generated contract'],
+          requiresCommands: true,
+        },
+      ],
+    });
+
+    assert.deepEqual(
+      report.map(item => item.id),
+      ['static-contract'],
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
 test('validateMigrationContracts fails auto-build when package has no build script', () => {
   const dir = makeTempDir();
   try {

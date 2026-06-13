@@ -4,13 +4,13 @@ import {
   type SuperAppWorkloadCatalog,
   type WorkloadScenarioId,
   type WorkloadTenantId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 import {
   createSuperAppGeneratedWorkloadContract,
   type GeneratedWorkloadHelperIds,
   type GeneratedWorkloadSampleWindow,
   type SuperAppGeneratedWorkloadContract,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 import {
   createSuperAppWorkloadScenarioProfileMetadata,
   getWorkloadScenarioProfile,
@@ -18,7 +18,7 @@ import {
   selectWorkloadScenarioSampleRecords,
   selectWorkloadScenarioSampleWindows,
   type WorkloadScenarioProfileId,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 
 export type WorkloadResetSeedTarget =
   | 'stress'

@@ -3,12 +3,12 @@ import path from 'node:path';
 import {
   createSuperAppWorkloadChaosFailureTaxonomy,
   type WorkloadChaosFailureCase,
-} from '../shared/workload-chaos-failure-taxonomy.js';
+} from '../shared/workload-chaos-failure-taxonomy';
 import {
   createSuperAppChaosMatrixArtifact,
   type SuperAppChaosMatrixObservation,
   serializeSuperAppChaosMatrixArtifact,
-} from '../shared/workload-chaos-matrix-artifact.js';
+} from '../shared/workload-chaos-matrix-artifact';
 
 const artifactDir = '/tmp/modernjs-superapp-chaos-matrix-artifact';
 

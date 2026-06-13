@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -33,6 +34,12 @@ async function postJson(port: number, pathname: string, body?: unknown) {
   });
 }
 
+async function getJson(port: number, pathname: string) {
+  const response = await fetch(`${host}:${port}${pathname}`);
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
 (nightlyEnabled ? describe : describe.skip)(
   'superapp portfolio nightly profile',
   () => {
@@ -40,7 +47,9 @@ async function postJson(port: number, pathname: string, body?: unknown) {
     let app: Awaited<ReturnType<typeof modernServe>> | undefined;
 
     beforeAll(async () => {
-      const build = await modernBuild(appDir);
+      const build = await buildFixtureOnce(appDir, {
+        build: () => modernBuild(appDir),
+      });
       expect(build.code).toBe(0);
       port = await getPort();
       app = await modernServe(appDir, port, {
@@ -78,6 +87,30 @@ async function postJson(port: number, pathname: string, body?: unknown) {
           const response = await postJson(port, '/bff-api/effect/reset');
           expect(response.status).toBe(200);
         });
+        await metrics.timed('erp:approval', async () => {
+          const response = await postJson(
+            port,
+            '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1001/decision',
+            {
+              decision: 'approved',
+              actor: 'nightly.runner',
+            },
+          );
+          expect(response.status).toBe(200);
+        });
+        await metrics.timed('erp:chat', async () => {
+          const response = await postJson(
+            port,
+            '/bff-api/effect/apps/enterprise-mega-erp/erp/chat/send',
+            {
+              channel: 'incident-war-room',
+              author: 'nightly.runner',
+              text: `nightly erp event ${cycle}`,
+              priority: cycle % 3 === 0 ? 'urgent' : 'normal',
+            },
+          );
+          expect(response.status).toBe(200);
+        });
         await metrics.timed('idempotent-workflow', async () => {
           const payload = {
             action: 'nightly-idempotency',
@@ -100,6 +133,14 @@ async function postJson(port: number, pathname: string, body?: unknown) {
               status: 'deduped',
             },
           });
+        });
+        await metrics.timed('erp:bootstrap', async () => {
+          const erp = await getJson(
+            port,
+            '/bff-api/effect/apps/enterprise-mega-erp/erp/bootstrap',
+          );
+          expect(erp.summary.pendingApprovals).toBe(1);
+          expect(erp.chat).toHaveLength(3);
         });
       }
 

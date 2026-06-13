@@ -46,8 +46,7 @@ jobs:
         with:
           bun-version: 1.3.9
 
-      # validate:bun-smoke chains dependency-free `bun scripts/...` validators
-      # (always --skip-commands), so no node_modules / Node.js / pnpm install
-      # is needed; bun itself resolves the package.json script.
+      # validate:bun-smoke is a dependency-free Bun compatibility pass through
+      # one release-gates profile; the Node matrix owns gate correctness.
       - name: Bun Smoke Validation
         run: bun run validate:bun-smoke

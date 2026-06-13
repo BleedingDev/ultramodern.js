@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -115,7 +116,9 @@ async function expectRejectedWithoutStateDrift(input: {
     const checks: Check[] = [];
 
     beforeAll(async () => {
-      const build = await modernBuild(appDir);
+      const build = await buildFixtureOnce(appDir, {
+        build: () => modernBuild(appDir),
+      });
       expect(build.code).toBe(0);
       port = await getPort();
       app = await modernServe(appDir, port, {

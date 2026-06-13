@@ -3,11 +3,8 @@ import {
   getGlobalBasename,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
-import type { LocalisedUrlsMap } from '../shared/localisedUrls';
-import {
-  resolveLocalisedPath,
-  resolveLocalisedUrlsConfig,
-} from '../shared/localisedUrls';
+import type { LocalisedUrlsOption } from '../shared/localisedUrls';
+import { localiseTargetPathname } from '../shared/localisedUrls';
 
 export const getPathname = (context: TInternalRuntimeContext): string => {
   if (isBrowser()) {
@@ -74,26 +71,17 @@ export const buildLocalizedUrl = (
   target: string,
   language: string,
   languages: string[],
-  localisedUrls?: boolean | LocalisedUrlsMap,
+  localisedUrls?: LocalisedUrlsOption,
 ): string => {
   const { pathname, search, hash } = splitUrlTarget(target);
-  const segments = pathname.split('/').filter(Boolean);
-  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
-  const pathWithoutLanguage =
-    segments.length > 0 && languages.includes(segments[0])
-      ? `/${segments.slice(1).join('/')}`
-      : pathname || '/';
-  const resolvedPath = localisedUrlsConfig.enabled
-    ? resolveLocalisedPath(
-        pathWithoutLanguage,
-        language,
-        languages,
-        localisedUrlsConfig.map,
-      )
-    : pathWithoutLanguage;
-  const resolvedSegments = resolvedPath.split('/').filter(Boolean);
+  const localizedPathname = localiseTargetPathname(
+    pathname,
+    language,
+    languages,
+    localisedUrls,
+  );
 
-  return `/${[language, ...resolvedSegments].join('/')}${search}${hash}`;
+  return `${localizedPathname}${search}${hash}`;
 };
 
 export const detectLanguageFromPath = (

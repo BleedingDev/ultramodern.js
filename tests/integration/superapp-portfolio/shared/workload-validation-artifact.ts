@@ -8,7 +8,7 @@ import {
   type WorkloadDomainId,
   type WorkloadScenarioId,
   type WorkloadTenantId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 import {
   createSuperAppGeneratedWorkloadContract,
   GENERATED_WORKLOAD_ENTITIES,
@@ -16,12 +16,12 @@ import {
   type GeneratedWorkloadEntityCounts,
   type GeneratedWorkloadHelperIds,
   type SuperAppGeneratedWorkloadContract,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 import {
   createSuperAppWorkloadResetSeedMetadata,
   type SuperAppWorkloadResetSeedMetadata,
   type WorkloadResetSeedTarget,
-} from './workload-reset-seed.js';
+} from './workload-reset-seed';
 import {
   createSuperAppWorkloadScenarioProfileContract,
   type SuperAppWorkloadScenarioProfileContract,
@@ -30,7 +30,7 @@ import {
   type WorkloadScenarioOperationMix,
   type WorkloadScenarioProfileCategory,
   type WorkloadScenarioProfileId,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 
 export type WorkloadValidationArtifactContext = {
   workloadCatalog?: SuperAppWorkloadCatalog;

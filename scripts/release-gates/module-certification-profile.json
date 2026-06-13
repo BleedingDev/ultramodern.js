@@ -53,9 +53,9 @@
       },
       {
         "id": "module-certification-workflow",
-        "path": ".github/workflows/module-certification-gates.yml",
+        "path": ".github/workflows/contract-gates.yml",
         "includes": [
-          "module-certification-gates",
+          "module-certification",
           "validate-release-candidate-gates.js",
           "module-certification-profile.json"
         ]

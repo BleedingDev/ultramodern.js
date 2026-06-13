@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const { parseCliArgs } = require('../lib/cli-kit');
 const {
   readJsonFile,
   validateContractShape,
@@ -8,41 +9,39 @@ const {
 } = require('./validator');
 
 const parseArgs = argv => {
-  const parsed = {
-    contractPath: 'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json',
-    manifestPaths: [],
-    manifestsDir: undefined,
-    allowEmptyManifests: false,
-    skipManifestValidation: false,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    switch (arg) {
-      case '--contract':
-        parsed.contractPath = argv[index + 1];
-        index += 1;
-        break;
-      case '--manifest':
-        parsed.manifestPaths.push(argv[index + 1]);
-        index += 1;
-        break;
-      case '--manifest-dir':
-        parsed.manifestsDir = argv[index + 1];
-        index += 1;
-        break;
-      case '--allow-empty-manifests':
-        parsed.allowEmptyManifests = true;
-        break;
-      case '--skip-manifest-validation':
-        parsed.skipManifestValidation = true;
-        break;
-      default:
-        throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
-
-  return parsed;
+  return parseCliArgs(argv, {
+    defaults: {
+      contractPath:
+        'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json',
+      manifestPaths: [],
+      manifestsDir: undefined,
+      allowEmptyManifests: false,
+      skipManifestValidation: false,
+    },
+    options: {
+      contract: {
+        key: 'contractPath',
+        requiredValue: false,
+      },
+      manifest: {
+        key: 'manifestPaths',
+        multiple: true,
+        requiredValue: false,
+      },
+      'manifest-dir': {
+        key: 'manifestsDir',
+        requiredValue: false,
+      },
+      'allow-empty-manifests': {
+        key: 'allowEmptyManifests',
+        type: 'boolean',
+      },
+      'skip-manifest-validation': {
+        key: 'skipManifestValidation',
+        type: 'boolean',
+      },
+    },
+  });
 };
 
 const main = () => {

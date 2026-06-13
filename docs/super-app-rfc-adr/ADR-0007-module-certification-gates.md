@@ -20,12 +20,12 @@ Existing RC gate tooling (`modernjs-44t.5.5`) validates release contracts, but m
 
 ## 2. Decision
 
-Add a dedicated module certification profile and CI workflow:
+Add a dedicated module certification profile and run it through the consolidated contract-gates CI workflow:
 
 1. Profile:
    - `scripts/release-gates/module-certification-profile.json`
 2. Workflow:
-   - `.github/workflows/module-certification-gates.yml`
+   - `.github/workflows/contract-gates.yml` (`profile: module-certification`)
 3. Validation script entrypoint (reused):
    - `scripts/release-gates/validate-release-candidate-gates.js`
 4. Repository script:

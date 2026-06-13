@@ -6,8 +6,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import cliKit from '../lib/cli-kit.js';
+import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+const { parseCliArgs } = cliKit;
+const { readJsonFile, writeJsonFile } = fsKit;
 const defaultCreatePackage = '@bleedingdev/modern-js-create@latest';
 const defaultProjectName = 'ultramodern-ci-superapp';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
@@ -46,32 +50,52 @@ const scaleProfiles = Object.freeze({
 });
 
 function parseArgs(argv) {
-  const options = {
-    createPackage: defaultCreatePackage,
-    projectName: defaultProjectName,
-    scaleProfile: undefined,
-    verticalCount: undefined,
-    out: defaultOut,
-    deployCloudflare: false,
-  };
+  rejectInlineOptionValues(argv, [
+    '--create-package',
+    '--project-name',
+    '--scale-profile',
+    '--vertical-count',
+    '--out',
+  ]);
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--create-package') {
-      options.createPackage = argv[++index];
-    } else if (arg === '--project-name') {
-      options.projectName = argv[++index];
-    } else if (arg === '--scale-profile') {
-      options.scaleProfile = argv[++index];
-    } else if (arg === '--vertical-count') {
-      options.verticalCount = Number.parseInt(argv[++index], 10);
-    } else if (arg === '--out') {
-      options.out = argv[++index];
-    } else if (arg === '--deploy-cloudflare') {
-      options.deployCloudflare = true;
-    } else {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
+  const options = parseCliArgs(argv, {
+    defaults: {
+      createPackage: defaultCreatePackage,
+      projectName: defaultProjectName,
+      scaleProfile: undefined,
+      verticalCount: undefined,
+      out: defaultOut,
+      deployCloudflare: false,
+    },
+    options: {
+      'create-package': {
+        key: 'createPackage',
+        requiredValue: false,
+      },
+      'project-name': {
+        key: 'projectName',
+        requiredValue: false,
+      },
+      'scale-profile': {
+        key: 'scaleProfile',
+        requiredValue: false,
+      },
+      'vertical-count': {
+        key: 'verticalCount',
+        requiredValue: false,
+      },
+      out: {
+        requiredValue: false,
+      },
+      'deploy-cloudflare': {
+        key: 'deployCloudflare',
+        type: 'boolean',
+      },
+    },
+  });
+
+  if (options.verticalCount !== undefined) {
+    options.verticalCount = Number.parseInt(options.verticalCount, 10);
   }
 
   if (
@@ -100,6 +124,15 @@ function parseArgs(argv) {
     out: path.resolve(repoRoot, options.out),
     verticals: generateVerticalNames(selectedProfile.verticalCount),
   };
+}
+
+function rejectInlineOptionValues(argv, valueOptions) {
+  const prefixes = valueOptions.map(option => `${option}=`);
+  for (const arg of argv) {
+    if (prefixes.some(prefix => arg.startsWith(prefix))) {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
 }
 
 function selectScaleProfile(options) {
@@ -177,20 +210,11 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() ?? '';
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
 function readJsonIfExists(filePath) {
   if (!fs.existsSync(filePath)) {
     return undefined;
   }
-  return readJson(filePath);
+  return readJsonFile(filePath);
 }
 
 function roundDurationMs(value) {
@@ -318,10 +342,10 @@ function assertGeneratedCohort(
   } = {},
 ) {
   const errors = [];
-  const packageSource = readJson(
+  const packageSource = readJsonFile(
     path.join(projectDir, '.modernjs/ultramodern-package-source.json'),
   );
-  const manifest = readJson(path.join(projectDir, manifestPath));
+  const manifest = readJsonFile(path.join(projectDir, manifestPath));
   const modernPackageNames = generatedModernPackages(packageSource, errors);
   const modernPackageNameSet = new Set(modernPackageNames);
 
@@ -355,7 +379,7 @@ function assertGeneratedCohort(
 
   for (const packageJsonPath of packageJsonFiles(projectDir)) {
     const relative = path.relative(projectDir, packageJsonPath);
-    const packageJson = readJson(packageJsonPath);
+    const packageJson = readJsonFile(packageJsonPath);
     for (const modernPackageName of modernDependencyNames(packageJson)) {
       if (!modernPackageNameSet.has(modernPackageName)) {
         errors.push(
@@ -385,7 +409,7 @@ function assertGeneratedCohort(
 }
 
 function packageScriptExists(projectDir, scriptName) {
-  const packageJson = readJson(path.join(projectDir, 'package.json'));
+  const packageJson = readJsonFile(path.join(projectDir, 'package.json'));
   return typeof packageJson.scripts?.[scriptName] === 'string';
 }
 
@@ -477,7 +501,7 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
       ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT: runtimeDir,
     },
   });
-  return readJson(path.resolve(repoRoot, out));
+  return readJsonFile(path.resolve(repoRoot, out));
 }
 
 function createSharedContractVersionAssertion({ topology, generatedContract }) {
@@ -703,7 +727,7 @@ async function main() {
     }
 
     summary.ok = true;
-    writeJson(options.out, summary);
+    writeJsonFile(options.out, summary, { atomic: false });
     await writeStream(
       process.stdout,
       `[ultramodern-production-readiness] pass: ${options.out}\n`,
@@ -712,7 +736,7 @@ async function main() {
   } catch (error) {
     summary.ok = false;
     summary.error = error instanceof Error ? error.message : String(error);
-    writeJson(options.out, summary);
+    writeJsonFile(options.out, summary, { atomic: false });
     await writeStream(
       process.stderr,
       `[ultramodern-production-readiness] ${summary.error}\n`,

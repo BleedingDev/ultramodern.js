@@ -5,7 +5,7 @@ import {
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
-import { portfolioApi } from '../../shared/portfolio-api.js';
+import { portfolioApi } from '../../shared/portfolio-api';
 import {
   createInitialPortfolioState,
   type PilotChaosMode,
@@ -14,10 +14,12 @@ import {
   type PilotRun,
   type PilotScenario,
   type PortfolioAppId,
+  type PortfolioErpChatMessage,
   type PortfolioState,
   summarizePortfolio,
+  summarizePortfolioErp,
   type WorkflowEvent,
-} from '../../shared/portfolio-state.js';
+} from '../../shared/portfolio-state';
 import {
   createSuperAppChaosFailureEnvelope,
   createSuperAppChaosToggleDescriptor,
@@ -25,10 +27,11 @@ import {
   isWorkloadChaosFailureId,
   type SuperAppChaosToggleDescriptor,
   type SuperAppChaosToggleEndpoint,
-} from '../../shared/workload-chaos-toggles.js';
+} from '../../shared/workload-chaos-toggles';
 
 let state: PortfolioState = createInitialPortfolioState();
 let eventCounter = state.events.length;
+let erpMessageCounter = state.erp.chat.length;
 const chaosToggles = new Map<string, SuperAppChaosToggleDescriptor>();
 const trustedOrigins = new Set([
   'https://superapp.test',
@@ -55,6 +58,17 @@ function cloneState() {
     events: state.events,
     pilotRuns: state.pilotRuns,
     summary: summarizePortfolio(state),
+    erp: cloneErpState(),
+  };
+}
+
+function cloneErpState() {
+  return {
+    tenant: state.erp.tenant,
+    modules: state.erp.modules,
+    approvals: state.erp.approvals,
+    chat: state.erp.chat,
+    summary: summarizePortfolioErp(state.erp),
   };
 }
 
@@ -541,7 +555,66 @@ const portfolioLayer = HttpApiBuilder.group(
       Effect.succeed(cloneState()),
     );
 
-    const withWorkflow = withBootstrap.handle(
+    const withErpBootstrap = withBootstrap.handle('erpBootstrap', () =>
+      Effect.succeed(cloneErpState()),
+    );
+
+    const withErpApproval = withErpBootstrap.handle(
+      'decideErpApproval',
+      ({ params, payload }) =>
+        Effect.sync(() => {
+          const approval = state.erp.approvals.find(
+            item => item.id === params.id,
+          );
+          if (!approval) {
+            throw new Error(`Unknown ERP approval: ${params.id}`);
+          }
+
+          approval.status = payload.decision;
+
+          return {
+            id: approval.id,
+            status: approval.status,
+            actor: payload.actor,
+            pendingApprovals: summarizePortfolioErp(state.erp).pendingApprovals,
+          };
+        }).pipe(
+          Effect.withSpan('superapp.portfolio.erp.approval.decision', {
+            attributes: {
+              'approval.id': params.id,
+              'approval.actor': payload.actor,
+            },
+          }),
+        ),
+    );
+
+    const withErpChat = withErpApproval.handle('sendErpChat', ({ payload }) =>
+      Effect.sync(() => {
+        erpMessageCounter += 1;
+        const message: PortfolioErpChatMessage = {
+          id: `msg-${erpMessageCounter}`,
+          channel: payload.channel,
+          author: payload.author,
+          text: payload.text,
+          priority: payload.priority,
+        };
+        state.erp.chat.push(message);
+        return {
+          accepted: true,
+          message,
+          totalMessages: state.erp.chat.length,
+        };
+      }).pipe(
+        Effect.withSpan('superapp.portfolio.erp.chat.send', {
+          attributes: {
+            'chat.channel': payload.channel,
+            'chat.priority': payload.priority,
+          },
+        }),
+      ),
+    );
+
+    const withWorkflow = withErpChat.handle(
       'runWorkflow',
       ({ params, payload }) =>
         Effect.sync(() => {
@@ -693,6 +766,7 @@ const portfolioLayer = HttpApiBuilder.group(
       Effect.sync(() => {
         state = createInitialPortfolioState();
         eventCounter = state.events.length;
+        erpMessageCounter = state.erp.chat.length;
         chaosToggles.clear();
         return {
           ok: true,

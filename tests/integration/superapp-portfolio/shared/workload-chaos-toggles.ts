@@ -7,7 +7,7 @@ import {
   type WorkloadChaosFailureErrorCode,
   type WorkloadChaosFailureId,
   type WorkloadChaosFailureKind,
-} from './workload-chaos-failure-taxonomy.js';
+} from './workload-chaos-failure-taxonomy';
 
 export const SUPERAPP_LEGACY_FAILURE_MODES = [
   'remote-down',

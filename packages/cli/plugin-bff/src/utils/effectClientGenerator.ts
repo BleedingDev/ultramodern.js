@@ -8,6 +8,7 @@ import {
   createEffectEndpointContractHash,
   type EffectEndpointMeta,
   ensureLeadingSlash,
+  extractHttpApiFromModule,
   type HttpApiLike,
   type HttpApiReflect,
   normalizeEffectPrefix,
@@ -155,31 +156,7 @@ async function loadEffectApi(
 ): Promise<HttpApiLike | null> {
   const httpApiRuntime = await getHttpApiRuntime();
   const mod = (await compatibleRequire(resourcePath, false)) as unknown;
-
-  if (isRecord(mod) && httpApiRuntime.isHttpApi(mod.api)) {
-    return mod.api as HttpApiLike;
-  }
-
-  if (
-    isRecord(mod) &&
-    isRecord(mod.default) &&
-    httpApiRuntime.isHttpApi(mod.default.api)
-  ) {
-    return mod.default.api as HttpApiLike;
-  }
-
-  if (
-    isRecord(mod) &&
-    typeof mod.default === 'function' &&
-    mod.default.length === 0
-  ) {
-    const output = await mod.default();
-    if (isRecord(output) && httpApiRuntime.isHttpApi(output.api)) {
-      return output.api as HttpApiLike;
-    }
-  }
-
-  return null;
+  return extractHttpApiFromModule(mod, httpApiRuntime.isHttpApi);
 }
 
 function renderEffectClientCode(

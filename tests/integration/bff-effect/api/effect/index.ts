@@ -6,8 +6,8 @@ import {
   Layer,
   OpenTelemetry,
 } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect-api.js';
-import { bffRpcGroup } from '../../shared/effect-rpc.js';
+import { bffEffectApi } from '../../shared/effect-api';
+import { bffRpcGroup } from '../../shared/effect-rpc';
 
 type TraceSpanProcessor = Exclude<
   OpenTelemetry.NodeSdk.Configuration['spanProcessor'],

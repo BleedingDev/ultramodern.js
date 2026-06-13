@@ -33,7 +33,7 @@ const {
 } = requireFromRstestBrowserFixture('playwright');
 
 type AppTarget = {
-  id: 'superapp-erp' | 'superapp-portfolio';
+  id: 'superapp-portfolio';
   appDir: string;
   workflow: (page: Page) => Promise<void>;
 };
@@ -68,42 +68,6 @@ const matrixCases: MatrixCase[] = (
 
 const appTargets: AppTarget[] = [
   {
-    id: 'superapp-erp',
-    appDir: path.resolve(__dirname, '../../superapp-erp'),
-    workflow: async page => {
-      await page.waitForSelector('[data-testid="superapp-shell"]');
-      await page.click('[data-testid="nav-approvals"]');
-      await page.waitForSelector('[data-testid="approvals-page"]');
-      await page.evaluate(async () => {
-        const response = await fetch(
-          '/bff-api/effect/approval/ap-1001/decision',
-          {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              decision: 'approved',
-              actor: 'browser.matrix',
-            }),
-          },
-        );
-        if (!response.ok) {
-          throw new Error(`approval workflow failed: ${response.status}`);
-        }
-      });
-      await page.reload({ waitUntil: 'networkidle' });
-      await page.waitForSelector('[data-testid="approvals-page"]');
-      await page.waitForFunction(() =>
-        document
-          .querySelector('[data-testid="approval-ap-1001"]')
-          ?.textContent?.includes('approved'),
-      );
-      await page.click('[data-testid="nav-chat"]');
-      await page.waitForSelector('[data-testid="chat-page"]');
-    },
-  },
-  {
     id: 'superapp-portfolio',
     appDir: path.resolve(__dirname, '../../superapp-portfolio'),
     workflow: async page => {
@@ -117,6 +81,16 @@ const appTargets: AppTarget[] = [
             ?.textContent ?? '',
         ),
       );
+      await page.click('[data-testid="nav-mega-erp"]');
+      await page.waitForSelector('[data-testid="mega-erp-panel"]');
+      await page.click('[data-testid="approve-first"]');
+      await page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="approval-ap-1001"]')
+          ?.textContent?.includes('approved'),
+      );
+      await page.click('[data-testid="chat-send"]');
+      await page.waitForSelector('[data-testid="chat-msg-3"]');
     },
   },
 ];

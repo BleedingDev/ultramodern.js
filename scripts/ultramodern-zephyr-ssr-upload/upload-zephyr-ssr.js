@@ -2,6 +2,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { parseCliArgs } = require('../lib/cli-kit');
+const { readJsonFile, writeJsonFile } = require('../lib/fs-kit');
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_OUTPUT_DIR = '.output';
@@ -21,10 +23,6 @@ function normalizePath(filePath) {
 
 function relativePath(fromDir, filePath) {
   return normalizePath(path.relative(fromDir, filePath));
-}
-
-function readJsonFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function pathExists(filePath) {
@@ -227,8 +225,7 @@ function joinUrl(baseUrl, ...segments) {
 }
 
 function writeEvidence(evidence, evidencePath) {
-  fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
-  fs.writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+  writeJsonFile(evidencePath, evidence, { atomic: false });
   return evidencePath;
 }
 
@@ -340,45 +337,30 @@ Options:
 }
 
 function parseArgs(argv) {
-  const parsed = {};
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--help' || arg === '-h') {
-      parsed.help = true;
-      continue;
-    }
-
-    const next = argv[index + 1];
-    if (
-      [
-        '--root-dir',
-        '--output-dir',
-        '--public-dir',
-        '--base-url',
-        '--out',
-      ].includes(arg)
-    ) {
-      if (!next) {
-        throw new Error(`${arg} requires a value`);
-      }
-      parsed[
-        {
-          '--root-dir': 'rootDir',
-          '--output-dir': 'outputDir',
-          '--public-dir': 'publicDir',
-          '--base-url': 'baseURL',
-          '--out': 'evidencePath',
-        }[arg]
-      ] = next;
-      index += 1;
-      continue;
-    }
-
-    throw new Error(`Unknown argument: ${arg}`);
-  }
-
-  return parsed;
+  return parseCliArgs(argv, {
+    defaults: {},
+    options: {
+      help: {
+        type: 'boolean',
+        short: 'h',
+      },
+      'root-dir': {
+        key: 'rootDir',
+      },
+      'output-dir': {
+        key: 'outputDir',
+      },
+      'public-dir': {
+        key: 'publicDir',
+      },
+      'base-url': {
+        key: 'baseURL',
+      },
+      out: {
+        key: 'evidencePath',
+      },
+    },
+  });
 }
 
 async function main(argv = process.argv.slice(2)) {

@@ -6,7 +6,6 @@
     "moduleResolution": "nodenext",
     "jsx": "preserve",
     "baseUrl": "./",
-    "rootDir": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"],

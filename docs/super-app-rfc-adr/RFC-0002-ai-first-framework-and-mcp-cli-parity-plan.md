@@ -24,7 +24,7 @@ This RFC defines how Modern.js evolves into an AI-first framework without introd
 2. Make every MCP capability executable from CLI with equivalent schema and semantics.
 3. Improve operability for coding agents and CI bots with deterministic machine-readable outputs.
 4. Add first-class resilience benchmarking for MF fallback latency, remote jitter, and BFF degradation behavior.
-5. Introduce selective off-main-thread lanes for high-frequency compute paths where measurable benefit exists.
+5. Keep future off-main-thread experiments out of release scope until a fresh design and proof package exists.
 
 ## 3. Non-Goals
 
@@ -70,15 +70,15 @@ Add dedicated benchmarking lanes separate from functional tests:
 3. BFF partial failure and retry/degrade behavior.
 4. trust violation handling under load.
 
-### Workstream D: Selective Worker Lanes
+### Workstream D: Retired Worker-Lane Track
 
-Introduce optional off-main-thread paths only for high-frequency/high-cost tasks:
+The earlier worker-lane pilot is retired. Any future off-main-thread proposal must restart with a new design, implementation owner, and proof package for:
 
 1. diff-heavy data transforms.
 2. large grid/chart aggregations.
 3. optional OffscreenCanvas rendering lanes.
 
-All lanes require deterministic fallback to main thread and explicit telemetry hooks.
+No release artifact may claim worker-lane support until that new package exists. Future lanes would require deterministic fallback to main thread and explicit telemetry hooks.
 
 ## 6. Risks, Harm, and Mitigations
 
@@ -88,8 +88,8 @@ All lanes require deterministic fallback to main thread and explicit telemetry h
    - Mitigation: single capability registry + parity conformance tests.
 3. Risk: naive bridge-based parity introduces shell/streaming edge-case failures.
    - Mitigation: bridge for bootstrap only, native handlers for hot/high-risk paths.
-4. Risk: worker-lane complexity introduces race conditions and non-deterministic failures.
-   - Mitigation: opt-in rollout, strict message contracts, kill switch, fallback path.
+4. Risk: retired worker-lane plans leave stale rollout assumptions in automation.
+   - Mitigation: keep the fallback-signal endpoint/CLI path, and require new worker-lane proposals to ship fresh implementation, locking, and tests before documentation claims support.
 5. Risk: benchmarks provide false confidence if disconnected from production behavior.
    - Mitigation: combine synthetic scenarios with production-shaped traces and nightly runs.
 
@@ -106,7 +106,7 @@ All lanes require deterministic fallback to main thread and explicit telemetry h
    - runtime status/graph schema v1.
    - capability registry v1.
    - MCP bridge + adapter artifacts generated from capability contract.
-   - runtime fallback signal worker-lane pilot behind opt-in flag.
+   - runtime fallback signal endpoint and CLI path; the earlier worker-lane pilot is retired.
 2. Phase D2:
    - CLI parity for all read-only MCP capabilities.
    - MCPorter bridge enabled for bootstrap lanes.
@@ -114,7 +114,7 @@ All lanes require deterministic fallback to main thread and explicit telemetry h
    - parity for guarded mutating operations.
    - benchmark and parity reports wired into release gates.
 4. Phase D4:
-   - selective worker lanes promoted from pilot to stable where SLO gain is proven.
+   - any future selective worker lanes require a new design/proof package before promotion.
 
 ## 9. Success Metrics
 

@@ -23,17 +23,17 @@ Add Bun smoke gate command and CI workflow:
 2. CI workflow:
    - `.github/workflows/bun-superapp-smoke.yml`
 
-The Bun smoke gate validates:
+The Bun smoke gate validates a dependency-free compatibility slice:
 
-1. module SDK contract + example manifest via Bun runtime.
-2. boundary anti-pattern profile checks via Bun runtime.
-3. module certification profile validation (migration/evidence checks) via Bun runtime.
+1. module certification profile validation (migration/evidence checks) via Bun runtime.
+2. shared script helpers used by the release-gate profile can parse profiles, read evidence, and emit gate snapshots under Bun.
+3. the full module SDK and boundary policy correctness matrix remains owned by the Node contract-gates workflow.
 
 ## 3. Consequences
 
 Positive:
 
-1. Bun gets explicit governance smoke coverage for super-app contract tooling.
+1. Bun gets explicit governance smoke coverage for the release-gate tooling path without duplicating the Node gate matrix.
 2. Compatibility lanes remain unchanged (Node workflows still run).
 3. Failures in Bun execution surface early in PR workflows.
 

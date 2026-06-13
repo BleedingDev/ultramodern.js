@@ -179,6 +179,37 @@ const makeFixture = ({
   };
 };
 
+test('parseArgs preserves source-proof CLI conventions while using shared parser', async () => {
+  const { parseArgs } = await import('../validate-source-create-proof.mjs');
+  const options = parseArgs([
+    '--',
+    '--root',
+    '.',
+    '--manifest',
+    '.modern/bleedingdev-publish/manifest.json',
+    '--out',
+    '.modern/prepublish-release-gates/source-create-proof.json',
+  ]);
+
+  assert.equal(options.repoRoot, path.resolve('.'));
+  assert.equal(
+    options.manifestPath,
+    path.resolve('.modern/bleedingdev-publish/manifest.json'),
+  );
+  assert.equal(
+    options.outPath,
+    path.resolve('.modern/prepublish-release-gates/source-create-proof.json'),
+  );
+  assert.equal(
+    parseArgs(['--root', '--out=x']).repoRoot,
+    path.resolve('--out=x'),
+  );
+  assert.throws(
+    () => parseArgs(['--root=.']),
+    /^Error: Unknown argument: --root=\.$/,
+  );
+});
+
 test('validateSourceProof accepts staged local cohort metadata', async () => {
   const { validateSourceProof } = await import(
     '../validate-source-create-proof.mjs'

@@ -2,20 +2,20 @@
  * Executes the bff-core adapter-parity scenario table against the hono lane:
  * `createHonoRoutes` plus the cross-project policy middleware (the same
  * check `HonoAdapter` installs). This is the live consumer of
- * `@modern-js/bff-core/adapter-parity` since the express/koa adapters were
- * removed, and the end-to-end proof for hono-lane policy enforcement
+ * bff-core's internal adapter parity table since the express/koa adapters
+ * were removed, and the end-to-end proof for hono-lane policy enforcement
  * (allowed + every denial reason).
  */
 
 import { resolveCrossProjectPolicy } from '@modern-js/bff-core';
+import { Hono, type MiddlewareHandler } from '@modern-js/server-core';
 import {
   assertParityResult,
   createAdapterParityScenarios,
   createParityApiHandlerInfos,
   createParityBffConfig,
   type ParityHttpResponse,
-} from '@modern-js/bff-core/adapter-parity';
-import { Hono, type MiddlewareHandler } from '@modern-js/server-core';
+} from '../../../server/bff-core/src/adapter-kit/parity';
 import createHonoRoutes from '../src/utils/createHonoRoutes';
 import { checkCrossProjectPolicyResponse } from '../src/utils/crossProjectServerPolicy';
 

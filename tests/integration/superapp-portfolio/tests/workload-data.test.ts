@@ -1,10 +1,10 @@
-import { createSuperAppWorkloadCatalog } from '../shared/portfolio-state.js';
+import { createSuperAppWorkloadCatalog } from '../shared/portfolio-state';
 import {
   createSuperAppGeneratedWorkloadContract,
   createSuperAppGeneratedWorkloadDataset,
   GENERATED_WORKLOAD_ENTITIES,
   type GeneratedWorkloadEntityCounts,
-} from '../shared/workload-generated-data.js';
+} from '../shared/workload-generated-data';
 import {
   createSuperAppWorkloadScenarioProfileContract,
   getWorkloadScenarioProfile,
@@ -14,7 +14,7 @@ import {
   SUPERAPP_WORKLOAD_SCENARIO_PROFILE_IDS,
   selectWorkloadScenarioSampleRecords,
   selectWorkloadScenarioSampleWindows,
-} from '../shared/workload-scenario-profiles.js';
+} from '../shared/workload-scenario-profiles';
 
 const expectedTotals: GeneratedWorkloadEntityCounts = {
   orders: 6300,

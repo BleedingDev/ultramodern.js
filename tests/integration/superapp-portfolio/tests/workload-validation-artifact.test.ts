@@ -1,5 +1,5 @@
-import { createSuperAppWorkloadResetSeedMetadata } from '../shared/workload-reset-seed.js';
-import { createSuperAppWorkloadValidationArtifact } from '../shared/workload-validation-artifact.js';
+import { createSuperAppWorkloadResetSeedMetadata } from '../shared/workload-reset-seed';
+import { createSuperAppWorkloadValidationArtifact } from '../shared/workload-validation-artifact';
 
 const expectedEntityCounts = {
   orders: 6300,

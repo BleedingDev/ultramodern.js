@@ -1,19 +1,19 @@
 import {
   createSuperAppWorkloadCatalog,
   type SuperAppWorkloadCatalog,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 import {
   createSuperAppGeneratedWorkloadContract,
   type SuperAppGeneratedWorkloadContract,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 import {
   createSuperAppWorkloadResetSeedMetadata,
   type SuperAppWorkloadResetSeedMetadata,
-} from './workload-reset-seed.js';
+} from './workload-reset-seed';
 import {
   createSuperAppWorkloadScenarioProfileMetadata,
   type SuperAppWorkloadScenarioProfileMetadata,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 
 export type {
   SuperAppWorkloadCatalog,
@@ -39,7 +39,7 @@ export type {
   WorkloadTenantId,
   WorkloadUser,
   WorkloadUserId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 export {
   createSuperAppWorkloadCatalog,
   getWorkloadDomain,
@@ -49,7 +49,7 @@ export {
   SUPERAPP_WORKLOAD_DOMAIN_IDS,
   SUPERAPP_WORKLOAD_SCENARIO_IDS,
   SUPERAPP_WORKLOAD_TENANT_IDS,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 export type {
   GeneratedTenantWorkloadSummary,
   GeneratedWorkloadEntity,
@@ -62,23 +62,23 @@ export type {
   SuperAppGeneratedWorkloadContract,
   SuperAppGeneratedWorkloadDataset,
   SuperAppGeneratedWorkloadMetadata,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 export {
   createSuperAppGeneratedWorkloadContract,
   createSuperAppGeneratedWorkloadDataset,
   GENERATED_WORKLOAD_ENTITIES,
   SUPERAPP_GENERATED_WORKLOAD_TENANT_PROFILES,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 export type {
   SuperAppWorkloadResetSeedMetadata,
   WorkloadResetSeedInput,
   WorkloadResetSeedTarget,
   WorkloadSeedDescriptor,
-} from './workload-reset-seed.js';
+} from './workload-reset-seed';
 export {
   createSuperAppWorkloadResetSeedMetadata,
   createSuperAppWorkloadSeed,
-} from './workload-reset-seed.js';
+} from './workload-reset-seed';
 export type {
   SuperAppWorkloadScenarioProfileContract,
   SuperAppWorkloadScenarioProfileMetadata,
@@ -94,7 +94,7 @@ export type {
   WorkloadScenarioSelectedRecords,
   WorkloadScenarioStep,
   WorkloadTenantBoundaryProbe,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 export {
   createSuperAppWorkloadScenarioProfileContract,
   createSuperAppWorkloadScenarioProfileMetadata,
@@ -106,7 +106,7 @@ export {
   SUPERAPP_WORKLOAD_SCENARIO_PROFILES,
   selectWorkloadScenarioSampleRecords,
   selectWorkloadScenarioSampleWindows,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 
 export type PortfolioAppId =
   | 'mobility-marketplace'
@@ -182,6 +182,54 @@ export type WorkflowEvent = {
   status: 'accepted' | 'deduped';
 };
 
+export type PortfolioErpModuleId =
+  | 'dispatch'
+  | 'finance'
+  | 'inventory'
+  | 'hr'
+  | 'chat';
+
+export type PortfolioErpModule = {
+  id: PortfolioErpModuleId;
+  label: string;
+  status: 'healthy' | 'degraded';
+  openWork: number;
+};
+
+export type PortfolioErpApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export type PortfolioErpApproval = {
+  id: string;
+  title: string;
+  amount: number;
+  status: PortfolioErpApprovalStatus;
+  owner: string;
+};
+
+export type PortfolioErpChatMessage = {
+  id: string;
+  channel: string;
+  author: string;
+  text: string;
+  priority: 'normal' | 'urgent';
+};
+
+export type PortfolioErpState = {
+  tenant: {
+    id: string;
+    name: string;
+    region: string;
+  };
+  modules: PortfolioErpModule[];
+  approvals: PortfolioErpApproval[];
+  chat: PortfolioErpChatMessage[];
+  riskSignals: {
+    dispatchBacklog: number;
+    financeExposure: number;
+    inventoryStockouts: number;
+  };
+};
+
 export type PilotModuleResult = {
   module: PilotModuleId;
   appId: PortfolioAppId;
@@ -220,10 +268,108 @@ export type PortfolioState = {
   workloadScenarioProfileMetadata: SuperAppWorkloadScenarioProfileMetadata;
   workloadResetSeedMetadata: SuperAppWorkloadResetSeedMetadata;
   events: WorkflowEvent[];
+  erp: PortfolioErpState;
   pilotRuns: PilotRun[];
   failureMode: 'healthy' | 'remote-down' | 'api-timeout' | 'chunk-404';
   tenantAccess: Record<string, PortfolioAppId[]>;
 };
+
+export function createInitialPortfolioErpState(): PortfolioErpState {
+  return {
+    tenant: {
+      id: 'tenant-acme-global',
+      name: 'Acme Global Operations',
+      region: 'EMEA',
+    },
+    modules: [
+      {
+        id: 'dispatch',
+        label: 'Fleet dispatch',
+        status: 'healthy',
+        openWork: 18,
+      },
+      {
+        id: 'finance',
+        label: 'Finance control',
+        status: 'degraded',
+        openWork: 7,
+      },
+      {
+        id: 'inventory',
+        label: 'Inventory planning',
+        status: 'healthy',
+        openWork: 11,
+      },
+      {
+        id: 'hr',
+        label: 'People operations',
+        status: 'healthy',
+        openWork: 4,
+      },
+      {
+        id: 'chat',
+        label: 'Operations chat',
+        status: 'healthy',
+        openWork: 3,
+      },
+    ],
+    approvals: [
+      {
+        id: 'ap-1001',
+        title: 'Emergency carrier capacity',
+        amount: 42000,
+        status: 'pending',
+        owner: 'finance.lead',
+      },
+      {
+        id: 'ap-1002',
+        title: 'Warehouse overtime batch',
+        amount: 12800,
+        status: 'pending',
+        owner: 'ops.manager',
+      },
+    ],
+    chat: [
+      {
+        id: 'msg-1',
+        channel: 'incident-war-room',
+        author: 'system',
+        text: 'Route disruption detected in Prague hub',
+        priority: 'urgent',
+      },
+      {
+        id: 'msg-2',
+        channel: 'incident-war-room',
+        author: 'dispatcher',
+        text: 'Rebalancing drivers from zone 7',
+        priority: 'normal',
+      },
+    ],
+    riskSignals: {
+      dispatchBacklog: 18,
+      financeExposure: 54800,
+      inventoryStockouts: 2,
+    },
+  };
+}
+
+export function summarizePortfolioErp(erp: PortfolioErpState) {
+  const pendingApprovals = erp.approvals.filter(
+    approval => approval.status === 'pending',
+  ).length;
+  const urgentMessages = erp.chat.filter(
+    message => message.priority === 'urgent',
+  ).length;
+
+  return {
+    tenantName: erp.tenant.name,
+    moduleCount: erp.modules.length,
+    pendingApprovals,
+    urgentMessages,
+    totalOpenWork: erp.modules.reduce((sum, item) => sum + item.openWork, 0),
+    financeExposure: erp.riskSignals.financeExposure,
+  };
+}
 
 export function createInitialPortfolioState(): PortfolioState {
   const workloadCatalog = createSuperAppWorkloadCatalog();
@@ -345,6 +491,7 @@ export function createInitialPortfolioState(): PortfolioState {
     workloadScenarioProfileMetadata,
     workloadResetSeedMetadata,
     events: [],
+    erp: createInitialPortfolioErpState(),
     pilotRuns: [],
     failureMode: 'healthy',
     tenantAccess: {

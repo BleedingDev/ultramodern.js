@@ -4,8 +4,12 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import cliKit from '../lib/cli-kit.js';
+import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+const { parseCliArgs } = cliKit;
+const { readJsonFile, writeJsonFile } = fsKit;
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
 const defaultReportPath =
   '.modern/production-readiness/browser-smoke/summary.json';
@@ -21,42 +25,67 @@ export class BrowserSmokeError extends Error {
 }
 
 export function parseArgs(argv) {
-  const parsed = {
-    artifactDir: defaultArtifactDir,
-    mode: 'local',
-    out: defaultReportPath,
-    publicUrls: {},
-    requirePublicUrls: false,
-    timeoutMs: 60_000,
-  };
+  rejectInlineOptionValues(argv, [
+    '--project-dir',
+    '--artifact-dir',
+    '--out',
+    '--mode',
+    '--public-url',
+    '--timeout-ms',
+  ]);
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--project-dir') {
-      parsed.projectDir = argv[++index];
-    } else if (arg === '--artifact-dir') {
-      parsed.artifactDir = argv[++index];
-    } else if (arg === '--out') {
-      parsed.out = argv[++index];
-    } else if (arg === '--mode') {
-      parsed.mode = argv[++index];
-    } else if (arg === '--public-url') {
-      const entry = argv[++index];
-      const separatorIndex = entry.indexOf('=');
-      if (separatorIndex === -1) {
-        throw new Error('--public-url must be appId=url');
-      }
-      parsed.publicUrls[entry.slice(0, separatorIndex)] = entry.slice(
-        separatorIndex + 1,
-      );
-    } else if (arg === '--require-public-urls') {
-      parsed.requirePublicUrls = true;
-    } else if (arg === '--timeout-ms') {
-      parsed.timeoutMs = Number.parseInt(argv[++index], 10);
-    } else {
-      throw new Error(`Unknown argument: ${arg}`);
+  const parsed = parseCliArgs(argv, {
+    defaults: {
+      artifactDir: defaultArtifactDir,
+      mode: 'local',
+      out: defaultReportPath,
+      publicUrlEntries: [],
+      requirePublicUrls: false,
+      timeoutMs: '60000',
+    },
+    options: {
+      'project-dir': {
+        key: 'projectDir',
+        requiredValue: false,
+      },
+      'artifact-dir': {
+        key: 'artifactDir',
+        requiredValue: false,
+      },
+      out: {
+        requiredValue: false,
+      },
+      mode: {
+        requiredValue: false,
+      },
+      'public-url': {
+        key: 'publicUrlEntries',
+        multiple: true,
+        requiredValue: false,
+      },
+      'require-public-urls': {
+        key: 'requirePublicUrls',
+        type: 'boolean',
+      },
+      'timeout-ms': {
+        key: 'timeoutMs',
+        requiredValue: false,
+      },
+    },
+  });
+
+  const publicUrls = {};
+  for (const entry of parsed.publicUrlEntries) {
+    const separatorIndex = entry.indexOf('=');
+    if (separatorIndex === -1) {
+      throw new Error('--public-url must be appId=url');
     }
+    publicUrls[entry.slice(0, separatorIndex)] = entry.slice(
+      separatorIndex + 1,
+    );
   }
+  parsed.timeoutMs = Number.parseInt(parsed.timeoutMs, 10);
+  const { publicUrlEntries, ...resolvedOptions } = parsed;
 
   if (!parsed.projectDir) {
     throw new Error('--project-dir is required');
@@ -69,20 +98,21 @@ export function parseArgs(argv) {
   }
 
   return {
-    ...parsed,
+    ...resolvedOptions,
     artifactDir: path.resolve(repoRoot, parsed.artifactDir),
     out: path.resolve(repoRoot, parsed.out),
+    publicUrls,
     projectDir: path.resolve(parsed.projectDir),
   };
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+function rejectInlineOptionValues(argv, valueOptions) {
+  const prefixes = valueOptions.map(option => `${option}=`);
+  for (const arg of argv) {
+    if (prefixes.some(prefix => arg.startsWith(prefix))) {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
 }
 
 function appPort(app) {
@@ -527,9 +557,10 @@ async function validateNoJavaScriptSsrTarget(
     await maybeScreenshot(page, path.join(appArtifactDir, 'no-js-ssr.png'));
     return assertions;
   } finally {
-    writeJson(
+    writeJsonFile(
       path.join(appArtifactDir, 'no-js-failed-responses.json'),
       failedResponses,
+      { atomic: false },
     );
     await context.close();
   }
@@ -685,11 +716,16 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     );
     return assertions;
   } finally {
-    writeJson(path.join(appArtifactDir, 'console.json'), consoleMessages);
-    writeJson(path.join(appArtifactDir, 'page-errors.json'), pageErrors);
-    writeJson(
+    writeJsonFile(path.join(appArtifactDir, 'console.json'), consoleMessages, {
+      atomic: false,
+    });
+    writeJsonFile(path.join(appArtifactDir, 'page-errors.json'), pageErrors, {
+      atomic: false,
+    });
+    writeJsonFile(
       path.join(appArtifactDir, 'failed-responses.json'),
       failedResponses,
+      { atomic: false },
     );
     await context.close();
   }
@@ -769,7 +805,7 @@ async function launchBrowser(browserProvider) {
 
 export async function runUltramodernBrowserSmoke(options) {
   const contractPath = path.join(options.projectDir, contractRelativePath);
-  const contract = options.contract ?? readJson(contractPath);
+  const contract = options.contract ?? readJsonFile(contractPath);
   const { skipped, targets } = createSmokeTargets(contract, options);
   const report = {
     schemaVersion: 1,
@@ -811,7 +847,7 @@ export async function runUltramodernBrowserSmoke(options) {
 
     if (targets.length === 0) {
       report.status = 'skipped';
-      writeJson(options.out, report);
+      writeJsonFile(options.out, report, { atomic: false });
       return report;
     }
 
@@ -833,7 +869,7 @@ export async function runUltramodernBrowserSmoke(options) {
     }
 
     report.status = 'pass';
-    writeJson(options.out, report);
+    writeJsonFile(options.out, report, { atomic: false });
     return report;
   } catch (error) {
     report.status = 'fail';
@@ -841,7 +877,7 @@ export async function runUltramodernBrowserSmoke(options) {
     if (error instanceof BrowserSmokeError && error.details) {
       report.errorDetails = error.details;
     }
-    writeJson(options.out, report);
+    writeJsonFile(options.out, report, { atomic: false });
     throw error;
   } finally {
     if (browser) {

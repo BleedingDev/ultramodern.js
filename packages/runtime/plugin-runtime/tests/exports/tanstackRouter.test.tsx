@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { renderToString } from 'react-dom/server';
 import type {
   Fetcher,
@@ -10,16 +13,12 @@ import type {
   SubmitOptions,
 } from '../../src/exports/tanstack-router';
 import {
-  createRouter,
   Form,
   Link,
   NavLink,
-  notFound,
   Outlet,
   RouteActionResponseError,
-  redirect,
   useFetcher,
-  useNavigate,
 } from '../../src/exports/tanstack-router';
 
 // Compile-time assertion that every restored type name resolves on the
@@ -37,6 +36,10 @@ export type _AssertRestoredTypes = [
 
 const COMPAT_BINDINGS_SLOT = Symbol.for(
   '@modern-js/plugin-tanstack:runtime-compat-bindings',
+);
+const runtimePackageRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..',
 );
 
 type SlotHost = Record<symbol, unknown>;
@@ -91,8 +94,7 @@ describe('@modern-js/runtime/tanstack-router deprecated alias', () => {
     delete (globalThis as SlotHost)[COMPAT_BINDINGS_SLOT];
   });
 
-  it('exports every restored Modern.js binding plus the @tanstack/react-router surface', () => {
-    // Restored Modern.js specific bindings.
+  it('exports the restored Modern.js bindings without importing TanStack Router', () => {
     expect(typeof Form).toBe('function');
     expect(typeof Link).toBe('function');
     expect(typeof NavLink).toBe('function');
@@ -100,11 +102,11 @@ describe('@modern-js/runtime/tanstack-router deprecated alias', () => {
     expect(typeof useFetcher).toBe('function');
     expect(RouteActionResponseError).toBeDefined();
 
-    // Untouched pass-through re-exports keep working.
-    expect(typeof createRouter).toBe('function');
-    expect(typeof notFound).toBe('function');
-    expect(typeof redirect).toBe('function');
-    expect(typeof useNavigate).toBe('function');
+    const source = readFileSync(
+      path.join(runtimePackageRoot, 'src/exports/tanstack-router.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('@tanstack/react-router');
   });
 
   it('delegates to the bindings registered by @modern-js/plugin-tanstack/runtime', () => {

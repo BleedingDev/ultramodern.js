@@ -4,12 +4,12 @@ import {
   HttpApiGroup,
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
-import { SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS } from './workload-chaos-failure-taxonomy.js';
+import { SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS } from './workload-chaos-failure-taxonomy';
 import {
   SUPERAPP_CHAOS_TOGGLE_ENDPOINTS,
   SUPERAPP_CHAOS_TOGGLE_SCOPES,
   SUPERAPP_LEGACY_FAILURE_MODES,
-} from './workload-chaos-toggles.js';
+} from './workload-chaos-toggles';
 
 const AppIdSchema = Schema.Literals([
   'mobility-marketplace',
@@ -55,6 +55,29 @@ const WorkflowEventSchema = Schema.Struct({
   actor: Schema.String,
   requestId: Schema.String,
   status: Schema.Literals(['accepted', 'deduped']),
+});
+
+const PortfolioErpModuleSchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  status: Schema.Literals(['healthy', 'degraded']),
+  openWork: Schema.Finite,
+});
+
+const PortfolioErpApprovalSchema = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  amount: Schema.Finite,
+  status: Schema.Literals(['pending', 'approved', 'rejected']),
+  owner: Schema.String,
+});
+
+const PortfolioErpChatMessageSchema = Schema.Struct({
+  id: Schema.String,
+  channel: Schema.String,
+  author: Schema.String,
+  text: Schema.String,
+  priority: Schema.Literals(['normal', 'urgent']),
 });
 
 const PilotScenarioSchema = Schema.Literals([
@@ -647,6 +670,27 @@ const SummarySchema = Schema.Struct({
   nightlyWorkflowCount: Schema.Finite,
 });
 
+const PortfolioErpSummarySchema = Schema.Struct({
+  tenantName: Schema.String,
+  moduleCount: Schema.Finite,
+  pendingApprovals: Schema.Finite,
+  urgentMessages: Schema.Finite,
+  totalOpenWork: Schema.Finite,
+  financeExposure: Schema.Finite,
+});
+
+const PortfolioErpStateSchema = Schema.Struct({
+  tenant: Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    region: Schema.String,
+  }),
+  modules: Schema.Array(PortfolioErpModuleSchema),
+  approvals: Schema.Array(PortfolioErpApprovalSchema),
+  chat: Schema.Array(PortfolioErpChatMessageSchema),
+  summary: PortfolioErpSummarySchema,
+});
+
 const ChaosToggleDescriptorSchema = Schema.Struct({
   id: Schema.Literals([...SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS]),
   kind: Schema.String,
@@ -702,8 +746,58 @@ export const portfolioApi = HttpApi.make('SuperAppPortfolioApi').add(
           events: Schema.Array(WorkflowEventSchema),
           pilotRuns: Schema.Array(PilotRunSchema),
           summary: SummarySchema,
+          erp: PortfolioErpStateSchema,
         }),
       }),
+    )
+    .add(
+      HttpApiEndpoint.get(
+        'erpBootstrap',
+        '/effect/apps/enterprise-mega-erp/erp/bootstrap',
+        {
+          success: PortfolioErpStateSchema,
+        },
+      ),
+    )
+    .add(
+      HttpApiEndpoint.post(
+        'decideErpApproval',
+        '/effect/apps/enterprise-mega-erp/erp/approval/:id/decision',
+        {
+          params: {
+            id: Schema.String,
+          },
+          payload: Schema.Struct({
+            decision: Schema.Literals(['approved', 'rejected']),
+            actor: Schema.String,
+          }),
+          success: Schema.Struct({
+            id: Schema.String,
+            status: Schema.Literals(['approved', 'rejected']),
+            actor: Schema.String,
+            pendingApprovals: Schema.Finite,
+          }),
+        },
+      ),
+    )
+    .add(
+      HttpApiEndpoint.post(
+        'sendErpChat',
+        '/effect/apps/enterprise-mega-erp/erp/chat/send',
+        {
+          payload: Schema.Struct({
+            channel: Schema.String,
+            author: Schema.String,
+            text: Schema.String,
+            priority: Schema.Literals(['normal', 'urgent']),
+          }),
+          success: Schema.Struct({
+            accepted: Schema.Boolean,
+            message: PortfolioErpChatMessageSchema,
+            totalMessages: Schema.Finite,
+          }),
+        },
+      ),
     )
     .add(
       HttpApiEndpoint.post('runWorkflow', '/effect/apps/:appId/workflow', {

@@ -315,9 +315,22 @@ const escapeRegExp = (value: string): string =>
 const getParamName = (segment: string): string =>
   segment.slice(1).replace(/\?$/, '');
 
-const compilePathPattern = (pattern: string) => {
+interface CompiledPathPattern {
+  names: string[];
+  regexp: RegExp;
+}
+
+const compiledPathPatternCache = new Map<string, CompiledPathPattern>();
+
+const compilePathPattern = (pattern: string): CompiledPathPattern => {
+  const normalizedPattern = normalisePathPattern(pattern);
+  const cached = compiledPathPatternCache.get(normalizedPattern);
+  if (cached) {
+    return cached;
+  }
+
   const names: string[] = [];
-  const segments = normalisePathPattern(pattern).split('/').filter(Boolean);
+  const segments = normalizedPattern.split('/').filter(Boolean);
   const source = segments
     .map(segment => {
       if (segment.startsWith(':')) {
@@ -335,11 +348,64 @@ const compilePathPattern = (pattern: string) => {
     })
     .join('');
 
-  return {
+  const compiled = {
     names,
     regexp: new RegExp(`^${source || '/'}$`),
   };
+  compiledPathPatternCache.set(normalizedPattern, compiled);
+
+  return compiled;
 };
+
+const getPatternSpecificity = (pattern: string) => {
+  const segments = normalisePathPattern(pattern).split('/').filter(Boolean);
+  let staticSegments = 0;
+  let dynamicSegments = 0;
+  let splatSegments = 0;
+
+  for (const segment of segments) {
+    if (segment === '*') {
+      splatSegments++;
+    } else if (segment.startsWith(':')) {
+      dynamicSegments++;
+    } else {
+      staticSegments++;
+    }
+  }
+
+  return {
+    staticSegments,
+    dynamicSegments,
+    splatSegments,
+    totalSegments: segments.length,
+  };
+};
+
+const comparePatternSpecificity = (left: string, right: string): number => {
+  const a = getPatternSpecificity(left);
+  const b = getPatternSpecificity(right);
+
+  return (
+    b.staticSegments - a.staticSegments ||
+    b.totalSegments - a.totalSegments ||
+    a.splatSegments - b.splatSegments ||
+    a.dynamicSegments - b.dynamicSegments
+  );
+};
+
+const sortPatternsBySpecificity = <T extends { pattern: string }>(
+  patterns: T[],
+): T[] =>
+  patterns
+    .map((pattern, index) => ({ pattern, index }))
+    .sort(
+      (left, right) =>
+        comparePatternSpecificity(
+          left.pattern.pattern,
+          right.pattern.pattern,
+        ) || left.index - right.index,
+    )
+    .map(({ pattern }) => pattern);
 
 /**
  * `decodeURIComponent` throws `URIError` on malformed percent-encoding
@@ -409,9 +475,17 @@ export const resolveLocalisedPath = (
 
   // Canonical keys take precedence: authors write language-agnostic paths,
   // which are the map keys, even when no language pattern equals the key.
-  for (const [canonicalPattern, localisedUrlEntry] of Object.entries(
-    localisedUrls,
-  )) {
+  const canonicalCandidates = sortPatternsBySpecificity(
+    Object.entries(localisedUrls).map(
+      ([canonicalPattern, localisedUrlEntry]) => ({
+        pattern: canonicalPattern,
+        canonicalPattern,
+        localisedUrlEntry,
+      }),
+    ),
+  );
+
+  for (const { canonicalPattern, localisedUrlEntry } of canonicalCandidates) {
     const targetPattern = localisedUrlEntry[targetLanguage];
     if (!targetPattern) {
       continue;
@@ -423,22 +497,30 @@ export const resolveLocalisedPath = (
     }
   }
 
-  for (const localisedUrlEntry of Object.values(localisedUrls)) {
-    const targetPattern = localisedUrlEntry[targetLanguage];
-    if (!targetPattern) {
-      continue;
-    }
-
-    for (const language of languages) {
-      const sourcePattern = localisedUrlEntry[language];
-      if (!sourcePattern) {
-        continue;
+  const localisedCandidates = sortPatternsBySpecificity(
+    Object.values(localisedUrls).flatMap(localisedUrlEntry => {
+      const targetPattern = localisedUrlEntry[targetLanguage];
+      if (!targetPattern) {
+        return [];
       }
 
-      const params = matchPathPattern(normalizedPathname, sourcePattern);
-      if (params) {
-        return buildPathFromPattern(targetPattern, params);
-      }
+      return languages
+        .map(language => localisedUrlEntry[language])
+        .filter((sourcePattern): sourcePattern is string =>
+          Boolean(sourcePattern),
+        )
+        .map(sourcePattern => ({
+          pattern: sourcePattern,
+          sourcePattern,
+          targetPattern,
+        }));
+    }),
+  );
+
+  for (const { sourcePattern, targetPattern } of localisedCandidates) {
+    const params = matchPathPattern(normalizedPathname, sourcePattern);
+    if (params) {
+      return buildPathFromPattern(targetPattern, params);
     }
   }
 
@@ -457,9 +539,17 @@ export const resolveCanonicalLocalisedPath = (
 ): string => {
   const normalizedPathname = normalisePathname(pathname);
 
-  for (const [canonicalPattern, localisedUrlEntry] of Object.entries(
-    localisedUrls,
-  )) {
+  const canonicalCandidates = sortPatternsBySpecificity(
+    Object.entries(localisedUrls).map(
+      ([canonicalPattern, localisedUrlEntry]) => ({
+        pattern: canonicalPattern,
+        canonicalPattern,
+        localisedUrlEntry,
+      }),
+    ),
+  );
+
+  for (const { canonicalPattern, localisedUrlEntry } of canonicalCandidates) {
     const canonicalParams = matchPathPattern(
       normalizedPathname,
       canonicalPattern,
@@ -482,4 +572,52 @@ export const resolveCanonicalLocalisedPath = (
   }
 
   return normalizedPathname;
+};
+
+const stripLanguagePrefix = (pathname: string, languages: string[]): string => {
+  const segments = pathname.split('/').filter(Boolean);
+
+  if (segments.length > 0 && languages.includes(segments[0])) {
+    return `/${segments.slice(1).join('/')}`;
+  }
+
+  return pathname || '/';
+};
+
+export const localiseTargetPathname = (
+  pathname: string,
+  language: string,
+  languages: string[],
+  localisedUrls?: LocalisedUrlsOption,
+): string => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname, languages);
+  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
+  const resolvedPath = localisedUrlsConfig.enabled
+    ? resolveLocalisedPath(
+        pathWithoutLanguage,
+        language,
+        languages,
+        localisedUrlsConfig.map,
+      )
+    : pathWithoutLanguage;
+  const resolvedSegments = resolvedPath.split('/').filter(Boolean);
+
+  return `/${[language, ...resolvedSegments].join('/')}`;
+};
+
+export const canonicalTargetPathname = (
+  pathname: string,
+  languages: string[],
+  localisedUrls?: LocalisedUrlsOption,
+): string => {
+  const pathWithoutLanguage = stripLanguagePrefix(pathname, languages);
+  const localisedUrlsConfig = resolveLocalisedUrlsConfig(localisedUrls);
+
+  return localisedUrlsConfig.enabled
+    ? resolveCanonicalLocalisedPath(
+        pathWithoutLanguage,
+        languages,
+        localisedUrlsConfig.map,
+      )
+    : pathWithoutLanguage;
 };

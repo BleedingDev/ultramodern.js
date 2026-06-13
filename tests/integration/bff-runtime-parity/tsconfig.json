@@ -4,7 +4,6 @@
     "declaration": false,
     "jsx": "preserve",
     "moduleResolution": "Bundler",
-    "rootDir": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@api/*": ["./api/*"]

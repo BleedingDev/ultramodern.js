@@ -1,7 +1,7 @@
 import {
   createSuperAppEffectTanStackContractCoverageArtifact,
   serializeSuperAppEffectTanStackContractCoverageArtifact,
-} from '../shared/effect-tanstack-contract-coverage-artifact.js';
+} from '../shared/effect-tanstack-contract-coverage-artifact';
 import {
   SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS,
   SUPERAPP_PORTFOLIO_DOMAIN_ROUTE_CONTRACTS,
@@ -9,7 +9,7 @@ import {
   SUPERAPP_TANSTACK_MUTATION_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_QUERY_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_ROUTE_CONTRACTS,
-} from '../shared/effect-tanstack-contract-map.js';
+} from '../shared/effect-tanstack-contract-map';
 
 const requiredScenarioIds = [
   'successful-read',
@@ -56,13 +56,13 @@ describe('superapp Effect and TanStack contract coverage artifact', () => {
     expect(serialized).toBe(`${JSON.stringify(JSON.parse(serialized))}\n`);
     expect(serialized).not.toContain('\n  ');
     expect(first.summary).toEqual({
-      effectEndpointCount: 6,
+      effectEndpointCount: 9,
       queryKeyTemplateCount: 13,
-      mutationKeyTemplateCount: 5,
-      invalidationBoundaryCount: 5,
+      mutationKeyTemplateCount: 7,
+      invalidationBoundaryCount: 7,
       tanStackRouteCount: 3,
       portfolioDomainRouteCount: 15,
-      contractRowCount: 47,
+      contractRowCount: 54,
       scenarioCount: requiredScenarioIds.length,
     });
   });
@@ -160,6 +160,8 @@ describe('superapp Effect and TanStack contract coverage artifact', () => {
     ).toEqual(
       expect.arrayContaining([
         'effect-endpoint:effect.runWorkflow',
+        'effect-endpoint:effect.decideErpApproval',
+        'effect-endpoint:effect.sendErpChat',
         'effect-endpoint:effect.runPilot',
         'effect-endpoint:effect.securityProbe',
         'effect-endpoint:effect.injectFailure',

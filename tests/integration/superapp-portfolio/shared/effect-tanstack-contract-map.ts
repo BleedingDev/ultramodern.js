@@ -3,8 +3,8 @@ import type {
   PilotChaosMode,
   PilotScenario,
   PortfolioAppId,
-} from './portfolio-state.js';
-import type { WorkloadResetSeedTarget } from './workload-reset-seed.js';
+} from './portfolio-state';
+import type { WorkloadResetSeedTarget } from './workload-reset-seed';
 
 type HttpMethod = 'GET' | 'POST';
 type OperationKind = 'query' | 'mutation';
@@ -14,6 +14,7 @@ type ContractScope =
   | 'workload'
   | 'tenant'
   | 'reset'
+  | 'erp'
   | 'validation';
 
 type ArtifactLinkId =
@@ -43,10 +44,15 @@ type MutationKeyId =
   | 'portfolio.pilot.run'
   | 'portfolio.security.probe'
   | 'portfolio.failure.inject'
+  | 'portfolio.erp.approval.decide'
+  | 'portfolio.erp.chat.send'
   | 'portfolio.reset';
 
 type EffectEndpointId =
   | 'effect.bootstrap'
+  | 'effect.erpBootstrap'
+  | 'effect.decideErpApproval'
+  | 'effect.sendErpChat'
   | 'effect.runWorkflow'
   | 'effect.runPilot'
   | 'effect.securityProbe'
@@ -58,6 +64,8 @@ type InvalidationBoundaryId =
   | 'pilot-run-accepted'
   | 'security-decision-readonly'
   | 'failure-mode-injected'
+  | 'erp-approval-decided'
+  | 'erp-chat-sent'
   | 'portfolio-reset';
 
 type TanStackRouteId = '__root__' | '/' | '/apps/$appId';
@@ -382,6 +390,18 @@ export const SUPERAPP_TANSTACK_MUTATION_KEY_TEMPLATES: readonly MutationKeyTempl
       scope: ['server', 'validation'],
     },
     {
+      id: 'portfolio.erp.approval.decide',
+      endpointId: 'effect.decideErpApproval',
+      parts: ['superapp-portfolio', 'mutation', 'erp', 'approval', ':id'],
+      scope: ['client', 'server', 'tenant', 'erp'],
+    },
+    {
+      id: 'portfolio.erp.chat.send',
+      endpointId: 'effect.sendErpChat',
+      parts: ['superapp-portfolio', 'mutation', 'erp', 'chat', ':channel'],
+      scope: ['client', 'server', 'tenant', 'erp'],
+    },
+    {
       id: 'portfolio.reset',
       endpointId: 'effect.reset',
       parts: ['superapp-portfolio', 'mutation', 'reset'],
@@ -415,6 +435,7 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
         'events',
         'pilotRuns',
         'summary',
+        'erp',
       ],
       requestContextFields: [],
       queryKeyIds: [
@@ -436,6 +457,72 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
         'workloadResetSeed',
         'workloadValidationArtifact',
       ],
+    },
+    {
+      id: 'effect.erpBootstrap',
+      operation: 'portfolio.erpBootstrap',
+      method: 'GET',
+      effectPath: '/effect/apps/enterprise-mega-erp/erp/bootstrap',
+      publicPath: `${endpointBase}/effect/apps/enterprise-mega-erp/erp/bootstrap`,
+      kind: 'query',
+      sourceFile:
+        'tests/integration/superapp-portfolio/shared/portfolio-api.ts',
+      handler:
+        'tests/integration/superapp-portfolio/api/effect/index.ts:erpBootstrap',
+      params: [],
+      headers: [],
+      payload: [],
+      successFields: ['tenant', 'modules', 'approvals', 'chat', 'summary'],
+      requestContextFields: [],
+      queryKeyIds: ['portfolio.app.detail'],
+      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
+    },
+    {
+      id: 'effect.decideErpApproval',
+      operation: 'portfolio.decideErpApproval',
+      method: 'POST',
+      effectPath: '/effect/apps/enterprise-mega-erp/erp/approval/:id/decision',
+      publicPath: `${endpointBase}/effect/apps/enterprise-mega-erp/erp/approval/:id/decision`,
+      kind: 'mutation',
+      sourceFile:
+        'tests/integration/superapp-portfolio/shared/portfolio-api.ts',
+      handler:
+        'tests/integration/superapp-portfolio/api/effect/index.ts:decideErpApproval',
+      params: [field('params', 'id')],
+      headers: [],
+      payload: [field('payload', 'decision'), field('payload', 'actor')],
+      successFields: ['id', 'status', 'actor', 'pendingApprovals'],
+      requestContextFields: ['id', 'decision', 'actor'],
+      queryKeyIds: [],
+      mutationKeyId: 'portfolio.erp.approval.decide',
+      invalidationBoundaryId: 'erp-approval-decided',
+      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
+    },
+    {
+      id: 'effect.sendErpChat',
+      operation: 'portfolio.sendErpChat',
+      method: 'POST',
+      effectPath: '/effect/apps/enterprise-mega-erp/erp/chat/send',
+      publicPath: `${endpointBase}/effect/apps/enterprise-mega-erp/erp/chat/send`,
+      kind: 'mutation',
+      sourceFile:
+        'tests/integration/superapp-portfolio/shared/portfolio-api.ts',
+      handler:
+        'tests/integration/superapp-portfolio/api/effect/index.ts:sendErpChat',
+      params: [],
+      headers: [],
+      payload: [
+        field('payload', 'channel'),
+        field('payload', 'author'),
+        field('payload', 'text'),
+        field('payload', 'priority'),
+      ],
+      successFields: ['accepted', 'message', 'totalMessages'],
+      requestContextFields: ['channel', 'author', 'priority'],
+      queryKeyIds: [],
+      mutationKeyId: 'portfolio.erp.chat.send',
+      invalidationBoundaryId: 'erp-chat-sent',
+      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.runWorkflow',
@@ -672,6 +759,26 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       artifactLinkIds: ['workloadResetSeed', 'workloadValidationArtifact'],
     },
     {
+      id: 'erp-approval-decided',
+      endpointId: 'effect.decideErpApproval',
+      mutationKeyId: 'portfolio.erp.approval.decide',
+      stateMutation: true,
+      invalidatesQueryKeyIds: ['portfolio.bootstrap', 'portfolio.app.detail'],
+      stateScopes: ['erp.approvals', 'erp.summary.pendingApprovals'],
+      currentRuntimeRefresh: ['/apps/$appId'],
+      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
+    },
+    {
+      id: 'erp-chat-sent',
+      endpointId: 'effect.sendErpChat',
+      mutationKeyId: 'portfolio.erp.chat.send',
+      stateMutation: true,
+      invalidatesQueryKeyIds: ['portfolio.bootstrap', 'portfolio.app.detail'],
+      stateScopes: ['erp.chat', 'erp.summary.urgentMessages'],
+      currentRuntimeRefresh: ['/apps/$appId'],
+      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
+    },
+    {
       id: 'portfolio-reset',
       endpointId: 'effect.reset',
       mutationKeyId: 'portfolio.reset',
@@ -755,9 +862,19 @@ export const SUPERAPP_TANSTACK_ROUTE_CONTRACTS: readonly TanStackRouteContract[]
         field('loader', 'routeKind'),
         field('loader', 'expectedCapabilities'),
       ],
-      bffEndpointIds: ['effect.bootstrap', 'effect.runWorkflow'],
+      bffEndpointIds: [
+        'effect.bootstrap',
+        'effect.erpBootstrap',
+        'effect.runWorkflow',
+        'effect.decideErpApproval',
+        'effect.sendErpChat',
+      ],
       queryKeyIds: ['portfolio.bootstrap', 'portfolio.app.detail'],
-      mutationKeyIds: ['portfolio.workflow.run'],
+      mutationKeyIds: [
+        'portfolio.workflow.run',
+        'portfolio.erp.approval.decide',
+        'portfolio.erp.chat.send',
+      ],
     },
   ] as const;
 

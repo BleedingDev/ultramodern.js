@@ -6,7 +6,7 @@ import {
   type WorkloadAppId,
   type WorkloadDomainId,
   type WorkloadTenantId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 
 export type GeneratedWorkloadEntity =
   | 'orders'

@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
-import {
-  resolveCanonicalLocalisedPath,
-  resolveLocalisedUrlsConfig,
-} from '../shared/localisedUrls';
+import { canonicalTargetPathname } from '../shared/localisedUrls';
 import { useModernI18n } from './context';
 import { useI18nRouterAdapter } from './routerAdapter';
 import { buildLocalizedUrl, splitUrlTarget } from './utils';
@@ -35,19 +32,11 @@ export const canonicalPath = (
   config: LocalizedPathsConfig,
 ): string => {
   const { pathname, search, hash } = splitUrlTarget(target);
-  const segments = pathname.split('/').filter(Boolean);
-  const pathWithoutLanguage =
-    segments.length > 0 && config.languages.includes(segments[0])
-      ? `/${segments.slice(1).join('/')}`
-      : pathname || '/';
-  const localisedUrlsConfig = resolveLocalisedUrlsConfig(config.localisedUrls);
-  const resolvedPath = localisedUrlsConfig.enabled
-    ? resolveCanonicalLocalisedPath(
-        pathWithoutLanguage,
-        config.languages,
-        localisedUrlsConfig.map,
-      )
-    : pathWithoutLanguage;
+  const resolvedPath = canonicalTargetPathname(
+    pathname,
+    config.languages,
+    config.localisedUrls,
+  );
 
   return `${resolvedPath}${search}${hash}`;
 };

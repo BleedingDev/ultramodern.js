@@ -3,63 +3,69 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { parseCliArgs } = require('../lib/cli-kit');
+const { writeJsonFile } = require('../lib/fs-kit');
 
 const repoRoot = path.resolve(__dirname, '../..');
 const defaultRunId = new Date().toISOString().replace(/[:.]/g, '-');
 
 function parseArgs(argv) {
-  const options = {
-    profile: process.env.SUPERAPP_CERTIFICATION_PROFILE || 'smoke',
-    outDir:
-      process.env.SUPERAPP_CERTIFICATION_OUT_DIR ||
-      path.join('.modern', 'superapp-certification', defaultRunId),
-    dryRun: false,
-    continueOnError: false,
-    skipUpstreamDrift: false,
-    driftOnly: false,
-    driftBase: process.env.SUPERAPP_CERTIFICATION_DRIFT_BASE || 'origin/main',
-    driftRemote: process.env.SUPERAPP_CERTIFICATION_DRIFT_REMOTE || 'origin',
-    driftBranch: process.env.SUPERAPP_CERTIFICATION_DRIFT_BRANCH || 'main',
-    driftGates: false,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--') {
-      continue;
-    } else if (arg === '--profile') {
-      options.profile = argv[index + 1];
-      index += 1;
-    } else if (arg.startsWith('--profile=')) {
-      options.profile = arg.slice('--profile='.length);
-    } else if (arg === '--out-dir') {
-      options.outDir = argv[index + 1];
-      index += 1;
-    } else if (arg.startsWith('--out-dir=')) {
-      options.outDir = arg.slice('--out-dir='.length);
-    } else if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg === '--continue-on-error') {
-      options.continueOnError = true;
-    } else if (arg === '--skip-upstream-drift') {
-      options.skipUpstreamDrift = true;
-    } else if (arg === '--drift-only') {
-      options.driftOnly = true;
-    } else if (arg === '--drift-base') {
-      options.driftBase = argv[index + 1];
-      index += 1;
-    } else if (arg === '--drift-remote') {
-      options.driftRemote = argv[index + 1];
-      index += 1;
-    } else if (arg === '--drift-branch') {
-      options.driftBranch = argv[index + 1];
-      index += 1;
-    } else if (arg === '--drift-gates') {
-      options.driftGates = true;
-    } else {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
+  const options = parseCliArgs(argv, {
+    defaults: {
+      profile: process.env.SUPERAPP_CERTIFICATION_PROFILE || 'smoke',
+      outDir:
+        process.env.SUPERAPP_CERTIFICATION_OUT_DIR ||
+        path.join('.modern', 'superapp-certification', defaultRunId),
+      dryRun: false,
+      continueOnError: false,
+      skipUpstreamDrift: false,
+      driftOnly: false,
+      driftBase: process.env.SUPERAPP_CERTIFICATION_DRIFT_BASE || 'origin/main',
+      driftRemote: process.env.SUPERAPP_CERTIFICATION_DRIFT_REMOTE || 'origin',
+      driftBranch: process.env.SUPERAPP_CERTIFICATION_DRIFT_BRANCH || 'main',
+      driftGates: false,
+    },
+    ignoreTerminator: true,
+    options: {
+      profile: { requiredValue: false },
+      'out-dir': {
+        key: 'outDir',
+        requiredValue: false,
+      },
+      'dry-run': {
+        key: 'dryRun',
+        type: 'boolean',
+      },
+      'continue-on-error': {
+        key: 'continueOnError',
+        type: 'boolean',
+      },
+      'skip-upstream-drift': {
+        key: 'skipUpstreamDrift',
+        type: 'boolean',
+      },
+      'drift-only': {
+        key: 'driftOnly',
+        type: 'boolean',
+      },
+      'drift-base': {
+        key: 'driftBase',
+        requiredValue: false,
+      },
+      'drift-remote': {
+        key: 'driftRemote',
+        requiredValue: false,
+      },
+      'drift-branch': {
+        key: 'driftBranch',
+        requiredValue: false,
+      },
+      'drift-gates': {
+        key: 'driftGates',
+        type: 'boolean',
+      },
+    },
+  });
 
   if (!['smoke', 'release', 'nightly'].includes(options.profile)) {
     throw new Error(
@@ -92,11 +98,6 @@ function certificationCommands(profile, outDir) {
     command('changeset', 'pnpm run check-changeset'),
     command('package-json', 'pnpm run lint:package-json'),
     command('dependencies', 'pnpm check-dependencies'),
-    command(
-      'superapp-erp-smoke',
-      `${rstest} integration/superapp-erp/tests/index.test.ts`,
-      { cwd: path.join(repoRoot, 'tests') },
-    ),
     command(
       'superapp-portfolio-smoke',
       `${rstest} integration/superapp-portfolio/tests/index.test.ts`,
@@ -149,21 +150,6 @@ function certificationCommands(profile, outDir) {
       },
     ),
     command(
-      'superapp-erp-stress',
-      `${rstest} integration/superapp-erp/tests/stress.test.ts`,
-      {
-        cwd: path.join(repoRoot, 'tests'),
-        env: {
-          SUPERAPP_ERP_STRESS: '1',
-          SUPERAPP_ERP_STRESS_ROUNDS: '4',
-          SUPERAPP_ERP_STRESS_BATCH: '8',
-          SUPERAPP_ERP_STRESS_ROUTE_CYCLES: '4',
-          SUPERAPP_ERP_ARTIFACT_DIR: artifactDir(outDir, 'erp-stress'),
-        },
-        profile: 'release',
-      },
-    ),
-    command(
       'superapp-portfolio-stress',
       `${rstest} integration/superapp-portfolio/tests/stress.test.ts`,
       {
@@ -206,19 +192,6 @@ function certificationCommands(profile, outDir) {
             outDir,
             'browser-matrix-full',
           ),
-        },
-        profile: 'nightly',
-      },
-    ),
-    command(
-      'superapp-erp-soak',
-      `${rstest} integration/superapp-erp/tests/soak.test.ts`,
-      {
-        cwd: path.join(repoRoot, 'tests'),
-        env: {
-          SUPERAPP_ERP_SOAK: '1',
-          SUPERAPP_ERP_SOAK_MS: '300000',
-          SUPERAPP_ERP_ARTIFACT_DIR: artifactDir(outDir, 'erp-soak'),
         },
         profile: 'nightly',
       },
@@ -437,7 +410,7 @@ function writeSummary(options, commands, commandResults, upstreamDrift) {
     upstreamDrift,
   };
   const summaryPath = path.join(options.outDir, 'summary.json');
-  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+  writeJsonFile(summaryPath, summary, { atomic: false });
   console.log(`\n[superapp-certification] summary: ${summaryPath}`);
   return summary;
 }

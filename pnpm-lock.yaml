@@ -757,9 +757,6 @@ importers:
       '@swc/plugin-loadable-components':
         specifier: ^11.12.0
         version: 11.12.0
-      '@tanstack/react-router':
-        specifier: 1.170.15
-        version: 1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@types/loadable__component':
         specifier: ^5.13.10
         version: 5.13.10
@@ -806,9 +803,6 @@ importers:
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
-      '@tanstack/history':
-        specifier: 1.162.0
-        version: 1.162.0
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -5151,46 +5145,6 @@ importers:
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../../../../packages/tsconfig
-      '@types/react':
-        specifier: ^19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260610.1
-        version: 7.0.0-dev.20260610.1
-
-  tests/integration/superapp-erp:
-    dependencies:
-      '@modern-js/plugin-bff':
-        specifier: workspace:*
-        version: link:../../../packages/cli/plugin-bff
-      '@modern-js/plugin-tanstack':
-        specifier: workspace:*
-        version: link:../../../packages/runtime/plugin-tanstack
-      '@modern-js/runtime':
-        specifier: workspace:*
-        version: link:../../../packages/runtime/plugin-runtime
-      '@modern-js/server-runtime':
-        specifier: workspace:*
-        version: link:../../../packages/server/server-runtime
-      react:
-        specifier: ^19.2.7
-        version: 19.2.7
-      react-dom:
-        specifier: ^19.2.7
-        version: 19.2.7(react@19.2.7)
-    devDependencies:
-      '@modern-js/app-tools':
-        specifier: workspace:*
-        version: link:../../../packages/solutions/app-tools
-      '@types/jest':
-        specifier: ^30.0.0
-        version: 30.0.0
-      '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
       '@types/react':
         specifier: ^19.2.17
         version: 19.2.17

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const { parseCliArgs } = require('../lib/cli-kit');
 const {
   readJsonFile,
   runGateCommands,
@@ -13,55 +14,50 @@ const {
 const DEFAULT_GATE_SNAPSHOT_PATH = '.modern/contract-gates.json';
 
 const parseArgs = argv => {
-  const parsed = {
-    profile: 'scripts/release-gates/rc-contract-profile.json',
-    evidenceDir: undefined,
-    allowMissingEvidence: false,
-    skipCommands: false,
-    skipMigrationValidation: false,
-    gateSnapshotPath:
-      process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_GATE_SNAPSHOT_PATH,
-    gateName: undefined,
-    skipGateSnapshot: false,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    switch (arg) {
-      case '--profile':
-        parsed.profile = argv[index + 1];
-        index += 1;
-        break;
-      case '--evidence-dir':
-        parsed.evidenceDir = argv[index + 1];
-        index += 1;
-        break;
-      case '--allow-missing-evidence':
-        parsed.allowMissingEvidence = true;
-        break;
-      case '--skip-commands':
-        parsed.skipCommands = true;
-        break;
-      case '--skip-migration-validation':
-        parsed.skipMigrationValidation = true;
-        break;
-      case '--gate-snapshot-path':
-        parsed.gateSnapshotPath = argv[index + 1];
-        index += 1;
-        break;
-      case '--gate-name':
-        parsed.gateName = argv[index + 1];
-        index += 1;
-        break;
-      case '--skip-gate-snapshot':
-        parsed.skipGateSnapshot = true;
-        break;
-      default:
-        throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
-
-  return parsed;
+  return parseCliArgs(argv, {
+    defaults: {
+      profile: 'scripts/release-gates/rc-contract-profile.json',
+      evidenceDir: undefined,
+      allowMissingEvidence: false,
+      skipCommands: false,
+      skipMigrationValidation: false,
+      gateSnapshotPath:
+        process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_GATE_SNAPSHOT_PATH,
+      gateName: undefined,
+      skipGateSnapshot: false,
+    },
+    options: {
+      profile: { requiredValue: false },
+      'evidence-dir': {
+        key: 'evidenceDir',
+        requiredValue: false,
+      },
+      'allow-missing-evidence': {
+        key: 'allowMissingEvidence',
+        type: 'boolean',
+      },
+      'skip-commands': {
+        key: 'skipCommands',
+        type: 'boolean',
+      },
+      'skip-migration-validation': {
+        key: 'skipMigrationValidation',
+        type: 'boolean',
+      },
+      'gate-snapshot-path': {
+        key: 'gateSnapshotPath',
+        requiredValue: false,
+      },
+      'gate-name': {
+        key: 'gateName',
+        requiredValue: false,
+      },
+      'skip-gate-snapshot': {
+        key: 'skipGateSnapshot',
+        type: 'boolean',
+      },
+    },
+  });
 };
 
 const resolveGateName = ({ args, profilePath, profile }) => {
@@ -130,7 +126,14 @@ const runValidation = args => {
         targets: profile.migrationContracts.targets,
         rootDir: process.cwd(),
         allowAutoBuildArtifacts: !args.skipCommands,
+        skipCommandRequiredTargets: args.skipCommands,
       });
+  const skippedMigrationTargets =
+    args.skipCommands && !args.skipMigrationValidation
+      ? profile.migrationContracts.targets.filter(
+          target => target.requiresCommands === true,
+        ).length
+      : 0;
 
   if (!args.skipCommands) {
     runGateCommands({
@@ -145,6 +148,7 @@ const runValidation = args => {
     validatedEvidenceFiles: evidenceReport.validatedFiles.length,
     skippedEvidenceFiles: evidenceReport.skippedFiles.length,
     validatedMigrationTargets: migrationReport.length,
+    skippedMigrationTargets,
     executedCommands: args.skipCommands ? 0 : profile.gateCommands.length,
   };
   return {

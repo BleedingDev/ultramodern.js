@@ -40,7 +40,7 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 | 模块准入治理 | 基线无模块认证证据化 gate profile | 新增模块 SDK 契约、边界反模式守卫与发布/模块认证 gate 工作流 |
 | 路由运行时 | 默认运行时路径以 React Router 为中心 | 增加 TanStack Router 运行时/CLI 一等支持（React Router 继续可用） |
 | 脚手架模板 | 默认 create 模板以 React Router 起步路径为中心 | 增加 TanStack-ready 与 Tailwind-ready 的 create 模板 |
-| Starter 预设约束 | 生成应用默认没有 UltraModern 预设 gate 工作流 | 生成脚手架会附带 `ultramodern:check`、可关闭的 env 开关，以及 `.github/workflows/ultramodern-gates.yml` |
+| Starter 预设约束 | 生成应用默认没有 UltraModern 预设 gate 工作流 | 生成 workspace 会附带 `.github/workflows/ultramodern-workspace-gates.yml`、`pnpm check`、基础本地 gate 与生成契约校验 |
 
 ## 我们刻意不做的事情
 
@@ -56,7 +56,7 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
 3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
-4. 这套公开预设现在已经附带显式的发布 / 认证 gate。生成脚手架也会自带 `.github/workflows/ultramodern-gates.yml`，因此 `pnpm run ultramodern:check` 与 `pnpm run build` 从第一天开始就是接入契约的一部分。
+4. 这套公开预设现在已经附带显式的发布 / 认证 gate。生成 workspace 会自带 `.github/workflows/ultramodern-workspace-gates.yml`，因此 `pnpm check` 与 `pnpm build` 从第一天开始就是本地接入契约的一部分；CI 会以并行矩阵运行这些基础 gate。
 
 ## 人类工作流
 

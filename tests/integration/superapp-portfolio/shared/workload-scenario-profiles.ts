@@ -8,13 +8,13 @@ import {
   type WorkloadScenarioId,
   type WorkloadTenantId,
   type WorkloadUserId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 import {
   type GeneratedWorkloadEntity,
   type GeneratedWorkloadRecord,
   type GeneratedWorkloadSampleWindow,
   type SuperAppGeneratedWorkloadContract,
-} from './workload-generated-data.js';
+} from './workload-generated-data';
 
 export type WorkloadScenarioProfileCategory =
   | 'read-heavy'

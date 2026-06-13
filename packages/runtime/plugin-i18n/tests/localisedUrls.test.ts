@@ -8,7 +8,10 @@ import {
 } from '../src/server';
 import {
   applyLocalisedUrlsToRoutes,
+  canonicalTargetPathname,
+  localiseTargetPathname,
   matchPathPattern,
+  resolveCanonicalLocalisedPath,
   resolveLocalisedPath,
   resolveLocalisedUrlsConfig,
   validateLocalisedUrls,
@@ -228,6 +231,55 @@ describe('localisedUrls', () => {
       resolveLocalisedPath(
         '/produkty/cervena-bota',
         'en',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/products/cervena-bota');
+  });
+
+  test('resolves static patterns before param patterns', () => {
+    const localisedUrls = {
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+      '/products/new': {
+        en: '/products/new',
+        cs: '/produkty/novinka',
+      },
+    };
+
+    expect(
+      resolveLocalisedPath('/products/new', 'cs', ['en', 'cs'], localisedUrls),
+    ).toBe('/produkty/novinka');
+    expect(
+      resolveCanonicalLocalisedPath(
+        '/produkty/novinka',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/products/new');
+  });
+
+  test('localises and canonicalises full target pathnames through one helper', () => {
+    const localisedUrls = {
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+    };
+
+    expect(
+      localiseTargetPathname(
+        '/en/products/cervena-bota',
+        'cs',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/cs/produkty/cervena-bota');
+    expect(
+      canonicalTargetPathname(
+        '/cs/produkty/cervena-bota',
         ['en', 'cs'],
         localisedUrls,
       ),

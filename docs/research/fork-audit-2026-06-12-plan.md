@@ -49,6 +49,8 @@ Verified-dead clusters (each deleter re-verifies zero consumers before `git rm`)
 
 ## Phase C — consolidation (parallel where disjoint)
 
+Status: completed in the current working tree on 2026-06-13; Phase D/E and the final validation barrier remain pending.
+
 - **scripts/lib**: `node:util` parseArgs adoption (30 hand-rolled copies), one server-lifecycle kit, one writeJson, finish validation-kit port, artifact-schema promoted to scripts/lib (`xcut-scripts-duplication#1,2,6,7,9`).
 - **Gate spine**: merge `module-certification-gates.yml` + `release-contract-gates.yml`; single nightly superapp encoding; drop tautological gate-snapshot self-check; root script surface pruned to wired entries (`ci-workflows#5,6`, `xcut-concept-coherence#1,5,7`, `scripts-misc#5,6,7`).
 - **Test infra**: one file-lock util, build-once orchestration for shared fixtures, shared applyBaseConfig/type-test fixtures, fold superapp-erp into portfolio, drop `.js` shim mirrors, single tsgo typecheck lane (`tests-fork-suites#2,3,4,9,10,12,13`).

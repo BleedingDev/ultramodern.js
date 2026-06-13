@@ -32,6 +32,7 @@ const workflowDirs = [
 ];
 
 const sensitiveWorkflowPaths = new Set([
+  '.github/workflows/contract-gates.yml',
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/ultramodern-nightly.yml',
   '.github/workflows/ultramodern-production-readiness.yml',

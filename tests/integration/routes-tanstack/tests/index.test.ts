@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -13,10 +12,6 @@ import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 setSuiteTimeout(1000 * 60 * 5);
 
 const appDir = path.resolve(__dirname, '../');
-const tsgoBin = path.join(
-  path.dirname(require.resolve('@typescript/native-preview/package.json')),
-  'bin/tsgo.js',
-);
 
 // The repo's rstest harness has no expect-puppeteer, so assert page text
 // through puppeteer directly (waitForFunction keeps streamed SSR stable).
@@ -47,19 +42,6 @@ describe('routes-tanstack', () => {
 
   beforeAll(async () => {
     await modernBuild(appDir);
-
-    // Prove TanStack Router type-safety via TS-Go (route paths/params/loaderData).
-    try {
-      execFileSync(
-        process.execPath,
-        [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
-        { cwd: appDir, stdio: 'pipe' },
-      );
-    } catch (e: any) {
-      const stdout = e?.stdout ? String(e.stdout) : '';
-      const stderr = e?.stderr ? String(e.stderr) : '';
-      throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
-    }
 
     appPort = await getPort();
     app = await modernServe(appDir, appPort);

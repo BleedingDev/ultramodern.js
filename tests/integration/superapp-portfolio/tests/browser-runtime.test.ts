@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -566,7 +567,9 @@ describe('superapp portfolio browser runtime coverage', () => {
       );
     }
 
-    const build = await modernBuild(appDir);
+    const build = await buildFixtureOnce(appDir, {
+      build: () => modernBuild(appDir),
+    });
     expect(build.code).toBe(0);
     port = await getPort();
     app = await modernServe(appDir, port, {

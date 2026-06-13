@@ -7,7 +7,7 @@ import {
   view,
 } from '@modern-js/plugin-bff/effect-client';
 import { useEffect, useState } from 'react';
-import { bffRpcGroup } from '../../shared/effect-rpc.js';
+import { bffRpcGroup } from '../../shared/effect-rpc';
 
 const userCardView = view<{
   id: string;

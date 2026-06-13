@@ -173,6 +173,44 @@ test('parseArgs rejects partial publish controls', async () => {
   );
 });
 
+test('parseArgs preserves publish CLI conventions while using shared parser', async () => {
+  const { parseArgs } = await import('../prepare-bleedingdev-packages.mjs');
+  const options = parseArgs([
+    '--',
+    '--version',
+    '3.2.0-ultramodern.1',
+    '--scope',
+    '@bleedingdev',
+    '--out',
+    '.modern/custom-publish',
+    '--publish-existing',
+    '--publish-concurrency',
+    '2',
+  ]);
+
+  assert.equal(options.scope, 'bleedingdev');
+  assert.equal(options.version, '3.2.0-ultramodern.1');
+  assert.equal(options.dependencyVersion, '3.2.0-ultramodern.1');
+  assert.equal(options.publish, true);
+  assert.equal(options.publishExisting, true);
+  assert.equal(options.publishConcurrency, 2);
+  assert.equal(options.out, path.resolve(repoRoot, '.modern/custom-publish'));
+
+  assert.equal(
+    parseArgs(['--version', '3.2.0-ultramodern.1', '--tag', '--packages=x'])
+      .tag,
+    '--packages=x',
+  );
+  assert.throws(
+    () => parseArgs(['--version=3.2.0-ultramodern.1']),
+    /^Error: Unknown argument: --version=3.2.0-ultramodern.1$/,
+  );
+  assert.throws(
+    () => parseArgs(['--version', '3.2.0-ultramodern.1', '--packages']),
+    /--packages is forbidden/,
+  );
+});
+
 test('validateFullCohortManifest rejects missing aliases', async () => {
   const { validateFullCohortManifest } = await import(
     '../prepare-bleedingdev-packages.mjs'

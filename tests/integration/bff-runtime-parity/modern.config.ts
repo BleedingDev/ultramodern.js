@@ -1,6 +1,6 @@
 // @effect-diagnostics processEnv:off
 import { bffPlugin } from '@modern-js/plugin-bff';
-import { applyBaseConfig } from './applyBaseConfig';
+import { applyBaseConfig } from '../../utils/applyBaseConfig';
 
 const runtimeFramework =
   process.env.BFF_RUNTIME === 'effect' ? 'effect' : 'hono';

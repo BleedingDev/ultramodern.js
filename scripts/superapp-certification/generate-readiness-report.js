@@ -2,54 +2,41 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { SUPERAPP_READINESS_DIMENSIONS } = require('../lib/artifact-schema');
+const { parseCliArgs } = require('../lib/cli-kit');
+const { writeJsonFile } = require('../lib/fs-kit');
 
 const repoRoot = path.resolve(__dirname, '../..');
-const dimensions = [
-  'contract',
-  'integration',
-  'stress',
-  'soak',
-  'browser',
-  'module-federation',
-  'security',
-  'performance',
-  'upstream-drift',
-];
+const dimensions = [...SUPERAPP_READINESS_DIMENSIONS];
 
 function parseArgs(argv) {
-  const options = {
-    inputDir:
-      process.env.SUPERAPP_READINESS_INPUT_DIR ||
-      path.join('.modern', 'superapp-certification'),
-    outDir:
-      process.env.SUPERAPP_READINESS_OUT_DIR ||
-      path.join('.modern', 'superapp-certification'),
-    summaries: [],
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--') {
-      continue;
-    } else if (arg === '--input-dir') {
-      options.inputDir = argv[index + 1];
-      index += 1;
-    } else if (arg.startsWith('--input-dir=')) {
-      options.inputDir = arg.slice('--input-dir='.length);
-    } else if (arg === '--out-dir') {
-      options.outDir = argv[index + 1];
-      index += 1;
-    } else if (arg.startsWith('--out-dir=')) {
-      options.outDir = arg.slice('--out-dir='.length);
-    } else if (arg === '--summary') {
-      options.summaries.push(argv[index + 1]);
-      index += 1;
-    } else if (arg.startsWith('--summary=')) {
-      options.summaries.push(arg.slice('--summary='.length));
-    } else {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
+  const options = parseCliArgs(argv, {
+    defaults: {
+      inputDir:
+        process.env.SUPERAPP_READINESS_INPUT_DIR ||
+        path.join('.modern', 'superapp-certification'),
+      outDir:
+        process.env.SUPERAPP_READINESS_OUT_DIR ||
+        path.join('.modern', 'superapp-certification'),
+      summaries: [],
+    },
+    ignoreTerminator: true,
+    options: {
+      'input-dir': {
+        key: 'inputDir',
+        requiredValue: false,
+      },
+      'out-dir': {
+        key: 'outDir',
+        requiredValue: false,
+      },
+      summary: {
+        key: 'summaries',
+        multiple: true,
+        requiredValue: false,
+      },
+    },
+  });
 
   options.inputDir = path.resolve(repoRoot, options.inputDir);
   options.outDir = path.resolve(repoRoot, options.outDir);
@@ -135,6 +122,13 @@ function suiteDimensions(summary) {
     .flatMap(([, mapped]) => mapped);
 }
 
+function summaryDimensions(summary) {
+  const explicitDimensions = Array.isArray(summary?.dimensions)
+    ? summary.dimensions.filter(dimension => dimensions.includes(dimension))
+    : [];
+  return [...new Set([...explicitDimensions, ...suiteDimensions(summary)])];
+}
+
 function normalizeCommandStatus(command) {
   if (command.status === 'planned') {
     return 'planned';
@@ -153,6 +147,9 @@ function normalizeSummaryStatus(summary) {
     (Array.isArray(summary.budgetFailures) ? summary.budgetFailures.length : 0);
   if (summary.status === 'failed' || failureCount > 0) {
     return 'failed';
+  }
+  if (summary.status === 'warning') {
+    return 'warning';
   }
   if (summary.status === 'unknown' || summary.status === 'skipped') {
     return 'skipped';
@@ -222,7 +219,7 @@ function evidenceFromSummaries(summaries, inputDir) {
 
     evidence.push({
       id: item.summary.suite || path.relative(inputDir, item.file),
-      dimensions: suiteDimensions(item.summary),
+      dimensions: summaryDimensions(item.summary),
       status: normalizeSummaryStatus(item.summary),
       source: relativeSource,
       detail: {
@@ -239,6 +236,9 @@ function evidenceFromSummaries(summaries, inputDir) {
 function dimensionStatus(items) {
   if (items.some(item => item.status === 'failed')) {
     return 'failed';
+  }
+  if (items.some(item => item.status === 'warning')) {
+    return 'warning';
   }
   if (items.some(item => item.status === 'passed')) {
     return 'passed';
@@ -273,7 +273,9 @@ function createReadiness(evidence) {
     ? 'not_ready'
     : statuses.includes('missing')
       ? 'incomplete'
-      : statuses.some(status => ['planned', 'skipped'].includes(status))
+      : statuses.some(status =>
+            ['planned', 'skipped', 'warning'].includes(status),
+          )
         ? 'provisional'
         : 'ready';
 
@@ -321,7 +323,7 @@ function writeReport(options, summaries, evidence, readiness) {
   };
   const latestPath = path.join(options.outDir, 'latest.json');
   const markdownPath = path.join(options.outDir, 'readiness.md');
-  fs.writeFileSync(latestPath, `${JSON.stringify(report, null, 2)}\n`);
+  writeJsonFile(latestPath, report, { atomic: false });
   fs.writeFileSync(markdownPath, markdownReport(report));
   console.log(`[superapp-readiness] latest: ${latestPath}`);
   console.log(`[superapp-readiness] markdown: ${markdownPath}`);

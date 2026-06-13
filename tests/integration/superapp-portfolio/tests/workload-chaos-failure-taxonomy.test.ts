@@ -1,14 +1,14 @@
 import {
   createSuperAppWorkloadCatalog,
   type WorkloadScenarioConsumerTarget,
-} from '../shared/portfolio-state.js';
+} from '../shared/portfolio-state';
 import {
   createSuperAppWorkloadChaosFailureTaxonomy,
   getWorkloadChaosFailureCase,
   getWorkloadChaosFailuresForConsumerTarget,
   SUPERAPP_WORKLOAD_CHAOS_FAILURE_IDS,
-} from '../shared/workload-chaos-failure-taxonomy.js';
-import { createSuperAppWorkloadScenarioProfileMetadata } from '../shared/workload-scenario-profiles.js';
+} from '../shared/workload-chaos-failure-taxonomy';
+import { createSuperAppWorkloadScenarioProfileMetadata } from '../shared/workload-scenario-profiles';
 
 const expectedStatusById = {
   'chaos.downstream-timeout.v1': 504,

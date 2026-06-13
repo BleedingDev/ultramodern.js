@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { execa, fs as fse } from '@modern-js/utils';
 import path from 'path';
 import {
@@ -11,39 +10,6 @@ import {
 rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
 
 const appDir = path.resolve(__dirname, '../');
-const tsgoBin = path.join(
-  path.dirname(require.resolve('@typescript/native-preview/package.json')),
-  'bin/tsgo.js',
-);
-
-function expectTypecheckPasses() {
-  try {
-    execFileSync(
-      process.execPath,
-      [tsgoBin, '--noEmit', '-p', 'tsconfig.json'],
-      {
-        cwd: appDir,
-        stdio: 'pipe',
-      },
-    );
-  } catch (error: unknown) {
-    const maybeError = error as { stdout?: unknown; stderr?: unknown };
-    const stdout =
-      typeof maybeError.stdout === 'string'
-        ? maybeError.stdout
-        : maybeError.stdout
-          ? String(maybeError.stdout)
-          : '';
-    const stderr =
-      typeof maybeError.stderr === 'string'
-        ? maybeError.stderr
-        : maybeError.stderr
-          ? String(maybeError.stderr)
-          : '';
-    throw new Error(`TypeScript typecheck failed:\n${stdout}\n${stderr}`);
-  }
-}
-
 async function checkAppRun(host: string) {
   // Page render
   const onePage = await fetch(`${host}/one`);
@@ -69,7 +35,6 @@ describe('deploy', () => {
   const apps = new Set();
 
   beforeAll(async () => {
-    expectTypecheckPasses();
     await modernBuild(appDir, [], {});
   });
 

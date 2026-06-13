@@ -6,7 +6,7 @@ import {
   SUPERAPP_TANSTACK_MUTATION_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_QUERY_KEY_TEMPLATES,
   SUPERAPP_TANSTACK_ROUTE_CONTRACTS,
-} from './effect-tanstack-contract-map.js';
+} from './effect-tanstack-contract-map';
 
 type EffectEndpoint = (typeof SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS)[number];
 type QueryKeyTemplate = (typeof SUPERAPP_TANSTACK_QUERY_KEY_TEMPLATES)[number];
@@ -418,8 +418,11 @@ const SCENARIOS: readonly SuperAppEffectTanStackScenarioCoverageRow[] = [
       'Bootstrap reads return the mapped success fields and seed cache templates without mutating server state.',
     contractIds: [
       contractId('effect-endpoint', 'effect.bootstrap'),
+      contractId('effect-endpoint', 'effect.erpBootstrap'),
       contractId('tanstack-query-key', 'portfolio.bootstrap'),
+      contractId('tanstack-query-key', 'portfolio.app.detail'),
       contractId('tanstack-route', '/'),
+      contractId('tanstack-route', '/apps/$appId'),
     ],
     regressionBudget: budget('cache-consistency'),
   },
@@ -429,8 +432,12 @@ const SCENARIOS: readonly SuperAppEffectTanStackScenarioCoverageRow[] = [
       'Workflow and pilot writes return accepted payloads, update summaries, and enter their mapped invalidation boundaries.',
     contractIds: [
       contractId('effect-endpoint', 'effect.runWorkflow'),
+      contractId('effect-endpoint', 'effect.decideErpApproval'),
+      contractId('effect-endpoint', 'effect.sendErpChat'),
       contractId('effect-endpoint', 'effect.runPilot'),
       contractId('tanstack-mutation-key', 'portfolio.workflow.run'),
+      contractId('tanstack-mutation-key', 'portfolio.erp.approval.decide'),
+      contractId('tanstack-mutation-key', 'portfolio.erp.chat.send'),
       contractId('tanstack-mutation-key', 'portfolio.pilot.run'),
     ],
     regressionBudget: budget('data-integrity'),
@@ -531,6 +538,8 @@ const SCENARIOS: readonly SuperAppEffectTanStackScenarioCoverageRow[] = [
       'Workflow, pilot, security, and chaos handlers propagate request ids, tenant headers, actor fields, and redacted security context.',
     contractIds: [
       contractId('effect-endpoint', 'effect.runWorkflow'),
+      contractId('effect-endpoint', 'effect.decideErpApproval'),
+      contractId('effect-endpoint', 'effect.sendErpChat'),
       contractId('effect-endpoint', 'effect.runPilot'),
       contractId('effect-endpoint', 'effect.securityProbe'),
       contractId('effect-endpoint', 'effect.injectFailure'),

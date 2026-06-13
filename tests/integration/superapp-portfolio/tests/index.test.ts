@@ -1,7 +1,7 @@
-import { execSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -440,6 +440,153 @@ async function expectEffectPortfolioContracts(port: number) {
   });
 }
 
+async function getErpBootstrap(port: number) {
+  const response = await fetch(
+    `${host}:${port}/bff-api/effect/apps/enterprise-mega-erp/erp/bootstrap`,
+  );
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
+async function expectPortfolioErpContracts(port: number) {
+  await resetPortfolio(port);
+
+  const openApiResponse = await fetch(`${host}:${port}/bff-api/openapi.json`);
+  expect(openApiResponse.status).toBe(200);
+  const openApi = await openApiResponse.json();
+  expect(
+    openApi.paths['/effect/apps/enterprise-mega-erp/erp/bootstrap'],
+  ).toBeDefined();
+  expect(
+    openApi.paths[
+      '/effect/apps/enterprise-mega-erp/erp/approval/{id}/decision'
+    ],
+  ).toBeDefined();
+  expect(
+    openApi.paths['/effect/apps/enterprise-mega-erp/erp/chat/send'],
+  ).toBeDefined();
+
+  const bootstrap = await getErpBootstrap(port);
+  expect(bootstrap.summary).toEqual({
+    tenantName: 'Acme Global Operations',
+    moduleCount: 5,
+    pendingApprovals: 2,
+    urgentMessages: 1,
+    totalOpenWork: 43,
+    financeExposure: 54800,
+  });
+  expect(bootstrap.modules.map((item: { id: string }) => item.id)).toEqual([
+    'dispatch',
+    'finance',
+    'inventory',
+    'hr',
+    'chat',
+  ]);
+
+  const before = await getErpBootstrap(port);
+  const invalidChatResponse = await postJson(
+    port,
+    '/bff-api/effect/apps/enterprise-mega-erp/erp/chat/send',
+    {
+      channel: 'incident-war-room',
+      author: 'ops.commander',
+      text: 'Invalid priority should be rejected',
+      priority: 'critical',
+    },
+  );
+  expect(invalidChatResponse.status).toBeGreaterThanOrEqual(400);
+
+  const unknownApprovalResponse = await postJson(
+    port,
+    '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-missing/decision',
+    {
+      decision: 'approved',
+      actor: 'finance.lead',
+    },
+  );
+  expect(unknownApprovalResponse.status).toBeGreaterThanOrEqual(400);
+
+  const afterInvalid = await getErpBootstrap(port);
+  expect(afterInvalid.summary).toEqual(before.summary);
+  expect(afterInvalid.approvals).toEqual(before.approvals);
+  expect(afterInvalid.chat).toEqual(before.chat);
+
+  const decisions = await Promise.all([
+    postJson(
+      port,
+      '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1001/decision',
+      {
+        decision: 'approved',
+        actor: 'finance.lead',
+      },
+    ),
+    postJson(
+      port,
+      '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1002/decision',
+      {
+        decision: 'rejected',
+        actor: 'ops.manager',
+      },
+    ),
+  ]);
+  expect(decisions.map(response => response.status)).toEqual([200, 200]);
+  const decisionPayloads = await Promise.all(
+    decisions.map(response => response.json()),
+  );
+  expect(decisionPayloads).toEqual([
+    {
+      id: 'ap-1001',
+      status: 'approved',
+      actor: 'finance.lead',
+      pendingApprovals: 1,
+    },
+    {
+      id: 'ap-1002',
+      status: 'rejected',
+      actor: 'ops.manager',
+      pendingApprovals: 0,
+    },
+  ]);
+
+  const messages = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      postJson(port, '/bff-api/effect/apps/enterprise-mega-erp/erp/chat/send', {
+        channel: index % 2 === 0 ? 'incident-war-room' : 'finance-control',
+        author: `portfolio.erp.${index + 1}`,
+        text: `workflow event ${index + 1}`,
+        priority: index === 0 ? 'urgent' : 'normal',
+      }),
+    ),
+  );
+  expect(messages.map(response => response.status)).toEqual([
+    200, 200, 200, 200, 200,
+  ]);
+  const messagePayloads = await Promise.all(
+    messages.map(response => response.json()),
+  );
+  expect(messagePayloads.map(payload => payload.message.id).sort()).toEqual([
+    'msg-3',
+    'msg-4',
+    'msg-5',
+    'msg-6',
+    'msg-7',
+  ]);
+
+  const finalBootstrap = await getErpBootstrap(port);
+  expect(finalBootstrap.summary).toMatchObject({
+    pendingApprovals: 0,
+    urgentMessages: 2,
+    totalOpenWork: 43,
+  });
+  expect(
+    finalBootstrap.approvals.map(
+      (approval: { id: string; status: string }) =>
+        `${approval.id}:${approval.status}`,
+    ),
+  ).toEqual(['ap-1001:approved', 'ap-1002:rejected']);
+  expect(finalBootstrap.chat).toHaveLength(7);
+}
+
 async function expectInvalidRequestsDoNotDrift(port: number) {
   await resetPortfolio(port);
   const before = await getBootstrap(port);
@@ -479,11 +626,9 @@ describe('superapp portfolio fixture', () => {
   let browser: Browser | undefined;
 
   beforeAll(async () => {
-    execSync('pnpm tsgo --noEmit', {
-      cwd: appDir,
-      stdio: 'inherit',
+    const build = await buildFixtureOnce(appDir, {
+      build: () => modernBuild(appDir),
     });
-    const build = await modernBuild(appDir);
     expect(build.code).toBe(0);
     port = await getPort();
     app = await modernServe(appDir, port, {
@@ -502,6 +647,10 @@ describe('superapp portfolio fixture', () => {
 
   test('serves Effect portfolio contracts and profile metadata', async () => {
     await expectEffectPortfolioContracts(port);
+  });
+
+  test('serves folded MegaERP approval and chat contracts', async () => {
+    await expectPortfolioErpContracts(port);
   });
 
   test('rejects invalid portfolio requests without state drift', async () => {
@@ -585,6 +734,42 @@ describe('superapp portfolio fixture', () => {
           ?.textContent?.includes('evt-1:accepted'),
       ),
     ).resolves.toBeTruthy();
+
+    await page.click('[data-testid="nav-mega-erp"]');
+    await page.waitForSelector('[data-testid="mega-erp-panel"]');
+    await expect(
+      page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="erp-summary"]')
+          ?.textContent?.includes('pending:2'),
+      ),
+    ).resolves.toBeTruthy();
+    await page.click('[data-testid="approve-first"]');
+    await expect(
+      page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="approval-decision"]')
+          ?.textContent?.includes('ap-1001:approved:1'),
+      ),
+    ).resolves.toBeTruthy();
+    await expect(
+      page.$eval(
+        '[data-testid="approval-ap-1001"]',
+        element => element.textContent,
+      ),
+    ).resolves.toContain('ap-1001:approved');
+    await page.click('[data-testid="chat-send"]');
+    await expect(
+      page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="chat-receipt"]')
+          ?.textContent?.includes('msg-3:3'),
+      ),
+    ).resolves.toBeTruthy();
+    await page.waitForSelector('[data-testid="chat-msg-3"]');
+    await expect(
+      page.$eval('[data-testid="chat-msg-3"]', element => element.textContent),
+    ).resolves.toContain('ops.commander:urgent:Reroute high priority loads');
 
     expect(errors).toEqual([]);
   });

@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -33,6 +34,12 @@ async function postJson(port: number, pathname: string, body?: unknown) {
   });
 }
 
+async function getJson(port: number, pathname: string) {
+  const response = await fetch(`${host}:${port}${pathname}`);
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
 (stressEnabled ? describe : describe.skip)(
   'superapp portfolio stress profile',
   () => {
@@ -40,7 +47,9 @@ async function postJson(port: number, pathname: string, body?: unknown) {
     let app: Awaited<ReturnType<typeof modernServe>> | undefined;
 
     beforeAll(async () => {
-      const build = await modernBuild(appDir);
+      const build = await buildFixtureOnce(appDir, {
+        build: () => modernBuild(appDir),
+      });
       expect(build.code).toBe(0);
       port = await getPort();
       app = await modernServe(appDir, port, {
@@ -61,6 +70,28 @@ async function postJson(port: number, pathname: string, body?: unknown) {
       });
       await metrics.timed('reset', async () => {
         const response = await postJson(port, '/bff-api/effect/reset');
+        expect(response.status).toBe(200);
+      });
+      await metrics.timed('erp:approval:ap-1001', async () => {
+        const response = await postJson(
+          port,
+          '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1001/decision',
+          {
+            decision: 'approved',
+            actor: 'stress.runner',
+          },
+        );
+        expect(response.status).toBe(200);
+      });
+      await metrics.timed('erp:approval:ap-1002', async () => {
+        const response = await postJson(
+          port,
+          '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1002/decision',
+          {
+            decision: 'rejected',
+            actor: 'stress.runner',
+          },
+        );
         expect(response.status).toBe(200);
       });
 
@@ -88,6 +119,20 @@ async function postJson(port: number, pathname: string, body?: unknown) {
             }),
           ),
         );
+        await metrics.timed('erp:chat', async () => {
+          const response = await postJson(
+            port,
+            '/bff-api/effect/apps/enterprise-mega-erp/erp/chat/send',
+            {
+              channel:
+                cycle % 2 === 0 ? 'incident-war-room' : 'finance-control',
+              author: 'stress.runner',
+              text: `portfolio erp stress event ${cycle + 1}`,
+              priority: cycle % 4 === 0 ? 'urgent' : 'normal',
+            },
+          );
+          expect(response.status).toBe(200);
+        });
       }
 
       const bootstrap = await metrics.timed('bootstrap:final', async () => {
@@ -98,9 +143,15 @@ async function postJson(port: number, pathname: string, body?: unknown) {
         return response.json();
       });
       expect(bootstrap.summary.eventCount).toBe(stressCycles * appIds.length);
+      const erp = await metrics.timed('erp:bootstrap:final', () =>
+        getJson(port, '/bff-api/effect/apps/enterprise-mega-erp/erp/bootstrap'),
+      );
+      expect(erp.summary.pendingApprovals).toBe(0);
+      expect(erp.chat).toHaveLength(2 + stressCycles);
       const summary = metrics.write({
         stressCycles,
         finalEventCount: bootstrap.summary.eventCount,
+        erpFinalMessageCount: erp.chat.length,
       });
       expect(summary.unexpectedErrorCount).toBe(0);
     });

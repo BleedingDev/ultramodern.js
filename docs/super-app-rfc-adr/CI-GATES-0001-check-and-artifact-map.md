@@ -44,9 +44,9 @@ Current workflow set referenced by this mapping:
 3. Unit tests: `.github/workflows/ut-macOS.yml`, `.github/workflows/ut-Windows.yml`
 4. Integration tests: `.github/workflows/integration-test-Linux.yml`, `.github/workflows/integration-test-Windows.yml`
 5. E2E: `.github/workflows/test-builder-e2e.yml`
-6. RC contract gates: `.github/workflows/release-contract-gates.yml`
+6. Contract gates: `.github/workflows/contract-gates.yml` (`profile: rc-contract`)
 7. Boundary anti-pattern checks: `.github/workflows/boundary-anti-patterns.yml`
-8. Module certification gates: `.github/workflows/module-certification-gates.yml`
+8. Module certification gates: `.github/workflows/contract-gates.yml` (`profile: module-certification`)
 9. Bun super-app smoke: `.github/workflows/bun-superapp-smoke.yml`
 
 ## 5. Blocking Enforcement Model
@@ -55,7 +55,7 @@ Current workflow set referenced by this mapping:
 2. Ticket close is blocked if any required gate artifact is missing.
 3. Release promotion is blocked if Gate D evidence or required test evidence is absent.
 4. Waivers must include approver identity, rationale, and expiry date.
-5. Artifact-shape and dual-review completeness are CI-enforced via release gate validators and gate snapshot checks.
+5. Artifact-shape and dual-review completeness are CI-enforced via release gate validators; `validate-gate-snapshot.js` remains available for direct deployment-local snapshot checks.
 
 ## 6. Scope-to-Workflow Selection Rules
 
@@ -74,12 +74,12 @@ This mapping defines the contract; automation hardening should be implemented in
 
 1. CI validates evidence presence/shape and reviewer count via `validate-release-candidate-gates.js`.
 2. PR workflows for release/module certification gates run as status checks on evidence and gate tooling changes.
-3. Gate snapshot artifact shape is validated via `validate-gate-snapshot.js` and required gate-name assertions.
+3. Gate snapshot artifact shape can be validated directly with `validate-gate-snapshot.js` for deployment-local checks; CI gate correctness is enforced by `validate-release-candidate-gates.js`.
 
 Status update (2026-02-22):
 
-1. Added RC contract gate workflow:
-  - `.github/workflows/release-contract-gates.yml`
+1. Added RC contract gate workflow, now consolidated into:
+  - `.github/workflows/contract-gates.yml` (`profile: rc-contract`)
 2. Added validator tooling:
   - `scripts/release-gates/validate-release-candidate-gates.js`
   - `scripts/release-gates/validator.js`
@@ -93,20 +93,19 @@ Status update (2026-02-22):
   - `scripts/boundary-guards/check-boundary-violations.js`
   - `scripts/boundary-guards/validator.js`
   - `scripts/boundary-guards/profile.json`
-5. Added module certification gate profile + workflow:
-  - `.github/workflows/module-certification-gates.yml`
+5. Added module certification gate profile + workflow, now consolidated into:
+  - `.github/workflows/contract-gates.yml` (`profile: module-certification`)
   - `scripts/release-gates/module-certification-profile.json`
   - `docs/super-app-rfc-adr/evidence/module-certification/current/*.md`
 6. Added Bun smoke gate workflow:
   - `.github/workflows/bun-superapp-smoke.yml`
   - `package.json` script `validate:bun-smoke`
 7. Added PR status checks for gate evidence automation:
-  - `.github/workflows/release-contract-gates.yml` (pull_request trigger + gate snapshot validation)
-  - `.github/workflows/module-certification-gates.yml` (pull_request trigger + gate snapshot validation)
+  - `.github/workflows/contract-gates.yml` (pull_request trigger for rc-contract and module-certification profiles)
 8. Added gate snapshot shape validator:
   - `scripts/release-gates/validate-gate-snapshot.js`
   - `scripts/release-gates/validator.js` (`validateGateSnapshotFile`)
-  - `package.json` script `validate:gate-snapshot`
+  - deployment-local callers can still run the validator directly
 
 ## 8. Exit Criteria For CI-GATES-0001
 

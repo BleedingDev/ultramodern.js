@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { writeJsonFile } = require('../lib/fs-kit');
 const {
   ensureFileExists,
   ensureSchemaVersion,
@@ -205,6 +206,7 @@ const validateMigrationContracts = ({
   targets,
   rootDir,
   allowAutoBuildArtifacts = false,
+  skipCommandRequiredTargets = false,
   commandRunner,
 }) => {
   const baseDir = path.resolve(rootDir || process.cwd());
@@ -212,6 +214,10 @@ const validateMigrationContracts = ({
   const preparedPackages = new Set();
 
   for (const target of targets) {
+    if (skipCommandRequiredTargets && target.requiresCommands === true) {
+      continue;
+    }
+
     const targetPath = path.resolve(baseDir, target.path);
 
     if (
@@ -364,8 +370,7 @@ const writeGateSnapshot = ({
         : undefined,
   };
 
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  fs.writeFileSync(resolvedPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+  writeJsonFile(resolvedPath, snapshot, { atomic: false });
   return {
     snapshotPath: resolvedPath,
     gateName: normalizedGateName,

@@ -2,16 +2,14 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
+const { readJsonFile } = fsKit;
 const excludedPackages = new Set([
   '@modern-js/main-doc',
   '@modern-js/module-tools-docs',
 ]);
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
 
 function collectPackageJsonFiles(dir) {
   const results = [];
@@ -30,7 +28,7 @@ function collectPackageJsonFiles(dir) {
 
 function collectPublicModernPackages() {
   return collectPackageJsonFiles(path.join(repoRoot, 'packages'))
-    .map(packageJsonPath => readJson(packageJsonPath))
+    .map(packageJsonPath => readJsonFile(packageJsonPath))
     .filter(packageJson => packageJson.name?.startsWith('@modern-js/'))
     .filter(packageJson => !packageJson.private)
     .map(packageJson => packageJson.name)

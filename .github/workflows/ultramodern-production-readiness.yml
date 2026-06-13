@@ -17,7 +17,7 @@ on:
         required: true
         default: '@bleedingdev/modern-js-create@latest'
       scale_profile:
-        description: 'Generated SuperApp ERP scale profile'
+        description: 'Generated SuperApp portfolio scale profile'
         required: true
         default: 'erp-10'
         type: choice

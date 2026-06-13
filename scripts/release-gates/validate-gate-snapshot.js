@@ -1,34 +1,30 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const { parseCliArgs } = require('../lib/cli-kit');
 const { validateGateSnapshotFile } = require('./validator');
 
 const DEFAULT_SNAPSHOT_PATH = '.modern/contract-gates.json';
 
 const parseArgs = argv => {
-  const parsed = {
-    snapshotPath:
-      process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_SNAPSHOT_PATH,
-    requiredGates: [],
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    switch (arg) {
-      case '--snapshot-path':
-        parsed.snapshotPath = argv[index + 1];
-        index += 1;
-        break;
-      case '--required-gate':
-        parsed.requiredGates.push(argv[index + 1]);
-        index += 1;
-        break;
-      default:
-        throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
-
-  return parsed;
+  return parseCliArgs(argv, {
+    defaults: {
+      snapshotPath:
+        process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_SNAPSHOT_PATH,
+      requiredGates: [],
+    },
+    options: {
+      'snapshot-path': {
+        key: 'snapshotPath',
+        requiredValue: false,
+      },
+      'required-gate': {
+        key: 'requiredGates',
+        multiple: true,
+        requiredValue: false,
+      },
+    },
+  });
 };
 
 const main = args => {

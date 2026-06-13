@@ -3,6 +3,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import cliKit from '../lib/cli-kit.js';
+import fsKit from '../lib/fs-kit.js';
+
+const { parseCliArgs } = cliKit;
+const { readJsonFile, writeJsonFile } = fsKit;
 
 const defaultRepoRoot = path.resolve(
   new URL('../..', import.meta.url).pathname,
@@ -26,51 +31,57 @@ const dependencyBlockNames = [
   'peerDependencies',
 ];
 const requiredCreateRuntimeDependencies = ['@modern-js/i18n-utils'];
+const cliValueOptions = new Set(['--root', '--manifest', '--out']);
 
-function parseArgs(argv) {
-  const options = {
-    repoRoot: defaultRepoRoot,
-    manifestPath: defaultManifestPath,
-    outPath: defaultOutPath,
-  };
-
+function rejectInlineOptionSyntax(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--') {
       continue;
     }
-
-    const readValue = () => {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error(`${arg} requires a value`);
-      }
-      index += 1;
-      return value;
-    };
-
-    if (arg === '--root') {
-      options.repoRoot = path.resolve(readValue());
-    } else if (arg === '--manifest') {
-      options.manifestPath = path.resolve(readValue());
-    } else if (arg === '--out') {
-      options.outPath = path.resolve(readValue());
-    } else {
+    if (/^--[^=]+=/.test(arg)) {
       throw new Error(`Unknown argument: ${arg}`);
     }
+    if (cliValueOptions.has(arg)) {
+      const value = argv[index + 1];
+      if (value) {
+        index += 1;
+      }
+      continue;
+    }
+    return;
   }
-
-  return options;
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
+function parseArgs(argv) {
+  rejectInlineOptionSyntax(argv);
 
-function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(`${filePath}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  fs.renameSync(`${filePath}.tmp`, filePath);
+  const options = parseCliArgs(argv, {
+    defaults: {
+      repoRoot: defaultRepoRoot,
+      manifestPath: defaultManifestPath,
+      outPath: defaultOutPath,
+    },
+    ignoreTerminator: true,
+    options: {
+      root: {
+        key: 'repoRoot',
+      },
+      manifest: {
+        key: 'manifestPath',
+      },
+      out: {
+        key: 'outPath',
+      },
+    },
+  });
+
+  return {
+    ...options,
+    repoRoot: path.resolve(options.repoRoot),
+    manifestPath: path.resolve(options.manifestPath),
+    outPath: path.resolve(options.outPath),
+  };
 }
 
 function sha256File(filePath) {
@@ -134,7 +145,7 @@ function collectSourcePackageIndex(repoRoot) {
         continue;
       }
 
-      const packageJson = readJson(entryPath);
+      const packageJson = readJsonFile(entryPath);
       if (packageJson.name?.startsWith('@modern-js/')) {
         packages.set(packageJson.name, {
           packageJson,
@@ -352,7 +363,7 @@ function validateSourceProof({ repoRoot, manifestPath, outPath, now = Date }) {
     `Missing ${resolvedManifestPath}`,
   );
 
-  const manifest = readJson(resolvedManifestPath);
+  const manifest = readJsonFile(resolvedManifestPath);
   validateManifestShape(manifest);
   validateSelectedCohort(manifest);
 
@@ -382,7 +393,7 @@ function validateSourceProof({ repoRoot, manifestPath, outPath, now = Date }) {
       `${item.targetName} staged package.json is missing`,
     );
 
-    const packageJson = readJson(path.join(packageDir, 'package.json'));
+    const packageJson = readJsonFile(path.join(packageDir, 'package.json'));
     assert(
       packageJson.name === item.targetName,
       `${item.sourceName} staged package name ${packageJson.name} does not match ${item.targetName}`,
@@ -468,7 +479,7 @@ function validateSourceProof({ repoRoot, manifestPath, outPath, now = Date }) {
     createPackageProof,
   };
 
-  writeJson(resolvedOutPath, proof);
+  writeJsonFile(resolvedOutPath, proof);
   return proof;
 }
 
@@ -504,7 +515,7 @@ async function main() {
       )}`,
     );
   } catch (error) {
-    writeJson(options.outPath, errorProof({ ...options, error }));
+    writeJsonFile(options.outPath, errorProof({ ...options, error }));
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
   }

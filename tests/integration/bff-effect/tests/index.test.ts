@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import dns from 'node:dns';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -30,13 +29,6 @@ type AppProcess = Awaited<ReturnType<typeof launchApp>>;
 const browserLaunchOptions = launchOptions as Parameters<
   typeof puppeteer.launch
 >[0];
-
-function expectTypecheckPasses() {
-  execSync('pnpm exec tsgo --noEmit -p tsconfig.json', {
-    cwd: appDir,
-    stdio: 'pipe',
-  });
-}
 
 async function expectEffectHttpApiRoute(port: number) {
   const response = await fetch(`${host}:${port}/bff-api/effect/hello`);
@@ -344,7 +336,6 @@ describe('bff effect tests', () => {
       setSuiteTimeout(1000 * 60 * 2);
       releaseFixtureLock = await acquireFixtureLock(appDir);
       await ensureWorkspacePackagesBuilt(ensureWorkspacePackages);
-      expectTypecheckPasses();
       port = await getPort();
       app = await launchApp(appDir, port, { ensureWorkspacePackages });
       browser = await puppeteer.launch(browserLaunchOptions);

@@ -7,17 +7,17 @@ import {
   type WorkloadScenarioId,
   type WorkloadTenantId,
   type WorkloadUserId,
-} from './workload-domain-catalog.js';
+} from './workload-domain-catalog';
 import {
   createSuperAppWorkloadResetSeedMetadata,
   type WorkloadResetSeedTarget,
-} from './workload-reset-seed.js';
+} from './workload-reset-seed';
 import {
   createSuperAppWorkloadScenarioProfileMetadata,
   getWorkloadScenarioProfile,
   type WorkloadScenarioConsumerTarget,
   type WorkloadScenarioProfileId,
-} from './workload-scenario-profiles.js';
+} from './workload-scenario-profiles';
 
 export type WorkloadChaosFailureId =
   | 'chaos.downstream-timeout.v1'

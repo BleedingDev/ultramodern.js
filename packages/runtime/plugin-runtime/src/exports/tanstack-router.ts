@@ -2,123 +2,16 @@
  * @deprecated Legacy alias kept so the published `@modern-js/runtime/tanstack-router`
  * subpath keeps resolving. Use `@modern-js/plugin-tanstack/runtime` instead.
  *
- * The Modern.js specific `Link`, `NavLink`, `Outlet`, `Form`, `useFetcher` and
- * `RouteActionResponseError` bindings are still exported from here for
- * compatibility, but they are thin delegates: the real implementations live in
- * `@modern-js/plugin-tanstack` and are looked up at use time through a
+ * Only the Modern.js specific `Link`, `NavLink`, `Outlet`, `Form`,
+ * `useFetcher` and `RouteActionResponseError` bindings are still exported from
+ * here for compatibility. They are thin delegates: the real implementations
+ * live in `@modern-js/plugin-tanstack` and are looked up at use time through a
  * `Symbol.for` slot that '@modern-js/plugin-tanstack/runtime' populates on
  * import. (`@modern-js/runtime` cannot import `@modern-js/plugin-tanstack`
  * directly — the package dependency points the other way.)
  */
-import type {
-  AnyRouter,
-  LinkComponentProps,
-  RegisteredRouter,
-} from '@tanstack/react-router';
 import type React from 'react';
 import { createElement } from 'react';
-
-export type * from '@tanstack/react-router';
-export {
-  Asset,
-  Await,
-  Block,
-  CatchBoundary,
-  CatchNotFound,
-  ClientOnly,
-  cleanPath,
-  composeRewrites,
-  createBrowserHistory,
-  createControlledPromise,
-  createFileRoute,
-  createHashHistory,
-  createHistory,
-  createLazyFileRoute,
-  createLazyRoute,
-  createLink,
-  createMemoryHistory,
-  createRootRoute,
-  createRootRouteWithContext,
-  createRoute,
-  createRouteMask,
-  createRouter,
-  createRouterConfig,
-  createSerializationAdapter,
-  DEFAULT_PROTOCOL_ALLOWLIST,
-  DefaultGlobalNotFound,
-  deepEqual,
-  defaultParseSearch,
-  defaultStringifySearch,
-  defer,
-  ErrorComponent,
-  FileRoute,
-  FileRouteLoader,
-  functionalUpdate,
-  getRouteApi,
-  HeadContent,
-  interpolatePath,
-  isMatch,
-  isNotFound,
-  isPlainArray,
-  isPlainObject,
-  isRedirect,
-  joinPaths,
-  LazyRoute,
-  lazyFn,
-  lazyRouteComponent,
-  linkOptions,
-  Match,
-  Matches,
-  MatchRoute,
-  Navigate,
-  NotFoundRoute,
-  notFound,
-  parseSearchWith,
-  RootRoute,
-  Route,
-  RouteApi,
-  Router,
-  RouterContextProvider,
-  RouterProvider,
-  reactUse,
-  redirect,
-  replaceEqualDeep,
-  resolvePath,
-  retainSearchParams,
-  rootRouteId,
-  rootRouteWithContext,
-  ScriptOnce,
-  Scripts,
-  ScrollRestoration,
-  SearchParamError,
-  stringifySearchWith,
-  stripSearchParams,
-  trimPath,
-  trimPathLeft,
-  trimPathRight,
-  useAwaited,
-  useBlocker,
-  useCanGoBack,
-  useChildMatches,
-  useElementScrollRestoration,
-  useHydrated,
-  useLayoutEffect,
-  useLinkProps,
-  useLoaderData,
-  useLoaderDeps,
-  useLocation,
-  useMatch,
-  useMatches,
-  useMatchRoute,
-  useNavigate,
-  useParams,
-  useParentMatches,
-  useRouteContext,
-  useRouter,
-  useRouterState,
-  useSearch,
-  useTags,
-} from '@tanstack/react-router';
 
 // ----------------------------------------------------------------------------
 // Modern.js compatibility bindings (provided by @modern-js/plugin-tanstack).
@@ -127,17 +20,25 @@ export {
 export type PrefetchBehavior = 'intent' | 'render' | 'viewport' | 'none';
 
 export type LinkProps<
-  TRouter extends AnyRouter = RegisteredRouter,
+  _TRouter = unknown,
   TFrom extends string = string,
   TTo extends string | undefined = '.',
   TMaskFrom extends string = TFrom,
   TMaskTo extends string = '.',
-> = LinkComponentProps<'a', TRouter, TFrom, TTo, TMaskFrom, TMaskTo> & {
+> = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
   prefetch?: PrefetchBehavior;
+  from?: TFrom;
+  mask?: {
+    from?: TMaskFrom;
+    to?: TMaskTo;
+  };
+  params?: unknown;
+  search?: unknown;
+  to?: TTo;
 };
 
 export type NavLinkProps<
-  TRouter extends AnyRouter = RegisteredRouter,
+  TRouter = unknown,
   TFrom extends string = string,
   TTo extends string | undefined = '.',
   TMaskFrom extends string = TFrom,
@@ -145,7 +46,7 @@ export type NavLinkProps<
 > = LinkProps<TRouter, TFrom, TTo, TMaskFrom, TMaskTo>;
 
 type LinkComponent = <
-  TRouter extends AnyRouter = RegisteredRouter,
+  TRouter = unknown,
   const TFrom extends string = string,
   const TTo extends string | undefined = undefined,
   const TMaskFrom extends string = TFrom,
