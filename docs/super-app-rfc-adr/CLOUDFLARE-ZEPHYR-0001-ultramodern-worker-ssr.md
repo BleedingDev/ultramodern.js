@@ -42,7 +42,7 @@ The workspace pins Node `>=26` and `packageManager: pnpm@11.5.3`, writes `.mise.
 
 ## Worker Output Contract
 
-`MODERNJS_DEPLOY=cloudflare ultramodern deploy` writes:
+`MODERNJS_DEPLOY=cloudflare modern deploy` writes:
 
 - `.output/server/index.mjs`: Cloudflare module Worker entry with `fetch`
 - `.output/server/modern-worker-manifest.json`: route, asset, worker bundle, and BFF metadata

@@ -3,7 +3,7 @@
 - Status: Proposed
 - Date: 2026-06-06
 - Related Package: `@modern-js/code-tools`
-- Related Gate: `pnpm ultramodern:i18n-boundaries`
+- Related Gate: `pnpm i18n:boundaries`
 - Related Playbook: `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
 
 ## 1. Purpose
@@ -35,7 +35,7 @@ The shared workspace source check must pass from Tractor after installing the
 published code-tools package:
 
 ```bash
-pnpm ultramodern:i18n-boundaries
+pnpm i18n:boundaries
 ```
 
 This proves the Tractor source passes the AST-based shared rules and the small
@@ -114,8 +114,9 @@ contract validator:
 ```json
 {
   "scripts": {
-    "ultramodern:i18n-boundaries": "node ./scripts/check-ultramodern-i18n-boundaries.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm ultramodern:i18n-boundaries && pnpm ultramodern:check"
+    "i18n:boundaries": "node ./scripts/check-ultramodern-i18n-boundaries.mjs",
+    "contract:check": "node ./scripts/validate-ultramodern-workspace.mjs",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check"
   }
 }
 ```
@@ -137,7 +138,7 @@ Update `scripts/validate-ultramodern-workspace.mjs` so the generated contract
 requires:
 
 1. `scripts/check-ultramodern-i18n-boundaries.mjs` in `requiredPaths`.
-2. `rootPackage.scripts['ultramodern:i18n-boundaries']` equals
+2. `rootPackage.scripts['i18n:boundaries']` equals
    `node ./scripts/check-ultramodern-i18n-boundaries.mjs`.
 3. `rootPackage.devDependencies['@modern-js/code-tools']` equals
    `expectedModernPackageSpecifier('@modern-js/code-tools')`.
@@ -177,8 +178,8 @@ After editing a repository:
 
 ```bash
 pnpm install
-pnpm ultramodern:i18n-boundaries
-pnpm ultramodern:check
+pnpm i18n:boundaries
+pnpm contract:check
 pnpm check
 ```
 
@@ -187,7 +188,7 @@ For single apps, run:
 ```bash
 pnpm install
 pnpm i18n:check
-pnpm ultramodern:check
+pnpm check
 ```
 
 If install fails because `@bleedingdev/modern-js-code-tools` is missing, stop
