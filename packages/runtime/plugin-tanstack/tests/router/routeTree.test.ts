@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute } from '@modern-js/types';
 import { createMemoryHistory } from '@tanstack/history';
@@ -5,6 +7,7 @@ import { createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
 import type { ComponentType } from 'react';
 import { createElement, lazy } from 'react';
 import { renderToStaticMarkup, renderToString } from 'react-dom/server';
+import * as TanstackRuntime from '../../src/runtime';
 import { Outlet as PublicOutlet } from '../../src/runtime';
 import { Outlet as ModernOutlet } from '../../src/runtime/outlet';
 import {
@@ -133,6 +136,28 @@ function countCompletedSuspenseBoundaries(markup: string) {
 describe('tanstack runtime public exports', () => {
   test('exports the Modern Outlet implementation from the runtime entrypoint', () => {
     expect(PublicOutlet).toBe(ModernOutlet);
+  });
+
+  test('does not expose the unowned composite RSC helper API', () => {
+    expect('CompositeComponent' in TanstackRuntime).toBe(false);
+
+    const packageJson = JSON.parse(
+      readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'),
+    ) as {
+      exports: Record<string, unknown>;
+      typesVersions?: Record<string, Record<string, string[]>>;
+    };
+
+    expect(packageJson.exports['./runtime/rsc']).toBeUndefined();
+    expect(packageJson.exports['./runtime/rsc/client']).toBeUndefined();
+    expect(packageJson.exports['./runtime/rsc/server']).toBeUndefined();
+    expect(packageJson.typesVersions?.['*']?.['runtime/rsc']).toBeUndefined();
+    expect(
+      packageJson.typesVersions?.['*']?.['runtime/rsc/client'],
+    ).toBeUndefined();
+    expect(
+      packageJson.typesVersions?.['*']?.['runtime/rsc/server'],
+    ).toBeUndefined();
   });
 });
 
