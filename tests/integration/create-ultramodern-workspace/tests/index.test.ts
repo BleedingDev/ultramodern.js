@@ -31,6 +31,14 @@ function expectedBleedingDevSpecifier(
   return `npm:@bleedingdev/modern-js-${unscopedName}@${version}`;
 }
 
+function differentUltramodernVersion(version: string) {
+  const match = /^(\d+\.\d+\.\d+-ultramodern\.)(\d+)$/u.exec(version);
+  if (!match) {
+    throw new Error(`Unexpected UltraModern test version ${version}`);
+  }
+  return `${match[1]}${Number(match[2]) + 1}`;
+}
+
 function expectBleedingDevModernDependency(
   packageJson: {
     dependencies?: Record<string, string>;
@@ -1901,6 +1909,51 @@ describe('create-ultramodern-workspace', () => {
     expect(validationOutput.trim()).toBe(
       'UltraModern workspace scaffold validated',
     );
+
+    const shellPackagePath = 'apps/shell-super-app/package.json';
+    const originalShellPackage = readText(workspaceDir, shellPackagePath);
+    const mutatedShellPackage = JSON.parse(originalShellPackage);
+    mutatedShellPackage.dependencies['@modern-js/runtime'] =
+      expectedBleedingDevSpecifier(
+        '@modern-js/runtime',
+        differentUltramodernVersion(testFrameworkVersion),
+      );
+    writeText(
+      workspaceDir,
+      shellPackagePath,
+      `${JSON.stringify(mutatedShellPackage, null, 2)}\n`,
+    );
+    try {
+      execFileSync(
+        process.execPath,
+        ['scripts/validate-ultramodern-workspace.mjs'],
+        {
+          cwd: workspaceDir,
+          stdio: 'pipe',
+        },
+      );
+      throw new Error(
+        'Expected workspace validator to reject a mixed Modern package cohort',
+      );
+    } catch (error) {
+      const execError = error as Error & {
+        stdout?: Buffer | string;
+        stderr?: Buffer | string;
+      };
+      const stdout =
+        typeof execError.stdout === 'string'
+          ? execError.stdout
+          : execError.stdout?.toString() || '';
+      const stderr =
+        typeof execError.stderr === 'string'
+          ? execError.stderr
+          : execError.stderr?.toString() || '';
+      expect(`${stdout}\n${stderr}`).toMatch(
+        /apps\/shell-super-app\/package\.json dependencies\.@modern-js\/runtime must match package source metadata/u,
+      );
+    } finally {
+      writeText(workspaceDir, shellPackagePath, originalShellPackage);
+    }
 
     const readinessOutput = runPerformanceReadiness(workspaceDir);
     expect(readinessOutput.trim()).toBe(

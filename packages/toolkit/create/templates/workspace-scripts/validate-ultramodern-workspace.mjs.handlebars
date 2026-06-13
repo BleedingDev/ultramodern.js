@@ -38,6 +38,73 @@ const assertExists = relativePath => {
 const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), `Unexpected ${relativePath}`);
 };
+const packageJsonFiles = startDir => {
+  const files = [];
+  const queue = [startDir];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (
+        ['.git', '.output', 'dist', 'node_modules', 'repos'].includes(
+          entry.name,
+        )
+      ) {
+        continue;
+      }
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(absolute);
+      } else if (entry.name === 'package.json') {
+        files.push(absolute);
+      }
+    }
+  }
+  return files.sort();
+};
+const modernDependencyNames = packageJson =>
+  [
+    ...new Set(
+      ['dependencies', 'devDependencies']
+        .flatMap(section => Object.keys(packageJson[section] ?? {}))
+        .filter(packageName => packageName.startsWith('@modern-js/')),
+    ),
+  ];
+const assertModernPackageCohort = () => {
+  const modernPackageNames = packageSource.modernPackages?.packages;
+  assert(
+    Array.isArray(modernPackageNames) && modernPackageNames.length > 0,
+    'Package source metadata must list the Modern package cohort',
+  );
+  for (const packageName of modernPackageNames) {
+    assert(
+      typeof packageName === 'string' && packageName.startsWith('@modern-js/'),
+      `Package source metadata contains invalid Modern package name ${packageName}`,
+    );
+  }
+
+  const modernPackageNameSet = new Set(modernPackageNames);
+  for (const packageJsonPath of packageJsonFiles(root)) {
+    const relativePath = path.relative(root, packageJsonPath).split(path.sep).join('/');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    for (const packageName of modernDependencyNames(packageJson)) {
+      assert(
+        modernPackageNameSet.has(packageName),
+        `${relativePath} declares ${packageName} outside package source metadata`,
+      );
+    }
+    for (const section of ['dependencies', 'devDependencies']) {
+      for (const packageName of modernPackageNames) {
+        const actual = packageJson[section]?.[packageName];
+        if (actual !== undefined) {
+          assert(
+            actual === expectedModernPackageSpecifier(packageName),
+            `${relativePath} ${section}.${packageName} must match package source metadata`,
+          );
+        }
+      }
+    }
+  }
+};
 const assertPublicSurfaceAssets = (appPath, publicRoutes) => {
   for (const relativePath of publicSurfaceManagedSourceAssetPaths) {
     assertNotExists(`${appPath}/${relativePath}`);
@@ -269,19 +336,15 @@ assert(rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-
 assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy, 'Root package source strategy must match metadata');
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
 assert(packageSource.strategy === 'install' || packageSource.modernPackages?.specifier === 'workspace:*', 'Workspace package source must be explicitly backed by workspace:*');
-const expectedModernDependency = packageName => {
-  const alias = packageSource.modernPackages?.aliases?.[packageName];
-  const specifier = packageSource.modernPackages?.specifier;
-  return typeof alias === 'string' ? `npm:${alias}@${specifier}` : specifier;
-};
+assertModernPackageCohort();
 assert(
   rootPackage.devDependencies?.['@modern-js/create'] ===
-    expectedModernDependency('@modern-js/create'),
+    expectedModernPackageSpecifier('@modern-js/create'),
   'Root must depend on @modern-js/create through package source metadata',
 );
 assert(
   rootPackage.devDependencies?.['@modern-js/code-tools'] ===
-    expectedModernDependency('@modern-js/code-tools'),
+    expectedModernPackageSpecifier('@modern-js/code-tools'),
   'Root must depend on @modern-js/code-tools through package source metadata',
 );
 if (packageSource.strategy === 'install') {
