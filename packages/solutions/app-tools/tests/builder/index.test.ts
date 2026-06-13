@@ -237,13 +237,13 @@ describe('create builder Options', () => {
           outputModule: true,
         },
         externals: {
-          async_hooks: 'node:async_hooks',
-          'node:async_hooks': 'node:async_hooks',
+          async_hooks: 'module-import node:async_hooks',
+          'node:async_hooks': 'module-import node:async_hooks',
         },
-        externalsType: 'module',
+        externalsType: 'module-import',
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
-      expect(chain.target).toHaveBeenCalledWith('webworker');
+      expect(chain.target).not.toHaveBeenCalled();
       expect(module).toHaveBeenCalledWith(true);
       expect(library).toHaveBeenCalledWith({ type: 'module' });
       expect(chunkFormat).toHaveBeenCalledWith('module');

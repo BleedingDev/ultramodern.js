@@ -299,10 +299,10 @@ export function getBuilderEnvironments(
                     outputModule: true,
                   },
                   externals: {
-                    async_hooks: 'node:async_hooks',
-                    'node:async_hooks': 'node:async_hooks',
+                    async_hooks: 'module-import node:async_hooks',
+                    'node:async_hooks': 'module-import node:async_hooks',
                   },
-                  externalsType: 'module',
+                  externalsType: 'module-import',
                 });
                 chain.output
                   .module(true)
@@ -310,7 +310,6 @@ export function getBuilderEnvironments(
                   .chunkFormat('module')
                   .chunkLoading('import')
                   .workerChunkLoading('import');
-                chain.target('webworker');
                 chain.plugins.delete('plugin-module-federation');
                 if (tanstackRouterSsrServerFile) {
                   chain.resolve.alias.set(
