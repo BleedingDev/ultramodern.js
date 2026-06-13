@@ -73,10 +73,87 @@ test('validateEvidence checks metadata and reviewer count', () => {
       ],
       minimumReviewers: 2,
       allowMissingEvidence: false,
+      allowLocalEvidenceMetadata: true,
     });
 
     assert.equal(report.validatedFiles.length, 4);
     assert.equal(report.skippedFiles.length, 0);
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateEvidence rejects dirty commit metadata when CI evidence is required', () => {
+  const dir = makeTempDir();
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'architecture-evidence.md'),
+      [
+        'author: test',
+        'timestamp: now',
+        'ticket_id: id',
+        'commit_sha: 123abc-dirty',
+        'workflow_run_url: https://github.com/BleedingDev/ultramodern.js/actions/runs/123456789',
+        '',
+      ].join('\n'),
+    );
+
+    assert.throws(
+      () =>
+        validateEvidence({
+          evidenceDir: dir,
+          requiredFiles: ['architecture-evidence.md'],
+          requiredMetadataFields: [
+            'author',
+            'timestamp',
+            'ticket_id',
+            'commit_sha',
+            'workflow_run_url',
+          ],
+          minimumReviewers: 0,
+          allowMissingEvidence: false,
+          requireCiBackedMetadata: true,
+        }),
+      /commit_sha.*dirty/i,
+    );
+  } finally {
+    removeDir(dir);
+  }
+});
+
+test('validateEvidence rejects local workflow URLs when CI evidence is required', () => {
+  const dir = makeTempDir();
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'architecture-evidence.md'),
+      [
+        'author: test',
+        'timestamp: now',
+        'ticket_id: id',
+        'commit_sha: 123abc',
+        'workflow_run_url: local://release-gates/manual-fixture',
+        '',
+      ].join('\n'),
+    );
+
+    assert.throws(
+      () =>
+        validateEvidence({
+          evidenceDir: dir,
+          requiredFiles: ['architecture-evidence.md'],
+          requiredMetadataFields: [
+            'author',
+            'timestamp',
+            'ticket_id',
+            'commit_sha',
+            'workflow_run_url',
+          ],
+          minimumReviewers: 0,
+          allowMissingEvidence: false,
+          requireCiBackedMetadata: true,
+        }),
+      /workflow_run_url.*local/i,
+    );
   } finally {
     removeDir(dir);
   }

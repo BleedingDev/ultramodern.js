@@ -474,27 +474,27 @@ For applications with higher performance requirements, prefetching can further e
 
 :::tip
 
-Route data warmup is opt-in. In SSR projects, data returned by the [Data Loader](/guides/basic-features/data/data-fetch) is only prefetched when the matched route explicitly enables it with `handle.navigationWarmup.data`.
+In SSR projects, same-origin route data returned by the [Data Loader](/guides/basic-features/data/data-fetch) is prefetched for matched routes with callable loaders. Set `handle.navigationWarmup.data` to `false` on a route when its loader data should not be requested before navigation.
 
 :::
 
-By default, same-origin links prefetch the route module when the `<Link>` renders and preload when the link enters the viewport. Modern.js skips these automatic warmups on Save-Data or slow network connections.
+By default, same-origin links prefetch the route module and matching loader data when the `<Link>` renders. Modern.js skips these automatic warmups on Save-Data or slow network connections.
 
 The `prefetch` attribute has four optional values:
 
 - `render`: The default value. When the `<Link>` component is rendered, it begins warming the corresponding route module.
 - `intent`: When users focus, hover, or touch the link, it starts warming the corresponding route module. If the intent is canceled before warmup starts, the warmup is canceled.
 - `viewport`: When the `<Link>` component enters the viewport, it begins warming the corresponding route module.
-- `none`: Disables automatic render prefetching. It also disables the default viewport preload unless an explicit `preload` value is provided.
+- `none`: Disables automatic prefetching. It also disables implicit preload unless an explicit `preload` value is provided.
 
-The `preload` attribute accepts the same timing values and defaults to `viewport`. Explicit `preload` values always win, and `preload={false}` disables preload behavior.
+The `preload` attribute accepts the same timing values and defaults to the `prefetch` timing. Explicit `preload` values always win, and `preload={false}` disables preload behavior.
 
-To opt a route into SSR data warmup:
+To opt a route out of SSR data warmup:
 
 ```ts title="routes/page.config.ts"
 export const handle = {
   navigationWarmup: {
-    data: true,
+    data: false,
   },
 };
 ```
@@ -503,7 +503,7 @@ export const handle = {
 
 - `render` allows you to control route-module warmup with the position of the `<Link>` component in the tree.
 - `viewport` lets you defer module warmup until the link is close to becoming actionable.
-- SSR data prefetching is not enabled by default; use `handle.navigationWarmup.data` only for routes whose loader data is safe and useful to fetch before navigation.
+- SSR data prefetching is enabled by default; use `handle.navigationWarmup.data = false` for routes whose loader data is not safe or useful to fetch before navigation.
 
 :::
 

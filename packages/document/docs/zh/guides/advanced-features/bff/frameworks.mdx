@@ -105,13 +105,15 @@ const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
 export default defineEffectBff({ api: bffEffectApi, layer });
 ```
 
-在浏览器端通过 `@api/effect/index` 调用接口：
+在浏览器代码中通过 `@api/effect/index` 调用接口：
 
 ```ts title="src/routes/page.tsx"
 import effectBff from '@api/effect/index';
 
 const response = await effectBff.client.hello.ping({});
 ```
+
+`effectBff.client.*` 由 BFF loader 针对 `@api/effect/*` 导入物化生成。不要直接导入 `api/effect/index` 并期望在服务端代码、脚本或测试中运行 `client`；直接导入入口时拿到的是服务端运行时定义，其中的 `client` 只是类型占位。
 
 import Hono from '@site-docs/components/hono';
 

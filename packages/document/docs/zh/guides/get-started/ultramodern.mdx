@@ -60,27 +60,17 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 
 ## 人类工作流
 
-公开的 BleedingDev create 包默认从简单路径开始。默认命令会创建一个
-可上线的 UltraModern 单应用，包含 `presetUltramodern(...)`、SSR、
-TanStack Router、Tailwind CSS v4、i18n、Effect BFF、生成质量 gate，以及
-Cloudflare 部署基础：
+公开的 BleedingDev create 包只有一个受支持的生成产品。默认命令会创建一个
+可上线的 UltraModern SuperApp workspace，包含 `presetUltramodern(...)`、
+SSR、TanStack Router、Tailwind CSS v4、i18n、Effect BFF、Module Federation
+topology、生成质量 gate，以及 Cloudflare 部署基础：
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
 cd myapp
 mise install
 mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
-```
-
-只有当独立归属边界有实际价值时，才创建 SuperApp workspace：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
-cd my-super-app
-mise install
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 workspace 从 shell 和平台契约起步，不强制生成演示业务域。真实业务边界出现后，
@@ -91,7 +81,7 @@ pnpm dlx @bleedingdev/modern-js-create transportation --vertical
 pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
 pnpm dlx @bleedingdev/modern-js-create payments --vertical
 pnpm dlx @bleedingdev/modern-js-create maps --vertical
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 ```
 
 `--vertical` 会修改当前 workspace：创建 vertical 包，并更新 topology 元数据、
@@ -106,8 +96,9 @@ Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这�
 
 每个应用都会产出 `src/routes/ultramodern-route-metadata` 和
 `ultramodernLocalisedUrls`。i18n 插件在 `localeDetection.localisedUrls` 中读取它，
-并从 `/locales/{{lng}}/{{ns}}.json` 提供动态后端 JSON。路由 owner 需要同时维护
-本地化路径和 locale resource JSON。
+这就是在 `localePathRedirect` 之上启用路径片段翻译的显式非空映射。i18n 插件也会从
+`/locales/{{lng}}/{{ns}}.json` 提供动态后端 JSON。路由 owner 需要同时维护本地化路径和
+locale resource JSON。
 
 生成契约会在 `.modernjs/ultramodern-generated-contract.json` 中写入
 `cssFederation`：
@@ -125,7 +116,7 @@ Module Federation SSR 时会加入 `server.ssr.moduleFederationAppSSR`，但这�
 本地 gate：
 
 ```bash
-mise exec -- pnpm ultramodern:check
+mise exec -- pnpm check
 mise exec -- pnpm build
 mise exec -- pnpm cloudflare:build
 ```

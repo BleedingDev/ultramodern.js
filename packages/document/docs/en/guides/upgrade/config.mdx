@@ -334,7 +334,7 @@ export default {
 
 ### tools.rsdoctor
 
-**Change**: This configuration has been deprecated. In v3, Modern.js enables Rsdoctor by default in production build. Use [`performance.rsdoctor`](/configure/app/performance/rsdoctor) to configure or disable it.
+**Change**: This configuration has been deprecated. In v3, use [`performance.rsdoctor`](/configure/app/performance/rsdoctor) to opt in to Rsdoctor diagnostics.
 
 **Migration Example**:
 
@@ -350,7 +350,6 @@ tools: {
 // v3
 export default {
   performance: {
-    // enabled by default in production build
     rsdoctor: {
       enabled: true,
     },

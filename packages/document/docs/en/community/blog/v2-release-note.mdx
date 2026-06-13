@@ -86,20 +86,20 @@ title: Modern.js v2 发布
 
 大家对 Modern.js 框架的第一印象可能是「一个大而全的框架」，但事实上，为了避免变得臃肿，**Modern.js 采取了渐进式设计**，将所有功能建立在灵活的插件系统之上，因此具备按需启用和可插拔的能力。
 
-Modern.js 期望能支持不同规模的项目研发，考虑到中大型项目和小型项目对功能的诉求存在差异，**Modern.js 的大多数功能都是按需启用的**。在创建项目时，Modern.js 默认只安装核心模块，使 npm 依赖保持轻量；当需要用到额外功能时，你可以通过 ultramodern new 命令一键开启，并自动安装相关依赖。
+Modern.js 期望能支持不同规模的项目研发，考虑到中大型项目和小型项目对功能的诉求存在差异，**Modern.js 的大多数功能都是按需启用的**。在创建项目时，Modern.js 默认只安装核心模块，使 npm 依赖保持轻量；当需要用到额外功能时，你可以通过 modern new 命令一键开启，并自动安装相关依赖。
 
-![ultramodern new 命令](https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/v2-release/modern-new-code.png)
+![modern new 命令](https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/v2-release/modern-new-code.png)
 
-<div style={{ textAlign: 'center', fontStyle: 'italic' }}>ultramodern new 命令</div>
+<div style={{ textAlign: 'center', fontStyle: 'italic' }}>modern new 命令</div>
 
 比如：
 
 - 对于基础的开发场景，项目中只需安装 Modern.js 的 CLI 工具 `@modern-js/app-tools`，即具备了开发调试、生产构建的能力。
-- 当你需要在应用中增加一些 BFF 接口时，可以执行 ultramodern new 命令来启用 BFF 功能。启用后，Modern.js 会自动安装所需的 BFF 插件，以及某个 Node.js 框架对应的插件（如 Koa / Express）：
+- 当你需要在应用中增加一些 BFF 接口时，可以执行 modern new 命令来启用 BFF 功能。启用后，Modern.js 会自动安装所需的 BFF 插件，以及某个 Node.js 框架对应的插件（如 Koa / Express）：
 
 ![](https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/v2-release/bff-plugins.png)
 
-目前，你可以通过 `ultramodern new` 命令来按需开启以下功能，未来我们也会将更多功能加入到 `new` 命令中，使其能够被便捷地集成。
+目前，你可以通过 `modern new` 命令来按需开启以下功能，未来我们也会将更多功能加入到 `new` 命令中，使其能够被便捷地集成。
 
 ![](https://lf3-static.bytednsdoc.com/obj/eden-cn/zq-uylkvT/ljhwZthlaukjlkulzlp/v2-release/modern-new.png)
 

@@ -20,7 +20,7 @@ title: API 参考
 | `isResourcesReady` | `boolean` | 当前语言的翻译资源是否已加载完成 |
 | `i18nInstance` | `I18nInstance` | i18next 实例（用于高级场景） |
 
-启用 `localePathRedirect` 且省略 `localisedUrls` 时，Modern.js 会将本地化 URL 路径视为已启用。除非设置 `localisedUrls: false`，否则路由生成仍要求每个可本地化路径都为所有已配置语言提供路径。
+启用 `localePathRedirect` 且省略 `localisedUrls` 时，Modern.js 会保持 `/en/about` 这类仅语言前缀路径。只有提供非空 `localisedUrls` 映射时，才会启用路径片段翻译。也只有在该映射启用时，路由生成才会校验每个可本地化路径是否覆盖所有已配置语言。
 
 ### 基本用法
 

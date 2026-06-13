@@ -11,22 +11,23 @@ type RsdoctorConfig =
   | boolean
   | {
       enabled?: boolean;
+      disableClientServer?: boolean;
     };
 ```
 
-- **Default:** `true` in production build, `false` in development mode.
+- **Default:** `undefined`, Rsdoctor is disabled unless this option is configured.
 
-Configure Rsdoctor diagnostics in Modern.js build.
+Configure Rsdoctor diagnostics in Modern.js build. Set this option to `true` to enable Rsdoctor:
 
 ```ts title="modern.config.ts"
 export default defineConfig({
   performance: {
-    rsdoctor: false,
+    rsdoctor: true,
   },
 });
 ```
 
-You can also use object form:
+You can also use object form. When an object is provided, Rsdoctor is enabled unless `enabled` is set to `false`:
 
 ```ts title="modern.config.ts"
 export default defineConfig({
@@ -37,3 +38,5 @@ export default defineConfig({
   },
 });
 ```
+
+To disable Rsdoctor after enabling it in shared config, set `rsdoctor` to `false` or set `enabled` to `false`.

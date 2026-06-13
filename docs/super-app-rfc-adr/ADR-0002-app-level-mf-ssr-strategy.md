@@ -90,82 +90,27 @@ Adopt an SSR strategy for app-level MF:
   - `/mf-stats.json`
   - `/remoteEntry.js`
 
-## 10. Runtime Compatibility Handshake Notes (2026-02-22)
+## 10. Removed Garfish Trust Notes (2026-06-12 cleanup)
 
-> **Removed (2026-06-12 fork cleanup):** sections 10 and 11 documented the
-> Garfish-lane trust surface. `packages/runtime/plugin-garfish` was deleted and
-> the `deploy.microFrontend.{runtimeDigest,integrity,attestation}` fields were
-> removed from app-tools (`MicroFrontend` is back to upstream shape), so the
-> handshake/trust/attestation ordering below no longer exists in code. Kept for
-> historical reference; see `docs/research/fork-audit-2026-06-12-findings.md`.
+Earlier revisions of this ADR documented a Garfish-lane runtime digest,
+integrity, attestation, and `remoteTrust` surface. That no longer describes
+live code:
 
-- Added host/remote runtime digest handshake support in `@modern-js/plugin-garfish` runtime:
-  - host policy: `runtimeCompatibility.hostDigest`
-  - mode: `off | warn | strict` (default `strict` when host digest is configured)
-  - optional callback: `runtimeCompatibility.onIncompatible(issue)`
-- Exposed runtime digest metadata in remote entry/provider contract:
-  - `provider.runtimeMetadata.runtimeDigest`
-  - `__GARFISH_EXPORTS__.runtimeMetadata.runtimeDigest`
-  - `__GARFISH_EXPORTS__.runtimeDigest` (compatibility alias)
-- Exposed remote entry integrity metadata in remote entry/provider contract:
-  - `provider.runtimeMetadata.integrity`
-  - `__GARFISH_EXPORTS__.runtimeMetadata.integrity`
-- Added config surface for remote artifacts:
-  - `deploy.microFrontend.runtimeDigest` -> emitted as `process.env.MODERN_MF_RUNTIME_DIGEST`
-  - `deploy.microFrontend.integrity` -> emitted as `process.env.MODERN_MF_REMOTE_ENTRY_INTEGRITY`
-- Added remote trust enforcement policy in runtime config:
-  - `remoteTrust.allowedOrigins`
-  - `remoteTrust.requireIntegrity`
-  - `remoteTrust.verifyIntegrity`
-  - `remoteTrust.integrityFetchTimeoutMs`
-  - `remoteTrust.mode` (`off | warn | strict`) and production-only enforcement default
-- Added structured MF fallback telemetry contract:
-  - taxonomy: `runtime_incompatible`, `origin_not_allowed`, `integrity_*`, `integrity_timeout`, `remote_*_failed`
-  - phase: `bootstrap | compatibility | integrity | load | mount | unmount`
-  - payload fields: `reason`, `phase`, `appName`, `entry`, `message`, `code`, `timestamp`, `metadata`
-  - emitters:
-    - callback hook: `fallbackTelemetry.onFallback`
-    - browser event: `fallbackTelemetry.eventName` (default `modernjs:mf-fallback`)
-- Remote digest sources are resolved in order:
-  1. app-level `runtimeDigest`
-  2. app-level `runtimeMetadata.runtimeDigest`
-  3. manifest-level `runtimeDigest`
-  4. injected `window.modern_manifest.runtimeDigest`
-- In `strict` mode, mismatched or missing remote digest raises a hard failure before app registration.
-- In `warn` mode, incompatibilities are emitted through callback/logger without blocking registration.
+- `packages/runtime/plugin-garfish` was deleted.
+- `deploy.microFrontend.{runtimeDigest,integrity,attestation}` was removed
+  from app-tools; `MicroFrontend` is back to the upstream shape.
+- Module Federation is the live composition runtime.
 
-## 11. Remote Trust Hardening Notes (2026-02-22)
+Current runtime digest handling is limited to fallback-signal payload validation
+in `@modern-js/server-runtime-extensions`. Topology-level artifact digest, SRI,
+and attestation evidence remains in the MV topology documents and
+`scripts/mv-integration-pilot`, not in app-tools `deploy.microFrontend`
+runtime config.
 
-- Extended remote trust policy with strict origin isolation controls:
-  - `remoteTrust.isolatedOrigins` (`Record<appName, origin>`) for per-app origin pinning.
-  - `remoteTrust.singleOriginIsolation` for same-origin enforcement across all configured remotes.
-- Extended remote trust policy with attestation controls:
-  - `remoteTrust.requireAttestation` to require attestation metadata on remotes.
-  - `remoteTrust.attestations` (`Record<appName, token>`) for expected token matching.
-- Extended remote metadata contract:
-  - `provider.runtimeMetadata.attestation`
-  - `__GARFISH_EXPORTS__.runtimeMetadata.attestation`
-- Extended remote artifact config surface:
-  - `deploy.microFrontend.attestation` -> emitted as `process.env.MODERN_MF_REMOTE_ENTRY_ATTESTATION`
-- Extended trust violation taxonomy:
-  - `origin_isolation_violation`
-  - `attestation_missing`
-  - `attestation_mismatch`
-- Extended fallback telemetry taxonomy mapping:
-  - `origin_isolation_violation`
-  - `attestation_missing`
-  - `attestation_mismatch`
+## 11. MF Cache Strategy Notes (current after 2026-06-12 cleanup)
 
-## 12. MF Cache Strategy Notes (2026-02-22)
-
-- Added runtime remote-entry version pinning (`mfv` query) based on strongest available remote version signal:
-  1. app-level `runtimeDigest`
-  2. app-level `runtimeMetadata.runtimeDigest`
-  3. app-level `integrity`
-  4. app-level `runtimeMetadata.integrity`
-  5. manifest-level `runtimeDigest`
-  6. injected `window.modern_manifest.runtimeDigest`
-- Added prod-server cache header policy for MF artifacts:
+- MF cache header policy lives in `@modern-js/server-runtime-extensions/src/mfCache.ts` and is covered by prod-server integration tests.
+- The policy is URL/query based:
   - `/mf-manifest.json` and `/mf-stats.json`:
     - `Cache-Control: no-cache, no-store, must-revalidate`
     - `Pragma: no-cache`

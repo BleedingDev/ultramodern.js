@@ -44,6 +44,33 @@ const findNearestPackageDirectory = ({ startDir, rootDir }) => {
 const isLikelyBuildArtifactPath = targetPath =>
   /(^|[\\/])dist(?:-[^\\/]+)?([\\/]|$)/.test(String(targetPath));
 
+const isTruthyEnvironmentValue = value =>
+  ['1', 'true', 'yes'].includes(
+    String(value || '')
+      .trim()
+      .toLowerCase(),
+  );
+
+const isCiEnvironment = () =>
+  isTruthyEnvironmentValue(process.env.CI) ||
+  isTruthyEnvironmentValue(process.env.GITHUB_ACTIONS);
+
+const shouldRequireCiBackedMetadata = ({
+  allowMissingEvidence,
+  allowLocalEvidenceMetadata,
+  requireCiBackedMetadata,
+}) => {
+  if (allowLocalEvidenceMetadata || allowMissingEvidence) {
+    return false;
+  }
+
+  if (typeof requireCiBackedMetadata === 'boolean') {
+    return requireCiBackedMetadata;
+  }
+
+  return isCiEnvironment();
+};
+
 const executeCommand = ({ command, cwd, commandRunner, failureMessage }) => {
   if (typeof commandRunner === 'function') {
     commandRunner({
@@ -111,6 +138,7 @@ const validateMetadataFields = ({
   filePath,
   content,
   requiredMetadataFields,
+  requireCiBackedMetadata = false,
 }) => {
   for (const field of requiredMetadataFields) {
     const pattern = new RegExp(
@@ -140,6 +168,68 @@ const validateMetadataFields = ({
         `Metadata field "${field}" uses placeholder value "${rawValue}" in evidence file: ${filePath}`,
       );
     }
+
+    if (requireCiBackedMetadata) {
+      const normalizedField = String(field).trim().toLowerCase();
+
+      if (normalizedField === 'commit_sha' && normalized.endsWith('-dirty')) {
+        throw new Error(
+          `Metadata field "commit_sha" uses dirty commit value "${rawValue}" in CI-backed evidence file: ${filePath}`,
+        );
+      }
+
+      if (normalizedField === 'workflow_run_url') {
+        validateCiWorkflowRunUrl({
+          filePath,
+          rawValue,
+          normalized,
+        });
+      }
+    }
+  }
+};
+
+const validateCiWorkflowRunUrl = ({ filePath, rawValue, normalized }) => {
+  let parsed;
+  try {
+    parsed = new URL(rawValue);
+  } catch (_error) {
+    throw new Error(
+      `Metadata field "workflow_run_url" must be an HTTPS workflow URL in CI-backed evidence file: ${filePath}`,
+    );
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const isLocalWorkflowUrl =
+    normalized === 'local' ||
+    normalized.startsWith('local://') ||
+    normalized.startsWith('file://') ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    hostname.endsWith('.local');
+  if (isLocalWorkflowUrl) {
+    throw new Error(
+      `Metadata field "workflow_run_url" uses local-only value "${rawValue}" in CI-backed evidence file: ${filePath}`,
+    );
+  }
+
+  const isExampleWorkflowUrl =
+    hostname === 'example.com' ||
+    hostname === 'example.org' ||
+    hostname === 'example.net' ||
+    hostname.endsWith('.example');
+  if (isExampleWorkflowUrl) {
+    throw new Error(
+      `Metadata field "workflow_run_url" uses placeholder URL "${rawValue}" in CI-backed evidence file: ${filePath}`,
+    );
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(
+      `Metadata field "workflow_run_url" must be an HTTPS workflow URL in CI-backed evidence file: ${filePath}`,
+    );
   }
 };
 
@@ -154,8 +244,15 @@ const validateEvidence = ({
   requiredMetadataFields,
   minimumReviewers,
   allowMissingEvidence,
+  allowLocalEvidenceMetadata = false,
+  requireCiBackedMetadata,
 }) => {
   const resolvedEvidenceDir = path.resolve(evidenceDir);
+  const enforceCiBackedMetadata = shouldRequireCiBackedMetadata({
+    allowMissingEvidence,
+    allowLocalEvidenceMetadata,
+    requireCiBackedMetadata,
+  });
   const report = {
     evidenceDir: resolvedEvidenceDir,
     validatedFiles: [],
@@ -179,6 +276,7 @@ const validateEvidence = ({
       filePath,
       content,
       requiredMetadataFields,
+      requireCiBackedMetadata: enforceCiBackedMetadata,
     });
 
     if (

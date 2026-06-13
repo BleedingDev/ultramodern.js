@@ -28,6 +28,9 @@ import type { PluginSourceBuildOptions } from '@rsbuild/plugin-source-build';
 import type { SvgDefaultExport } from '@rsbuild/plugin-svgr';
 import type { PluginTypeCheckerOptions } from '@rsbuild/plugin-type-check';
 import type { Options as AutoprefixerOptions } from 'autoprefixer';
+import type { RsdoctorUserConfig } from './rsdoctorConfig';
+
+export type { RsdoctorUserConfig } from './rsdoctorConfig';
 
 export type CacheGroup = Rspack.OptimizationSplitChunksCacheGroup;
 
@@ -113,21 +116,6 @@ export type ToolsDevServerConfig = ConfigChain<{
 }>;
 
 export type ToolsAutoprefixerConfig = ConfigChain<AutoprefixerOptions>;
-
-export type RsdoctorUserConfig =
-  | boolean
-  | {
-      /**
-       * Force enable / disable Rsdoctor.
-       * By default, Modern.js enables Rsdoctor in production builds.
-       */
-      enabled?: boolean;
-      /**
-       * Disable Rsdoctor client server and ensure build process exits after report generation.
-       * @default true
-       */
-      disableClientServer?: boolean;
-    };
 
 export type BuilderExtraConfig = {
   tools?: {

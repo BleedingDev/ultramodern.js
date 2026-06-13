@@ -334,7 +334,7 @@ export default {
 
 ### tools.rsdoctor
 
-**变更内容**：该配置已废弃。v3 中 Modern.js 会在生产构建默认启用 Rsdoctor。可通过 [`performance.rsdoctor`](/configure/app/performance/rsdoctor) 进行配置或关闭。
+**变更内容**：该配置已废弃。v3 中可通过 [`performance.rsdoctor`](/configure/app/performance/rsdoctor) 显式启用 Rsdoctor 诊断能力。
 
 **迁移示例**：
 
@@ -350,7 +350,6 @@ tools: {
 // v3
 export default {
   performance: {
-    // 生产构建默认启用
     rsdoctor: {
       enabled: true,
     },

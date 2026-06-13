@@ -7,6 +7,10 @@ type RouteAssetManifest = {
   assets?: string[];
 };
 
+type RouteManifestLike = {
+  routeAssets?: Record<string, RouteAssetManifest | undefined>;
+};
+
 type ScriptTagMatch = {
   index: number;
   tag: string;
@@ -45,7 +49,7 @@ function isEntryScript(src: string, entryName: string, asyncEntry: boolean) {
 const dedupeByUrl = <T extends ScriptChunkLike>(chunks: T[]) => {
   const seen = new Set<string>();
   return chunks.filter(chunk => {
-    if (!chunk.url || seen.has(chunk.url)) {
+    if (chunk.url === undefined || chunk.url === '' || seen.has(chunk.url)) {
       return false;
     }
     seen.add(chunk.url);
@@ -54,13 +58,13 @@ const dedupeByUrl = <T extends ScriptChunkLike>(chunks: T[]) => {
 };
 
 const isAsyncEntryScriptChunk = (chunk: ScriptChunkLike, entryName: string) => {
-  if (!chunk.url?.endsWith('.js')) {
+  if (chunk.url === undefined || !chunk.url.endsWith('.js')) {
     return false;
   }
 
   const asyncEntryName = `async-${entryName}`;
-  const filename = chunk.filename || chunk.url;
-  const basename = filename.split('/').pop() || filename;
+  const filename = chunk.filename ?? chunk.url;
+  const basename = filename.split('/').pop() ?? filename;
   return (
     basename === `${asyncEntryName}.js` ||
     basename.startsWith(`${asyncEntryName}.`) ||
@@ -68,15 +72,19 @@ const isAsyncEntryScriptChunk = (chunk: ScriptChunkLike, entryName: string) => {
   );
 };
 
-function getRouteAssets(runtimeContext: TInternalRuntimeContext) {
-  return runtimeContext.routeManifest?.routeAssets as
-    | Record<string, RouteAssetManifest | undefined>
-    | undefined;
+function getRouteAssets(
+  runtimeContext: TInternalRuntimeContext,
+  routeManifest: RouteManifestLike | undefined = runtimeContext.routeManifest,
+) {
+  return routeManifest?.routeAssets;
 }
 
-export function getMatchedRouteAssets(runtimeContext: TInternalRuntimeContext) {
-  const routeAssets = getRouteAssets(runtimeContext);
-  if (!routeAssets) {
+export function getMatchedRouteAssets(
+  runtimeContext: TInternalRuntimeContext,
+  routeManifest?: RouteManifestLike,
+) {
+  const routeAssets = getRouteAssets(runtimeContext, routeManifest);
+  if (routeAssets === undefined) {
     return [];
   }
 
@@ -143,7 +151,7 @@ export function replaceChunkJsPlaceholder(
   entryName?: string,
   placeholder = CHUNK_JS_PLACEHOLDER,
 ) {
-  if (!scripts) {
+  if (scripts === '') {
     return safeReplace(template, placeholder, '');
   }
 
@@ -171,7 +179,7 @@ export function createRouteHydrationScriptTags(
 ) {
   const { nonce, template } = options;
   const routeAssets = getRouteAssets(runtimeContext);
-  if (!routeAssets) {
+  if (routeAssets === undefined) {
     return '';
   }
 
@@ -179,7 +187,7 @@ export function createRouteHydrationScriptTags(
   const assetEntries = [
     ...matchedRouteIds.map(routeId => routeAssets[routeId]),
     routeAssets[`async-${entryName}`],
-  ].filter(Boolean);
+  ].filter((entry): entry is RouteAssetManifest => entry !== undefined);
   const jsAssets = Array.from(
     new Set(
       assetEntries.flatMap(entry =>
@@ -187,10 +195,11 @@ export function createRouteHydrationScriptTags(
       ),
     ),
   );
-  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
+  const nonceAttr =
+    nonce === undefined || nonce === '' ? '' : ` nonce="${nonce}"`;
 
   return jsAssets
-    .filter(asset => !template?.includes(asset))
+    .filter(asset => template?.includes(asset) !== true)
     .map(asset => `<script src=${asset}${nonceAttr}></script>`)
     .join(' ');
 }

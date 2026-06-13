@@ -85,4 +85,34 @@ describe('LoadableCollector federated css', () => {
       '/static/js/async/async-index-123.js',
     ]);
   });
+
+  it('does not fall back to runtime route manifest when options omit routeManifest', async () => {
+    const chunkSet = {
+      renderLevel: RenderLevel.CLIENT_RENDER,
+      ssrScripts: '',
+      jsChunk: '',
+      cssChunk: '',
+    };
+    const runtimeContext = createRuntimeContextWithMatchedRoutes(['route-a']);
+    runtimeContext.routeManifest = {
+      routeAssets: {
+        'route-a': {
+          assets: ['/static/css/route-a.css'],
+        },
+      },
+    };
+
+    const collector = new LoadableCollector({
+      runtimeContext,
+      template: '<html><head></head></html>',
+      entryName: 'main',
+      chunkSet,
+      config: {},
+    });
+
+    collector.collect(React.createElement('div'));
+    await collector.effect();
+
+    expect(chunkSet.cssChunk).toBe('');
+  });
 });

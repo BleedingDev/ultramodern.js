@@ -40,6 +40,9 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
+  # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
+  # import the DTS plugin in the TS 7 native-preview lane. The patch filenames
+  # were created on 2.5.0, but these entries intentionally apply them to 2.5.1.
   '@module-federation/manifest@2.5.1': patches/@module-federation__manifest@2.5.0.patch
   '@module-federation/rspack@2.5.1': patches/@module-federation__rspack@2.5.0.patch
 

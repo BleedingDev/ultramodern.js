@@ -42,13 +42,4 @@ export const ZH_CN: Record<keyof typeof EN_US, string> = {
   pluginSystem: '插件系统',
   githubDiscussion: 'Github 讨论区',
   changelog: '更新日志',
-
-  // Showcase
-  doubao: '豆包',
-  writingo: '火山写作',
-  volctrans: '火山翻译',
-  shidianbaike: '识典百科',
-  xiaohe: '小荷健康',
-  dongchedi: '懂车帝',
-  volcengineDeveloper: '火山引擎开发者社区',
 };

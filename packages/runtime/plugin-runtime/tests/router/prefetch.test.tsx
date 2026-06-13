@@ -185,6 +185,7 @@ describe('prefetch', () => {
         rstest.runAllTimers();
       });
 
+      expect(MockIntersectionObserver.instances).toHaveLength(0);
       expect(global.__webpack_chunk_load_test__).toBeCalledTimes(1);
       const dataHref = document.head
         .querySelector('link[rel="prefetch"][as="fetch"]')
@@ -196,7 +197,7 @@ describe('prefetch', () => {
     });
   });
 
-  test('supports render by default without private data prefetch', async () => {
+  test('supports render by default with loader data prefetch', async () => {
     const id = 'default-render';
     const routes = [
       {
@@ -205,6 +206,39 @@ describe('prefetch', () => {
         element: <Link to={id}>Default render</Link>,
       },
       createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(1);
+      const dataHref = document.head
+        .querySelector('link[rel="prefetch"][as="fetch"]')
+        ?.getAttribute('href');
+      expect(
+        dataHref?.includes(`${id}?__loader=${id}&__ssrDirect=true`),
+      ).toBeTruthy();
+    });
+
+    unmount();
+  });
+
+  test('skips data prefetch when the route opts out', async () => {
+    const id = 'default-render-data-opt-out';
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link to={id}>Default render</Link>,
+      },
+      createTargetRoute(id, {
+        handle: {
+          navigationWarmup: {
+            data: false,
+          },
+        },
+      }),
     ];
 
     const { unmount } = renderRouter(routes);

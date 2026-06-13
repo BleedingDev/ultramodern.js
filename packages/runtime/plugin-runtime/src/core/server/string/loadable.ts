@@ -1,11 +1,16 @@
 // @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import { type Chunk, ChunkExtractor } from '@loadable/server';
 import type { ReactElement } from 'react';
-import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../../context';
 import { createFederatedCssLinks } from '../federatedCss';
+import {
+  getMatchedRouteAssets,
+  orderHydrationScriptChunks,
+} from '../scriptOrder';
 import { attributesToString, checkIsNode } from '../utils';
 import type { ChunkSet, Collector } from './types';
+
+export { orderHydrationScriptChunks } from '../scriptOrder';
 
 declare module '@loadable/server' {
   export interface ChunkExtractor {
@@ -27,61 +32,15 @@ const generateChunks = (chunks: Chunk[], ext: string) =>
     .filter(chunk => Boolean(chunk.url))
     .filter(chunk => extname(chunk.url).slice(1) === ext);
 
-const dedupeChunksByUrl = (chunks: Chunk[]) => {
-  const seen = new Set<string>();
-  return chunks.filter(chunk => {
-    if (!chunk.url || seen.has(chunk.url)) {
-      return false;
-    }
-    seen.add(chunk.url);
-    return true;
-  });
-};
-
-const isAsyncEntryScriptChunk = (chunk: Chunk, entryName: string) => {
-  if (!chunk.url?.endsWith('.js')) {
-    return false;
-  }
-
-  const asyncEntryName = `async-${entryName}`;
-  const filename = chunk.filename || chunk.url;
-  const basename = filename.split('/').pop() || filename;
-  return (
-    basename === `${asyncEntryName}.js` ||
-    basename.startsWith(`${asyncEntryName}.`) ||
-    basename.startsWith(`${asyncEntryName}-`)
-  );
-};
-
-export const orderHydrationScriptChunks = ({
-  asyncEntryChunks,
-  collectedChunks,
-  matchedRouteChunks,
-  entryName,
-}: {
-  asyncEntryChunks: Chunk[];
-  collectedChunks: Chunk[];
-  matchedRouteChunks: Chunk[];
-  entryName: string;
-}) => {
-  const asyncEntryScriptChunks: Chunk[] = [];
-  const asyncEntryDependencyChunks: Chunk[] = [];
-
-  for (const chunk of asyncEntryChunks) {
-    if (isAsyncEntryScriptChunk(chunk, entryName)) {
-      asyncEntryScriptChunks.push(chunk);
-    } else {
-      asyncEntryDependencyChunks.push(chunk);
-    }
-  }
-
-  return dedupeChunksByUrl([
-    ...asyncEntryDependencyChunks,
-    ...collectedChunks,
-    ...matchedRouteChunks,
-    ...asyncEntryScriptChunks,
-  ]);
-};
+const routeAssetToChunk = (asset: string): Chunk => ({
+  chunk: asset,
+  filename: asset.replace(/^\//, ''),
+  linkType: 'preload',
+  path: asset,
+  scriptType: asset.endsWith('.css') ? 'style' : 'script',
+  type: 'routeAsset',
+  url: asset,
+});
 
 const checkIsInline = (
   chunk: Chunk,
@@ -147,20 +106,13 @@ export class LoadableCollector implements Collector {
 
   private getMatchedRouteChunks() {
     const { routeManifest, runtimeContext } = this.options;
-    const routeAssets = routeManifest?.routeAssets;
-    if (!routeAssets) {
+    if (!routeManifest) {
       return [];
     }
 
-    const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
-    return matchedRouteIds.flatMap(routeId => {
-      const routeAsset = routeAssets[routeId];
-      return (routeAsset?.assets ?? []).map((asset: string) => ({
-        filename: asset.replace(/^\//, ''),
-        path: asset,
-        url: asset,
-      }));
-    });
+    return getMatchedRouteAssets(runtimeContext, routeManifest).map(
+      routeAssetToChunk,
+    );
   }
 
   collect(comopnent: ReactElement): ReactElement {
@@ -181,7 +133,7 @@ export class LoadableCollector implements Collector {
   async effect() {
     const { extractor, options } = this;
     const { entryName, config } = options;
-    const asyncChunks = [];
+    const asyncChunks: Chunk[] = [];
     if (extractor && config.enableAsyncEntry) {
       try {
         asyncChunks.push(...extractor.getChunkAssets([`async-${entryName}`]));

@@ -15,11 +15,8 @@ import { pluginEnvironmentDefaults } from '../plugins/environmentDefaults';
 import { pluginGlobalVars } from '../plugins/globalVars';
 import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
 import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
-import type {
-  BuilderConfig,
-  CreateBuilderCommonOptions,
-  RsdoctorUserConfig,
-} from '../types';
+import type { RsdoctorUserConfig } from '../rsdoctorConfig';
+import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
 import { withTsgoDefaults } from './tsgo';
 import { NODE_MODULES_REGEX } from './utils';

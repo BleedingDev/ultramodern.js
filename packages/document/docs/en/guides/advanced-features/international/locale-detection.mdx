@@ -113,7 +113,7 @@ i18nPlugin({
 
 ## ignoreRedirectRoutes
 
-Specify which additional paths should skip locale path redirects. Modern.js automatically skips server API routes and BFF prefixes, including configured `bff.prefix` values. Use `ignoreRedirectRoutes` for non-API application paths that also do not need a locale prefix.
+Specify which additional paths should skip locale path redirects. Modern.js automatically skips server API routes, the default `/api` BFF prefix when BFF is configured, and custom `bff.prefix` values. Use `ignoreRedirectRoutes` for non-API application paths that also do not need a locale prefix.
 
 **Syntax 1: string array** (supports exact match and prefix match)
 

@@ -32,9 +32,9 @@ This order is intentional:
 
 | Team question | Canonical answer |
 | --- | --- |
-| What does the generated Tractor reference workspace contain? | `packages/document/docs/en/guides/get-started/ultramodern.mdx` and `packages/toolkit/create/template/README.md` |
+| What does the generated Tractor reference workspace contain? | `packages/document/docs/en/guides/get-started/ultramodern.mdx`, `packages/toolkit/create/template-workspace/README.md.handlebars`, and `packages/toolkit/create/src/ultramodern-workspace/` |
 | How do we lay out the repo? | `WORKSPACE-0001-micro-vertical-workspace-scaffolding.md` |
-| How do we scaffold shell, remote, and service packages? | `packages/toolkit/create/README.md` and `packages/toolkit/create/template/README.md` |
+| How do we scaffold shell, remote, and service packages? | `packages/toolkit/create/README.md`, `packages/toolkit/create/template-workspace/`, and `packages/toolkit/create/src/ultramodern-workspace/` |
 | When should we extract a remote or service? | `GOVERNANCE-0001-micro-vertical-extraction-governance.md` |
 | How do we migrate an existing app? | `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md` |
 | How do we migrate generated source checks? | `MIGRATION-PLAYBOOK-0002-ultramodern-shared-checks.md` |
@@ -75,19 +75,18 @@ Cloudflare selection cannot drift UI and API versions apart.
 Run these gates for a generated Tractor workspace:
 
 ```bash
-mise exec -- pnpm install
-mise exec -- pnpm ultramodern:i18n-boundaries
-mise exec -- pnpm ultramodern:check
-mise exec -- pnpm build
-mise exec -- pnpm cloudflare:build
+pnpm install
+pnpm i18n:boundaries
+pnpm check
+pnpm build
+pnpm cloudflare:build
 ```
 
 Use local Cloudflare validation for `.output` evidence and generated public URL
 proof after deployment:
 
 ```bash
-# Run from the generated workspace (repo-local validate-cloudflare-ssr.js was
-# removed in the 2026-06-12 cleanup):
+# Run from the generated workspace:
 pnpm cloudflare:proof -- --require-public-urls
 
 ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \

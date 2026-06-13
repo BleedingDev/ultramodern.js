@@ -86,8 +86,8 @@ export default defineConfig(({ env, command }) => ({
 This function accepts the following parameters:
 
 - `env`: Corresponds to the value of `process.env.NODE_ENV`.
-  - When running `ultramodern dev`, the value of `env` is `development`.
-  - When running `ultramodern build` or `ultramodern serve`, the value of `env` is `production`.
+  - When running `modern dev`, the value of `env` is `development`.
+  - When running `modern build` or `modern serve`, the value of `env` is `production`.
 - `command`: Corresponds to the current command being run, such as `dev`, `build`, or `serve`.
 
 #### Exporting Asynchronous Functions
@@ -117,8 +117,8 @@ For example, if you need to use the `modern.prod.config.js` file when executing 
 ```json title="package.json"
 {
   "scripts": {
-    "dev": "ultramodern dev",
-    "build": "ultramodern build --config modern.prod.config.js"
+    "dev": "modern dev",
+    "build": "modern build --config modern.prod.config.js"
   }
 }
 ```
@@ -126,7 +126,7 @@ For example, if you need to use the `modern.prod.config.js` file when executing 
 You can also abbreviate the `--config` option as `-c`:
 
 ```bash
-$ ultramodern build -c modern.prod.config.js
+$ modern build -c modern.prod.config.js
 ```
 
 ### Configuring in package.json (Not Recommended)
@@ -187,7 +187,7 @@ The configuration in the `modern.config.local.ts` file will be deeply merged wit
 
 When using `modern.config.local.ts`, please note the following:
 
-- The `modern.config.local.ts` file will only be loaded when executing the `ultramodern dev` commands and will not be loaded during `ultramodern build`.
+- The `modern.config.local.ts` file will only be loaded when executing the `modern dev` commands and will not be loaded during `modern build`.
 - The priority of the `modern.config.local.ts` file is higher than both `modern.config.ts` and the `modernConfig` field in `package.json`.
 - Since `modern.config.local.ts` is only used for local debugging, it is not recommended to commit it to the code repository. Ensure that the project's `.gitignore` file includes `modern.config.local.ts` and similar files.
 

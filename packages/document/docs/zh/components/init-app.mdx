@@ -1,4 +1,4 @@
-UltraModern.js 提供 BleedingDev create 包来创建项目，不需要全局安装，直接使用 `pnpm dlx` 按需运行即可。
+UltraModern.js 提供 BleedingDev create 包来创建 SuperApp workspace，不需要全局安装，直接使用 `pnpm dlx` 按需运行即可。
 
 你可以在当前已有的空目录中初始化项目：
 
@@ -11,26 +11,6 @@ pnpm dlx @bleedingdev/modern-js-create .
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create myapp
-```
-
-默认会初始化 TanStack Router。如需强制使用 React Router 兼容路径：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --router react-router
-```
-
-默认会初始化 Tailwind CSS v4 模板。如需关闭：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --no-tailwind
-```
-
-默认会初始化 Effect HttpApi BFF 模板。
-
-初始化带 Hono 运行时的 BFF 模板：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --bff-runtime hono
 ```
 
 使用 workspace 协议依赖初始化（用于在本地 monorepo 中联调未发布的 Modern.js 包）：
@@ -71,37 +51,22 @@ BleedingDev create 包会直接创建应用，不再提供问答界面：
 
 ```
 .
-├── biome.json
-├── modern.config.ts
+├── apps
+│   └── shell-super-app
 ├── package.json
-├── README.md
-├── src
-│   ├── modern-app-env.d.ts
-│   ├── modern.runtime.ts
-│   └── routes
-│       ├── index.css
-│       ├── layout.tsx
-│       └── page.tsx
-└── tsconfig.json
+├── packages
+│   ├── shared-contracts
+│   ├── shared-design-tokens
+│   └── shared-effect-client
+├── scripts
+├── topology
+└── verticals
 ```
 
-默认会生成 Tailwind CSS v4；传入 `--no-tailwind` 时会省略 `postcss.config.mjs`、`tailwind.config.ts` 和 Tailwind 导入。
-
-默认会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/effect/index.ts` 与 `shared/effect/api.ts`，并将 `bff.runtimeFramework` 设置为 `effect`。
-当启用 `--bff-runtime hono` 时，会在 `modern.config.ts` 中启用 `@modern-js/plugin-bff`，生成 `api/lambda/hello.ts`，并将 `bff.runtimeFramework` 设置为 `hono`。
-当启用 `--workspace` 时，`@modern-js/*` 依赖会使用 `workspace:*` 版本，便于本地 monorepo 联调。
-
-它默认创建一个简单、可上线的 UltraModern 应用，并安装已发布的
-BleedingDev 包别名：
+默认 workspace 从 shell 起步，并安装已发布的 BleedingDev 包别名：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp
-```
-
-只有在需要多个独立归属的 vertical 时，才显式创建 SuperApp workspace：
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app --ultramodern-workspace
+pnpm dlx @bleedingdev/modern-js-create my-super-app
 ```
 
 在已生成的 SuperApp workspace 根目录中，可以就地添加业务

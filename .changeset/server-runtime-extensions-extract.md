@@ -1,6 +1,6 @@
 ---
 '@modern-js/server-runtime-extensions': minor
-'@modern-js/server-core': major
+'@modern-js/server-core': minor
 '@modern-js/prod-server': patch
 '@modern-js/create-request': patch
 ---

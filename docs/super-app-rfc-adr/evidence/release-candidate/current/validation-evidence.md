@@ -1,8 +1,8 @@
 author: codex
 timestamp: 2026-05-14T23:55:00Z
 ticket_id: modernjs-2ub
-commit_sha: 9f80a66bf003-dirty
-workflow_run_url: local://modernjs-2ub/effect-service-boundary-gate
+commit_sha: 7198e6b36cc4a96a495c005a441ac45f5044a1d7
+workflow_run_url: https://github.com/BleedingDev/ultramodern.js/actions/workflows/contract-gates.yml
 
 # Validation Evidence
 

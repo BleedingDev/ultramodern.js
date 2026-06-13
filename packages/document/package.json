@@ -1,12 +1,12 @@
 {
   "name": "@modern-js/main-doc",
-  "description": "Documentation of modern.js framework",
+  "description": "Documentation for the UltraModern.js framework",
   "type": "module",
-  "homepage": "https://modernjs.dev",
-  "bugs": "https://github.com/web-infra-dev/modern.js/issues",
+  "homepage": "https://bleedingdev.github.io/ultramodern.js/",
+  "bugs": "https://github.com/BleedingDev/ultramodern.js/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/web-infra-dev/modern.js",
+    "url": "https://github.com/BleedingDev/ultramodern.js",
     "directory": "packages/document"
   },
   "license": "MIT",
@@ -14,7 +14,8 @@
     "react",
     "framework",
     "modern",
-    "modern.js"
+    "modern.js",
+    "ultramodern.js"
   ],
   "scripts": {
     "dev": "rspress dev",

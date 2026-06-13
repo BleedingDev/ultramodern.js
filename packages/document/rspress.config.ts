@@ -5,13 +5,12 @@ import path from 'path';
 import { pluginOpenGraph } from 'rsbuild-plugin-open-graph';
 
 const docPath = path.join(__dirname, 'docs');
+const staticPath = path.join(__dirname, 'static');
 const siteTitle = 'UltraModern.js 3.0';
 const siteDescription =
   'UltraModern.js 3.0 is a SuperApp framework forked from Modern.js for Effect, TanStack Router, SSR, BFF, and independently deployable Micro Verticals.';
 const socialDescription =
   'A SuperApp framework for Effect, TanStack Router, SSR, BFF, and Micro Verticals.';
-const socialImage =
-  'https://lf3-static.bytednsdoc.com/obj/eden-cn/nuvjhpqnuvr/modern-website/banner.jpeg';
 
 function normalizeBase(base = '/') {
   const trimmed = base.trim();
@@ -23,6 +22,14 @@ function normalizeBase(base = '/') {
 
 // Set by CI for GitHub Pages project sites. Defaults to root for local dev/custom domains.
 const docsBase = normalizeBase(process.env.DOCS_BASE);
+const docsOrigin = (
+  process.env.DOCS_ORIGIN || 'https://bleedingdev.github.io'
+).replace(/\/+$/, '');
+const siteUrl = new URL(docsBase, `${docsOrigin}/`).toString();
+const socialImage = new URL('img/social-card.svg', siteUrl).toString();
+const faviconUrl = new URL('img/favicon.ico', siteUrl).toString();
+const docsAsset = (assetPath: string) =>
+  `${docsBase}${assetPath.replace(/^\//, '')}`;
 
 export default defineConfig({
   root: docPath,
@@ -30,8 +37,8 @@ export default defineConfig({
   title: siteTitle,
   description: siteDescription,
   base: docsBase,
-  logo: 'https://lf-cdn-tos.bytescm.com/obj/static/webinfra/modern-js-website/assets/images/images/modernjs-logo.svg',
-  icon: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico',
+  logo: docsAsset('/img/logo.svg'),
+  icon: faviconUrl,
   lang: 'en',
   themeDir: path.join(__dirname, 'src'),
   markdown: {
@@ -121,6 +128,11 @@ export default defineConfig({
     output: {
       dataUriLimit: 0,
     },
+    server: {
+      publicDir: {
+        name: staticPath,
+      },
+    },
     dev: {
       lazyCompilation: process.env.LAZY !== 'false',
     },
@@ -139,7 +151,7 @@ export default defineConfig({
         // While site name is site wide
         siteName: siteTitle,
         type: 'website',
-        url: 'https://bleedingdev.github.io/ultramodern.js/',
+        url: siteUrl,
         image: socialImage,
         description: socialDescription,
         twitter: {

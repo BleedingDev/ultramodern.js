@@ -55,11 +55,13 @@ export default defineConfig({
 });
 ```
 
-当启用 `validateOrigin` 时，Effect 运行时会优先使用请求中的 `Origin` 头进行 origin 校验；若不存在 `Origin`，则回退到请求 URL 的 origin。
+Envelope 校验默认开启，但只有设置 `requireEnvelope` 时才强制要求请求携带 envelope。Origin 校验默认开启；设置 `validateOrigin: false` 后，运行时不会再将 envelope 中的 origin 与请求 `Origin` 头比对，也不会在缺少该请求头时回退到请求 URL 的 origin。
 
 ## Effect 客户端自动行为
 
 使用生成的 Effect 客户端（`@api/effect/index`）时，Modern.js 会在同源请求中自动附加序列化的 envelope 请求头（`x-modernjs-data-envelope`）。
+
+生成客户端由 loader 物化。请在浏览器或会被客户端打包的代码中通过 `@api/effect/*` 导入；直接导入服务端入口（`api/effect/index`）时拿到的是 Effect BFF 定义，其中只包含占位的 `client`。
 
 Envelope 默认包含：
 

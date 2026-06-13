@@ -20,7 +20,7 @@ title: API Reference
 | `isResourcesReady` | `boolean` | Whether translation resources for the current language have finished loading |
 | `i18nInstance` | `I18nInstance` | i18next instance for advanced scenarios |
 
-When `localePathRedirect` is enabled and `localisedUrls` is omitted, Modern.js treats localised URL paths as enabled. Route generation still requires every localisable path to define every configured language unless you set `localisedUrls: false`.
+When `localePathRedirect` is enabled and `localisedUrls` is omitted, Modern.js keeps prefix-only paths such as `/en/about`. Translated path segments are enabled only by a non-empty `localisedUrls` map. Route generation validates every localisable path and every configured language only while that map is enabled.
 
 ### Basic Usage
 

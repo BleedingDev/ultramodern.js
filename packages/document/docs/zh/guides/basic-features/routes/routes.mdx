@@ -476,27 +476,27 @@ Modern.js 支持通过 `loading.tsx` 文件来解决这个问题，`routes/` 下
 
 :::tip
 
-路由数据预热需要显式开启。在 SSR 项目中，只有匹配到的路由通过 `handle.navigationWarmup.data` 开启后，才会预取 [Data Loader](/guides/basic-features/data/data-fetch) 返回的数据。
+在 SSR 项目中，同源路由会为匹配到且带有可调用 loader 的路由预取 [Data Loader](/guides/basic-features/data/data-fetch) 返回的数据。如果某个路由的 loader 数据不应该在导航前请求，可以将该路由的 `handle.navigationWarmup.data` 设置为 `false`。
 
 :::
 
-默认情况下，同源链接会在 `<Link>` 渲染时预取路由模块，并在链接进入视窗时进行预加载。当用户开启 Save-Data 或处于慢速网络时，Modern.js 会跳过这些自动预热。
+默认情况下，同源链接会在 `<Link>` 渲染时预取路由模块和匹配到的 loader 数据。当用户开启 Save-Data 或处于慢速网络时，Modern.js 会跳过这些自动预热。
 
 `prefetch` 属性有四个可选值：
 
 - `render`，默认值。当 `<Link>` 组件渲染时，就会预热对应的路由模块。
 - `intent`，当用户聚焦、悬停或触摸链接时，会开始预热对应的路由模块。如果意图在预热开始前取消，预热也会取消。
 - `viewport`，当 `<Link>` 组件进入视窗时，会开始预热对应的路由模块。
-- `none`，关闭自动 render prefetch。如果没有显式设置 `preload`，也会关闭默认的 viewport preload。
+- `none`，关闭自动 prefetch。如果没有显式设置 `preload`，也会关闭隐式 preload。
 
-`preload` 属性接受同样的时机值，默认值为 `viewport`。显式设置的 `preload` 总是优先生效，`preload={false}` 会关闭 preload 行为。
+`preload` 属性接受同样的时机值，默认跟随 `prefetch` 的时机。显式设置的 `preload` 总是优先生效，`preload={false}` 会关闭 preload 行为。
 
-如果要让某个路由开启 SSR 数据预热：
+如果要让某个路由关闭 SSR 数据预热：
 
 ```ts title="routes/page.config.ts"
 export const handle = {
   navigationWarmup: {
-    data: true,
+    data: false,
   },
 };
 ```
@@ -505,7 +505,7 @@ export const handle = {
 
 - `render` 可以通过 `<Link>` 组件在组件树中的位置控制路由模块预热时机。
 - `viewport` 可以把模块预热推迟到链接接近可操作时再触发。
-- SSR 数据预取默认不开启；只有当路由的 loader 数据适合在导航前获取时，才应该使用 `handle.navigationWarmup.data`。
+- SSR 数据预取默认开启；当路由的 loader 数据不适合在导航前获取时，使用 `handle.navigationWarmup.data = false` 关闭。
 
 :::
 

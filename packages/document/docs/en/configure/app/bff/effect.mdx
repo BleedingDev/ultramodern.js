@@ -123,13 +123,35 @@ export default defineConfig({
 }
 ```
 
-- **Default:** `{ enabled: true }`
+- **Default:**
+
+```ts
+{
+  enabled: true,
+  requireEnvelope: false,
+  envelopeHeader: 'x-modernjs-data-envelope',
+  validateOrigin: true,
+  requireTraceContext: false,
+  batch: {
+    enabled: true,
+    endpoint: '/_data/batch',
+    maxBatchSize: 16,
+    maxBatchBytes: 64 * 1024,
+    flushIntervalMs: 8,
+    maxConcurrency: 4,
+    requestTimeoutMs: 10000,
+    allowedMethods: ['GET'],
+  },
+}
+```
 
 Configure request-envelope validation for Effect runtime.
 
 Generated Effect client requests batching against `${bff.prefix}${batch.endpoint}` (for example, `/bff-api/_data/batch`).
 
-When `validateOrigin` is enabled, runtime compares envelope origin with request `Origin` header first, then falls back to request URL origin.
+Envelope validation is enabled by default but optional: requests without an envelope pass unless `requireEnvelope` is `true`. If an envelope is present, runtime validates it against the configured namespace, origin, trace, and selection policy. `expectedNamespace` is unset by default, and `selection` has no default limits unless configured.
+
+Origin validation is enabled by default. Runtime compares envelope origin with request `Origin` header first, then falls back to request URL origin; set `validateOrigin: false` to disable that comparison.
 
 ```ts title="modern.config.ts"
 export default defineConfig({
@@ -149,4 +171,6 @@ export default defineConfig({
 });
 ```
 
-`batch.flushIntervalMs` controls client-side micro-batch window in generated Effect client. `maxConcurrency` and `requestTimeoutMs` are applied by the server batch gateway when dispatching items.
+`batch.flushIntervalMs` controls the client-side micro-batch window in the generated Effect client. `maxConcurrency` and `requestTimeoutMs` are applied by the server batch gateway when dispatching items.
+
+The generated `effectBff.client.*` API only exists for loader-materialized `@api/effect/*` imports. Directly importing the server entry (`api/effect/index`) exposes the Effect BFF definition; its `client` property is a placeholder that fails on operation access.

@@ -66,7 +66,6 @@ type PrefetchBehavior = 'intent' | 'render' | 'viewport' | 'none';
 type PreloadBehavior = PrefetchBehavior | false;
 const ABSOLUTE_URL_REGEX = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 const DEFAULT_PREFETCH_BEHAVIOR: PrefetchBehavior = 'render';
-const DEFAULT_PRELOAD_BEHAVIOR: PrefetchBehavior = 'viewport';
 const INTENT_DELAY = 100;
 const VIEWPORT_ROOT_MARGIN = '200px';
 const MAX_CONCURRENT_WARMUPS = 4;
@@ -212,7 +211,7 @@ const isDataWarmupEnabled = (route: RouteObject) => {
   const handle = (route as RouteObject & { handle?: NavigationWarmupHandle })
     .handle;
 
-  return handle?.navigationWarmup?.data === true;
+  return handle?.navigationWarmup?.data !== false;
 };
 
 /**
@@ -523,7 +522,7 @@ const normalizePreloadBehavior = (
     return 'none';
   }
 
-  return DEFAULT_PRELOAD_BEHAVIOR;
+  return prefetch;
 };
 
 type InputLinkProps<T> = T extends typeof RouterNavLink

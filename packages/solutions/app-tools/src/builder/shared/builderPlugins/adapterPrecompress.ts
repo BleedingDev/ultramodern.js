@@ -1,7 +1,8 @@
 import { constants as zlibConstants } from 'node:zlib';
 import type { RsbuildPlugin } from '@rsbuild/core';
 import CompressionPlugin from 'compression-webpack-plugin';
-import type { AppNormalizedConfig, PrecompressConfig } from '../../../types';
+import type { AppNormalizedConfig } from '../../../types';
+import type { PrecompressConfig } from '../../../types/config/precompress';
 import type { BuilderOptions } from '../types';
 
 type CompressionPluginOptions = NonNullable<

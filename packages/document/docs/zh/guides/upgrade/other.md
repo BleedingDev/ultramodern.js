@@ -95,7 +95,7 @@ Modern.js 3.0 不再支持通过 `@bleedingdev/modern-js-create` 创建 Monorepo
 **变更内容**：
 
 - 在 [v2.53.0](https://github.com/web-infra-dev/modern.js/releases/tag/v2.53.0) 版本中，移除了使用 `@bleedingdev/modern-js-create` 创建 Monorepo 项目的功能
-- 在 [v2.61.0](https://github.com/web-infra-dev/modern.js/releases/tag/v2.61.0) 版本中，移除了使用 `@bleedingdev/modern-js-create` 和 `ultramodern new` 命令创建 Modern.js Module 项目的功能
+- 在 [v2.61.0](https://github.com/web-infra-dev/modern.js/releases/tag/v2.61.0) 版本中，移除了使用 `@bleedingdev/modern-js-create` 和 `modern new` 命令创建 Modern.js Module 项目的功能
 
 **处理方式**：
 
@@ -104,12 +104,12 @@ Modern.js 3.0 不再支持通过 `@bleedingdev/modern-js-create` 创建 Monorepo
 
 ## new 命令和 upgrade 命令移除
 
-Modern.js 3.0 移除了 `ultramodern new` 和 `ultramodern upgrade` 命令，需要按照文档手动操作。
+Modern.js 3.0 移除了 `modern new` 和 `modern upgrade` 命令，需要按照文档手动操作。
 
 **变更内容**：
 
-- `ultramodern new` 命令在 Modern.js 3.0 中不再支持，无法通过命令添加入口或启用功能
-- `ultramodern upgrade` 命令在 Modern.js 3.0 中不再支持，无法通过命令自动升级依赖
+- `modern new` 命令在 Modern.js 3.0 中不再支持，无法通过命令添加入口或启用功能
+- `modern upgrade` 命令在 Modern.js 3.0 中不再支持，无法通过命令自动升级依赖
 
 **处理方式**：
 

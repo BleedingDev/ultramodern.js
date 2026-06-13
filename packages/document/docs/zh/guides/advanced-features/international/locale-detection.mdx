@@ -113,7 +113,7 @@ i18nPlugin({
 
 ## ignoreRedirectRoutes
 
-指定哪些额外路径跳过语言路径重定向。Modern.js 会自动跳过服务端 API 路由和 BFF 前缀，包括配置的 `bff.prefix`。`ignoreRedirectRoutes` 适用于其他不需要语言前缀的非 API 业务路径。
+指定哪些额外路径跳过语言路径重定向。Modern.js 会自动跳过服务端 API 路由、启用 BFF 但未配置前缀时的默认 `/api` 前缀，以及自定义 `bff.prefix`。`ignoreRedirectRoutes` 适用于其他不需要语言前缀的非 API 业务路径。
 
 **写法一：字符串数组**（支持精确匹配和前缀匹配）
 

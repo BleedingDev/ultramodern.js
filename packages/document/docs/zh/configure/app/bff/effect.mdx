@@ -123,13 +123,35 @@ export default defineConfig({
 }
 ```
 
-- **默认值：** `{ enabled: true }`
+- **默认值：**
+
+```ts
+{
+  enabled: true,
+  requireEnvelope: false,
+  envelopeHeader: 'x-modernjs-data-envelope',
+  validateOrigin: true,
+  requireTraceContext: false,
+  batch: {
+    enabled: true,
+    endpoint: '/_data/batch',
+    maxBatchSize: 16,
+    maxBatchBytes: 64 * 1024,
+    flushIntervalMs: 8,
+    maxConcurrency: 4,
+    requestTimeoutMs: 10000,
+    allowedMethods: ['GET'],
+  },
+}
+```
 
 用于配置 Effect 运行时的数据请求信封（envelope）校验策略。
 
 生成的 Effect 客户端会将批处理请求发送到 `${bff.prefix}${batch.endpoint}`（例如 `/bff-api/_data/batch`）。
 
-当 `validateOrigin` 开启时，运行时会优先将 envelope 中的 origin 与请求 `Origin` 头比对；若请求无 `Origin`，则回退到请求 URL 的 origin。
+Envelope 校验默认开启但不是强制的：未携带 envelope 的请求会继续通过，除非将 `requireEnvelope` 设为 `true`。如果请求携带 envelope，运行时会按配置校验命名空间、origin、trace 与 selection 策略。`expectedNamespace` 默认不设置，`selection` 默认也不限制，除非显式配置。
+
+Origin 校验默认开启。运行时会优先将 envelope 中的 origin 与请求 `Origin` 头比对；若请求无 `Origin`，则回退到请求 URL 的 origin；设置 `validateOrigin: false` 可关闭该比对。
 
 ```ts title="modern.config.ts"
 export default defineConfig({
@@ -150,3 +172,5 @@ export default defineConfig({
 ```
 
 `batch.flushIntervalMs` 用于控制生成的 Effect 客户端微批处理窗口；`maxConcurrency` 与 `requestTimeoutMs` 由服务端批处理网关用于内部请求分发。
+
+生成的 `effectBff.client.*` API 只存在于 loader 物化后的 `@api/effect/*` 导入中。直接导入服务端入口（`api/effect/index`）时拿到的是 Effect BFF 定义；其中的 `client` 属性只是占位，并会在访问具体操作时报错。

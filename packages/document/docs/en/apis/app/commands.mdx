@@ -8,12 +8,12 @@ UltraModern.js has some built-in commands that can help you quickly start a deve
 
 Through this chapter, you can learn about the built-in commands of UltraModern.js and how to use them.
 
-## ultramodern dev
+## modern dev
 
-The `ultramodern dev` command is used to start a local development server and compile the source code in the development environment.
+The `modern dev` command is used to start a local development server and compile the source code in the development environment.
 
 ```bash
-Usage: ultramodern dev [options]
+Usage: modern dev [options]
 
 Options:
   -e --entry <entry>    compiler by entry
@@ -23,10 +23,10 @@ Options:
   --api-only            only start API service
 ```
 
-After running `ultramodern dev`, UltraModern.js will watch source file changes and apply hot module replacement.
+After running `modern dev`, UltraModern.js will watch source file changes and apply hot module replacement.
 
 ```bash
-$ ultramodern dev
+$ modern dev
 
 info    Starting dev server...
 
@@ -38,10 +38,10 @@ info    Starting dev server...
 
 In multi-page (MPA) projects, the `--entry` option can be added to specify one or more pages to compile. In this way, only part of the code in the project will be compiled, and the dev startup speed will be faster.
 
-For example, execute `ultramodern dev --entry`, the entry selector will be displayed in the command line interface:
+For example, execute `modern dev --entry`, the entry selector will be displayed in the command line interface:
 
 ```text
-$ ultramodern dev --entry
+$ modern dev --entry
 
 ? Please select the entry that needs to be built
 ❯ ◯ foo
@@ -57,22 +57,22 @@ You can also specify the page name through parameters after `--entry`, and the n
 
 ```bash
 # Compile foo page
-ultramodern dev --entry foo
+modern dev --entry foo
 
 # Compile foo and bar pages
-ultramodern dev --entry foo,bar
+modern dev --entry foo,bar
 ```
 
-## ultramodern start
+## modern start
 
-`ultramodern start` is an alias of `ultramodern dev` command, the usage of the two are exactly the same.
+`modern start` is an alias of `modern dev` command, the usage of the two are exactly the same.
 
-## ultramodern build
+## modern build
 
-The `ultramodern build` command will build production-ready artifacts in the `dist/` directory by default. You can specify the output directory by modifying the configuration [`output.distPath`](/configure/app/output/dist-path).
+The `modern build` command will build production-ready artifacts in the `dist/` directory by default. You can specify the output directory by modifying the configuration [`output.distPath`](/configure/app/output/dist-path).
 
 ```bash
-Usage: ultramodern build [options]
+Usage: modern build [options]
 
 Options:
   -c --config <config>  specify the configuration file, which can be a relative or absolute path
@@ -80,80 +80,70 @@ Options:
   -w --watch            turn on watch mode, watch for changes and rebuild
 ```
 
-## ultramodern new
+## modern runtime status
 
-The `ultramodern new` command is used to enable features in an existing project.
-
-For example, add application entry, enable some optional features such as BFF, micro frontend, etc.
+The `modern runtime status` command reads the runtime status endpoint and prints the response. It targets `http://127.0.0.1:8080/_modern/runtime/status` by default.
 
 ```bash
-Usage: ultramodern new [options]
+Usage: modern runtime status [options]
 
 Options:
-  --config-file <configFile>  specify the configuration file, which can be a relative or absolute path
-  --lang <lang>          set the language (zh or en) for the new command.
-  -d, --debug            using debug mode to log something (default: false)
-  -c, --config <config>  set default generator config(json string)
-  --dist-tag <tag>       use specified tag version for its generator
-  --registry             set npm registry url to run npm command
-  -h, --help             show command help
+  --endpoint <endpoint>  runtime status endpoint URL or path
+  --token <token>        runtime status auth token
+  --token-env <name>     environment variable name that stores runtime status auth token (default: "MODERN_RUNTIME_SIGNAL_TOKEN")
+  --header-name <name>   auth header name (default: "x-modernjs-runtime-signal-token")
+  --timeout <ms>         request timeout in milliseconds (default: "5000")
+  --json                 output as JSON format for machine reading
+  -h, --help             display help for command
 ```
 
-### Add Entry
+If `--endpoint` is a path, it is resolved against `http://127.0.0.1:8080`. If `--token` is omitted, the command reads the token from the environment variable named by `--token-env`.
 
-In the project, execute the `new` command to add entries as follows:
+By default, the command formats the response as readable key/value lines. Add `--json` to print the raw JSON payload.
 
-```text
-$ npx ultramodern new
-? Please select the operation you want: Create Element
-? Please select the type of element to create: New "entry"
-? Please fill in the entry name: entry
+```bash
+modern runtime status --json
 ```
 
-### Enable Features
+## modern runtime fallback-signal
 
-In the project, execute the `new` command to enable features as follows:
+The `modern runtime fallback-signal` command posts a runtime fallback signal to the canary contract-gate endpoint. It targets `http://127.0.0.1:8080/_modern/contract-gates/runtime-fallback` by default.
 
-```text
-$ npx ultramodern new
-? Please select the operation you want: Enable Features
-? Please select the feature name: (Use arrow keys)
-❯ Enable BFF
-  Enable SSG
-  Enable Micro Frontend
+```bash
+Usage: modern runtime fallback-signal [options]
+
+Options:
+  --app <appName>          remote app name
+  --endpoint <endpoint>    runtime fallback signal endpoint URL or path
+  --reason <reason>        fallback reason (default: "runtime_fallback")
+  --phase <phase>          fallback phase (default: "load")
+  --entry <entry>          remote entry URL
+  --runtime-digest <digest>  runtime digest value
+  --metadata <json>        metadata JSON object string
+  --token <token>          runtime signal auth token
+  --token-env <name>       environment variable name that stores runtime signal auth token (default: "MODERN_RUNTIME_SIGNAL_TOKEN")
+  --header-name <name>     auth header name (default: "x-modernjs-runtime-signal-token")
+  --timeout <ms>           request timeout in milliseconds (default: "5000")
+  --json                   output as JSON format for machine reading
+  -h, --help               display help for command
 ```
 
-:::tip
-The `--config` parameter needs to use a JSON string.
+The request body always includes `appName`, `reason`, and `phase`. It includes `entry`, `runtimeDigest`, and `metadata` only when those options are provided. `--metadata` must be a JSON object string.
 
-pnpm does not support the use of JSON strings as parameter values currently. Use `npm new` to turn on.【[Relate Issue](https://github.com/pnpm/pnpm/issues/3876)】
-:::
+```bash
+modern runtime fallback-signal --app crm-shell --reason remote_load_failed --phase load --json
+```
 
 import ServeCommand from '@site-docs-en/components/serve-command';
 
 <ServeCommand />
 
-## ultramodern upgrade
+## modern inspect
 
-Execute the command `npx ultramodern upgrade` in the project, by default, dependencies in the `package.json` are updated to the latest version.
-
-```bash
-Usage: ultramodern upgrade [options]
-
-Options:
-  --config <config> specify the configuration file, which can be a relative or absolute path
-  --registry <registry>  specify npm registry (default: "")
-  -d,--debug             using debug mode to log something (default: false)
-  --cwd <cwd>            app directory (default: "")
-  -h, --help             show command help
-```
-
-## ultramodern inspect
-
-The `ultramodern inspect` command is used to view the UltraModern.js config, [Rsbuild config](https://v2.rsbuild.rs/config/index) and Rspack config of the project.
+The `modern inspect` command is used to view the UltraModern.js config, [Rsbuild config](https://v2.rsbuild.rs/config/index) and Rspack config of the project.
 
 ```bash
-Usage: ultramodern inspect [options]
+Usage: modern inspect [options]
 
 Options:
   --env <env>           view the configuration in the target environment (default: "development")
@@ -163,14 +153,14 @@ Options:
   -h, --help            show command help
 ```
 
-After executing the command `npx ultramodern inspect` in the project root directory, the following files will be generated in the `dist` directory of the project:
+After executing the command `npx modern inspect` in the project root directory, the following files will be generated in the `dist` directory of the project:
 
 - `modern.js.config.mjs`:The Modern.js configuration currently used.
 - `rsbuild.config.mjs`: The Rsbuild config to use at build time.
 - `rspack.config.web.mjs`: The Rspack config used by to use at build time.
 
 ```bash
-➜ npx ultramodern inspect
+➜ npx modern inspect
 
 Inspect config succeed, open following files to view the content:
 
@@ -184,7 +174,7 @@ Inspect config succeed, open following files to view the content:
 By default, the inspect command will output the development configs, you can use the `--env production` option to output the production configs:
 
 ```bash
-ultramodern inspect --env production
+modern inspect --env production
 ```
 
 ### Verbose content
@@ -192,7 +182,7 @@ ultramodern inspect --env production
 By default, the inspect command will omit the function content in the config object, you can use the `--verbose` option to output the full content of the function:
 
 ```bash
-ultramodern inspect --verbose
+modern inspect --verbose
 ```
 
 ### SSR Configuration
@@ -200,7 +190,7 @@ ultramodern inspect --verbose
 If the project has enabled SSR, an additional `rspack.config.node.mjs` file will be generated in the `dist/`, corresponding to the Rspack configuration at SSR build time.
 
 ```bash
-➜ npx ultramodern inspect
+➜ npx modern inspect
 
 Inspect config succeed, open following files to view the content:
 

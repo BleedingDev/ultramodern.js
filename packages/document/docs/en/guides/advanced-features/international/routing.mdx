@@ -32,11 +32,13 @@ i18nPlugin({
 | `/en/about` | Visits normally, language is `en` |
 | `/zh/about` | Visits normally, language is `zh` |
 
-API and BFF prefixes are skipped automatically, so server API routes do not need locale prefixes or `localisedUrls` entries. For additional application paths that should not redirect, use `ignoreRedirectRoutes`. See [Locale Detection -> ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes).
+API and BFF prefixes are skipped automatically, including server API routes, the default `/api` BFF prefix when BFF is configured, and custom `bff.prefix` values. Those routes do not need locale prefixes or `localisedUrls` entries. For additional application paths that should not redirect, use `ignoreRedirectRoutes`. See [Locale Detection -> ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes).
 
 ## Localised URL Paths
 
-When `localePathRedirect` is enabled, `localisedUrls` is enabled by default. This means every localisable route path must define a URL for every configured language. If you add a new language to `languages`, Modern.js will fail route generation until each localised URL entry includes that language too.
+`localePathRedirect` only adds and reads locale prefixes by default, for example `/en/about`. Translated path segments are opt-in: `localisedUrls` is enabled only when you provide a non-empty map. Omitting `localisedUrls`, setting it to `true`, setting it to `false`, or passing an empty object keeps prefix-only behavior.
+
+When a non-empty `localisedUrls` map is configured, every localisable route path must define a URL for every configured language. If you add a new language to `languages`, Modern.js will fail route generation until each localised URL entry includes that language too.
 
 `localisedUrls` applies to file-system routes generated for both React Router and TanStack Router projects. Do not configure localised URL entries for API routes, BFF prefixes, or configured `bff.prefix` values; those paths are excluded from locale redirects automatically.
 
@@ -73,7 +75,7 @@ i18nPlugin({
 | `/cs/terms-of-service` | Redirects to `/cs/podminky-pouzivani` |
 | `/cs/podminky-pouzivani` | Visits normally, language is `cs` |
 
-Set `localisedUrls: false` only when you want locale prefixes without translated path segments.
+Set `localisedUrls: false` as the escape hatch when a preset, shared config, or generated metadata would otherwise provide a map but this entry should keep locale prefixes without translated path segments.
 
 ## Route Configuration
 

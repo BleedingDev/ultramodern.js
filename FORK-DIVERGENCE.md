@@ -2,25 +2,71 @@
 
 Read this during every upstream sync. Merge-base: `8a744c1b` (v3.2.1), upstream = `origin` (web-infra-dev/modern.js).
 
-Scope: upstream files **modified** by the fork, plus upstream files the fork **deleted** or **renamed** (appendices below — they conflict differently). Regenerate the raw list with rename detection pinned on (the counts depend on it; with `diff.renames=false` the 3 renames surface as 3 D + 3 A and the M total shifts):
+Scope: upstream files **modified** by the fork, plus upstream files the fork **deleted** or **renamed** (appendices below — they conflict differently). This ledger has two scopes:
+
+1. `packages/**` deltas, which are categorized by owning package below.
+2. Root/infra deltas outside `packages/**` (CI, scripts, tests, docs, workspace policy, patches, changesets), summarized in the root/infra section because they are not package-owned but are still part of the upstream sync blast radius.
+
+Regenerate the raw lists with rename detection pinned on (the counts depend on it; with `diff.renames=false` the 17 raw package renames surface as 17 D + 17 A and the M total shifts):
 
 ```sh
-git diff $(git merge-base origin/main HEAD) --name-status -M -- packages
+git diff -M 8a744c1b HEAD --name-status -- packages
+git diff -M 8a744c1b HEAD --name-status -- . ':(exclude)packages/**'
 ```
 
-`M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and not listed.
+`M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and usually summarized rather than listed exhaustively.
 
 Fork-**added** files and packages (`@modern-js/plugin-tanstack`, `@modern-js/server-runtime-extensions` — `packages/server/runtime-extensions`, where the telemetry/contract-gate/MF-cache/MF-CSS server modules live — `app-tools/src/baseline.ts`, etc.) are fork-owned by definition and not listed here.
 
 Legend:
 
 - **[U]** upstreamable — a candidate to PR to web-infra-dev/modern.js in isolation.
-- **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, SuperApp trust, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
-- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 539 modified files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
+- **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation SSR/topology evidence, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
+- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 537 modified package files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
 
 Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing is an upstreamable bug fix.** Upstream returns `[]` cast to `MatchedRoute` when nothing matches, so callers destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, `render.ts:82`, returns `[undefined, {}]`). PR this upstream; until then, always keep the fork side in merges.
 
-Total at last audit (2026-06-12, post brutal-cleanup, working tree): 538 modified, 19 deleted, 3 renamed.
+Total at last audit (2026-06-13, post Phase A-C brutal-cleanup branch `ultracode/brutal-cleanup`):
+
+- Raw package diff: 537 M, 335 A, 5 D, 17 R, total 894 paths.
+- Ledger classification: 537 modified upstream files, 19 delete/template-move
+  review items, 3 non-exact renames. The 14 exact `R100` moves from
+  `packages/toolkit/create/template/**` to
+  `packages/toolkit/sandpack-react/scripts/mwa-template/**` are treated as
+  keep-deleted from their original upstream paths during merge review; the
+  remaining three non-exact renames stay in Appendix B.
+- root/infra outside `packages/**`: 835 paths changed from `8a744c1b` (`371 M`, `461 A`, `3 D`, `0 R`). These are mostly fork-owned additions, but the modified/deleted upstream files still conflict during sync and are summarized below.
+
+---
+
+## Root and infra scope (outside `packages/**`)
+
+Root/infra is intentionally not package-owned, but it is not optional during upstream syncs. Treat these deltas as the repository policy layer for the fork.
+
+### Workspace and dependency policy — [F]/[M]
+
+- `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` — fork package manager, Renovate/security, tsgo/rstest/biome, and publish policy. Keep fork policy unless the upstream change is a pure package version/security update that can be re-expressed without undoing the fork's package-manager constraints.
+- Root Renovate/security carve-outs already exist in `.github/renovate.json` and `pnpm-workspace.yaml` (`minimumReleaseAgeExclude`, Module Federation peer allowances, patched dependencies). Do not add app-level install shims to work around dependency policy.
+- `patchedDependencies` applies two Module Federation patches to `@module-federation/{manifest,rspack}@2.5.1` even though the patch filenames still contain `2.5.0`; see `patches/README.md`.
+
+### CI and GitHub workflows — mixed
+
+- Added fork-owned workflows: `boundary-anti-patterns.yml`, `bun-superapp-smoke.yml`, `contract-gates.yml`, `docs-pages.yml`, `publish-bleedingdev.yml`, `superapp-certification.yml`, `ultramodern-nightly.yml`, `ultramodern-production-readiness.yml`, `workflow-security.yml`.
+- Modified upstream workflows: dependency check, diff, integration tests, lint, type-check, unit tests, builder e2e, and issue labels. Reconcile upstream infrastructure fixes by hand; keep fork gates only where their scripts still exist.
+- Deleted Phase A-C workflow names are intentionally not live: the old `.github/workflows/mv-*.yml` governance layer was removed with the dead script families in Appendix C. Do not cite those workflows as current evidence.
+
+### Scripts and repo tooling — mixed
+
+- Added fork-owned script families that remain live: `scripts/boundary-guards`, `scripts/lib`, `scripts/module-sdk-contracts`, `scripts/mv-integration-pilot` smoke subset, `scripts/release-gates`, `scripts/security`, `scripts/superapp-certification`, `scripts/ultramodern-production-readiness`, `scripts/ultramodern-publish`, `scripts/ultramodern-zephyr-ssr-upload`, tsgo helper scripts, and `scripts/prepare-root.mjs`.
+- Modified upstream script packages mostly carry tsgo/rstest/toolchain/package-json churn. Prefer upstream bug fixes, but keep fork executable paths and script package manager policy coherent.
+- Deleted upstream script files: `scripts/build/bin/modern.js` and `scripts/build/src/cli_core_init.js`. This docs pass does not decide the docs-command binary cleanup; do not resurrect them while resolving unrelated docs or MF patch conflicts.
+
+### Tests, docs, changesets, and patches — mixed
+
+- `tests/**` has the largest non-package raw count because integration/e2e fixtures moved with fork defaults and generated-workspace proof coverage. Treat test changes as evidence for package/runtime behavior, not as standalone product features.
+- `docs/super-app-rfc-adr/**`, `docs/research/**`, and `FORK-DIVERGENCE.md` are fork docs. Keep them truthful to live code after Phase A-C: Garfish runtime/trust lanes are historical, Module Federation is the live composition runtime, and generated-workspace proof scripts replace deleted repo-local proof lanes.
+- `.changeset/**` entries are fork release metadata. Keep or regenerate per release train; do not treat them as upstreamable source changes.
+- `patches/**` is external dependency patch policy. Keep it paired with `pnpm-workspace.yaml` and `pnpm-lock.yaml` patch hashes.
 
 ---
 
@@ -32,7 +78,7 @@ Toolchain only: package.json scripts, rslib config, tsconfig `ignoreDeprecations
 
 ### builder (19 files)
 
-- `src/createBuilder.ts`, `src/shared/parseCommonConfig.ts`, `src/types.ts` — [F] `performance.rsdoctor` opt-in config surface (`RsdoctorUserConfig`) and default HTML `templateParameters`. NOTE: after the ADR-0001 revert (a210ac658d) RsDoctor defaults to OFF; the JSDoc on `RsdoctorUserConfig.enabled` still claims production default-on and is stale (see `tests/rsdoctor.test.ts` for actual behavior).
+- `src/createBuilder.ts`, `src/shared/parseCommonConfig.ts`, `src/types.ts` — [F] `performance.rsdoctor` opt-in config surface (`RsdoctorUserConfig`) and default HTML `templateParameters`. The fork-added `src/plugins/rsdoctor.ts` and `src/rsdoctorConfig.ts` carry the RsDoctor plugin split; RsDoctor defaults to OFF after the ADR-0001 revert (a210ac658d), and `tests/rsdoctor.test.ts` pins the behavior.
 - `src/plugins/environmentDefaults.ts` — [U] service-worker environment emits ESM library output when `output.module` is set (upstream hardcodes `commonjs2`).
 - `src/plugins/postcss.ts` — [U] resolves postcss/tailwind plugins from the app root via `createRequire` so monorepo/workspace installs resolve correctly.
 - `src/plugins/rscConfig.ts`, `src/shared/rsc/rscClientBrowserFallback.ts`, `src/shared/devServer.ts` — [F] RSC layer matching extended to fork render-package dist entries (`render/dist/esm/rsc.mjs`) and server-loader entry patterns.
@@ -64,7 +110,7 @@ Full rebrand to UltraModern.js (en + zh): homepage, nav, get-started, BFF/Effect
 
 ## packages/runtime
 
-### plugin-i18n (20 files) — [F]
+### plugin-i18n (21 files) — [F]
 
 Localised URLs (`shared/localisedUrls`), API-prefix locale-redirect skip incl. MF manifest endpoints (`/mf-manifest.json`, `/mf-stats.json`, `/remoteEntry.js` per ADR-0002), backend SDK/middleware split, I18nLink/hooks.
 
@@ -74,7 +120,7 @@ Type-cast strictness fix on ipx basename + toolchain configs.
 
 ### plugin-runtime (98 files) — the largest divergence
 
-- `src/router/runtime/*` — [F] router runtime state machinery (`routerRuntime`/`routerServerSnapshot`/hydration script on the internal context) plus the fork-added router provider-registry (`provider.ts`) and state helpers (`lifecycle.ts`). The TanStack consolidation has landed: all TanStack code lives in `@modern-js/plugin-tanstack`, and `routerFramework` has been **removed** from the runtime context (no `src/` hits remain; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence — see ADR-0017 §6.6).
+- `src/router/runtime/*` — [F] router runtime state machinery (`routerRuntime`/`routerServerSnapshot`/hydration script on the internal context) plus the fork-added router provider-registry (`provider.ts`) and state helpers (`lifecycle.ts`). The TanStack consolidation has landed: all TanStack code lives in `@modern-js/plugin-tanstack`, and `routerFramework` has been **removed** from the runtime context (no `src/` hits remain; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence — see ADR-0017 §6).
 - `src/router/runtime/PrefetchLink.tsx` — [U] candidate: intent/render/viewport prefetch behaviors + webpack chunk preload.
 - `src/exports/head.ts` — [F] Helmet re-implemented over `react-helmet-async` with SSR `_helmetContext` plumbing.
 - `src/core/server/*` (stream/string/requestHandler) — [F] router server snapshot + `loaderFailureMode` + helmet integration in SSR rendering.
@@ -179,9 +225,12 @@ Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validat
 
 ---
 
-## Appendix A — deleted upstream files (19): keep deleted on sync
+## Appendix A — deleted or template-moved upstream files (19): keep deleted on sync
 
-These files exist upstream but not in the fork. On merge they conflict as delete/modify or silently resurrect — re-delete them and port any upstream change into the listed fork replacement instead.
+Raw `-M` reports 5 deleted files plus 14 exact `R100` template moves. Treat all
+19 original upstream paths as keep-deleted during sync. On merge they conflict
+as delete/modify, rename/modify, or silently resurrect — re-delete the original
+path and port any upstream change into the listed fork replacement instead.
 
 - `packages/runtime/render/modern.config.js` — build config replaced by fork-added `rslib.config.mts`. Keep deleted; port upstream build-config changes into the rslib config.
 - `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` — the TS compile path was rebuilt around tsgo (see the `server/utils` entry above). Keep deleted; re-express upstream loader fixes in the fork's tsgo compiler path under `src/compilers/typescript/`.

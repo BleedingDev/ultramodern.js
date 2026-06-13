@@ -23,7 +23,7 @@ Micro Verticals are production-ready only when independent deployment has a matc
 The shell release owns:
 
 1. topology manifest selection.
-2. trust and compatibility enforcement.
+2. topology artifact policy and compatibility enforcement.
 3. global route assembly.
 4. platform fallback taxonomy.
 5. shell-level telemetry and incident routing.
@@ -35,8 +35,8 @@ The shell should be released independently from remotes as long as remote refere
 Remote releases own:
 
 1. immutable MF manifest and remote entry artifacts.
-2. compatibility digest.
-3. SRI and optional attestation.
+2. compatibility metadata declared by the topology manifest.
+3. artifact digest, SRI, provenance, and optional attestation evidence where the topology policy requires them.
 4. remote-local route and UI behavior.
 5. fallback and degradation evidence.
 
@@ -69,10 +69,10 @@ A vertical adoption package must include:
 | Evidence | Required contents |
 | --- | --- |
 | Architecture evidence | topology IDs, route ownership, remote/service boundaries, shared-package consumers |
-| Validation evidence | contract gates, topology manifest validation, trust policy validation, boundary guards |
+| Validation evidence | contract gates, topology manifest validation, artifact policy validation, boundary guards |
 | Test evidence | dev/build/serve checks, remote unavailable behavior, version skew, service propagation |
 | Rollout evidence | canary plan, rollout percentage, SLOs, rollback trigger, owner |
-| Fallback evidence | timeout, network, integrity, compatibility, trust rejection, service degradation |
+| Fallback evidence | timeout, network, artifact policy rejection, compatibility, service degradation |
 | Rollback evidence | LKG selection, kill switch, remote disable, service disable, recovery budget |
 | Review evidence | vertical owner, platform owner, service owner, impacted vertical approvals |
 
@@ -104,15 +104,15 @@ Operator actions:
 4. pause rollout until the remote publishes compatible artifacts.
 5. require platform runtime owner review before resume.
 
-### 4.3 Trust-policy rejection
+### 4.3 Artifact-policy rejection
 
 Operator actions:
 
-1. identify whether origin, digest, SRI, attestation, or revocation failed.
-2. never bypass the failed trust check in production.
+1. identify whether origin, digest, SRI, provenance, attestation, compatibility, or revocation failed in topology evidence.
+2. never bypass the failed artifact policy in production.
 3. revoke the artifact when compromise or policy violation is confirmed.
-4. select a trusted LKG or disable the remote.
-5. require trust evidence before re-enabling the target.
+4. select a valid LKG or disable the remote.
+5. require corrected topology evidence before re-enabling the target.
 
 ### 4.4 Service degradation
 
@@ -132,10 +132,10 @@ Operator actions:
 | Node runtime target | contract gates pass |
 | Effect service lane | request context, trace, locale, and generated client propagation pass |
 | Hono service lane | compatibility tests pass and lane remains explicit |
-| External remote | topology manifest contains immutable URL, digest, SRI, trust metadata, and owner |
+| External remote | topology manifest contains immutable URL, digest/SRI/provenance metadata required by policy, and owner |
 | Remote unavailable | shell renders degraded UI and emits fallback telemetry |
 | Digest mismatch | remote is rejected and fallback path wins |
-| Trust revocation | revoked artifact cannot be selected from current, overlay, or LKG |
+| Artifact revocation | revoked artifact cannot be selected from current, overlay, or LKG |
 | Version skew | host and remote pass compatibility or degrade deterministically |
 | Rollback drill | LKG, kill switch, or disable action completes within declared recovery budget |
 
@@ -153,15 +153,13 @@ Before production promotion:
 For the generated Tractor workspace, add these scaffold-specific gates:
 
 ```bash
-mise exec -- pnpm ultramodern:check
-mise exec -- pnpm build
-mise exec -- pnpm cloudflare:build
+pnpm check
+pnpm build
+pnpm cloudflare:build
 # Cloudflare evidence comes from the generated workspace's own proof scripts
 # (scripts/ultramodern-cloudflare-proof.mjs + scripts/proof-cloudflare-version.mjs,
 # exercised by scripts/ultramodern-production-readiness/run-published-create-proof.mjs).
-# The repo-local ultramodern-cloudflare-ssr-validation and
-# ultramodern-zephyr-live-evidence scripts were removed in the 2026-06-12 cleanup.
-mise exec -- pnpm cloudflare:proof
+pnpm cloudflare:proof
 ```
 
 Promotion to a public environment additionally requires:
@@ -184,7 +182,7 @@ A Micro Vertical is operable when:
 
 1. shell, remote, and service release trains are independent but topology-coordinated.
 2. canary and rollback controls are named before production rollout.
-3. fallback rehearsal covers remote, compatibility, trust, and service failures.
+3. fallback rehearsal covers remote, compatibility, artifact-policy, and service failures.
 4. evidence proves both Bun and Node expectations or records explicit unsupported scope.
 5. incident SOPs identify owners and deterministic mitigation steps.
 6. production promotion can be paused, revoked, or rolled back without shell source changes.

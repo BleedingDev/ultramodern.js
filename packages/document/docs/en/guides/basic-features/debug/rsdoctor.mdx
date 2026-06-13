@@ -2,14 +2,13 @@
 
 Rsdoctor is a Rspack build analysis tool. In Modern.js, we recommend using Rsdoctor to diagnose and analyze the build process and build outputs.
 
-Modern.js enables Rsdoctor by default for production builds.
+Modern.js does not enable Rsdoctor by default. Configure `performance.rsdoctor` when you want to run Rsdoctor for a build.
 
 ## Execute Build
 
 ```ts title="modern.config.ts"
 export default defineConfig({
   performance: {
-    // Enabled by default in production build.
     rsdoctor: true,
   },
 });
@@ -21,7 +20,7 @@ npm run build
 
 ## Disable Rsdoctor
 
-If you want to disable Rsdoctor:
+If you want to disable Rsdoctor after enabling it in shared config:
 
 ```ts title="modern.config.ts"
 export default defineConfig({

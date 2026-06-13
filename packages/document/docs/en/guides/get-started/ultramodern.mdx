@@ -103,9 +103,10 @@ every app.
 
 Each app emits `src/routes/ultramodern-route-metadata` with
 `ultramodernLocalisedUrls`. The i18n plugin reads that map in
-`localeDetection.localisedUrls` and serves dynamic backend JSON from
-`/locales/{{lng}}/{{ns}}.json`. The route owner changes localized paths and
-locale resource JSON together.
+`localeDetection.localisedUrls`; this is the explicit non-empty map that enables
+translated path segments on top of `localePathRedirect`. The i18n plugin also
+serves dynamic backend JSON from `/locales/{{lng}}/{{ns}}.json`. The route owner
+changes localized paths and locale resource JSON together.
 
 The generated contract writes `.modernjs/ultramodern-generated-contract.json`
 with a `cssFederation` section:

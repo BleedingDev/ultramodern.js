@@ -105,13 +105,15 @@ const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
 export default defineEffectBff({ api: bffEffectApi, layer });
 ```
 
-Call Effect endpoints from the browser via `@api/effect/index`:
+Call Effect endpoints from browser code via `@api/effect/index`:
 
 ```ts title="src/routes/page.tsx"
 import effectBff from '@api/effect/index';
 
 const response = await effectBff.client.hello.ping({});
 ```
+
+The `effectBff.client.*` surface is materialized by the BFF loader for `@api/effect/*` imports. Do not import `api/effect/index` directly and expect `client` to run in server code, scripts, or tests; direct entry imports expose the server runtime definition, and `client` is only a typed placeholder there.
 
 import Hono from '@site-docs-en/components/hono';
 

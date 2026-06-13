@@ -1,5 +1,5 @@
 import type { RsbuildPlugin } from '@rsbuild/core';
-import type { RsdoctorUserConfig } from '../types';
+import type { RsdoctorUserConfig } from '../rsdoctorConfig';
 
 const isRsdoctorEnabled = (config: RsdoctorUserConfig | undefined) => {
   if (config === undefined) {

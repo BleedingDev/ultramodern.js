@@ -13,6 +13,19 @@ import type {
 } from '../../../types';
 import { sortRoutes } from '../../../utils';
 import { getPublicDirPatterns } from '../../../utils/publicDir';
+import {
+  applyModuleFederationAssetHeaders,
+  getModuleFederationAssetList,
+  getModuleFederationRequestPath,
+  isModuleFederationManifestRequest,
+  type ModuleFederationServeAssets,
+  patchModuleFederationManifestPublicPath,
+  patchModuleFederationRemoteEntryPublicPath,
+} from './staticModuleFederation';
+import {
+  applyPreCompressedAssetHeaders,
+  resolvePreCompressedAsset,
+} from './staticPrecompressed';
 
 export const serverStaticPlugin = (): ServerPlugin => ({
   name: '@modern-js/plugin-server-static',
@@ -49,160 +62,6 @@ export type PublicMiddlwareOptions = {
   routes: ServerRoute[];
 };
 
-type SupportedEncoding = 'br' | 'gzip';
-
-type ResolvePreCompressedAssetResult = {
-  selected: {
-    filepath: string;
-    encoding: SupportedEncoding;
-  } | null;
-  hasVariant: boolean;
-};
-
-const PRE_COMPRESSED_ASSET_EXTENSIONS: Record<SupportedEncoding, string> = {
-  br: '.br',
-  gzip: '.gz',
-};
-
-const PRE_COMPRESSED_SUPPORTED_ENCODINGS: SupportedEncoding[] = ['br', 'gzip'];
-
-const parseAcceptEncoding = (value: string) =>
-  value
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-    .map(item => {
-      const [rawName, ...params] = item.split(';');
-      const name = rawName.trim().toLowerCase();
-      let q = 1;
-
-      for (const param of params) {
-        const [key, rawValue] = param.split('=').map(v => v.trim());
-        if (key.toLowerCase() !== 'q' || rawValue == null) {
-          continue;
-        }
-
-        const parsedQ = Number(rawValue);
-        if (!Number.isNaN(parsedQ)) {
-          q = Math.max(0, Math.min(parsedQ, 1));
-        }
-      }
-
-      return {
-        name,
-        q,
-      };
-    });
-
-const getAcceptedEncodings = (
-  value: string | null | undefined,
-): SupportedEncoding[] => {
-  if (!value) {
-    return [];
-  }
-
-  const parsed = parseAcceptEncoding(value);
-  const qualityByEncoding = new Map<string, number>();
-  let wildcardQuality: number | undefined;
-
-  for (const { name, q } of parsed) {
-    if (name === '*') {
-      wildcardQuality = q;
-      continue;
-    }
-    qualityByEncoding.set(name, q);
-  }
-
-  const getQuality = (encoding: SupportedEncoding) => {
-    const explicit = qualityByEncoding.get(encoding);
-    if (explicit !== undefined) {
-      return explicit;
-    }
-    return wildcardQuality ?? 0;
-  };
-
-  return PRE_COMPRESSED_SUPPORTED_ENCODINGS.map(encoding => ({
-    encoding,
-    quality: getQuality(encoding),
-  }))
-    .filter(item => item.quality > 0)
-    .sort((a, b) => b.quality - a.quality)
-    .map(item => item.encoding);
-};
-
-const appendVaryHeader = (
-  c: Parameters<Middleware>[0],
-  value: string,
-): void => {
-  const current = c.res.headers.get('Vary');
-
-  if (!current) {
-    c.header('Vary', value);
-    return;
-  }
-
-  const values = current
-    .split(',')
-    .map(item => item.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (!values.includes(value.toLowerCase())) {
-    c.header('Vary', `${current}, ${value}`);
-  }
-};
-
-const resolvePreCompressedAsset = async (
-  c: Parameters<Middleware>[0],
-  filepath: string,
-): Promise<ResolvePreCompressedAssetResult> => {
-  const brPath = `${filepath}${PRE_COMPRESSED_ASSET_EXTENSIONS.br}`;
-  const gzipPath = `${filepath}${PRE_COMPRESSED_ASSET_EXTENSIONS.gzip}`;
-
-  const [hasBr, hasGzip] = await Promise.all([
-    fs.pathExists(brPath),
-    fs.pathExists(gzipPath),
-  ]);
-
-  const hasVariant = hasBr || hasGzip;
-  if (!hasVariant) {
-    return {
-      selected: null,
-      hasVariant: false,
-    };
-  }
-
-  const acceptedEncodings = getAcceptedEncodings(
-    c.req.header('accept-encoding'),
-  );
-
-  for (const encoding of acceptedEncodings) {
-    if (encoding === 'br' && hasBr) {
-      return {
-        selected: {
-          filepath: brPath,
-          encoding,
-        },
-        hasVariant: true,
-      };
-    }
-
-    if (encoding === 'gzip' && hasGzip) {
-      return {
-        selected: {
-          filepath: gzipPath,
-          encoding,
-        },
-        hasVariant: true,
-      };
-    }
-  }
-
-  return {
-    selected: null,
-    hasVariant: true,
-  };
-};
-
 export function createPublicMiddleware({
   pwd,
   routes,
@@ -237,13 +96,7 @@ export function createPublicMiddleware({
           c.header(k, v as string);
         });
 
-        if (preCompressedAsset.hasVariant) {
-          appendVaryHeader(c, 'Accept-Encoding');
-        }
-
-        if (preCompressedAsset.selected) {
-          c.header('Content-Encoding', preCompressedAsset.selected.encoding);
-        }
+        applyPreCompressedAssetHeaders(c, preCompressedAsset);
 
         c.header('Content-Length', String(data.byteLength));
 
@@ -283,227 +136,6 @@ const extractPathname = (url: string): string => {
   } catch (e) {
     return url;
   }
-};
-
-const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
-const MODULE_FEDERATION_OPTIONAL_FILES = ['mf-stats.json'];
-
-type ModuleFederationManifest = {
-  metaData?: {
-    remoteEntry?: {
-      path?: string;
-      name?: string;
-    };
-    publicPath?: string;
-    types?: {
-      path?: string;
-      zip?: string;
-      api?: string;
-    };
-  };
-  shared?: Array<{
-    assets?: ModuleFederationAssets;
-  }>;
-  remotes?: Array<{
-    assets?: ModuleFederationAssets;
-  }>;
-  exposes?: Array<{
-    assets?: ModuleFederationAssets;
-  }>;
-};
-
-type ModuleFederationAssets = {
-  js?: {
-    sync?: string[];
-    async?: string[];
-  };
-  css?: {
-    sync?: string[];
-    async?: string[];
-  };
-};
-
-type ModuleFederationServeAssets = {
-  assets: Set<string>;
-  remoteEntry: string | null;
-};
-
-const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '');
-
-const joinModuleFederationAssetPath = (
-  assetPath?: string,
-  assetName?: string,
-) => {
-  if (!assetName) {
-    return '';
-  }
-
-  return trimLeadingSlash(path.posix.join(assetPath || '', assetName));
-};
-
-const appendModuleFederationAsset = (set: Set<string>, assetPath?: string) => {
-  if (!assetPath) {
-    return;
-  }
-
-  set.add(trimLeadingSlash(assetPath));
-};
-
-const appendModuleFederationAssets = (
-  set: Set<string>,
-  assets?: ModuleFederationAssets,
-) => {
-  assets?.js?.sync?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.js?.async?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.css?.sync?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.css?.async?.forEach(asset => appendModuleFederationAsset(set, asset));
-};
-
-const hasAbsoluteProtocol = (value: string) =>
-  /^https?:\/\//i.test(value) || value.startsWith('//');
-
-const ensureLeadingSlash = (value: string) => {
-  if (value === '') {
-    return '/';
-  }
-  return value.startsWith('/') ? value : `/${value}`;
-};
-
-const ensureTrailingSlash = (value: string) =>
-  value.endsWith('/') ? value : `${value}/`;
-
-const patchModuleFederationManifestPublicPath = (
-  c: Parameters<Middleware>[0],
-  manifestBuffer: Buffer,
-  pathPrefix: string,
-) => {
-  try {
-    const manifest = JSON.parse(
-      manifestBuffer.toString('utf-8'),
-    ) as ModuleFederationManifest;
-    const publicPath = manifest.metaData?.publicPath;
-
-    if (!publicPath || hasAbsoluteProtocol(publicPath)) {
-      return manifestBuffer;
-    }
-
-    const requestURL = new URL(c.req.url);
-    const prefixPath = ensureTrailingSlash(
-      ensureLeadingSlash(pathPrefix || '/'),
-    );
-    manifest.metaData = {
-      ...manifest.metaData,
-      publicPath: `${requestURL.origin}${prefixPath}`,
-    };
-
-    return Buffer.from(JSON.stringify(manifest), 'utf-8');
-  } catch {
-    return manifestBuffer;
-  }
-};
-
-const patchModuleFederationRemoteEntryPublicPath = (
-  c: Parameters<Middleware>[0],
-  remoteEntryBuffer: Buffer,
-  pathPrefix: string,
-) => {
-  const requestURL = new URL(c.req.url);
-  const prefixPath = ensureTrailingSlash(ensureLeadingSlash(pathPrefix || '/'));
-  const publicPath = `${requestURL.origin}${prefixPath}`;
-  const source = remoteEntryBuffer.toString('utf-8');
-  const patched = source
-    .replace(
-      /__webpack_require__\.p\s*=\s*(['"`])[^'"`]*\1;/,
-      `__webpack_require__.p = ${JSON.stringify(publicPath)};`,
-    )
-    .replace(
-      /__rspack_require__\.p\s*=\s*(['"`])[^'"`]*\1;/,
-      `__rspack_require__.p = ${JSON.stringify(publicPath)};`,
-    );
-
-  if (patched === source) {
-    return remoteEntryBuffer;
-  }
-
-  return Buffer.from(patched, 'utf-8');
-};
-
-const getModuleFederationAssetList = async (
-  pwd: string,
-): Promise<ModuleFederationServeAssets> => {
-  const assets = new Set<string>();
-  const manifestPath = path.join(pwd, MODULE_FEDERATION_MANIFEST_FILE);
-
-  if (!(await fs.pathExists(manifestPath))) {
-    return {
-      assets,
-      remoteEntry: null,
-    };
-  }
-
-  assets.add(MODULE_FEDERATION_MANIFEST_FILE);
-  const manifestBuffer = await fileReader.readFileFromSystem(
-    manifestPath,
-    'buffer',
-  );
-
-  if (manifestBuffer === null) {
-    return {
-      assets,
-      remoteEntry: null,
-    };
-  }
-
-  for (const filename of MODULE_FEDERATION_OPTIONAL_FILES) {
-    if (await fs.pathExists(path.join(pwd, filename))) {
-      assets.add(filename);
-    }
-  }
-
-  let remoteEntryFile: string | null = null;
-  try {
-    const manifest = JSON.parse(
-      manifestBuffer.toString('utf-8'),
-    ) as ModuleFederationManifest;
-    const remoteEntry = joinModuleFederationAssetPath(
-      manifest.metaData?.remoteEntry?.path,
-      manifest.metaData?.remoteEntry?.name,
-    );
-    const dtsZip = joinModuleFederationAssetPath(
-      manifest.metaData?.types?.path,
-      manifest.metaData?.types?.zip,
-    );
-    const dtsApi = joinModuleFederationAssetPath(
-      manifest.metaData?.types?.path,
-      manifest.metaData?.types?.api,
-    );
-
-    if (remoteEntry) {
-      assets.add(remoteEntry);
-      remoteEntryFile = remoteEntry;
-    }
-    if (dtsZip) {
-      assets.add(dtsZip);
-    }
-    if (dtsApi) {
-      assets.add(dtsApi);
-    }
-
-    manifest.shared?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-    manifest.remotes?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-    manifest.exposes?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-  } catch {}
-
-  return {
-    assets,
-    remoteEntry: remoteEntryFile,
-  };
 };
 
 export interface ServerStaticOptions {
@@ -578,9 +210,7 @@ export function createStaticMiddleware(
     requestPath = '',
   ) => {
     if (moduleFederationAsset) {
-      c.header('Access-Control-Allow-Origin', '*');
-      c.header('Access-Control-Allow-Headers', '*');
-      c.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
+      applyModuleFederationAssetHeaders(c);
     }
 
     const mimeType = getMimeType(filepath);
@@ -589,7 +219,7 @@ export function createStaticMiddleware(
     }
 
     const shouldPatchManifest =
-      moduleFederationAsset && requestPath === MODULE_FEDERATION_MANIFEST_FILE;
+      moduleFederationAsset && isModuleFederationManifestRequest(requestPath);
     const shouldPatchRemoteEntry = moduleFederationRemoteEntry;
     const canUsePreCompressed = !shouldPatchManifest && !shouldPatchRemoteEntry;
     const preCompressedAsset = canUsePreCompressed
@@ -613,13 +243,7 @@ export function createStaticMiddleware(
         ? patchModuleFederationRemoteEntryPublicPath(c, chunk, pathPrefix)
         : chunk;
 
-    if (preCompressedAsset.hasVariant) {
-      appendVaryHeader(c, 'Accept-Encoding');
-    }
-
-    if (preCompressedAsset.selected) {
-      c.header('Content-Encoding', preCompressedAsset.selected.encoding);
-    }
+    applyPreCompressedAssetHeaders(c, preCompressedAsset);
 
     // TODO: handle http range
     c.header('Content-Length', String(responseChunk.byteLength));
@@ -649,9 +273,7 @@ export function createStaticMiddleware(
 
     // Check if path matches static resource pattern
     const hit = staticPathRegExp.test(pathname);
-    const requestPath = trimLeadingSlash(
-      pathname.replace(pathPrefix, () => ''),
-    );
+    const requestPath = getModuleFederationRequestPath(pathname, pathPrefix);
 
     if (requestPath.includes('..')) {
       return next();

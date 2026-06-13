@@ -55,11 +55,13 @@ export default defineConfig({
 });
 ```
 
-When `validateOrigin` is enabled, Effect runtime validates envelope origin against the incoming `Origin` header (if present), otherwise falls back to request URL origin.
+Envelope validation is enabled by default but does not require an envelope unless `requireEnvelope` is set. Origin validation is enabled by default; set `validateOrigin: false` to skip comparing the envelope origin against the incoming `Origin` header, or the request URL origin when the header is absent.
 
 ## Generated Effect client behavior
 
 When using the generated Effect client (`@api/effect/index`), Modern.js automatically attaches a serialized data envelope header (`x-modernjs-data-envelope`) for same-origin requests.
+
+The generated client is loader-materialized. Import it from `@api/effect/*` in browser or client-bundled code; direct imports of the server entry (`api/effect/index`) expose the Effect BFF definition and only provide a placeholder `client`.
 
 The envelope includes:
 

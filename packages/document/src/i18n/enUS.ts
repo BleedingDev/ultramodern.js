@@ -43,13 +43,4 @@ export const EN_US = {
   pluginSystem: 'Plugin System',
   githubDiscussion: 'Github Discussion',
   changelog: 'Changelog',
-
-  // Showcases
-  doubao: 'Doubao',
-  writingo: 'Writingo',
-  volctrans: 'Volctrans',
-  shidianbaike: 'Shidian Baike',
-  xiaohe: 'Xiaohe',
-  dongchedi: 'Dongchedi',
-  volcengineDeveloper: 'Volcengine Developer',
 } as const;

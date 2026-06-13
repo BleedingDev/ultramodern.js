@@ -32,11 +32,13 @@ i18nPlugin({
 | `/en/about` | 正常访问，语言为 `en` |
 | `/zh/about` | 正常访问，语言为 `zh` |
 
-API 和 BFF 前缀会自动跳过，因此服务端 API 路由不需要语言前缀，也不需要配置 `localisedUrls`。如果还有其他业务路径不应该重定向，可以使用 `ignoreRedirectRoutes`，详见[语言检测 → ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes)。
+API 和 BFF 前缀会自动跳过，包括服务端 API 路由、启用 BFF 但未配置前缀时的默认 `/api` 前缀，以及自定义 `bff.prefix`。这些路由不需要语言前缀，也不需要配置 `localisedUrls`。如果还有其他业务路径不应该重定向，可以使用 `ignoreRedirectRoutes`，详见[语言检测 → ignoreRedirectRoutes](./locale-detection.md#ignoreredirectroutes)。
 
 ## 本地化 URL 路径
 
-启用 `localePathRedirect` 后，`localisedUrls` 默认启用。每个可本地化的路由路径都必须为所有已配置语言提供 URL。如果向 `languages` 中新增语言，Modern.js 会在路由生成阶段失败，直到每个 `localisedUrls` 条目都补齐该语言。
+默认情况下，`localePathRedirect` 只会添加和识别语言前缀，例如 `/en/about`。翻译路径片段需要显式开启：只有提供非空 `localisedUrls` 映射时才会启用。省略 `localisedUrls`、设置为 `true`、设置为 `false` 或传入空对象时，都会保持仅语言前缀的行为。
+
+配置非空 `localisedUrls` 映射后，每个可本地化的路由路径都必须为所有已配置语言提供 URL。如果向 `languages` 中新增语言，Modern.js 会在路由生成阶段失败，直到每个 `localisedUrls` 条目都补齐该语言。
 
 `localisedUrls` 同时适用于 React Router 和 TanStack Router 项目的约定式路由。不要为 API 路由、BFF 前缀或配置的 `bff.prefix` 添加本地化 URL 条目；这些路径会自动排除在语言重定向之外。
 
@@ -73,7 +75,7 @@ i18nPlugin({
 | `/cs/terms-of-service` | 重定向到 `/cs/podminky-pouzivani` |
 | `/cs/podminky-pouzivani` | 正常访问，语言为 `cs` |
 
-只有在希望保留语言前缀、但不翻译路径片段时，才设置 `localisedUrls: false`。
+当 preset、共享配置或生成的元数据本来会提供映射，但当前入口只希望保留语言前缀、不翻译路径片段时，可以设置 `localisedUrls: false` 作为逃生口。
 
 ## 路由配置
 
