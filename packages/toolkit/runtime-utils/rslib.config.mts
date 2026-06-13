@@ -19,7 +19,8 @@ export default defineConfig({
       output: {
         ...libConfig.output,
         externals: {
-          async_hooks: 'async_hooks',
+          async_hooks: 'node:async_hooks',
+          'node:async_hooks': 'node:async_hooks',
           './async_storage.server': './async_storage.server',
         },
       },
