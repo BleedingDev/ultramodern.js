@@ -9,5 +9,5 @@ previously triggered Chrome's Local Network Access prompt. `MODERN_PUBLIC_SITE_U
 is now documented as canonical/SEO-only, while JS/CSS/static assets use
 `MODERN_ASSET_PREFIX`, then `ULTRAMODERN_ASSET_PREFIX`, then `/`; stale public
 URL aliases should not be carried forward as asset-prefix fallbacks. Generated
-workspace documentation also records the Node `>=26` plus pnpm `11.5.3`
+workspace documentation also records the Node `>=26` plus pnpm `11+`
 toolchain baseline.

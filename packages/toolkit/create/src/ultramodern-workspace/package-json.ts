@@ -271,7 +271,7 @@ export function createRootPackageJson(
     },
     engines: {
       node: '>=26',
-      pnpm: `>=${PNPM_VERSION} <11.6.0`,
+      pnpm: '>=11',
     },
     workspaces: ['apps/*', 'verticals/*', 'packages/*'],
     modernjs: {

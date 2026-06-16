@@ -165,6 +165,14 @@ function expectNoPath(root: string, relativePath: string) {
   expect(fs.existsSync(path.join(root, relativePath))).toBe(false);
 }
 
+function expectPnpm11OrNewerPackageManager(packageManager: unknown): string {
+  expect(typeof packageManager).toBe('string');
+  const match = /^pnpm@(\d+)\.(\d+)\.(\d+)$/u.exec(String(packageManager));
+  expect(match).not.toBeNull();
+  expect(Number(match?.[1])).toBeGreaterThanOrEqual(11);
+  return `${match?.[1]}.${match?.[2]}.${match?.[3]}`;
+}
+
 function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'packages')).toEqual([
     'apps/*',
@@ -1273,11 +1281,16 @@ describe('create-ultramodern-workspace', () => {
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.name).toBe('ultra-workspace');
-    expect(rootPackage.packageManager).toBe('pnpm@11.5.3');
+    const pnpmVersion = expectPnpm11OrNewerPackageManager(
+      rootPackage.packageManager,
+    );
     expect(rootPackage.engines.node).toBe('>=26');
-    expect(rootPackage.engines.pnpm).toBe('>=11.5.3 <11.6.0');
+    expect(rootPackage.engines.pnpm).toBe('>=11');
     expectPath(workspaceDir, '.mise.toml');
     expect(readText(workspaceDir, '.mise.toml')).toContain('node = "26.3.0"');
+    expect(readText(workspaceDir, '.mise.toml')).toContain(
+      `pnpm = "${pnpmVersion}"`,
+    );
     const workflowText = readText(
       workspaceDir,
       '.github/workflows/ultramodern-workspace-gates.yml',
@@ -2080,11 +2093,14 @@ describe('create-ultramodern-workspace', () => {
     const fakeBinDir = path.join(tempRoot, 'fake-pnpm-bin');
     fs.mkdirSync(fakeBinDir, { recursive: true });
     const fakePnpmPath = path.join(fakeBinDir, 'pnpm');
+    const generatedPnpmVersion = String(
+      readJson(workspaceDir, 'package.json').packageManager,
+    ).replace(/^pnpm@/u, '');
     fs.writeFileSync(
       fakePnpmPath,
       `#!/usr/bin/env node
 if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
-  console.log('11.5.3');
+  console.log('${generatedPnpmVersion}');
   process.exit(0);
 }
 console.error('pmOnFail rejected active pnpm before version discovery');

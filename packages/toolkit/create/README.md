@@ -50,7 +50,7 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain baseline is Node `>=26` with pnpm `11.5.3`.
+The generated toolchain baseline is Node `>=26` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on that baseline; do not reintroduce Corepack or older pnpm aliases.
 

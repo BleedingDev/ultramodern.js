@@ -6,7 +6,6 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedPnpmVersion = '11.5.3';
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 const shellAppPath = 'apps/shell-super-app';
 
@@ -22,6 +21,14 @@ const expectedBleedingDevAliases = {
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {
   return JSON.parse(fs.readFileSync(path.join(baseDir, relativePath), 'utf-8'));
+}
+
+function expectPnpm11OrNewerPackageManager(packageManager: unknown): string {
+  expect(typeof packageManager).toBe('string');
+  const match = /^pnpm@(\d+)\.(\d+)\.(\d+)$/u.exec(String(packageManager));
+  expect(match).not.toBeNull();
+  expect(Number(match?.[1])).toBeGreaterThanOrEqual(11);
+  return `${match?.[1]}.${match?.[2]}.${match?.[3]}`;
 }
 
 function readPnpmConfig<T = any>(
@@ -183,9 +190,14 @@ describe('create-tailwind', () => {
 
   test('pins the pnpm toolchain and hardening policy on the workspace root', () => {
     const rootPackage = readJson(withTailwindDir, 'package.json');
-    expect(rootPackage.packageManager).toBe(`pnpm@${expectedPnpmVersion}`);
-    expect(rootPackage.engines.pnpm).toBe(`>=${expectedPnpmVersion} <11.6.0`);
+    const pnpmVersion = expectPnpm11OrNewerPackageManager(
+      rootPackage.packageManager,
+    );
+    expect(rootPackage.engines.pnpm).toBe('>=11');
     expect(fs.existsSync(path.join(withTailwindDir, '.mise.toml'))).toBe(true);
+    expect(
+      fs.readFileSync(path.join(withTailwindDir, '.mise.toml'), 'utf-8'),
+    ).toContain(`pnpm = "${pnpmVersion}"`);
     expectPnpm11Policy(withTailwindDir);
   });
 });
