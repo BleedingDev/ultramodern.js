@@ -7,7 +7,7 @@ import {
   getMatchedRouteAssets,
   orderHydrationScriptChunks,
 } from '../scriptOrder';
-import { attributesToString, checkIsNode } from '../utils';
+import { attributesToString, checkIsNode, hasStylesheetLink } from '../utils';
 import type { ChunkSet, Collector } from './types';
 
 export { orderHydrationScriptChunks } from '../scriptOrder';
@@ -252,19 +252,9 @@ export class LoadableCollector implements Collector {
 
     const atrributes = attributesToString(this.generateAttributes());
 
-    const linkRegExp = /<link .*?href="([^"]+)".*?>/g;
-
-    const matchs = template.matchAll(linkRegExp);
-
-    const existedLinks: string[] = [];
-
-    for (const match of matchs) {
-      existedLinks.push(match[1]);
-    }
-
     const emittedChunks = chunks.filter(chunk => {
       return (
-        !existedLinks.includes(chunk.url) &&
+        !hasStylesheetLink(template, chunk.url) &&
         !this.existsAssets?.includes(chunk.path)
       );
     });
@@ -292,10 +282,7 @@ export class LoadableCollector implements Collector {
     chunkSet.cssChunk += createFederatedCssLinks(moduleFederationCssAssets, {
       template,
       attributes: this.generateAttributes(),
-      existingAssets: [
-        ...existedLinks,
-        ...emittedChunks.map(chunk => chunk.url),
-      ],
+      existingAssets: emittedChunks.map(chunk => chunk.url),
     });
   }
 

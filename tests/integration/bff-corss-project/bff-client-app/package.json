@@ -20,7 +20,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tsconfig-paths": "4.2.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -29,6 +30,7 @@
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1"
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "typescript": "^5"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@modern-js/builder",
-  "version": "3.2.1",
+  "version": "3.4.0",
   "description": "A builder for Modern.js",
   "repository": {
     "type": "git",
@@ -45,7 +45,7 @@
     "@rsbuild/plugin-svgr": "2.0.3",
     "@rsbuild/plugin-type-check": "1.4.0",
     "@rsbuild/plugin-typed-css-modules": "1.2.4",
-    "@rsdoctor/rspack-plugin": "^1.5.12",
+    "@rsdoctor/rspack-plugin": "^1.5.13",
     "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "@swc/core": "1.15.41",
     "@swc/helpers": "^0.5.23",
@@ -75,7 +75,8 @@
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",
     "react": "^19.2.7",
-    "terser": "^5.48.0"
+    "terser": "^5.48.0",
+    "typescript": "^5"
   },
   "publishConfig": {
     "access": "public",

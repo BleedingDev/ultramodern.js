@@ -17,6 +17,7 @@ export * from './port';
 export * from './prettyInstructions';
 export * from './require';
 export * from './route';
+export * from './routeComponentFiles';
 export * from './runtimeExports';
 export * from './tsconfig';
 export * from './version';

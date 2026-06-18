@@ -1,6 +1,6 @@
 {
   "name": "@modern-js/image",
-  "version": "3.2.1",
+  "version": "3.4.0",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -50,6 +50,7 @@
     "@types/node": "^25.9.3",
     "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "typescript": "^5"
   }
 }

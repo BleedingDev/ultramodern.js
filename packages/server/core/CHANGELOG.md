@@ -1,5 +1,33 @@
 # @modern-js/server-plugin
 
+## 3.4.0
+
+### Patch Changes
+
+- a46bd4e: feat(server-core): pass request and monitors context to server plugin fallback hooks
+
+  feat(server-core): 为 server 插件 fallback hook 传递 request 和 monitors 上下文
+
+  - @modern-js/plugin@3.4.0
+  - @modern-js/runtime-utils@3.4.0
+  - @modern-js/utils@3.4.0
+
+## 3.3.0
+
+### Patch Changes
+
+- @modern-js/plugin@3.3.0
+- @modern-js/runtime-utils@3.3.0
+- @modern-js/utils@3.3.0
+
+## 3.2.2
+
+### Patch Changes
+
+- @modern-js/plugin@3.2.2
+- @modern-js/runtime-utils@3.2.2
+- @modern-js/utils@3.2.2
+
 ## 3.2.1
 
 ### Patch Changes

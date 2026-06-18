@@ -18,6 +18,7 @@
     "@rsbuild/plugin-react": "2.0.1",
     "@rslib/core": "0.22.1",
     "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1"
+    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "typescript": "^5"
   }
 }

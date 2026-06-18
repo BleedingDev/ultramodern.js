@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.2.1",
+  "version": "3.4.0",
   "engines": {
     "node": ">=20"
   },
@@ -248,7 +248,9 @@
     "invariant": "^2.2.4",
     "isbot": "5.1.42",
     "react-helmet-async": "3.0.0",
-    "react-is": "^19.2.7"
+    "react-is": "^19.2.7",
+    "@types/react-helmet": "^6.1.11",
+    "react-helmet": "^6.1.0"
   },
   "peerDependencies": {
     "react": "^19.2.7",
@@ -268,7 +270,10 @@
     "@types/node": "^25.9.3",
     "@typescript/native-preview": "7.0.0-dev.20260610.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "@types/cookie": "0.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   },
   "sideEffects": false,
   "publishConfig": {

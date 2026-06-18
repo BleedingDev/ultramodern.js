@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.2.1",
+  "version": "3.4.0",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
   "exports": {
@@ -110,7 +110,8 @@
     "mlly": "^1.8.2",
     "ndepe": "^0.1.13",
     "pkg-types": "^2.3.1",
-    "std-env": "4.1.0"
+    "std-env": "4.1.0",
+    "@swc/core": "1.15.41"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
@@ -119,13 +120,19 @@
     "@types/babel__traverse": "7.28.0",
     "@types/node": "^25.9.3",
     "@typescript/native-preview": "7.0.0-dev.20260610.1",
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   },
   "peerDependencies": {
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "ts-node": "^10.9.2"
   },
   "peerDependenciesMeta": {
     "tsconfig-paths": {
+      "optional": true
+    },
+    "ts-node": {
       "optional": true
     }
   },

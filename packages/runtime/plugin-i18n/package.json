@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.2.1",
+  "version": "3.4.0",
   "engines": {
     "node": ">=20"
   },
@@ -99,7 +99,7 @@
     "i18next-http-middleware": "^3.9.7"
   },
   "peerDependencies": {
-    "@modern-js/runtime": "workspace:^3.2.1",
+    "@modern-js/runtime": "workspace:^3.4.0",
     "i18next": ">=25.7.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -126,7 +126,9 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-i18next": "17.0.8",
-    "ts-jest": "^29.4.11"
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   },
   "sideEffects": false,
   "publishConfig": {

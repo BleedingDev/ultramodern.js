@@ -1,22 +1,48 @@
 import { execa, fs as fse } from '@modern-js/utils';
 import path from 'path';
 import {
-  acquireFixtureLock,
-  type ReleaseFixtureLock,
-} from '../../../utils/fixtureLock';
-import {
   getPort,
   killApp,
   modernBuild,
   runContinuousTask,
 } from '../../../utils/modernTestUtils';
 
-const appDir = path.resolve(__dirname, '../');
+const sourceAppDir = path.resolve(__dirname, '../');
 const ensureWorkspacePackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/server-utils',
 ];
+
+async function createIsolatedAppDir() {
+  const appDir = await fse.mkdtemp(
+    path.join(path.dirname(sourceAppDir), '.pure-esm-deploy-'),
+  );
+
+  await fse.copy(sourceAppDir, appDir, {
+    filter: src => {
+      const relative = path.relative(sourceAppDir, src);
+      if (!relative) {
+        return true;
+      }
+      const [firstSegment] = relative.split(path.sep);
+      return ![
+        'node_modules',
+        'dist',
+        'dist-deploy',
+        '.output',
+        'tests',
+      ].includes(firstSegment);
+    },
+  });
+  await fse.ensureSymlink(
+    path.join(sourceAppDir, 'node_modules'),
+    path.join(appDir, 'node_modules'),
+    'dir',
+  );
+
+  return appDir;
+}
 
 async function checkAppRun(host: string) {
   // Page render
@@ -45,10 +71,11 @@ async function checkAppRun(host: string) {
 // bff project's dependencies is more complex, so use bff project to test
 describe('deploy', () => {
   const apps = new Set();
-  let releaseFixtureLock: ReleaseFixtureLock | undefined;
+  let appDir: string;
 
   beforeAll(async () => {
-    releaseFixtureLock = await acquireFixtureLock(appDir);
+    appDir = await createIsolatedAppDir();
+
     await modernBuild(appDir, [], {
       env: {
         TEST_DIST: 'dist-deploy',
@@ -59,13 +86,8 @@ describe('deploy', () => {
   });
 
   afterAll(async () => {
-    try {
-      await Promise.all([...apps].map(x => killApp(x, true)));
-      await fse.remove(path.join(appDir, 'dist-deploy'));
-      await fse.remove(path.join(appDir, '.output'));
-    } finally {
-      await releaseFixtureLock?.();
-    }
+    await Promise.all([...apps].map(x => killApp(x, true)));
+    await fse.remove(appDir);
   });
 
   test('support server when deploy target is node', async () => {

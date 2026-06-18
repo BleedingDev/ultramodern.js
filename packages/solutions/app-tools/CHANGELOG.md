@@ -1,5 +1,65 @@
 # @modern-js/app-tools
 
+## 3.4.0
+
+### Patch Changes
+
+- 4c7f658: fix(runtime,app-tools): inject CSS of React.lazy descendants into streaming SSR shell to prevent FOUC; slim inline route manifest to only `chunkIds` when RSC is disabled
+
+  fix(runtime,app-tools): 流式 SSR 注入 React.lazy 子 chunk 的 CSS 到首屏 shell, 避免懒加载组件出现样式闪烁; 非 RSC 场景下 inline 路由 manifest 仅保留 `chunkIds`, 减少 HTML 体积
+
+- Updated dependencies [a46bd4e]
+- Updated dependencies [cf1f189]
+  - @modern-js/server-core@3.4.0
+  - @modern-js/builder@3.4.0
+  - @modern-js/plugin-data-loader@3.4.0
+  - @modern-js/prod-server@3.4.0
+  - @modern-js/server@3.4.0
+  - @modern-js/server-utils@3.4.0
+  - @modern-js/plugin@3.4.0
+  - @modern-js/i18n-utils@3.4.0
+  - @modern-js/types@3.4.0
+  - @modern-js/utils@3.4.0
+
+## 3.3.0
+
+### Minor Changes
+
+- ad364e2: feat: enable Rspack lazy compilation by default in CSR and stream SSR dev (string SSR / RSC / SSG stay disabled)
+  feat: keep stream SSR first-screen assets correct under lazy compilation by forcing route components eager
+
+  feat: CSR 与 stream SSR 开发环境下默认开启 Rspack 按需编译（string SSR / RSC / SSG 仍默认关闭）
+  feat: 通过强制路由组件 eager 编译，保证 stream SSR 在按需编译下首屏资源仍正确
+
+### Patch Changes
+
+- Updated dependencies [2e85455]
+  - @modern-js/builder@3.3.0
+  - @modern-js/server@3.3.0
+  - @modern-js/plugin@3.3.0
+  - @modern-js/plugin-data-loader@3.3.0
+  - @modern-js/server-core@3.3.0
+  - @modern-js/prod-server@3.3.0
+  - @modern-js/server-utils@3.3.0
+  - @modern-js/i18n-utils@3.3.0
+  - @modern-js/types@3.3.0
+  - @modern-js/utils@3.3.0
+
+## 3.2.2
+
+### Patch Changes
+
+- @modern-js/builder@3.2.2
+- @modern-js/plugin-data-loader@3.2.2
+- @modern-js/server-core@3.2.2
+- @modern-js/prod-server@3.2.2
+- @modern-js/server@3.2.2
+- @modern-js/server-utils@3.2.2
+- @modern-js/i18n-utils@3.2.2
+- @modern-js/plugin@3.2.2
+- @modern-js/types@3.2.2
+- @modern-js/utils@3.2.2
+
 ## 3.2.1
 
 ### Patch Changes
