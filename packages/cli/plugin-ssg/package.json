@@ -57,7 +57,7 @@
     "normalize-path": "3.0.0"
   },
   "peerDependencies": {
-    "react-router-dom": ">=7.13.1"
+    "react-router-dom": ">=7.18.0"
   },
   "peerDependenciesMeta": {
     "react-router-dom": {
@@ -68,14 +68,14 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.17.0",
-    "typescript": "^5"
+    "react-router-dom": "^7.18.0",
+    "typescript": "^6.0.3"
   },
   "sideEffects": false,
   "publishConfig": {

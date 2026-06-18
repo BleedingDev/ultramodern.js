@@ -12,14 +12,14 @@
     "@modern-js/runtime": "workspace:*",
     "@module-federation/modern-js-v3": "2.5.1",
     "@module-federation/runtime": "2.5.1",
-    "@tanstack/react-router": "1.170.15",
+    "@tanstack/react-router": "1.170.16",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
-    "typescript": "^5"
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "typescript": "^6.0.3"
   }
 }

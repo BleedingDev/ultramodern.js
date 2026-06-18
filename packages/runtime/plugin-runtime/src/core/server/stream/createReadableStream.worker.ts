@@ -171,7 +171,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
                       `${shellBefore}${beforeMark}${shellAfter}`,
                     ),
                   );
-                  if (afterMark) {
+                  if (afterMark.length > 0) {
                     safeEnqueue(encodeForWebStream(afterMark));
                   }
                   flushPendingScripts();

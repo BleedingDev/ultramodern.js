@@ -433,11 +433,10 @@ function packageScriptExists(projectDir, scriptName) {
 }
 
 function createWorkspace(workDir, projectName, createPackage, env) {
-  run(
-    'pnpm',
-    createPnpmDlxArgs(createPackage, [projectName, '--lang', 'en']),
-    { cwd: workDir, env },
-  );
+  run('pnpm', createPnpmDlxArgs(createPackage, [projectName, '--lang', 'en']), {
+    cwd: workDir,
+    env,
+  });
 }
 
 function addVertical(projectDir, vertical, createPackage, env) {
@@ -640,8 +639,10 @@ async function main() {
     summary.createCommand = {
       runner: 'pnpm dlx',
       packageSpecifier: createPackage.dlxSpecifier,
-      command: ['pnpm', ...createPnpmDlxArgs(createPackage, ['<project>'])]
-        .join(' '),
+      command: [
+        'pnpm',
+        ...createPnpmDlxArgs(createPackage, ['<project>']),
+      ].join(' '),
       cache: 'temporary pnpm store/cache for create and vertical dlx commands',
     };
 

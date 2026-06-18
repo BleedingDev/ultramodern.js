@@ -63,11 +63,11 @@ test('generates readable first-ten verticals and deterministic safe names above 
 test('parses scale profile and legacy custom vertical count requests', async () => {
   const { parseArgs } = await loadProof();
 
+  assert.equal(parseArgs([]).createPackage, '@bleedingdev/modern-js-create');
   assert.equal(
-    parseArgs([]).createPackage,
-    '@bleedingdev/modern-js-create',
+    parseArgs(['--command-contract-only']).commandContractOnly,
+    true,
   );
-  assert.equal(parseArgs(['--command-contract-only']).commandContractOnly, true);
 
   const profiled = parseArgs([
     '--scale-profile',
@@ -97,17 +97,12 @@ test('builds the supported pnpm dlx package command contract', async () => {
   const { createCleanPnpmDlxEnv, createPnpmDlxArgs } = await loadProof();
 
   assert.deepEqual(
-    createPnpmDlxArgs(
-      { dlxSpecifier: '@bleedingdev/modern-js-create' },
-      ['my-super-app', '--lang', 'en'],
-    ),
-    [
-      'dlx',
-      '@bleedingdev/modern-js-create',
+    createPnpmDlxArgs({ dlxSpecifier: '@bleedingdev/modern-js-create' }, [
       'my-super-app',
       '--lang',
       'en',
-    ],
+    ]),
+    ['dlx', '@bleedingdev/modern-js-create', 'my-super-app', '--lang', 'en'],
   );
   assert.deepEqual(
     createPnpmDlxArgs(

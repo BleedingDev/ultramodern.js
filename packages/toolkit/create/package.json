@@ -60,14 +60,14 @@
     "@modern-js/i18n-utils": "workspace:*"
   },
   "devDependencies": {
+    "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
     "tsx": "^4.22.4",
-    "@modern-js/i18n-utils": "workspace:*",
-    "typescript": "^5"
+    "typescript": "^6.0.3"
   },
   "publishConfig": {
     "main": "./dist/esm-node/index.js",

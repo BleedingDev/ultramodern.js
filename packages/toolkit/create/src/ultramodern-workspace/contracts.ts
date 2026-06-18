@@ -61,6 +61,7 @@ import {
   PNPM_VERSION,
   RSTACK_AGENT_SKILLS_COMMIT,
   TANSTACK_ROUTER_VERSION,
+  TYPESCRIPT_7_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
@@ -685,6 +686,7 @@ export function createGeneratedContract(
     },
     versions: {
       typescript: TYPESCRIPT_VERSION,
+      typescript7Rc: TYPESCRIPT_7_VERSION,
       typescriptNativePreview: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
       moduleFederation: MODULE_FEDERATION_VERSION,
       tanstackRouter: TANSTACK_ROUTER_VERSION,

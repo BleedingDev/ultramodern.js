@@ -186,7 +186,7 @@
   },
   "dependencies": {
     "@swc/helpers": "^0.5.23",
-    "caniuse-lite": "^1.0.30001797",
+    "caniuse-lite": "^1.0.30001799",
     "import-meta-resolve": "^4.2.0",
     "lodash": "^4.18.1",
     "lodash-es": "^4.18.1",
@@ -195,11 +195,11 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
-    "happy-dom": "^20.10.2"
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "happy-dom": "^20.10.5"
   },
   "peerDependencies": {
     "react": "^19.2.7",

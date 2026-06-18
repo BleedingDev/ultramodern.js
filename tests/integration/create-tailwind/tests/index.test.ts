@@ -120,8 +120,8 @@ describe('create-tailwind', () => {
     ).toBe(true);
 
     const shellPackage = readJson(shellDir, 'package.json');
-    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.0');
-    expect(shellPackage.devDependencies['@tailwindcss/postcss']).toBe('^4.3.0');
+    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.1');
+    expect(shellPackage.devDependencies['@tailwindcss/postcss']).toBe('^4.3.1');
   });
 
   test('supports --no-tailwind opt-out', () => {
@@ -148,7 +148,7 @@ describe('create-tailwind', () => {
       true,
     );
     const verticalPackage = readJson(verticalDir, 'package.json');
-    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.1');
   });
 
   test('vertical inherits --no-tailwind workspace setting', () => {

@@ -199,7 +199,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
-    '@tanstack/react-router': '1.170.15',
+    '@tanstack/react-router': '1.170.16',
     'node-fetch': '^3.3.2',
   });
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
@@ -1382,17 +1382,17 @@ describe('create-ultramodern-workspace', () => {
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.14.3',
+      '@effect/tsgo': '0.14.5',
       '@modern-js/code-tools': expectedBleedingDevSpecifier(
         '@modern-js/code-tools',
       ),
       '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
-      '@typescript/native-preview': '7.0.0-dev.20260610.1',
+      '@typescript/native-preview': '7.0.0-dev.20260618.1',
       lefthook: '^2.1.9',
-      oxlint: '1.69.0',
-      oxfmt: '0.54.0',
+      oxlint: '1.70.0',
+      oxfmt: '0.55.0',
       ultracite: '7.8.3',
-      wrangler: '4.99.0',
+      wrangler: '4.102.0',
       'zephyr-agent': '1.1.1',
     });
 
@@ -1503,19 +1503,19 @@ describe('create-ultramodern-workspace', () => {
         'devDependencies',
         '@modern-js/app-tools',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.3');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.5');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260610.1',
+        '7.0.0-dev.20260618.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
-      expect(packageJson.devDependencies.wrangler).toBe('4.99.0');
+      expect(packageJson.devDependencies.wrangler).toBe('4.102.0');
       expect(
         packageJson.devDependencies['zephyr-modernjs-plugin'],
       ).toBeUndefined();
-      expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.0');
+      expect(packageJson.devDependencies.tailwindcss).toBe('^4.3.1');
       expect(packageJson.devDependencies['@tailwindcss/postcss']).toBe(
-        '^4.3.0',
+        '^4.3.1',
       );
       expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
       expect(packageJson.scripts.dev).toBe('modern dev');
@@ -1543,7 +1543,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson['zephyr:dependencies']).toEqual({});
       expect(typeof packageJson.scripts.typecheck).toBe('string');
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
-        '1.170.15',
+        '1.170.16',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
         '2.5.1',
@@ -2200,7 +2200,7 @@ process.exit(1);
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.15',
+      '1.170.16',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
       '2.5.1',
@@ -2232,7 +2232,7 @@ process.exit(1);
     expect(
       remotePackage.devDependencies['zephyr-modernjs-plugin'],
     ).toBeUndefined();
-    expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(remotePackage.devDependencies.tailwindcss).toBe('^4.3.1');
     expect(remotePackage['zephyr:dependencies']).toEqual({});
     expectBleedingDevModernDependency(
       remotePackage,

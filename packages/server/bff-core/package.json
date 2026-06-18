@@ -46,17 +46,17 @@
     "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
     "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
     "tsconfig-paths": "^4.2.0",
-    "zod": "^4.4.1"
+    "zod": "^4.4.3"
   },
   "peerDependenciesMeta": {
     "zod": {

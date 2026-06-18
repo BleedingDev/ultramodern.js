@@ -72,14 +72,14 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^25.9.3",
     "@types/qs": "^6.15.1",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
-    "happy-dom": "^20.10.2",
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "happy-dom": "^20.10.5",
     "nock": "^14.0.15",
-    "typescript": "^5"
+    "typescript": "^6.0.3"
   },
   "sideEffects": false,
   "publishConfig": {

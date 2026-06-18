@@ -166,7 +166,7 @@
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
     "lru-cache": "^11.5.1",
-    "react-router": "7.17.0",
+    "react-router": "7.18.0",
     "serialize-javascript": "^7.0.5"
   },
   "peerDependencies": {
@@ -183,18 +183,18 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.22.1",
+    "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.7",
     "@types/node": "^25.9.3",
     "@types/serialize-javascript": "^5.0.4",
-    "@typescript/native-preview": "7.0.0-dev.20260610.1",
-    "happy-dom": "^20.10.2",
+    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "happy-dom": "^20.10.5",
     "ioredis": "^5.11.1",
     "ioredis-mock": "^8.13.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "typescript": "^5"
+    "typescript": "^6.0.3"
   },
   "sideEffects": false
 }
