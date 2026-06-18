@@ -2560,8 +2560,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-api-app/dist-1/client: {}
-
   tests/integration/bff-corss-project/bff-client-app:
     dependencies:
       '@modern-js/plugin-bff':
@@ -4091,8 +4089,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4169,11 +4165,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
-
-  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 
@@ -13892,8 +13884,8 @@ packages:
       '@types/node':
         optional: true
 
-  node-releases@2.0.47:
-    resolution: {integrity: sha512-Uzmd6LXpouKo8EUK68IjH4+E01w/hXyV3R3g/geCJo+rXLNfh1xucB+LOzYEOQPSiUK3h/xZf0cQGcSsmyL2Og==}
+  node-releases@2.0.48:
+    resolution: {integrity: sha512-1uz8041X6LoI6ZSdZacM9lVY28vuzDlSKitnpbSNK0RfKoIJkX29NBPVEFXhnuSuEOA9Ww0xnPJ+ILWbGAv8DA==}
     engines: {node: '>=18'}
 
   node-schedule@2.1.1:
@@ -21970,7 +21962,7 @@ snapshots:
       baseline-browser-mapping: 2.10.38
       caniuse-lite: 1.0.30001799
       electron-to-chromium: 1.5.375
-      node-releases: 2.0.47
+      node-releases: 2.0.48
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
   bs-logger@0.2.6:
@@ -25955,7 +25947,7 @@ snapshots:
       '@types/express': 5.0.6
       '@types/node': 25.9.3
 
-  node-releases@2.0.47: {}
+  node-releases@2.0.48: {}
 
   node-schedule@2.1.1:
     dependencies:
