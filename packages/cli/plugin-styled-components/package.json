@@ -37,7 +37,7 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.22.0",
+    "@rslib/core": "0.22.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.3",
     "@types/styled-components": "^5.1.36",

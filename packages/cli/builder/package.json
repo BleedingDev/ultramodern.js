@@ -63,14 +63,14 @@
     "postcss-media-minmax": "5.0.0",
     "postcss-nesting": "14.0.0",
     "postcss-page-break": "3.0.4",
-    "rsbuild-plugin-rsc": "0.1.0",
+    "rsbuild-plugin-rsc": "0.1.1",
     "rspack-manifest-plugin": "5.2.2",
     "ts-deepmerge": "8.0.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.22.0",
+    "@rslib/core": "0.22.1",
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",
