@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import fs from 'node:fs';
 import path from 'node:path';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import type { RspackChain } from '@rsbuild/core';
@@ -63,20 +63,56 @@ export interface PresetUltramodernOptions {
 }
 
 const resolveReactRouterPackageDir = (appDirectory: string) => {
-  const localRequire = createRequire(path.join(appDirectory, 'package.json'));
-  try {
-    const reactRouterDomPackageJson = localRequire.resolve(
-      'react-router-dom/package.json',
-      { paths: [appDirectory] },
-    );
-    const reactRouterPackageJson = localRequire.resolve(
-      'react-router/package.json',
-      { paths: [path.dirname(reactRouterDomPackageJson)] },
-    );
+  const resolveNodeModulePackageJson = (
+    packageName: string,
+    fromDirectory: string,
+  ) => {
+    let currentDirectory = path.resolve(fromDirectory);
+
+    while (true) {
+      const packageJson = path.join(
+        currentDirectory,
+        'node_modules',
+        packageName,
+        'package.json',
+      );
+      if (fs.existsSync(packageJson)) {
+        return fs.realpathSync(packageJson);
+      }
+
+      const parentDirectory = path.dirname(currentDirectory);
+      if (parentDirectory === currentDirectory) {
+        return undefined;
+      }
+      currentDirectory = parentDirectory;
+    }
+  };
+
+  const reactRouterPackageJson = resolveNodeModulePackageJson(
+    'react-router',
+    appDirectory,
+  );
+  if (reactRouterPackageJson) {
     return path.dirname(reactRouterPackageJson);
-  } catch {
+  }
+
+  const reactRouterDomPackageJson = resolveNodeModulePackageJson(
+    'react-router-dom',
+    appDirectory,
+  );
+  if (!reactRouterDomPackageJson) {
     return undefined;
   }
+
+  const nestedReactRouterPackageJson = resolveNodeModulePackageJson(
+    'react-router',
+    path.dirname(reactRouterDomPackageJson),
+  );
+  if (nestedReactRouterPackageJson) {
+    return path.dirname(nestedReactRouterPackageJson);
+  }
+
+  return undefined;
 };
 
 const setReactRouterBridgeSafeAliases = (

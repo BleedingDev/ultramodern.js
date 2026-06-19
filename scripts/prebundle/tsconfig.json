@@ -1,7 +1,6 @@
 {
   "extends": "@modern-js/tsconfig/base",
   "compilerOptions": {
-    "baseUrl": "./",
     "outDir": "./dist",
     "rootDir": "./src"
   },

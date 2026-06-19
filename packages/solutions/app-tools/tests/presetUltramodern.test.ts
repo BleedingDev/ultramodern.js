@@ -31,28 +31,42 @@ const createFakeChain = (context?: string) => {
   };
 };
 
-const createReactRouterFixture = () => {
+const createReactRouterFixture = ({
+  viaReactRouterDom = false,
+}: {
+  viaReactRouterDom?: boolean;
+} = {}) => {
   // realpath: require.resolve returns resolved symlinks (/var vs /private/var
   // on macOS).
   const appDirectory = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'modern-preset-react-router-')),
   );
-  const reactRouterDir = path.join(appDirectory, 'node_modules/react-router');
-  const reactRouterDomDir = path.join(
-    appDirectory,
-    'node_modules/react-router-dom',
-  );
+  const reactRouterRoot = viaReactRouterDom
+    ? path.join(appDirectory, 'node_modules/react-router-dom/node_modules')
+    : path.join(appDirectory, 'node_modules');
+  const reactRouterDir = path.join(reactRouterRoot, 'react-router');
 
   fs.mkdirSync(reactRouterDir, { recursive: true });
-  fs.mkdirSync(reactRouterDomDir, { recursive: true });
   fs.writeFileSync(
     path.join(reactRouterDir, 'package.json'),
     JSON.stringify({ name: 'react-router', version: '0.0.0' }),
   );
-  fs.writeFileSync(
-    path.join(reactRouterDomDir, 'package.json'),
-    JSON.stringify({ name: 'react-router-dom', version: '0.0.0' }),
-  );
+
+  if (viaReactRouterDom) {
+    const reactRouterDomDir = path.join(
+      appDirectory,
+      'node_modules/react-router-dom',
+    );
+    fs.mkdirSync(reactRouterDomDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(reactRouterDomDir, 'package.json'),
+      JSON.stringify({
+        name: 'react-router-dom',
+        version: '0.0.0',
+        dependencies: { 'react-router': '0.0.0' },
+      }),
+    );
+  }
 
   return { appDirectory, reactRouterDir };
 };
@@ -250,19 +264,44 @@ describe('presetUltramodern react-router bridge aliases', () => {
     }
   });
 
+  it('keeps resolving react-router through v7 react-router-dom apps', () => {
+    const { appDirectory, reactRouterDir } = createReactRouterFixture({
+      viaReactRouterDom: true,
+    });
+    try {
+      const bundlerChain = getBundlerChain(createPresetUltramodernConfig());
+
+      const dev = createFakeChain(appDirectory);
+      bundlerChain(dev.chain, { isProd: false });
+
+      expect(dev.aliases.get('react-router$')).toBe(
+        path.join(reactRouterDir, 'dist/development/index.mjs'),
+      );
+    } finally {
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('falls back to process.cwd() when the chain has no context', () => {
-    // NOTE: react-router is always resolvable inside the test runner (rstest
-    // exposes the pnpm store via NODE_PATH), so the unresolvable-package
-    // branch cannot be simulated here; this covers the cwd fallback instead.
-    const bundlerChain = getBundlerChain(createPresetUltramodernConfig());
-    const { chain, aliases } = createFakeChain(undefined);
+    const previousCwd = process.cwd();
+    const { appDirectory } = createReactRouterFixture();
+    try {
+      process.chdir(appDirectory);
+      const bundlerChain = getBundlerChain(createPresetUltramodernConfig());
+      const { chain, aliases } = createFakeChain(undefined);
 
-    bundlerChain(chain, { isProd: true });
+      bundlerChain(chain, { isProd: true });
 
-    const alias = aliases.get('react-router$');
-    expect(alias).toBeDefined();
-    expect(alias).toContain(`${path.sep}react-router${path.sep}`);
-    expect(alias?.endsWith(path.join('dist/production/index.mjs'))).toBe(true);
+      const alias = aliases.get('react-router$');
+      expect(alias).toBeDefined();
+      expect(alias).toContain(`${path.sep}react-router${path.sep}`);
+      expect(alias?.endsWith(path.join('dist/production/index.mjs'))).toBe(
+        true,
+      );
+    } finally {
+      process.chdir(previousCwd);
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
   });
 });
 

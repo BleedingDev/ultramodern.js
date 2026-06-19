@@ -25,7 +25,7 @@ import {
   PNPM_VERSION,
   POSTCSS_VERSION,
   REACT_DOM_VERSION,
-  REACT_ROUTER_DOM_VERSION,
+  REACT_ROUTER_VERSION,
   REACT_VERSION,
   TAILWIND_POSTCSS_VERSION,
   TAILWIND_VERSION,
@@ -148,7 +148,7 @@ export function appDependencies(
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
-    'react-router-dom': REACT_ROUTER_DOM_VERSION,
+    'react-router': REACT_ROUTER_VERSION,
   };
 
   if (app.kind === 'shell') {

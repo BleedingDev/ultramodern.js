@@ -31,7 +31,7 @@ export const isDefaultExportFunction = (file: string | false): boolean => {
       'decorators-legacy',
       'functionBind',
       'classPrivateMethods',
-      ['pipelineOperator', { proposal: 'minimal' }],
+      ['pipelineOperator', { proposal: 'fsharp' }],
       'optionalChaining',
       'optionalCatchBinding',
       'objectRestSpread',

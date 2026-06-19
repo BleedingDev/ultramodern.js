@@ -29,6 +29,9 @@ const createConfig = () =>
 const createApi = (appContext: any, hooks?: any) =>
   ({
     getAppContext: () => appContext,
+    updateAppContext: (update: any) => {
+      Object.assign(appContext, update);
+    },
     getNormalizedConfig: createConfig,
     getHooks: () =>
       hooks || {
@@ -348,6 +351,22 @@ describe('router cli extension points', () => {
       },
     };
     routerPlugin().setup!(api as any);
+
+    const routerConfig = taps.config!();
+    expect(routerConfig.source.include).toHaveLength(2);
+    expect(
+      routerConfig.source.include.some(
+        (item: unknown) =>
+          item instanceof RegExp && item.test('/node_modules/react-router/'),
+      ),
+    ).toBe(true);
+    expect(
+      routerConfig.source.include.some(
+        (item: unknown) =>
+          item instanceof RegExp &&
+          item.test('/node_modules/react-router-dom/'),
+      ),
+    ).toBe(false);
 
     expect(
       taps.internalRuntimePlugins!({ entrypoint: pluginEntry, plugins: [] })

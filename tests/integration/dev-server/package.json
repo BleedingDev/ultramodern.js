@@ -13,8 +13,7 @@
     "fs-extra": "^11.3.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router": "7.18.0",
-    "react-router-dom": "7.18.0"
+    "react-router": "7.18.0"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
