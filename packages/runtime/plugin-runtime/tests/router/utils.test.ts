@@ -2,6 +2,7 @@ import {
   createStaticHandler,
   UNSAFE_ErrorResponseImpl as ErrorResponseImpl,
 } from '@modern-js/runtime-utils/router';
+import { Children, type ReactElement, type ReactNode } from 'react';
 import { toErrorInfo } from '../../src/core/server/stream/deferredScript';
 import { serializeErrors as serializeServerErrors } from '../../src/core/server/utils';
 import {
@@ -119,6 +120,59 @@ describe('test runtime router utils', () => {
     expect(catchAllRoute?.props?.path).toBe('*');
     expect(response).toBeInstanceOf(Response);
     expect(response?.status).toBe(404);
+  });
+
+  it('does not pass hasErrorBoundary to React Router routes', () => {
+    function ErrorPage() {
+      return null;
+    }
+
+    const routesConfig = {
+      routes: [
+        {
+          type: 'nested' as const,
+          origin: 'config' as const,
+          id: 'root',
+          isRoot: true,
+          path: '/',
+          hasErrorBoundary: true,
+          children: [
+            {
+              type: 'nested' as const,
+              origin: 'config' as const,
+              id: 'child',
+              path: 'child',
+              hasErrorBoundary: true,
+              error: ErrorPage,
+            },
+          ],
+        },
+      ],
+    };
+
+    const objectRoutes = createRouteObjectsFromConfig({
+      routesConfig,
+    });
+    const objectRoot = objectRoutes?.[0];
+    const objectChild = objectRoot?.children?.[0];
+
+    expect(objectRoot).not.toHaveProperty('hasErrorBoundary');
+    expect(objectChild).not.toHaveProperty('hasErrorBoundary');
+    expect(objectChild?.errorElement).toBeDefined();
+
+    const jsxRoutes = renderRoutes({
+      routesConfig,
+    });
+    const jsxRoot = jsxRoutes?.[0] as ReactElement<{
+      children?: ReactNode;
+    }>;
+    const jsxChild = Children.toArray(jsxRoot.props.children)[0] as
+      | ReactElement<Record<string, unknown>>
+      | undefined;
+
+    expect(jsxRoot.props).not.toHaveProperty('hasErrorBoundary');
+    expect(jsxChild?.props).not.toHaveProperty('hasErrorBoundary');
+    expect(jsxChild?.props.errorElement).toBeDefined();
   });
 
   it('keeps object-route loader failures at HTTP 500', async () => {

@@ -111,7 +111,6 @@ export function getRouteObjects(
         id: route.id,
         loader: route.loader,
         action: route.action,
-        hasErrorBoundary: route.hasErrorBoundary,
         shouldRevalidate: route.shouldRevalidate,
         handle: {
           ...route.handle,

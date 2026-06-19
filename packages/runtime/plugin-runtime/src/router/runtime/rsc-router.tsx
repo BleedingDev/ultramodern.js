@@ -41,6 +41,11 @@ const safeUse = (value: unknown): unknown => {
   return null;
 };
 
+const hasRouteErrorBoundary = (route: RouteObject): boolean =>
+  Boolean(
+    route.errorElement || (route as { ErrorBoundary?: unknown }).ErrorBoundary,
+  );
+
 /**
  * Collect CSS files from matched routes
  */
@@ -155,7 +160,7 @@ export const createServerPayload = (
         errorElement: route.errorElement,
         handle: route.handle,
         hasAction: !!route.action,
-        hasErrorBoundary: !!route.hasErrorBoundary,
+        hasErrorBoundary: hasRouteErrorBoundary(route),
         hasLoader: !!route.loader,
         hasClientLoader: !!route.hasClientLoader,
         id: route.id!,
@@ -235,6 +240,10 @@ interface MergedRoute extends Omit<PayloadRoute, 'children' | 'index'> {
   children?: MergedRoute[];
 }
 
+type NestedPayloadRoute = PayloadRoute & {
+  children?: NestedPayloadRoute[];
+};
+
 const mergeRoutes = (
   routes: PayloadRoute[],
   originalRoutes: RouteObject[] | undefined,
@@ -294,6 +303,21 @@ const mergeRoutes = (
   };
 
   return mergeRoutesRecursive(originalRoutes);
+};
+
+const toReactRouterRoute = (route: NestedPayloadRoute): RouteObject => {
+  const {
+    hasErrorBoundary: _hasErrorBoundary,
+    children,
+    ...routeObject
+  } = route;
+  const sanitizedRoute: RouteObject = routeObject as unknown as RouteObject;
+
+  if (children && Array.isArray(children)) {
+    sanitizedRoute.children = children.map(toReactRouterRoute);
+  }
+
+  return sanitizedRoute;
 };
 
 const findRouteInTree = (
@@ -567,7 +591,7 @@ export const createClientRouterFromPayload = (
           // @ts-ignore
           router.patchRoutes(
             matchedRoute.parentId ?? null,
-            [matchedRoute as unknown as RouteObject],
+            [toReactRouterRoute(matchedRoute)],
             true,
           );
           // patchRoutes uses Object.assign and only updates element/errorElement/
@@ -620,7 +644,6 @@ const createRSCStaticRouterComponent = (
         id: match.id,
         action: match.hasAction || !!match.clientAction,
         handle: match.handle,
-        hasErrorBoundary: match.hasErrorBoundary,
         loader: match.hasLoader || !!match.clientLoader,
         index: match.index,
         path: match.path,
@@ -644,7 +667,10 @@ const createRSCStaticRouterComponent = (
     [],
   );
 
-  const router = createStaticRouter(processedRoutes, routerContext);
+  const router = createStaticRouter(
+    (processedRoutes as NestedPayloadRoute[]).map(toReactRouterRoute),
+    routerContext,
+  );
 
   return (
     <StaticRouterProvider

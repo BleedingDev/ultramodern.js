@@ -799,4 +799,40 @@ describe('tanstack route tree from RouteObject[]', () => {
       modernRouteIsClientComponent: true,
     });
   });
+
+  test('does not copy hasErrorBoundary into React Router route objects', () => {
+    function ErrorPage() {
+      return null;
+    }
+
+    const modernRoutes: TestNestedRoute[] = [
+      {
+        type: 'nested',
+        origin: 'config',
+        id: 'root',
+        isRoot: true,
+        hasErrorBoundary: true,
+        children: [
+          {
+            type: 'nested',
+            origin: 'config',
+            id: 'child',
+            path: 'child',
+            hasErrorBoundary: true,
+            error: ErrorPage,
+          },
+        ],
+      },
+    ];
+
+    const routeObjects = createRouteObjectsFromConfig({
+      routesConfig: { routes: modernRoutes },
+    });
+    const rootRoute = routeObjects?.[0];
+    const childRoute = rootRoute?.children?.[0];
+
+    expect(rootRoute).not.toHaveProperty('hasErrorBoundary');
+    expect(childRoute).not.toHaveProperty('hasErrorBoundary');
+    expect(childRoute?.errorElement).toBeDefined();
+  });
 });

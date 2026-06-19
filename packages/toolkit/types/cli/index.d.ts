@@ -64,6 +64,11 @@ export interface Route {
   loader?: any;
   loaderDeps?: any;
   action?: any;
+  /**
+   * @deprecated React Router v8 no longer accepts `hasErrorBoundary` on route
+   * objects. Provide `error`/`errorElement` instead and let the router infer
+   * the boundary.
+   */
   hasErrorBoundary?: boolean;
   shouldRevalidate?: any;
   validateSearch?: any;
