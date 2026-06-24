@@ -35,6 +35,7 @@ import type {
   CheckEntryPointFn,
   DeplpoyFn,
   GenerateEntryCodeFn,
+  ModifyBuilderEnvironmentsFn,
   ModifyEntrypointsFn,
   ModifyFileSystemRoutesFn,
 } from './types/plugin';
@@ -70,6 +71,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
     deploy: createAsyncHook<DeplpoyFn>(),
     checkEntryPoint: createAsyncHook<CheckEntryPointFn>(),
     modifyEntrypoints: createAsyncHook<ModifyEntrypointsFn>(),
+    modifyBuilderEnvironments: createAsyncHook<ModifyBuilderEnvironmentsFn>(),
     modifyFileSystemRoutes: createAsyncHook<ModifyFileSystemRoutesFn>(),
     generateEntryCode: createAsyncHook<GenerateEntryCodeFn>(),
     onBeforeGenerateRoutes: createAsyncHook<BeforeGenerateRoutesFn>(),
