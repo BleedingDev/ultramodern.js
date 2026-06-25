@@ -75,11 +75,12 @@ the repo `tsgo:dts` flow. Run `pnpm --filter @modern-js/create test` when
 changing generator behavior; it includes a boundary test that scans generator
 sources, templates, and generated workspace output for compiler API imports.
 
-Generated workspaces use `@effect/tsgo` and `@typescript/native-preview` as
-tooling for `pnpm typecheck`, but generated app/package source must not depend
-on compiler API internals. Existing compiler API tests in this package use the
-stable `typescript` package. If a future AST utility is needed, keep it behind
-a dedicated compatibility module and test it against stable `typescript`, not
+Generated app packages install the TypeScript 7 RC package line and use
+`@effect/tsgo` plus `@typescript/native-preview` as tooling for
+`pnpm typecheck`, but generated app/package source must not depend on compiler
+API internals. Existing compiler API tests in this package use the stable
+TypeScript 6 package. If a future AST utility is needed, keep it behind a
+dedicated compatibility module and test it against stable `typescript`, not
 native-preview internals.
 
 Generated CI does not call the local aggregate. It runs format, lint,

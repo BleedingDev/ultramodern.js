@@ -178,8 +178,9 @@ Overlays are explicit CodeSmith generators that run after base workspace or
 MicroVertical generation. They extend generated output; they do not replace,
 inherit, or shadow the base templates. The generator and CodeSmith adapter are
 plain Node generator surfaces. The package build emits declaration files through
-the TS-Go toolchain, while generated workspaces use TS-Go only for local tooling
-and do not depend on native-preview compiler internals at runtime.
+the TS-Go toolchain. Generated app packages install the TypeScript 7 RC package
+line and use TS-Go only for local tooling; runtime code does not depend on
+native-preview compiler internals.
 
 ### Runtime Contracts
 

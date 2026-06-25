@@ -79,6 +79,7 @@ import {
   NODE_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_VERSION,
+  TYPESCRIPT_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 
@@ -307,6 +308,7 @@ export function generateUltramodernWorkspace(
     pnpmVersion: PNPM_VERSION,
     nodeFetchVersion: NODE_FETCH_VERSION,
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
+    typescriptVersion: TYPESCRIPT_VERSION,
     tailwindEnabled: String(enableTailwind),
   });
 

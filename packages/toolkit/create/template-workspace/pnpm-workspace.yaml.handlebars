@@ -10,6 +10,7 @@ minimumReleaseAgeExclude:
   - '@bleedingdev/modern-js-*'
   - '@tanstack/react-router'
   - '@tanstack/router-core'
+  - 'typescript'
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
   - '@types/react'
@@ -24,7 +25,11 @@ strictDepBuilds: true
 peerDependencyRules:
   allowedVersions:
     react: '>=19.0.0'
-    typescript: '>=6.0.0'
+    '@module-federation/dts-plugin>typescript': '{{typescriptVersion}}'
+    '@module-federation/enhanced>typescript': '{{typescriptVersion}}'
+    '@module-federation/modern-js-v3>typescript': '{{typescriptVersion}}'
+    '@module-federation/rspack>typescript': '{{typescriptVersion}}'
+    'i18next>typescript': '{{typescriptVersion}}'
 
 overrides:
   '@tanstack/react-router': {{tanstackRouterVersion}}

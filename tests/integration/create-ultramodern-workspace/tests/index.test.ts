@@ -188,6 +188,7 @@ function expectPnpm11Policy(workspaceDir: string) {
     '@bleedingdev/modern-js-*',
     '@tanstack/react-router',
     '@tanstack/router-core',
+    'typescript',
     '@typescript/native-preview',
     '@typescript/native-preview-*',
     '@types/react',
@@ -195,7 +196,11 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
     allowedVersions: {
       react: '>=19.0.0',
-      typescript: '>=6.0.0',
+      '@module-federation/dts-plugin>typescript': '7.0.1-rc',
+      '@module-federation/enhanced>typescript': '7.0.1-rc',
+      '@module-federation/modern-js-v3>typescript': '7.0.1-rc',
+      '@module-federation/rspack>typescript': '7.0.1-rc',
+      'i18next>typescript': '7.0.1-rc',
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
@@ -1507,7 +1512,7 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
         '7.0.0-dev.20260624.1',
       );
-      expect(packageJson.devDependencies.typescript).toBe('6.0.3');
+      expect(packageJson.devDependencies.typescript).toBe('7.0.1-rc');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
       expect(packageJson.devDependencies.wrangler).toBe('4.102.0');
       expect(

@@ -166,8 +166,8 @@ JSON 契约缺失或不是对象、Tailwind 前缀冲突，都会报告归属契
 Overlays 是显式配置的 CodeSmith 生成器，会在基础 workspace 或 MicroVertical
 生成之后运行。它们只扩展生成结果，不替换、不继承、也不遮蔽基础模板。公开生成器与
 CodeSmith adapter 都是普通 Node 生成器入口。包构建通过 TS-Go 工具链产出声明文件；
-生成出来的 workspace 只在本地工具链中使用 TS-Go，运行时不依赖 native-preview
-compiler 内部实现。
+生成出来的 app package 直接安装 TypeScript 7 RC 包线，并且只在本地工具链中使用
+TS-Go，运行时代码不依赖 native-preview compiler 内部实现。
 
 ### 运行时契约
 
