@@ -16,6 +16,68 @@ const writeJson = (filePath, value) => {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 };
 
+const writeFile = (filePath, content = 'fixture\n') => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
+};
+
+const createPublicExport = {
+  types: './dist/types/ultramodern-workspace/public-api.d.ts',
+  node: {
+    import: './dist/esm-node/ultramodern-workspace/public-api.js',
+    require: './dist/cjs/ultramodern-workspace/public-api.cjs',
+  },
+  default: './dist/esm-node/ultramodern-workspace/public-api.js',
+};
+const createCodeSmithExport = {
+  types: './dist/types/ultramodern-workspace/codesmith.d.ts',
+  node: {
+    import: './dist/esm-node/ultramodern-workspace/codesmith.js',
+    require: './dist/cjs/ultramodern-workspace/codesmith.cjs',
+  },
+  default: './dist/esm-node/ultramodern-workspace/codesmith.js',
+};
+const createRootExport = {
+  types: './dist/types/index.d.ts',
+  node: {
+    import: './dist/esm-node/index.js',
+    require: './dist/cjs/index.cjs',
+  },
+  default: './dist/esm-node/index.js',
+};
+const createPackageExports = {
+  '.': createRootExport,
+  './ultramodern-workspace': createPublicExport,
+  './ultramodern-workspace/codesmith': createCodeSmithExport,
+};
+const createPublishedPaths = [
+  'bin/run.js',
+  'dist/cjs/index.cjs',
+  'dist/cjs/ultramodern-workspace/codesmith.cjs',
+  'dist/cjs/ultramodern-workspace/public-api.cjs',
+  'dist/esm-node/index.js',
+  'dist/esm-node/ultramodern-workspace/codesmith.js',
+  'dist/esm-node/ultramodern-workspace/public-api.js',
+  'dist/types/index.d.ts',
+  'dist/types/ultramodern-workspace/codesmith.d.ts',
+  'dist/types/ultramodern-workspace/public-api.d.ts',
+  'template-workspace/.agents/agent-reference-repos.json',
+  'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
+  'template-workspace/.agents/skills-lock.json',
+  'template-workspace/.codex/hooks.json',
+  'template-workspace/.github/renovate.json',
+  'template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
+  'template-workspace/.gitignore.handlebars',
+  'template-workspace/.mise.toml.handlebars',
+  'templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars',
+];
+
+const writeCreatePublishSurface = packageDir => {
+  for (const relativePath of createPublishedPaths) {
+    writeFile(path.join(packageDir, relativePath));
+  }
+};
+
 const makePackageJson = ({
   dir,
   name,
@@ -23,6 +85,7 @@ const makePackageJson = ({
   dependencies,
   devDependencies,
   ultramodern,
+  extra = {},
 }) => {
   writeJson(path.join(dir, 'package.json'), {
     name,
@@ -31,8 +94,10 @@ const makePackageJson = ({
       type: 'git',
       url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
     },
+    ...extra,
     publishConfig: {
       access: 'public',
+      ...(extra.publishConfig ?? {}),
     },
     ...(dependencies ? { dependencies } : {}),
     ...(devDependencies ? { devDependencies } : {}),
@@ -46,6 +111,7 @@ const makeFixture = ({
   includeCreate = true,
   stagedDependency = 'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
   stagedCreateI18nDependency = 'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
+  stagedCreateCodeSmithDependency = '2.6.9',
   createI18nDependencyBlock = 'dependencies',
   externalDependency,
   createFrameworkVersion = '3.2.0-ultramodern.1',
@@ -135,15 +201,27 @@ const makeFixture = ({
     makePackageJson({
       dir: path.join(repoRoot, 'packages/toolkit/create'),
       name: '@modern-js/create',
+      extra: {
+        exports: createPackageExports,
+        publishConfig: {
+          exports: createPackageExports,
+        },
+      },
     });
+    const createPackageDir = path.join(
+      repoRoot,
+      '.modern/bleedingdev-publish/packages/create',
+    );
     makePackageJson({
-      dir: path.join(repoRoot, '.modern/bleedingdev-publish/packages/create'),
+      dir: createPackageDir,
       name: '@bleedingdev/modern-js-create',
       version: '3.2.0-ultramodern.1',
-      dependencies:
-        createI18nDependencyBlock === 'dependencies'
+      dependencies: {
+        '@modern-js/codesmith': stagedCreateCodeSmithDependency,
+        ...(createI18nDependencyBlock === 'dependencies'
           ? createI18nDependency
-          : undefined,
+          : {}),
+      },
       devDependencies:
         createI18nDependencyBlock === 'devDependencies'
           ? createI18nDependency
@@ -151,7 +229,30 @@ const makeFixture = ({
       ultramodern: {
         frameworkVersion: createFrameworkVersion,
       },
+      extra: {
+        main: './dist/esm-node/index.js',
+        types: './dist/types/index.d.ts',
+        bin: {
+          'modern-js-create': './bin/run.js',
+        },
+        files: ['template-workspace', 'templates', 'dist', 'bin'],
+        typesVersions: {
+          '*': {
+            'ultramodern-workspace': [
+              './dist/types/ultramodern-workspace/public-api.d.ts',
+            ],
+            'ultramodern-workspace/codesmith': [
+              './dist/types/ultramodern-workspace/codesmith.d.ts',
+            ],
+          },
+        },
+        exports: createPackageExports,
+        publishConfig: {
+          exports: createPackageExports,
+        },
+      },
     });
+    writeCreatePublishSurface(createPackageDir);
     packages.push({
       sourceName: '@modern-js/create',
       targetName: '@bleedingdev/modern-js-create',
@@ -176,6 +277,7 @@ const makeFixture = ({
     repoRoot,
     manifestPath,
     outPath,
+    runRuntimeCreateProof: false,
   };
 };
 
@@ -232,10 +334,17 @@ test('validateSourceProof accepts staged local cohort metadata', async () => {
     );
     assert.deepEqual(proof.createPackageProof.runtimeDependencyChecks, [
       {
+        dependencyName: '@modern-js/codesmith',
+        specifier: '2.6.9',
+      },
+      {
         dependencyName: '@modern-js/i18n-utils',
         specifier: 'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
       },
     ]);
+    assert.deepEqual(proof.createPackageProof.runtimeProof, {
+      skipped: true,
+    });
     assert.equal(
       JSON.parse(fs.readFileSync(fixture.outPath, 'utf8')).passed,
       true,
@@ -396,6 +505,126 @@ test('validateSourceProof rejects create framework metadata drift', async () => 
     assert.throws(
       () => validateSourceProof(fixture),
       /@modern-js\/create staged package must record ultramodern\.frameworkVersion=3\.2\.0-ultramodern\.1/,
+    );
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof records installed create package runtime proof', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture();
+
+  try {
+    const proof = validateSourceProof({
+      ...fixture,
+      runRuntimeCreateProof: true,
+      createPackageRuntimeProofRunner: ({
+        createItem,
+        createPackageDir,
+        manifest,
+        repoRoot,
+        sourcePackageDir,
+        sourcePackageDirs,
+      }) => {
+        assert.equal(createItem.sourceName, '@modern-js/create');
+        assert.equal(createItem.targetName, '@bleedingdev/modern-js-create');
+        assert.equal(
+          createPackageDir,
+          path.join(
+            fixture.repoRoot,
+            '.modern/bleedingdev-publish/packages/create',
+          ),
+        );
+        assert.equal(manifest.dependencyVersion, '3.2.0-ultramodern.1');
+        assert.equal(repoRoot, fixture.repoRoot);
+        assert.equal(
+          sourcePackageDir,
+          path.join(fixture.repoRoot, 'packages/toolkit/create'),
+        );
+        assert.equal(
+          sourcePackageDirs['@modern-js/i18n-utils'],
+          path.join(fixture.repoRoot, 'packages/toolkit/i18n-utils'),
+        );
+        assert.equal(
+          sourcePackageDirs['@modern-js/utils'],
+          path.join(fixture.repoRoot, 'packages/utils'),
+        );
+        return {
+          packedTarball: 'bleedingdev-modern-js-create.tgz',
+          installedPackageName: '@bleedingdev/modern-js-create',
+          cliWorkspace: 'cli-proof-workspace',
+          esmWorkspace: 'esm-proof-workspace',
+          cjsWorkspace: 'cjs-proof-workspace',
+          importedSubpaths: [
+            '@bleedingdev/modern-js-create/ultramodern-workspace',
+            '@bleedingdev/modern-js-create/ultramodern-workspace/codesmith',
+          ],
+        };
+      },
+    });
+
+    assert.equal(
+      proof.createPackageProof.runtimeProof.installedPackageName,
+      '@bleedingdev/modern-js-create',
+    );
+    assert.deepEqual(proof.createPackageProof.publicExportChecks, {
+      publicSubpaths: [
+        '.',
+        './ultramodern-workspace',
+        './ultramodern-workspace/codesmith',
+      ],
+    });
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof categorizes stale create export metadata', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture();
+  const createPackageJsonPath = path.join(
+    fixture.repoRoot,
+    'packages/toolkit/create/package.json',
+  );
+  const createPackageJson = JSON.parse(
+    fs.readFileSync(createPackageJsonPath, 'utf8'),
+  );
+  delete createPackageJson.publishConfig.exports[
+    './ultramodern-workspace/codesmith'
+  ];
+  writeJson(createPackageJsonPath, createPackageJson);
+
+  try {
+    assert.throws(
+      () => validateSourceProof(fixture),
+      /export config: @bleedingdev\/modern-js-create package exports and source publishConfig\.exports must expose the same subpaths/,
+    );
+  } finally {
+    removeDir(fixture.repoRoot);
+  }
+});
+
+test('validateSourceProof categorizes missing create package files', async () => {
+  const { validateSourceProof } = await import(
+    '../validate-source-create-proof.mjs'
+  );
+  const fixture = makeFixture();
+  fs.rmSync(
+    path.join(
+      fixture.repoRoot,
+      '.modern/bleedingdev-publish/packages/create/template-workspace/.agents/skills-lock.json',
+    ),
+  );
+
+  try {
+    assert.throws(
+      () => validateSourceProof(fixture),
+      /template\/package files: @bleedingdev\/modern-js-create staged package is missing required published path: template-workspace\/\.agents\/skills-lock\.json/,
     );
   } finally {
     removeDir(fixture.repoRoot);

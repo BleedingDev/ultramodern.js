@@ -85,7 +85,6 @@
     "@modern-js/i18n-utils": "workspace:*"
   },
   "devDependencies": {
-    "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
