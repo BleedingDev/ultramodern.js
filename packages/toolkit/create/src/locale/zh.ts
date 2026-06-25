@@ -7,6 +7,10 @@ export const ZH_LOCALE = {
   error: {
     projectNameEmpty: '错误: 项目名称不能为空',
     directoryExists: '错误: 目录 "{projectName}" 已存在且不为空',
+    verticalNameMissing:
+      '错误: 缺少 MicroVertical 名称。请使用 <名称> --vertical、--vertical=<名称> 或 --vertical-name <名称>。',
+    verticalNameAmbiguous:
+      '错误: MicroVertical 名称不明确：{firstSource} 的 "{firstName}" 与 {secondSource} 的 "{secondName}" 不一致。',
     legacyModernJsNotConfirmed:
       '已中止。UltraModern.js 仍是默认的免交互初始化方案。',
     createFailed: '创建项目时出错:',
@@ -55,7 +59,9 @@ export const ZH_LOCALE = {
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
     optionVertical:
-      '      --vertical 修改当前已有的 UltraModern 工作区，并接入名为 <项目名称> 的 MicroVertical',
+      '      --vertical[=<名称>] 修改当前已有的 UltraModern 工作区，并接入 MicroVertical',
+    optionVerticalName:
+      '      --vertical-name <名称> 为自动化工作流显式指定 MicroVertical 名称',
     optionDryRun:
       '      --dry-run 预览 MicroVertical 修改计划但不写入文件（与 --vertical 一起使用）',
     optionLegacyModernJs:
@@ -70,7 +76,8 @@ export const ZH_LOCALE = {
     example6:
       '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
     example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
-    example8:
+    example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
+    example9:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },

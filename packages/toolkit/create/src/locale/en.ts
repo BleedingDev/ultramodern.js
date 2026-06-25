@@ -8,6 +8,10 @@ export const EN_LOCALE = {
     projectNameEmpty: 'Error: Project name cannot be empty',
     directoryExists:
       'Error: Directory "{projectName}" already exists and is not empty',
+    verticalNameMissing:
+      'Error: Missing MicroVertical name. Use <name> --vertical, --vertical=<name>, or --vertical-name <name>.',
+    verticalNameAmbiguous:
+      'Error: Ambiguous MicroVertical name: "{firstName}" from {firstSource} does not match "{secondName}" from {secondSource}.',
     legacyModernJsNotConfirmed:
       'Aborted. UltraModern.js remains the default unattended setup.',
     createFailed: 'Error creating project:',
@@ -59,7 +63,9 @@ export const EN_LOCALE = {
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
     optionVertical:
-      '      --vertical Mutate the current existing UltraModern workspace and wire a MicroVertical named <project-name>',
+      '      --vertical[=<name>] Mutate the current existing UltraModern workspace and wire a MicroVertical',
+    optionVerticalName:
+      '      --vertical-name <name> Explicit MicroVertical name for automation-friendly workspace mutation',
     optionDryRun:
       '      --dry-run Preview a MicroVertical mutation plan without writing files (supported with --vertical)',
     optionLegacyModernJs:
@@ -74,7 +80,8 @@ export const EN_LOCALE = {
     example6:
       '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
     example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
-    example8:
+    example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
+    example9:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },

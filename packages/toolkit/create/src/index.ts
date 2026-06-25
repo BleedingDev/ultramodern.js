@@ -36,6 +36,8 @@ const LEGACY_MODERN_JS_FLAG = '--legacy-modern-js';
 const LEGACY_MODERN_JS_CONFIRMATION = 'USE LEGACY MODERN.JS';
 const WORKSPACE_PROTOCOL_FLAG = '--workspace';
 const DRY_RUN_FLAG = '--dry-run';
+const VERTICAL_FLAG = '--vertical';
+const VERTICAL_NAME_FLAG = '--vertical-name';
 const BFF_FLAG = '--bff';
 const BFF_RUNTIME_OPTION = '--bff-runtime';
 const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
@@ -119,6 +121,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
   console.log(i18n.t(localeKeys.help.optionVertical));
+  console.log(i18n.t(localeKeys.help.optionVerticalName));
   console.log(i18n.t(localeKeys.help.optionDryRun));
   console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
   console.log('');
@@ -131,6 +134,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.example6));
   console.log(i18n.t(localeKeys.help.example7));
   console.log(i18n.t(localeKeys.help.example8));
+  console.log(i18n.t(localeKeys.help.example9));
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');
@@ -259,15 +263,172 @@ function detectExplicitTailwindFlag(): boolean | undefined {
   return undefined;
 }
 
-function detectVerticalFlag(): boolean {
-  const args = process.argv.slice(2);
-  if (args.some(arg => arg.startsWith('--vertical='))) {
+type VerticalCliInput =
+  | {
+      addVertical: false;
+    }
+  | {
+      addVertical: true;
+      name: string;
+    };
+
+type VerticalNameCandidate = {
+  value: string;
+  source: string;
+};
+
+function collectPositionalArgs(args: string[]): string[] {
+  const optionWithValue = new Set([
+    '--lang',
+    '-l',
+    BFF_RUNTIME_OPTION,
+    '--ultramodern-package-source',
+    '--ultramodern-package-version',
+    '--ultramodern-package-registry',
+    '--ultramodern-package-scope',
+    '--ultramodern-package-name-prefix',
+    VERTICAL_NAME_FLAG,
+  ]);
+  const optionWithoutValue = new Set([
+    '--help',
+    '-h',
+    '--version',
+    '-v',
+    '--tailwind',
+    '--no-tailwind',
+    BFF_FLAG,
+    WORKSPACE_PROTOCOL_FLAG,
+    DRY_RUN_FLAG,
+    VERTICAL_FLAG,
+    LEGACY_MODERN_JS_FLAG,
+  ]);
+  const positionalArgs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (optionWithoutValue.has(arg)) {
+      continue;
+    }
+
+    if (optionWithValue.has(arg)) {
+      i += 1;
+      continue;
+    }
+
+    if (
+      arg.startsWith('--lang=') ||
+      arg.startsWith(`${BFF_RUNTIME_OPTION}=`) ||
+      arg.startsWith('--ultramodern-package-source=') ||
+      arg.startsWith('--ultramodern-package-version=') ||
+      arg.startsWith('--ultramodern-package-registry=') ||
+      arg.startsWith('--ultramodern-package-scope=') ||
+      arg.startsWith('--ultramodern-package-name-prefix=') ||
+      arg.startsWith(`${VERTICAL_FLAG}=`) ||
+      arg.startsWith(`${VERTICAL_NAME_FLAG}=`)
+    ) {
+      continue;
+    }
+
+    positionalArgs.push(arg);
+  }
+
+  return positionalArgs;
+}
+
+function readRequiredVerticalNameValue(args: string[], index: number): string {
+  const value = args[index + 1];
+  if (!value || value.startsWith('-')) {
+    console.error(i18n.t(localeKeys.error.verticalNameMissing));
+    process.exit(1);
+  }
+
+  return value;
+}
+
+function resolveVerticalCliInput(args: string[]): VerticalCliInput {
+  const candidates: VerticalNameCandidate[] = [];
+  let addVertical = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === VERTICAL_FLAG) {
+      addVertical = true;
+      continue;
+    }
+
+    if (arg.startsWith(`${VERTICAL_FLAG}=`)) {
+      addVertical = true;
+      candidates.push({
+        value: arg.slice(`${VERTICAL_FLAG}=`.length),
+        source: `${VERTICAL_FLAG}=<name>`,
+      });
+      continue;
+    }
+
+    if (arg === VERTICAL_NAME_FLAG) {
+      addVertical = true;
+      candidates.push({
+        value: readRequiredVerticalNameValue(args, i),
+        source: VERTICAL_NAME_FLAG,
+      });
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith(`${VERTICAL_NAME_FLAG}=`)) {
+      addVertical = true;
+      candidates.push({
+        value: arg.slice(`${VERTICAL_NAME_FLAG}=`.length),
+        source: `${VERTICAL_NAME_FLAG}=<name>`,
+      });
+    }
+  }
+
+  if (!addVertical) {
+    return { addVertical: false };
+  }
+
+  const positionalArgs = collectPositionalArgs(args);
+  if (positionalArgs.length > 1) {
+    console.error(`Unexpected positional argument: ${positionalArgs[1]}`);
+    process.exit(1);
+  }
+
+  if (positionalArgs[0]) {
+    candidates.push({
+      value: positionalArgs[0],
+      source: 'positional argument',
+    });
+  }
+
+  const emptyCandidate = candidates.find(candidate => candidate.value === '');
+  if (!candidates.length || emptyCandidate) {
+    console.error(i18n.t(localeKeys.error.verticalNameMissing));
+    process.exit(1);
+  }
+
+  const [firstCandidate] = candidates;
+  const disagreement = candidates.find(
+    candidate => candidate.value !== firstCandidate.value,
+  );
+  if (disagreement) {
     console.error(
-      '--vertical does not accept a value. Use: create <name> --vertical',
+      i18n.t(localeKeys.error.verticalNameAmbiguous, {
+        firstName: firstCandidate.value,
+        firstSource: firstCandidate.source,
+        secondName: disagreement.value,
+        secondSource: disagreement.source,
+      }),
     );
     process.exit(1);
   }
-  return args.includes('--vertical');
+
+  return {
+    addVertical: true,
+    name: firstCandidate.value,
+  };
 }
 
 function detectDryRunFlag(args: string[]): boolean {
@@ -522,57 +683,7 @@ async function getProjectName(): Promise<{
   useCurrentDir: boolean;
 }> {
   const args = process.argv.slice(2);
-  const optionWithValue = new Set([
-    '--lang',
-    '-l',
-    BFF_RUNTIME_OPTION,
-    '--ultramodern-package-source',
-    '--ultramodern-package-version',
-    '--ultramodern-package-registry',
-    '--ultramodern-package-scope',
-    '--ultramodern-package-name-prefix',
-  ]);
-  const optionWithoutValue = new Set([
-    '--help',
-    '-h',
-    '--version',
-    '-v',
-    '--tailwind',
-    '--no-tailwind',
-    BFF_FLAG,
-    WORKSPACE_PROTOCOL_FLAG,
-    DRY_RUN_FLAG,
-    '--vertical',
-    LEGACY_MODERN_JS_FLAG,
-  ]);
-  const positionalArgs: string[] = [];
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-
-    if (optionWithoutValue.has(arg)) {
-      continue;
-    }
-
-    if (optionWithValue.has(arg)) {
-      i += 1;
-      continue;
-    }
-
-    if (
-      arg.startsWith('--lang=') ||
-      arg.startsWith(`${BFF_RUNTIME_OPTION}=`) ||
-      arg.startsWith('--ultramodern-package-source=') ||
-      arg.startsWith('--ultramodern-package-version=') ||
-      arg.startsWith('--ultramodern-package-registry=') ||
-      arg.startsWith('--ultramodern-package-scope=') ||
-      arg.startsWith('--ultramodern-package-name-prefix=')
-    ) {
-      continue;
-    }
-
-    positionalArgs.push(arg);
-  }
+  const positionalArgs = collectPositionalArgs(args);
 
   if (positionalArgs.length > 1) {
     console.error(`Unexpected positional argument: ${positionalArgs[1]}`);
@@ -629,11 +740,11 @@ async function main() {
   // the Effect BFF into every scaffolded vertical.
   detectBffRuntime(args);
   const dryRun = detectDryRunFlag(args);
-  const addVertical = detectVerticalFlag();
+  const verticalInput = resolveVerticalCliInput(args);
 
-  if (dryRun && !addVertical) {
+  if (dryRun && !verticalInput.addVertical) {
     console.error(
-      `${DRY_RUN_FLAG} is currently supported only with --vertical`,
+      `${DRY_RUN_FLAG} is currently supported only with ${VERTICAL_FLAG}`,
     );
     process.exit(1);
   }
@@ -641,23 +752,14 @@ async function main() {
   if (!dryRun) {
     console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
   }
-  const { name: projectName, useCurrentDir } = await getProjectName();
-  const targetDir = useCurrentDir
-    ? process.cwd()
-    : path.isAbsolute(projectName)
-      ? projectName
-      : path.resolve(process.cwd(), projectName);
-  const generatedPackageName =
-    useCurrentDir || path.isAbsolute(projectName)
-      ? path.basename(targetDir)
-      : projectName;
+
   const createPackage = readCreatePackageJson();
   const version = createPackage.version || 'latest';
   const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
     ? getBleedingDevFrameworkVersion(createPackage, version)
     : version;
 
-  if (addVertical) {
+  if (verticalInput.addVertical) {
     const overridePackageSource = args.some(arg =>
       arg.startsWith('--ultramodern-package-'),
     )
@@ -669,7 +771,7 @@ async function main() {
       : undefined;
     const verticalOptions = {
       workspaceRoot: process.cwd(),
-      name: generatedPackageName,
+      name: verticalInput.name,
       modernVersion: version,
       enableTailwind: detectExplicitTailwindFlag(),
       packageSource: overridePackageSource,
@@ -691,6 +793,17 @@ async function main() {
     console.log(`${dim}   pnpm check${reset}\n`);
     return;
   }
+
+  const { name: projectName, useCurrentDir } = await getProjectName();
+  const targetDir = useCurrentDir
+    ? process.cwd()
+    : path.isAbsolute(projectName)
+      ? projectName
+      : path.resolve(process.cwd(), projectName);
+  const generatedPackageName =
+    useCurrentDir || path.isAbsolute(projectName)
+      ? path.basename(targetDir)
+      : projectName;
 
   if (fs.existsSync(targetDir)) {
     const files = fs.readdirSync(targetDir);
