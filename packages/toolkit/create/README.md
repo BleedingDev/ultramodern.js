@@ -54,6 +54,34 @@ The generated toolchain baseline is Node `>=26` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on that baseline; do not reintroduce Corepack or older pnpm aliases.
 
+## TS-Go Compatibility Boundary
+
+The supported generator runtime surfaces are:
+
+- `@modern-js/create/ultramodern-workspace`
+- `@modern-js/create/ultramodern-workspace/codesmith`
+- The `@bleedingdev/modern-js-create` CLI that delegates to those APIs.
+
+These surfaces are plain Node generator code. They must not import
+`typescript`, `@typescript/native-preview`, or TypeScript compiler internals at
+runtime. The package build is the local validation command for this boundary:
+
+```bash
+pnpm --filter @modern-js/create build
+```
+
+That command runs the Rslib runtime build and then emits declarations through
+the repo `tsgo:dts` flow. Run `pnpm --filter @modern-js/create test` when
+changing generator behavior; it includes a boundary test that scans generator
+sources, templates, and generated workspace output for compiler API imports.
+
+Generated workspaces use `@effect/tsgo` and `@typescript/native-preview` as
+tooling for `pnpm typecheck`, but generated app/package source must not depend
+on compiler API internals. Existing compiler API tests in this package use the
+stable `typescript` package. If a future AST utility is needed, keep it behind
+a dedicated compatibility module and test it against stable `typescript`, not
+native-preview internals.
+
 Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable. Generated
