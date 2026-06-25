@@ -30,6 +30,9 @@
     "*": {
       ".": [
         "./dist/types/index.d.ts"
+      ],
+      "ultramodern-workspace": [
+        "./dist/types/ultramodern-workspace/public-api.d.ts"
       ]
     }
   },
@@ -42,6 +45,15 @@
         "require": "./dist/cjs/index.cjs"
       },
       "default": "./dist/esm-node/index.js"
+    },
+    "./ultramodern-workspace": {
+      "types": "./dist/types/ultramodern-workspace/public-api.d.ts",
+      "node": {
+        "modern:source": "./src/ultramodern-workspace/public-api.ts",
+        "import": "./dist/esm-node/ultramodern-workspace/public-api.js",
+        "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
+      },
+      "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
     }
   },
   "files": [
@@ -82,6 +94,14 @@
           "require": "./dist/cjs/index.cjs"
         },
         "default": "./dist/esm-node/index.js"
+      },
+      "./ultramodern-workspace": {
+        "types": "./dist/types/ultramodern-workspace/public-api.d.ts",
+        "node": {
+          "import": "./dist/esm-node/ultramodern-workspace/public-api.js",
+          "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
+        },
+        "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
       }
     }
   },

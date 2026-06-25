@@ -24,6 +24,12 @@ const writeExecutable = (filePath: string, content: string) => {
   fs.writeFileSync(filePath, content, { mode: 0o755 });
 };
 
+const linkCreatePackageIntoConsumer = (consumerDir: string) => {
+  const scopeDir = path.join(consumerDir, 'node_modules/@modern-js');
+  fs.mkdirSync(scopeDir, { recursive: true });
+  fs.symlinkSync(packageRoot, path.join(scopeDir, 'create'), 'dir');
+};
+
 const assertGeneratedModernConfigAssetPrefixContract = (
   modernConfig: string,
   label: string,
@@ -92,6 +98,143 @@ test('package exposes the pnpm dlx command alias', () => {
   );
 
   assert.equal(packageJson.bin['modern-js-create'], './bin/run.js');
+});
+
+test('package exposes the public UltraModern workspace generator subpath', () => {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+  );
+  const expectedPublicExport = {
+    types: './dist/types/ultramodern-workspace/public-api.d.ts',
+    node: {
+      import: './dist/esm-node/ultramodern-workspace/public-api.js',
+      require: './dist/cjs/ultramodern-workspace/public-api.cjs',
+    },
+    default: './dist/esm-node/ultramodern-workspace/public-api.js',
+  };
+
+  assert.deepEqual(packageJson.typesVersions['*']['ultramodern-workspace'], [
+    './dist/types/ultramodern-workspace/public-api.d.ts',
+  ]);
+  assert.deepEqual(packageJson.exports['./ultramodern-workspace'], {
+    ...expectedPublicExport,
+    node: {
+      'modern:source': './src/ultramodern-workspace/public-api.ts',
+      ...expectedPublicExport.node,
+    },
+  });
+  assert.deepEqual(
+    packageJson.publishConfig.exports['./ultramodern-workspace'],
+    expectedPublicExport,
+  );
+  assert.deepEqual(
+    Object.keys(packageJson.exports).sort(),
+    Object.keys(packageJson.publishConfig.exports).sort(),
+  );
+});
+
+test('built public UltraModern subpath imports from an ESM consumer and generates a vertical', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-create-public-api-'),
+  );
+
+  try {
+    linkCreatePackageIntoConsumer(tempRoot);
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {
+            addUltramodernVertical,
+            generateUltramodernWorkspace,
+          } from '@modern-js/create/ultramodern-workspace';
+
+          const workspaceRoot = path.join(process.cwd(), 'public-api-workspace');
+          generateUltramodernWorkspace({
+            targetDir: workspaceRoot,
+            packageName: 'public-api-workspace',
+            modernVersion: '3.2.1',
+            enableTailwind: true,
+            packageSource: {
+              strategy: 'install',
+              modernPackageVersion: '3.2.0-ultramodern.108',
+            },
+          });
+          addUltramodernVertical({
+            workspaceRoot,
+            name: 'catalog',
+            modernVersion: '3.2.1',
+          });
+
+          for (const relativePath of [
+            '.modernjs/ultramodern-workspace-template-manifest.json',
+            'apps/shell-super-app/package.json',
+            'verticals/catalog/package.json',
+            'verticals/catalog/shared/effect/api.ts',
+          ]) {
+            if (!fs.existsSync(path.join(workspaceRoot, relativePath))) {
+              throw new Error(\`Missing generated path: \${relativePath}\`);
+            }
+          }
+        `,
+      ],
+      {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('built public UltraModern subpath can be required from CommonJS', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-create-public-api-cjs-'),
+  );
+
+  try {
+    linkCreatePackageIntoConsumer(tempRoot);
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--eval',
+        `
+          const publicApi = require('@modern-js/create/ultramodern-workspace');
+          const keys = Object.keys(publicApi).sort();
+          const expected = [
+            'addUltramodernVertical',
+            'generateUltramodernWorkspace',
+          ];
+          if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+            throw new Error(\`Unexpected public API keys: \${keys.join(', ')}\`);
+          }
+          if (typeof publicApi.generateUltramodernWorkspace !== 'function') {
+            throw new Error('Expected generateUltramodernWorkspace function');
+          }
+          if (typeof publicApi.addUltramodernVertical !== 'function') {
+            throw new Error('Expected addUltramodernVertical function');
+          }
+        `,
+      ],
+      {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('built CLI resolves package metadata for --version', () => {
