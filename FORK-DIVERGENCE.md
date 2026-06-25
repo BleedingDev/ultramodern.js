@@ -191,7 +191,14 @@ TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths mat
 
 ### create (6 files) — [F]
 
-`create` defaults to the ultramodern workspace generator; `--legacy-modern-js` escape hatch; `@bleedingdev` package-source resolution.
+`create` defaults to the ultramodern workspace generator; `--legacy-modern-js`
+escape hatch; `@bleedingdev` package-source resolution; public generator API
+subpaths (`./ultramodern-workspace`, `./ultramodern-workspace/codesmith`);
+MicroVertical dry-run/preflight validation; explicit CodeSmith overlay hook.
+Sync policy: do not restore private-path generator consumers or upstream
+single-app template entrypoints. Port upstream template fixes into the
+UltraModern workspace templates by hand, keep overlays post-generation only, and
+keep `exports` plus `publishConfig.exports` mirrored with the runtime files.
 
 ### i18n-utils (3 files) — [U]
 

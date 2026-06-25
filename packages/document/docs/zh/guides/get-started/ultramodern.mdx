@@ -88,6 +88,87 @@ mise exec -- pnpm check
 ownership 记录、shell Module Federation、开发 overlays、包依赖、生成契约、
 端口、路由归属 i18n、CSS 隔离，以及 vertical 自己拥有的 Effect BFF/client surface。
 
+### 生成器自动化
+
+自动化脚本可以使用显式 MicroVertical 语法，不必依赖位置参数：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create --vertical=transportation
+pnpm dlx @bleedingdev/modern-js-create --vertical-name transportation
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create transportation --vertical \
+  --codesmith-overlay ./generators/vertical-overlay
+```
+
+BleedingDev create 包默认安装已发布的包 cohort。本地 monorepo 联调时使用
+`--workspace` 或 `--ultramodern-package-source=workspace`。发布证明与包源自动化还
+可以传入 `--ultramodern-package-source=install`、
+`--ultramodern-package-version`、`--ultramodern-package-registry`、
+`--ultramodern-alias-scope` 与
+`--ultramodern-alias-package-name-prefix`。
+
+受支持的公开生成器 import 是：
+
+```ts
+import {
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+  planUltramodernVertical,
+} from '@modern-js/create/ultramodern-workspace';
+
+const workspace = generateUltramodernWorkspace({
+  targetDir: '/tmp/my-workspace',
+  packageName: 'my-workspace',
+  modernVersion: '3.4.0',
+});
+
+const plan = planUltramodernVertical({
+  workspaceRoot: workspace.workspaceRoot,
+  name: 'transportation',
+  modernVersion: '3.4.0',
+});
+
+addUltramodernVertical({
+  workspaceRoot: workspace.workspaceRoot,
+  name: 'transportation',
+  modernVersion: '3.4.0',
+  overlays: [{ generator: './generators/vertical-overlay' }],
+});
+```
+
+公开结果包含 workspace root、包源、创建的 apps、创建路径、重写路径、分配端口、
+Module Federation 名称、Effect API 前缀、生成契约路径与 warnings。
+MicroVertical dry-run 返回相同结构，并额外包含 `dryRun`、`selectedPort`、
+`moduleFederationRemote`、`effectApiPrefix`、`jsonMutations`、
+`shellDependencyChanges` 与 `generatedContractChanges`；CLI 会输出 JSON，且不写文件。
+
+CodeSmith 消费方可以使用 adapter subpath：
+
+```ts
+import ultramodernCodeSmith from '@modern-js/create/ultramodern-workspace/codesmith';
+
+await ultramodernCodeSmith({
+  config: {
+    mode: 'vertical',
+    name: 'transportation',
+    workspaceRoot: process.cwd(),
+    dryRun: true,
+    logResult: true,
+  },
+});
+```
+
+校验会在第一次写文件前执行。缺失或非法的 vertical 名称、已存在 topology 占用
+app ID/路径/包后缀/端口/Module Federation 名称/API 前缀/manifest key、workspace
+JSON 契约缺失或不是对象、Tailwind 前缀冲突，都会报告归属契约。修复 workspace
+契约或选择新的 vertical 名称后再重新运行。
+
+Overlays 是显式配置的 CodeSmith 生成器，会在基础 workspace 或 MicroVertical
+生成之后运行。它们只扩展生成结果，不替换、不继承、也不遮蔽基础模板。公开生成器与
+CodeSmith adapter 都是普通 Node 生成器入口。包构建通过 TS-Go 工具链产出声明文件；
+生成出来的 workspace 只在本地工具链中使用 TS-Go，运行时不依赖 native-preview
+compiler 内部实现。
+
 ### 运行时契约
 
 生成应用和 vertical 沿用正常的 Modern.js SSR 路径。SuperApp workspace 在需要

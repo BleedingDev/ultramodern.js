@@ -97,6 +97,148 @@ pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace
 For package-source validation outside the monorepo, pass explicit
 `--ultramodern-package-*` options.
 
+## Automation And Public API
+
+The supported runtime import is the public generator subpath. It exposes only
+generator operations and stable result types; CLI argument parsing, prompts,
+registry lookup, and process-exit flows stay private.
+
+```ts
+import {
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+  planUltramodernVertical,
+} from '@modern-js/create/ultramodern-workspace';
+
+const workspace = generateUltramodernWorkspace({
+  targetDir: '/tmp/my-workspace',
+  packageName: 'my-workspace',
+  modernVersion: '3.4.0',
+  packageSource: {
+    strategy: 'install',
+    modernPackageVersion: '3.4.0',
+  },
+});
+
+const plan = planUltramodernVertical({
+  workspaceRoot: workspace.workspaceRoot,
+  name: 'new-vertical',
+  modernVersion: '3.4.0',
+});
+
+const vertical = addUltramodernVertical({
+  workspaceRoot: workspace.workspaceRoot,
+  name: 'new-vertical',
+  modernVersion: '3.4.0',
+});
+```
+
+Workspace generation returns `operation`, `workspaceRoot`, `packageScope`,
+`packageSource`, `createdApps`, `createdPaths`, `rewrittenPaths`,
+`assignedPorts`, `moduleFederationNames`, `effectApiPrefixes`,
+`generatedContractPath`, and `warnings`. MicroVertical addition returns the
+same shape for the new vertical and all rewritten integration surfaces.
+
+Dry-run is available for MicroVertical addition only. The CLI prints the plan as
+JSON and writes no files:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create new-vertical --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create --vertical=new-vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create --vertical-name new-vertical --dry-run
+```
+
+The dry-run object adds `dryRun: true`, `selectedPort`,
+`moduleFederationRemote`, `effectApiPrefix`, `jsonMutations`,
+`shellDependencyChanges`, and `generatedContractChanges`. It still validates
+the workspace before returning a plan.
+
+Validation runs before the first filesystem write. Failures name the owning
+contract so automation can stop safely:
+
+| Failure area | Typical cause | Fix |
+| --- | --- | --- |
+| Fresh input | Invalid or missing vertical name | Use `<name> --vertical`, `--vertical=<name>`, or `--vertical-name <name>` |
+| Existing topology | Duplicate app ID, package suffix, path, Module Federation name, port, API prefix, or manifest key | Choose a new vertical name or repair the existing topology/local overlay first |
+| Workspace files | Missing or non-object topology, ownership, package-source, local overlay, or generated contract JSON | Restore the generated contract file from source control or rerun from a valid workspace |
+| Tailwind prefix | Existing app already owns the generated CSS prefix | Rename the vertical before generation |
+| Output path | A generated path already exists | Treat it as an existing vertical and do not overwrite it |
+
+Package source is explicit and recorded in `.modernjs/ultramodern-package-source.json`.
+
+| Strategy | Use when | CLI |
+| --- | --- | --- |
+| `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry`, `--ultramodern-alias-scope`, and `--ultramodern-alias-package-name-prefix` |
+| `workspace` | Local monorepo testing against unreleased packages | `--workspace` or `--ultramodern-package-source=workspace` |
+
+## CodeSmith Adapter And Overlays
+
+The CodeSmith adapter is exported from:
+
+```ts
+import ultramodernCodeSmith from '@modern-js/create/ultramodern-workspace/codesmith';
+```
+
+Non-interactive usage passes config directly:
+
+```ts
+await ultramodernCodeSmith({
+  config: {
+    mode: 'workspace',
+    name: 'my-workspace',
+    targetDir: '/tmp/my-workspace',
+    modernVersion: '3.4.0',
+    packageSourceStrategy: 'install',
+    modernPackageVersion: '3.4.0',
+  },
+});
+
+await ultramodernCodeSmith({
+  config: {
+    mode: 'vertical',
+    name: 'new-vertical',
+    workspaceRoot: '/tmp/my-workspace',
+    dryRun: true,
+    logResult: true,
+  },
+});
+```
+
+The adapter prompts only when a required name is missing and a CodeSmith prompt
+function is available. It returns the same public generation result or dry-run
+plan as the direct API.
+
+Overlays are explicit CodeSmith generators that run after base workspace or
+MicroVertical generation:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create new-vertical --vertical \
+  --codesmith-overlay ./generators/vertical-overlay
+```
+
+```ts
+addUltramodernVertical({
+  workspaceRoot: '/tmp/my-workspace',
+  name: 'new-vertical',
+  modernVersion: '3.4.0',
+  overlays: [
+    {
+      generator: './generators/vertical-overlay',
+      config: { owner: 'workspace' },
+    },
+  ],
+});
+```
+
+Overlay config receives `workspaceRoot`, `packageScope`, `operation`,
+`generatedApp`, `generatedApps`, `assignedPort`, `assignedPorts`,
+`moduleFederationName`, `moduleFederationNames`, `effectApiPrefix`,
+`effectApiPrefixes`, `packageSource`, and `generationResult`. Overlays extend
+the generated output after base generation; they do not replace, inherit, or
+shadow the base templates. Overlay failures stop the command with an
+`UltraModern CodeSmith overlay failed` error and do not report base generation
+as fully successful.
+
 ## Vertical Workspace Recipes
 
 Use the workspace add flow from the UltraModern workspace root. It derives the
@@ -106,6 +248,8 @@ requested vertical name.
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create catalog --vertical
+pnpm dlx @bleedingdev/modern-js-create --vertical=catalog
+pnpm dlx @bleedingdev/modern-js-create --vertical-name catalog
 ```
 
 Use this decision table before adding a vertical:
