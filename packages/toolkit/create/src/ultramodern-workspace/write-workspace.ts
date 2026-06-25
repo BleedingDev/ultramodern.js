@@ -40,6 +40,11 @@ import {
   createShellEffectClient,
 } from './effect-api';
 import { copyRootTemplate, writeFile, writeJson } from './fs-io';
+import {
+  createFileSnapshot,
+  createGenerationResult,
+  diffFileSnapshots,
+} from './generation-result';
 import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
@@ -64,6 +69,7 @@ import { resolvePackageSource } from './package-source';
 import { createPublicWebAppArtifacts } from './public-surface';
 import type {
   ResolvedPackageSource,
+  UltramodernGenerationResult,
   UltramodernWorkspaceOptions,
   WorkspaceApp,
 } from './types';
@@ -283,11 +289,13 @@ export function writeSharedPackages(targetDir: string, scope: string) {
 
 export function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
-) {
+): UltramodernGenerationResult {
+  const beforeFiles = createFileSnapshot(options.targetDir);
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
   const enableTailwind = options.enableTailwind !== false;
   const initialVerticals: WorkspaceApp[] = [];
+  const createdApps = [createShellHost(initialVerticals), ...initialVerticals];
   assertUniqueTailwindPrefixes([shellApp, ...initialVerticals]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
@@ -335,11 +343,7 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     GENERATED_CONTRACT_PATH,
-    createGeneratedContract(
-      scope,
-      [createShellHost(initialVerticals), ...initialVerticals],
-      enableTailwind,
-    ),
+    createGeneratedContract(scope, createdApps, enableTailwind),
   );
 
   writeApp(
@@ -367,4 +371,20 @@ export function generateUltramodernWorkspace(
     enableTailwind,
     initialVerticals,
   );
+
+  const afterFiles = createFileSnapshot(options.targetDir);
+  const { createdPaths, rewrittenPaths } = diffFileSnapshots(
+    beforeFiles,
+    afterFiles,
+  );
+
+  return createGenerationResult({
+    operation: 'workspace',
+    workspaceRoot: options.targetDir,
+    packageScope: scope,
+    packageSource,
+    createdApps,
+    createdPaths,
+    rewrittenPaths,
+  });
 }

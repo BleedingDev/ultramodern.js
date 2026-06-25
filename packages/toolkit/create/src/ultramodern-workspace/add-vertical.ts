@@ -29,6 +29,11 @@ import {
   effectApiTopologyMetadata,
 } from './effect-api';
 import { readJsonFile, writeFileReplacing, writeJsonFile } from './fs-io';
+import {
+  createFileSnapshot,
+  createGenerationResult,
+  diffFileSnapshots,
+} from './generation-result';
 import { createAppPublicLocaleMessages } from './locales';
 import { createShellModuleFederationConfig } from './module-federation';
 import {
@@ -51,6 +56,7 @@ import type {
   JsonValue,
   Ownership,
   ResolvedPackageSource,
+  UltramodernGenerationResult,
   UltramodernWorkspaceOptions,
   WorkspaceApp,
   WorkspaceEffectApi,
@@ -429,7 +435,10 @@ export function verticalsFromTopology(
   }) as WorkspaceApp[];
 }
 
-export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
+export function addUltramodernVertical(
+  options: AddUltramodernVerticalOptions,
+): UltramodernGenerationResult {
+  const beforeFiles = createFileSnapshot(options.workspaceRoot);
   const name = assertValidVerticalName(options.name);
   const rootPackage = readJsonFile(
     path.join(options.workspaceRoot, 'package.json'),
@@ -548,4 +557,19 @@ export function addUltramodernVertical(options: AddUltramodernVerticalOptions) {
     packageSource,
     updatedVerticals,
   );
+  const afterFiles = createFileSnapshot(options.workspaceRoot);
+  const { createdPaths, rewrittenPaths } = diffFileSnapshots(
+    beforeFiles,
+    afterFiles,
+  );
+
+  return createGenerationResult({
+    operation: 'vertical',
+    workspaceRoot: options.workspaceRoot,
+    packageScope: scope,
+    packageSource,
+    createdApps: [vertical],
+    createdPaths,
+    rewrittenPaths,
+  });
 }

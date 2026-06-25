@@ -147,7 +147,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
   const workspaceDir = path.join(tempRoot, 'manifest-workspace');
 
   try {
-    generateUltramodernWorkspace({
+    const workspaceResult = generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'manifest-workspace',
       modernVersion: '3.2.1',
@@ -157,17 +157,115 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
         modernPackageVersion: '3.2.0-ultramodern.108',
       },
     });
+    assert.equal(workspaceResult.operation, 'workspace');
+    assert.equal(workspaceResult.workspaceRoot, workspaceDir);
+    assert.equal(workspaceResult.packageScope, 'manifest-workspace');
+    assert.equal(workspaceResult.packageSource.strategy, 'install');
+    assert.equal(
+      workspaceResult.packageSource.modernPackageVersion,
+      '3.2.0-ultramodern.108',
+    );
+    assert.deepEqual(workspaceResult.createdPaths, expectedWorkspaceManifest);
+    assert.deepEqual(workspaceResult.rewrittenPaths, []);
+    assert.deepEqual(workspaceResult.createdApps, [
+      {
+        id: 'shell-super-app',
+        directory: 'apps/shell-super-app',
+        packageName: '@manifest-workspace/shell-super-app',
+        packageSuffix: 'shell-super-app',
+        displayName: 'Shell Super App',
+        kind: 'shell',
+        portEnv: 'SHELL_SUPER_APP_PORT',
+        port: 3020,
+        moduleFederationName: 'shellSuperApp',
+      },
+    ]);
+    assert.deepEqual(workspaceResult.assignedPorts, {
+      'shell-super-app': 3020,
+    });
+    assert.deepEqual(workspaceResult.moduleFederationNames, {
+      'shell-super-app': 'shellSuperApp',
+    });
+    assert.deepEqual(workspaceResult.effectApiPrefixes, {});
+    assert.equal(
+      workspaceResult.generatedContractPath,
+      '.modernjs/ultramodern-generated-contract.json',
+    );
+    assert.deepEqual(workspaceResult.warnings, []);
     assert.deepEqual(listFiles(workspaceDir), expectedWorkspaceManifest);
 
-    addUltramodernVertical({
+    const verticalResult = addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
+    assert.equal(verticalResult.operation, 'vertical');
+    assert.equal(verticalResult.workspaceRoot, workspaceDir);
+    assert.equal(verticalResult.packageScope, 'manifest-workspace');
+    assert.equal(verticalResult.packageSource.strategy, 'install');
+    assert.deepEqual(verticalResult.createdPaths, expectedVerticalManifest);
+    assert.ok(
+      [
+        '.modernjs/ultramodern-generated-contract.json',
+        'apps/shell-super-app/package.json',
+        'apps/shell-super-app/src/effect/vertical-clients.ts',
+        'apps/shell-super-app/src/routes/vertical-components.tsx',
+        'package.json',
+        'scripts/validate-ultramodern-workspace.mjs',
+        'topology/local-overlays/development.json',
+        'topology/ownership.json',
+        'topology/reference-topology.json',
+      ].every(relativePath =>
+        verticalResult.rewrittenPaths.includes(relativePath),
+      ),
+      'MicroVertical result must report rewritten shell/topology integration surfaces',
+    );
+    assert.deepEqual(verticalResult.createdApps, [
+      {
+        id: 'catalog',
+        directory: 'verticals/catalog',
+        packageName: '@manifest-workspace/catalog',
+        packageSuffix: 'catalog',
+        displayName: 'Catalog Vertical',
+        kind: 'vertical',
+        portEnv: 'VERTICAL_CATALOG_PORT',
+        port: 4101,
+        moduleFederationName: 'verticalCatalog',
+        exposes: {
+          './Route': './src/federation-entry.tsx',
+          './Widget': './src/components/catalog-widget.tsx',
+        },
+        effectApiPrefix: '/catalog-api',
+      },
+    ]);
+    assert.deepEqual(verticalResult.assignedPorts, { catalog: 4101 });
+    assert.deepEqual(verticalResult.moduleFederationNames, {
+      catalog: 'verticalCatalog',
+    });
+    assert.deepEqual(verticalResult.effectApiPrefixes, {
+      catalog: '/catalog-api',
+    });
+    assert.equal(
+      verticalResult.generatedContractPath,
+      '.modernjs/ultramodern-generated-contract.json',
+    );
+    assert.deepEqual(verticalResult.warnings, []);
     assert.deepEqual(listFiles(workspaceDir), [
       ...expectedWorkspaceManifest,
       ...expectedVerticalManifest,
     ]);
+
+    const filesAfterCatalog = listFiles(workspaceDir);
+    assert.throws(
+      () =>
+        addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name: 'catalog',
+          modernVersion: '3.2.1',
+        }),
+      /Refusing to overwrite existing path: verticals\/catalog/,
+    );
+    assert.deepEqual(listFiles(workspaceDir), filesAfterCatalog);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

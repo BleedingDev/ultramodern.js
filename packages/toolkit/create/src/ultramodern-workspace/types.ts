@@ -138,6 +138,56 @@ export type AddUltramodernVerticalOptions = {
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
 };
 
+export type UltramodernGenerationOperation = 'workspace' | 'vertical';
+
+/**
+ * Stable public descriptor for an app created by the UltraModern generator.
+ * Existing fields keep their meaning across patch/minor releases; new fields
+ * may be added as the generator records more contract data.
+ */
+export type UltramodernGeneratedAppDescriptor = {
+  id: string;
+  directory: string;
+  packageName: string;
+  packageSuffix: string;
+  displayName: string;
+  kind: WorkspaceApp['kind'];
+  portEnv: string;
+  port: number;
+  moduleFederationName: string;
+  exposes?: Record<string, string>;
+  effectApiPrefix?: string;
+};
+
+/**
+ * Stable public warning shape for non-fatal generator decisions.
+ */
+export type UltramodernGenerationWarning = {
+  code: string;
+  message: string;
+  path?: string;
+};
+
+/**
+ * Stable public result returned by workspace generation and MicroVertical
+ * addition. The CLI ignores this object, but automation can use it instead of
+ * re-reading the workspace to discover generated paths and integration data.
+ */
+export type UltramodernGenerationResult = {
+  operation: UltramodernGenerationOperation;
+  workspaceRoot: string;
+  packageScope: string;
+  packageSource: ResolvedPackageSource;
+  createdApps: UltramodernGeneratedAppDescriptor[];
+  createdPaths: string[];
+  rewrittenPaths: string[];
+  assignedPorts: Record<string, number>;
+  moduleFederationNames: Record<string, string>;
+  effectApiPrefixes: Record<string, string>;
+  generatedContractPath: string;
+  warnings: UltramodernGenerationWarning[];
+};
+
 export function isRecord(value: unknown): value is Record<string, JsonValue> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

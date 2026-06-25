@@ -155,7 +155,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           } from '@modern-js/create/ultramodern-workspace';
 
           const workspaceRoot = path.join(process.cwd(), 'public-api-workspace');
-          generateUltramodernWorkspace({
+          const workspaceResult = generateUltramodernWorkspace({
             targetDir: workspaceRoot,
             packageName: 'public-api-workspace',
             modernVersion: '3.2.1',
@@ -165,12 +165,25 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
               modernPackageVersion: '3.2.0-ultramodern.108',
             },
           });
-          addUltramodernVertical({
+          const verticalResult = addUltramodernVertical({
             workspaceRoot,
             name: 'catalog',
             modernVersion: '3.2.1',
           });
 
+          if (
+            workspaceResult.operation !== 'workspace' ||
+            !workspaceResult.createdPaths.includes('apps/shell-super-app/package.json')
+          ) {
+            throw new Error('Expected typed workspace generation result');
+          }
+          if (
+            verticalResult.operation !== 'vertical' ||
+            verticalResult.assignedPorts.catalog !== 4101 ||
+            verticalResult.effectApiPrefixes.catalog !== '/catalog-api'
+          ) {
+            throw new Error('Expected typed MicroVertical generation result');
+          }
           for (const relativePath of [
             '.modernjs/ultramodern-workspace-template-manifest.json',
             'apps/shell-super-app/package.json',
