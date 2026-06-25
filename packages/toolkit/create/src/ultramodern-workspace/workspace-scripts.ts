@@ -50,6 +50,7 @@ export function createWorkspaceValidationScript(
     stem: remote.effectApi.stem,
     group: verticalEffectGroupName(remote),
     path: remote.directory,
+    port: remote.port,
     mfName: remote.mfName,
     apiPrefix: remote.effectApi.prefix,
     tailwindPrefix: tailwindPrefixForApp(remote),

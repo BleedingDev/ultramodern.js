@@ -37,6 +37,344 @@ const assertExists = relativePath => {
 const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), `Unexpected ${relativePath}`);
 };
+const formatJson = value =>
+  value === undefined ? 'undefined' : JSON.stringify(value);
+const selfCheckFailure = (contract, message, fixArea) =>
+  `MicroVertical contract self-check failed: ${contract}. ${message}. Fix area: ${fixArea}.`;
+const assertSelfCheck = (condition, contract, message, fixArea) => {
+  assert(condition, selfCheckFailure(contract, message, fixArea));
+};
+const assertSameJson = (actual, expected, contract, fixArea) => {
+  assertSelfCheck(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    contract,
+    `Expected ${formatJson(expected)}, found ${formatJson(actual)}`,
+    fixArea,
+  );
+};
+const assertObject = (value, contract, fixArea) => {
+  assertSelfCheck(
+    value !== null && typeof value === 'object' && !Array.isArray(value),
+    contract,
+    `Expected JSON object, found ${formatJson(value)}`,
+    fixArea,
+  );
+};
+const assertArray = (value, contract, fixArea) => {
+  assertSelfCheck(
+    Array.isArray(value),
+    contract,
+    `Expected JSON array, found ${formatJson(value)}`,
+    fixArea,
+  );
+};
+const findById = (entries, id) =>
+  Array.isArray(entries) ? entries.find(entry => entry?.id === id) : undefined;
+const expectedManifestUrl = vertical =>
+  `http://localhost:${vertical.port}/mf-manifest.json`;
+const expectedApiUrl = vertical =>
+  `http://localhost:${vertical.port}${vertical.apiPrefix}`;
+const remoteContractSubset = remote => ({
+  id: remote?.id,
+  name: remote?.name,
+  manifestUrl: remote?.manifestUrl,
+});
+const expectedRemoteContractSubset = vertical => ({
+  id: vertical.id,
+  name: vertical.mfName,
+  manifestUrl: expectedManifestUrl(vertical),
+});
+const expectedRemoteSubsetsForRefs = refs =>
+  refs
+    .map(ref => fullStackVerticals.find(vertical => vertical.id === ref))
+    .filter(Boolean)
+    .map(expectedRemoteContractSubset);
+const requiredMicroVerticalPaths = vertical => [
+  `${vertical.path}/package.json`,
+  `${vertical.path}/modern.config.ts`,
+  `${vertical.path}/module-federation.config.ts`,
+  `${vertical.path}/api/effect/index.ts`,
+  `${vertical.path}/shared/effect/api.ts`,
+  `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
+  `${vertical.path}/src/modern-app-env.d.ts`,
+  `${vertical.path}/src/modern.runtime.ts`,
+  `${vertical.path}/src/federation-entry.tsx`,
+  ...vertical.componentPaths,
+  `${vertical.path}/locales/en/translation.json`,
+  `${vertical.path}/locales/en/${vertical.namespace}.json`,
+  `${vertical.path}/locales/cs/translation.json`,
+  `${vertical.path}/locales/cs/${vertical.namespace}.json`,
+  `${vertical.path}/src/routes/index.css`,
+  `${vertical.path}/src/routes/layout.tsx`,
+  `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
+  `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
+  `${vertical.path}/src/routes/[lang]/page.tsx`,
+  ...vertical.routePagePaths,
+  ...vertical.routeMetaPaths,
+];
+const assertRequiredVerticalFile = vertical => relativePath => {
+  assertSelfCheck(
+    fs.existsSync(path.join(root, relativePath)),
+    `required files for ${vertical.id}`,
+    `Missing ${relativePath}`,
+    'restore the generated MicroVertical files or rerun the MicroVertical generator',
+  );
+};
+const assertMicroVerticalContractGraph = ({
+  generatedContract,
+  topology,
+  ownership,
+  overlay,
+  shellPackage,
+}) => {
+  const expectedVerticalIds = fullStackVerticals.map(vertical => vertical.id);
+  const expectedAppIds = ['shell-super-app', ...expectedVerticalIds];
+  const expectedShellRemotes = fullStackVerticals.map(
+    expectedRemoteContractSubset,
+  );
+
+  assertObject(
+    topology.shell,
+    'topology/reference-topology.json shell',
+    'restore generated topology shell metadata',
+  );
+  assertArray(
+    topology.verticals,
+    'topology/reference-topology.json verticals',
+    'restore generated topology vertical entries',
+  );
+  assertObject(
+    topology.shell?.moduleFederation,
+    'topology/reference-topology.json shell.moduleFederation',
+    'restore generated shell Module Federation metadata',
+  );
+  assertArray(
+    topology.shell?.moduleFederation?.remotes,
+    'topology/reference-topology.json shell.moduleFederation.remotes',
+    'restore generated shell Module Federation remotes',
+  );
+  assertArray(
+    ownership.owners,
+    'topology/ownership.json owners',
+    'restore generated ownership entries',
+  );
+  assertObject(
+    overlay.ports,
+    'topology/local-overlays/development.json ports',
+    'restore generated local development port overlays',
+  );
+  assertObject(
+    overlay.manifests,
+    'topology/local-overlays/development.json manifests',
+    'restore generated local Module Federation manifest overlays',
+  );
+  assertObject(
+    overlay.apis,
+    'topology/local-overlays/development.json apis',
+    'restore generated local Effect API overlays',
+  );
+  assertArray(
+    generatedContract.apps,
+    '.modernjs/ultramodern-generated-contract.json apps',
+    'regenerate the generated contract from the workspace topology',
+  );
+
+  assertSameJson(
+    topology.shell.verticalRefs ?? [],
+    expectedVerticalIds,
+    'topology/reference-topology.json shell.verticalRefs',
+    'restore generated topology shell references',
+  );
+  assertSameJson(
+    topology.verticals.map(vertical => vertical?.id),
+    expectedVerticalIds,
+    'topology/reference-topology.json verticals',
+    'restore generated topology vertical entries',
+  );
+  assertSameJson(
+    topology.shell.moduleFederation.remotes.map(remoteContractSubset),
+    expectedShellRemotes,
+    'topology/reference-topology.json shell.moduleFederation.remotes',
+    'restore generated shell Module Federation remotes',
+  );
+  assertSameJson(
+    generatedContract.apps.map(app => app?.id),
+    expectedAppIds,
+    '.modernjs/ultramodern-generated-contract.json apps',
+    'regenerate the generated contract after topology changes',
+  );
+
+  const shellContract = findById(generatedContract.apps, 'shell-super-app');
+  assertObject(
+    shellContract,
+    '.modernjs/ultramodern-generated-contract.json apps.shell-super-app',
+    'regenerate the generated shell contract entry',
+  );
+  assertSameJson(
+    shellContract.moduleFederation?.verticalRefs ?? [],
+    expectedVerticalIds,
+    '.modernjs/ultramodern-generated-contract.json shell moduleFederation.verticalRefs',
+    'regenerate the generated shell Module Federation contract',
+  );
+  assertSameJson(
+    (shellContract.moduleFederation?.remotes ?? []).map(remoteContractSubset),
+    expectedShellRemotes,
+    '.modernjs/ultramodern-generated-contract.json shell moduleFederation.remotes',
+    'regenerate the generated shell Module Federation contract',
+  );
+
+  for (const vertical of fullStackVerticals) {
+    const expectedRefs = vertical.verticalRefs ?? [];
+    const topologyEntry = findById(topology.verticals, vertical.id);
+    const ownershipEntry = findById(ownership.owners, vertical.id);
+    const contractEntry = findById(generatedContract.apps, vertical.id);
+    const expectedExposes = Array.isArray(vertical.exposes)
+      ? vertical.exposes
+      : Object.keys(vertical.exposes ?? {});
+
+    requiredMicroVerticalPaths(vertical).forEach(
+      assertRequiredVerticalFile(vertical),
+    );
+
+    assertObject(
+      topologyEntry,
+      `topology/reference-topology.json verticals.${vertical.id}`,
+      'restore generated topology vertical entries',
+    );
+    assertSameJson(
+      {
+        kind: topologyEntry.kind,
+        package: topologyEntry.package,
+        path: topologyEntry.path,
+        moduleFederation: {
+          name: topologyEntry.moduleFederation?.name,
+          manifestUrl: topologyEntry.moduleFederation?.manifestUrl,
+          exposes: topologyEntry.moduleFederation?.exposes ?? [],
+          verticalRefs: topologyEntry.moduleFederation?.verticalRefs ?? [],
+          remotes: (topologyEntry.moduleFederation?.remotes ?? []).map(
+            remoteContractSubset,
+          ),
+        },
+        effect: {
+          prefix: topologyEntry.api?.effect?.bff?.prefix,
+          serverEntry: topologyEntry.api?.effect?.serverEntry,
+        },
+      },
+      {
+        kind: 'vertical',
+        package: vertical.packageName,
+        path: vertical.path,
+        moduleFederation: {
+          name: vertical.mfName,
+          manifestUrl: expectedManifestUrl(vertical),
+          exposes: expectedExposes,
+          verticalRefs: expectedRefs,
+          remotes: expectedRemoteSubsetsForRefs(expectedRefs),
+        },
+        effect: {
+          prefix: vertical.apiPrefix,
+          serverEntry: `${vertical.path}/api/effect/index.ts`,
+        },
+      },
+      `topology/reference-topology.json verticals.${vertical.id}`,
+      'restore generated topology vertical entries',
+    );
+
+    assertObject(
+      ownershipEntry,
+      `topology/ownership.json owners.${vertical.id}`,
+      'restore generated ownership entries',
+    );
+    assertSameJson(
+      {
+        package: ownershipEntry.package,
+        path: ownershipEntry.path,
+      },
+      {
+        package: vertical.packageName,
+        path: vertical.path,
+      },
+      `topology/ownership.json owners.${vertical.id}`,
+      'restore generated ownership entries',
+    );
+
+    assertSameJson(
+      overlay.ports[vertical.id],
+      vertical.port,
+      `topology/local-overlays/development.json ports.${vertical.id}`,
+      'restore generated local development port overlay',
+    );
+    assertSameJson(
+      overlay.manifests[vertical.id],
+      expectedManifestUrl(vertical),
+      `topology/local-overlays/development.json manifests.${vertical.id}`,
+      'restore generated local Module Federation manifest overlay',
+    );
+    assertSameJson(
+      overlay.apis[vertical.id],
+      expectedApiUrl(vertical),
+      `topology/local-overlays/development.json apis.${vertical.id}`,
+      'restore generated local Effect API overlay',
+    );
+
+    assertSameJson(
+      shellPackage.dependencies?.[vertical.packageName],
+      'workspace:*',
+      `apps/shell-super-app/package.json dependencies.${vertical.packageName}`,
+      'restore shell dependency for the MicroVertical Effect API consumer',
+    );
+    assertSameJson(
+      shellPackage['zephyr:dependencies']?.[vertical.zephyrAlias],
+      `${vertical.packageName}@workspace:*`,
+      `apps/shell-super-app/package.json zephyr:dependencies.${vertical.zephyrAlias}`,
+      'restore shell Zephyr dependency metadata for the MicroVertical',
+    );
+
+    assertObject(
+      contractEntry,
+      `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
+      'regenerate the generated MicroVertical contract entry',
+    );
+    assertSameJson(
+      {
+        kind: contractEntry.kind,
+        package: contractEntry.package,
+        path: contractEntry.path,
+        moduleFederation: {
+          name: contractEntry.moduleFederation?.name,
+          exposes: contractEntry.moduleFederation?.exposes ?? [],
+          verticalRefs: contractEntry.moduleFederation?.verticalRefs ?? [],
+          remotes: (contractEntry.moduleFederation?.remotes ?? []).map(
+            remoteContractSubset,
+          ),
+        },
+        effect: {
+          prefix: contractEntry.effect?.prefix,
+          contract: contractEntry.effect?.contract,
+          client: contractEntry.effect?.client,
+        },
+      },
+      {
+        kind: 'vertical',
+        package: vertical.packageName,
+        path: vertical.path,
+        moduleFederation: {
+          name: vertical.mfName,
+          exposes: expectedExposes,
+          verticalRefs: expectedRefs,
+          remotes: expectedRemoteSubsetsForRefs(expectedRefs),
+        },
+        effect: {
+          prefix: vertical.apiPrefix,
+          contract: './shared/effect/api',
+          client: './effect/client',
+        },
+      },
+      `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
+      'regenerate the generated MicroVertical contract entry',
+    );
+  }
+};
 const packageJsonFiles = startDir => {
   const files = [];
   const queue = [startDir];
@@ -265,29 +603,7 @@ const requiredPaths = [
 ];
 
 for (const vertical of fullStackVerticals) {
-  requiredPaths.push(
-    `${vertical.path}/package.json`,
-    `${vertical.path}/modern.config.ts`,
-    `${vertical.path}/module-federation.config.ts`,
-    `${vertical.path}/api/effect/index.ts`,
-    `${vertical.path}/shared/effect/api.ts`,
-    `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
-    `${vertical.path}/src/modern-app-env.d.ts`,
-    `${vertical.path}/src/modern.runtime.ts`,
-    `${vertical.path}/src/federation-entry.tsx`,
-    ...vertical.componentPaths,
-    `${vertical.path}/locales/en/translation.json`,
-    `${vertical.path}/locales/en/${vertical.namespace}.json`,
-    `${vertical.path}/locales/cs/translation.json`,
-    `${vertical.path}/locales/cs/${vertical.namespace}.json`,
-    `${vertical.path}/src/routes/index.css`,
-    `${vertical.path}/src/routes/layout.tsx`,
-    `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
-    `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
-    `${vertical.path}/src/routes/[lang]/page.tsx`,
-    ...vertical.routePagePaths,
-    ...vertical.routeMetaPaths,
-  );
+  requiredPaths.push(...requiredMicroVerticalPaths(vertical));
 }
 
 if (tailwindEnabled) {
@@ -301,6 +617,11 @@ if (tailwindEnabled) {
   );
 }
 
+for (const vertical of fullStackVerticals) {
+  requiredMicroVerticalPaths(vertical).forEach(
+    assertRequiredVerticalFile(vertical),
+  );
+}
 for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
 }
@@ -313,6 +634,15 @@ const generatedContract = readJson('.modernjs/ultramodern-generated-contract.jso
 const topology = readJson('topology/reference-topology.json');
 const ownership = readJson('topology/ownership.json');
 const overlay = readJson('topology/local-overlays/development.json');
+const shellPackage = readJson('apps/shell-super-app/package.json');
+
+assertMicroVerticalContractGraph({
+  generatedContract,
+  topology,
+  ownership,
+  overlay,
+  shellPackage,
+});
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(typeof rootPackage.packageManager === 'string', 'Root must declare packageManager');
@@ -444,7 +774,6 @@ assert(generatedContract.performanceReadiness?.report?.deterministic === true, '
 assert(generatedContract.performanceReadiness?.optOut?.env === 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false', 'Performance readiness env opt-out is incorrect');
 assert(JSON.stringify(generatedContract.performanceReadiness?.signals?.map(signal => signal.id)) === JSON.stringify(expectedPerformanceReadinessSignals), 'Performance readiness signal ids are incorrect');
 
-const shellPackage = readJson('apps/shell-super-app/package.json');
 const shellModernConfig = readText('apps/shell-super-app/modern.config.ts');
 const shellRouteHead = readText('apps/shell-super-app/src/routes/ultramodern-route-head.tsx');
 const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern-route-metadata.ts');

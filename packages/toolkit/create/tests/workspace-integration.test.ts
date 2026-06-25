@@ -32,8 +32,31 @@ function readJson(workspaceDir: string, relativePath: string): any {
   return JSON.parse(read(workspaceDir, relativePath));
 }
 
+function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
+  fs.writeFileSync(
+    path.join(workspaceDir, relativePath),
+    `${JSON.stringify(value, null, 2)}\n`,
+    'utf-8',
+  );
+}
+
 function exists(workspaceDir: string, relativePath: string) {
   return fs.existsSync(path.join(workspaceDir, relativePath));
+}
+
+function runGeneratedWorkspaceCheck(workspaceDir: string) {
+  return spawnSync(
+    process.execPath,
+    ['scripts/validate-ultramodern-workspace.mjs'],
+    {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+    },
+  );
+}
+
+function commandOutput(result: ReturnType<typeof runGeneratedWorkspaceCheck>) {
+  return `${result.stdout}\n${result.stderr}`;
 }
 
 function listFiles(root: string, dir = root): string[] {
@@ -298,6 +321,92 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /Refusing to overwrite existing path: verticals\/catalog/,
     );
     assert.deepEqual(snapshotWorkspace(workspaceDir), afterTwoVerticals);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated MicroVertical self-check names corrupted contracts and fix areas', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
+
+  const scenarios = [
+    {
+      workspaceName: 'topology-corrupt',
+      mutate: (workspaceDir: string) => {
+        const topology = readJson(
+          workspaceDir,
+          'topology/reference-topology.json',
+        );
+        topology.shell.moduleFederation.remotes[0].manifestUrl =
+          'http://localhost:4999/mf-manifest.json';
+        writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: topology\/reference-topology\.json shell\.moduleFederation\.remotes\./,
+      expectedFixArea:
+        /Fix area: restore generated shell Module Federation remotes\./,
+    },
+    {
+      workspaceName: 'overlay-corrupt',
+      mutate: (workspaceDir: string) => {
+        const overlay = readJson(
+          workspaceDir,
+          'topology/local-overlays/development.json',
+        );
+        overlay.apis.catalog = 'http://localhost:4101/not-catalog-api';
+        writeJson(
+          workspaceDir,
+          'topology/local-overlays/development.json',
+          overlay,
+        );
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: topology\/local-overlays\/development\.json apis\.catalog\./,
+      expectedFixArea: /Fix area: restore generated local Effect API overlay\./,
+    },
+    {
+      workspaceName: 'vertical-file-missing',
+      mutate: (workspaceDir: string) => {
+        fs.rmSync(
+          path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
+        );
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: required files for catalog\. Missing verticals\/catalog\/shared\/effect\/api\.ts\./,
+      expectedFixArea:
+        /Fix area: restore the generated MicroVertical files or rerun the MicroVertical generator\./,
+    },
+  ] as const;
+
+  try {
+    for (const scenario of scenarios) {
+      const workspaceDir = path.join(tempRoot, scenario.workspaceName);
+      generateUltramodernWorkspace({
+        targetDir: workspaceDir,
+        packageName: scenario.workspaceName,
+        modernVersion: '3.2.1',
+        enableTailwind: true,
+        packageSource: {
+          strategy: 'install',
+          modernPackageVersion: '3.2.0-ultramodern.108',
+        },
+      });
+      addUltramodernVertical({
+        workspaceRoot: workspaceDir,
+        name: 'catalog',
+        modernVersion: '3.2.1',
+      });
+
+      const passingResult = runGeneratedWorkspaceCheck(workspaceDir);
+      assert.equal(passingResult.status, 0, commandOutput(passingResult));
+
+      scenario.mutate(workspaceDir);
+      const failingResult = runGeneratedWorkspaceCheck(workspaceDir);
+      const output = commandOutput(failingResult);
+      assert.notEqual(failingResult.status, 0, output);
+      assert.match(output, scenario.expectedContract);
+      assert.match(output, scenario.expectedFixArea);
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
