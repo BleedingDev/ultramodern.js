@@ -326,6 +326,14 @@ export const compileByTs: CompileFunc = async (
     if (typeof noEmitOnError === 'undefined' || noEmitOnError === true) {
       if (compileOptions.throwErrorInsteadOfExit) {
         logger.error('TS-Go compilation failed');
+        throw new Error(
+          [
+            `TS-Go compilation failed with exit code ${result.code}.`,
+            result.stderr.trim() || result.stdout.trim(),
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        );
       } else {
         process.exit(1);
       }
