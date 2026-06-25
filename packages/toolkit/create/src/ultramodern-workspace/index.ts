@@ -4,6 +4,8 @@ export {
 } from './add-vertical';
 export type {
   AddUltramodernVerticalOptions,
+  UltramodernCodeSmithOverlay,
+  UltramodernCodeSmithOverlayRuntimeConfig,
   UltramodernGeneratedAppDescriptor,
   UltramodernGeneratedContractChange,
   UltramodernGenerationOperation,

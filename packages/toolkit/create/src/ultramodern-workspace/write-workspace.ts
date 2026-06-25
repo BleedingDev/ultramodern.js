@@ -57,6 +57,7 @@ import {
   relativeRootFor,
   toPackageScope,
 } from './naming';
+import { runCodeSmithOverlays } from './overlays';
 import {
   createAppPackage,
   createPackageTsConfig,
@@ -378,7 +379,7 @@ export function generateUltramodernWorkspace(
     afterFiles,
   );
 
-  return createGenerationResult({
+  const result = createGenerationResult({
     operation: 'workspace',
     workspaceRoot: options.targetDir,
     packageScope: scope,
@@ -387,4 +388,10 @@ export function generateUltramodernWorkspace(
     createdPaths,
     rewrittenPaths,
   });
+  runCodeSmithOverlays({
+    workspaceRoot: options.targetDir,
+    overlays: options.overlays,
+    result,
+  });
+  return result;
 }

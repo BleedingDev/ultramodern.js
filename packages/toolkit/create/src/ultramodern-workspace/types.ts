@@ -121,6 +121,7 @@ export type UltramodernWorkspaceOptions = {
   packageName: string;
   modernVersion: string;
   enableTailwind?: boolean;
+  overlays?: UltramodernCodeSmithOverlay[];
   packageSource?: {
     strategy?: UltramodernPackageSourceStrategy;
     modernPackageVersion?: string;
@@ -135,6 +136,7 @@ export type AddUltramodernVerticalOptions = {
   name: string;
   modernVersion: string;
   enableTailwind?: boolean;
+  overlays?: UltramodernCodeSmithOverlay[];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
 };
 
@@ -186,6 +188,27 @@ export type UltramodernGenerationResult = {
   effectApiPrefixes: Record<string, string>;
   generatedContractPath: string;
   warnings: UltramodernGenerationWarning[];
+};
+
+export type UltramodernCodeSmithOverlay = {
+  generator: string;
+  config?: Record<string, unknown>;
+};
+
+export type UltramodernCodeSmithOverlayRuntimeConfig = {
+  workspaceRoot: string;
+  packageScope: string;
+  operation: UltramodernGenerationOperation;
+  generatedApp?: UltramodernGeneratedAppDescriptor;
+  generatedApps: UltramodernGeneratedAppDescriptor[];
+  assignedPort?: number;
+  assignedPorts: Record<string, number>;
+  moduleFederationName?: string;
+  moduleFederationNames: Record<string, string>;
+  effectApiPrefix?: string;
+  effectApiPrefixes: Record<string, string>;
+  packageSource: ResolvedPackageSource;
+  generationResult: UltramodernGenerationResult;
 };
 
 export type UltramodernJsonMutation = {

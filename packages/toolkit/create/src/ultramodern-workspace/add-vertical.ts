@@ -47,6 +47,7 @@ import {
   toPackageScope,
   toPascalCase,
 } from './naming';
+import { runCodeSmithOverlays } from './overlays';
 import { createAppPackage, createRootPackageJson } from './package-json';
 import { resolvePackageSource } from './package-source';
 import { createCloudflareDeployContract } from './policy';
@@ -670,6 +671,7 @@ export function planUltramodernVertical(
     const plannedResult = addUltramodernVertical({
       ...options,
       workspaceRoot: copiedWorkspaceRoot,
+      overlays: undefined,
     });
 
     return createVerticalPlan(preflight, {
@@ -921,7 +923,7 @@ export function addUltramodernVertical(
     afterFiles,
   );
 
-  return createGenerationResult({
+  const result = createGenerationResult({
     operation: 'vertical',
     workspaceRoot: options.workspaceRoot,
     packageScope: scope,
@@ -930,4 +932,10 @@ export function addUltramodernVertical(
     createdPaths,
     rewrittenPaths,
   });
+  runCodeSmithOverlays({
+    workspaceRoot: options.workspaceRoot,
+    overlays: options.overlays,
+    result,
+  });
+  return result;
 }

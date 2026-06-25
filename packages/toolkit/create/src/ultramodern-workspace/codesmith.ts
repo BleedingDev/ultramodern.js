@@ -25,6 +25,7 @@ export type UltramodernCodeSmithConfig = {
   tailwind?: boolean;
   dryRun?: boolean;
   logResult?: boolean;
+  overlays?: UltramodernWorkspaceOptions['overlays'];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
   packageSourceStrategy?: NonNullable<
     UltramodernWorkspaceOptions['packageSource']
@@ -103,6 +104,7 @@ export default async function ultramodernCodeSmithAdapter(
           packageName: name,
           modernVersion,
           enableTailwind,
+          overlays: config.overlays,
           packageSource,
         })
       : runVerticalMode(
@@ -111,6 +113,7 @@ export default async function ultramodernCodeSmithAdapter(
             name,
             modernVersion,
             enableTailwind,
+            overlays: config.overlays,
             packageSource,
           },
           Boolean(config.dryRun),

@@ -64,6 +64,8 @@ export const ZH_LOCALE = {
       '      --vertical-name <名称> 为自动化工作流显式指定 MicroVertical 名称',
     optionDryRun:
       '      --dry-run 预览 MicroVertical 修改计划但不写入文件（与 --vertical 一起使用）',
+    optionCodeSmithOverlay:
+      '      --codesmith-overlay <包或路径> 生成完成后运行显式配置的 CodeSmith overlay',
     optionLegacyModernJs:
       '      --legacy-modern-js 在大型警告和输入确认后，选择原始 Modern.js 初始化',
     examples: '💡 示例:',
@@ -79,6 +81,8 @@ export const ZH_LOCALE = {
     example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
     example9:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
+    example10:
+      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

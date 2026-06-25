@@ -38,6 +38,7 @@ const WORKSPACE_PROTOCOL_FLAG = '--workspace';
 const DRY_RUN_FLAG = '--dry-run';
 const VERTICAL_FLAG = '--vertical';
 const VERTICAL_NAME_FLAG = '--vertical-name';
+const CODESMITH_OVERLAY_FLAG = '--codesmith-overlay';
 const BFF_FLAG = '--bff';
 const BFF_RUNTIME_OPTION = '--bff-runtime';
 const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
@@ -123,6 +124,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionVertical));
   console.log(i18n.t(localeKeys.help.optionVerticalName));
   console.log(i18n.t(localeKeys.help.optionDryRun));
+  console.log(i18n.t(localeKeys.help.optionCodeSmithOverlay));
   console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -135,6 +137,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.example7));
   console.log(i18n.t(localeKeys.help.example8));
   console.log(i18n.t(localeKeys.help.example9));
+  console.log(i18n.t(localeKeys.help.example10));
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');
@@ -288,6 +291,7 @@ function collectPositionalArgs(args: string[]): string[] {
     '--ultramodern-package-scope',
     '--ultramodern-package-name-prefix',
     VERTICAL_NAME_FLAG,
+    CODESMITH_OVERLAY_FLAG,
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -325,7 +329,8 @@ function collectPositionalArgs(args: string[]): string[] {
       arg.startsWith('--ultramodern-package-scope=') ||
       arg.startsWith('--ultramodern-package-name-prefix=') ||
       arg.startsWith(`${VERTICAL_FLAG}=`) ||
-      arg.startsWith(`${VERTICAL_NAME_FLAG}=`)
+      arg.startsWith(`${VERTICAL_NAME_FLAG}=`) ||
+      arg.startsWith(`${CODESMITH_OVERLAY_FLAG}=`)
     ) {
       continue;
     }
@@ -438,6 +443,35 @@ function detectDryRunFlag(args: string[]): boolean {
   }
 
   return args.includes(DRY_RUN_FLAG);
+}
+
+function detectCodeSmithOverlays(args: string[]) {
+  const overlays: { generator: string }[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === CODESMITH_OVERLAY_FLAG) {
+      const generator = args[i + 1];
+      if (!generator || generator.startsWith('-')) {
+        console.error(`${CODESMITH_OVERLAY_FLAG} requires a package or path.`);
+        process.exit(1);
+      }
+      overlays.push({ generator });
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith(`${CODESMITH_OVERLAY_FLAG}=`)) {
+      const generator = arg.slice(`${CODESMITH_OVERLAY_FLAG}=`.length);
+      if (!generator) {
+        console.error(`${CODESMITH_OVERLAY_FLAG} requires a package or path.`);
+        process.exit(1);
+      }
+      overlays.push({ generator });
+    }
+  }
+
+  return overlays.length > 0 ? overlays : undefined;
 }
 
 function detectUltramodernPackageSource(
@@ -741,6 +775,7 @@ async function main() {
   detectBffRuntime(args);
   const dryRun = detectDryRunFlag(args);
   const verticalInput = resolveVerticalCliInput(args);
+  const overlays = detectCodeSmithOverlays(args);
 
   if (dryRun && !verticalInput.addVertical) {
     console.error(
@@ -774,6 +809,7 @@ async function main() {
       name: verticalInput.name,
       modernVersion: version,
       enableTailwind: detectExplicitTailwindFlag(),
+      overlays,
       packageSource: overridePackageSource,
     };
 
@@ -827,6 +863,7 @@ async function main() {
     packageName: generatedPackageName,
     modernVersion: version,
     enableTailwind: detectTailwindFlag(),
+    overlays,
     packageSource,
   });
   initializeGeneratedGitRepository(targetDir);

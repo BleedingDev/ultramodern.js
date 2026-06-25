@@ -160,6 +160,7 @@ test('CLI help documents MicroVertical positional and explicit forms', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /--vertical\[=<name>\]/);
   assert.match(result.stdout, /--vertical-name <name>/);
+  assert.match(result.stdout, /--codesmith-overlay <package-or-path>/);
   assert.match(result.stdout, /catalog --vertical/);
   assert.match(result.stdout, /--vertical=catalog/);
 });

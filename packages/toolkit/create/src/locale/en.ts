@@ -68,6 +68,8 @@ export const EN_LOCALE = {
       '      --vertical-name <name> Explicit MicroVertical name for automation-friendly workspace mutation',
     optionDryRun:
       '      --dry-run Preview a MicroVertical mutation plan without writing files (supported with --vertical)',
+    optionCodeSmithOverlay:
+      '      --codesmith-overlay <package-or-path> Run an explicit CodeSmith overlay after generation',
     optionLegacyModernJs:
       '      --legacy-modern-js Opt into the original Modern.js setup after a large warning and typed confirmation',
     examples: '💡 Examples:',
@@ -83,6 +85,8 @@ export const EN_LOCALE = {
     example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
     example9:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
+    example10:
+      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {
