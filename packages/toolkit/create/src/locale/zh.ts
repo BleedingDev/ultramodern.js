@@ -56,6 +56,8 @@ export const ZH_LOCALE = {
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
     optionVertical:
       '      --vertical 修改当前已有的 UltraModern 工作区，并接入名为 <项目名称> 的 MicroVertical',
+    optionDryRun:
+      '      --dry-run 预览 MicroVertical 修改计划但不写入文件（与 --vertical 一起使用）',
     optionLegacyModernJs:
       '      --legacy-modern-js 在大型警告和输入确认后，选择原始 Modern.js 初始化',
     examples: '💡 示例:',
@@ -68,6 +70,8 @@ export const ZH_LOCALE = {
     example6:
       '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
     example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
+    example8:
+      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

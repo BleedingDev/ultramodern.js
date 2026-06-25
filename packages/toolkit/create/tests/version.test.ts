@@ -152,6 +152,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           import {
             addUltramodernVertical,
             generateUltramodernWorkspace,
+            planUltramodernVertical,
           } from '@modern-js/create/ultramodern-workspace';
 
           const workspaceRoot = path.join(process.cwd(), 'public-api-workspace');
@@ -170,6 +171,11 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             name: 'catalog',
             modernVersion: '3.2.1',
           });
+          const planResult = planUltramodernVertical({
+            workspaceRoot,
+            name: 'checkout',
+            modernVersion: '3.2.1',
+          });
 
           if (
             workspaceResult.operation !== 'workspace' ||
@@ -183,6 +189,13 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             verticalResult.effectApiPrefixes.catalog !== '/catalog-api'
           ) {
             throw new Error('Expected typed MicroVertical generation result');
+          }
+          if (
+            planResult.dryRun !== true ||
+            planResult.selectedPort !== 4102 ||
+            planResult.moduleFederationRemote.name !== 'verticalCheckout'
+          ) {
+            throw new Error('Expected typed MicroVertical dry-run plan');
           }
           for (const relativePath of [
             '.modernjs/ultramodern-workspace-template-manifest.json',
@@ -226,6 +239,7 @@ test('built public UltraModern subpath can be required from CommonJS', () => {
           const expected = [
             'addUltramodernVertical',
             'generateUltramodernWorkspace',
+            'planUltramodernVertical',
           ];
           if (JSON.stringify(keys) !== JSON.stringify(expected)) {
             throw new Error(\`Unexpected public API keys: \${keys.join(', ')}\`);

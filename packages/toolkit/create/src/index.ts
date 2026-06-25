@@ -16,6 +16,7 @@ import {
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
+  planUltramodernVertical,
 } from './ultramodern-workspace';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ const semverPattern =
 const LEGACY_MODERN_JS_FLAG = '--legacy-modern-js';
 const LEGACY_MODERN_JS_CONFIRMATION = 'USE LEGACY MODERN.JS';
 const WORKSPACE_PROTOCOL_FLAG = '--workspace';
+const DRY_RUN_FLAG = '--dry-run';
 const BFF_FLAG = '--bff';
 const BFF_RUNTIME_OPTION = '--bff-runtime';
 const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
@@ -117,6 +119,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
   console.log(i18n.t(localeKeys.help.optionVertical));
+  console.log(i18n.t(localeKeys.help.optionDryRun));
   console.log(i18n.t(localeKeys.help.optionLegacyModernJs));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
@@ -127,6 +130,7 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.example5));
   console.log(i18n.t(localeKeys.help.example6));
   console.log(i18n.t(localeKeys.help.example7));
+  console.log(i18n.t(localeKeys.help.example8));
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');
@@ -264,6 +268,15 @@ function detectVerticalFlag(): boolean {
     process.exit(1);
   }
   return args.includes('--vertical');
+}
+
+function detectDryRunFlag(args: string[]): boolean {
+  if (args.some(arg => arg.startsWith(`${DRY_RUN_FLAG}=`))) {
+    console.error(`${DRY_RUN_FLAG} does not accept a value.`);
+    process.exit(1);
+  }
+
+  return args.includes(DRY_RUN_FLAG);
 }
 
 function detectUltramodernPackageSource(
@@ -528,6 +541,7 @@ async function getProjectName(): Promise<{
     '--no-tailwind',
     BFF_FLAG,
     WORKSPACE_PROTOCOL_FLAG,
+    DRY_RUN_FLAG,
     '--vertical',
     LEGACY_MODERN_JS_FLAG,
   ]);
@@ -614,8 +628,19 @@ async function main() {
   // returned runtime is always 'effect' today: the workspace generator bakes
   // the Effect BFF into every scaffolded vertical.
   detectBffRuntime(args);
+  const dryRun = detectDryRunFlag(args);
+  const addVertical = detectVerticalFlag();
 
-  console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
+  if (dryRun && !addVertical) {
+    console.error(
+      `${DRY_RUN_FLAG} is currently supported only with --vertical`,
+    );
+    process.exit(1);
+  }
+
+  if (!dryRun) {
+    console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
+  }
   const { name: projectName, useCurrentDir } = await getProjectName();
   const targetDir = useCurrentDir
     ? process.cwd()
@@ -631,7 +656,6 @@ async function main() {
   const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
     ? getBleedingDevFrameworkVersion(createPackage, version)
     : version;
-  const addVertical = detectVerticalFlag();
 
   if (addVertical) {
     const overridePackageSource = args.some(arg =>
@@ -643,13 +667,22 @@ async function main() {
           createPackage,
         )
       : undefined;
-    addUltramodernVertical({
+    const verticalOptions = {
       workspaceRoot: process.cwd(),
       name: generatedPackageName,
       modernVersion: version,
       enableTailwind: detectExplicitTailwindFlag(),
       packageSource: overridePackageSource,
-    });
+    };
+
+    if (dryRun) {
+      console.log(
+        JSON.stringify(planUltramodernVertical(verticalOptions), null, 2),
+      );
+      return;
+    }
+
+    addUltramodernVertical(verticalOptions);
 
     const dim = '\x1b[2m\x1b[3m';
     const reset = '\x1b[0m';

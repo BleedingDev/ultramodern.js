@@ -188,6 +188,45 @@ export type UltramodernGenerationResult = {
   warnings: UltramodernGenerationWarning[];
 };
 
+export type UltramodernJsonMutation = {
+  path: string;
+  pointer: string;
+  description: string;
+  value?: JsonValue;
+};
+
+export type UltramodernShellDependencyChange = {
+  path: string;
+  section: 'dependencies' | 'zephyr:dependencies';
+  packageName: string;
+  version: string;
+};
+
+export type UltramodernGeneratedContractChange = {
+  path: string;
+  addedAppIds: string[];
+  shellVerticalRefs: string[];
+};
+
+/**
+ * Stable public dry-run result for MicroVertical addition. It includes the
+ * same operation summary as a real add, plus planned JSON mutations and
+ * integration metadata that automation can inspect before writing files.
+ */
+export type UltramodernVerticalPlan = UltramodernGenerationResult & {
+  dryRun: true;
+  selectedPort: number;
+  moduleFederationRemote: {
+    id: string;
+    name: string;
+    manifestUrl: string;
+  };
+  effectApiPrefix?: string;
+  jsonMutations: UltramodernJsonMutation[];
+  shellDependencyChanges: UltramodernShellDependencyChange[];
+  generatedContractChanges: UltramodernGeneratedContractChange[];
+};
+
 export function isRecord(value: unknown): value is Record<string, JsonValue> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
