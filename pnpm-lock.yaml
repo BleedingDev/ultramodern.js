@@ -1578,6 +1578,9 @@ importers:
         specifier: workspace:*
         version: link:../i18n-utils
     devDependencies:
+      '@modern-js/codesmith':
+        specifier: 2.6.9
+        version: 2.6.9
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib

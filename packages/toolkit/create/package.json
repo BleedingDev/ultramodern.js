@@ -33,6 +33,9 @@
       ],
       "ultramodern-workspace": [
         "./dist/types/ultramodern-workspace/public-api.d.ts"
+      ],
+      "ultramodern-workspace/codesmith": [
+        "./dist/types/ultramodern-workspace/codesmith.d.ts"
       ]
     }
   },
@@ -54,6 +57,15 @@
         "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
       },
       "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
+    },
+    "./ultramodern-workspace/codesmith": {
+      "types": "./dist/types/ultramodern-workspace/codesmith.d.ts",
+      "node": {
+        "modern:source": "./src/ultramodern-workspace/codesmith.ts",
+        "import": "./dist/esm-node/ultramodern-workspace/codesmith.js",
+        "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
+      },
+      "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
     }
   },
   "files": [
@@ -72,6 +84,7 @@
     "@modern-js/i18n-utils": "workspace:*"
   },
   "devDependencies": {
+    "@modern-js/codesmith": "2.6.9",
     "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.23.0",
@@ -102,6 +115,14 @@
           "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
         },
         "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
+      },
+      "./ultramodern-workspace/codesmith": {
+        "types": "./dist/types/ultramodern-workspace/codesmith.d.ts",
+        "node": {
+          "import": "./dist/esm-node/ultramodern-workspace/codesmith.js",
+          "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
+        },
+        "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
       }
     }
   },

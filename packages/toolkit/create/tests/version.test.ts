@@ -112,10 +112,22 @@ test('package exposes the public UltraModern workspace generator subpath', () =>
     },
     default: './dist/esm-node/ultramodern-workspace/public-api.js',
   };
+  const expectedCodeSmithExport = {
+    types: './dist/types/ultramodern-workspace/codesmith.d.ts',
+    node: {
+      import: './dist/esm-node/ultramodern-workspace/codesmith.js',
+      require: './dist/cjs/ultramodern-workspace/codesmith.cjs',
+    },
+    default: './dist/esm-node/ultramodern-workspace/codesmith.js',
+  };
 
   assert.deepEqual(packageJson.typesVersions['*']['ultramodern-workspace'], [
     './dist/types/ultramodern-workspace/public-api.d.ts',
   ]);
+  assert.deepEqual(
+    packageJson.typesVersions['*']['ultramodern-workspace/codesmith'],
+    ['./dist/types/ultramodern-workspace/codesmith.d.ts'],
+  );
   assert.deepEqual(packageJson.exports['./ultramodern-workspace'], {
     ...expectedPublicExport,
     node: {
@@ -123,9 +135,20 @@ test('package exposes the public UltraModern workspace generator subpath', () =>
       ...expectedPublicExport.node,
     },
   });
+  assert.deepEqual(packageJson.exports['./ultramodern-workspace/codesmith'], {
+    ...expectedCodeSmithExport,
+    node: {
+      'modern:source': './src/ultramodern-workspace/codesmith.ts',
+      ...expectedCodeSmithExport.node,
+    },
+  });
   assert.deepEqual(
     packageJson.publishConfig.exports['./ultramodern-workspace'],
     expectedPublicExport,
+  );
+  assert.deepEqual(
+    packageJson.publishConfig.exports['./ultramodern-workspace/codesmith'],
+    expectedCodeSmithExport,
   );
   assert.deepEqual(
     Object.keys(packageJson.exports).sort(),
@@ -259,6 +282,56 @@ test('built public UltraModern subpath can be required from CommonJS', () => {
     );
 
     assert.equal(result.status, 0, result.stderr);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('built CodeSmith UltraModern subpath exposes a default adapter', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-create-codesmith-api-'),
+  );
+
+  try {
+    linkCreatePackageIntoConsumer(tempRoot);
+
+    const esmResult = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+          import adapter from '@modern-js/create/ultramodern-workspace/codesmith';
+          if (typeof adapter !== 'function') {
+            throw new Error('Expected default CodeSmith adapter function');
+          }
+        `,
+      ],
+      {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(esmResult.status, 0, esmResult.stderr);
+
+    const cjsResult = spawnSync(
+      process.execPath,
+      [
+        '--eval',
+        `
+          const adapterModule = require('@modern-js/create/ultramodern-workspace/codesmith');
+          const adapter = adapterModule.default || adapterModule;
+          if (typeof adapter !== 'function') {
+            throw new Error('Expected default CodeSmith adapter function');
+          }
+        `,
+      ],
+      {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(cjsResult.status, 0, cjsResult.stderr);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
