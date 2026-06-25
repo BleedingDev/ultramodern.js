@@ -81,7 +81,7 @@
     "@web-std/stream": "^1.0.3",
     "cloneable-readable": "^3.0.0",
     "flatted": "^3.4.2",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "ts-deepmerge": "8.0.0"
   },
   "devDependencies": {
@@ -91,8 +91,8 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^25.9.3",
-    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "@types/node": "^26.0.0",
+    "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "http-proxy-middleware": "^4.1.1"
   },
   "sideEffects": false,

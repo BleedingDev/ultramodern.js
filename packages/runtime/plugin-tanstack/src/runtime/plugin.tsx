@@ -19,7 +19,6 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router';
-import { hydrate as hydrateTanstackRouter } from '@tanstack/react-router/ssr/client';
 import { useContext, useMemo } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
 import { routerProviderRegistryHooks } from './hooks';
@@ -224,6 +223,12 @@ function preloadHydratedRouteComponents(router: AnyRouter): Promise<void> {
       });
     }),
   ).then(() => undefined);
+}
+
+function hydrateTanstackRouter(router: AnyRouter) {
+  return import('@tanstack/react-router/ssr/client').then(({ hydrate }) =>
+    hydrate(router),
+  );
 }
 
 function getTanstackSsrHydrationRecord(router: AnyRouter) {

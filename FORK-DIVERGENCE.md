@@ -47,7 +47,7 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
 
 - `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` — fork package manager, Renovate/security, tsgo/rstest/biome, and publish policy. Keep fork policy unless the upstream change is a pure package version/security update that can be re-expressed without undoing the fork's package-manager constraints.
 - Root Renovate/security carve-outs already exist in `.github/renovate.json` and `pnpm-workspace.yaml` (`minimumReleaseAgeExclude`, Module Federation peer allowances, patched dependencies). Do not add app-level install shims to work around dependency policy.
-- `patchedDependencies` applies two Module Federation patches to `@module-federation/{manifest,rspack}@2.5.1` even though the patch filenames still contain `2.5.0`; see `patches/README.md`.
+- `patchedDependencies` applies two Module Federation patches to `@module-federation/{manifest,rspack}@2.6.0`; see `patches/README.md`.
 
 ### CI and GitHub workflows — mixed
 

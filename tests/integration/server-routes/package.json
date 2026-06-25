@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "axios": "^1.18.0",
+    "axios": "^1.18.1",
     "express": "^5.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@types/node": "^25.9.3"
+    "@types/node": "^26.0.0"
   }
 }

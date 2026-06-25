@@ -1636,6 +1636,16 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2007,6 +2017,16 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2133,6 +2153,16 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -4078,6 +4108,16 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -4431,6 +4471,16 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -4557,6 +4607,16 @@ exports[`builder rspack > should generator rspack config correctly when service-
             "use": [
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                "options": {
+                  "modules": {
+                    "auto": true,
+                    "exportGlobals": false,
+                    "exportLocalsConvention": "camelCase",
+                    "exportOnlyLocals": true,
+                    "localIdentName": "[local]-[hash:base64:6]",
+                    "namedExport": false,
+                  },
+                },
               },
               {
                 "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",

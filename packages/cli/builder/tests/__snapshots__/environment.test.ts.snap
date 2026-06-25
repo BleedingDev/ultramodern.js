@@ -1614,6 +1614,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -1985,6 +1995,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2111,6 +2131,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2515,6 +2545,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2868,6 +2908,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",
@@ -2994,6 +3044,16 @@ exports[`builder environment compat > should generator environment config correc
               "use": [
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/ignoreCssLoader.mjs",
+                  "options": {
+                    "modules": {
+                      "auto": true,
+                      "exportGlobals": false,
+                      "exportLocalsConvention": "camelCase",
+                      "exportOnlyLocals": true,
+                      "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                      "namedExport": false,
+                    },
+                  },
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/compiled/css-loader/index.js",

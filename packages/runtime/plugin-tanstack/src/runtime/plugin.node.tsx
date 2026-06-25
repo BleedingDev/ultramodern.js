@@ -20,7 +20,6 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { attachRouterServerSsrUtils } from '@tanstack/router-core/ssr/server';
 import type React from 'react';
 import { useContext } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
@@ -300,6 +299,17 @@ function collectRouterErrors(
   return Object.keys(errors).length > 0 ? errors : undefined;
 }
 
+async function attachServerSsrUtils(router: TanstackRouterWithServerSsr) {
+  const { attachRouterServerSsrUtils } = await import(
+    '@tanstack/router-core/ssr/server'
+  );
+
+  attachRouterServerSsrUtils({
+    router,
+    manifest: undefined,
+  });
+}
+
 export const tanstackRouterPlugin = (
   userConfig: Partial<RouterConfig> = {},
 ): TanstackRouterRuntimePlugin => {
@@ -396,10 +406,7 @@ export const tanstackRouterPlugin = (
         const serverRouter =
           tanstackRouter as unknown as TanstackRouterWithServerSsr;
 
-        attachRouterServerSsrUtils({
-          router: serverRouter,
-          manifest: undefined,
-        });
+        await attachServerSsrUtils(serverRouter);
 
         const end = time();
 

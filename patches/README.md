@@ -2,14 +2,17 @@
 
 This directory contains pnpm patches for external packages. These are not fork source files; they are install-time patches applied by `pnpm-workspace.yaml`.
 
-## Module Federation 2.5.1 patches
+## Module Federation 2.6.0 patches
 
 `pnpm-workspace.yaml` currently applies:
 
-- `@module-federation/manifest@2.5.1` -> `patches/@module-federation__manifest@2.5.0.patch`
-- `@module-federation/rspack@2.5.1` -> `patches/@module-federation__rspack@2.5.0.patch`
+- `@module-federation/manifest@2.6.0` -> `patches/@module-federation__manifest@2.6.0.patch`
+- `@module-federation/rspack@2.6.0` -> `patches/@module-federation__rspack@2.6.0.patch`
 
-The filenames still say `2.5.0` because the patch bodies were created on the previous 2.5.0 package contents and still apply cleanly to the 2.5.1 cohort. The lockfile records the active 2.5.1 patch hashes, so the source of truth is the `patchedDependencies` key plus `pnpm-lock.yaml`, not the filename suffix.
+The patch bodies were originally created on an earlier Module Federation
+package cohort and continue to apply cleanly to 2.6.0. The lockfile records the
+active 2.6.0 patch hashes, so the source of truth is the `patchedDependencies`
+key plus `pnpm-lock.yaml`.
 
 ## What the patches do
 

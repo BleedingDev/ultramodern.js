@@ -39,7 +39,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260618.1",
+    "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-server-dom-rspack": "0.0.2",

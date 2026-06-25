@@ -1382,14 +1382,14 @@ describe('create-ultramodern-workspace', () => {
       ),
     ).toBe(true);
     expect(rootPackage.devDependencies).toMatchObject({
-      '@effect/tsgo': '0.14.5',
+      '@effect/tsgo': '0.14.6',
       '@modern-js/code-tools': expectedBleedingDevSpecifier(
         '@modern-js/code-tools',
       ),
       '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
-      '@typescript/native-preview': '7.0.0-dev.20260618.1',
+      '@typescript/native-preview': '7.0.0-dev.20260624.1',
       lefthook: '^2.1.9',
-      oxlint: '1.70.0',
+      oxlint: '1.71.0',
       oxfmt: '0.55.0',
       ultracite: '7.8.3',
       wrangler: '4.102.0',
@@ -1503,9 +1503,9 @@ describe('create-ultramodern-workspace', () => {
         'devDependencies',
         '@modern-js/app-tools',
       );
-      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.5');
+      expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.6');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260618.1',
+        '7.0.0-dev.20260624.1',
       );
       expect(packageJson.devDependencies.typescript).toBe('6.0.3');
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
@@ -1546,7 +1546,7 @@ describe('create-ultramodern-workspace', () => {
         '1.170.16',
       );
       expect(packageJson.dependencies['@module-federation/modern-js-v3']).toBe(
-        '2.5.1',
+        '2.6.0',
       );
       expectBleedingDevModernDependency(
         packageJson,
@@ -2203,7 +2203,7 @@ process.exit(1);
       '1.170.16',
     );
     expect(remotePackage.dependencies['@module-federation/modern-js-v3']).toBe(
-      '2.5.1',
+      '2.6.0',
     );
     expectBleedingDevModernDependency(
       remotePackage,

@@ -11,7 +11,7 @@
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"
@@ -19,9 +19,9 @@
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260618.1"
+    "@typescript/native-preview": "7.0.0-dev.20260624.1"
   }
 }

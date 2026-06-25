@@ -41,16 +41,17 @@ allowBuilds:
 
 patchedDependencies:
   # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
-  # import the DTS plugin in the TS 7 native-preview lane. The patch filenames
-  # were created on 2.5.0, but these entries intentionally apply them to 2.5.1.
-  '@module-federation/manifest@2.5.1': patches/@module-federation__manifest@2.5.0.patch
-  '@module-federation/rspack@2.5.1': patches/@module-federation__rspack@2.5.0.patch
+  # import the DTS plugin in the TS 7 native-preview lane.
+  '@module-federation/manifest@2.6.0': patches/@module-federation__manifest@2.6.0.patch
+  '@module-federation/rspack@2.6.0': patches/@module-federation__rspack@2.6.0.patch
 
 overrides:
   micromatch: ^4.0.8
   'read-yaml-file>js-yaml': 3.14.2
   '@remix-run/router': '>=1.23.3'
   react-router: 7.18.0
+  '@modern-js/runtime-utils>react-router': 8.0.1
+  'dev-server>react-router': 8.0.1
   h3: '>=1.15.11'
   tar: '>=7.5.16'
   diff: '>=9.0.0'
@@ -63,7 +64,7 @@ overrides:
   brace-expansion: '>=5.0.6'
   yaml: '>=2.9.0'
   qs: '>=6.15.2'
-  serialize-javascript: '>=7.0.5'
+  serialize-javascript: '>=7.0.6'
   ws: '>=8.21.0'
   fast-uri: '>=4.0.0'
   'uuid@>=13.0.0 <13.0.1': 14.0.0
@@ -113,48 +114,48 @@ minimumReleaseAgeExclude:
   - '@types/react@19.2.17'
   - '@tanstack/react-router@1.170.16'
   - '@tanstack/router-core@1.171.13'
-  - '@effect/tsgo-darwin-arm64@0.14.5'
-  - '@effect/tsgo-darwin-x64@0.14.5'
-  - '@effect/tsgo-linux-arm64@0.14.5'
-  - '@effect/tsgo-linux-arm@0.14.5'
-  - '@effect/tsgo-linux-x64@0.14.5'
-  - '@effect/tsgo-win32-arm64@0.14.5'
-  - '@effect/tsgo-win32-x64@0.14.5'
-  - '@effect/tsgo@0.14.5'
-  - '@jsonjoy.com/fs-core@4.57.7'
-  - '@jsonjoy.com/fs-fsa@4.57.7'
-  - '@jsonjoy.com/fs-node-builtins@4.57.7'
-  - '@jsonjoy.com/fs-node-to-fsa@4.57.7'
-  - '@jsonjoy.com/fs-node-utils@4.57.7'
-  - '@jsonjoy.com/fs-node@4.57.7'
-  - '@jsonjoy.com/fs-print@4.57.7'
-  - '@jsonjoy.com/fs-snapshot@4.57.7'
-  - '@types/node@25.9.3'
-  - memfs@4.57.7
-  - '@img/sharp-darwin-arm64@0.35.0'
-  - '@img/sharp-darwin-x64@0.35.0'
-  - '@img/sharp-freebsd-wasm32@0.35.0'
-  - '@img/sharp-libvips-darwin-arm64@1.3.0'
-  - '@img/sharp-libvips-darwin-x64@1.3.0'
-  - '@img/sharp-libvips-linux-arm64@1.3.0'
-  - '@img/sharp-libvips-linux-arm@1.3.0'
-  - '@img/sharp-libvips-linux-ppc64@1.3.0'
-  - '@img/sharp-libvips-linux-riscv64@1.3.0'
-  - '@img/sharp-libvips-linux-s390x@1.3.0'
-  - '@img/sharp-libvips-linux-x64@1.3.0'
-  - '@img/sharp-libvips-linuxmusl-arm64@1.3.0'
-  - '@img/sharp-libvips-linuxmusl-x64@1.3.0'
-  - '@img/sharp-linux-arm64@0.35.0'
-  - '@img/sharp-linux-arm@0.35.0'
-  - '@img/sharp-linux-ppc64@0.35.0'
-  - '@img/sharp-linux-riscv64@0.35.0'
-  - '@img/sharp-linux-s390x@0.35.0'
-  - '@img/sharp-linux-x64@0.35.0'
-  - '@img/sharp-linuxmusl-arm64@0.35.0'
-  - '@img/sharp-linuxmusl-x64@0.35.0'
-  - '@img/sharp-wasm32@0.35.0'
-  - '@img/sharp-webcontainers-wasm32@0.35.0'
-  - '@img/sharp-win32-arm64@0.35.0'
-  - '@img/sharp-win32-ia32@0.35.0'
-  - '@img/sharp-win32-x64@0.35.0'
-  - sharp@0.35.0
+  - '@effect/tsgo-darwin-arm64@0.14.6'
+  - '@effect/tsgo-darwin-x64@0.14.6'
+  - '@effect/tsgo-linux-arm64@0.14.6'
+  - '@effect/tsgo-linux-arm@0.14.6'
+  - '@effect/tsgo-linux-x64@0.14.6'
+  - '@effect/tsgo-win32-arm64@0.14.6'
+  - '@effect/tsgo-win32-x64@0.14.6'
+  - '@effect/tsgo@0.14.6'
+  - '@jsonjoy.com/fs-core@4.57.8'
+  - '@jsonjoy.com/fs-fsa@4.57.8'
+  - '@jsonjoy.com/fs-node-builtins@4.57.8'
+  - '@jsonjoy.com/fs-node-to-fsa@4.57.8'
+  - '@jsonjoy.com/fs-node-utils@4.57.8'
+  - '@jsonjoy.com/fs-node@4.57.8'
+  - '@jsonjoy.com/fs-print@4.57.8'
+  - '@jsonjoy.com/fs-snapshot@4.57.8'
+  - '@types/node@26.0.0'
+  - memfs@4.57.8
+  - '@img/sharp-darwin-arm64@0.35.2'
+  - '@img/sharp-darwin-x64@0.35.2'
+  - '@img/sharp-freebsd-wasm32@0.35.2'
+  - '@img/sharp-libvips-darwin-arm64@1.3.1'
+  - '@img/sharp-libvips-darwin-x64@1.3.1'
+  - '@img/sharp-libvips-linux-arm64@1.3.1'
+  - '@img/sharp-libvips-linux-arm@1.3.1'
+  - '@img/sharp-libvips-linux-ppc64@1.3.1'
+  - '@img/sharp-libvips-linux-riscv64@1.3.1'
+  - '@img/sharp-libvips-linux-s390x@1.3.1'
+  - '@img/sharp-libvips-linux-x64@1.3.1'
+  - '@img/sharp-libvips-linuxmusl-arm64@1.3.1'
+  - '@img/sharp-libvips-linuxmusl-x64@1.3.1'
+  - '@img/sharp-linux-arm64@0.35.2'
+  - '@img/sharp-linux-arm@0.35.2'
+  - '@img/sharp-linux-ppc64@0.35.2'
+  - '@img/sharp-linux-riscv64@0.35.2'
+  - '@img/sharp-linux-s390x@0.35.2'
+  - '@img/sharp-linux-x64@0.35.2'
+  - '@img/sharp-linuxmusl-arm64@0.35.2'
+  - '@img/sharp-linuxmusl-x64@0.35.2'
+  - '@img/sharp-wasm32@0.35.2'
+  - '@img/sharp-webcontainers-wasm32@0.35.2'
+  - '@img/sharp-win32-arm64@0.35.2'
+  - '@img/sharp-win32-ia32@0.35.2'
+  - '@img/sharp-win32-x64@0.35.2'
+  - sharp@0.35.2
