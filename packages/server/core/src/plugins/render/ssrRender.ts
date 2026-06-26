@@ -9,7 +9,12 @@ import type {
 import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import type { IncomingMessage } from 'http';
 import { X_MODERNJS_RENDER } from '../../constants';
-import type { CacheConfig, ServerManifest, UserConfig } from '../../types';
+import type {
+  CacheConfig,
+  Context,
+  ServerManifest,
+  UserConfig,
+} from '../../types';
 import type {
   OnError,
   OnTiming,
@@ -35,6 +40,7 @@ export interface SSRRenderOptions {
   rscSSRManifest?: RscSSRManifest;
 
   loaderContext: Map<string, unknown>;
+  serverContext?: Context;
 
   params: Params;
   /** Produce by custom server hook */

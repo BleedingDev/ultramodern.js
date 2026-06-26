@@ -118,6 +118,7 @@ function createRenderHandler(
       rscClientManifest,
       rscSSRManifest,
       loaderContext,
+      serverContext: c as Context,
       locals,
       matchPathname,
       matchEntryName,
