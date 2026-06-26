@@ -1,5 +1,6 @@
 import { fs, logger } from '@modern-js/utils';
 import { EventEmitter } from 'events';
+import os from 'os';
 import path from 'path';
 import { compileByTs } from '../src/compilers/typescript';
 
@@ -10,6 +11,7 @@ type SpawnBehavior = (child: {
 }) => void;
 
 const spawnBehaviors: SpawnBehavior[] = [];
+let tempRoots: string[] = [];
 
 rstest.mock('child_process', () => ({
   __esModule: true,
@@ -27,13 +29,26 @@ rstest.mock('child_process', () => ({
 }));
 
 describe('compileByTs temp config cleanup', () => {
-  afterEach(() => {
+  afterEach(async () => {
     spawnBehaviors.length = 0;
     rstest.restoreAllMocks();
+    await Promise.all(tempRoots.map(tempRoot => fs.remove(tempRoot)));
+    tempRoots = [];
   });
 
+  const createIsolatedTsExample = async () => {
+    const fixture = path.join(__dirname, './fixtures', './ts-example');
+    const tempRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'server-utils-tsgo-cleanup-'),
+    );
+    const example = path.join(tempRoot, 'ts-example');
+    tempRoots.push(tempRoot);
+    await fs.copy(fixture, example);
+    return example;
+  };
+
   it('removes the resolved tsgo config when the compile process fails to spawn', async () => {
-    const example = path.join(__dirname, './fixtures', './ts-example');
+    const example = await createIsolatedTsExample();
 
     // First spawn: `--showConfig` succeeds with a minimal config.
     spawnBehaviors.push(child => {
@@ -71,7 +86,7 @@ describe('compileByTs temp config cleanup', () => {
   });
 
   it('throws instead of logging success when tsgo exits nonzero and the caller requested errors', async () => {
-    const example = path.join(__dirname, './fixtures', './ts-example');
+    const example = await createIsolatedTsExample();
     const infoSpy = rstest.spyOn(logger, 'info').mockImplementation(() => {});
     const errorSpy = rstest.spyOn(logger, 'error').mockImplementation(() => {});
 

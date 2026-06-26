@@ -500,6 +500,67 @@ const assertMicroVerticalContractGraph = ({
     );
   }
 };
+const toPosixPath = value => value.split(path.sep).join('/');
+const referenceFrom = (fromPath, toPath) => ({
+  path: toPosixPath(path.relative(fromPath, toPath)),
+});
+const sharedPackagePaths = [
+  'packages/shared-contracts',
+  'packages/shared-design-tokens',
+];
+const assertTsConfigReferenceGraph = () => {
+  const rootTsConfig = readJson('tsconfig.json');
+  const shellTsConfig = readJson('apps/shell-super-app/tsconfig.json');
+  const expectedRootReferences = [
+    ...sharedPackagePaths,
+    'apps/shell-super-app',
+    ...fullStackVerticals.map(vertical => vertical.path),
+  ].map(referencePath => ({ path: referencePath }));
+  const expectedShellReferences = [
+    ...sharedPackagePaths,
+    ...fullStackVerticals.map(vertical => vertical.path),
+  ].map(referencePath =>
+    referenceFrom('apps/shell-super-app', referencePath),
+  );
+
+  assertSameJson(
+    rootTsConfig.files,
+    [],
+    'tsconfig.json files',
+    'restore the generated root project-reference tsconfig',
+  );
+  assertSameJson(
+    rootTsConfig.references ?? [],
+    expectedRootReferences,
+    'tsconfig.json references',
+    'restore the generated root project-reference graph',
+  );
+  assertSameJson(
+    shellTsConfig.references ?? [],
+    expectedShellReferences,
+    'apps/shell-super-app/tsconfig.json references',
+    'restore the generated shell project-reference graph',
+  );
+
+  for (const vertical of fullStackVerticals) {
+    const verticalTsConfig = readJson(`${vertical.path}/tsconfig.json`);
+    const expectedVerticalReferences = [
+      ...sharedPackagePaths,
+      ...(vertical.verticalRefs ?? [])
+        .map(verticalRef =>
+          fullStackVerticals.find(candidate => candidate.id === verticalRef),
+        )
+        .filter(Boolean)
+        .map(referencedVertical => referencedVertical.path),
+    ].map(referencePath => referenceFrom(vertical.path, referencePath));
+    assertSameJson(
+      verticalTsConfig.references ?? [],
+      expectedVerticalReferences,
+      `${vertical.path}/tsconfig.json references`,
+      'restore the generated MicroVertical project-reference graph',
+    );
+  }
+};
 const packageJsonFiles = startDir => {
   const files = [];
   const queue = [startDir];
@@ -846,6 +907,7 @@ assertMicroVerticalContractGraph({
   overlay,
   shellPackage,
 });
+assertTsConfigReferenceGraph();
 
 assert(rootPackage.private === true, 'Root package must be private');
 assert(typeof rootPackage.packageManager === 'string', 'Root must declare packageManager');
