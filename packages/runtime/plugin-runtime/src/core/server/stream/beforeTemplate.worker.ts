@@ -34,6 +34,14 @@ export interface BuildShellBeforeTemplateOptions {
   moduleFederationCssAssets?: string[];
 }
 
+type RouteManifest = {
+  referenceCssAssets?: string[];
+};
+
+type RouteManifestLike = {
+  routeAssets?: Record<string, RouteManifest | undefined>;
+};
+
 export async function buildShellBeforeTemplate(
   beforeAppTemplate: string,
   options: BuildShellBeforeTemplateOptions,
@@ -74,15 +82,11 @@ export async function buildShellBeforeTemplate(
 
     async function getCssChunks() {
       const { routeManifest, routerContext, routes } = runtimeContext;
-      if (!routeManifest) {
+      const routeAssets = (routeManifest as RouteManifestLike | undefined)
+        ?.routeAssets;
+      if (!routeAssets) {
         return '';
       }
-
-      const { routeAssets } = routeManifest;
-
-      type RouteManifest = {
-        referenceCssAssets?: string[];
-      };
 
       let matchedRouteManifests: RouteManifest[] = [];
 

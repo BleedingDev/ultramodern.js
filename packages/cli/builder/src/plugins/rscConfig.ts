@@ -6,7 +6,10 @@ const ASYNC_STORAGE_PATTERN = /universal[/\\]async_storage/;
 const SERVER_LOADER_ENTRY_PATTERN =
   /[/\\](?:server-loader-combined|route-server-loaders)\.js$/;
 const RENDER_RSC_SOURCE_PATTERN = /render[/\\].*[/\\]server[/\\]rsc/;
-const RENDER_RSC_RSLIB_ENTRY_PATTERN = /render[/\\]dist[/\\]esm[/\\]rsc\.mjs$/;
+const RENDER_RSC_RSLIB_ENTRY_PATTERN =
+  /render[/\\]dist[/\\]esm[/\\]rsc(?:Worker)?\.mjs$/;
+const RENDER_RSC_RUNTIME = '@modern-js/render/rsc';
+const RENDER_RSC_WORKER_RUNTIME = '@modern-js/render/rsc-worker';
 const RSC_COMMON_LAYER = 'rsc-common';
 const ENTRY_NAME_VAR = '__MODERN_JS_ENTRY_NAME';
 
@@ -25,6 +28,61 @@ const isAsyncStorageExclude = (exclude: unknown) => {
     );
   }
   return false;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
+};
+
+const disableReactCompilerInSwcLoaders = (
+  value: unknown,
+  seen = new WeakSet<object>(),
+) => {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  if (seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      disableReactCompilerInSwcLoaders(item, seen);
+    }
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (record.loader === 'builtin:swc-loader') {
+    let options = asRecord(record.options);
+    if (!options) {
+      options = {};
+      record.options = options;
+    }
+
+    let jsc = asRecord(options.jsc);
+    if (!jsc) {
+      jsc = {};
+      options.jsc = jsc;
+    }
+
+    let transform = asRecord(jsc.transform);
+    if (!transform) {
+      transform = {};
+      jsc.transform = transform;
+    }
+
+    transform.reactCompiler = false;
+  }
+
+  for (const item of Object.values(record)) {
+    disableReactCompilerInSwcLoaders(item, seen);
+  }
 };
 
 /**
@@ -60,6 +118,11 @@ export function pluginRscConfig(): RsbuildPlugin {
       api.modifyBundlerChain({
         handler: (chain, { isServer }) => {
           if (isServer) {
+            chain.resolve.alias.set(
+              `${RENDER_RSC_RUNTIME}$`,
+              RENDER_RSC_WORKER_RUNTIME,
+            );
+
             // Pattern 1: Match route files in routes directory (conventional routing)
             // Matches: layout.tsx, layout.ts, layout.jsx, layout.js
             //         page.tsx, page.ts, page.jsx, page.js
@@ -159,6 +222,11 @@ export function pluginRscConfig(): RsbuildPlugin {
         // 3. Add rsc-common layer for /universal[/\\]async_storage/
         if (config.module?.rules) {
           const rules = config.module.rules as Rspack.RuleSetRule[];
+
+          // React 19.2 does not expose a server-compatible compiler runtime.
+          // Keep React Compiler out of the RSC server layer so generated server
+          // component code does not import react/compiler-runtime.
+          disableReactCompilerInSwcLoaders(rules);
 
           // Find and modify rules that have layer: 'react-server-components'
           for (const rule of rules) {
