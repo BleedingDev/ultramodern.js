@@ -29,6 +29,7 @@ export function withModernConfig(
     const { rsbuildConfig } = await resolveModernRsbuildConfig({
       ...options,
       command: 'rstest',
+      disableReactCompiler: true,
       modifyModernConfig: async config => {
         if (config.server?.rsc) {
           console.warn(
@@ -55,6 +56,13 @@ export function withModernConfig(
     const rstestExtendConfig = toRstestConfig({
       rsbuildConfig,
       environmentName: options.environmentName || 'client',
+      modifyRsbuildConfig: buildConfig => ({
+        ...buildConfig,
+        output: {
+          ...buildConfig.output,
+          module: true,
+        },
+      }),
     });
 
     return rstestExtendConfig;

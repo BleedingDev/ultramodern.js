@@ -57,6 +57,18 @@ rstest.mock('@modern-js/runtime/cli', () => {
       const routesEntry = path.join(dir, routesDir);
       return fs.existsSync(routesEntry) ? routesEntry : false;
     },
+    updateNestedRoutesSpec: async (
+      specPath: string,
+      nextRoutes: Record<string, unknown>,
+    ) => {
+      const existingRoutes = fs.existsSync(specPath)
+        ? await fs.readJSON(specPath)
+        : {};
+      await fs.outputJSON(specPath, {
+        ...existingRoutes,
+        ...nextRoutes,
+      });
+    },
   };
 });
 

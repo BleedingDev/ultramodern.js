@@ -83,6 +83,10 @@ type RuntimeRouterCliHelpers = {
     },
   ) => Promise<Entrypoint[]>;
   isRouteEntry: (dir: string, routesDir?: string) => string | false;
+  updateNestedRoutesSpec: (
+    specPath: string,
+    nextRoutes: Record<string, unknown>,
+  ) => Promise<void>;
 };
 
 let runtimeRouterCli: RuntimeRouterCliHelpers | undefined;
@@ -97,7 +101,8 @@ function getRuntimeRouterCli(): RuntimeRouterCliHelpers {
   if (
     cli.handleGeneratorEntryCode &&
     cli.getEntrypointRoutesDir &&
-    cli.getEntrypointRoutesOwner
+    cli.getEntrypointRoutesOwner &&
+    cli.updateNestedRoutesSpec
   ) {
     runtimeRouterCli = cli as RuntimeRouterCliHelpers;
     return runtimeRouterCli;
@@ -497,19 +502,11 @@ export function tanstackRouterPlugin(
             distDirectory,
             NESTED_ROUTE_SPEC_FILE,
           );
-          const existingNestedRoutes = (await fs.pathExists(
+          const { updateNestedRoutesSpec } = getRuntimeRouterCli();
+          await updateNestedRoutesSpec(
             nestedRoutesSpecPath,
-          ))
-            ? ((await fs.readJSON(nestedRoutesSpecPath)) as Record<
-                string,
-                unknown
-              >)
-            : {};
-
-          await fs.outputJSON(nestedRoutesSpecPath, {
-            ...existingNestedRoutes,
-            ...nestedRoutesForServer,
-          });
+            nestedRoutesForServer,
+          );
         }
 
         return {

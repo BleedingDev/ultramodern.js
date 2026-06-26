@@ -16,6 +16,7 @@ type ResolveModernRsbuildConfigOptions = {
   command: string;
   configPath?: string;
   cwd?: string;
+  disableReactCompiler?: boolean;
   metaName?: string;
   modifyModernConfig?: (
     config: AppUserConfig,
@@ -52,11 +53,15 @@ export async function resolveModernRsbuildConfig(
 
   const appContext = getAppContext();
 
+  const builderOptions = {
+    cwd,
+    ...(options.disableReactCompiler === undefined
+      ? {}
+      : { disableReactCompiler: options.disableReactCompiler }),
+  };
   const { rsbuildConfig, rsbuildPlugins } = await parseRspackConfig(
     nonStandardConfig,
-    {
-      cwd,
-    },
+    builderOptions,
   );
 
   const adapterParams = {

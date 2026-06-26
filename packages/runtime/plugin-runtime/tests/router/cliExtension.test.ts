@@ -14,6 +14,7 @@ import {
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
 } from '../../src/router/cli/handler';
+import { updateNestedRoutesSpec } from '../../src/router/cli/nestedRoutesSpec';
 
 const createConfig = () =>
   ({
@@ -414,5 +415,34 @@ describe('router cli extension points', () => {
         },
       ],
     });
+  });
+
+  test('updates nested route spec json deterministically under concurrent writes', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-router-cli-'));
+    const specPath = path.join(tempDir, 'dist', NESTED_ROUTE_SPEC_FILE);
+
+    await updateNestedRoutesSpec(specPath, {
+      existing: [{ id: 'keep-me' }],
+    });
+    await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        updateNestedRoutesSpec(specPath, {
+          [`entry-${index}`]: [{ id: `route-${index}` }],
+        }),
+      ),
+    );
+
+    expect(await fs.readJSON(specPath)).toEqual({
+      existing: [{ id: 'keep-me' }],
+      'entry-0': [{ id: 'route-0' }],
+      'entry-1': [{ id: 'route-1' }],
+      'entry-2': [{ id: 'route-2' }],
+      'entry-3': [{ id: 'route-3' }],
+      'entry-4': [{ id: 'route-4' }],
+      'entry-5': [{ id: 'route-5' }],
+      'entry-6': [{ id: 'route-6' }],
+      'entry-7': [{ id: 'route-7' }],
+    });
+    expect(await fs.pathExists(`${specPath}.lock`)).toBe(false);
   });
 });

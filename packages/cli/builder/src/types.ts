@@ -60,6 +60,11 @@ export type MetaOptions = {
 
 export type CreateBuilderCommonOptions = {
   frameworkConfigPath?: string;
+  /**
+   * Disable Modern's default React Compiler SWC option for consumers whose
+   * build pipeline does not support Rspack's `jsc.transform.reactCompiler`.
+   */
+  disableReactCompiler?: boolean;
   /** The root path of current project. */
   cwd: string;
   rscClientRuntimePath?: string;

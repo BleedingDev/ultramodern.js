@@ -262,6 +262,28 @@ describe('builder rspack', () => {
     ).toBe(true);
   });
 
+  it('should omit React Compiler in builtin SWC when disabled for the consuming tool', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {},
+      cwd: join(__dirname, '..'),
+      disableReactCompiler: true,
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(
+      collectSwcLoaderOptions(bundlerConfigs[0]).some(options =>
+        Object.prototype.hasOwnProperty.call(
+          options?.jsc?.transform ?? {},
+          'reactCompiler',
+        ),
+      ),
+    ).toBe(false);
+  });
+
   it('should run built-in SVGR loaders in parallel', async () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',

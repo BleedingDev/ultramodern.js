@@ -20,6 +20,7 @@ export {
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
   isRouteEntry,
+  updateNestedRoutesSpec,
 } from '../router/cli';
 export { makeLegalIdentifier } from '../router/cli/code/makeLegalIdentifier';
 export { getPathWithoutExt } from '../router/cli/code/utils';

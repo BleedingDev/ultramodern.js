@@ -8,7 +8,6 @@ import type {
 } from '@modern-js/types';
 import {
   filterRoutesForServer,
-  fs,
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
 import { NESTED_ROUTES_DIR } from './constants';
@@ -24,6 +23,7 @@ import {
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
 } from './handler';
+import { updateNestedRoutesSpec } from './nestedRoutesSpec';
 
 export {
   BUILT_IN_ROUTES_OWNER,
@@ -36,6 +36,7 @@ export {
   handleGeneratorEntryCode,
   handleModifyEntrypoints,
 } from './handler';
+export { updateNestedRoutesSpec } from './nestedRoutesSpec';
 
 type RouteEntrypointLike = {
   entry?: string;
@@ -178,17 +179,10 @@ export const routerPlugin = (): CliPlugin<AppTools> => ({
           distDirectory,
           NESTED_ROUTE_SPEC_FILE,
         );
-        const existingNestedRoutes = (await fs.pathExists(nestedRoutesSpecPath))
-          ? ((await fs.readJSON(nestedRoutesSpecPath)) as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-        await fs.outputJSON(nestedRoutesSpecPath, {
-          ...existingNestedRoutes,
-          ...nestedRoutesForServer,
-        });
+        await updateNestedRoutesSpec(
+          nestedRoutesSpecPath,
+          nestedRoutesForServer,
+        );
       }
 
       return {
