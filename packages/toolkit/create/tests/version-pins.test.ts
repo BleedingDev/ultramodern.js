@@ -33,6 +33,22 @@ test('static templates read version pins from versions.ts placeholders', () => {
     /node-fetch: '\{\{nodeFetchVersion\}\}'/,
     'pnpm-workspace override must use the nodeFetchVersion placeholder',
   );
+  for (const buildToolchainPackage of [
+    '@rsbuild/core',
+    '@rsbuild/plugin-react',
+    '@rsbuild/plugin-type-check',
+    '@rspack/binding',
+    '@rspack/binding-*',
+    '@rspack/core',
+    '@rspack/plugin-react-refresh',
+    'ts-checker-rspack-plugin',
+  ]) {
+    assert.match(
+      pnpmWorkspaceTemplate,
+      new RegExp(`- '${buildToolchainPackage.replace('*', '\\*')}'`, 'u'),
+      `pnpm minimumReleaseAgeExclude must include ${buildToolchainPackage}`,
+    );
+  }
   assert.doesNotMatch(
     pnpmWorkspaceTemplate,
     new RegExp(TANSTACK_ROUTER_VERSION.replace(/\./g, '\\.')),
@@ -81,6 +97,21 @@ test('generated workspace renders the pins from versions.ts', () => {
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),
       'generated pnpm-workspace override must match NODE_FETCH_VERSION',
     );
+    for (const buildToolchainPackage of [
+      '@rsbuild/core',
+      '@rsbuild/plugin-react',
+      '@rsbuild/plugin-type-check',
+      '@rspack/binding',
+      '@rspack/binding-*',
+      '@rspack/core',
+      '@rspack/plugin-react-refresh',
+      'ts-checker-rspack-plugin',
+    ]) {
+      assert.ok(
+        pnpmWorkspace.includes(`- '${buildToolchainPackage}'`),
+        `generated minimumReleaseAgeExclude must include ${buildToolchainPackage}`,
+      );
+    }
     assert.ok(
       !pnpmWorkspace.includes('{{'),
       'generated pnpm-workspace.yaml must not leak placeholders',
