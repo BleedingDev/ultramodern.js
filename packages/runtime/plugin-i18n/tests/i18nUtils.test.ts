@@ -4,6 +4,10 @@ import {
   DEFAULT_I18NEXT_BACKEND_OPTIONS as NODE_DEFAULT_I18NEXT_BACKEND_OPTIONS,
   resolveDefaultLocalesDir,
 } from '../src/runtime/i18n/backend/defaults.node';
+import {
+  FsBackendWithSave,
+  resolveFsBackendConstructor,
+} from '../src/runtime/i18n/backend/middleware.node';
 import { initializeI18nInstance } from '../src/runtime/i18n/utils';
 
 function createBackendI18nInstance(): I18nInstance {
@@ -20,6 +24,28 @@ function createBackendI18nInstance(): I18nInstance {
 }
 
 describe('i18n runtime utils', () => {
+  test('normalizes node fs backend CJS and ESM namespace shapes', () => {
+    class FakeBackend {}
+
+    expect(resolveFsBackendConstructor(FakeBackend)).toBe(FakeBackend);
+    expect(resolveFsBackendConstructor({ default: FakeBackend })).toBe(
+      FakeBackend,
+    );
+    expect(resolveFsBackendConstructor({ 'module.exports': FakeBackend })).toBe(
+      FakeBackend,
+    );
+  });
+
+  test('node fs backend wrapper extends a resolved constructor', () => {
+    const backend = new FsBackendWithSave({}, {}, {}) as {
+      type?: string;
+      save: (language: string, namespace: string, data: unknown) => void;
+    };
+
+    expect(backend.type).toBe('backend');
+    expect(() => backend.save('en', 'translation', {})).not.toThrow();
+  });
+
   test('node fs backend defaults follow the detected locales directory', () => {
     // The default must match whichever conventional root exists at runtime
     // (./locales first, then ./config/public/locales), mirroring the CLI

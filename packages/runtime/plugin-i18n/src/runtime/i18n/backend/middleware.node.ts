@@ -1,7 +1,30 @@
-import Backend from 'i18next-fs-backend/cjs';
+import * as FsBackendModule from 'i18next-fs-backend/cjs';
 import type { ExtendedBackendOptions } from '../../../shared/type';
 import type { I18nInstance } from '../instance';
 import { useI18nextBackendCommon } from './middleware.common';
+
+type BackendConstructor = new (...args: any[]) => any;
+
+export const resolveFsBackendConstructor = (
+  backendModule: unknown,
+): BackendConstructor => {
+  const candidates = [
+    backendModule,
+    (backendModule as { default?: unknown })?.default,
+    (backendModule as { 'module.exports'?: unknown })?.['module.exports'],
+  ];
+  const Backend = candidates.find(candidate => typeof candidate === 'function');
+
+  if (!Backend) {
+    throw new Error(
+      'Failed to resolve i18next-fs-backend constructor for the i18n Node backend.',
+    );
+  }
+
+  return Backend as BackendConstructor;
+};
+
+const Backend = resolveFsBackendConstructor(FsBackendModule);
 
 /**
  * Wrapper for FS backend to add a no-op save method
