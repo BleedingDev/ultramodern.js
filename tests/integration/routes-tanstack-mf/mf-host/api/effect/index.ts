@@ -172,12 +172,12 @@ const greetingsLayer = HttpApiBuilder.group(
               traceparent: syntheticTraceparent || traceparent,
             });
 
-            return yield* Effect.promise(() =>
+            return yield* Effect.tryPromise(() =>
               fetch(`${remoteOrigin}/remote-api/effect/trace/child`, {
                 method: 'GET',
                 headers: requestHeaders,
               }),
-            );
+            ).pipe(Effect.orDie);
           }).pipe(
             Effect.withSpan('mf.host.trace.remote.call', {
               kind: 'client',
@@ -185,18 +185,20 @@ const greetingsLayer = HttpApiBuilder.group(
           );
 
           if (!remoteResponse.ok) {
-            yield* Effect.dieMessage(
-              `Remote trace call failed with status ${remoteResponse.status}`,
+            yield* Effect.die(
+              new Error(
+                `Remote trace call failed with status ${remoteResponse.status}`,
+              ),
             );
           }
 
-          const remoteBody = yield* Effect.promise(
+          const remoteBody = yield* Effect.tryPromise(
             () =>
               remoteResponse.json() as Promise<{
                 status?: 'ok';
                 locale?: string;
               }>,
-          );
+          ).pipe(Effect.orDie);
           const remoteStatus = remoteBody.status ?? 'ok';
           const remoteLocale = remoteBody.locale;
 
