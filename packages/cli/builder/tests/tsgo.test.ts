@@ -86,13 +86,14 @@ describe('withTsgoDefaults', () => {
     );
 
     const checkerConfigPath = result.typescript?.configFile;
-    expect(checkerConfigPath).toContain('node_modules/.modern-js/tsgo');
+    expect(checkerConfigPath).toContain('.modern-js/tsgo');
+    expect(checkerConfigPath).not.toContain('node_modules');
     expect(checkerConfigPath).not.toBe(fixtureTsconfigPath);
 
     const checkerConfig = JSON.parse(
       fs.readFileSync(checkerConfigPath!, 'utf8'),
     );
-    expect(checkerConfig.extends).toBe('../../../tsconfig.json');
+    expect(checkerConfig.extends).toBe('../../tsconfig.json');
     expect(checkerConfig.compilerOptions).toEqual({
       baseUrl: null,
       moduleResolution: null,
@@ -106,12 +107,13 @@ describe('withTsgoDefaults', () => {
     );
 
     const checkerConfigPath = result.typescript?.configFile;
-    expect(checkerConfigPath).toContain('node_modules/.modern-js/tsgo');
+    expect(checkerConfigPath).toContain('.modern-js/tsgo');
+    expect(checkerConfigPath).not.toContain('node_modules');
 
     const checkerConfig = JSON.parse(
       fs.readFileSync(checkerConfigPath!, 'utf8'),
     );
-    expect(checkerConfig.extends).toBe('../../../tsconfig.json');
+    expect(checkerConfig.extends).toBe('../../tsconfig.json');
   });
 
   it('should remove tsgo-incompatible compiler options from config overwrite', () => {

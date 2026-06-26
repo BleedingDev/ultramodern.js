@@ -16,7 +16,7 @@ type TsConfigJson = {
 const builderRequire = createRequire(import.meta.url);
 
 const TSGO_PACKAGE = '@typescript/native-preview/package.json';
-const TSGO_CHECKER_DIR = path.join('node_modules', '.modern-js', 'tsgo');
+const TSGO_CHECKER_DIR = path.join('.modern-js', 'tsgo');
 
 const tryResolve = (request: string, rootPath: string): string | undefined => {
   try {

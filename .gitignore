@@ -35,6 +35,7 @@ local-test-project/*
 .changeset/pre.json
 # Dynamically generated
 .runtime-exports/
+.modern-js/
 **/.mf/
 
 # Generated TanStack Router type files (Modern.js TanStack integration)
