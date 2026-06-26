@@ -1918,9 +1918,13 @@ describe('create-ultramodern-workspace', () => {
       'modernjs-ultramodern-superapp-workspace',
     );
     expect(manifest.template.compatibilityLane).toBe('ultramodern-mv');
+    expect(manifest.materialization.allowedPaths).toEqual(
+      expect.arrayContaining(['tsconfig.json', 'tsconfig.base.json']),
+    );
     expect(manifest.validation.expectedCommands).toEqual([
       'mise install',
       'pnpm install',
+      'pnpm run typecheck',
       'pnpm run i18n:boundaries',
       'pnpm run contract:check',
       'pnpm run performance:readiness',

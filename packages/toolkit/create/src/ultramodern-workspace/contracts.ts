@@ -762,6 +762,7 @@ export function createTemplateManifest(
         'pnpm-workspace.yaml',
         'scripts/**',
         'topology/**',
+        'tsconfig.json',
         'tsconfig.base.json',
       ],
       deniedPaths: [
@@ -826,6 +827,7 @@ export function createTemplateManifest(
       expectedCommands: [
         'mise install',
         'pnpm install',
+        'pnpm run typecheck',
         'pnpm run i18n:boundaries',
         'pnpm run contract:check',
         'pnpm run performance:readiness',

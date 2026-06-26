@@ -60,6 +60,7 @@ function expectPnpm11Policy(projectDir: string) {
     '@bleedingdev/modern-js-*',
     '@tanstack/react-router',
     '@tanstack/router-core',
+    'typescript',
     '@typescript/native-preview',
     '@typescript/native-preview-*',
     '@types/react',

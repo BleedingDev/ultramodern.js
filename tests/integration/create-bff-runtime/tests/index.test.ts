@@ -147,11 +147,11 @@ describe('create-bff-runtime', () => {
       expectedBleedingDevSpecifier('@modern-js/plugin-bff'),
     );
     expect(verticalPackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.15',
+      '1.170.16',
     );
-    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.0');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.1');
     expect(verticalPackage.devDependencies['@tailwindcss/postcss']).toBe(
-      '^4.3.0',
+      '^4.3.1',
     );
 
     const modernConfig = readText(
