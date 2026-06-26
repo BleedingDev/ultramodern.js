@@ -2,6 +2,29 @@
 
 ## 3.4.0
 
+### BleedingDev 3.4.0-ultramodern.0 Migration Notes
+
+- The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
+  UltraModern workspace generator as the supported public automation surface:
+  `@modern-js/create/ultramodern-workspace` and
+  `@modern-js/create/ultramodern-workspace/codesmith`.
+- Generated UltraModern workspaces default to the published BleedingDev package
+  cohort. Existing repos should regenerate or add new MicroVerticals with one
+  package-source strategy, then run `mise install`, `pnpm install`, `pnpm check`,
+  and `pnpm build` from the activated toolchain.
+- Older generated workspaces that consumed unreleased workspace packages should
+  switch to `--ultramodern-package-source=install` plus an exact
+  `--ultramodern-package-version` when proving a published cohort, or keep
+  `--workspace` only for local monorepo testing.
+- Migration is incremental: keep React Router apps and Hono BFF handlers on
+  their explicit compatibility lanes while new or migrated surfaces move toward
+  TanStack Router, Effect BFF, generated ownership contracts, and the
+  `scripts/validate-ultramodern-workspace.mjs` self-check.
+- Generated app packages now install the TypeScript 7 RC package line for
+  TS-Go tooling. The create package itself still tests compiler APIs against
+  the stable TypeScript package; do not add app-level shims or local package
+  overrides to mask framework dependency issues.
+
 ## 3.3.0
 
 ## 3.2.2

@@ -49,14 +49,37 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。兼容分支�
 - 运行时保持 `effect` 与 `hono` 双模式并存，但不提供隐式回退。
 - 除非稳定性硬需求，否则避免引入破坏性 API 变更。
 
-## 迁移说明
+## 迁移指南
 
-对于已经在使用 Modern.js 3.0 的团队，迁移路径是“兼容感知”：保留能降低风险的部分，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，并把 UltraModern.js 3.0 作为独立框架采用。
+对于已经在使用 Modern.js 3.0 或旧版 BleedingDev UltraModern scaffold 的团队，迁移路径是“兼容感知”：保留能降低风险的部分，逐步向 MV-first / TanStack-first / Effect-first 默认方向收敛，并把 UltraModern.js 3.0 作为独立框架采用。
 
 1. 既有 React Router 应用可以继续按现状运行。TanStack Router 是新脚手架与增量迁移的优先路径，但 React Router 兼容分支仍然保留，团队可以按自己的节奏迁移。
 2. 新建或迁移中的 BFF 能力优先使用 `bff.runtimeFramework: 'effect'`，并将入口实现放在 `api/effect/index.ts`。如果当前应用已经在 `api/lambda/**` 下使用 Hono 处理函数，就继续显式使用 `bff.runtimeFramework: 'hono'`，等准备好再迁移；Hono 仍是受支持的兼容分支。
 3. 将基线契约视为渐进式默认值，而不是一次性强制切换。`MODERN_BASELINE_ENABLE_MF_SSR`、`MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` 和 `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` 已经提供了按应用、按环境关闭的能力，方便在收敛到目标栈之前逐步过渡。
 4. 这套公开预设现在已经附带显式的发布 / 认证 gate。生成 workspace 会自带 `.github/workflows/ultramodern-workspace-gates.yml`，因此 `pnpm check` 与 `pnpm build` 从第一天开始就是本地接入契约的一部分；CI 会以并行矩阵运行这些基础 gate。
+
+旧版生成 workspace 迁移时，以已发布的包 cohort 作为事实来源：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@latest --help
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm check
+mise exec -- pnpm build
+```
+
+每个仓库只使用一种 package-source 策略。已发布的 BleedingDev create 包默认使用
+`--ultramodern-package-source=install`，并把精确 cohort 记录到
+`.modernjs/ultramodern-package-source.json`。`--workspace` 只用于本地 monorepo
+联调未发布包。发布证明和 CI 如果需要证明某个已发布框架版本，应使用
+`--ultramodern-package-version` 固定精确 cohort。
+
+安装新 cohort 后，先运行生成的
+`scripts/validate-ultramodern-workspace.mjs` 契约校验，再接受人工改动。topology、
+ownership、package-source、本地 overlay、生成契约、Tailwind prefix 或 Module
+Federation 冲突，都应在对应归属文件中修复，不要手写补丁覆盖生成结果。
 
 ## 人类工作流
 
@@ -104,8 +127,8 @@ BleedingDev create 包默认安装已发布的包 cohort。本地 monorepo 联�
 `--workspace` 或 `--ultramodern-package-source=workspace`。发布证明与包源自动化还
 可以传入 `--ultramodern-package-source=install`、
 `--ultramodern-package-version`、`--ultramodern-package-registry`、
-`--ultramodern-alias-scope` 与
-`--ultramodern-alias-package-name-prefix`。
+`--ultramodern-package-scope` 与
+`--ultramodern-package-name-prefix`。
 
 受支持的公开生成器 import 是：
 

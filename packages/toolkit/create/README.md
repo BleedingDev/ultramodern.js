@@ -169,8 +169,32 @@ Package source is explicit and recorded in `.modernjs/ultramodern-package-source
 
 | Strategy | Use when | CLI |
 | --- | --- | --- |
-| `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry`, `--ultramodern-alias-scope`, and `--ultramodern-alias-package-name-prefix` |
+| `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry`, `--ultramodern-package-scope`, and `--ultramodern-package-name-prefix` |
 | `workspace` | Local monorepo testing against unreleased packages | `--workspace` or `--ultramodern-package-source=workspace` |
+
+## Migrating Older Workspaces
+
+Older generated repos should move by adopting one published BleedingDev cohort
+at a time. Start with a dry-run vertical addition so validation reports
+topology, ownership, package-source, overlay, Tailwind prefix, Module Federation,
+and generated-contract conflicts before files are written:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm check
+mise exec -- pnpm build
+```
+
+Use `--ultramodern-package-source=install` for published cohort proof and pin a
+specific release with `--ultramodern-package-version` when CI must prove an
+exact framework version. Keep `--workspace` only for local monorepo testing
+against unpublished packages. After install, run the generated
+`scripts/validate-ultramodern-workspace.mjs` contract check and fix ownership
+conflicts in the owning JSON/config files instead of editing generated package
+metadata by hand.
 
 ## CodeSmith Adapter And Overlays
 

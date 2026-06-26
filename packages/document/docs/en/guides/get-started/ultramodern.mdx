@@ -49,16 +49,40 @@ UltraModern.js additions are designed as the default product surface for new Sup
 - We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
 - We avoid incompatible API changes unless there is a hard reliability requirement.
 
-## Adoption Notes
+## Migration Guide
 
-For teams already on Modern.js 3.0, the adoption path remains compatibility-aware: keep the pieces that reduce risk, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt UltraModern.js 3.0 as a separate framework.
+For teams already on Modern.js 3.0 or an older BleedingDev UltraModern scaffold, the adoption path remains compatibility-aware: keep the pieces that reduce risk, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt UltraModern.js 3.0 as a separate framework.
 
 1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
 2. Prefer `bff.runtimeFramework: 'effect'` for new BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
 3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
 4. The public preset now ships with explicit release and certification gates. Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`, so `pnpm check` and `pnpm build` stay part of the local adoption contract from day one while CI runs the primitive gates as parallel matrix jobs.
 
-This page is not a migration guide or codemod plan. Migration guidance for existing applications is intentionally deferred from the current Micro Verticals framework scope.
+For an older generated workspace, migrate by treating the published cohort as
+the source of truth:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@latest --help
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+mise install
+mise exec -- pnpm install
+mise exec -- pnpm check
+mise exec -- pnpm build
+```
+
+Use one package-source strategy per repo. The published BleedingDev create
+package defaults to `--ultramodern-package-source=install` and records the
+exact cohort in `.modernjs/ultramodern-package-source.json`. Keep `--workspace`
+only for local monorepo testing against unreleased packages. Release proof and
+CI should pin the exact cohort with `--ultramodern-package-version` when a
+repo must prove a specific published framework version.
+
+After installing the new cohort, run the generated
+`scripts/validate-ultramodern-workspace.mjs` contract check before accepting
+manual edits. Fix topology, ownership, package-source, local overlay, generated
+contract, Tailwind prefix, or Module Federation conflicts in the owning files
+instead of patching generated output by hand.
 
 ## Human Workflow
 
@@ -112,8 +136,8 @@ Use `--workspace` or `--ultramodern-package-source=workspace` for local monorepo
 testing. Release proof and package-source automation can also pass
 `--ultramodern-package-source=install`,
 `--ultramodern-package-version`, `--ultramodern-package-registry`,
-`--ultramodern-alias-scope`, and
-`--ultramodern-alias-package-name-prefix`.
+`--ultramodern-package-scope`, and
+`--ultramodern-package-name-prefix`.
 
 The supported public generator import is:
 
