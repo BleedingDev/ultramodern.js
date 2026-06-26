@@ -51,7 +51,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup mise
@@ -84,7 +84,7 @@ jobs:
         run: cd ./tests/node_modules/puppeteer && npm run postinstall && cd ../..
 
       - name: Install Playwright browsers
-        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
+        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium firefox webkit
 
       - name: Run SuperApp certification nightly
         run: pnpm run validate:superapp-certification:nightly

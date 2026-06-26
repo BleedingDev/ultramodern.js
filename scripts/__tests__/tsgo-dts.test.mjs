@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { isMainModule } from '../tsgo-dts.mjs';
+import { isMainModule, resolveCliCwdArg } from '../tsgo-dts.mjs';
 
 test('tsgo-dts main-module guard matches Windows script paths', () => {
   assert.equal(
@@ -23,5 +23,34 @@ test('tsgo-dts main-module guard ignores imported modules', () => {
       moduleUrl: 'file:///repo/scripts/tsgo-dts.mjs',
     }),
     false,
+  );
+});
+
+test('tsgo-dts resolves literal $PWD through pnpm INIT_CWD on Windows', () => {
+  assert.equal(
+    resolveCliCwdArg({
+      arg: '$PWD',
+      cwd: 'C:\\a\\modernjs',
+      env: {
+        INIT_CWD: 'C:\\a\\modernjs\\packages\\runtime\\plugin-runtime',
+        PWD: 'C:\\a\\modernjs',
+      },
+      resolvePath: win32.resolve,
+    }),
+    'C:\\a\\modernjs\\packages\\runtime\\plugin-runtime',
+  );
+});
+
+test('tsgo-dts resolves explicit paths without environment fallback', () => {
+  assert.equal(
+    resolveCliCwdArg({
+      arg: 'packages/runtime/plugin-runtime',
+      cwd: '/repo',
+      env: {
+        INIT_CWD: '/other',
+      },
+      resolvePath: (...parts) => win32.resolve('C:\\repo', ...parts),
+    }),
+    'C:\\repo\\packages\\runtime\\plugin-runtime',
   );
 });

@@ -1448,7 +1448,7 @@ exports[`builder environment compat > should generator environment config correc
           },
           "typescript": {
             "build": false,
-            "configFile": "<WORKSPACE>/packages/cli/builder/.modern-js/tsgo/tsconfig.a43e2001f3.json",
+            "configFile": "<WORKSPACE>/packages/cli/builder/.modern-js/tsgo/tsconfig.<hash>.json",
             "configOverwrite": {
               "compilerOptions": {
                 "baseUrl": null,

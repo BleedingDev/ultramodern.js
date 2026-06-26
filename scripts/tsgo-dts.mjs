@@ -3,6 +3,8 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const cwdTokens = new Set(['$PWD', '$' + '{PWD}', '%cd%', '%CD%']);
+
 function run(command, args, options) {
   const result = spawnSync(command, args, {
     ...options,
@@ -54,12 +56,18 @@ function normalizeCompilerOptions(options) {
 export function generateTsgoDeclarations({
   cwd = process.cwd(),
   tsconfig = 'tsconfig.json',
+  requireProject = false,
 } = {}) {
   const root = resolve(cwd);
   const tsconfigPath = resolve(root, tsconfig);
   const srcDir = join(root, 'src');
 
   if (!existsSync(tsconfigPath) || !existsSync(srcDir)) {
+    if (requireProject) {
+      throw new Error(
+        `Cannot generate TS-Go declarations for ${root}: expected ${tsconfigPath} and ${srcDir} to exist.`,
+      );
+    }
     return;
   }
 
@@ -100,9 +108,26 @@ export function isMainModule({
   return argv[1] !== undefined && resolvePath(argv[1]) === urlToPath(moduleUrl);
 }
 
+export function resolveCliCwdArg({
+  arg,
+  env = process.env,
+  cwd = process.cwd(),
+  resolvePath = resolve,
+} = {}) {
+  if (!arg) {
+    return resolvePath(cwd);
+  }
+  if (cwdTokens.has(arg)) {
+    return resolvePath(env.INIT_CWD || env.PWD || cwd);
+  }
+  return resolvePath(arg);
+}
+
 if (isMainModule()) {
+  const cwdArg = process.argv[2];
   generateTsgoDeclarations({
-    cwd: process.argv[2] ? resolve(process.argv[2]) : process.cwd(),
+    cwd: resolveCliCwdArg({ arg: cwdArg }),
     tsconfig: process.argv[3] ?? 'tsconfig.json',
+    requireProject: Boolean(cwdArg),
   });
 }

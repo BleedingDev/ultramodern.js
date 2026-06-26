@@ -1,8 +1,25 @@
 import { findMatchedSourcePath, findSourceEntry } from '@modern-js/utils';
 import type { MatchPath } from '@modern-js/utils/tsconfig-paths';
 import { createMatchPath } from '@modern-js/utils/tsconfig-paths';
-import * as os from 'os';
-import path, { dirname, posix } from 'path';
+import path from 'path';
+
+const windowsAbsolutePathRE = /^[A-Za-z]:[\\/]/u;
+
+const isAbsolutePath = (input: string) =>
+  path.isAbsolute(input) || path.win32.isAbsolute(input);
+
+const pathApiFor = (...inputs: string[]) =>
+  inputs.some(input => windowsAbsolutePathRE.test(input)) ? path.win32 : path;
+
+const toImportSpecifier = (sourceFile: string, resolvedPath: string) => {
+  const pathApi = pathApiFor(sourceFile, resolvedPath);
+  const relativePath = pathApi
+    .relative(pathApi.dirname(sourceFile), resolvedPath)
+    .split(pathApi.sep)
+    .join(path.posix.sep);
+
+  return relativePath[0] === '.' ? relativePath : `./${relativePath}`;
+};
 
 // Convert a resolved source path into the specifier that native ESM output
 // should reference at runtime, which is always the emitted `.js` file.
@@ -18,8 +35,8 @@ const resolveRelativeEsmSpecifier = (sourceFile: string, text: string) => {
     return;
   }
 
-  const importerDir = dirname(sourceFile);
-  return path.resolve(importerDir, text);
+  const pathApi = pathApiFor(sourceFile);
+  return pathApi.resolve(pathApi.dirname(sourceFile), text);
 };
 
 const isRegExpKey = (str: string) => {
@@ -125,11 +142,7 @@ export function getNotAliasedPath(
     return;
   }
 
-  if (os.platform() === 'win32') {
-    result = result.replace(/\\/g, '/');
-  }
-
-  if (!path.isAbsolute(result)) {
+  if (!isAbsolutePath(result)) {
     // If an alias resolves to another bare specifier, prefer leaving it as a
     // package import when Node can resolve that package.
     if (!result.startsWith('.') && !result.startsWith('..')) {
@@ -165,6 +178,5 @@ export function getNotAliasedPath(
   }
 
   // Emit a relative specifier from the current source file to the resolved target.
-  const resolvedPath = posix.relative(dirname(sourceFile), result) || './';
-  return resolvedPath[0] === '.' ? resolvedPath : `./${resolvedPath}`;
+  return toImportSpecifier(sourceFile, result) || './';
 }

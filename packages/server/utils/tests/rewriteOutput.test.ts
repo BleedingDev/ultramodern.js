@@ -2,6 +2,7 @@ import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
 import { rewriteOutputSpecifiers } from '../src/compilers/typescript';
+import { getNotAliasedPath } from '../src/compilers/typescript/tsconfigPathsPlugin';
 
 describe('rewriteOutputSpecifiers', () => {
   let appDir: string;
@@ -98,5 +99,25 @@ describe('rewriteOutputSpecifiers', () => {
 
     expect(await fs.readFile(outputFile, 'utf8')).toBe(emitted);
     expect(await fs.pathExists(`${outputFile}.map`)).toBe(true);
+  });
+
+  it('rewrites Windows absolute alias matches to relative specifiers', () => {
+    const matcher = (() => 'D:\\repo\\app\\shared\\index') as any;
+
+    expect(
+      getNotAliasedPath(
+        'D:\\repo\\app\\api\\index.ts',
+        matcher,
+        '@shared/index',
+      ),
+    ).toBe('../shared/index');
+    expect(
+      getNotAliasedPath(
+        'D:\\repo\\app\\api\\index.ts',
+        matcher,
+        '@shared/index',
+        'module',
+      ),
+    ).toBe('../shared/index.js');
   });
 });

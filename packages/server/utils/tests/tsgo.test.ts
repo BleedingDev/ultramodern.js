@@ -5,6 +5,7 @@ import {
   createResolvedTsgoConfig,
   getTsgoBinPath,
 } from '../src/compilers/typescript';
+import { createIsolatedTsExample } from './helpers';
 
 describe('getTsgoBinPath', () => {
   let tmpDir: string;
@@ -50,7 +51,7 @@ describe('getTsgoBinPath', () => {
 
 describe('createResolvedTsgoConfig', () => {
   it('bases the resolved config beside the tsconfig, including nested tsconfig paths', async () => {
-    const example = path.join(__dirname, './fixtures', './ts-example');
+    const { example, tempRoot } = await createIsolatedTsExample();
     const nestedDir = path.join(example, 'nested');
     const tsconfigPath = path.join(nestedDir, 'tsconfig.json');
     const sourceDirs = [
@@ -83,12 +84,12 @@ describe('createResolvedTsgoConfig', () => {
       expect(resolvedFiles).toContain(path.join(example, 'shared/index.ts'));
       expect(resolvedFiles).toContain(path.join(example, 'server/index.ts'));
     } finally {
-      await fs.remove(resolvedConfigPath);
+      await fs.remove(tempRoot);
     }
   });
 
   it('uses unique file names for concurrent compiles in one process', async () => {
-    const example = path.join(__dirname, './fixtures', './ts-example');
+    const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, 'tsconfig.json');
     const sourceDirs = [path.join(example, 'api')];
     const binPath = getTsgoBinPath(example);
@@ -115,13 +116,12 @@ describe('createResolvedTsgoConfig', () => {
     try {
       expect(first.resolvedConfigPath).not.toBe(second.resolvedConfigPath);
     } finally {
-      await fs.remove(first.resolvedConfigPath);
-      await fs.remove(second.resolvedConfigPath);
+      await fs.remove(tempRoot);
     }
   });
 
   it('forces emit even when app tsconfig sets noEmit', async () => {
-    const example = path.join(__dirname, './fixtures', './ts-example');
+    const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, 'tsconfig.noemit.json');
     const sourceDirs = [path.join(example, 'api')];
 
@@ -142,7 +142,7 @@ describe('createResolvedTsgoConfig', () => {
         },
       });
     } finally {
-      await fs.remove(resolvedConfigPath);
+      await fs.remove(tempRoot);
     }
   });
 });

@@ -58,6 +58,10 @@ jobs:
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm run build:required
 
+      - name: Install Playwright Chromium
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install chromium
+
       - name: Test
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm run test:ut

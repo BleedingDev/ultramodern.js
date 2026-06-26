@@ -29,12 +29,26 @@ export const getSupportedDeployTargets = () =>
 const isDeployTarget = (target: string): target is DeployTarget =>
   Object.prototype.hasOwnProperty.call(deployPresets, target);
 
+const providerDeployTargets: Partial<Record<string, DeployTarget>> = {
+  vercel: 'vercel',
+  netlify: 'netlify',
+  cloudflare: 'cloudflare',
+  cloudflare_pages: 'cloudflare',
+  cloudflare_workers: 'cloudflare',
+};
+
+const normalizeDetectedProvider = (value?: string) =>
+  value ? providerDeployTargets[value] : undefined;
+
 export const resolveDeployTarget = (
   modernConfig: AppToolsNormalizedConfig,
   envDeployTarget = process.env.MODERNJS_DEPLOY,
   detectedProvider = provider,
 ) =>
-  modernConfig.deploy?.target || envDeployTarget || detectedProvider || 'node';
+  modernConfig.deploy?.target ||
+  envDeployTarget ||
+  normalizeDetectedProvider(detectedProvider) ||
+  'node';
 
 async function getDeployPreset(
   appContext: AppToolsContext,

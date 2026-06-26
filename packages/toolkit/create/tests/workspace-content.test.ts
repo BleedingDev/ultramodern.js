@@ -52,18 +52,17 @@ const catalogVerticalSnapshots = [
   'verticals/catalog/src/routes/[lang]/page.tsx',
 ];
 
+const readTextSnapshot = (filePath: string) =>
+  fs.readFileSync(filePath, 'utf-8').replaceAll('\r\n', '\n');
+
 function assertContentSnapshot(
   workspaceDir: string,
   fixtureGroup: string,
   relativePath: string,
 ) {
-  const actual = fs.readFileSync(
-    path.join(workspaceDir, relativePath),
-    'utf-8',
-  );
-  const expected = fs.readFileSync(
+  const actual = readTextSnapshot(path.join(workspaceDir, relativePath));
+  const expected = readTextSnapshot(
     path.join(fixturesDir, fixtureGroup, `${relativePath}.snap`),
-    'utf-8',
   );
   assert.equal(
     actual,

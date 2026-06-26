@@ -315,7 +315,7 @@ afterEach(async () => {
 describe('cloudflare deploy preset', () => {
   it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
     await expect(createFixture({ includeBffWorker: false })).rejects.toThrow(
-      /Cloudflare Effect BFF is configured, but the BFF worker bundle is missing: .*worker\/__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
+      /Cloudflare Effect BFF is configured, but the BFF worker bundle is missing: .*worker[\\/]__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
     );
   });
 

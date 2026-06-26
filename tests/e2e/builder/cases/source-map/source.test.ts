@@ -25,6 +25,11 @@ async function validateSourceMap(
   return originalPositions;
 }
 
+function normalizeSource(source: string | null) {
+  expect(source).toEqual(expect.any(String));
+  return source?.split('webpack-builder-source-map/')[1] || source;
+}
+
 test('source-map', async () => {
   const builder = await build({
     cwd: fixtures,
@@ -49,13 +54,20 @@ test('source-map', async () => {
   )!;
 
   const AppContentIndex = jsContent.indexOf('Hello Builder!');
+  const AppComponentMarker = 'createElement(function(){';
+  const AppComponentMarkerIndex = jsContent.indexOf(AppComponentMarker);
+  const AppComponentIndex = AppComponentMarkerIndex + 'createElement('.length;
   const indexContentIndex = jsContent.indexOf('window.aa');
+
+  expect(AppContentIndex).toBeGreaterThanOrEqual(0);
+  expect(AppComponentMarkerIndex).toBeGreaterThanOrEqual(0);
+  expect(indexContentIndex).toBeGreaterThanOrEqual(0);
 
   const originalPositions = (
     await validateSourceMap(jsMapContent, [
       {
         line: 1,
-        column: AppContentIndex,
+        column: AppComponentIndex,
       },
       {
         line: 1,
@@ -64,16 +76,24 @@ test('source-map', async () => {
     ])
   ).map(o => ({
     ...o,
-    source: o.source!.split('webpack-builder-source-map/')[1] || o.source,
+    source: normalizeSource(o.source),
   }));
 
   expect(originalPositions[0]).toMatchObject({
-    line: 2,
-    column: 24,
+    line: 1,
+    column: 0,
     name: null,
   });
   expect(String(originalPositions[0].source)).toMatch(
     /(?:\.\.\/){3}src\/App\.jsx$|\/cases\/source-map\/src\/App\.jsx$/,
+  );
+  const sourceMapJson = JSON.parse(jsMapContent);
+  const appSourceIndex = sourceMapJson.sources.findIndex((source: string) =>
+    source.endsWith('src/App.jsx'),
+  );
+  expect(appSourceIndex).toBeGreaterThanOrEqual(0);
+  expect(sourceMapJson.sourcesContent[appSourceIndex]).toContain(
+    'Hello Builder!',
   );
 
   expect(originalPositions[1]).toMatchObject({

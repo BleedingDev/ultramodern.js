@@ -34,6 +34,23 @@ function writeExecutable(filePath: string, content: string) {
   fs.writeFileSync(filePath, content, { mode: 0o755 });
 }
 
+function writeCommandShim(
+  fakeBinDir: string,
+  command: string,
+  scriptContent: string,
+) {
+  const scriptPath = path.join(fakeBinDir, `${command}.js`);
+  fs.writeFileSync(scriptPath, scriptContent);
+  writeExecutable(
+    path.join(fakeBinDir, command),
+    `#!/usr/bin/env node\nrequire(${JSON.stringify(scriptPath)});\n`,
+  );
+  fs.writeFileSync(
+    path.join(fakeBinDir, `${command}.cmd`),
+    `@echo off\r\n"${process.execPath}" "${scriptPath}" %*\r\n`,
+  );
+}
+
 function createFakeGitAndLefthookBin(
   tempRoot: string,
   options: { topLevel?: string },
@@ -43,9 +60,10 @@ function createFakeGitAndLefthookBin(
   const lefthookLog = path.join(tempRoot, 'lefthook.log');
   fs.mkdirSync(fakeBinDir);
 
-  writeExecutable(
-    path.join(fakeBinDir, 'git'),
-    `#!/usr/bin/env node
+  writeCommandShim(
+    fakeBinDir,
+    'git',
+    `
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
@@ -72,9 +90,10 @@ if (args[0] === 'branch') {
 process.exit(0);
 `,
   );
-  writeExecutable(
-    path.join(fakeBinDir, 'lefthook'),
-    `#!/usr/bin/env node
+  writeCommandShim(
+    fakeBinDir,
+    'lefthook',
+    `
 const fs = require('node:fs');
 fs.appendFileSync(${JSON.stringify(lefthookLog)}, \`\${process.cwd()} \${process.argv.slice(2).join(' ')}\\n\`);
 process.exit(0);

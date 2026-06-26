@@ -34,7 +34,16 @@ describe('deploy target selection', () => {
       resolveDeployTarget({ deploy: {} } as any, undefined, 'netlify'),
     ).toBe('netlify');
     expect(
-      resolveDeployTarget({ deploy: {} } as any, undefined, undefined),
+      resolveDeployTarget({ deploy: {} } as any, undefined, 'cloudflare_pages'),
+    ).toBe('cloudflare');
+    expect(
+      resolveDeployTarget({ deploy: {} } as any, undefined, 'cloudflare'),
+    ).toBe('cloudflare');
+    expect(
+      resolveDeployTarget({ deploy: {} } as any, undefined, 'github_actions'),
     ).toBe('node');
+    expect(resolveDeployTarget({ deploy: {} } as any, undefined, '')).toBe(
+      'node',
+    );
   });
 });
