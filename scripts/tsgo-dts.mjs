@@ -22,8 +22,27 @@ function run(command, args, options) {
   return result.stdout;
 }
 
+export function resolveTsgoInvocation({
+  env = process.env,
+  platform = process.platform,
+} = {}) {
+  const command = env.TSGO_BIN || (platform === 'win32' ? 'tsgo.cmd' : 'tsgo');
+  return {
+    command,
+    shell: platform === 'win32' && /\.(?:bat|cmd)$/iu.test(command),
+  };
+}
+
+function runTsgo(args, options) {
+  const invocation = resolveTsgoInvocation();
+  return run(invocation.command, args, {
+    ...options,
+    shell: invocation.shell,
+  });
+}
+
 function readResolvedConfig(cwd, tsconfigPath) {
-  const output = run('tsgo', ['--showConfig', '-p', tsconfigPath], {
+  const output = runTsgo(['--showConfig', '-p', tsconfigPath], {
     cwd,
   });
   return JSON.parse(output);
@@ -90,7 +109,7 @@ export function generateTsgoDeclarations({
 
   try {
     writeFileSync(tempConfigPath, JSON.stringify(config, null, 2));
-    run('tsgo', ['-p', tempConfigPath], {
+    runTsgo(['-p', tempConfigPath], {
       cwd: root,
       stdio: 'pipe',
     });

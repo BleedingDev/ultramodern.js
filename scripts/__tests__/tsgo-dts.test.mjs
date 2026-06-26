@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { isMainModule, resolveCliCwdArg } from '../tsgo-dts.mjs';
+import {
+  isMainModule,
+  resolveCliCwdArg,
+  resolveTsgoInvocation,
+} from '../tsgo-dts.mjs';
 
 test('tsgo-dts main-module guard matches Windows script paths', () => {
   assert.equal(
@@ -52,5 +56,32 @@ test('tsgo-dts resolves explicit paths without environment fallback', () => {
       resolvePath: (...parts) => win32.resolve('C:\\repo', ...parts),
     }),
     'C:\\repo\\packages\\runtime\\plugin-runtime',
+  );
+});
+
+test('tsgo-dts resolves the Windows tsgo shim through the shell', () => {
+  assert.deepEqual(resolveTsgoInvocation({ env: {}, platform: 'win32' }), {
+    command: 'tsgo.cmd',
+    shell: true,
+  });
+});
+
+test('tsgo-dts keeps POSIX tsgo invocation shell-free', () => {
+  assert.deepEqual(resolveTsgoInvocation({ env: {}, platform: 'linux' }), {
+    command: 'tsgo',
+    shell: false,
+  });
+});
+
+test('tsgo-dts honors executable TSGO_BIN overrides', () => {
+  assert.deepEqual(
+    resolveTsgoInvocation({
+      env: { TSGO_BIN: 'C:\\tools\\tsgo.exe' },
+      platform: 'win32',
+    }),
+    {
+      command: 'C:\\tools\\tsgo.exe',
+      shell: false,
+    },
   );
 });
