@@ -76,6 +76,12 @@ mise exec -- pnpm build
 联调未发布包。发布证明和 CI 如果需要证明某个已发布框架版本，应使用
 `--ultramodern-package-version` 固定精确 cohort。
 
+带有 Effect BFF 入口和 `verbatimModuleSyntax` 的旧仓库，应升级到最新的
+BleedingDev cohort，而不是给 app package 增加 `"type": "module"`、Module
+Federation shim 或自定义 server wrapper。框架 BFF compiler 会把服务端输出规范化为
+CommonJS，同时生成的 app package 继续为 Module Federation DTS 保留稳定的
+`typescript`，并使用固定的 `@typescript/native-preview` 工具链执行 TS-Go 检查。
+
 安装新 cohort 后，先运行生成的
 `scripts/validate-ultramodern-workspace.mjs` 契约校验，再接受人工改动。topology、
 ownership、package-source、本地 overlay、生成契约、Tailwind prefix 或 Module
@@ -189,8 +195,9 @@ JSON 契约缺失或不是对象、Tailwind 前缀冲突，都会报告归属契
 Overlays 是显式配置的 CodeSmith 生成器，会在基础 workspace 或 MicroVertical
 生成之后运行。它们只扩展生成结果，不替换、不继承、也不遮蔽基础模板。公开生成器与
 CodeSmith adapter 都是普通 Node 生成器入口。包构建通过 TS-Go 工具链产出声明文件；
-生成出来的 app package 直接安装 TypeScript 7 RC 包线，并且只在本地工具链中使用
-TS-Go，运行时代码不依赖 native-preview compiler 内部实现。
+生成出来的 app package 为 Module Federation DTS 等传统 compiler consumer 保留稳定的
+`typescript`，TS-Go 则使用固定的 `@typescript/native-preview` 工具链；运行时代码不依赖
+native-preview compiler 内部实现。
 
 ### 运行时契约
 

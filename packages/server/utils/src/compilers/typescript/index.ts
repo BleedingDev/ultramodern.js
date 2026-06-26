@@ -16,6 +16,7 @@ type TsgoConfig = {
     noEmitOnError?: boolean;
     outDir?: string;
     rootDir?: string;
+    verbatimModuleSyntax?: boolean;
   };
   files?: string[];
   include?: string[];
@@ -81,14 +82,16 @@ export const createResolvedTsgoConfig = async (
   // dist runs as CommonJS — Node then fails on extensionless ESM imports.
   // Force CommonJS emission unless the caller explicitly compiles for ESM
   // output (moduleType 'module', which post-processes specifiers itself).
-  if (
-    moduleType !== 'module' &&
-    ['preserve', 'esnext', 'es2015', 'es2020', 'es2022', 'es6'].includes(
-      String(config.compilerOptions.module).toLowerCase(),
-    )
-  ) {
-    config.compilerOptions.module = 'commonjs';
-    delete config.compilerOptions.moduleResolution;
+  if (moduleType !== 'module') {
+    if (
+      ['preserve', 'esnext', 'es2015', 'es2020', 'es2022', 'es6'].includes(
+        String(config.compilerOptions.module).toLowerCase(),
+      )
+    ) {
+      config.compilerOptions.module = 'commonjs';
+      delete config.compilerOptions.moduleResolution;
+    }
+    config.compilerOptions.verbatimModuleSyntax = false;
   }
 
   // Keep the generated config beside the app tsconfig so the relative `files`

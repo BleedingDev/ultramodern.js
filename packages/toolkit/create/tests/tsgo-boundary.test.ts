@@ -9,6 +9,7 @@ import {
 import {
   TYPESCRIPT_7_VERSION,
   TYPESCRIPT_STABLE_VERSION,
+  TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
 const packageRoot = path.resolve(__dirname, '..');
@@ -137,7 +138,7 @@ test('compiler API tests use stable TypeScript and never native-preview internal
   );
 });
 
-test('generated app packages use the TypeScript 7 package line', () => {
+test('generated app packages keep stable TypeScript for classic compiler consumers', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-ts7-package-'));
   const workspaceDir = path.join(tempRoot, 'ts7-package-workspace');
 
@@ -170,13 +171,17 @@ test('generated app packages use the TypeScript 7 package line', () => {
 
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
-      TYPESCRIPT_7_VERSION,
-      'generated apps must install the TS7 RC package directly',
+      TYPESCRIPT_VERSION,
+      'generated apps must install the stable TypeScript package directly',
     );
-    assert.equal(generatedContract.versions?.typescript, TYPESCRIPT_7_VERSION);
+    assert.equal(
+      generatedContract.versions?.typescript,
+      TYPESCRIPT_STABLE_VERSION,
+    );
     assert.equal(
       generatedContract.versions?.typescript7Rc,
       TYPESCRIPT_7_VERSION,
+      'generated contracts should document the TS7 RC lane without installing it as the app TypeScript package',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

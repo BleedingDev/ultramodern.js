@@ -2,7 +2,7 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.0 Migration Notes
+### BleedingDev 3.4.0-ultramodern.1 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern workspace generator as the supported public automation surface:
@@ -20,10 +20,16 @@
   their explicit compatibility lanes while new or migrated surfaces move toward
   TanStack Router, Effect BFF, generated ownership contracts, and the
   `scripts/validate-ultramodern-workspace.mjs` self-check.
-- Generated app packages now install the TypeScript 7 RC package line for
-  TS-Go tooling. The create package itself still tests compiler APIs against
-  the stable TypeScript package; do not add app-level shims or local package
-  overrides to mask framework dependency issues.
+- Older generated workspaces with Effect BFF entries under `api/effect` should
+  update to the corrected BleedingDev cohort before adding app-local package
+  metadata or Module Federation shims. The BFF compiler now normalizes
+  CommonJS server output so `verbatimModuleSyntax` app tsconfigs can compile
+  native ESM source without changing app package type.
+- Generated app packages keep stable `typescript` for classic compiler
+  consumers such as Module Federation DTS generation, while TS-Go continues to
+  run through the pinned `@typescript/native-preview` toolchain. Do not add
+  app-level shims or local package overrides to mask framework dependency
+  issues.
 
 ## 3.3.0
 

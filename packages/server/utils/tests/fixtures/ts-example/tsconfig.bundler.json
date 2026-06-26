@@ -5,6 +5,7 @@
     "jsx": "preserve",
     "module": "preserve",
     "moduleResolution": "Bundler",
+    "verbatimModuleSyntax": true,
     "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"],
