@@ -138,9 +138,12 @@ export const createServerPayload = (
           })),
         };
 
+        const RouteComponent = Component as React.ComponentType<
+          typeof elementProps
+        >;
         const routeElement = element
           ? React.cloneElement(element as React.ReactElement, elementProps)
-          : React.createElement(Component as React.ComponentType, elementProps);
+          : React.createElement(RouteComponent, elementProps);
 
         if (index === cssInjectionIndex) {
           processedElement = React.createElement(

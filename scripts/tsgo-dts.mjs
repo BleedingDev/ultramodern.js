@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function run(command, args, options) {
   const result = spawnSync(command, args, {
@@ -90,7 +91,16 @@ export function generateTsgoDeclarations({
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isMainModule({
+  argv = process.argv,
+  moduleUrl = import.meta.url,
+  resolvePath = resolve,
+  urlToPath = fileURLToPath,
+} = {}) {
+  return argv[1] !== undefined && resolvePath(argv[1]) === urlToPath(moduleUrl);
+}
+
+if (isMainModule()) {
   generateTsgoDeclarations({
     cwd: process.argv[2] ? resolve(process.argv[2]) : process.cwd(),
     tsconfig: process.argv[3] ?? 'tsconfig.json',
