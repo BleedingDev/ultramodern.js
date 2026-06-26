@@ -52,18 +52,16 @@ import {
   createShellModuleFederationConfig,
   createUltramodernBuildModule,
 } from './module-federation';
-import {
-  assertUniqueTailwindPrefixes,
-  relativeRootFor,
-  toPackageScope,
-} from './naming';
+import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
 import { runCodeSmithOverlays } from './overlays';
 import {
   createAppPackage,
-  createPackageTsConfig,
+  createAppTsConfig,
   createRootPackageJson,
+  createRootTsConfig,
   createSharedContractsIndex,
   createSharedPackage,
+  createSharedPackageTsConfig,
   createTsConfigBase,
 } from './package-json';
 import { resolvePackageSource } from './package-source';
@@ -111,7 +109,7 @@ export function writeApp(
   writeJson(
     targetDir,
     `${resolvedApp.directory}/tsconfig.json`,
-    createPackageTsConfig(resolvedApp.directory, appHasEffectApi(resolvedApp)),
+    createAppTsConfig(resolvedApp, remotes),
   );
   writeFile(
     targetDir,
@@ -259,10 +257,11 @@ export function writeSharedPackages(targetDir: string, scope: string) {
       `${sharedPackage.directory}/package.json`,
       createSharedPackage(scope, sharedPackage.id, sharedPackage.description),
     );
-    writeJson(targetDir, `${sharedPackage.directory}/tsconfig.json`, {
-      extends: `${relativeRootFor(sharedPackage.directory)}/tsconfig.base.json`,
-      include: ['src'],
-    });
+    writeJson(
+      targetDir,
+      `${sharedPackage.directory}/tsconfig.json`,
+      createSharedPackageTsConfig(sharedPackage.directory),
+    );
   }
 
   writeFile(
@@ -318,6 +317,11 @@ export function generateUltramodernWorkspace(
     createRootPackageJson(scope, packageSource, initialVerticals),
   );
   writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase());
+  writeJson(
+    options.targetDir,
+    'tsconfig.json',
+    createRootTsConfig(createdApps),
+  );
   writeJson(
     options.targetDir,
     'topology/reference-topology.json',

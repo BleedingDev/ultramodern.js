@@ -146,7 +146,7 @@ ${bffConfig}      ...(cloudflareDeployEnabled
       },
       output: {
         assetPrefix,
-        disableTsChecker: true,
+        disableTsChecker: false,
         distPath: {
           html: './',
         },
@@ -197,7 +197,7 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         port,
         publicDir: ['./locales', './assets'],
         ssr: {
-          mode: 'stream',
+          mode: 'string',
           moduleFederationAppSSR: true,
         },
       },
@@ -211,7 +211,6 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         },
         mainEntryName: 'index',
       },
-      splitChunks: false,
       tools: {
         autoprefixer: {
           overrideBrowserslist: ['defaults'],

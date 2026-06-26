@@ -87,11 +87,13 @@ const expectedWorkspaceManifest = [
   'scripts/ultramodern-cloudflare-proof.mjs',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mjs',
+  'scripts/ultramodern-typecheck.mjs',
   'scripts/validate-ultramodern-workspace.mjs',
   'topology/local-overlays/development.json',
   'topology/ownership.json',
   'topology/reference-topology.json',
   'tsconfig.base.json',
+  'tsconfig.json',
 ];
 
 /**
@@ -208,6 +210,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
       [
         '.modernjs/ultramodern-generated-contract.json',
         'apps/shell-super-app/package.json',
+        'apps/shell-super-app/tsconfig.json',
         'apps/shell-super-app/src/effect/vertical-clients.ts',
         'apps/shell-super-app/src/routes/vertical-components.tsx',
         'package.json',
@@ -215,6 +218,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
         'topology/local-overlays/development.json',
         'topology/ownership.json',
         'topology/reference-topology.json',
+        'tsconfig.json',
       ].every(relativePath =>
         verticalResult.rewrittenPaths.includes(relativePath),
       ),

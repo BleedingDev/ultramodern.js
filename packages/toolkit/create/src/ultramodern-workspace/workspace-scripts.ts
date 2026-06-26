@@ -156,6 +156,10 @@ export function createPerformanceReadinessScript(): string {
   );
 }
 
+export function createUltramodernTypecheckScript(): string {
+  return readFileTemplate('workspace-scripts/ultramodern-typecheck.mjs');
+}
+
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   scope: string,
@@ -201,5 +205,10 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/ultramodern-performance-readiness.mjs',
     createPerformanceReadinessScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/ultramodern-typecheck.mjs',
+    createUltramodernTypecheckScript(),
   );
 }

@@ -68,6 +68,13 @@ Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable.
 
+Type checking is TS7-first. `pnpm typecheck` runs
+`scripts/ultramodern-typecheck.mjs` in TS-Go build mode over
+`tsconfig.json` project references, with native-preview `--checkers` and
+`--builders` enabled by default. `@typescript/native-preview` is the TS7 latest
+dev compiler lane. The classic `typescript` package is pinned to latest TS6
+only where compatibility peers or tooling still require it.
+
 Read-only agent reference repositories under `repos/` (Effect and
 UltraModern.js source lookup using squashed git subtrees) are an explicit
 opt-in step: run `pnpm agents:refs:install` when you want them. `pnpm install`

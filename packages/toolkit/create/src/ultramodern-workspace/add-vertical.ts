@@ -48,7 +48,12 @@ import {
   toPascalCase,
 } from './naming';
 import { runCodeSmithOverlays } from './overlays';
-import { createAppPackage, createRootPackageJson } from './package-json';
+import {
+  createAppPackage,
+  createAppTsConfig,
+  createRootPackageJson,
+  createRootTsConfig,
+} from './package-json';
 import { resolvePackageSource } from './package-source';
 import { createCloudflareDeployContract } from './policy';
 import {
@@ -219,6 +224,10 @@ export function rewriteShellAppFiles(
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/package.json`),
     createAppPackage(scope, shellHost, packageSource, enableTailwind, remotes),
+  );
+  writeJsonFile(
+    path.join(workspaceRoot, `${shellApp.directory}/tsconfig.json`),
+    createAppTsConfig(shellHost, remotes),
   );
   writeFileReplacing(
     workspaceRoot,
@@ -802,6 +811,16 @@ function createDryRunJsonMutations(
       description: `Wire shell dependencies for ${vertical.id}`,
     },
     {
+      path: 'tsconfig.json',
+      pointer: '/references',
+      description: `Add ${vertical.id} to the root TS-Go build graph`,
+    },
+    {
+      path: `${shellApp.directory}/tsconfig.json`,
+      pointer: '/references',
+      description: `Add ${vertical.id} to the shell TS-Go project references`,
+    },
+    {
       path: GENERATED_CONTRACT_PATH,
       pointer: '/apps',
       description: `Regenerate contract with ${vertical.id}`,
@@ -916,6 +935,16 @@ export function addUltramodernVertical(
     scope,
     packageSource,
     updatedVerticals,
+  );
+  writeJsonFile(
+    path.join(options.workspaceRoot, 'tsconfig.json'),
+    createRootTsConfig([
+      {
+        ...shellApp,
+        verticalRefs: updatedVerticals.map(vertical => vertical.id),
+      },
+      ...updatedVerticals,
+    ]),
   );
   const afterFiles = createFileSnapshot(options.workspaceRoot);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(

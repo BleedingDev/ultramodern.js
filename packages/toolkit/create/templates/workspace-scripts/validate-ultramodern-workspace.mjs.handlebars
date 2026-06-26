@@ -91,6 +91,7 @@ const expectedRemoteSubsetsForRefs = refs =>
     .map(expectedRemoteContractSubset);
 const requiredMicroVerticalPaths = vertical => [
   `${vertical.path}/package.json`,
+  `${vertical.path}/tsconfig.json`,
   `${vertical.path}/modern.config.ts`,
   `${vertical.path}/module-federation.config.ts`,
   `${vertical.path}/api/effect/index.ts`,
@@ -223,21 +224,13 @@ const assertMicroVerticalContractGraph = ({
     'regenerate the generated shell Module Federation contract',
   );
   assertSameJson(
+    shellContract.ssr,
     {
-      ssr: shellContract.ssr,
-      bundling: shellContract.bundling,
+      mode: 'string',
+      moduleFederationAppSSR: true,
     },
-    {
-      ssr: {
-        mode: 'stream',
-        moduleFederationAppSSR: true,
-      },
-      bundling: {
-        splitChunks: false,
-      },
-    },
-    '.modernjs/ultramodern-generated-contract.json shell SSR/bundling contract',
-    'restore generated stream SSR Module Federation bundling settings',
+    '.modernjs/ultramodern-generated-contract.json shell SSR contract',
+    'restore generated string SSR Module Federation settings',
   );
 
   for (const vertical of fullStackVerticals) {
@@ -371,7 +364,6 @@ const assertMicroVerticalContractGraph = ({
           client: contractEntry.effect?.client,
         },
         ssr: contractEntry.ssr,
-        bundling: contractEntry.bundling,
       },
       {
         kind: 'vertical',
@@ -389,11 +381,8 @@ const assertMicroVerticalContractGraph = ({
           client: './effect/client',
         },
         ssr: {
-          mode: 'stream',
+          mode: 'string',
           moduleFederationAppSSR: true,
-        },
-        bundling: {
-          splitChunks: false,
         },
       },
       `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
@@ -654,6 +643,7 @@ const requiredPaths = [
   '.gitignore',
   'package.json',
   'pnpm-workspace.yaml',
+  'tsconfig.json',
   'tsconfig.base.json',
   'oxlint.config.ts',
   'oxfmt.config.ts',
@@ -676,7 +666,9 @@ const requiredPaths = [
   'scripts/setup-agent-reference-repos.mjs',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mjs',
+  'scripts/ultramodern-typecheck.mjs',
   'apps/shell-super-app/package.json',
+  'apps/shell-super-app/tsconfig.json',
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
@@ -692,9 +684,13 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   ...{{shellRouteMetaPathsJson}},
+  'packages/shared-contracts/package.json',
   'packages/shared-contracts/src/index.ts',
+  'packages/shared-contracts/tsconfig.json',
+  'packages/shared-design-tokens/package.json',
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-design-tokens/src/tokens.css',
+  'packages/shared-design-tokens/tsconfig.json',
 ];
 
 for (const vertical of fullStackVerticals) {
@@ -811,6 +807,7 @@ assert(
 );
 assert(rootPackage.scripts?.['cloudflare:build'] === expectedCloudflareBuildScript, 'Root cloudflare:build script is incorrect');
 assert(!('ultramodern:check' in (rootPackage.scripts ?? {})), 'Root must not expose ultramodern:check');
+assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json', 'Root typecheck must run TS-Go build mode across project references');
 assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose contract:check');
 assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose i18n:boundaries');
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mjs', 'Root must expose default-on performance readiness diagnostics');
@@ -823,6 +820,9 @@ assert(performanceReadinessConfig.includes("failOn: 'framework-invariant'"), 'Pe
 assert(performanceReadinessScript.includes("ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS"), 'Performance readiness script must support env opt-out');
 assert(performanceReadinessScript.includes('ultramodern-performance-readiness-diagnostics-v1'), 'Performance readiness script must emit the deterministic report profile');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mjs');
+const ultramodernTypecheckScript = readText('scripts/ultramodern-typecheck.mjs');
+assert(ultramodernTypecheckScript.includes("'--checkers'") && ultramodernTypecheckScript.includes("'--builders'"), 'Root typecheck script must drive TS-Go checker and builder parallelism');
+assert(ultramodernTypecheckScript.includes('effect-tsgo') && ultramodernTypecheckScript.includes('get-exe-path'), 'Root typecheck script must resolve the @effect/tsgo native-preview binary');
 assert(
   i18nBoundaryScript.includes("from '@modern-js/code-tools'") &&
     i18nBoundaryScript.includes('runWorkspaceSourceCheck'),
@@ -919,6 +919,7 @@ assert(shellModernConfig.includes('assetPrefix,'), 'Shell modern.config.ts must 
 assert(shellContract?.config?.dev?.assetPrefix === '/', 'Shell dev asset prefix must stay origin-relative');
 assert(shellContract?.config?.output?.assetPrefix?.default === '/', 'Shell asset prefix must default to origin-relative paths');
 assert(JSON.stringify(shellContract?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), 'Shell asset prefix env fallback order is incorrect');
+assert(shellContract?.config?.output?.disableTsChecker === false, 'Shell must keep the framework TypeScript checker enabled');
 assert(shellContract?.config?.performance?.readinessDiagnostics?.default === 'enabled', 'Shell performance readiness diagnostics must be default-on');
 assert(shellContract?.config?.performance?.readinessDiagnostics?.failOn === 'framework-invariant', 'Shell performance readiness diagnostics must only fail framework invariants by default');
 assert(shellContract?.config?.performance?.readinessDiagnostics?.optOut?.env === 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false', 'Shell performance readiness env opt-out is incorrect');
@@ -1013,6 +1014,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.dev?.assetPrefix === '/', `${vertical.id} dev asset prefix must stay origin-relative`);
   assert(contractEntry?.config?.output?.assetPrefix?.default === '/', `${vertical.id} asset prefix must default to origin-relative paths`);
   assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), `${vertical.id} asset prefix env fallback order is incorrect`);
+  assert(contractEntry?.config?.output?.disableTsChecker === false, `${vertical.id} must keep the framework TypeScript checker enabled`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.default === 'enabled', `${vertical.id} performance readiness diagnostics must be default-on`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.failOn === 'framework-invariant', `${vertical.id} performance readiness diagnostics must only fail framework invariants by default`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.optOut?.config === 'scripts/ultramodern-performance-readiness.config.mjs', `${vertical.id} performance readiness opt-out config is incorrect`);

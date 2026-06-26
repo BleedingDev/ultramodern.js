@@ -421,7 +421,7 @@ function expectAppConfigContract(
   expect(contractEntry.config).toMatchObject({
     preset: 'presetUltramodern',
     output: {
-      disableTsChecker: true,
+      disableTsChecker: false,
       distPath: {
         html: './',
       },
@@ -500,12 +500,10 @@ function expectAppConfigContract(
     expect(contractEntry.config.bff).toBeUndefined();
   }
   expect(contractEntry.ssr).toMatchObject({
-    mode: 'stream',
+    mode: 'string',
     moduleFederationAppSSR: true,
   });
-  expect(contractEntry.bundling).toMatchObject({
-    splitChunks: false,
-  });
+  expect(contractEntry.bundling).toBeUndefined();
 }
 
 function expectTailwindContract(contractEntry: {
@@ -1229,6 +1227,8 @@ describe('create-ultramodern-workspace', () => {
       'AGENTS.md',
       'package.json',
       'pnpm-workspace.yaml',
+      'tsconfig.json',
+      'tsconfig.base.json',
       'README.md',
       'oxlint.config.ts',
       'oxfmt.config.ts',
@@ -1250,6 +1250,7 @@ describe('create-ultramodern-workspace', () => {
       'scripts/proof-cloudflare-version.mjs',
       'scripts/ultramodern-performance-readiness.config.mjs',
       'scripts/ultramodern-performance-readiness.mjs',
+      'scripts/ultramodern-typecheck.mjs',
       'scripts/bootstrap-agent-skills.mjs',
       '.modernjs/ultramodern-workspace-template-manifest.json',
       '.modernjs/ultramodern-package-source.json',
@@ -1258,6 +1259,7 @@ describe('create-ultramodern-workspace', () => {
       'topology/ownership.json',
       'topology/local-overlays/development.json',
       'apps/shell-super-app/package.json',
+      'apps/shell-super-app/tsconfig.json',
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
       'apps/shell-super-app/src/ultramodern-build.ts',
@@ -1274,8 +1276,10 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
       'apps/shell-super-app/src/routes/[lang]/route.meta.ts',
       'packages/shared-contracts/src/index.ts',
+      'packages/shared-contracts/tsconfig.json',
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-design-tokens/src/tokens.css',
+      'packages/shared-design-tokens/tsconfig.json',
     ]) {
       expectPath(workspaceDir, relativePath);
     }
@@ -1323,6 +1327,9 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['mf:types']).toBe(
       'node ./scripts/assert-mf-types.mjs',
     );
+    expect(rootPackage.scripts.typecheck).toBe(
+      'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json',
+    );
     expect(rootPackage.scripts['performance:readiness']).toBe(
       'node ./scripts/ultramodern-performance-readiness.mjs',
     );
@@ -1339,6 +1346,41 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.scripts['cloudflare:proof']).toBe(
       'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
+    expect(readJson(workspaceDir, 'tsconfig.json')).toMatchObject({
+      files: [],
+      references: [
+        { path: 'packages/shared-contracts' },
+        { path: 'packages/shared-design-tokens' },
+        { path: 'apps/shell-super-app' },
+      ],
+    });
+    expect(
+      readJson(workspaceDir, 'apps/shell-super-app/tsconfig.json'),
+    ).toMatchObject({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: {
+        composite: true,
+        incremental: true,
+        tsBuildInfoFile:
+          '../../node_modules/.cache/tsgo/apps__shell-super-app.tsbuildinfo',
+      },
+      references: [
+        { path: '../../packages/shared-contracts' },
+        { path: '../../packages/shared-design-tokens' },
+      ],
+    });
+    expect(
+      readJson(workspaceDir, 'packages/shared-contracts/tsconfig.json'),
+    ).toMatchObject({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: {
+        composite: true,
+        incremental: true,
+        tsBuildInfoFile:
+          '../../node_modules/.cache/tsgo/packages__shared-contracts.tsbuildinfo',
+      },
+      include: ['src'],
+    });
     await expectGeneratedCloudflareProofContract(workspaceDir, [
       'shell-super-app',
     ]);
@@ -1404,6 +1446,15 @@ describe('create-ultramodern-workspace', () => {
       wrangler: '4.102.0',
       'zephyr-agent': '1.1.1',
     });
+    const typecheckScript = readText(
+      workspaceDir,
+      'scripts/ultramodern-typecheck.mjs',
+    );
+    expect(typecheckScript).toContain("'--checkers'");
+    expect(typecheckScript).toContain("'--builders'");
+    expect(typecheckScript).toContain("'--stopBuildOnErrors'");
+    expect(typecheckScript).toContain('get-exe-path');
+    expect(rootPackage.devDependencies.typescript).toBeUndefined();
 
     expectPath(workspaceDir, 'AGENTS.md');
     expectPath(workspaceDir, '.codex/hooks.json');
@@ -1552,7 +1603,9 @@ describe('create-ultramodern-workspace', () => {
         ),
       ).toBe(true);
       expect(packageJson['zephyr:dependencies']).toEqual({});
-      expect(typeof packageJson.scripts.typecheck).toBe('string');
+      expect(packageJson.scripts.typecheck).toBe(
+        'node ../../scripts/ultramodern-typecheck.mjs --project tsconfig.json',
+      );
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
         '1.170.16',
       );
@@ -2270,7 +2323,47 @@ process.exit(1);
     );
     const generatedContract = readGeneratedContract(workspaceDir);
     const baseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
+    const rootTsConfig = readJson(workspaceDir, 'tsconfig.json');
+    const shellTsConfig = readJson(
+      workspaceDir,
+      'apps/shell-super-app/tsconfig.json',
+    );
+    const catalogTsConfig = readJson(
+      workspaceDir,
+      'verticals/catalog/tsconfig.json',
+    );
     expect(baseTsConfig.compilerOptions.allowImportingTsExtensions).toBe(true);
+    expect(rootTsConfig.references).toEqual([
+      { path: 'packages/shared-contracts' },
+      { path: 'packages/shared-design-tokens' },
+      { path: 'apps/shell-super-app' },
+      { path: 'verticals/catalog' },
+    ]);
+    expect(shellTsConfig.references).toEqual([
+      { path: '../../packages/shared-contracts' },
+      { path: '../../packages/shared-design-tokens' },
+      { path: '../../verticals/catalog' },
+    ]);
+    expect(catalogTsConfig).toMatchObject({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: {
+        composite: true,
+        incremental: true,
+        tsBuildInfoFile:
+          '../../node_modules/.cache/tsgo/verticals__catalog.tsbuildinfo',
+      },
+      include: [
+        'src',
+        'modern.config.ts',
+        'module-federation.config.ts',
+        'api',
+        'shared',
+      ],
+      references: [
+        { path: '../../packages/shared-contracts' },
+        { path: '../../packages/shared-design-tokens' },
+      ],
+    });
     expect(shellContract.moduleFederation.remotes).toContainEqual(
       expect.objectContaining({
         id: 'catalog',

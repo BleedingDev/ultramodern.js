@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   accessSync,
   chmodSync,
@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import os from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
@@ -139,6 +140,43 @@ const configs = readFileSync(configListPath, 'utf8')
 
 const failures = [];
 const tempConfigs = [];
+const cpuCount = Math.max(
+  1,
+  typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : os.cpus().length,
+);
+
+function parsePositiveInt(value, label) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    console.error(`${label} must be a positive integer.`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
+function envPositiveInt(names, fallback) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) {
+      return parsePositiveInt(value, name);
+    }
+  }
+  return fallback;
+}
+
+const jobs = Math.min(
+  configs.length,
+  envPositiveInt(
+    ['MODERN_TSGO_CRITICAL_JOBS', 'ULTRAMODERN_TSGO_JOBS'],
+    Math.min(4, Math.max(1, Math.floor(cpuCount / 2))),
+  ),
+);
+const checkers = envPositiveInt(
+  ['ULTRAMODERN_TSGO_CHECKERS', 'TSGO_CHECKERS'],
+  Math.min(4, Math.max(1, Math.floor(cpuCount / jobs))),
+);
 
 function createStrictConfig(config, index) {
   const configPath = join(repoRoot, config);
@@ -174,35 +212,89 @@ function createStrictConfig(config, index) {
   return tempConfig;
 }
 
-for (const [index, config] of configs.entries()) {
+function runTsgoConfig(config, index) {
   const started = performance.now();
   const strictConfig = createStrictConfig(config, index);
-  const result = spawnSync(
-    tsgoBin,
-    ['--noEmit', '--pretty', 'false', '-p', strictConfig],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024,
-    },
-  );
-  const durationMs = Math.round(performance.now() - started);
-  const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+  return new Promise(resolve => {
+    const child = spawn(
+      tsgoBin,
+      [
+        '--noEmit',
+        '--pretty',
+        'false',
+        '--checkers',
+        String(checkers),
+        '-p',
+        strictConfig,
+      ],
+      {
+        cwd: repoRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    const stdout = [];
+    const stderr = [];
 
-  if (result.status === 0) {
-    console.log(`PASS ${config} (${durationMs}ms)`);
-    continue;
-  }
-
-  console.error(`FAIL ${config} (${durationMs}ms)`);
-  if (output) {
-    console.error(output);
-  }
-  failures.push(config);
+    child.stdout.on('data', chunk => stdout.push(chunk));
+    child.stderr.on('data', chunk => stderr.push(chunk));
+    child.on('error', error => {
+      resolve({
+        config,
+        durationMs: Math.round(performance.now() - started),
+        output: error.stack || error.message,
+        status: 1,
+      });
+    });
+    child.on('close', status => {
+      resolve({
+        config,
+        durationMs: Math.round(performance.now() - started),
+        output: Buffer.concat([...stdout, ...stderr])
+          .toString()
+          .trim(),
+        status,
+      });
+    });
+  });
 }
 
-for (const tempConfig of tempConfigs) {
-  rmSync(tempConfig, { force: true });
+async function runCriticalChecks() {
+  const results = [];
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < configs.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await runTsgoConfig(configs[index], index);
+    }
+  }
+
+  console.log(
+    `effect-tsgo validation running: ${configs.length} config(s), ${jobs} job(s), ${checkers} checker(s) per config`,
+  );
+  await Promise.all(Array.from({ length: jobs }, () => worker()));
+
+  for (const result of results) {
+    if (result.status === 0) {
+      console.log(`PASS ${result.config} (${result.durationMs}ms)`);
+      continue;
+    }
+
+    console.error(`FAIL ${result.config} (${result.durationMs}ms)`);
+    if (result.output) {
+      console.error(result.output);
+    }
+    failures.push(result.config);
+  }
+}
+
+try {
+  await runCriticalChecks();
+} finally {
+  for (const tempConfig of tempConfigs) {
+    rmSync(tempConfig, { force: true });
+  }
 }
 
 if (failures.length > 0) {

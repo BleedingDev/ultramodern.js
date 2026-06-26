@@ -6,6 +6,7 @@ import {
   appHasEffectApi,
   remoteDependencyAlias,
   resolveRemoteRefs,
+  sharedPackages,
   shellApp,
   verticalEffectApps,
   zephyrRemoteDependency,
@@ -40,8 +41,8 @@ import {
   ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from './versions';
 
-export const effectTsgoTypecheckCommand =
-  "node -e \"const fs = require('node:fs'); const { execFileSync, spawnSync } = require('node:child_process'); const bin = execFileSync('effect-tsgo', ['get-exe-path'], { encoding: 'utf8' }).trim(); if (process.platform !== 'win32') fs.chmodSync(bin, 0o755); const result = spawnSync(bin, ['--noEmit', '-p', 'tsconfig.json'], { stdio: 'inherit' }); process.exit(result.status ?? 1);\"";
+export const createEffectTsgoTypecheckCommand = (packageDir: string) =>
+  `node ${relativeRootFor(packageDir)}/scripts/ultramodern-typecheck.mjs --project tsconfig.json`;
 
 export const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -249,7 +250,8 @@ export function createRootPackageJson(
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint apps verticals packages',
       'lint:fix': 'oxlint apps verticals packages --fix',
-      typecheck: `pnpm -r --filter "@${scope}/*" typecheck`,
+      typecheck:
+        'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json',
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
@@ -364,17 +366,92 @@ export function createTsConfigBase(): JsonValue {
   };
 }
 
+function createTsBuildInfoFile(packageDir: string): string {
+  const cacheKey = packageDir.replace(/[^a-zA-Z0-9._-]+/gu, '__');
+  return `${relativeRootFor(packageDir)}/node_modules/.cache/tsgo/${cacheKey}.tsbuildinfo`;
+}
+
+function createReferences(
+  packageDir: string,
+  references: string[],
+): JsonValue[] {
+  return [...new Set(references)]
+    .filter(reference => reference !== packageDir)
+    .map(reference => ({
+      path: `${relativeRootFor(packageDir)}/${reference}`,
+    }));
+}
+
+type CreatePackageTsConfigOptions = {
+  include?: string[];
+  includeApi?: boolean;
+  references?: string[];
+};
+
 export function createPackageTsConfig(
   packageDir: string,
-  includeApi = false,
+  options: CreatePackageTsConfigOptions | boolean = {},
 ): JsonValue {
-  const include = ['src', 'modern.config.ts', 'module-federation.config.ts'];
-  if (includeApi) {
+  const resolvedOptions =
+    typeof options === 'boolean' ? { includeApi: options } : options;
+  const include = resolvedOptions.include ?? [
+    'src',
+    'modern.config.ts',
+    'module-federation.config.ts',
+  ];
+  if (resolvedOptions.includeApi) {
     include.push('api', 'shared');
   }
-  return {
+  const references = createReferences(
+    packageDir,
+    resolvedOptions.references ?? [],
+  );
+  const tsconfig: Record<string, JsonValue> = {
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
+    compilerOptions: {
+      composite: true,
+      incremental: true,
+      tsBuildInfoFile: createTsBuildInfoFile(packageDir),
+    },
     include,
+  };
+  if (references.length > 0) {
+    tsconfig.references = references;
+  }
+  return tsconfig;
+}
+
+export function createAppTsConfig(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): JsonValue {
+  const references = [
+    ...sharedPackages.map(sharedPackage => sharedPackage.directory),
+    ...(app.kind === 'shell'
+      ? verticalEffectApps(remotes).map(remote => remote.directory)
+      : resolveRemoteRefs(app, remotes).map(remote => remote.directory)),
+  ];
+  return createPackageTsConfig(app.directory, {
+    includeApi: appHasEffectApi(app),
+    references,
+  });
+}
+
+export function createSharedPackageTsConfig(packageDir: string): JsonValue {
+  return createPackageTsConfig(packageDir, {
+    include: ['src'],
+  });
+}
+
+export function createRootTsConfig(apps: WorkspaceApp[] = []): JsonValue {
+  return {
+    files: [],
+    references: [
+      ...sharedPackages.map(sharedPackage => ({
+        path: sharedPackage.directory,
+      })),
+      ...apps.map(app => ({ path: app.directory })),
+    ],
   };
 }
 
@@ -417,7 +494,7 @@ export function createAppPackage(
         app.directory,
       )}/scripts/proof-cloudflare-version.mjs --app ${app.id}`,
       serve: 'modern serve',
-      typecheck: effectTsgoTypecheckCommand,
+      typecheck: createEffectTsgoTypecheckCommand(app.directory),
     },
     modernjs: {
       preset: 'presetUltramodern',
@@ -464,7 +541,7 @@ export function createSharedPackage(
       '.': './src/index.ts',
     },
     scripts: {
-      typecheck: effectTsgoTypecheckCommand,
+      typecheck: createEffectTsgoTypecheckCommand(`packages/${id}`),
     },
     devDependencies: {
       '@effect/tsgo': EFFECT_TSGO_VERSION,

@@ -7,7 +7,7 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
-  TYPESCRIPT_7_VERSION,
+  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_STABLE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -192,16 +192,26 @@ test('generated package module scopes keep MF apps compatible with classic compi
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
       TYPESCRIPT_VERSION,
-      'generated apps must install the stable TypeScript package directly',
+      'generated apps must install latest TS6 only as the classic TypeScript compatibility package',
+    );
+    assert.equal(
+      shellPackageJson.devDependencies?.['@typescript/native-preview'],
+      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      'generated apps must install the latest TS7 native-preview dev checker',
     );
     assert.equal(
       generatedContract.versions?.typescript,
+      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      'generated contracts should treat TS7 native-preview as the primary TypeScript lane',
+    );
+    assert.equal(
+      generatedContract.versions?.typescriptCompatibility,
       TYPESCRIPT_STABLE_VERSION,
     );
     assert.equal(
-      generatedContract.versions?.typescript7Rc,
-      TYPESCRIPT_7_VERSION,
-      'generated contracts should document the TS7 RC lane without installing it as the app TypeScript package',
+      generatedContract.versions?.typescriptNativePreview,
+      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      'generated contracts should document native-preview as the TS7 latest-dev lane',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

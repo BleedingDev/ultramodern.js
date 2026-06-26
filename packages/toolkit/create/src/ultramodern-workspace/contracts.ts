@@ -61,7 +61,6 @@ import {
   PNPM_VERSION,
   RSTACK_AGENT_SKILLS_COMMIT,
   TANSTACK_ROUTER_VERSION,
-  TYPESCRIPT_7_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
@@ -259,7 +258,7 @@ export function createAppConfigContract(app: WorkspaceApp): JsonValue {
         envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
         default: '/',
       },
-      disableTsChecker: true,
+      disableTsChecker: false,
       distPath: {
         html: './',
       },
@@ -582,11 +581,8 @@ export function createAppGeneratedContract(
       },
     },
     ssr: {
-      mode: 'stream',
+      mode: 'string',
       moduleFederationAppSSR: true,
-    },
-    bundling: {
-      splitChunks: false,
     },
     i18n: {
       plugin: '@modern-js/plugin-i18n',
@@ -688,8 +684,8 @@ export function createGeneratedContract(
       toolchain: 'mise',
     },
     versions: {
-      typescript: TYPESCRIPT_VERSION,
-      typescript7Rc: TYPESCRIPT_7_VERSION,
+      typescript: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      typescriptCompatibility: TYPESCRIPT_VERSION,
       typescriptNativePreview: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
       moduleFederation: MODULE_FEDERATION_VERSION,
       tanstackRouter: TANSTACK_ROUTER_VERSION,
