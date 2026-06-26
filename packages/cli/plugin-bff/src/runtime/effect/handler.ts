@@ -415,24 +415,45 @@ function createJsonValidationResponse(message: string, status = 400) {
   );
 }
 
-async function validateJsonRequestBody(request: Request) {
+function cloneWithoutJsonBodyHeaders(request: Request) {
+  const headers = new Headers(request.headers);
+  headers.delete('content-type');
+  headers.delete('content-length');
+
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+    signal: request.signal,
+  });
+}
+
+async function prepareJsonRequestBody(request: Request) {
   const method = normalizeItemMethod(request.method);
   if (method === 'GET' || method === 'HEAD') {
-    return null;
+    return request;
   }
 
   const contentType = (request.headers.get('content-type') || '').toLowerCase();
-  if (!contentType.includes('application/json') || request.body === null) {
-    return null;
+  if (!contentType.includes('application/json')) {
+    return request;
+  }
+
+  if (request.body === null) {
+    return cloneWithoutJsonBodyHeaders(request);
   }
 
   try {
-    JSON.parse(await request.clone().text());
+    const bodyText = await request.clone().text();
+    if (bodyText === '') {
+      return cloneWithoutJsonBodyHeaders(request);
+    }
+
+    JSON.parse(bodyText);
   } catch {
     return createJsonValidationResponse('Invalid JSON request body');
   }
 
-  return null;
+  return request;
 }
 
 function toBatchItemError(
@@ -944,19 +965,19 @@ export function createHttpApiHandler<
     if (policyDenial) {
       return policyDenial;
     }
-    const jsonBodyError = await validateJsonRequestBody(request);
-    if (jsonBodyError) {
-      return jsonBodyError;
+    const preparedRequest = await prepareJsonRequestBody(request);
+    if (preparedRequest instanceof Response) {
+      return preparedRequest;
     }
     const validationError = validateDataPlatformRequestEnvelope(
-      request,
+      preparedRequest,
       options.dataPlatform,
     );
     if (validationError) {
       return validationError;
     }
     return httpApiHandler.handler(
-      request,
+      preparedRequest,
       context ?? emptyEffectServiceContext,
     );
   };

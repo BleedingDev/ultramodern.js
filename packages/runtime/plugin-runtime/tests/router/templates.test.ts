@@ -158,8 +158,11 @@ describe('fileSystemRoutes', () => {
     expect(code).toContain(
       'import loadable, { lazy as loadableLazy } from "@modern-js/runtime/loadable"',
     );
+    expect(code).toContain(
+      'import { createShouldRevalidate, handleRouteModule, handleRouteModuleError, resolveRouteComponent } from',
+    );
     expect(code).not.toContain('resolveLoadableExport');
-    expect(code).toMatch(/"component": loadable\(/);
+    expect(code).toContain('{ resolveComponent: resolveRouteComponent }');
   });
 });
 

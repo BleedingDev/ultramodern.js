@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -79,14 +80,61 @@ async function hashFixtureInputs(
   return hash.digest('hex');
 }
 
-const currentRunCacheKey = crypto.randomUUID();
+let localRepoStateCacheKey: string | undefined;
+
+function readGitOutput(args: string[], cwd: string) {
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+}
+
+function hashGitOutput(hash: crypto.Hash, root: string, args: string[]) {
+  hash.update(readGitOutput(args, root));
+  hash.update('\0');
+}
+
+function computeLocalRepoStateCacheKey() {
+  try {
+    const root = readGitOutput(
+      ['rev-parse', '--show-toplevel'],
+      process.cwd(),
+    ).trim();
+    const hash = crypto.createHash('sha1');
+
+    hashGitOutput(hash, root, ['rev-parse', 'HEAD']);
+    hashGitOutput(hash, root, [
+      'status',
+      '--porcelain=v1',
+      '--untracked-files=all',
+    ]);
+    hashGitOutput(hash, root, ['diff', '--no-ext-diff', '--binary']);
+    hashGitOutput(hash, root, [
+      'diff',
+      '--cached',
+      '--no-ext-diff',
+      '--binary',
+    ]);
+
+    return `git:${hash.digest('hex')}`;
+  } catch {
+    const fallbackHash = crypto.createHash('sha1');
+    fallbackHash.update(process.cwd());
+    return `cwd:${fallbackHash.digest('hex')}`;
+  }
+}
 
 function cacheKeyForCurrentRun() {
-  return (
-    process.env.MODERNJS_FIXTURE_BUILD_CACHE_KEY ||
-    process.env.GITHUB_SHA ||
-    currentRunCacheKey
-  );
+  const configuredCacheKey =
+    process.env.MODERNJS_FIXTURE_BUILD_CACHE_KEY || process.env.GITHUB_SHA;
+  if (configuredCacheKey) {
+    return configuredCacheKey;
+  }
+
+  localRepoStateCacheKey ??= computeLocalRepoStateCacheKey();
+
+  return localRepoStateCacheKey;
 }
 
 function markerPathFor(fixtureDir: string, outputDir: string) {

@@ -363,7 +363,7 @@ export const fileSystemRoutes = async ({
           // csr and streaming ssr use lazy
           component =
             ssrMode === 'string'
-              ? `loadable(${lazyImport})`
+              ? `loadable(${lazyImport}, { resolveComponent: resolveRouteComponent })`
               : `lazy(${lazyImport})`;
         } else {
           components.push(route._component);
@@ -373,7 +373,7 @@ export const fileSystemRoutes = async ({
     } else if (route._component) {
       if (splitRouteChunks) {
         lazyImport = `() => import('${route._component}')`;
-        component = `loadable(${lazyImport})`;
+        component = `loadable(${lazyImport}, { resolveComponent: resolveRouteComponent })`;
       } else {
         components.push(route._component);
         component = `component_${components.length - 1}`;
@@ -444,7 +444,7 @@ export const fileSystemRoutes = async ({
         .replace(/\\"/g, '"');
       routeComponentsCode += `${newRouteStr},`;
     } else {
-      const component = `loadable(() => import('${route._component}'))`;
+      const component = `loadable(() => import('${route._component}'), { resolveComponent: resolveRouteComponent })`;
       const finalRoute = {
         ...route,
         component,
@@ -530,7 +530,7 @@ export const fileSystemRoutes = async ({
   await fs.writeJSON(loadersMapFile, loadersMap);
 
   const importRuntimeRouterCode = `
-    import { createShouldRevalidate, handleRouteModule,  handleRouteModuleError} from '@${metaName}/runtime/routerHelper';
+    import { createShouldRevalidate, handleRouteModule, handleRouteModuleError, resolveRouteComponent } from '@${metaName}/runtime/routerHelper';
   `;
   const routeModulesCode = `
     if(typeof document !== 'undefined'){

@@ -56,6 +56,13 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
           item: recommendationItemSchema,
         }),
       }),
+    )
+    .add(
+      HttpApiEndpoint.post('reset', '/effect/recommendations/reset', {
+        success: Schema.Struct({
+          ok: Schema.Boolean,
+        }),
+      }),
     ),
 );
 
@@ -95,6 +102,12 @@ function createRecommendationsHandler() {
               id: `generated-${payload.title.toLowerCase()}`,
               title: payload.title,
             },
+          });
+        })
+        .handle('reset', () => {
+          handledCalls.push('reset');
+          return Effect.succeed({
+            ok: true,
           });
         }),
   );
@@ -202,6 +215,53 @@ describe('effect HttpApi schema validation', () => {
         message: 'Invalid JSON request body',
       });
       expect(handledCalls).toEqual([]);
+    } finally {
+      await handler.dispose();
+    }
+  });
+
+  test('lets empty JSON-typed request bodies reach bodyless endpoints', async () => {
+    const { handledCalls, handler } = createRecommendationsHandler();
+
+    try {
+      const response = await handler.handler(
+        new Request('http://localhost/effect/recommendations/reset', {
+          body: '',
+          headers: {
+            'content-type': 'application/json',
+          },
+          method: 'POST',
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        ok: true,
+      });
+      expect(handledCalls).toEqual(['reset']);
+    } finally {
+      await handler.dispose();
+    }
+  });
+
+  test('lets bodyless JSON-typed requests reach bodyless endpoints', async () => {
+    const { handledCalls, handler } = createRecommendationsHandler();
+
+    try {
+      const response = await handler.handler(
+        new Request('http://localhost/effect/recommendations/reset', {
+          headers: {
+            'content-type': 'application/json',
+          },
+          method: 'POST',
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        ok: true,
+      });
+      expect(handledCalls).toEqual(['reset']);
     } finally {
       await handler.dispose();
     }
