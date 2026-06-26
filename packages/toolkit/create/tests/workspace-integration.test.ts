@@ -161,9 +161,8 @@ function assertIntegratedVertical(
   assert.equal(contractEntry.package, packageName);
   assert.equal(contractEntry.path, `verticals/${id}`);
   assert.equal(contractEntry.kind, 'vertical');
-  assert.equal(contractEntry.ssr.mode, 'stream');
+  assert.equal(contractEntry.ssr.mode, 'string');
   assert.equal(contractEntry.ssr.moduleFederationAppSSR, true);
-  assert.equal(contractEntry.bundling.splitChunks, false);
   assert.deepEqual(contractEntry.moduleFederation.exposes, [
     './Route',
     './Widget',
@@ -258,21 +257,17 @@ test('workspace and MicroVertical integration stays coherent across public API a
     );
 
     assert.deepEqual(topology.shell.verticalRefs, ['catalog', 'checkout']);
-    assert.match(shellModernConfig, /mode:\s*'stream'/);
+    assert.match(shellModernConfig, /mode:\s*'string'/);
     assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
-    assert.match(shellModernConfig, /splitChunks:\s*false/);
+    assert.doesNotMatch(shellModernConfig, /splitChunks:\s*false/);
     assert.match(
       shellModernConfig,
       /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
     );
-    assert.equal(appById(contract.apps, 'shell-super-app').ssr.mode, 'stream');
+    assert.equal(appById(contract.apps, 'shell-super-app').ssr.mode, 'string');
     assert.equal(
       appById(contract.apps, 'shell-super-app').ssr.moduleFederationAppSSR,
       true,
-    );
-    assert.equal(
-      appById(contract.apps, 'shell-super-app').bundling.splitChunks,
-      false,
     );
     assert.deepEqual(
       topology.shell.moduleFederation.remotes.map((remote: any) => remote.id),
@@ -417,7 +412,7 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
           workspaceDir,
           '.modernjs/ultramodern-generated-contract.json',
         );
-        appById(contract.apps, 'shell-super-app').ssr.mode = 'string';
+        appById(contract.apps, 'shell-super-app').ssr.mode = 'stream';
         writeJson(
           workspaceDir,
           '.modernjs/ultramodern-generated-contract.json',
@@ -425,18 +420,18 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
         );
       },
       expectedContract:
-        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json shell SSR\/bundling contract\./,
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json shell SSR contract\./,
       expectedFixArea:
-        /Fix area: restore generated stream SSR Module Federation bundling settings\./,
+        /Fix area: restore generated string SSR Module Federation settings\./,
     },
     {
-      workspaceName: 'vertical-bundling-corrupt',
+      workspaceName: 'vertical-ssr-corrupt',
       mutate: (workspaceDir: string) => {
         const contract = readJson(
           workspaceDir,
           '.modernjs/ultramodern-generated-contract.json',
         );
-        appById(contract.apps, 'catalog').bundling.splitChunks = true;
+        appById(contract.apps, 'catalog').ssr.mode = 'stream';
         writeJson(
           workspaceDir,
           '.modernjs/ultramodern-generated-contract.json',
