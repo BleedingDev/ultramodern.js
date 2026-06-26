@@ -428,13 +428,23 @@ export const createCloudflarePreset: CreatePreset = ({
         distDirectory,
         WORKER_BUNDLE_DIRECTORY,
       );
+      const workerBundleOutputDirectory = path.join(
+        outputDirectory,
+        WORKER_BUNDLE_DIRECTORY,
+      );
       if (await fse.pathExists(workerBundleSourceDirectory)) {
         await fse.copy(
           workerBundleSourceDirectory,
-          path.join(outputDirectory, WORKER_BUNDLE_DIRECTORY),
+          workerBundleOutputDirectory,
           {
             filter: src =>
               shouldCopyToWorkerBundle(src, workerBundleSourceDirectory),
+          },
+        );
+        await fse.writeJSON(
+          path.join(workerBundleOutputDirectory, 'package.json'),
+          {
+            type: 'commonjs',
           },
         );
       }
@@ -469,7 +479,7 @@ export const createCloudflarePreset: CreatePreset = ({
         },
       );
       await fse.writeJSON(path.join(outputDirectory, 'package.json'), {
-        type: 'commonjs',
+        type: 'module',
       });
     },
     async genEntry() {

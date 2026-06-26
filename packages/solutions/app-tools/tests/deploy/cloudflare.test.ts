@@ -565,6 +565,9 @@ describe('cloudflare deploy preset', () => {
       fs.access(path.join(outputDirectory, 'worker/main.js')),
     ).resolves.toBeUndefined();
     await expect(
+      fs.access(path.join(outputDirectory, 'worker/package.json')),
+    ).resolves.toBeUndefined();
+    await expect(
       fs.access(path.join(outputDirectory, 'worker/(lang)/page.js')),
     ).resolves.toBeUndefined();
     await expect(
@@ -642,6 +645,9 @@ describe('cloudflare deploy preset', () => {
     });
     await expect(
       fs.readFile(path.join(outputDirectory, 'package.json'), 'utf-8'),
+    ).resolves.toBe('{"type":"module"}\n');
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'worker/package.json'), 'utf-8'),
     ).resolves.toBe('{"type":"commonjs"}\n');
   });
 

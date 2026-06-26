@@ -176,6 +176,11 @@ function assertIntegratedVertical(
 
   assert.equal(verticalPackage.name, packageName);
   assert.equal(
+    verticalPackage.type,
+    undefined,
+    'generated MF vertical app packages must stay CJS-compatible',
+  );
+  assert.equal(
     verticalPackage.exports['./Route'],
     './src/federation-entry.tsx',
   );
@@ -270,6 +275,12 @@ test('workspace and MicroVertical integration stays coherent across public API a
       ['catalog', 'checkout'],
     );
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.equal(rootPackage.type, 'module');
+    assert.equal(
+      shellPackage.type,
+      undefined,
+      'generated MF shell app package must stay CJS-compatible',
+    );
     assert.equal(
       rootPackage.scripts['dev:catalog'],
       'pnpm --filter @integration-workspace/catalog dev',

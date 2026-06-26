@@ -138,7 +138,7 @@ test('compiler API tests use stable TypeScript and never native-preview internal
   );
 });
 
-test('generated app packages keep stable TypeScript for classic compiler consumers', () => {
+test('generated package module scopes keep MF apps compatible with classic compiler consumers', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-ts7-package-'));
   const workspaceDir = path.join(tempRoot, 'ts7-package-workspace');
 
@@ -153,9 +153,18 @@ test('generated app packages keep stable TypeScript for classic compiler consume
         modernPackageVersion: '3.2.0-ultramodern.108',
       },
     });
+    const rootPackageJson = JSON.parse(
+      fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf-8'),
+    );
     const shellPackageJson = JSON.parse(
       fs.readFileSync(
         path.join(workspaceDir, 'apps/shell-super-app/package.json'),
+        'utf-8',
+      ),
+    );
+    const sharedContractsPackageJson = JSON.parse(
+      fs.readFileSync(
+        path.join(workspaceDir, 'packages/shared-contracts/package.json'),
         'utf-8',
       ),
     );
@@ -169,6 +178,17 @@ test('generated app packages keep stable TypeScript for classic compiler consume
       ),
     );
 
+    assert.equal(rootPackageJson.type, 'module');
+    assert.equal(
+      sharedContractsPackageJson.type,
+      'module',
+      'generated shared packages should stay ESM-native',
+    );
+    assert.equal(
+      shellPackageJson.type,
+      undefined,
+      'generated MF app packages should not opt into package-level ESM',
+    );
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
       TYPESCRIPT_VERSION,

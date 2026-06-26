@@ -41,15 +41,21 @@ export default defineConfig({
 
 ## Node SSR 打包兼容性
 
-当开启 Module Federation 并同时开启 `server.ssr` 时，Modern.js 会自动将 Node SSR 构建切换到 Module Federation 兼容模式：
+当同时开启 Module Federation 与 `server.ssr` 时，请使用框架提供的 SSR
+和 Module Federation 配置入口，不要在应用里手动强制 bundler 输出模式。
+Module Federation 应用级 bundle 不是安全开启 `output.module` 的位置；除非
+应用已经验证了自定义运行时契约，否则 host 与 remote 都应保留框架生成的
+MF 输出模式。
 
-- `target: 'async-node'`
-- `output.module: false`
-- `output.chunkFormat: 'commonjs'`
-- `output.chunkLoading: 'async-node'`
-- `output.library.type: 'commonjs-module'`
+UltraModern 生成的 workspace root 和共享包保持 ESM，但生成的 MF app
+package 会有意不添加 app 级 `"type": "module"`。旧仓库迁移时应升级到
+新的框架 cohort，并运行生成的 workspace 校验；不要通过添加 app 级
+package mode、定制 server/navigation wrapper 或 Module Federation 输出 shim
+来绕过框架问题。
 
-这样可以避免 ESM 服务端产物与 `@module-federation/node` 运行时之间的兼容性问题，并保证 host / remote 在 SSR 与 SSG 场景下的 hydration 行为一致。
+Cloudflare SSR 部署中，最外层 Worker entry 是 ESM module worker；复制出的
+Modern.js SSR worker bundle 则保留在内层 CommonJS package scope 中，确保
+module Worker 可以稳定 import 这些已生成的 worker bundle。
 
 ## Battle-Tested 上线检查清单
 

@@ -85,6 +85,12 @@ compiler normalizes CommonJS server output while generated app packages keep
 stable `typescript` for Module Federation DTS generation and use the pinned
 `@typescript/native-preview` toolchain for TS-Go checks.
 
+Cloudflare SSR deploys are also split by runtime responsibility: `.output` is an
+ESM module-worker package, while `.output/worker` remains a CommonJS package
+scope for the worker bundles emitted by Modern.js SSR builds. Do not fix older
+repos by hand-editing generated worker output; upgrade the framework cohort and
+rerun the generated validation instead.
+
 After installing the new cohort, run the generated
 `scripts/validate-ultramodern-workspace.mjs` contract check before accepting
 manual edits. Fix topology, ownership, package-source, local overlay, generated

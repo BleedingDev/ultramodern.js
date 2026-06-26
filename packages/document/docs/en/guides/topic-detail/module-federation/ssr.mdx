@@ -43,15 +43,22 @@ For production rollout, keep fallback boundaries for remote load failures and mo
 
 ## Node SSR Bundle Compatibility
 
-When Module Federation is enabled together with `server.ssr`, Modern.js automatically switches Node SSR output to a Module Federation compatible mode:
+When Module Federation is enabled together with `server.ssr`, use the framework
+SSR and Module Federation configuration surfaces instead of forcing bundler
+output by hand. Module Federation application bundles are not a safe place to
+opt into `output.module`; keep MF remotes and hosts on the framework-generated
+MF output mode unless your app has a verified custom runtime contract.
 
-- `target: 'async-node'`
-- `output.module: false`
-- `output.chunkFormat: 'commonjs'`
-- `output.chunkLoading: 'async-node'`
-- `output.library.type: 'commonjs-module'`
+UltraModern generated workspaces keep the root workspace and shared packages as
+ESM, but generated MF app packages intentionally do not add app-level
+`"type": "module"`. Older repos should migrate by upgrading the framework
+cohort and running the generated workspace validation, not by adding app-level
+package mode changes, custom navigation/server wrappers, or Module Federation
+output shims.
 
-This avoids runtime incompatibilities between ESM server output and `@module-federation/node`, and keeps SSR/SSG hydration behavior consistent across host and remote applications.
+For Cloudflare SSR deploys, the outer Worker entry is an ESM module worker while
+copied Modern.js SSR worker bundles stay in a nested CommonJS package scope so
+the module Worker can import the emitted worker bundles consistently.
 
 ## Battle-Tested Rollout Checklist
 
