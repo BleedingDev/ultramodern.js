@@ -176,6 +176,10 @@ jobs:
         if: env.skip_gate != 'true' && env.run_commands == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Build Required Pkg
+        if: env.skip_gate != 'true' && env.run_commands == 'true'
+        run: pnpm run build:required
+
       - name: Validate Contract Gate
         if: env.skip_gate != 'true'
         env:

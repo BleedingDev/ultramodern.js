@@ -45,6 +45,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Build Required Pkg
+        run: pnpm run build:required
+
       - name: Install playwright
         run: cd ./tests/e2e/builder && pnpm exec playwright install
 
