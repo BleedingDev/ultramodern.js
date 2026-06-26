@@ -103,7 +103,7 @@ process.exit(0);
   return { fakeBinDir, gitLog, lefthookLog };
 }
 
-function withFakeBinPath(fakeBinDir: string) {
+function withFakeToolEnv(fakeBinDir: string) {
   const env = { ...process.env };
   const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
   const activePathKey = pathKey ?? 'PATH';
@@ -114,6 +114,12 @@ function withFakeBinPath(fakeBinDir: string) {
     env.Path = env[activePathKey];
     env.PATHEXT = `.CMD;.EXE;.BAT;.COM;${env.PATHEXT ?? ''}`;
   }
+  const commandExtension = process.platform === 'win32' ? '.cmd' : '';
+  env.ULTRAMODERN_GIT_BIN = path.join(fakeBinDir, `git${commandExtension}`);
+  env.ULTRAMODERN_LEFTHOOK_BIN = path.join(
+    fakeBinDir,
+    `lefthook${commandExtension}`,
+  );
   return env;
 }
 
@@ -216,7 +222,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
       tempRoot,
       { topLevel: tempRoot },
     );
-    const env = withFakeBinPath(fakeBinDir);
+    const env = withFakeToolEnv(fakeBinDir);
     delete env.ULTRAMODERN_AGENT_SKILLS;
     delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
 
@@ -248,7 +254,7 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
       tempRoot,
       { topLevel: undefined },
     );
-    const env = withFakeBinPath(fakeBinDir);
+    const env = withFakeToolEnv(fakeBinDir);
     delete env.ULTRAMODERN_AGENT_SKILLS;
     delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
 

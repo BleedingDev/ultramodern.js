@@ -20,13 +20,30 @@ const cloneTimeoutMs = Number.parseInt(
 
 const readJson = filePath => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-const run = (command, args, options = {}) =>
-  execFileSync(command, args, {
+const commandOverrideEnv = {
+  gh: 'ULTRAMODERN_GH_BIN',
+  git: 'ULTRAMODERN_GIT_BIN',
+  lefthook: 'ULTRAMODERN_LEFTHOOK_BIN',
+};
+
+const resolveCommand = command => {
+  const overrideEnv = commandOverrideEnv[command];
+  return overrideEnv ? (process.env[overrideEnv] ?? command) : command;
+};
+
+const requiresCommandShell = command =>
+  process.platform === 'win32' && /\.(?:bat|cmd)$/iu.test(command);
+
+const run = (command, args, options = {}) => {
+  const resolvedCommand = resolveCommand(command);
+  return execFileSync(resolvedCommand, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf-8',
+    shell: requiresCommandShell(resolvedCommand),
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
     timeout: options.timeout,
   });
+};
 
 const commandExists = command => {
   try {
