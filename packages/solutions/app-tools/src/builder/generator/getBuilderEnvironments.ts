@@ -8,7 +8,7 @@ import {
   isUseRsc,
   isUseSSRBundle,
 } from '@modern-js/utils';
-import type { RsbuildConfig } from '@rsbuild/core';
+import type { ModifyBundlerChainFn, RsbuildConfig } from '@rsbuild/core';
 import type { AppNormalizedConfig } from '../../types';
 import type { AppToolsContext } from '../../types/plugin';
 
@@ -172,11 +172,85 @@ function isCloudflareWorkerDeploy(normalizedConfig: AppNormalizedConfig) {
   );
 }
 
+function getConsumingReactRuntimeAliases(appContext: AppToolsContext) {
+  const resolvePaths = [appContext.appDirectory, process.cwd()];
+
+  return {
+    react$: resolvePackageFile('react', 'index.js', resolvePaths),
+    'react/jsx-runtime$': resolvePackageFile(
+      'react',
+      'jsx-runtime.js',
+      resolvePaths,
+    ),
+    'react/jsx-dev-runtime$': resolvePackageFile(
+      'react',
+      'jsx-dev-runtime.js',
+      resolvePaths,
+    ),
+    'react/compiler-runtime$': resolvePackageFile(
+      'react',
+      'compiler-runtime.js',
+      resolvePaths,
+    ),
+  };
+}
+
+function setResolvedAliases(
+  alias: { set: (name: string, value: string) => unknown },
+  aliases: Record<string, string | undefined>,
+) {
+  for (const [name, value] of Object.entries(aliases)) {
+    setAliasIfPresent(alias, name, value);
+  }
+}
+
+function appendBundlerChain(
+  config: Omit<AppNormalizedConfig, 'plugins'>,
+  handler: ModifyBundlerChainFn,
+) {
+  const bundlerChain = config.tools?.bundlerChain;
+
+  config.tools = {
+    ...config.tools,
+    bundlerChain: bundlerChain
+      ? Array.isArray(bundlerChain)
+        ? [...bundlerChain, handler]
+        : [bundlerChain, handler]
+      : handler,
+  };
+}
+
+function applySourceBuildReactRuntimeAliases(
+  normalizedConfig: AppNormalizedConfig,
+  appContext: AppToolsContext,
+  tempBuilderConfig: Omit<AppNormalizedConfig, 'plugins'>,
+) {
+  if (!normalizedConfig.experiments?.sourceBuild) {
+    return;
+  }
+
+  const aliases = getConsumingReactRuntimeAliases(appContext);
+
+  if (!Object.values(aliases).some(Boolean)) {
+    return;
+  }
+
+  appendBundlerChain(tempBuilderConfig, chain => {
+    setResolvedAliases(chain.resolve.alias, aliases);
+  });
+}
+
 export function getBuilderEnvironments(
   normalizedConfig: AppNormalizedConfig,
   appContext: AppToolsContext,
   tempBuilderConfig: Omit<AppNormalizedConfig, 'plugins'>,
 ) {
+  applySourceBuildReactRuntimeAliases(
+    normalizedConfig,
+    appContext,
+    tempBuilderConfig,
+  );
+
   // create entries
   type Entries = Record<string, string[]>;
   const entries: Entries = {};

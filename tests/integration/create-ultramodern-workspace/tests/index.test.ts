@@ -193,6 +193,14 @@ function expectPnpm11Policy(workspaceDir: string) {
     '@typescript/native-preview',
     '@typescript/native-preview-*',
     '@types/react',
+    '@rsbuild/core',
+    '@rsbuild/plugin-react',
+    '@rsbuild/plugin-type-check',
+    '@rspack/binding',
+    '@rspack/binding-*',
+    '@rspack/core',
+    '@rspack/plugin-react-refresh',
+    'ts-checker-rspack-plugin',
   ]);
   expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
     allowedVersions: {
