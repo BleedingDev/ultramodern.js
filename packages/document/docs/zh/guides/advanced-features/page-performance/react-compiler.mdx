@@ -8,14 +8,16 @@ React Compiler 是 React 19 引入的一个实验性编译器，它可以自动�
 
 ### React 19
 
-Modern.js 使用 Rsbuild 的 Rust 版 React Compiler 集成。你可以在 Modern.js 配置中启用它：
+Modern.js 默认通过 `builtin:swc-loader` 启用 Rsbuild 的 Rust 版 React Compiler 集成。
+
+如果需要关闭，可以将 `source.reactCompiler` 设置为 `false`：
 
 ```ts title="modern.config.ts"
 import { appTools, defineConfig } from '@modern-js/app-tools';
 
 export default defineConfig({
   source: {
-    reactCompiler: true,
+    reactCompiler: false,
   },
   plugins: [appTools()],
 });

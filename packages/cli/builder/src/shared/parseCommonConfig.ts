@@ -285,13 +285,9 @@ export async function parseCommonConfig(
   }
 
   rsbuildPlugins.push(
-    pluginReact(
-      reactCompiler === undefined
-        ? undefined
-        : {
-            reactCompiler,
-          },
-    ),
+    pluginReact({
+      reactCompiler: reactCompiler ?? true,
+    }),
   );
 
   if (!disableSvgr) {

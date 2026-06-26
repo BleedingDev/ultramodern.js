@@ -168,6 +168,24 @@ describe('builder rspack', () => {
     expect(bundlerConfigs[0].experiments.sourceImport).toBe(false);
   });
 
+  it('should enable React Compiler in builtin SWC by default', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {},
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(
+      collectSwcLoaderOptions(bundlerConfigs[0]).some(
+        options => options?.jsc?.transform?.reactCompiler === true,
+      ),
+    ).toBe(true);
+  });
+
   it('should forward React Compiler options to builtin SWC', async () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
@@ -188,6 +206,28 @@ describe('builder rspack', () => {
     expect(
       collectSwcLoaderOptions(bundlerConfigs[0]).some(
         options => options?.jsc?.transform?.reactCompiler?.target === '18',
+      ),
+    ).toBe(true);
+  });
+
+  it('should disable React Compiler in builtin SWC when configured', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        source: {
+          reactCompiler: false,
+        },
+      },
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(
+      collectSwcLoaderOptions(bundlerConfigs[0]).some(
+        options => options?.jsc?.transform?.reactCompiler === false,
       ),
     ).toBe(true);
   });

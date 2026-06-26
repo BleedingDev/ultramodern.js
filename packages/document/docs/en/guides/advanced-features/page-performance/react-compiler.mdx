@@ -8,14 +8,16 @@ Before starting to use the React Compiler, it is recommended to read the [React 
 
 ### React 19
 
-Modern.js uses Rsbuild's Rust-backed React Compiler integration. Enable it in the Modern.js configuration:
+Modern.js enables Rsbuild's Rust-backed React Compiler integration by default through `builtin:swc-loader`.
+
+To disable it, set `source.reactCompiler` to `false`:
 
 ```ts title="modern.config.ts"
 import { appTools, defineConfig } from '@modern-js/app-tools';
 
 export default defineConfig({
   source: {
-    reactCompiler: true,
+    reactCompiler: false,
   },
   plugins: [appTools()],
 });
