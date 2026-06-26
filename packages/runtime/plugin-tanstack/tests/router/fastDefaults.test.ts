@@ -4,12 +4,12 @@ import {
 } from '../../src/runtime/types';
 
 describe('tanstack router fast defaults', () => {
-  test('keeps structural sharing opt-in by default', () => {
+  test('enables structural sharing by default', () => {
     expect(modernTanstackRouterFastDefaults).toEqual({
-      defaultStructuralSharing: false,
+      defaultStructuralSharing: true,
     });
     expect(getModernTanstackRouterFastDefaults()).toEqual({
-      defaultStructuralSharing: false,
+      defaultStructuralSharing: true,
     });
   });
 

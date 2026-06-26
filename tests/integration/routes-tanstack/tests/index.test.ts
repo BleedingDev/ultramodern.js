@@ -53,6 +53,9 @@ describe('routes-tanstack', () => {
         errors.push(msg.text());
       }
     });
+    page.on('pageerror', error => {
+      errors.push((error as Error).message);
+    });
   });
 
   afterAll(async () => {
@@ -113,6 +116,9 @@ describe('routes-tanstack', () => {
       if (msg.type() === 'error') {
         prefetchErrors.push(msg.text());
       }
+    });
+    prefetchPage.on('pageerror', error => {
+      prefetchErrors.push((error as Error).message);
     });
 
     let requestedUserChunk = false;

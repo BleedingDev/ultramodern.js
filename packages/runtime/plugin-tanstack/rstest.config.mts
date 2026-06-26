@@ -29,6 +29,7 @@ export default {
         'tests/router/loaderBridge.test.ts',
         'tests/router/packageSurface.test.ts',
         'tests/router/register.test.ts',
+        'tests/router/routeHooks.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/tanstackTypes.test.ts',
         'tests/router/routeTree.test.ts',

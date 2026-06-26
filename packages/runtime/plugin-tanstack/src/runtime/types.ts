@@ -37,7 +37,7 @@ export type RouterConfig = {
 };
 
 export const modernTanstackRouterFastDefaults = {
-  defaultStructuralSharing: false,
+  defaultStructuralSharing: true,
 } as const;
 
 export const getModernTanstackRouterFastDefaults = (

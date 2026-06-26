@@ -15,7 +15,6 @@ import {
   createRouter,
   RouterProvider,
   useLocation,
-  useMatches,
   useNavigate,
   useRouter,
 } from '@tanstack/react-router';
@@ -35,6 +34,7 @@ import {
   type TanstackRouterRuntimePlugin,
 } from './pluginCore';
 import { Link } from './prefetchLink';
+import { useMatches } from './routeHooks';
 import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
 import {

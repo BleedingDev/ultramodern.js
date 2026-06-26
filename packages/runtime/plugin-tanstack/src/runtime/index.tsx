@@ -31,6 +31,13 @@ export type {
   PrefetchBehavior,
 } from './prefetchLink';
 export { Link, NavLink } from './prefetchLink';
+export {
+  useChildMatches,
+  useMatch,
+  useMatches,
+  useParentMatches,
+  useRouterState,
+} from './routeHooks';
 export type { TanstackRouterState } from './state';
 export { getTanstackRouterState } from './state';
 export type { RouterConfig } from './types';
