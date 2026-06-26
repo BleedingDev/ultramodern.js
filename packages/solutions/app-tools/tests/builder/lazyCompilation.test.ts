@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   aggregateEagerRouteComponentFiles,
-  buildSSRLazyCompilationTest,
+  buildRouteEagerLazyCompilationTest,
   collectRouteComponentFiles,
   normalizeModulePath,
-  planSSRLazyCompilation,
+  planRouteEagerLazyCompilation,
 } from '../../src/builder/shared/lazyCompilation';
 
 describe('normalizeModulePath', () => {
@@ -43,44 +43,47 @@ describe('normalizeModulePath', () => {
   });
 });
 
-describe('buildSSRLazyCompilationTest', () => {
+describe('buildRouteEagerLazyCompilationTest', () => {
   const routeFile = normalizeModulePath('/app/src/routes/about/page.tsx');
   const eagerRouteFiles = new Set([routeFile]);
 
   it('forces route component modules eager (false)', () => {
-    const test = buildSSRLazyCompilationTest(eagerRouteFiles);
+    const test = buildRouteEagerLazyCompilationTest(eagerRouteFiles);
     expect(test({ resource: '/app/src/routes/about/page.tsx' })).toBe(false);
   });
 
   it('lazy (true) for non-route modules without a user test', () => {
-    const test = buildSSRLazyCompilationTest(eagerRouteFiles);
+    const test = buildRouteEagerLazyCompilationTest(eagerRouteFiles);
     expect(test({ resource: '/app/src/components/Heavy.tsx' })).toBe(true);
   });
 
   it('delegates non-route modules to a function user test', () => {
     const userTest = (m: { resource?: string }) =>
       !/Heavy/.test(m.resource || '');
-    const test = buildSSRLazyCompilationTest(eagerRouteFiles, userTest);
+    const test = buildRouteEagerLazyCompilationTest(eagerRouteFiles, userTest);
     expect(test({ resource: '/app/src/components/Heavy.tsx' })).toBe(false);
     expect(test({ resource: '/app/src/components/Light.tsx' })).toBe(true);
   });
 
   it('supports a RegExp user test', () => {
-    const test = buildSSRLazyCompilationTest(eagerRouteFiles, /Heavy/);
+    const test = buildRouteEagerLazyCompilationTest(eagerRouteFiles, /Heavy/);
     expect(test({ resource: '/app/src/components/Heavy.tsx' })).toBe(true);
     expect(test({ resource: '/app/src/components/Light.tsx' })).toBe(false);
     expect(test({ resource: '/app/src/routes/about/page.tsx' })).toBe(false);
   });
 
   it('keeps route eager even when user test always returns true', () => {
-    const test = buildSSRLazyCompilationTest(eagerRouteFiles, () => true);
+    const test = buildRouteEagerLazyCompilationTest(
+      eagerRouteFiles,
+      () => true,
+    );
     expect(test({ resource: '/app/src/routes/about/page.tsx' })).toBe(false);
   });
 
   it('falls back to user test / true for empty resource', () => {
-    expect(buildSSRLazyCompilationTest(eagerRouteFiles)({})).toBe(true);
+    expect(buildRouteEagerLazyCompilationTest(eagerRouteFiles)({})).toBe(true);
     expect(
-      buildSSRLazyCompilationTest(
+      buildRouteEagerLazyCompilationTest(
         eagerRouteFiles,
         () => false,
       )({ resource: '' }),
@@ -232,12 +235,12 @@ describe('route component collection uses FINAL routes (timing)', () => {
   });
 });
 
-describe('planSSRLazyCompilation', () => {
+describe('planRouteEagerLazyCompilation', () => {
   const fileA = normalizeModulePath('/app/src/routes/a/page.tsx');
   const lazyOn = { imports: true, entries: false };
 
   it('does not apply when lazy is not enabled', () => {
-    const plan = planSSRLazyCompilation(undefined, {
+    const plan = planRouteEagerLazyCompilation(undefined, {
       files: new Set([fileA]),
       unresolvedByEntry: new Map(),
     });
@@ -245,7 +248,7 @@ describe('planSSRLazyCompilation', () => {
   });
 
   it('skips (with unresolvedByEntry) when ANY route component is unresolved — even if no files resolved', () => {
-    const plan = planSSRLazyCompilation(lazyOn, {
+    const plan = planRouteEagerLazyCompilation(lazyOn, {
       files: new Set(),
       unresolvedByEntry: new Map([['main', ['pkg/X']]]),
     });
@@ -256,7 +259,7 @@ describe('planSSRLazyCompilation', () => {
   });
 
   it('skips when unresolved exists alongside resolved files (unresolved wins)', () => {
-    const plan = planSSRLazyCompilation(lazyOn, {
+    const plan = planRouteEagerLazyCompilation(lazyOn, {
       files: new Set([fileA]),
       unresolvedByEntry: new Map([['admin', ['other-alias/Y']]]),
     });
@@ -265,7 +268,7 @@ describe('planSSRLazyCompilation', () => {
   });
 
   it('does not apply when there are no route components at all', () => {
-    const plan = planSSRLazyCompilation(lazyOn, {
+    const plan = planRouteEagerLazyCompilation(lazyOn, {
       files: new Set(),
       unresolvedByEntry: new Map(),
     });
@@ -273,7 +276,7 @@ describe('planSSRLazyCompilation', () => {
   });
 
   it('applies a route-eager test when all route components resolved', () => {
-    const plan = planSSRLazyCompilation(lazyOn, {
+    const plan = planRouteEagerLazyCompilation(lazyOn, {
       files: new Set([fileA]),
       unresolvedByEntry: new Map(),
     });

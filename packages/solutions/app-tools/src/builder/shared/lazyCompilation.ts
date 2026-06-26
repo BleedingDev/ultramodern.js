@@ -9,9 +9,9 @@ import {
 // `@modern-js/utils` so the route generator in `@modern-js/runtime`
 // plugin-runtime can collect route files WITHOUT a runtime value-import of
 // `@modern-js/app-tools` (app-tools is only a devDependency there). This module
-// keeps the MATCHING/PLANNING side, which is consumed by the SSR builder plugin
-// (adapterSSR). Both sides share `normalizeModulePath` from utils so the
-// normalization stays identical.
+// keeps the MATCHING/PLANNING side, which is consumed by builder plugins. Both
+// sides share `normalizeModulePath` from utils so the normalization stays
+// identical.
 //
 // Re-export the collection helpers (which live in utils) so the SSR builder
 // plugin's matching side and app-tools' own unit tests have one import surface.
@@ -37,8 +37,8 @@ export type EagerRouteComponentInfo = {
  * Aggregate the per-entry route component data (collected by the router plugin
  * during route generation and threaded in as
  * `BuilderOptions.eagerRouteComponentFilesByEntry`) into the flat shape
- * {@link planSSRLazyCompilation} expects: one Set of all route files plus the
- * unresolved specifiers keyed by entry.
+ * {@link planRouteEagerLazyCompilation} expects: one Set of all route files
+ * plus the unresolved specifiers keyed by entry.
  */
 export function aggregateEagerRouteComponentFiles(
   byEntry: EagerRouteComponentFilesByEntry | undefined,
@@ -64,7 +64,7 @@ export function aggregateEagerRouteComponentFiles(
  * render time), while delegating all other modules to the user's `test`
  * (defaulting to lazy when the user did not provide one).
  */
-export function buildSSRLazyCompilationTest(
+export function buildRouteEagerLazyCompilationTest(
   eagerRouteFiles: Set<string>,
   userTest?: LazyCompilationTest,
 ): LazyCompilationTestFn {
@@ -89,18 +89,20 @@ export function buildSSRLazyCompilationTest(
   };
 }
 
+export const buildSSRLazyCompilationTest = buildRouteEagerLazyCompilationTest;
+
 export type SSRLazyPlan =
   | { apply: false; unresolvedByEntry?: Map<string, string[]> }
   | { apply: true; lazyCompilation: Record<string, unknown> };
 
 /**
- * Decide whether to apply the route-eager lazy compilation for an SSR project.
+ * Decide whether to apply route-eager lazy compilation for a project.
  * Checks unresolved route components FIRST: if any exist we cannot guarantee
  * they are eager, so we skip the optimization (and surface them so the caller
  * can warn) rather than silently leaving a route lazy. `current` is the
  * existing `dev.lazyCompilation` value (lazy must be enabled for this to apply).
  */
-export function planSSRLazyCompilation(
+export function planRouteEagerLazyCompilation(
   current: unknown,
   info: EagerRouteComponentInfo,
 ): SSRLazyPlan {
@@ -119,7 +121,9 @@ export function planSSRLazyCompilation(
     apply: true,
     lazyCompilation: {
       ...base,
-      test: buildSSRLazyCompilationTest(info.files, userTest),
+      test: buildRouteEagerLazyCompilationTest(info.files, userTest),
     },
   };
 }
+
+export const planSSRLazyCompilation = planRouteEagerLazyCompilation;

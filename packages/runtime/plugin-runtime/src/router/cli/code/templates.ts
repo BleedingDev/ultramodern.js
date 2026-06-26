@@ -28,12 +28,7 @@ import {
   APP_INIT_EXPORTED,
   TEMP_LOADERS_DIR,
 } from '../constants';
-import {
-  getPathWithoutExt,
-  getServerLoadersFile,
-  parseModule,
-  replaceWithAlias,
-} from './utils';
+import { getPathWithoutExt, parseModule, replaceWithAlias } from './utils';
 
 export const routesForServer = ({
   routesForServerLoaderMatches,
@@ -559,7 +554,7 @@ export function ssrLoaderCombinedModule(
   appContext: AppToolsContext,
 ) {
   const { entryName, isMainEntry } = entrypoint;
-  const { packageName, internalDirectory } = appContext;
+  const { packageName } = appContext;
 
   const ssr = getEntryOptions(
     entryName,
@@ -574,14 +569,11 @@ export function ssrLoaderCombinedModule(
     const serverLoaderRuntime = require.resolve(
       '@modern-js/plugin-data-loader/runtime',
     );
-    const serverLoadersFile = getServerLoadersFile(
-      internalDirectory,
-      entryName,
-    );
+    const serverLoadersFile = './route-server-loaders.js';
 
     const combinedModule = `export * from "${slash(
       serverLoaderRuntime,
-    )}"; export * from "${slash(serverLoadersFile)}"`;
+    )}"; export * from "${serverLoadersFile}"`;
 
     if (!config.source.enableAsyncEntry) {
       return combinedModule;
@@ -591,7 +583,7 @@ export function ssrLoaderCombinedModule(
     async function loadModules() {
       const [moduleA, moduleB] = await Promise.all([
         import("${slash(serverLoaderRuntime)}"),
-        import("${slash(serverLoadersFile)}")
+        import("${serverLoadersFile}")
       ]);
 
       return {

@@ -4,6 +4,7 @@ import * as utils from '@modern-js/utils' with { rstest: 'importActual' };
 import {
   fileSystemRoutes,
   routesForServer,
+  ssrLoaderCombinedModule,
 } from '../../src/router/cli/code/templates';
 
 rstest.mock('@modern-js/utils', () => {
@@ -207,5 +208,52 @@ describe('routesForServer', () => {
       routesForServerLoaderMatches,
     });
     expect(code).toMatchSnapshot();
+  });
+});
+
+describe('ssrLoaderCombinedModule', () => {
+  const entrypoints = [
+    {
+      entryName: 'main',
+      isMainEntry: true,
+      nestedRoutesEntry: '/app/src/routes',
+    },
+  ];
+  const entrypoint = entrypoints[0];
+  const appContext = {
+    packageName: 'test-app',
+    internalDirectory: '/tmp/modern-app/.modern-js',
+  };
+
+  test('imports route server loaders as a sibling module', () => {
+    const code = ssrLoaderCombinedModule(
+      entrypoints as any,
+      entrypoint as any,
+      {
+        server: { ssr: true, ssrByEntries: {} },
+        output: {},
+        source: { enableAsyncEntry: false },
+      } as any,
+      appContext as any,
+    );
+
+    expect(code).toContain('export * from "./route-server-loaders.js"');
+    expect(code).not.toContain('/tmp/modern-app/.modern-js');
+  });
+
+  test('imports async route server loaders as a sibling module', () => {
+    const code = ssrLoaderCombinedModule(
+      entrypoints as any,
+      entrypoint as any,
+      {
+        server: { ssr: true, ssrByEntries: {} },
+        output: {},
+        source: { enableAsyncEntry: true },
+      } as any,
+      appContext as any,
+    );
+
+    expect(code).toContain('import("./route-server-loaders.js")');
+    expect(code).not.toContain('/tmp/modern-app/.modern-js');
   });
 });
