@@ -511,8 +511,8 @@ async function expectPortfolioErpContracts(port: number) {
   expect(afterInvalid.approvals).toEqual(before.approvals);
   expect(afterInvalid.chat).toEqual(before.chat);
 
-  const decisions = await Promise.all([
-    postJson(
+  const decisions = [
+    await postJson(
       port,
       '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1001/decision',
       {
@@ -520,7 +520,7 @@ async function expectPortfolioErpContracts(port: number) {
         actor: 'finance.lead',
       },
     ),
-    postJson(
+    await postJson(
       port,
       '/bff-api/effect/apps/enterprise-mega-erp/erp/approval/ap-1002/decision',
       {
@@ -528,7 +528,7 @@ async function expectPortfolioErpContracts(port: number) {
         actor: 'ops.manager',
       },
     ),
-  ]);
+  ];
   expect(decisions.map(response => response.status)).toEqual([200, 200]);
   const decisionPayloads = await Promise.all(
     decisions.map(response => response.json()),
