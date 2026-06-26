@@ -371,6 +371,11 @@ function createTsBuildInfoFile(packageDir: string): string {
   return `${relativeRootFor(packageDir)}/node_modules/.cache/tsgo/${cacheKey}.tsbuildinfo`;
 }
 
+function createTsDeclarationOutDir(packageDir: string): string {
+  const cacheKey = packageDir.replace(/[^a-zA-Z0-9._-]+/gu, '__');
+  return `${relativeRootFor(packageDir)}/node_modules/.cache/tsgo/declarations/${cacheKey}`;
+}
+
 function createReferences(
   packageDir: string,
   references: string[],
@@ -396,8 +401,10 @@ export function createPackageTsConfig(
     typeof options === 'boolean' ? { includeApi: options } : options;
   const include = resolvedOptions.include ?? [
     'src',
+    'locales/**/*.json',
     'modern.config.ts',
     'module-federation.config.ts',
+    'package.json',
   ];
   if (resolvedOptions.includeApi) {
     include.push('api', 'shared');
@@ -410,7 +417,12 @@ export function createPackageTsConfig(
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
     compilerOptions: {
       composite: true,
+      declaration: true,
+      declarationMap: false,
+      emitDeclarationOnly: true,
       incremental: true,
+      noEmit: false,
+      outDir: createTsDeclarationOutDir(packageDir),
       tsBuildInfoFile: createTsBuildInfoFile(packageDir),
     },
     include,

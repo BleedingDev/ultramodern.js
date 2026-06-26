@@ -6,7 +6,51 @@ import {
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
 
-export const catalogMarkerSchema = Schema.Struct({
+export interface CatalogMarker {
+  readonly appId: string;
+  readonly build: string;
+  readonly deployProfile: string;
+  readonly packageName: string;
+  readonly surface: string;
+  readonly version: string;
+}
+
+export interface CatalogItem {
+  readonly id: string;
+  readonly marker: CatalogMarker;
+  readonly title: string;
+}
+
+export interface CatalogReadiness {
+  readonly checks: {
+    readonly effectBff: 'ready';
+    readonly moduleFederation: 'ready';
+    readonly ssr: 'ready';
+    readonly translations: 'ready';
+  };
+  readonly marker: CatalogMarker;
+  readonly status: 'ready';
+  readonly versionSkew: 'none';
+}
+
+export interface CatalogCreatePayload {
+  readonly title: string;
+}
+
+export interface CatalogListResponse {
+  readonly items: ReadonlyArray<CatalogItem>;
+}
+
+export interface CatalogCreateResponse {
+  readonly item: CatalogItem;
+}
+
+export interface CatalogNotFound {
+  readonly _tag: 'CatalogNotFound';
+  readonly id: string;
+}
+
+export const catalogMarkerSchema: Schema.Schema<CatalogMarker> = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
   deployProfile: Schema.String,
@@ -15,13 +59,13 @@ export const catalogMarkerSchema = Schema.Struct({
   version: Schema.String,
 });
 
-export const catalogItemSchema = Schema.Struct({
+export const catalogItemSchema: Schema.Schema<CatalogItem> = Schema.Struct({
   id: Schema.String,
   marker: catalogMarkerSchema,
   title: Schema.String,
 });
 
-export const catalogReadinessSchema = Schema.Struct({
+export const catalogReadinessSchema: Schema.Schema<CatalogReadiness> = Schema.Struct({
   checks: Schema.Struct({
     effectBff: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
@@ -33,18 +77,13 @@ export const catalogReadinessSchema = Schema.Struct({
   versionSkew: Schema.Literal('none'),
 });
 
-export const catalogCreatePayloadSchema = Schema.Struct({
+export const catalogCreatePayloadSchema: Schema.Schema<CatalogCreatePayload> = Schema.Struct({
   title: Schema.String,
 });
 
-export class CatalogNotFound extends Schema.TaggedErrorClass<CatalogNotFound>()(
-  'CatalogNotFound',
-  {
-    id: Schema.String,
-  },
-) {}
-
-export const catalogNotFoundSchema = CatalogNotFound.pipe(
+export const catalogNotFoundSchema: Schema.Schema<CatalogNotFound> = Schema.TaggedStruct('CatalogNotFound', {
+  id: Schema.String,
+}).pipe(
   HttpApiSchema.status(404),
 );
 

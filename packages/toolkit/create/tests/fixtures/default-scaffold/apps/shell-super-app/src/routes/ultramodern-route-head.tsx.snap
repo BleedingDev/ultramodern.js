@@ -143,9 +143,9 @@ export const UltramodernRouteHead = () => {
           <meta content="summary_large_image" name="twitter:card" />
           <meta content={title} name="twitter:title" />
           <meta content={description} name="twitter:description" />
-          {jsonLd !== undefined ? (
+          {jsonLd === undefined ? null : (
             <script type="application/ld+json">{sanitiseJsonLd(jsonLd)}</script>
-          ) : null}
+          )}
         </>
       )}
     </Helmet>

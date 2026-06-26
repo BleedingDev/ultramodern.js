@@ -32,6 +32,7 @@ import {
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
+export * as HttpClientError from 'effect/unstable/http/HttpClientError';
 export {
   HttpApi,
   HttpApiClient,
@@ -209,7 +210,14 @@ function getRpcSerializationLayer(
 export function makeEffectHttpApiClient<
   ApiId extends string,
   Groups extends HttpApiGroup.Any,
->(api: HttpApi.HttpApi<ApiId, Groups>, options?: EffectHttpApiClientOptions) {
+>(
+  api: HttpApi.HttpApi<ApiId, Groups>,
+  options?: EffectHttpApiClientOptions,
+): Effect.Effect<
+  HttpApiClient.Client<Groups>,
+  never,
+  HttpApiGroup.MiddlewareClient<Groups>
+> {
   const requestContextHeaders = createRequestContextHeaders(
     options?.requestContext,
   );

@@ -55,6 +55,38 @@ const catalogVerticalSnapshots = [
 const readTextSnapshot = (filePath: string) =>
   fs.readFileSync(filePath, 'utf-8').replaceAll('\r\n', '\n');
 
+const readJson = (filePath: string) =>
+  JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
+
+function assertProjectReferenceEmitConfig(
+  workspaceDir: string,
+  packagePath: string,
+) {
+  const tsconfig = readJson(
+    path.join(workspaceDir, packagePath, 'tsconfig.json'),
+  );
+  const compilerOptions = tsconfig.compilerOptions as Record<string, unknown>;
+  const relativeRoot = path
+    .relative(packagePath, '.')
+    .split(path.sep)
+    .join('/');
+  const cacheKey = packagePath.replace(/[^a-zA-Z0-9._-]+/gu, '__');
+
+  assert.equal(compilerOptions.composite, true);
+  assert.equal(compilerOptions.declaration, true);
+  assert.equal(compilerOptions.declarationMap, false);
+  assert.equal(compilerOptions.emitDeclarationOnly, true);
+  assert.equal(compilerOptions.noEmit, false);
+  assert.equal(
+    compilerOptions.outDir,
+    `${relativeRoot}/node_modules/.cache/tsgo/declarations/${cacheKey}`,
+  );
+  assert.equal(
+    compilerOptions.tsBuildInfoFile,
+    `${relativeRoot}/node_modules/.cache/tsgo/${cacheKey}.tsbuildinfo`,
+  );
+}
+
 function assertContentSnapshot(
   workspaceDir: string,
   fixtureGroup: string,
@@ -103,10 +135,22 @@ test('rendered contents of the highest-risk generated files match the checked-in
       path.join(workspaceDir, 'apps/shell-super-app/modern.config.ts'),
       'utf-8',
     );
+    const shellModuleFederationConfig = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/module-federation.config.ts',
+      ),
+      'utf-8',
+    );
     assert.match(
       shellModernConfig,
       /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
       'generated UltraModern apps with reactI18next=false must alias public runtime imports to the no-adapter entry',
+    );
+    assert.match(
+      shellModuleFederationConfig,
+      /'@modern-js\/plugin-i18n\/runtime': \{\s*requiredVersion: pluginI18nVersion,[\s\S]*?'@modern-js\/plugin-i18n\/runtime\/no-react-i18next': \{/,
+      'generated Module Federation shared config must keep plugin-i18n runtime keys sorted for oxlint',
     );
     assert.match(
       shellRouteHead,
@@ -115,13 +159,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellRouteHead,
-      /jsonLd !== undefined \?/,
-      'generated route head must render JSON-LD only after an explicit undefined check',
+      /jsonLd === undefined \? null :/,
+      'generated route head must render JSON-LD only after an explicit non-negated undefined check',
     );
     assert.doesNotMatch(
       shellRouteHead,
-      /route \? t\(|jsonLd &&|route\?\.public === true|route\?\.indexable === true/,
-      'generated route head must avoid optional-object truthiness and literal route metadata comparisons',
+      /route \? t\(|jsonLd &&|jsonLd !== undefined|route\?\.public === true|route\?\.indexable === true/,
+      'generated route head must avoid optional-object truthiness, negated JSON-LD checks, and literal route metadata comparisons',
     );
     assert.doesNotMatch(
       shellRouteHead,
@@ -140,6 +184,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /jsonLd/u,
       'default private route metadata must not emit JSON-LD',
     );
+    for (const packagePath of [
+      'apps/shell-super-app',
+      'packages/shared-contracts',
+      'packages/shared-design-tokens',
+    ] as const) {
+      assertProjectReferenceEmitConfig(workspaceDir, packagePath);
+    }
     const shellJsonLdHelpers = fs.readFileSync(
       path.join(
         workspaceDir,
@@ -247,6 +298,54 @@ test('rendered contents of the highest-risk generated files match the checked-in
         `generated client must forward options.${contextOption} into requestContext`,
       );
     }
+    assert.match(
+      generatedClient,
+      /import type \{[\s\S]*\bHttpClientError\b[\s\S]*\bSchema\b[\s\S]*\} from '@modern-js\/plugin-bff\/effect-client';/,
+      'generated client must name public plugin-bff error types instead of leaking inferred Effect internals',
+    );
+    assert.match(
+      generatedClient,
+      /export type CatalogClientError =\s*\|\s*CatalogNotFound\s*\|\s*HttpClientError\.HttpClientError\s*\|\s*Schema\.SchemaError;/,
+      'generated client must expose a stable client error union for declaration emit',
+    );
+    assert.match(
+      generatedClient,
+      /: CatalogClientEffect<CatalogClient> =>/,
+      'generated client factory must have an explicit portable return type',
+    );
+    const generatedSharedApi = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
+      'utf-8',
+    );
+    assert.match(
+      generatedSharedApi,
+      /export interface CatalogNotFound \{/,
+      'generated shared API must expose a portable structural not-found error type',
+    );
+    assert.match(
+      generatedSharedApi,
+      /Schema\.TaggedStruct\('CatalogNotFound'/,
+      'generated shared API must build not-found schemas without class inheritance',
+    );
+    assert.doesNotMatch(
+      generatedSharedApi,
+      /TaggedErrorClass/,
+      'generated shared API must not emit Effect TaggedErrorClass placeholders',
+    );
+    const generatedEffectEntry = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/api/effect/index.ts'),
+      'utf-8',
+    );
+    assert.match(
+      generatedEffectEntry,
+      /const effectBff: EffectBffDefinition<typeof catalogEffectApi, EffectRuntimeLayer> &\s*EffectBffRuntime<typeof catalogEffectApi, EffectRuntimeLayer>/,
+      'generated Effect entry must name its default export type for declaration emit',
+    );
+    assert.doesNotMatch(
+      generatedEffectEntry,
+      /new CatalogNotFound/,
+      'generated Effect entry must fail with structural errors rather than generated error classes',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

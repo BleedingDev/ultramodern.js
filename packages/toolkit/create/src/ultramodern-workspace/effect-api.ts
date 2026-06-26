@@ -93,27 +93,51 @@ function createCheckoutCartSharedSchemas(service: {
   }
 
   return `
-export const checkoutCartLineSchema = Schema.Struct({
+export interface CheckoutCartLine {
+  readonly sku: string;
+  readonly name: string;
+  readonly quantity: number;
+  readonly unitPriceCents: number;
+}
+
+export interface CheckoutCart {
+  readonly lines: ReadonlyArray<CheckoutCartLine>;
+  readonly subtotalCents: number;
+  readonly totalQuantity: number;
+}
+
+export interface CheckoutAddCartItemPayload {
+  readonly sku: string;
+  readonly name?: string;
+  readonly quantity: number;
+  readonly unitPriceCents?: number;
+}
+
+export interface CheckoutRemoveCartItemPayload {
+  readonly sku: string;
+}
+
+export const checkoutCartLineSchema: Schema.Schema<CheckoutCartLine> = Schema.Struct({
   sku: Schema.String,
   name: Schema.String,
   quantity: Schema.Finite,
   unitPriceCents: Schema.Finite,
 });
 
-export const checkoutCartSchema = Schema.Struct({
+export const checkoutCartSchema: Schema.Schema<CheckoutCart> = Schema.Struct({
   lines: Schema.Array(checkoutCartLineSchema),
   subtotalCents: Schema.Finite,
   totalQuantity: Schema.Finite,
 });
 
-export const checkoutAddCartItemPayloadSchema = Schema.Struct({
+export const checkoutAddCartItemPayloadSchema: Schema.Schema<CheckoutAddCartItemPayload> = Schema.Struct({
   sku: Schema.String,
   name: Schema.optional(Schema.String),
   quantity: Schema.Finite,
   unitPriceCents: Schema.optional(Schema.Finite),
 });
 
-export const checkoutRemoveCartItemPayloadSchema = Schema.Struct({
+export const checkoutRemoveCartItemPayloadSchema: Schema.Schema<CheckoutRemoveCartItemPayload> = Schema.Struct({
   sku: Schema.String,
 });
 `;
@@ -310,6 +334,7 @@ function createCheckoutCartClientExports(service: {
   const pascalStem = toPascalCase(stem);
   const clientOptionsName = `${pascalStem}ClientOptions`;
   const createClientName = `create${pascalStem}Client`;
+  const clientEffectTypeName = `${pascalStem}ClientEffect`;
 
   return `
 export interface CheckoutCartLine {
@@ -334,7 +359,7 @@ export interface CheckoutAddCartItemInput {
 
 export const getCheckoutCart = (
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<CheckoutCart> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -346,7 +371,7 @@ export const getCheckoutCart = (
 export const addCheckoutCartItem = (
   payload: CheckoutAddCartItemInput,
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<CheckoutCart> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -360,7 +385,7 @@ export const addCheckoutCartItem = (
 export const removeCheckoutCartItem = (
   sku: string,
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<CheckoutCart> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -373,7 +398,7 @@ export const removeCheckoutCartItem = (
 
 export const clearCheckoutCart = (
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<CheckoutCart> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -410,6 +435,13 @@ export function createEffectSharedApiContract(service: {
   const apiName = verticalEffectApiName(service);
   const groupName = verticalEffectGroupName(service);
   const stem = effectApiStem(service);
+  const pascalStem = toPascalCase(stem);
+  const markerType = `${pascalStem}Marker`;
+  const itemType = `${pascalStem}Item`;
+  const readinessType = `${pascalStem}Readiness`;
+  const createPayloadType = `${pascalStem}CreatePayload`;
+  const createResponseType = `${pascalStem}CreateResponse`;
+  const listResponseType = `${pascalStem}ListResponse`;
   const apiPrefix = effectApiPrefix(service);
   const checkoutCartSharedSchemas = createCheckoutCartSharedSchemas(service);
   const checkoutCartSharedSchemaSection =
@@ -421,7 +453,51 @@ export function createEffectSharedApiContract(service: {
       ? ''
       : `${checkoutCartOperationContexts}\n`;
 
-  return `export const ${markerSchemaExport} = Schema.Struct({
+  return `export interface ${markerType} {
+  readonly appId: string;
+  readonly build: string;
+  readonly deployProfile: string;
+  readonly packageName: string;
+  readonly surface: string;
+  readonly version: string;
+}
+
+export interface ${itemType} {
+  readonly id: string;
+  readonly marker: ${markerType};
+  readonly title: string;
+}
+
+export interface ${readinessType} {
+  readonly checks: {
+    readonly effectBff: 'ready';
+    readonly moduleFederation: 'ready';
+    readonly ssr: 'ready';
+    readonly translations: 'ready';
+  };
+  readonly marker: ${markerType};
+  readonly status: 'ready';
+  readonly versionSkew: 'none';
+}
+
+export interface ${createPayloadType} {
+  readonly title: string;
+}
+
+export interface ${listResponseType} {
+  readonly items: ReadonlyArray<${itemType}>;
+}
+
+export interface ${createResponseType} {
+  readonly item: ${itemType};
+}
+
+export interface ${notFoundErrorExport} {
+  readonly _tag: '${notFoundErrorExport}';
+  readonly id: string;
+}
+
+export const ${markerSchemaExport}: Schema.Schema<${markerType}> = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
   deployProfile: Schema.String,
@@ -430,13 +506,13 @@ export function createEffectSharedApiContract(service: {
   version: Schema.String,
 });
 
-export const ${schemaExport} = Schema.Struct({
+export const ${schemaExport}: Schema.Schema<${itemType}> = Schema.Struct({
   id: Schema.String,
   marker: ${markerSchemaExport},
   title: Schema.String,
 });
 
-export const ${readinessSchemaExport} = Schema.Struct({
+export const ${readinessSchemaExport}: Schema.Schema<${readinessType}> = Schema.Struct({
   checks: Schema.Struct({
     effectBff: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
@@ -448,18 +524,13 @@ export const ${readinessSchemaExport} = Schema.Struct({
   versionSkew: Schema.Literal('none'),
 });
 
-export const ${createPayloadSchemaExport} = Schema.Struct({
+export const ${createPayloadSchemaExport}: Schema.Schema<${createPayloadType}> = Schema.Struct({
   title: Schema.String,
 });
 
-${checkoutCartSharedSchemaSection}export class ${notFoundErrorExport} extends Schema.TaggedErrorClass<${notFoundErrorExport}>()(
-  '${notFoundErrorExport}',
-  {
-    id: Schema.String,
-  },
-) {}
-
-export const ${notFoundSchemaExport} = ${notFoundErrorExport}.pipe(
+${checkoutCartSharedSchemaSection}export const ${notFoundSchemaExport}: Schema.Schema<${notFoundErrorExport}> = Schema.TaggedStruct('${notFoundErrorExport}', {
+  id: Schema.String,
+}).pipe(
   HttpApiSchema.status(404),
 );
 
@@ -572,13 +643,20 @@ export function createEffectServiceEntry(
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-edge';
+import type {
+  EffectBffDefinition,
+  EffectBffRuntime,
+  EffectRuntimeLayer,
+} from '@modern-js/plugin-bff/effect-edge';
 import { ultramodernApiMarker } from '../../src/ultramodern-build.ts';
 import {
   ${apiExport},
   ${groupName}OperationContexts,
-  ${notFoundErrorExport},
 } from '${contractImportPath}';
-import type { OperationContext } from '${contractImportPath}';
+import type {
+  ${notFoundErrorExport},
+  OperationContext,
+} from '${contractImportPath}';
 
 const ${groupName}Items = [
   {
@@ -639,9 +717,13 @@ const ${groupName}Layer = HttpApiBuilder.group(
         const matchedItem = ${groupName}Items.find(
           candidate => candidate.id === params.id,
         );
+        const notFound: ${notFoundErrorExport} = {
+          _tag: '${notFoundErrorExport}',
+          id: params.id,
+        };
         const result =
           matchedItem === undefined
-            ? Effect.fail(new ${notFoundErrorExport}({ id: params.id }))
+            ? Effect.fail(notFound)
             : Effect.succeed(matchedItem);
 
         return result.pipe(
@@ -672,12 +754,15 @@ const ${groupName}Layer = HttpApiBuilder.group(
 
 const layer = HttpApiBuilder.layer(${apiExport}).pipe(
   Layer.provide(${groupName}Layer),
-);
+) satisfies EffectRuntimeLayer;
 
-export default defineEffectBff({
+const effectBff: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
+  EffectBffRuntime<typeof ${apiExport}, EffectRuntimeLayer> = defineEffectBff({
   api: ${apiExport},
   layer,
 });
+
+export default effectBff;
 `;
 }
 
@@ -692,10 +777,18 @@ export function createEffectClient(
   const singular = verticalEffectErrorStem(service);
   const clientOptionsName = `${toPascalCase(stem)}ClientOptions`;
   const createClientName = `create${toPascalCase(stem)}Client`;
+  const clientTypeName = `${toPascalCase(stem)}Client`;
+  const clientEffectTypeName = `${toPascalCase(stem)}ClientEffect`;
   const listName = `list${toPascalCase(stem)}`;
   const readinessName = `get${toPascalCase(stem)}Readiness`;
   const getName = `get${toPascalCase(singular)}`;
   const createName = `create${toPascalCase(singular)}`;
+  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
+  const pascalStem = toPascalCase(stem);
+  const itemType = `${pascalStem}Item`;
+  const readinessType = `${pascalStem}Readiness`;
+  const createResponseType = `${pascalStem}CreateResponse`;
+  const listResponseType = `${pascalStem}ListResponse`;
   const checkoutCartClientExports = createCheckoutCartClientExports(service);
 
   return `import {
@@ -703,14 +796,52 @@ export function createEffectClient(
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
+import type {
+  HttpClientError,
+  HttpApi,
+  HttpApiClient,
+  HttpApiGroup,
+  Schema,
+} from '@modern-js/plugin-bff/effect-client';
 import {
   ${contractExport}ApiContract,
   ${apiExport},
   ${groupName}OperationContexts,
 } from '${contractImportPath}';
-import type { OperationContext } from '${contractImportPath}';
+import type {
+  ${createResponseType},
+  ${itemType},
+  ${listResponseType},
+  ${notFoundErrorExport},
+  OperationContext,
+  ${readinessType},
+} from '${contractImportPath}';
 
 export { Effect, runEffectRequest };
+
+type ${pascalStem}EffectGroups = typeof ${apiExport} extends HttpApi.HttpApi<
+  infer _ApiId,
+  infer Groups
+>
+  ? Groups
+  : never;
+
+export type ${clientTypeName} = HttpApiClient.Client<
+  Extract<${pascalStem}EffectGroups, HttpApiGroup.Any>,
+  never,
+  never
+>;
+
+export type ${pascalStem}ClientError =
+  | ${notFoundErrorExport}
+  | HttpClientError.HttpClientError
+  | Schema.SchemaError;
+
+export type ${clientEffectTypeName}<Success> = Effect.Effect<
+  Success,
+  ${pascalStem}ClientError,
+  never
+>;
 
 export interface ${clientOptionsName} {
   baseUrl?: string | URL;
@@ -721,7 +852,7 @@ export interface ${clientOptionsName} {
 
 export const ${createClientName} = (
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<${clientTypeName}> =>
   makeEffectHttpApiClient(${apiExport}, {
     baseUrl: options.baseUrl ?? ${contractExport}ApiContract.apiPrefix,
     requestContext: {
@@ -737,7 +868,7 @@ export const ${createClientName} = (
 
 export const ${listName} = (
   options: ${clientOptionsName} & { limit?: number } = {},
-) =>
+): ${clientEffectTypeName}<${listResponseType}> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -750,7 +881,7 @@ export const ${listName} = (
 
 export const ${readinessName} = (
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<${readinessType}> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -762,7 +893,7 @@ export const ${readinessName} = (
 export const ${getName} = (
   id: string,
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<${itemType}> =>
   ${createClientName}({
     ...options,
     operationContext:
@@ -774,7 +905,7 @@ export const ${getName} = (
 export const ${createName} = (
   title: string,
   options: ${clientOptionsName} = {},
-) =>
+): ${clientEffectTypeName}<${createResponseType}> =>
   ${createClientName}({
     ...options,
     operationContext:

@@ -242,12 +242,12 @@ ${bffPluginEntry}        moduleFederationPlugin(),
 
 export function createSharedModuleFederationConfig(): string {
   return `  shared: {
-    '@modern-js/plugin-i18n/runtime/no-react-i18next': {
+    '@modern-js/plugin-i18n/runtime': {
       requiredVersion: pluginI18nVersion,
       singleton: true,
       treeShaking: false,
     },
-    '@modern-js/plugin-i18n/runtime': {
+    '@modern-js/plugin-i18n/runtime/no-react-i18next': {
       requiredVersion: pluginI18nVersion,
       singleton: true,
       treeShaking: false,
@@ -400,7 +400,9 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 ${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
-export default createModuleFederationConfig({
+const moduleFederationConfig: Parameters<
+  typeof createModuleFederationConfig
+>[0] = createModuleFederationConfig({
   bridge: {
     enableBridgeRouter: false,
   },
@@ -418,6 +420,8 @@ export default createModuleFederationConfig({
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
   treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
+
+export default moduleFederationConfig;
 `;
 }
 
@@ -475,7 +479,9 @@ const reactVersion = (require('react/package.json') as { version: string }).vers
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
 ${createModuleFederationRemoteUrlHelpers(app, remotes)}
-export default createModuleFederationConfig({
+const moduleFederationConfig: Parameters<
+  typeof createModuleFederationConfig
+>[0] = createModuleFederationConfig({
   bridge: {
     enableBridgeRouter: false,
   },
@@ -494,5 +500,7 @@ export default createModuleFederationConfig({
 ${createModuleFederationRemotesConfig(scope, app, remotes)}${createSharedModuleFederationConfig()},
   treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
+
+export default moduleFederationConfig;
 `;
 }

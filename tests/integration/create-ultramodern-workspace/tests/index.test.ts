@@ -2360,14 +2360,22 @@ process.exit(1);
       extends: '../../tsconfig.base.json',
       compilerOptions: {
         composite: true,
+        declaration: true,
+        declarationMap: false,
+        emitDeclarationOnly: true,
         incremental: true,
+        noEmit: false,
+        outDir:
+          '../../node_modules/.cache/tsgo/declarations/verticals__catalog',
         tsBuildInfoFile:
           '../../node_modules/.cache/tsgo/verticals__catalog.tsbuildinfo',
       },
       include: [
         'src',
+        'locales/**/*.json',
         'modern.config.ts',
         'module-federation.config.ts',
+        'package.json',
         'api',
         'shared',
       ],

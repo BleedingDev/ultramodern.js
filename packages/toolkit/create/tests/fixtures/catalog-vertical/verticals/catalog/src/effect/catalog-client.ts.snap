@@ -3,14 +3,52 @@ import {
   makeEffectHttpApiClient,
   runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
+import type {
+  HttpClientError,
+  HttpApi,
+  HttpApiClient,
+  HttpApiGroup,
+  Schema,
+} from '@modern-js/plugin-bff/effect-client';
 import {
   catalogApiContract,
   catalogEffectApi,
   catalogOperationContexts,
 } from '../../shared/effect/api';
-import type { OperationContext } from '../../shared/effect/api';
+import type {
+  CatalogCreateResponse,
+  CatalogItem,
+  CatalogListResponse,
+  CatalogNotFound,
+  OperationContext,
+  CatalogReadiness,
+} from '../../shared/effect/api';
 
 export { Effect, runEffectRequest };
+
+type CatalogEffectGroups = typeof catalogEffectApi extends HttpApi.HttpApi<
+  infer _ApiId,
+  infer Groups
+>
+  ? Groups
+  : never;
+
+export type CatalogClient = HttpApiClient.Client<
+  Extract<CatalogEffectGroups, HttpApiGroup.Any>,
+  never,
+  never
+>;
+
+export type CatalogClientError =
+  | CatalogNotFound
+  | HttpClientError.HttpClientError
+  | Schema.SchemaError;
+
+export type CatalogClientEffect<Success> = Effect.Effect<
+  Success,
+  CatalogClientError,
+  never
+>;
 
 export interface CatalogClientOptions {
   baseUrl?: string | URL;
@@ -21,7 +59,7 @@ export interface CatalogClientOptions {
 
 export const createCatalogClient = (
   options: CatalogClientOptions = {},
-) =>
+): CatalogClientEffect<CatalogClient> =>
   makeEffectHttpApiClient(catalogEffectApi, {
     baseUrl: options.baseUrl ?? catalogApiContract.apiPrefix,
     requestContext: {
@@ -37,7 +75,7 @@ export const createCatalogClient = (
 
 export const listCatalog = (
   options: CatalogClientOptions & { limit?: number } = {},
-) =>
+): CatalogClientEffect<CatalogListResponse> =>
   createCatalogClient({
     ...options,
     operationContext:
@@ -50,7 +88,7 @@ export const listCatalog = (
 
 export const getCatalogReadiness = (
   options: CatalogClientOptions = {},
-) =>
+): CatalogClientEffect<CatalogReadiness> =>
   createCatalogClient({
     ...options,
     operationContext:
@@ -62,7 +100,7 @@ export const getCatalogReadiness = (
 export const getCatalog = (
   id: string,
   options: CatalogClientOptions = {},
-) =>
+): CatalogClientEffect<CatalogItem> =>
   createCatalogClient({
     ...options,
     operationContext:
@@ -74,7 +112,7 @@ export const getCatalog = (
 export const createCatalog = (
   title: string,
   options: CatalogClientOptions = {},
-) =>
+): CatalogClientEffect<CatalogCreateResponse> =>
   createCatalogClient({
     ...options,
     operationContext:

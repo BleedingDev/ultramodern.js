@@ -144,7 +144,7 @@ const createRemoteFallback = (specifier: string) =>
         remote: specifier,
         status: 'degraded',
       });
-    }, [classification, error, specifier, telemetry]);
+    }, [classification, error, telemetry]);
 
     return <div className="${tw('rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900')}" data-remote-error={error.name} {...toModuleFederationFallbackAttributes(telemetry)}>{t('shell.remoteUnavailable')}</div>;
   };
