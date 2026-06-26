@@ -40,8 +40,8 @@ const collectSvgrLoaders = (value: unknown): any[] => {
     if (
       'loader' in item &&
       typeof (item as { loader?: unknown }).loader === 'string' &&
-      (item as { loader: string }).loader.includes(
-        '@rsbuild/plugin-svgr/dist/loader.mjs',
+      /@rsbuild[\\/]plugin-svgr[\\/]dist[\\/]loader\.mjs/u.test(
+        (item as { loader: string }).loader,
       )
     ) {
       matches.push(item);

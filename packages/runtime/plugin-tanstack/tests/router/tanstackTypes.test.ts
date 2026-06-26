@@ -279,9 +279,14 @@ describe('tanstack router type generation', () => {
     );
 
     await expect(
-      execFileAsync('tsgo', ['--noEmit', '-p', 'tsconfig.json'], {
-        cwd: tempDir,
-      }),
+      execFileAsync(
+        process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
+        ['--noEmit', '-p', 'tsconfig.json'],
+        {
+          cwd: tempDir,
+          shell: process.platform === 'win32',
+        },
+      ),
     ).resolves.toBeDefined();
   });
 

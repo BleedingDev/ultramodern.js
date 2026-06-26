@@ -18,6 +18,8 @@ const tsgoPath = testRequire.resolve(
   '@typescript/native-preview/package.json',
   { paths: [rootPath] },
 );
+const normalizePath = (value: string | undefined) =>
+  value?.replace(/\\/gu, '/');
 
 // Mirrors how @rsbuild/plugin-type-check reduces its option chain.
 const reduceChain = (
@@ -86,7 +88,7 @@ describe('withTsgoDefaults', () => {
     );
 
     const checkerConfigPath = result.typescript?.configFile;
-    expect(checkerConfigPath).toContain('.modern-js/tsgo');
+    expect(normalizePath(checkerConfigPath)).toContain('.modern-js/tsgo');
     expect(checkerConfigPath).not.toContain('node_modules');
     expect(checkerConfigPath).not.toBe(fixtureTsconfigPath);
 
@@ -107,7 +109,7 @@ describe('withTsgoDefaults', () => {
     );
 
     const checkerConfigPath = result.typescript?.configFile;
-    expect(checkerConfigPath).toContain('.modern-js/tsgo');
+    expect(normalizePath(checkerConfigPath)).toContain('.modern-js/tsgo');
     expect(checkerConfigPath).not.toContain('node_modules');
 
     const checkerConfig = JSON.parse(

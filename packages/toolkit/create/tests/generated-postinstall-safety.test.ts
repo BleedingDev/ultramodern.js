@@ -103,6 +103,20 @@ process.exit(0);
   return { fakeBinDir, gitLog, lefthookLog };
 }
 
+function withFakeBinPath(fakeBinDir: string) {
+  const env = { ...process.env };
+  const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
+  const activePathKey = pathKey ?? 'PATH';
+  env[activePathKey] =
+    `${fakeBinDir}${path.delimiter}${env[activePathKey] ?? ''}`;
+  env.PATH = env[activePathKey];
+  if (process.platform === 'win32') {
+    env.Path = env[activePathKey];
+    env.PATHEXT = `.CMD;.EXE;.BAT;.COM;${env.PATHEXT ?? ''}`;
+  }
+  return env;
+}
+
 test('generated postinstall never clones repositories or installs system packages', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
@@ -202,10 +216,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
       tempRoot,
       { topLevel: tempRoot },
     );
-    const env = {
-      ...process.env,
-      PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
-    };
+    const env = withFakeBinPath(fakeBinDir);
     delete env.ULTRAMODERN_AGENT_SKILLS;
     delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
 
@@ -237,10 +248,7 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
       tempRoot,
       { topLevel: undefined },
     );
-    const env = {
-      ...process.env,
-      PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
-    };
+    const env = withFakeBinPath(fakeBinDir);
     delete env.ULTRAMODERN_AGENT_SKILLS;
     delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
 
