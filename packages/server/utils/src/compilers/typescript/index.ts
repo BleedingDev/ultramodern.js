@@ -326,6 +326,16 @@ export const compileByTs: CompileFunc = async (
     logger.info(result.stdout);
   }
 
+  // TS-Go can emit files before returning diagnostics. Normalize any emitted
+  // server output before preserving the existing noEmitOnError failure path.
+  await rewriteOutputSpecifiers(
+    appDirectory,
+    distDir,
+    absoluteBaseUrl,
+    paths,
+    compileOptions.moduleType,
+  );
+
   if (result.code !== 0) {
     const noEmitOnError = tsgoConfig.compilerOptions?.noEmitOnError;
     if (typeof noEmitOnError === 'undefined' || noEmitOnError === true) {
@@ -344,14 +354,6 @@ export const compileByTs: CompileFunc = async (
       }
     }
   }
-
-  await rewriteOutputSpecifiers(
-    appDirectory,
-    distDir,
-    absoluteBaseUrl,
-    paths,
-    compileOptions.moduleType,
-  );
 
   for (const source of sourceDirs) {
     await copyFiles(source, distDir, appDirectory);

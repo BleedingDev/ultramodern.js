@@ -1,4 +1,5 @@
 import { fs } from '@modern-js/utils';
+import os from 'os';
 import path from 'path';
 import { compile } from '../src';
 
@@ -145,6 +146,63 @@ describe('typescript', () => {
       expect(api()).toEqual('runtime-shared-api');
     } finally {
       await fs.remove(distDir);
+    }
+  });
+
+  it('rewrites emitted server-config aliases before surfacing TS-Go diagnostics', async () => {
+    const example = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'server-config-alias-')),
+    );
+    const distDir = path.join(example, 'dist');
+    const serverDir = path.join(example, 'server');
+    const sharedDir = path.join(example, 'shared');
+
+    await fs.outputJSON(path.join(example, 'tsconfig.json'), {
+      compilerOptions: {
+        declaration: false,
+        module: 'CommonJS',
+        moduleResolution: 'Node',
+        target: 'ES2019',
+        baseUrl: './',
+        paths: {
+          '@shared/*': ['./shared/*'],
+        },
+      },
+      include: ['server', 'shared'],
+    });
+    await fs.outputFile(
+      path.join(sharedDir, 'repro.ts'),
+      `export const value = 'alias test';\n`,
+    );
+    await fs.outputFile(
+      path.join(serverDir, 'modern.server.ts'),
+      [
+        `import { value } from '@shared/repro';`,
+        `const mustBeNumber: number = value;`,
+        `export default mustBeNumber;`,
+        ``,
+      ].join('\n'),
+    );
+
+    try {
+      await expect(
+        compile(example, {} as any, {
+          sourceDirs: [serverDir, sharedDir],
+          distDir,
+          tsconfigPath: path.join(example, 'tsconfig.json'),
+          throwErrorInsteadOfExit: true,
+        }),
+      ).rejects.toThrow(/TS-Go compilation failed/);
+
+      const serverOutput = await fs.readFile(
+        path.join(distDir, 'server/modern.server.js'),
+        'utf8',
+      );
+
+      expect(serverOutput).not.toContain('@shared/repro');
+      expect(serverOutput).toContain('require("../shared/repro")');
+    } finally {
+      await fs.remove(example);
     }
   });
 });
