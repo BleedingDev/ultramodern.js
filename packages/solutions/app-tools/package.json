@@ -21,34 +21,26 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "node": {
-        "import": "./dist/esm-node/index.mjs",
-        "require": "./dist/cjs/index.js"
-      },
+      "import": "./dist/esm-node/index.mjs",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/cjs/index.js"
     },
     "./builder": {
       "types": "./dist/types/builder/index.d.ts",
-      "node": {
-        "import": "./dist/esm-node/builder/index.mjs",
-        "require": "./dist/cjs/builder/index.js"
-      },
+      "import": "./dist/esm-node/builder/index.mjs",
+      "require": "./dist/cjs/builder/index.js",
       "default": "./dist/cjs/builder/index.js"
     },
     "./cli": {
       "types": "./dist/types/index.d.ts",
-      "node": {
-        "import": "./dist/esm-node/index.mjs",
-        "require": "./dist/cjs/index.js"
-      },
+      "import": "./dist/esm-node/index.mjs",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/cjs/index.js"
     },
     "./cli/run": {
       "types": "./dist/types/run/index.d.ts",
-      "node": {
-        "import": "./dist/esm-node/run/index.mjs",
-        "require": "./dist/cjs/run/index.js"
-      },
+      "import": "./dist/esm-node/run/index.mjs",
+      "require": "./dist/cjs/run/index.js",
       "default": "./dist/cjs/run/index.js"
     },
     "./types": {

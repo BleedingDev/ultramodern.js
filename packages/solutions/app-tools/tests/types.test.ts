@@ -24,4 +24,32 @@ describe('app-tools types', () => {
     );
     expect(appEnvTemplate).not.toContain('@rsbuild/core/types');
   });
+
+  it('exposes public root types through standard export conditions', () => {
+    const appToolsPackage = JSON.parse(
+      readFileSync(
+        join(repoRoot, 'packages/solutions/app-tools/package.json'),
+        'utf-8',
+      ),
+    ) as {
+      exports: Record<
+        string,
+        {
+          default?: string;
+          import?: string;
+          node?: unknown;
+          require?: string;
+          types?: string;
+        }
+      >;
+    };
+
+    expect(appToolsPackage.exports['.']).toMatchObject({
+      types: './dist/types/index.d.ts',
+      import: './dist/esm-node/index.mjs',
+      require: './dist/cjs/index.js',
+      default: './dist/cjs/index.js',
+    });
+    expect(appToolsPackage.exports['.']?.node).toBeUndefined();
+  });
 });
