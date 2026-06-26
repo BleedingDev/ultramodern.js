@@ -99,11 +99,6 @@ export class LoadableCollector implements Collector {
     this.options = options;
   }
 
-  private get existsAssets(): string[] | undefined {
-    const { routeManifest, entryName } = this.options;
-    return routeManifest?.routeAssets?.[entryName]?.assets;
-  }
-
   private getMatchedRouteChunks() {
     const { routeManifest, runtimeContext } = this.options;
     if (!routeManifest) {
@@ -219,10 +214,7 @@ export class LoadableCollector implements Collector {
     const scripts = await Promise.all(
       chunks
         .filter(chunk => {
-          return (
-            !existedScript.includes(chunk.url) &&
-            !this.existsAssets?.includes(chunk.path)
-          );
+          return !existedScript.includes(chunk.url);
         })
         .map(async chunk => {
           const script = `<script${attributes} src="${chunk.url}"></script>`;
@@ -253,10 +245,7 @@ export class LoadableCollector implements Collector {
     const atrributes = attributesToString(this.generateAttributes());
 
     const emittedChunks = chunks.filter(chunk => {
-      return (
-        !hasStylesheetLink(template, chunk.url) &&
-        !this.existsAssets?.includes(chunk.path)
-      );
+      return !hasStylesheetLink(template, chunk.url);
     });
 
     const css = await Promise.all(

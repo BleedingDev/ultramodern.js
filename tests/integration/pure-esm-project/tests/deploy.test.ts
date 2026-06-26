@@ -113,8 +113,8 @@ describe('deploy', () => {
     expect(await fse.pathExists(apiFile)).toBe(true);
     expect(await fse.pathExists(apiInfoFile)).toBe(true);
     expect(await fse.pathExists(bootstrapPath)).toBe(true);
-    expect(await fse.readFile(apiInfoFile, 'utf8')).toContain(
-      'from "../service/user.js"',
+    expect(await fse.readFile(apiInfoFile, 'utf8')).toMatch(
+      /from ['"]\.\.\/service\/user\.js['"]/u,
     );
 
     // check server run

@@ -53,6 +53,7 @@ export const ModernI18nProvider: FC<ModernI18nProviderProps> = ({
 export interface UseModernI18nReturn {
   language: string;
   changeLanguage: (newLang: string) => Promise<void>;
+  t: (key: string | string[], ...args: any[]) => string;
   i18nInstance: I18nInstance;
   supportedLanguages: string[];
   localisedUrls?: LocalisedUrlsOption;
@@ -250,6 +251,17 @@ export const useModernI18n = (): UseModernI18nReturn => {
     ],
   );
 
+  const t = useCallback(
+    (key: string | string[], ...args: any[]) => {
+      if (typeof i18nInstance.t !== 'function') {
+        throw new Error('i18nInstance.t is required');
+      }
+
+      return i18nInstance.t(key, ...args) as string;
+    },
+    [currentLanguage, i18nInstance],
+  );
+
   // Helper function to check if a language is supported
   const isLanguageSupported = useCallback(
     (lang: string) => {
@@ -310,6 +322,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
   return {
     language: currentLanguage,
     changeLanguage,
+    t,
     i18nInstance,
     supportedLanguages: languages || [],
     localisedUrls,

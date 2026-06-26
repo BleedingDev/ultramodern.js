@@ -990,7 +990,7 @@ describe('superapp portfolio browser runtime coverage', () => {
       expect(browserTenantChecks.tenantBoundaryStatus).toBeGreaterThanOrEqual(
         400,
       );
-      expect(browserTenantChecks.malformedStatus).toBeGreaterThanOrEqual(400);
+      expect(browserTenantChecks.malformedStatus).toBe(400);
       expect(browserTenantChecks.afterRejected).toEqual(
         browserTenantChecks.beforeRejected,
       );

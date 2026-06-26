@@ -205,7 +205,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
     // render). Unlike the byte snapshot above, this assertion survives a
     // blind fixture regeneration: the identifier the page maps over must be
     // destructured from useModernI18n(), the same i18n runtime source the
-    // page already uses for `i18nInstance` and `language`.
+    // page already uses for `t` and `language`.
     const verticalPage = fs.readFileSync(
       path.join(workspaceDir, 'verticals/catalog/src/routes/[lang]/page.tsx'),
       'utf-8',

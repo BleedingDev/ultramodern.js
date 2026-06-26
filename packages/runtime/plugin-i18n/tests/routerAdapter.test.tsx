@@ -5,7 +5,7 @@ import {
 } from '@modern-js/runtime/context';
 import type React from 'react';
 import type { ComponentType, PropsWithChildren } from 'react';
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { i18nPlugin } from '../src/runtime';
 import { ModernI18nProvider, useModernI18n } from '../src/runtime/context';
@@ -452,5 +452,62 @@ describe('i18n router adapter', () => {
     expect(router.navigate).toHaveBeenCalledWith('/cs/podminky-pouzivani', {
       replace: true,
     });
+  });
+
+  test('exposes a language-scoped t function for rendered copy', async () => {
+    const i18nInstance = createI18nInstance('en');
+    i18nInstance.t = (key: string) => `${i18nInstance.language}:${key}`;
+    const renderTranslations: Array<(key: string) => string> = [];
+    let setProviderLanguage: ((language: string) => void) | undefined;
+
+    const StatefulI18nProvider = ({ children }: PropsWithChildren) => {
+      const [language, setLanguage] = useState('en');
+      setProviderLanguage = setLanguage;
+
+      return (
+        <ModernI18nProvider
+          value={{
+            language,
+            i18nInstance,
+            languages: ['en', 'cs'],
+            localePathRedirect: true,
+            localisedUrls,
+            updateLanguage: setLanguage,
+          }}
+        >
+          {children}
+        </ModernI18nProvider>
+      );
+    };
+
+    const Harness = () => {
+      const { t } = useModernI18n();
+      renderTranslations.push(t);
+      return <span data-testid="translation">{t('key')}</span>;
+    };
+
+    rendered = await renderWithRuntime(
+      <StatefulI18nProvider>
+        <Harness />
+      </StatefulI18nProvider>,
+      createReactRouterRuntimeContext({ navigate: rstest.fn() }),
+    );
+
+    expect(
+      rendered.container.querySelector('[data-testid="translation"]')
+        ?.textContent,
+    ).toBe('en:key');
+    const initialT = renderTranslations.at(-1);
+
+    await act(async () => {
+      i18nInstance.language = 'cs';
+      setProviderLanguage?.('cs');
+    });
+
+    expect(
+      rendered.container.querySelector('[data-testid="translation"]')
+        ?.textContent,
+    ).toBe('cs:key');
+    expect(renderTranslations.at(-1)).not.toBe(initialT);
   });
 });

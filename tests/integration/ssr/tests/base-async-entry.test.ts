@@ -43,7 +43,7 @@ describe('init with SSR', () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: 'load',
     });
-    const scriptAry = await page.$$eval('body > script', scripts =>
+    const scriptAry = await page.$$eval('script', scripts =>
       scripts
         .filter(script => script.src && script.type !== 'application/json')
         .map(script => {

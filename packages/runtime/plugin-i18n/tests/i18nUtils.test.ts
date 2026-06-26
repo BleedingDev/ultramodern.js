@@ -34,6 +34,14 @@ describe('i18n runtime utils', () => {
     expect(resolveFsBackendConstructor({ 'module.exports': FakeBackend })).toBe(
       FakeBackend,
     );
+    expect(
+      resolveFsBackendConstructor({ default: { default: FakeBackend } }),
+    ).toBe(FakeBackend);
+    expect(
+      resolveFsBackendConstructor({
+        default: { 'module.exports': FakeBackend },
+      }),
+    ).toBe(FakeBackend);
   });
 
   test('node fs backend wrapper extends a resolved constructor', () => {

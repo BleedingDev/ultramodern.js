@@ -183,6 +183,30 @@ describe('effect HttpApi schema validation', () => {
     }
   });
 
+  test('maps malformed JSON payloads to 400 before the handler runs', async () => {
+    const { handledCalls, handler } = createRecommendationsHandler();
+
+    try {
+      const response = await handler.handler(
+        new Request('http://localhost/effect/recommendations', {
+          body: '{',
+          headers: {
+            'content-type': 'application/json',
+          },
+          method: 'POST',
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        message: 'Invalid JSON request body',
+      });
+      expect(handledCalls).toEqual([]);
+    } finally {
+      await handler.dispose();
+    }
+  });
+
   test('maps schema-owned typed errors to declared HttpApi status', async () => {
     const { handler } = createRecommendationsHandler();
 

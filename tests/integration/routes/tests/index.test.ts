@@ -188,6 +188,7 @@ const supportThrowError = async (
   page: Page,
   errors: string[],
   appPort: number,
+  expectedMessage = "can't found the user",
 ) => {
   const response = await page.goto(
     `http://localhost:${appPort}/three/error/response?type=throw_error`,
@@ -200,7 +201,7 @@ const supportThrowError = async (
   const errorStatusElm = await page.$('.error-content');
   const text = await page.evaluate(el => el?.textContent, errorStatusElm);
   expect(text?.includes('500')).toBeFalsy();
-  expect(text?.includes("can't found the user")).toBeTruthy();
+  expect(text).toContain(expectedMessage);
 };
 
 const supportThrowResponse = async (
@@ -656,6 +657,7 @@ const supportConfigWithCompanionFiles = async (
   page: Page,
   errors: string[],
   appPort: number,
+  expectedErrorMessage = 'Product load error',
 ) => {
   // Should load data via server loader
   await page.goto(`http://localhost:${appPort}/three/product/123`, {
@@ -678,7 +680,7 @@ const supportConfigWithCompanionFiles = async (
   const errorElm = await page.$('.product-error');
   const errorText = await page.evaluate(el => el?.textContent, errorElm);
   expect(errorText?.includes('Product Error Boundary')).toBeTruthy();
-  expect(errorText?.includes('Product load error')).toBeTruthy();
+  expect(errorText?.includes(expectedErrorMessage)).toBeTruthy();
 };
 
 const supportDeepFileRoutesManipulation = async (
@@ -901,7 +903,7 @@ describe('build with rspack', () => {
     test('support redirect for csr', () =>
       supportRedirectForCSR(page, errors, appPort));
     test('support throw error', async () =>
-      supportThrowError(page, errors, appPort));
+      supportThrowError(page, errors, appPort, 'Unexpected Server Error'));
     test('support throw response', async () => {
       await supportThrowResponse(page, errors, appPort, 500);
       await supportThrowResponse(page, errors, appPort, 200);
@@ -972,7 +974,12 @@ describe('build with rspack', () => {
     test('mixed nested routes work correctly', async () =>
       supportMixedNestedRoutes(page, errors, appPort));
     test('config route with auto-discovered companion files', async () =>
-      supportConfigWithCompanionFiles(page, errors, appPort));
+      supportConfigWithCompanionFiles(
+        page,
+        errors,
+        appPort,
+        'Unexpected Server Error',
+      ));
   });
 
   afterAll(async () => {

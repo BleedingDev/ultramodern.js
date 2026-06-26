@@ -1,8 +1,19 @@
+import os from 'node:os';
 import { fs } from '@modern-js/utils';
 import path from 'path';
 import { runModernCommand } from '../../../utils/modernTestUtils';
 
-const appDir = path.resolve(__dirname, '../');
+const sourceAppDir = path.resolve(__dirname, '../');
+let appDir = '';
+
+const shouldCopyFixturePath = (sourcePath: string) => {
+  const relativePath = path.relative(sourceAppDir, sourcePath);
+  const pathSegments = relativePath.split(path.sep);
+
+  return !pathSegments.some(segment =>
+    ['.modern-js', 'dist', 'node_modules'].includes(segment),
+  );
+};
 
 const findRouteByPath = (routes: any[], targetPath: string): any => {
   for (const route of routes) {
@@ -21,6 +32,11 @@ const findRouteByPath = (routes: any[], targetPath: string): any => {
 
 describe('routes inspect report', () => {
   beforeAll(async () => {
+    appDir = await fs.mkdtemp(path.join(os.tmpdir(), 'modern-routes-inspect-'));
+    await fs.copy(sourceAppDir, appDir, {
+      filter: shouldCopyFixturePath,
+    });
+
     const distDir = path.join(appDir, './dist');
     if (await fs.pathExists(distDir)) {
       await fs.remove(distDir);
@@ -31,6 +47,12 @@ describe('routes inspect report', () => {
       stdout: true,
       stderr: true,
     });
+  });
+
+  afterAll(async () => {
+    if (appDir) {
+      await fs.remove(appDir);
+    }
   });
 
   test('should generate correct routes inspect report', async () => {

@@ -10,8 +10,7 @@ import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 export default function CatalogHome() {
-  const { i18nInstance, language, supportedLanguages } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { language, supportedLanguages, t } = useModernI18n();
   const [effectApiStatus, setEffectApiStatus] = useState('pending');
 
   useEffect(() => {

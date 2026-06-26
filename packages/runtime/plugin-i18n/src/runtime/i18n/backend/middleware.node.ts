@@ -1,4 +1,4 @@
-import * as FsBackendModule from 'i18next-fs-backend/cjs';
+import FsBackendModule from 'i18next-fs-backend';
 import type { ExtendedBackendOptions } from '../../../shared/type';
 import type { I18nInstance } from '../instance';
 import { useI18nextBackendCommon } from './middleware.common';
@@ -8,10 +8,17 @@ type BackendConstructor = new (...args: any[]) => any;
 export const resolveFsBackendConstructor = (
   backendModule: unknown,
 ): BackendConstructor => {
+  const nestedDefault = (backendModule as { default?: { default?: unknown } })
+    ?.default?.default;
+  const nestedModuleExports = (
+    backendModule as { default?: { 'module.exports'?: unknown } }
+  )?.default?.['module.exports'];
   const candidates = [
     backendModule,
     (backendModule as { default?: unknown })?.default,
     (backendModule as { 'module.exports'?: unknown })?.['module.exports'],
+    nestedDefault,
+    nestedModuleExports,
   ];
   const Backend = candidates.find(candidate => typeof candidate === 'function');
 

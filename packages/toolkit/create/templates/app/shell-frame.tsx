@@ -7,8 +7,7 @@ interface ShellFrameProps {
 }
 
 export default function ShellFrame({ children }: ShellFrameProps) {
-  const { i18nInstance, language } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { language, t } = useModernI18n();
   const { alternates } = useLocalizedLocation();
 
   return (

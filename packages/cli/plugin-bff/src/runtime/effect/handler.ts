@@ -401,6 +401,40 @@ function createBatchValidationResponse(message: string, status = 400) {
   );
 }
 
+function createJsonValidationResponse(message: string, status = 400) {
+  return new Response(
+    JSON.stringify({
+      message,
+    }),
+    {
+      status,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+      },
+    },
+  );
+}
+
+async function validateJsonRequestBody(request: Request) {
+  const method = normalizeItemMethod(request.method);
+  if (method === 'GET' || method === 'HEAD') {
+    return null;
+  }
+
+  const contentType = (request.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('application/json') || request.body === null) {
+    return null;
+  }
+
+  try {
+    JSON.parse(await request.clone().text());
+  } catch {
+    return createJsonValidationResponse('Invalid JSON request body');
+  }
+
+  return null;
+}
+
 function toBatchItemError(
   id: string,
   status: number,
@@ -909,6 +943,10 @@ export function createHttpApiHandler<
     const policyDenial = options.validateRequest?.(request);
     if (policyDenial) {
       return policyDenial;
+    }
+    const jsonBodyError = await validateJsonRequestBody(request);
+    if (jsonBodyError) {
+      return jsonBodyError;
     }
     const validationError = validateDataPlatformRequestEnvelope(
       request,

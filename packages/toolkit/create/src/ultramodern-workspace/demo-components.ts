@@ -23,8 +23,7 @@ import { VerticalShowcase } from '../vertical-components';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 export default function ShellHome() {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <ShellFrame>
@@ -118,8 +117,7 @@ const loadRemoteComponent = (specifier: string) =>
 
 const createRemoteFallback = (specifier: string) =>
   ({ error }: { error: Error }) => {
-    const { i18nInstance } = useModernI18n();
-    const t = i18nInstance['t'].bind(i18nInstance);
+    const { t } = useModernI18n();
     const classification = classifyModuleFederationFallback(error);
     const telemetry = createModuleFederationFallbackTelemetry({
       appName: '${shellApp.id}',
@@ -205,8 +203,7 @@ const createHydratedRemote =
 	${hydratedExports}
 
 	export const Header = () => {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <header className="${tw('flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1')}" data-modern-boundary-id="${shellApp.mfName}" data-modern-mf-expose="shell/Header">
@@ -216,8 +213,7 @@ const createHydratedRemote =
 };
 
 export const StatusBadge = () => {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <span className="${tw('inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5')}">
@@ -227,8 +223,7 @@ export const StatusBadge = () => {
 };
 
 export const VerticalShowcase = () => {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   if (widgetCount === 0) {
     return (
@@ -303,8 +298,7 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 
   return `${effectBffImport}
 export default function ${toPascalCase(app.id)}Home() {
-  const { i18nInstance, language, supportedLanguages } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { language, supportedLanguages, t } = useModernI18n();
 ${effectBffState}  return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
       <UltramodernRouteHead />
@@ -353,8 +347,7 @@ export function createRemoteEntry(app: WorkspaceApp): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function ${toPascalCase(domain)}Route() {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Route">
@@ -374,8 +367,7 @@ export function createRemoteWidget(app: WorkspaceApp): string {
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function ${componentName}() {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Widget">
@@ -405,8 +397,7 @@ export function createRemoteExposeComponent(
   return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
 export default function ${componentName}() {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { t } = useModernI18n();
 
   return (
     <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">

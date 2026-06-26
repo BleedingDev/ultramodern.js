@@ -104,8 +104,7 @@ const sanitiseJsonLd = (value: RouteJsonLd) =>
   JSON.stringify(value).replaceAll('<', '\\u003c');
 
 export const UltramodernRouteHead = () => {
-  const { i18nInstance } = useModernI18n();
-  const t = i18nInstance['t'].bind(i18nInstance);
+  const { language, t } = useModernI18n();
   const { canonical, alternates } = useLocalizedLocation();
   const route = resolveRouteMetadata(canonical);
   const title = route === undefined ? appName : t(route.titleKey);
@@ -116,7 +115,7 @@ export const UltramodernRouteHead = () => {
   const jsonLd = route?.jsonLd;
 
   return (
-    <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>
+    <Helmet htmlAttributes={{ lang: language ?? fallbackLanguage }}>
       <title>{title}</title>
       <meta content={description} name="description" />
       <meta content={indexable ? 'index, follow' : 'noindex, nofollow'} name="robots" />
@@ -140,7 +139,7 @@ export const UltramodernRouteHead = () => {
           <meta content={description} property="og:description" />
           <meta content={canonicalUrl} property="og:url" />
           <meta content="website" property="og:type" />
-          <meta content={i18nInstance.language ?? fallbackLanguage} property="og:locale" />
+          <meta content={language ?? fallbackLanguage} property="og:locale" />
           <meta content="summary_large_image" name="twitter:card" />
           <meta content={title} name="twitter:title" />
           <meta content={description} name="twitter:description" />
