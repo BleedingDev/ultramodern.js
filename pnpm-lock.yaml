@@ -125,6 +125,9 @@ importers:
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@rsbuild/core':
+        specifier: 2.1.0
+        version: 2.1.0(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)
       '@rsdoctor/rspack-plugin':
         specifier: ^1.5.16
         version: 1.5.16(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.0(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.0(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)

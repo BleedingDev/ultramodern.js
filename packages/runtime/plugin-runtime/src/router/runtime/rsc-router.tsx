@@ -119,12 +119,12 @@ export const createServerPayload = (
     routes: routerContext.matches.map((match, index: number, matches) => {
       const route = match.route as ModernRouteObject;
       const element = route.element;
+      const Component = route.Component;
       const parentMatch = index > 0 ? matches[index - 1] : undefined;
 
       let processedElement;
 
-      if (element) {
-        const ElementComponent = (element as React.ReactElement).type;
+      if (element || Component) {
         const elementProps = {
           loaderData: routerContext?.loaderData?.[route.id!],
           actionData: routerContext?.actionData?.[route.id!],
@@ -138,10 +138,9 @@ export const createServerPayload = (
           })),
         };
 
-        const routeElement = React.createElement(
-          ElementComponent,
-          elementProps,
-        );
+        const routeElement = element
+          ? React.cloneElement(element as React.ReactElement, elementProps)
+          : React.createElement(Component as React.ComponentType, elementProps);
 
         if (index === cssInjectionIndex) {
           processedElement = React.createElement(
