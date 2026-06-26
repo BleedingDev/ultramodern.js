@@ -49,7 +49,7 @@ overrides:
   micromatch: ^4.0.8
   'read-yaml-file>js-yaml': 3.14.2
   '@remix-run/router': '>=1.23.3'
-  react-router: 7.18.0
+  react-router: 8.0.1
   '@modern-js/runtime-utils>react-router': 8.0.1
   'dev-server>react-router': 8.0.1
   h3: '>=1.15.11'
@@ -63,11 +63,11 @@ overrides:
   '@isaacs/brace-expansion': '>=5.0.1'
   brace-expansion: '>=5.0.6'
   yaml: '>=2.9.0'
-  qs: '>=6.15.2'
+  qs: '>=6.15.3'
   serialize-javascript: '>=7.0.6'
   ws: '>=8.21.0'
   fast-uri: '>=4.0.0'
-  'uuid@>=13.0.0 <13.0.1': 14.0.0
+  'uuid@>=13.0.0 <13.0.1': 14.0.1
   follow-redirects: '>=1.16.0'
   defu: '>=6.1.7'
   handlebars: '>=4.7.9'
@@ -111,6 +111,24 @@ allowedDeprecatedVersions:
 minimumReleaseAgeExclude:
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
+  - '@rsbuild/core@2.1.0'
+  - '@rsbuild/plugin-type-check@1.5.0'
+  - '@rspack/binding-darwin-arm64@2.1.0'
+  - '@rspack/binding-darwin-x64@2.1.0'
+  - '@rspack/binding-linux-arm64-gnu@2.1.0'
+  - '@rspack/binding-linux-arm64-musl@2.1.0'
+  - '@rspack/binding-linux-riscv64-gnu@2.1.0'
+  - '@rspack/binding-linux-riscv64-musl@2.1.0'
+  - '@rspack/binding-linux-x64-gnu@2.1.0'
+  - '@rspack/binding-linux-x64-musl@2.1.0'
+  - '@rspack/binding-wasm32-wasi@2.1.0'
+  - '@rspack/binding-win32-arm64-msvc@2.1.0'
+  - '@rspack/binding-win32-ia32-msvc@2.1.0'
+  - '@rspack/binding-win32-x64-msvc@2.1.0'
+  - '@rspack/binding@2.1.0'
+  - '@rspack/core@2.1.0'
+  - pure-rand@8.4.1
+  - ts-checker-rspack-plugin@1.5.1
   - '@types/react@19.2.17'
   - '@tanstack/react-router@1.170.16'
   - '@tanstack/router-core@1.171.13'

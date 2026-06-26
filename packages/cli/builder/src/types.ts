@@ -22,6 +22,7 @@ import type { PluginAssetsRetryOptions } from '@rsbuild/plugin-assets-retry';
 import type { PluginCheckSyntaxOptions } from '@rsbuild/plugin-check-syntax';
 import type { PluginCssMinimizerOptions } from '@rsbuild/plugin-css-minimizer';
 import type { PluginLessOptions } from '@rsbuild/plugin-less';
+import type { PluginReactOptions } from '@rsbuild/plugin-react';
 import type { PluginRemOptions } from '@rsbuild/plugin-rem';
 import type { PluginSassOptions } from '@rsbuild/plugin-sass';
 import type { PluginSourceBuildOptions } from '@rsbuild/plugin-source-build';
@@ -184,6 +185,13 @@ export type BuilderExtraConfig = {
      * Define global variables. It can replace expressions like `process.env.FOO` in your code after compile.
      */
     globalVars?: ChainedGlobalVars;
+    /**
+     * Enable or configure the Rust-backed React Compiler transform.
+     *
+     * For React 17 or 18, install `react-compiler-runtime` and set the
+     * matching target version, for example `{ target: '18' }`.
+     */
+    reactCompiler?: PluginReactOptions['reactCompiler'];
   };
   output?: {
     /**
@@ -248,6 +256,10 @@ export type BuilderExtraConfig = {
     sourceBuild?:
       | boolean
       | Pick<PluginSourceBuildOptions, 'sourceField' | 'resolvePriority'>;
+    /**
+     * Configure Rspack source phase imports for WebAssembly modules.
+     */
+    sourceImport?: boolean;
   };
 };
 

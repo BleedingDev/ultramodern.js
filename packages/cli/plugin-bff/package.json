@@ -146,7 +146,7 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.84",
+    "@effect/opentelemetry": "4.0.0-beta.89",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
@@ -164,8 +164,8 @@
     "@opentelemetry/semantic-conventions": "1.41.1",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
-    "effect": "4.0.0-beta.84",
-    "qs": "^6.15.2",
+    "effect": "4.0.0-beta.89",
+    "qs": "^6.15.3",
     "type-is": "^2.1.0"
   },
   "devDependencies": {
@@ -175,10 +175,10 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsbuild/core": "2.0.15",
+    "@rsbuild/core": "2.1.0",
     "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@types/qs": "^6.15.1",
     "@types/type-is": "^1.6.7",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",

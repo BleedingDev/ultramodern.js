@@ -7,6 +7,8 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
       "<WORKSPACE>/packages/cli/builder/package.json",
       "<WORKSPACE>/packages/cli/builder/tsconfig.json",
     ],
+    "maxAge": 604800,
+    "maxVersions": 3,
     "storage": {
       "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
       "type": "filesystem",
@@ -22,6 +24,9 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
       "<WORKSPACE>/packages/cli/builder/src/index.ts",
     ],
   },
+  "experiments": {
+    "sourceImport": true,
+  },
   "infrastructureLogging": {
     "level": "error",
   },
@@ -29,6 +34,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
   "module": {
     "parser": {
       "javascript": {
+        "createRequire": true,
         "typeReexportsPresence": "tolerant",
       },
     },
@@ -1438,6 +1444,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
           "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
           "memoryLimit": 8192,
           "mode": "readonly",
+          "resolveRoot": "<WORKSPACE>/packages/cli/builder",
           "tsgo": true,
           "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
         },
@@ -1509,6 +1516,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
 
 exports[`builder rspack > should generator rspack config correctly 2`] = `
 [
+  "modern-js:rspack-2-1-defaults",
   "builder:global-vars",
   "builder:devtool",
   "builder:emit-route-file",
@@ -1534,6 +1542,8 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
       "<WORKSPACE>/packages/cli/builder/package.json",
       "<WORKSPACE>/packages/cli/builder/tsconfig.json",
     ],
+    "maxAge": 604800,
+    "maxVersions": 3,
     "storage": {
       "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
       "type": "filesystem",
@@ -1548,6 +1558,9 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
       "<WORKSPACE>/packages/cli/builder/src/index.ts",
     ],
   },
+  "experiments": {
+    "sourceImport": true,
+  },
   "infrastructureLogging": {
     "level": "error",
   },
@@ -1560,6 +1573,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
     },
     "parser": {
       "javascript": {
+        "createRequire": true,
         "typeReexportsPresence": "tolerant",
       },
     },
@@ -2442,6 +2456,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
           "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
           "memoryLimit": 8192,
           "mode": "readonly",
+          "resolveRoot": "<WORKSPACE>/packages/cli/builder",
           "tsgo": true,
           "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
         },
@@ -2493,6 +2508,8 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
       "<WORKSPACE>/packages/cli/builder/package.json",
       "<WORKSPACE>/packages/cli/builder/tsconfig.json",
     ],
+    "maxAge": 604800,
+    "maxVersions": 3,
     "storage": {
       "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
       "type": "filesystem",
@@ -2508,6 +2525,9 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
       "<WORKSPACE>/packages/cli/builder/src/index.ts",
     ],
   },
+  "experiments": {
+    "sourceImport": true,
+  },
   "infrastructureLogging": {
     "level": "error",
   },
@@ -2515,6 +2535,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
   "module": {
     "parser": {
       "javascript": {
+        "createRequire": true,
         "typeReexportsPresence": "tolerant",
       },
     },
@@ -3956,6 +3977,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
           "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
           "memoryLimit": 8192,
           "mode": "readonly",
+          "resolveRoot": "<WORKSPACE>/packages/cli/builder",
           "tsgo": true,
           "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
         },
@@ -4010,6 +4032,8 @@ exports[`builder rspack > should generator rspack config correctly when service-
       "<WORKSPACE>/packages/cli/builder/package.json",
       "<WORKSPACE>/packages/cli/builder/tsconfig.json",
     ],
+    "maxAge": 604800,
+    "maxVersions": 3,
     "storage": {
       "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
       "type": "filesystem",
@@ -4024,6 +4048,9 @@ exports[`builder rspack > should generator rspack config correctly when service-
       "<WORKSPACE>/packages/cli/builder/src/index.ts",
     ],
   },
+  "experiments": {
+    "sourceImport": true,
+  },
   "infrastructureLogging": {
     "level": "error",
   },
@@ -4031,6 +4058,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
   "module": {
     "parser": {
       "javascript": {
+        "createRequire": true,
         "dynamicImportMode": "eager",
         "typeReexportsPresence": "tolerant",
       },
@@ -4930,6 +4958,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
           "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
           "memoryLimit": 8192,
           "mode": "readonly",
+          "resolveRoot": "<WORKSPACE>/packages/cli/builder",
           "tsgo": true,
           "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
         },

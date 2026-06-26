@@ -12,7 +12,7 @@
     "@manypkg/get-packages": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "tsx": "^4.22.4"
   }
 }

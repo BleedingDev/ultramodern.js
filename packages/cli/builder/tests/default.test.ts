@@ -3,6 +3,33 @@ import { afterEach, describe, expect, it, rs } from '@rstest/core';
 import { join } from 'path';
 import { createBuilder } from '../src';
 
+const collectSwcLoaderOptions = (value: unknown): any[] => {
+  const matches: any[] = [];
+  const visit = (item: unknown) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+
+    if (
+      'loader' in item &&
+      (item as { loader?: unknown }).loader === 'builtin:swc-loader'
+    ) {
+      matches.push((item as { options?: unknown }).options);
+    }
+
+    for (const child of Object.values(item)) {
+      if (Array.isArray(child)) {
+        child.forEach(visit);
+      } else {
+        visit(child);
+      }
+    }
+  };
+
+  visit(value);
+  return matches;
+};
+
 describe('builder rspack', () => {
   afterEach(() => {
     rs.unstubAllEnvs();
@@ -107,5 +134,61 @@ describe('builder rspack', () => {
     } = await rsbuild.inspectConfig();
 
     expect(bundlerConfigs[0]).toMatchSnapshot();
+  });
+
+  it('should enable Rspack 2.1 createRequire parsing by default', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {},
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(bundlerConfigs[0].module.parser.javascript.createRequire).toBe(true);
+  });
+
+  it('should configure Rspack 2.1 source phase imports when configured', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        experiments: {
+          sourceImport: false,
+        },
+      },
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(bundlerConfigs[0].experiments.sourceImport).toBe(false);
+  });
+
+  it('should forward React Compiler options to builtin SWC', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        source: {
+          reactCompiler: {
+            target: '18',
+          },
+        },
+      },
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    expect(
+      collectSwcLoaderOptions(bundlerConfigs[0]).some(
+        options => options?.jsc?.transform?.reactCompiler?.target === '18',
+      ),
+    ).toBe(true);
   });
 });

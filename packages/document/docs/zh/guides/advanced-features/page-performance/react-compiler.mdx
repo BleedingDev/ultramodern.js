@@ -8,7 +8,18 @@ React Compiler 是 React 19 引入的一个实验性编译器，它可以自动�
 
 ### React 19
 
-如果你使用的是 React 19，Modern.js 已内置支持 React Compiler，无需额外配置即可使用。
+Modern.js 使用 Rsbuild 的 Rust 版 React Compiler 集成。你可以在 Modern.js 配置中启用它：
+
+```ts title="modern.config.ts"
+import { appTools, defineConfig } from '@modern-js/app-tools';
+
+export default defineConfig({
+  source: {
+    reactCompiler: true,
+  },
+  plugins: [appTools()],
+});
+```
 
 ### React 18
 
@@ -20,33 +31,17 @@ React Compiler 是 React 19 引入的一个实验性编译器，它可以自动�
 npm install react-compiler-runtime
 ```
 
-2. 安装 `babel-plugin-react-compiler`：
-
-```bash
-npm install babel-plugin-react-compiler
-```
-
-3. 在你的 Modern.js 配置文件中注册 Babel 插件：
+2. 在 Modern.js 配置中设置匹配的 React Compiler target：
 
 ```ts title="modern.config.ts"
 import { appTools, defineConfig } from '@modern-js/app-tools';
-import { pluginBabel } from '@rsbuild/plugin-babel';
 
 export default defineConfig({
-  builderPlugins: [
-    pluginBabel({
-      babelLoaderOptions: (config, { addPlugins }) => {
-        addPlugins([
-          [
-            'babel-plugin-react-compiler',
-          {
-            target: '18', // 或 '17'，根据你使用的 React 版本
-          },
-          ],
-        ]);
-      },
-    });
-  ];
+  source: {
+    reactCompiler: {
+      target: '18', // 或 '17'，根据你使用的 React 版本
+    },
+  },
   plugins: [appTools()],
 });
 ```

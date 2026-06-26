@@ -67,14 +67,14 @@
     "@swc/helpers": "^0.5.23",
     "encoding": "^0.1.13",
     "path-to-regexp": "^8.4.2",
-    "qs": "^6.15.2"
+    "qs": "^6.15.3"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@types/qs": "^6.15.1",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "happy-dom": "^20.10.6",

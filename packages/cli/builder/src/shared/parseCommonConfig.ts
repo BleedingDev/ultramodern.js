@@ -14,6 +14,7 @@ import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
 import { pluginEnvironmentDefaults } from '../plugins/environmentDefaults';
 import { pluginGlobalVars } from '../plugins/globalVars';
 import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
+import { pluginRspack21 } from '../plugins/rspack21';
 import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
 import type { RsdoctorUserConfig } from '../rsdoctorConfig';
 import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
@@ -73,7 +74,13 @@ export async function parseCommonConfig(
       ...outputConfig
     } = {},
     html: { outputStructure, appIcon, ...htmlConfig } = {},
-    source: { alias, globalVars, transformImport, ...sourceConfig } = {},
+    source: {
+      alias,
+      globalVars,
+      transformImport,
+      reactCompiler,
+      ...sourceConfig
+    } = {},
     dev = {},
     server = {},
     security: { checkSyntax, sri, ...securityConfig } = {},
@@ -213,7 +220,10 @@ export async function parseCommonConfig(
   rsbuildConfig.html = html;
   rsbuildConfig.output = output;
 
+  const { sourceBuild, sourceImport } = builderConfig.experiments || {};
+
   const rsbuildPlugins: RsbuildPlugin[] = [
+    pluginRspack21({ sourceImport }),
     pluginGlobalVars(globalVars),
     pluginDevtool({
       sourceMap,
@@ -266,7 +276,6 @@ export async function parseCommonConfig(
     pluginRuntimeChunk(builderConfig.output?.disableInlineRuntimeChunk),
   );
 
-  const { sourceBuild } = builderConfig.experiments || {};
   if (sourceBuild) {
     const { pluginSourceBuild } = await import('@rsbuild/plugin-source-build');
 
@@ -275,7 +284,15 @@ export async function parseCommonConfig(
     );
   }
 
-  rsbuildPlugins.push(pluginReact());
+  rsbuildPlugins.push(
+    pluginReact(
+      reactCompiler === undefined
+        ? undefined
+        : {
+            reactCompiler,
+          },
+    ),
+  );
 
   if (!disableSvgr) {
     const { pluginSvgr } = await import('@rsbuild/plugin-svgr');

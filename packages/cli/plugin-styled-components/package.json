@@ -39,10 +39,10 @@
     "@modern-js/runtime": "workspace:*",
     "@rslib/core": "0.23.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@types/styled-components": "^5.1.36",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
-    "styled-components": "^6.4.2",
+    "styled-components": "^6.4.3",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

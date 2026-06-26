@@ -8,6 +8,8 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/package.json",
         "<WORKSPACE>/packages/cli/builder/tsconfig.json",
       ],
+      "maxAge": 604800,
+      "maxVersions": 3,
       "storage": {
         "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
         "type": "filesystem",
@@ -23,6 +25,9 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/src/index.ts",
       ],
     },
+    "experiments": {
+      "sourceImport": true,
+    },
     "infrastructureLogging": {
       "level": "error",
     },
@@ -30,6 +35,7 @@ exports[`builder environment compat > should generator environment config correc
     "module": {
       "parser": {
         "javascript": {
+          "createRequire": true,
           "typeReexportsPresence": "tolerant",
         },
       },
@@ -1439,6 +1445,7 @@ exports[`builder environment compat > should generator environment config correc
             "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
             "memoryLimit": 8192,
             "mode": "readonly",
+            "resolveRoot": "<WORKSPACE>/packages/cli/builder",
             "tsgo": true,
             "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
           },
@@ -1512,6 +1519,8 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/package.json",
         "<WORKSPACE>/packages/cli/builder/tsconfig.json",
       ],
+      "maxAge": 604800,
+      "maxVersions": 3,
       "storage": {
         "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
         "type": "filesystem",
@@ -1526,6 +1535,9 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/src/index.ts",
       ],
     },
+    "experiments": {
+      "sourceImport": true,
+    },
     "infrastructureLogging": {
       "level": "error",
     },
@@ -1538,6 +1550,7 @@ exports[`builder environment compat > should generator environment config correc
       },
       "parser": {
         "javascript": {
+          "createRequire": true,
           "typeReexportsPresence": "tolerant",
         },
       },
@@ -2447,6 +2460,8 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/package.json",
         "<WORKSPACE>/packages/cli/builder/tsconfig.json",
       ],
+      "maxAge": 604800,
+      "maxVersions": 3,
       "storage": {
         "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
         "type": "filesystem",
@@ -2461,6 +2476,9 @@ exports[`builder environment compat > should generator environment config correc
         "<WORKSPACE>/packages/cli/builder/src/index.ts",
       ],
     },
+    "experiments": {
+      "sourceImport": true,
+    },
     "infrastructureLogging": {
       "level": "error",
     },
@@ -2468,6 +2486,7 @@ exports[`builder environment compat > should generator environment config correc
     "module": {
       "parser": {
         "javascript": {
+          "createRequire": true,
           "dynamicImportMode": "eager",
           "typeReexportsPresence": "tolerant",
         },

@@ -118,7 +118,7 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@rslib/core": "0.23.0",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "i18next": "26.3.2",
     "react": "^19.2.7",

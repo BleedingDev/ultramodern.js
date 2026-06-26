@@ -7,7 +7,7 @@
   "typings": "src/index.ts",
   "dependencies": {
     "@modern-js/tsconfig": "workspace:*",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "path-serializer": "0.6.0"
   }

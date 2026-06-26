@@ -43,7 +43,7 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.23.0",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "typescript": "^6.0.3"
   },

@@ -49,7 +49,7 @@
     "@rslib/core": "0.23.0",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260624.1",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.3"

@@ -35,5 +35,7 @@ describe('builder rspack with cache', () => {
     } = await rsbuild.inspectConfig();
 
     expect(bundlerConfigs[0].cache).toMatchSnapshot();
+    expect(bundlerConfigs[0].cache.maxAge).toBe(7 * 24 * 60 * 60);
+    expect(bundlerConfigs[0].cache.maxVersions).toBe(3);
   });
 });
