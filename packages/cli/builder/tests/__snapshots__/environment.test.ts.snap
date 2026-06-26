@@ -1448,7 +1448,12 @@ exports[`builder environment compat > should generator environment config correc
           },
           "typescript": {
             "build": false,
-            "configFile": "<WORKSPACE>/packages/cli/builder/tsconfig.json",
+            "configFile": "<WORKSPACE>/packages/cli/builder/node_modules/.modern-js/tsgo/tsconfig.a43e2001f3.json",
+            "configOverwrite": {
+              "compilerOptions": {
+                "baseUrl": null,
+              },
+            },
             "memoryLimit": 8192,
             "mode": "readonly",
             "resolveRoot": "<WORKSPACE>/packages/cli/builder",

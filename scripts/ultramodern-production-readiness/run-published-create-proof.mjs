@@ -285,7 +285,7 @@ function resolveCreatePackage(specifier) {
 }
 
 function createPnpmDlxArgs(createPackage, forwardedArgs) {
-  return ['dlx', createPackage.dlxSpecifier, ...forwardedArgs];
+  return ['dlx', createPackage.exactSpecifier, ...forwardedArgs];
 }
 
 function bleedingdevAlias(modernPackageName) {
@@ -638,7 +638,8 @@ async function main() {
     summary.createPackage = createPackage;
     summary.createCommand = {
       runner: 'pnpm dlx',
-      packageSpecifier: createPackage.dlxSpecifier,
+      requestedPackageSpecifier: createPackage.dlxSpecifier,
+      executedPackageSpecifier: createPackage.exactSpecifier,
       command: [
         'pnpm',
         ...createPnpmDlxArgs(createPackage, ['<project>']),

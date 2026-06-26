@@ -97,16 +97,27 @@ test('builds the supported pnpm dlx package command contract', async () => {
   const { createCleanPnpmDlxEnv, createPnpmDlxArgs } = await loadProof();
 
   assert.deepEqual(
-    createPnpmDlxArgs({ dlxSpecifier: '@bleedingdev/modern-js-create' }, [
+    createPnpmDlxArgs(
+      {
+        dlxSpecifier: '@bleedingdev/modern-js-create@latest',
+        exactSpecifier: '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
+      },
+      ['my-super-app', '--lang', 'en'],
+    ),
+    [
+      'dlx',
+      '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
       'my-super-app',
       '--lang',
       'en',
-    ]),
-    ['dlx', '@bleedingdev/modern-js-create', 'my-super-app', '--lang', 'en'],
+    ],
   );
   assert.deepEqual(
     createPnpmDlxArgs(
-      { dlxSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120' },
+      {
+        dlxSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
+        exactSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
+      },
       ['catalog', '--vertical', '--lang', 'en'],
     ),
     [

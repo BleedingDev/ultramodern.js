@@ -119,6 +119,9 @@ importers:
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../packages/solutions/app-tools
+      '@modern-js/builder':
+        specifier: workspace:*
+        version: link:../../packages/cli/builder
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
