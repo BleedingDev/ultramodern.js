@@ -49,12 +49,12 @@ export const sharedPackages = [
   {
     id: 'shared-contracts',
     directory: 'packages/shared-contracts',
-    description: 'Route, ownership, and topology contract placeholders.',
+    description: 'Generated route, ownership, and topology contracts.',
   },
   {
     id: 'shared-design-tokens',
     directory: 'packages/shared-design-tokens',
-    description: 'Design token placeholders consumed by shell and verticals.',
+    description: 'Generated design tokens consumed by shell and verticals.',
   },
 ];
 

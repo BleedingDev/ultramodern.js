@@ -10,11 +10,13 @@ export default defineConfig({
   extends: [core, react],
   ignorePatterns: [
     '.agents',
+    '.output',
     'dist',
     'node_modules',
     'repos/**',
     '.modern',
     '.modernjs',
-    '**/routeTree.gen.ts',
+    '**/modern-tanstack/**',
+    '**/routeTree.gen.*',
   ],
 });

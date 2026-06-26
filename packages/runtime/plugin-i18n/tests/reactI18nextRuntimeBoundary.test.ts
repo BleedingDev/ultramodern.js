@@ -1,0 +1,27 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, test } from '@rstest/core';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const runtimeRoot = resolve(__dirname, '../src/runtime');
+
+const readRuntimeSource = (file: string) =>
+  readFileSync(resolve(runtimeRoot, file), 'utf8');
+
+describe('react-i18next runtime boundary', () => {
+  test('keeps the disabled runtime entry free of the optional adapter edge', () => {
+    const noReactEntry = readRuntimeSource('no-react-i18next.tsx');
+    const core = readRuntimeSource('core.tsx');
+
+    expect(noReactEntry).not.toContain('./i18n/react-i18next');
+    expect(core).not.toContain('./i18n/react-i18next');
+    expect(core).not.toContain("import('react-i18next')");
+  });
+
+  test('keeps the default runtime entry wired to react-i18next integration', () => {
+    const defaultEntry = readRuntimeSource('index.tsx');
+
+    expect(defaultEntry).toContain('./i18n/react-i18next');
+  });
+});

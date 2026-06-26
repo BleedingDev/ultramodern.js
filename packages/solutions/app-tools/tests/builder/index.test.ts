@@ -316,6 +316,62 @@ describe('create builder Options', () => {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
   });
+
+  test.each([
+    '.ts',
+    '.js',
+    '.mts',
+    '.cts',
+  ])('adds configured Effect BFF entry with %s extension to Cloudflare workerSSR builds', extension => {
+    const appDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-cloudflare-bff-configured-entry-'),
+    );
+    const apiDirectory = path.join(appDirectory, 'api');
+    const entryFile = path.join(apiDirectory, 'effect', `custom${extension}`);
+
+    fs.mkdirSync(path.dirname(entryFile), { recursive: true });
+    fs.writeFileSync(entryFile, '');
+
+    try {
+      const result = getBuilderEnvironments(
+        {
+          bff: {
+            runtimeFramework: 'effect',
+            effect: {
+              entry: `api/effect/custom${extension}`,
+            },
+          },
+          output: {
+            ssg: true,
+          },
+          deploy: {
+            target: 'cloudflare',
+            worker: {
+              ssr: true,
+            },
+          },
+        } as any,
+        {
+          appDirectory,
+          apiDirectory,
+          entrypoints: [
+            {
+              entryName: 'main',
+              entry: './src/index.jsx',
+            },
+          ],
+        } as any,
+        {} as any,
+      );
+
+      expect(result.environments.workerSSR?.source?.entry).toEqual({
+        main: ['./src/index.server.jsx'],
+        __modern_bff_effect: [`${entryFile}?modern-bff-runtime`],
+      });
+    } finally {
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('create builder provider config', () => {

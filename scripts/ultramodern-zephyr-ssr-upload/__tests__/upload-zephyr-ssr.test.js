@@ -26,7 +26,22 @@ function writeFile(filePath, value = '') {
   fs.writeFileSync(filePath, value);
 }
 
-function writeCloudflareOutput(rootDir) {
+function writeCloudflareOutput(
+  rootDir,
+  {
+    manifestBff = false,
+    packageDeclaresEffectBff = false,
+    writeBffWorker = false,
+  } = {},
+) {
+  if (packageDeclaresEffectBff) {
+    writeJson(path.join(rootDir, 'package.json'), {
+      modernjs: {
+        apiRuntime: 'effect-bff',
+      },
+    });
+  }
+
   writeFile(
     path.join(rootDir, '.output', 'server', 'index.mjs'),
     'export default { fetch() { return new Response("ok"); } };\n',
@@ -43,18 +58,36 @@ function writeCloudflareOutput(rootDir) {
     path.join(rootDir, '.output', 'public', 'mf-manifest.json'),
     '{}\n',
   );
+
+  if (writeBffWorker) {
+    writeFile(
+      path.join(rootDir, '.output', 'worker', '__modern_bff_effect.js'),
+      'module.exports = { default: { handler() {} } };\n',
+    );
+  }
+
+  const workerManifest = {
+    generatedBy: '@modern-js/app-tools',
+    routes: [
+      {
+        urlPath: '/commerce',
+        entryPath: 'html/commerce/index.html',
+        worker: 'main.js',
+      },
+    ],
+  };
+
+  if (manifestBff) {
+    workerManifest.bff = {
+      runtimeFramework: 'effect',
+      prefix: '/commerce-api',
+      worker: 'worker/__modern_bff_effect.js',
+    };
+  }
+
   writeJson(
     path.join(rootDir, '.output', 'server', 'modern-worker-manifest.json'),
-    {
-      generatedBy: '@modern-js/app-tools',
-      routes: [
-        {
-          urlPath: '/commerce',
-          entryPath: 'html/commerce/index.html',
-          worker: 'main.js',
-        },
-      ],
-    },
+    workerManifest,
   );
 }
 
@@ -89,6 +122,63 @@ test('validation fails loudly when wrangler assets metadata is missing', () => {
     assert.throws(
       () => validateCloudflareOutput({ rootDir }),
       /wrangler metadata is missing assets configuration/,
+    );
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('validation fails when an Effect BFF app omits manifest.bff', () => {
+  const rootDir = createTempWorkspace();
+  try {
+    writeCloudflareOutput(rootDir, {
+      packageDeclaresEffectBff: true,
+    });
+
+    assert.throws(
+      () => validateCloudflareOutput({ rootDir }),
+      /declares Effect BFF.*manifest\.bff/,
+    );
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('validation fails when Effect BFF manifest worker bundle is missing', () => {
+  const rootDir = createTempWorkspace();
+  try {
+    writeCloudflareOutput(rootDir, {
+      manifestBff: true,
+      packageDeclaresEffectBff: true,
+    });
+
+    assert.throws(
+      () => validateCloudflareOutput({ rootDir }),
+      /Cloudflare Effect BFF worker bundle is missing.*@modern-js\/plugin-bff\/effect-edge/,
+    );
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('validation accepts Effect BFF manifest when worker bundle exists', () => {
+  const rootDir = createTempWorkspace();
+  try {
+    writeCloudflareOutput(rootDir, {
+      manifestBff: true,
+      packageDeclaresEffectBff: true,
+      writeBffWorker: true,
+    });
+
+    const validation = validateCloudflareOutput({ rootDir });
+
+    assert.equal(
+      validation.outputSummary.workerManifest.bff.worker,
+      'worker/__modern_bff_effect.js',
+    );
+    assert.equal(
+      validation.outputSummary.files.worker.includes('__modern_bff_effect.js'),
+      true,
     );
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });

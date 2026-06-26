@@ -47,17 +47,18 @@ const requireGit = () => {
   );
 };
 
-const isInsideGitWorkTree = () => {
+const gitTopLevel = () => {
   try {
-    return run('git', ['rev-parse', '--is-inside-work-tree']).trim() === 'true';
+    return run('git', ['rev-parse', '--show-toplevel']).trim();
   } catch {
-    return false;
+    return undefined;
   }
 };
 
 const initializeGitRepository = () => {
-  if (isInsideGitWorkTree()) {
-    return;
+  const topLevel = gitTopLevel();
+  if (topLevel !== undefined) {
+    return path.resolve(topLevel) === root;
   }
 
   try {
@@ -66,9 +67,24 @@ const initializeGitRepository = () => {
     run('git', ['init'], { stdio: 'inherit' });
     run('git', ['branch', '-M', 'main'], { stdio: 'inherit' });
   }
+  return true;
 };
 
 const installLefthook = () => {
+  if (!commandExists('git')) {
+    console.warn(
+      'Skipping lefthook hook installation because git is not available. Install git and run lefthook install from the generated workspace root to enable local hooks.',
+    );
+    return;
+  }
+
+  if (!initializeGitRepository()) {
+    console.log(
+      'Skipping lefthook hook installation because this generated workspace is nested inside another Git worktree. Run git init from the generated workspace root before installing hooks if you want workspace-local hooks.',
+    );
+    return;
+  }
+
   try {
     run('lefthook', ['install'], { stdio: 'inherit' });
   } catch (error) {
@@ -199,8 +215,8 @@ if (checkOnly) {
   }
 
   if (missingCloneInstalled.length > 0) {
-    console.warn(
-      `Clone-installed agent skills not present: ${missingCloneInstalled.join(', ')}. Run pnpm skills:install to fetch them.`,
+    console.log(
+      `Advisory: clone-installed agent skills are not present: ${missingCloneInstalled.join(', ')}. This is expected in CI, nested generated workspaces, and postinstall-only installs; run pnpm skills:install when you need those skills.`,
     );
   } else {
     console.log('All pinned agent skills are installed.');
@@ -218,7 +234,6 @@ if (postinstall && !cloneOptIn) {
 
 fs.mkdirSync(installDir, { recursive: true });
 requireGit();
-initializeGitRepository();
 
 for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-skills-'));

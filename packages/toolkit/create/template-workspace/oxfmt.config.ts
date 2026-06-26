@@ -5,13 +5,15 @@ export default defineConfig({
   extends: [ultracite],
   ignorePatterns: [
     '.agents',
+    '.output',
     '**/*.json',
     'dist',
     'node_modules',
     'repos/**',
     '.modern',
     '.modernjs',
-    '**/routeTree.gen.ts',
+    '**/modern-tanstack/**',
+    '**/routeTree.gen.*',
   ],
   singleQuote: true,
 });

@@ -197,16 +197,21 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         port,
         publicDir: ['./locales', './assets'],
         ssr: {
-          mode: 'string',
+          mode: 'stream',
           moduleFederationAppSSR: true,
         },
       },
       source: {
+        alias: {
+          '@modern-js/plugin-i18n/runtime':
+            '@modern-js/plugin-i18n/runtime/no-react-i18next',
+        },
         globalVars: {
           ULTRAMODERN_SITE_URL: siteUrl,
         },
         mainEntryName: 'index',
       },
+      splitChunks: false,
       tools: {
         autoprefixer: {
           overrideBrowserslist: ['defaults'],
@@ -238,6 +243,11 @@ ${bffPluginEntry}        moduleFederationPlugin(),
 
 export function createSharedModuleFederationConfig(): string {
   return `  shared: {
+    '@modern-js/plugin-i18n/runtime/no-react-i18next': {
+      requiredVersion: pluginI18nVersion,
+      singleton: true,
+      treeShaking: false,
+    },
     '@modern-js/plugin-i18n/runtime': {
       requiredVersion: pluginI18nVersion,
       singleton: true,

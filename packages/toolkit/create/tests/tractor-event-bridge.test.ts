@@ -9,13 +9,15 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 
-function scaffoldTractorWorkspace() {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-tractor-events-'));
-  const workspaceDir = path.join(tempRoot, 'tractor-workspace');
+function scaffoldSharedContractsWorkspace() {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-shared-contracts-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'shared-contracts-workspace');
 
   generateUltramodernWorkspace({
     targetDir: workspaceDir,
-    packageName: 'tractor-workspace',
+    packageName: 'shared-contracts-workspace',
     modernVersion: '3.2.1',
     enableTailwind: true,
     packageSource: {
@@ -68,67 +70,90 @@ function loadGeneratedSharedContracts(workspaceDir: string) {
   return module.exports;
 }
 
-const toPlainJson = (value: unknown) => JSON.parse(JSON.stringify(value));
-
-test('generated Tractor event helpers validate payloads and dispatch browser CustomEvents', () => {
-  const { tempRoot, workspaceDir } = scaffoldTractorWorkspace();
+test('generated shared contracts expose neutral workspace event helpers', () => {
+  const { tempRoot, workspaceDir } = scaffoldSharedContractsWorkspace();
 
   try {
     const contracts = loadGeneratedSharedContracts(workspaceDir);
     const target = new EventTarget();
     const observedPayloads: unknown[] = [];
-    const unsubscribe = contracts.onCheckoutAddToCart(
+    const unsubscribe = contracts.onUltramodernNavigate(
       target,
       (payload: unknown, event: CustomEvent) => {
-        assert.equal(event.type, 'checkout:add-to-cart');
+        assert.equal(event.type, 'ultramodern:navigate');
         observedPayloads.push(payload);
       },
     );
-    const addPayload = {
-      sku: 'sku-1',
-      quantity: 2,
-      name: 'Demo Shoe',
-      unitPriceCents: 1299,
+    const navigatePayload = {
+      to: '/dashboard',
+      replace: false,
+      state: { from: 'shell' },
     };
-    const event = contracts.createTractorEvent(
-      contracts.tractorEventNames.checkoutAddToCart,
-      addPayload,
+    const event = contracts.createUltramodernWorkspaceEvent(
+      contracts.ultramodernWorkspaceEventNames.navigate,
+      navigatePayload,
     );
 
-    assert.equal(event.type, 'checkout:add-to-cart');
+    assert.equal(event.type, 'ultramodern:navigate');
     assert.equal(event.bubbles, true);
     assert.equal(event.composed, true);
-    assert.deepEqual(event.detail, addPayload);
+    assert.deepEqual(event.detail, navigatePayload);
     target.dispatchEvent(event);
-    assert.deepEqual(observedPayloads, [addPayload]);
+    assert.deepEqual(observedPayloads, [navigatePayload]);
 
     unsubscribe();
-    contracts.dispatchCheckoutAddToCart(target, {
-      sku: 'sku-2',
-      quantity: 1,
+    contracts.dispatchUltramodernNavigate(target, {
+      to: '/after-unsubscribe',
     });
-    assert.deepEqual(observedPayloads, [addPayload]);
+    assert.deepEqual(observedPayloads, [navigatePayload]);
 
-    assert.throws(
-      () =>
-        contracts.createTractorEvent('checkout:add-to-cart', {
-          sku: '',
-          quantity: 1,
-        }),
-      /Invalid payload for Tractor event "checkout:add-to-cart"/,
+    let invalidNavigatePayloadError:
+      | { readonly message?: string; readonly name?: string }
+      | undefined;
+    try {
+      contracts.createUltramodernWorkspaceEvent('ultramodern:navigate', {
+        to: '',
+      });
+    } catch (error) {
+      invalidNavigatePayloadError = error as {
+        readonly message?: string;
+        readonly name?: string;
+      };
+    }
+    assert.equal(
+      invalidNavigatePayloadError?.name,
+      'UltramodernWorkspaceEventValidationError',
     );
     assert.equal(
-      contracts.isTractorEventPayload('mf:navigate', {
-        to: '/cart',
-        replace: false,
-        state: { from: 'explore' },
-      }),
+      invalidNavigatePayloadError?.message,
+      'Invalid payload for UltraModern workspace event "ultramodern:navigate"',
+    );
+    assert.equal(
+      contracts.isUltramodernWorkspaceEventPayload(
+        'ultramodern:performance-signal',
+        {
+          signalId: 'bfcache',
+          status: 'pass',
+          durationMs: 12,
+          detail: { source: 'diagnostic' },
+        },
+      ),
       true,
     );
     assert.equal(
-      contracts.isTractorEventPayload('explore:selected-shop', {
-        shopId: 42,
+      contracts.isUltramodernWorkspaceEventPayload('ultramodern:remote-ready', {
+        appId: 42,
       }),
+      false,
+    );
+    assert.equal(
+      contracts.isUltramodernWorkspaceEventPayload(
+        'ultramodern:route-settled',
+        {
+          pathname: '/cs',
+          locale: 'de',
+        },
+      ),
       false,
     );
   } finally {
@@ -136,74 +161,8 @@ test('generated Tractor event helpers validate payloads and dispatch browser Cus
   }
 });
 
-test('generated Tractor cart helpers mirror checkout-owned cart update patterns', () => {
-  const { tempRoot, workspaceDir } = scaffoldTractorWorkspace();
-
-  try {
-    const contracts = loadGeneratedSharedContracts(workspaceDir);
-    const emptyCart = contracts.createCheckoutCartSnapshot([]);
-    const withItem = contracts.applyCheckoutCartEvent(
-      emptyCart,
-      'checkout:add-to-cart',
-      {
-        sku: 'sku-1',
-        quantity: 2,
-        name: 'Demo Shoe',
-        unitPriceCents: 1299,
-      },
-    );
-    const incremented = contracts.applyCheckoutCartEvent(
-      withItem,
-      'checkout:add-to-cart',
-      {
-        sku: 'sku-1',
-        quantity: 1,
-      },
-    );
-    const removed = contracts.applyCheckoutCartEvent(
-      incremented,
-      'checkout:remove-from-cart',
-      { sku: 'sku-1' },
-    );
-
-    assert.deepEqual(toPlainJson(withItem), {
-      lines: [
-        {
-          sku: 'sku-1',
-          quantity: 2,
-          name: 'Demo Shoe',
-          unitPriceCents: 1299,
-        },
-      ],
-      subtotalCents: 2598,
-      totalQuantity: 2,
-    });
-    assert.equal(incremented.totalQuantity, 3);
-    assert.equal(incremented.subtotalCents, 3897);
-    assert.deepEqual(toPlainJson(removed), {
-      lines: [],
-      totalQuantity: 0,
-    });
-    assert.deepEqual(
-      toPlainJson(
-        contracts.applyCheckoutCartEvent(
-          incremented,
-          'checkout:clear-cart',
-          {},
-        ),
-      ),
-      {
-        lines: [],
-        totalQuantity: 0,
-      },
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('generated checkout vertical gets Effect-backed cart state without broad event bus changes', () => {
-  const { tempRoot, workspaceDir } = scaffoldTractorWorkspace();
+test('generated checkout vertical keeps Effect-backed cart state out of shared contracts', () => {
+  const { tempRoot, workspaceDir } = scaffoldSharedContractsWorkspace();
 
   try {
     const readGenerated = (relativePath: string) =>
@@ -227,16 +186,12 @@ test('generated checkout vertical gets Effect-backed cart state without broad ev
       'apps/shell-super-app/src/effect/vertical-clients.ts',
     );
 
-    for (const eventName of [
-      'checkout:add-to-cart',
-      'checkout:cart-updated',
-      'checkout:remove-from-cart',
-      'checkout:clear-cart',
-      'explore:selected-shop',
-      'mf:navigate',
-    ]) {
-      assert.match(sharedContracts, new RegExp(eventName));
-    }
+    assert.match(sharedContracts, /ultramodern:navigate/);
+    assert.match(sharedContracts, /ultramodern:performance-signal/);
+    assert.match(sharedContracts, /ultramodern:remote-ready/);
+    assert.match(sharedContracts, /ultramodern:route-settled/);
+    assert.doesNotMatch(sharedContracts, /Tractor|tractor|checkout:/);
+    assert.doesNotMatch(sharedContracts, /explore:selected-shop|mf:navigate/);
     assert.match(checkoutSharedApi, /checkoutCartSchema/);
     assert.match(checkoutSharedApi, /addCartItem/);
     assert.match(checkoutSharedApi, /clearCart/);

@@ -53,6 +53,41 @@ describe('resolveLocalisedUrlsConfig', () => {
 });
 
 describe('cli modifyFileSystemRoutes', () => {
+  test('uses the no-react runtime entry when reactI18next is disabled', () => {
+    let runtimePlugin:
+      | {
+          path: string;
+          config: Record<string, unknown>;
+        }
+      | undefined;
+
+    i18nCliPlugin({ reactI18next: false }).setup({
+      _internalRuntimePlugins: (fn: any) => {
+        const plugins: Array<{
+          path: string;
+          config: Record<string, unknown>;
+        }> = [];
+        fn({
+          entrypoint: { entryName: 'main' },
+          plugins,
+        });
+        runtimePlugin = plugins[0];
+      },
+      modifyFileSystemRoutes: () => {},
+      _internalServerPlugins: () => {},
+      getAppContext: () => ({
+        appDirectory: process.cwd(),
+        metaName: 'modern-js',
+      }),
+      getNormalizedConfig: () => ({}),
+    } as any);
+
+    expect(runtimePlugin?.path).toBe(
+      '@modern-js/plugin-i18n/runtime/no-react-i18next',
+    );
+    expect(runtimePlugin?.config.reactI18next).toBe(false);
+  });
+
   const setupModifyRoutes = (localeDetection: Record<string, unknown>) => {
     let modifyRoutes:
       | ((args: { entrypoint: any; routes: any[] }) => {

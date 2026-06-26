@@ -43,7 +43,7 @@ const assertGeneratedModernConfigAssetPrefixContract = (
   };
 
   const assetPrefixMatch = modernConfig.match(
-    /const assetPrefix =\n(?<expression>[\s\S]*?);/,
+    /const\s+assetPrefix\s*=\s*(?<expression>[\s\S]*?);/,
   );
 
   assert.ok(

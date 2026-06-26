@@ -22,10 +22,12 @@ const createAssetBinding = (publicDirectory: string) => ({
 
 async function createFixture({
   compatibilityDate,
+  includeBffWorker = true,
   workerName,
   workerSecurity,
 }: {
   compatibilityDate?: string;
+  includeBffWorker?: boolean;
   workerName?: string;
   workerSecurity?: Record<string, unknown>;
 } = {}) {
@@ -150,9 +152,10 @@ async function createFixture({
       }), { headers: { 'content-type': 'application/json' } })
     };`,
   );
-  await fs.writeFile(
-    path.join(distDirectory, 'worker/__modern_bff_effect.js'),
-    `module.exports = { default: {
+  if (includeBffWorker) {
+    await fs.writeFile(
+      path.join(distDirectory, 'worker/__modern_bff_effect.js'),
+      `module.exports = { default: {
       handler: async (request, context) => new Response(JSON.stringify({
           pathname: new URL(request.url).pathname,
           originalPath: context.path,
@@ -161,7 +164,8 @@ async function createFixture({
         }), { headers: { 'content-type': 'application/json' } }),
       dispose: async () => {}
     } };`,
-  );
+    );
+  }
   await fs.writeFile(
     path.join(distDirectory, 'html/main/index.html'),
     '<!doctype html><html>main</html>',
@@ -309,6 +313,12 @@ afterEach(async () => {
 });
 
 describe('cloudflare deploy preset', () => {
+  it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
+    await expect(createFixture({ includeBffWorker: false })).rejects.toThrow(
+      /Cloudflare Effect BFF is configured, but the BFF worker bundle is missing: .*worker\/__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
+    );
+  });
+
   it('emits Cloudflare worker security defaults in the worker manifest', async () => {
     const { outputDirectory } = await createFixture();
     const workerManifest = JSON.parse(
@@ -643,6 +653,9 @@ describe('cloudflare deploy preset', () => {
       prefix: '/commerce-api',
       worker: 'worker/__modern_bff_effect.js',
     });
+    await expect(
+      fs.access(path.join(outputDirectory, 'worker/__modern_bff_effect.js')),
+    ).resolves.toBeUndefined();
     await expect(
       fs.readFile(path.join(outputDirectory, 'package.json'), 'utf-8'),
     ).resolves.toBe('{"type":"module"}\n');

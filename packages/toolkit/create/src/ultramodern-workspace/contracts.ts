@@ -582,8 +582,11 @@ export function createAppGeneratedContract(
       },
     },
     ssr: {
-      mode: 'string',
+      mode: 'stream',
       moduleFederationAppSSR: true,
+    },
+    bundling: {
+      splitChunks: false,
     },
     i18n: {
       plugin: '@modern-js/plugin-i18n',

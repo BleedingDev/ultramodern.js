@@ -51,6 +51,19 @@ const JS_OR_TS_EXTS = [
   '.cts',
 ] as const;
 
+type JsOrTsExtension = (typeof JS_OR_TS_EXTS)[number];
+
+function resolveJsOrTsEntry(entryWithoutOrWithExt: string) {
+  const extension = path.extname(entryWithoutOrWithExt) as JsOrTsExtension;
+  if (JS_OR_TS_EXTS.includes(extension)) {
+    return fs.existsSync(entryWithoutOrWithExt)
+      ? entryWithoutOrWithExt
+      : undefined;
+  }
+
+  return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutOrWithExt}${ext}`));
+}
+
 interface MiddlewareOptions {
   prefix: string;
   enableHandleWeb?: boolean;
@@ -237,7 +250,7 @@ export class EffectAdapter {
         : path.resolve(appDirectory || process.cwd(), configuredEntry)
       : defaultEntry;
 
-    return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
+    return resolveJsOrTsEntry(entryWithoutExt);
   }
 
   private isApiRequestPath(

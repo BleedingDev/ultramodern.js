@@ -100,10 +100,29 @@ test('rendered contents of the highest-risk generated files match the checked-in
       ),
       'utf-8',
     );
+    const shellModernConfig = fs.readFileSync(
+      path.join(workspaceDir, 'apps/shell-super-app/modern.config.ts'),
+      'utf-8',
+    );
+    assert.match(
+      shellModernConfig,
+      /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
+      'generated UltraModern apps with reactI18next=false must alias public runtime imports to the no-adapter entry',
+    );
     assert.match(
       shellRouteHead,
-      /const jsonLd = indexable \? route\?\.jsonLd : undefined;/,
+      /const jsonLd = route\?\.jsonLd;/,
       'generated route head must read JSON-LD only from explicit route metadata',
+    );
+    assert.match(
+      shellRouteHead,
+      /jsonLd !== undefined \?/,
+      'generated route head must render JSON-LD only after an explicit undefined check',
+    );
+    assert.doesNotMatch(
+      shellRouteHead,
+      /route \? t\(|jsonLd &&|route\?\.public === true|route\?\.indexable === true/,
+      'generated route head must avoid optional-object truthiness and literal route metadata comparisons',
     );
     assert.doesNotMatch(
       shellRouteHead,

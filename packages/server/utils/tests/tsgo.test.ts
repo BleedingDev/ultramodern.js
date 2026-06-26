@@ -119,4 +119,30 @@ describe('createResolvedTsgoConfig', () => {
       await fs.remove(second.resolvedConfigPath);
     }
   });
+
+  it('forces emit even when app tsconfig sets noEmit', async () => {
+    const example = path.join(__dirname, './fixtures', './ts-example');
+    const tsconfigPath = path.join(example, 'tsconfig.noemit.json');
+    const sourceDirs = [path.join(example, 'api')];
+
+    const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
+      example,
+      tsconfigPath,
+      path.join(example, 'dist-noemit'),
+      sourceDirs,
+      undefined,
+      getTsgoBinPath(example),
+    );
+
+    try {
+      expect(config.compilerOptions?.noEmit).toBe(false);
+      await expect(fs.readJSON(resolvedConfigPath)).resolves.toMatchObject({
+        compilerOptions: {
+          noEmit: false,
+        },
+      });
+    } finally {
+      await fs.remove(resolvedConfigPath);
+    }
+  });
 });

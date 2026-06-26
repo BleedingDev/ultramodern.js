@@ -12,6 +12,7 @@ const codeToolsPackageDir = path.resolve(
   'packages/toolkit/code-tools',
 );
 const testFrameworkVersion = '3.2.0-ultramodern.108';
+const testTypescriptVersion = '6.0.3';
 const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 const bleedingDevAliases = {
   '@modern-js/create': '@bleedingdev/modern-js-create',
@@ -105,7 +106,7 @@ function runPerformanceReadiness(
 
 function expectDedicatedAssetPrefixExpression(modernConfig: string) {
   const assetPrefixMatch = modernConfig.match(
-    /const assetPrefix =\n(?<expression>[\s\S]*?);/u,
+    /const\s+assetPrefix\s*=\s*(?<expression>[\s\S]*?);/u,
   );
   expect(assetPrefixMatch?.groups?.expression).toBeDefined();
   const assetPrefixExpression = assetPrefixMatch?.groups?.expression ?? '';
@@ -196,11 +197,11 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'peerDependencyRules')).toEqual({
     allowedVersions: {
       react: '>=19.0.0',
-      '@module-federation/dts-plugin>typescript': '7.0.1-rc',
-      '@module-federation/enhanced>typescript': '7.0.1-rc',
-      '@module-federation/modern-js-v3>typescript': '7.0.1-rc',
-      '@module-federation/rspack>typescript': '7.0.1-rc',
-      'i18next>typescript': '7.0.1-rc',
+      '@module-federation/dts-plugin>typescript': testTypescriptVersion,
+      '@module-federation/enhanced>typescript': testTypescriptVersion,
+      '@module-federation/modern-js-v3>typescript': testTypescriptVersion,
+      '@module-federation/rspack>typescript': testTypescriptVersion,
+      'i18next>typescript': testTypescriptVersion,
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
@@ -499,8 +500,11 @@ function expectAppConfigContract(
     expect(contractEntry.config.bff).toBeUndefined();
   }
   expect(contractEntry.ssr).toMatchObject({
-    mode: 'string',
+    mode: 'stream',
     moduleFederationAppSSR: true,
+  });
+  expect(contractEntry.bundling).toMatchObject({
+    splitChunks: false,
   });
 }
 
@@ -1512,7 +1516,9 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
         '7.0.0-dev.20260624.1',
       );
-      expect(packageJson.devDependencies.typescript).toBe('7.0.1-rc');
+      expect(packageJson.devDependencies.typescript).toBe(
+        testTypescriptVersion,
+      );
       expect(packageJson.devDependencies['zephyr-rspack-plugin']).toBe('1.1.1');
       expect(packageJson.devDependencies.wrangler).toBe('4.102.0');
       expect(

@@ -126,10 +126,15 @@ export const i18nPlugin = (
         backend: backendOptions,
         ...extendedConfig,
       };
+      const runtimePluginPath =
+        customPlugin?.runtime?.path ||
+        (config.reactI18next === false
+          ? `@${metaName}/plugin-i18n/runtime/no-react-i18next`
+          : `@${metaName}/plugin-i18n/runtime`);
 
       plugins.push({
         name: customPlugin?.runtime?.name || 'i18n',
-        path: customPlugin?.runtime?.path || `@${metaName}/plugin-i18n/runtime`,
+        path: runtimePluginPath,
         config,
       });
       return {

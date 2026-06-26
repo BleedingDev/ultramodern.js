@@ -222,6 +222,23 @@ const assertMicroVerticalContractGraph = ({
     '.modernjs/ultramodern-generated-contract.json shell moduleFederation.remotes',
     'regenerate the generated shell Module Federation contract',
   );
+  assertSameJson(
+    {
+      ssr: shellContract.ssr,
+      bundling: shellContract.bundling,
+    },
+    {
+      ssr: {
+        mode: 'stream',
+        moduleFederationAppSSR: true,
+      },
+      bundling: {
+        splitChunks: false,
+      },
+    },
+    '.modernjs/ultramodern-generated-contract.json shell SSR/bundling contract',
+    'restore generated stream SSR Module Federation bundling settings',
+  );
 
   for (const vertical of fullStackVerticals) {
     const expectedRefs = vertical.verticalRefs ?? [];
@@ -353,6 +370,8 @@ const assertMicroVerticalContractGraph = ({
           contract: contractEntry.effect?.contract,
           client: contractEntry.effect?.client,
         },
+        ssr: contractEntry.ssr,
+        bundling: contractEntry.bundling,
       },
       {
         kind: 'vertical',
@@ -368,6 +387,13 @@ const assertMicroVerticalContractGraph = ({
           prefix: vertical.apiPrefix,
           contract: './shared/effect/api',
           client: './effect/client',
+        },
+        ssr: {
+          mode: 'stream',
+          moduleFederationAppSSR: true,
+        },
+        bundling: {
+          splitChunks: false,
         },
       },
       `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
@@ -511,9 +537,78 @@ const assertCloudflareQualityGates = (appId, qualityGates) => {
   assert(qualityGates?.csp?.finalMode === 'report-only-dogfood', `${appId} CSP final mode decision is missing`);
 };
 const extractAssetPrefixExpression = modernConfig => {
-  const match = /const assetPrefix =\n(?<expression>[\s\S]*?);/u.exec(modernConfig);
+  const match = /const\s+assetPrefix\s*=\s*(?<expression>[\s\S]*?);/u.exec(modernConfig);
   assert(match?.groups?.expression, 'modern.config.ts must assign assetPrefix');
   return match.groups.expression;
+};
+const stripYamlInlineComment = value => {
+  let quote = undefined;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      if (character === quote && value[index - 1] !== '\\') {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '#' && (index === 0 || /\s/u.test(value[index - 1]))) {
+      return value.slice(0, index).trimEnd();
+    }
+  }
+  return value.trimEnd();
+};
+const normalizeYamlScalar = value => {
+  const trimmed = stripYamlInlineComment(value).trim();
+  if (
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))) &&
+    trimmed.length >= 2
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+const extractWorkflowNodeVersions = workflowText => {
+  const versions = [];
+  const lines = workflowText.split(/\r?\n/u);
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const match = /^(?<indent>\s*)node-version\s*:\s*(?<value>.*)$/u.exec(
+      lines[lineIndex],
+    );
+    if (!match?.groups) {
+      continue;
+    }
+
+    let value = normalizeYamlScalar(match.groups.value);
+    if (value === '' || value === '|' || value === '>') {
+      const currentIndent = match.groups.indent.length;
+      for (
+        let nextLineIndex = lineIndex + 1;
+        nextLineIndex < lines.length;
+        nextLineIndex += 1
+      ) {
+        const nextLine = lines[nextLineIndex];
+        const nextTrimmed = nextLine.trim();
+        if (nextTrimmed === '' || nextTrimmed.startsWith('#')) {
+          continue;
+        }
+        const nextIndent = nextLine.match(/^\s*/u)?.[0]?.length ?? 0;
+        if (nextIndent <= currentIndent) {
+          break;
+        }
+        value = normalizeYamlScalar(nextTrimmed);
+        break;
+      }
+    }
+    if (value !== '') {
+      versions.push(value);
+    }
+  }
+  return versions;
 };
 const expectedWorkerName = packageSuffix => `${packageScope}-${packageSuffix}`.slice(0, 63);
 const expectedChunkLoadingGlobal = mfName =>
@@ -660,7 +755,12 @@ assert(generatedContract.node?.engineRange === '>=26', 'Generated contract must 
 assert(readText('.mise.toml').includes(`node = "${expectedNodeVersion}"`), 'mise must pin the generated Node version');
 assert(readText('.mise.toml').includes(`pnpm = "${packageManagerPnpmVersion}"`), 'mise must pin the generated pnpm version');
 const workflowText = readText('.github/workflows/ultramodern-workspace-gates.yml');
-assert(workflowText.includes(`node-version: "${expectedNodeVersion}"`), 'CI workflow must pin the generated Node version');
+const workflowNodeVersions = extractWorkflowNodeVersions(workflowText);
+assert(workflowNodeVersions.length > 0, 'CI workflow must configure setup-node node-version');
+assert(
+  workflowNodeVersions.every(nodeVersion => nodeVersion === expectedNodeVersion),
+  `CI workflow must pin the generated Node version ${expectedNodeVersion}; found ${workflowNodeVersions.join(', ')}`,
+);
 assert(!workflowText.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24'), 'CI workflow must not carry the legacy Node 24 override');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json', 'Root must point at package source metadata');

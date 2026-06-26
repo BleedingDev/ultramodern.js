@@ -13,6 +13,7 @@ type TsgoConfig = {
     baseUrl?: unknown;
     module?: string;
     moduleResolution?: string;
+    noEmit?: boolean;
     noEmitOnError?: boolean;
     outDir?: string;
     rootDir?: string;
@@ -59,6 +60,7 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions ??= {};
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
+  config.compilerOptions.noEmit = false;
   // `--showConfig` emits `files` relative to the tsconfig directory.
   config.files = filterSourceFiles(tsconfigDir, sourceDirs, config.files);
   delete config.include;

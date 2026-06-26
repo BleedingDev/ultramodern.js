@@ -9,11 +9,17 @@ const appName = "Shell Super App";
 const fallbackLanguage = 'en';
 const supportedLanguages = ['en', 'cs'] as const;
 type SupportedLanguage = (typeof supportedLanguages)[number];
-type RouteMetadata = (typeof ultramodernRouteMetadata)[number] & {
+type GeneratedRouteMetadata = (typeof ultramodernRouteMetadata)[number];
+type RouteMetadata = Omit<
+  GeneratedRouteMetadata,
+  'indexable' | 'jsonLd' | 'public'
+> & {
+  readonly indexable: boolean;
   readonly jsonLd?: RouteJsonLd;
+  readonly public: boolean;
 };
 
-const routeMetadata = ultramodernRouteMetadata as readonly RouteMetadata[];
+const routeMetadata: readonly RouteMetadata[] = ultramodernRouteMetadata;
 
 const isSupportedLanguage = (value: string): value is SupportedLanguage =>
   supportedLanguages.includes(value as SupportedLanguage);
@@ -84,6 +90,11 @@ const resolveRouteMetadata = (pathname: string) => {
   return routeMetadata[0];
 };
 
+const isPublicIndexableRoute = (
+  route: RouteMetadata | undefined,
+): route is RouteMetadata =>
+  route !== undefined && route.public && route.indexable;
+
 const absoluteUrl = (pathname: string) => {
   const origin = ULTRAMODERN_SITE_URL.replace(/\/+$/u, '');
   return `${origin}${pathname}`;
@@ -97,11 +108,12 @@ export const UltramodernRouteHead = () => {
   const t = i18nInstance['t'].bind(i18nInstance);
   const { canonical, alternates } = useLocalizedLocation();
   const route = resolveRouteMetadata(canonical);
-  const title = route ? t(route.titleKey) : appName;
-  const description = route ? t(route.descriptionKey) : appName;
+  const title = route === undefined ? appName : t(route.titleKey);
+  const description =
+    route === undefined ? appName : t(route.descriptionKey);
   const canonicalUrl = absoluteUrl(alternates[fallbackLanguage] ?? `/${fallbackLanguage}`);
-  const indexable = route?.public === true && route?.indexable === true;
-  const jsonLd = indexable ? route?.jsonLd : undefined;
+  const indexable = isPublicIndexableRoute(route);
+  const jsonLd = route?.jsonLd;
 
   return (
     <Helmet htmlAttributes={{ lang: i18nInstance.language ?? fallbackLanguage }}>
@@ -132,9 +144,9 @@ export const UltramodernRouteHead = () => {
           <meta content="summary_large_image" name="twitter:card" />
           <meta content={title} name="twitter:title" />
           <meta content={description} name="twitter:description" />
-          {jsonLd && (
+          {jsonLd !== undefined ? (
             <script type="application/ld+json">{sanitiseJsonLd(jsonLd)}</script>
-          )}
+          ) : null}
         </>
       )}
     </Helmet>

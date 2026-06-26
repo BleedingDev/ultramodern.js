@@ -161,6 +161,9 @@ function assertIntegratedVertical(
   assert.equal(contractEntry.package, packageName);
   assert.equal(contractEntry.path, `verticals/${id}`);
   assert.equal(contractEntry.kind, 'vertical');
+  assert.equal(contractEntry.ssr.mode, 'stream');
+  assert.equal(contractEntry.ssr.moduleFederationAppSSR, true);
+  assert.equal(contractEntry.bundling.splitChunks, false);
   assert.deepEqual(contractEntry.moduleFederation.exposes, [
     './Route',
     './Widget',
@@ -245,12 +248,32 @@ test('workspace and MicroVertical integration stays coherent across public API a
       workspaceDir,
       'apps/shell-super-app/package.json',
     );
+    const shellModernConfig = read(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
     const packageSource = readJson(
       workspaceDir,
       '.modernjs/ultramodern-package-source.json',
     );
 
     assert.deepEqual(topology.shell.verticalRefs, ['catalog', 'checkout']);
+    assert.match(shellModernConfig, /mode:\s*'stream'/);
+    assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
+    assert.match(shellModernConfig, /splitChunks:\s*false/);
+    assert.match(
+      shellModernConfig,
+      /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
+    );
+    assert.equal(appById(contract.apps, 'shell-super-app').ssr.mode, 'stream');
+    assert.equal(
+      appById(contract.apps, 'shell-super-app').ssr.moduleFederationAppSSR,
+      true,
+    );
+    assert.equal(
+      appById(contract.apps, 'shell-super-app').bundling.splitChunks,
+      false,
+    );
     assert.deepEqual(
       topology.shell.moduleFederation.remotes.map((remote: any) => remote.id),
       ['catalog', 'checkout'],
@@ -387,6 +410,44 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       expectedFixArea:
         /Fix area: restore the generated MicroVertical files or rerun the MicroVertical generator\./,
     },
+    {
+      workspaceName: 'shell-ssr-corrupt',
+      mutate: (workspaceDir: string) => {
+        const contract = readJson(
+          workspaceDir,
+          '.modernjs/ultramodern-generated-contract.json',
+        );
+        appById(contract.apps, 'shell-super-app').ssr.mode = 'string';
+        writeJson(
+          workspaceDir,
+          '.modernjs/ultramodern-generated-contract.json',
+          contract,
+        );
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json shell SSR\/bundling contract\./,
+      expectedFixArea:
+        /Fix area: restore generated stream SSR Module Federation bundling settings\./,
+    },
+    {
+      workspaceName: 'vertical-bundling-corrupt',
+      mutate: (workspaceDir: string) => {
+        const contract = readJson(
+          workspaceDir,
+          '.modernjs/ultramodern-generated-contract.json',
+        );
+        appById(contract.apps, 'catalog').bundling.splitChunks = true;
+        writeJson(
+          workspaceDir,
+          '.modernjs/ultramodern-generated-contract.json',
+          contract,
+        );
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json apps\.catalog\./,
+      expectedFixArea:
+        /Fix area: regenerate the generated MicroVertical contract entry\./,
+    },
   ] as const;
 
   try {
@@ -418,6 +479,86 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       assert.match(output, scenario.expectedContract);
       assert.match(output, scenario.expectedFixArea);
     }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated workspace self-check accepts stable formatting but rejects wrong CI Node pins', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-validator-'));
+  const workspaceDir = path.join(tempRoot, 'validator-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'validator-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+
+    const contract = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern-generated-contract.json',
+    );
+    const expectedNodeVersion = contract.node.version;
+    const workflowPath = path.join(
+      workspaceDir,
+      '.github/workflows/ultramodern-workspace-gates.yml',
+    );
+    const modernConfigPath = path.join(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
+
+    fs.writeFileSync(
+      workflowPath,
+      read(
+        workspaceDir,
+        '.github/workflows/ultramodern-workspace-gates.yml',
+      ).replace(
+        `node-version: "${expectedNodeVersion}"`,
+        `node-version: '${expectedNodeVersion}'`,
+      ),
+      'utf-8',
+    );
+
+    const sameLineAssetPrefix = read(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    ).replace(
+      /const assetPrefix =\n\s+configuredModernAssetPrefix \|\| configuredUltramodernAssetPrefix \|\| '\/';/u,
+      "const assetPrefix = configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/';",
+    );
+    fs.writeFileSync(modernConfigPath, sameLineAssetPrefix, 'utf-8');
+
+    const passingResult = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passingResult.status, 0, commandOutput(passingResult));
+
+    fs.writeFileSync(
+      workflowPath,
+      read(
+        workspaceDir,
+        '.github/workflows/ultramodern-workspace-gates.yml',
+      ).replace(
+        `node-version: '${expectedNodeVersion}'`,
+        "node-version: '25.0.0'",
+      ),
+      'utf-8',
+    );
+
+    const failingResult = runGeneratedWorkspaceCheck(workspaceDir);
+    const output = commandOutput(failingResult);
+    assert.notEqual(failingResult.status, 0, output);
+    assert.match(
+      output,
+      new RegExp(
+        `CI workflow must pin the generated Node version ${expectedNodeVersion}; found 25\\.0\\.0`,
+      ),
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

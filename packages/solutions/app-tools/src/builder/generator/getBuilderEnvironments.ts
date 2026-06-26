@@ -14,7 +14,17 @@ import type { AppToolsContext } from '../../types/plugin';
 
 const BFF_EFFECT_WORKER_ENTRY_NAME = '__modern_bff_effect';
 const BFF_EFFECT_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
-const JS_OR_TS_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const JS_OR_TS_EXTS = [
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.mts',
+  '.cjs',
+  '.cts',
+] as const;
+type JsOrTsExtension = (typeof JS_OR_TS_EXTS)[number];
 const CLOUDFLARE_WORKER_NODE_BUILTINS = [
   'async_hooks',
   'buffer',
@@ -36,6 +46,19 @@ const CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR = path.resolve(
 
 function findExistingFile(candidates: string[]) {
   return candidates.find(candidate => fs.existsSync(candidate));
+}
+
+function resolveJsOrTsEntry(entryWithoutOrWithExt: string) {
+  const extension = path.extname(entryWithoutOrWithExt) as JsOrTsExtension;
+  if (JS_OR_TS_EXTS.includes(extension)) {
+    return fs.existsSync(entryWithoutOrWithExt)
+      ? entryWithoutOrWithExt
+      : undefined;
+  }
+
+  return findExistingFile(
+    JS_OR_TS_EXTS.map(extension => `${entryWithoutOrWithExt}${extension}`),
+  );
 }
 
 function resolvePackageEntry(packageName: string, paths: string[]) {
@@ -133,15 +156,13 @@ function getEffectBffEntry(
   }
 
   const configuredEntry = normalizedConfig.bff.effect?.entry;
-  const entryWithoutExtension = configuredEntry
+  const entryWithoutOrWithExtension = configuredEntry
     ? path.isAbsolute(configuredEntry)
       ? configuredEntry
       : path.resolve(appContext.appDirectory, configuredEntry)
     : path.resolve(appContext.apiDirectory, 'effect', 'index');
 
-  return findExistingFile(
-    JS_OR_TS_EXTS.map(extension => `${entryWithoutExtension}${extension}`),
-  );
+  return resolveJsOrTsEntry(entryWithoutOrWithExtension);
 }
 
 function isCloudflareWorkerDeploy(normalizedConfig: AppNormalizedConfig) {

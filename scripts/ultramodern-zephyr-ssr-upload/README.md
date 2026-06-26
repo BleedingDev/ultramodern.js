@@ -17,6 +17,9 @@ The wrapper validates the Cloudflare output before upload:
 - `.output/wrangler.json` must declare `assets.directory` and
   `assets.binding`.
 - The public assets directory referenced by Wrangler must exist.
+- Apps declaring `package.json modernjs.apiRuntime: "effect-bff"` must emit
+  `.output/server/modern-worker-manifest.json` with `manifest.bff`.
+- A `manifest.bff.worker` entry must point to an existing bundled worker file.
 
 The upload call is intentionally thin:
 

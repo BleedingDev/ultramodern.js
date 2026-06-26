@@ -12,6 +12,9 @@ const EXPECTED_ENTRYPOINT = 'server/index.mjs';
 const EXPECTED_BUILDER = 'modern-js';
 const EXPECTED_TARGET = 'cloudflare';
 const EXPECTED_ASSETS_BINDING = 'ASSETS';
+const WORKER_MANIFEST_FILE = path.join('server', 'modern-worker-manifest.json');
+const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
+  'Ensure the Effect BFF entry exists at api/effect/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -110,7 +113,7 @@ function createOutputSummary({ outputDir, publicDir }) {
     path.join(outputDir, 'server', 'route.json'),
   );
   const workerManifest = readOptionalJson(
-    path.join(outputDir, 'server', 'modern-worker-manifest.json'),
+    path.join(outputDir, WORKER_MANIFEST_FILE),
   );
 
   return {
@@ -123,6 +126,83 @@ function createOutputSummary({ outputDir, publicDir }) {
     routeJson,
     workerManifest,
   };
+}
+
+function appDeclaresEffectBff(rootDir) {
+  const packageJson = readOptionalJson(path.join(rootDir, 'package.json'));
+
+  return (
+    isRecord(packageJson) &&
+    isRecord(packageJson.modernjs) &&
+    packageJson.modernjs.apiRuntime === 'effect-bff'
+  );
+}
+
+function validateBffWorkerManifest({ rootDir, outputDir }) {
+  const workerManifestPath = path.join(outputDir, WORKER_MANIFEST_FILE);
+  const workerManifest = readOptionalJson(workerManifestPath);
+  const declaresEffectBff = appDeclaresEffectBff(rootDir);
+
+  if (!workerManifest) {
+    if (declaresEffectBff) {
+      throw new Error(
+        `App package declares Effect BFF with modernjs.apiRuntime=effect-bff, but the Cloudflare worker manifest is missing: ${workerManifestPath}`,
+      );
+    }
+
+    return;
+  }
+
+  if (!isRecord(workerManifest)) {
+    if (declaresEffectBff) {
+      throw new Error(
+        `App package declares Effect BFF with modernjs.apiRuntime=effect-bff, but the Cloudflare worker manifest must contain a JSON object: ${workerManifestPath}`,
+      );
+    }
+
+    return;
+  }
+
+  const bff = workerManifest.bff;
+  if (!bff) {
+    if (declaresEffectBff) {
+      throw new Error(
+        `App package declares Effect BFF with modernjs.apiRuntime=effect-bff, but the Cloudflare worker manifest is missing manifest.bff: ${workerManifestPath}`,
+      );
+    }
+
+    return;
+  }
+
+  if (!isRecord(bff)) {
+    throw new Error(
+      `Cloudflare worker manifest bff metadata must contain a JSON object: ${workerManifestPath}`,
+    );
+  }
+
+  if (declaresEffectBff && bff.runtimeFramework !== 'effect') {
+    throw new Error(
+      `App package declares Effect BFF with modernjs.apiRuntime=effect-bff, but manifest.bff.runtimeFramework is ${JSON.stringify(
+        bff.runtimeFramework,
+      )}; expected "effect".`,
+    );
+  }
+
+  if (bff.runtimeFramework !== 'effect' && !declaresEffectBff) {
+    return;
+  }
+
+  const bffWorker = typeof bff.worker === 'string' ? bff.worker.trim() : '';
+  if (bffWorker.length === 0) {
+    throw new Error(
+      `Cloudflare Effect BFF worker manifest must declare manifest.bff.worker: ${workerManifestPath}. ${EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE}`,
+    );
+  }
+
+  assertFile(
+    path.resolve(outputDir, bffWorker),
+    `Cloudflare Effect BFF worker bundle is missing. ${EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE}`,
+  );
 }
 
 function validateCloudflareOutput({
@@ -168,6 +248,11 @@ function validateCloudflareOutput({
       `Cloudflare wrangler assets.binding must be ${EXPECTED_ASSETS_BINDING}; received ${wranglerAssets.binding}`,
     );
   }
+
+  validateBffWorkerManifest({
+    rootDir: resolvedRootDir,
+    outputDir: resolvedOutputDir,
+  });
 
   return {
     rootDir: resolvedRootDir,

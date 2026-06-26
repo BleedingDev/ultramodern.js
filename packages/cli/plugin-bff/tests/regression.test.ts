@@ -392,6 +392,51 @@ describe('plugin-bff regressions', () => {
     }
   });
 
+  test.each([
+    '.ts',
+    '.js',
+    '.mts',
+    '.cts',
+  ])('effect adapter resolves configured Effect entry with %s extension', async extension => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-configured-entry-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'effect', `custom${extension}`);
+      await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
+      await fs.promises.writeFile(entryFile, '');
+
+      const api = {
+        getServerContext() {
+          return {
+            appDirectory: appDir,
+            apiDirectory: apiDir,
+          };
+        },
+        getServerConfig() {
+          return {
+            bff: {
+              effect: {
+                entry: `api/effect/custom${extension}`,
+              },
+            },
+          };
+        },
+      } as unknown;
+
+      const adapter = new EffectAdapter(api as ServerPluginAPI);
+      const adapterState = adapter as unknown as {
+        resolveEntryFile: () => string | undefined;
+      };
+
+      expect(adapterState.resolveEntryFile()).toBe(entryFile);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('client generator skips lambda scan when existLambda is false', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-regression-'),

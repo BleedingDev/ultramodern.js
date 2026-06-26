@@ -16,7 +16,9 @@ export interface UltramodernPublicSitemapEntry {
   /**
    * Per-locale overrides when translated URLs use translated params.
    */
-  localeParams?: Partial<Record<'en' | 'cs', Record<string, string | number | boolean>>>;
+  localeParams?: Partial<
+    Record<'en' | 'cs', Record<string, string | number | boolean>>
+  >;
   draft?: boolean;
   indexable?: boolean;
   lastModified?: string;
@@ -73,74 +75,64 @@ export const ultramodernWorkspaceContract = {
   topology: 'topology/reference-topology.json',
 } as const;
 
-export const tractorEventNames = {
-  checkoutAddToCart: 'checkout:add-to-cart',
-  checkoutCartUpdated: 'checkout:cart-updated',
-  checkoutClearCart: 'checkout:clear-cart',
-  checkoutRemoveFromCart: 'checkout:remove-from-cart',
-  exploreSelectedShop: 'explore:selected-shop',
-  mfNavigate: 'mf:navigate',
+export type UltramodernWorkspaceLocale = 'en' | 'cs';
+
+export type UltramodernPerformanceReadinessSignalStatus =
+  | 'pass'
+  | 'warn'
+  | 'fail';
+
+export const ultramodernWorkspaceEventNames = {
+  navigate: 'ultramodern:navigate',
+  performanceSignal: 'ultramodern:performance-signal',
+  remoteReady: 'ultramodern:remote-ready',
+  routeSettled: 'ultramodern:route-settled',
 } as const;
 
-export type TractorEventName =
-  (typeof tractorEventNames)[keyof typeof tractorEventNames];
+export type UltramodernWorkspaceEventName =
+  (typeof ultramodernWorkspaceEventNames)[keyof typeof ultramodernWorkspaceEventNames];
 
-export interface CheckoutAddToCartPayload {
-  sku: string;
-  quantity: number;
-  name?: string;
-  shopId?: string;
-  unitPriceCents?: number;
-}
-
-export interface CheckoutCartLinePayload {
-  sku: string;
-  quantity: number;
-  name?: string;
-  unitPriceCents?: number;
-}
-
-export interface CheckoutCartUpdatedPayload {
-  lines: readonly CheckoutCartLinePayload[];
-  totalQuantity: number;
-  subtotalCents?: number;
-}
-
-export interface CheckoutRemoveFromCartPayload {
-  sku: string;
-}
-
-export interface CheckoutClearCartPayload {
-  reason?: string;
-}
-
-export interface ExploreSelectedShopPayload {
-  shopId: string;
-  name?: string;
-}
-
-export interface MfNavigatePayload {
+export interface UltramodernNavigatePayload {
   to: string;
   replace?: boolean;
   state?: Record<string, unknown>;
 }
 
-export interface TractorEventPayloadMap {
-  'checkout:add-to-cart': CheckoutAddToCartPayload;
-  'checkout:cart-updated': CheckoutCartUpdatedPayload;
-  'checkout:clear-cart': CheckoutClearCartPayload;
-  'checkout:remove-from-cart': CheckoutRemoveFromCartPayload;
-  'explore:selected-shop': ExploreSelectedShopPayload;
-  'mf:navigate': MfNavigatePayload;
+export interface UltramodernRouteSettledPayload {
+  pathname: string;
+  locale?: UltramodernWorkspaceLocale;
+  title?: string;
 }
 
-export class TractorEventValidationError extends Error {
-  readonly eventName: TractorEventName;
+export interface UltramodernRemoteReadyPayload {
+  appId: string;
+  build?: string;
+  surface?: string;
+  version?: string;
+}
+
+export interface UltramodernPerformanceSignalPayload {
+  signalId: UltramodernPerformanceReadinessSignalId;
+  status: UltramodernPerformanceReadinessSignalStatus;
+  durationMs?: number;
+  detail?: Record<string, unknown>;
+}
+
+export interface UltramodernWorkspaceEventPayloadMap {
+  'ultramodern:navigate': UltramodernNavigatePayload;
+  'ultramodern:performance-signal': UltramodernPerformanceSignalPayload;
+  'ultramodern:remote-ready': UltramodernRemoteReadyPayload;
+  'ultramodern:route-settled': UltramodernRouteSettledPayload;
+}
+
+export class UltramodernWorkspaceEventValidationError {
+  readonly message: string;
+  readonly name = 'UltramodernWorkspaceEventValidationError';
+  readonly eventName: UltramodernWorkspaceEventName;
   readonly payload: unknown;
 
-  constructor(eventName: TractorEventName, payload: unknown) {
-    super(`Invalid payload for Tractor event "${eventName}"`);
-    this.name = 'TractorEventValidationError';
+  constructor(eventName: UltramodernWorkspaceEventName, payload: unknown) {
+    this.message = `Invalid payload for UltraModern workspace event "${eventName}"`;
     this.eventName = eventName;
     this.payload = payload;
   }
@@ -152,11 +144,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
-const isPositiveInteger = (value: unknown): value is number =>
-  Number.isInteger(value) && value > 0;
+const isNonNegativeNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
-const isNonNegativeInteger = (value: unknown): value is number =>
-  Number.isInteger(value) && value >= 0;
+const isUltramodernWorkspaceLocale = (
+  value: unknown,
+): value is UltramodernWorkspaceLocale => value === 'en' || value === 'cs';
+
+const isPerformanceReadinessSignalId = (
+  value: unknown,
+): value is UltramodernPerformanceReadinessSignalId =>
+  value === 'bfcache' ||
+  value === 'core-web-vitals-rum' ||
+  value === 'duplicate-prefetch-warmup' ||
+  value === 'cache-policy-sanity' ||
+  value === 'save-data-behavior' ||
+  value === 'cloudflare-ssr-cache-hints';
+
+const isPerformanceReadinessSignalStatus = (
+  value: unknown,
+): value is UltramodernPerformanceReadinessSignalStatus =>
+  value === 'pass' || value === 'warn' || value === 'fail';
 
 const hasOptionalString = (value: Record<string, unknown>, key: string) =>
   value[key] === undefined || isNonEmptyString(value[key]);
@@ -167,127 +175,128 @@ const hasOptionalBoolean = (value: Record<string, unknown>, key: string) =>
 const hasOptionalRecord = (value: Record<string, unknown>, key: string) =>
   value[key] === undefined || isRecord(value[key]);
 
-const hasOptionalNonNegativeInteger = (
+const hasOptionalNonNegativeNumber = (
   value: Record<string, unknown>,
   key: string,
-) => value[key] === undefined || isNonNegativeInteger(value[key]);
+) => value[key] === undefined || isNonNegativeNumber(value[key]);
 
-export const isCheckoutAddToCartPayload = (
-  payload: unknown,
-): payload is CheckoutAddToCartPayload =>
-  isRecord(payload) &&
-  isNonEmptyString(payload['sku']) &&
-  isPositiveInteger(payload['quantity']) &&
-  hasOptionalString(payload, 'name') &&
-  hasOptionalString(payload, 'shopId') &&
-  hasOptionalNonNegativeInteger(payload, 'unitPriceCents');
+const hasOptionalLocale = (value: Record<string, unknown>, key: string) =>
+  value[key] === undefined || isUltramodernWorkspaceLocale(value[key]);
 
-export const isCheckoutCartLinePayload = (
+export const isUltramodernNavigatePayload = (
   payload: unknown,
-): payload is CheckoutCartLinePayload =>
-  isRecord(payload) &&
-  isNonEmptyString(payload['sku']) &&
-  isPositiveInteger(payload['quantity']) &&
-  hasOptionalString(payload, 'name') &&
-  hasOptionalNonNegativeInteger(payload, 'unitPriceCents');
-
-export const isCheckoutCartUpdatedPayload = (
-  payload: unknown,
-): payload is CheckoutCartUpdatedPayload =>
-  isRecord(payload) &&
-  Array.isArray(payload['lines']) &&
-  payload['lines'].every(isCheckoutCartLinePayload) &&
-  isNonNegativeInteger(payload['totalQuantity']) &&
-  hasOptionalNonNegativeInteger(payload, 'subtotalCents');
-
-export const isCheckoutRemoveFromCartPayload = (
-  payload: unknown,
-): payload is CheckoutRemoveFromCartPayload =>
-  isRecord(payload) && isNonEmptyString(payload['sku']);
-
-export const isCheckoutClearCartPayload = (
-  payload: unknown,
-): payload is CheckoutClearCartPayload =>
-  isRecord(payload) && hasOptionalString(payload, 'reason');
-
-export const isExploreSelectedShopPayload = (
-  payload: unknown,
-): payload is ExploreSelectedShopPayload =>
-  isRecord(payload) &&
-  isNonEmptyString(payload['shopId']) &&
-  hasOptionalString(payload, 'name');
-
-export const isMfNavigatePayload = (
-  payload: unknown,
-): payload is MfNavigatePayload =>
+): payload is UltramodernNavigatePayload =>
   isRecord(payload) &&
   isNonEmptyString(payload['to']) &&
   hasOptionalBoolean(payload, 'replace') &&
   hasOptionalRecord(payload, 'state');
 
-const tractorEventValidators = {
-  [tractorEventNames.checkoutAddToCart]: isCheckoutAddToCartPayload,
-  [tractorEventNames.checkoutCartUpdated]: isCheckoutCartUpdatedPayload,
-  [tractorEventNames.checkoutClearCart]: isCheckoutClearCartPayload,
-  [tractorEventNames.checkoutRemoveFromCart]: isCheckoutRemoveFromCartPayload,
-  [tractorEventNames.exploreSelectedShop]: isExploreSelectedShopPayload,
-  [tractorEventNames.mfNavigate]: isMfNavigatePayload,
-} satisfies {
-  [Name in TractorEventName]: (
+export const isUltramodernRouteSettledPayload = (
+  payload: unknown,
+): payload is UltramodernRouteSettledPayload =>
+  isRecord(payload) &&
+  isNonEmptyString(payload['pathname']) &&
+  hasOptionalLocale(payload, 'locale') &&
+  hasOptionalString(payload, 'title');
+
+export const isUltramodernRemoteReadyPayload = (
+  payload: unknown,
+): payload is UltramodernRemoteReadyPayload =>
+  isRecord(payload) &&
+  isNonEmptyString(payload['appId']) &&
+  hasOptionalString(payload, 'build') &&
+  hasOptionalString(payload, 'surface') &&
+  hasOptionalString(payload, 'version');
+
+export const isUltramodernPerformanceSignalPayload = (
+  payload: unknown,
+): payload is UltramodernPerformanceSignalPayload =>
+  isRecord(payload) &&
+  isPerformanceReadinessSignalId(payload['signalId']) &&
+  isPerformanceReadinessSignalStatus(payload['status']) &&
+  hasOptionalNonNegativeNumber(payload, 'durationMs') &&
+  hasOptionalRecord(payload, 'detail');
+
+const ultramodernWorkspaceEventValidators: {
+  [Name in UltramodernWorkspaceEventName]: (
     payload: unknown,
-  ) => payload is TractorEventPayloadMap[Name];
+  ) => payload is UltramodernWorkspaceEventPayloadMap[Name];
+} = {
+  [ultramodernWorkspaceEventNames.navigate]: isUltramodernNavigatePayload,
+  [ultramodernWorkspaceEventNames.performanceSignal]:
+    isUltramodernPerformanceSignalPayload,
+  [ultramodernWorkspaceEventNames.remoteReady]:
+    isUltramodernRemoteReadyPayload,
+  [ultramodernWorkspaceEventNames.routeSettled]:
+    isUltramodernRouteSettledPayload,
 };
 
-export const isTractorEventPayload = <Name extends TractorEventName>(
+export const isUltramodernWorkspaceEventPayload = <
+  Name extends UltramodernWorkspaceEventName,
+>(
   eventName: Name,
   payload: unknown,
-): payload is TractorEventPayloadMap[Name] =>
-  tractorEventValidators[eventName](payload);
+): payload is UltramodernWorkspaceEventPayloadMap[Name] =>
+  ultramodernWorkspaceEventValidators[eventName](payload);
 
-export const assertTractorEventPayload = <Name extends TractorEventName>(
+export const assertUltramodernWorkspaceEventPayload = <
+  Name extends UltramodernWorkspaceEventName,
+>(
   eventName: Name,
   payload: unknown,
-): TractorEventPayloadMap[Name] => {
-  if (!isTractorEventPayload(eventName, payload)) {
-    throw new TractorEventValidationError(eventName, payload);
+): UltramodernWorkspaceEventPayloadMap[Name] => {
+  if (!isUltramodernWorkspaceEventPayload(eventName, payload)) {
+    throw new UltramodernWorkspaceEventValidationError(eventName, payload);
   }
 
   return payload;
 };
 
-export const createTractorEvent = <Name extends TractorEventName>(
+export const createUltramodernWorkspaceEvent = <
+  Name extends UltramodernWorkspaceEventName,
+>(
   eventName: Name,
-  payload: TractorEventPayloadMap[Name],
-): CustomEvent<TractorEventPayloadMap[Name]> =>
+  payload: UltramodernWorkspaceEventPayloadMap[Name],
+): CustomEvent<UltramodernWorkspaceEventPayloadMap[Name]> =>
   new CustomEvent(eventName, {
     bubbles: true,
     composed: true,
-    detail: assertTractorEventPayload(eventName, payload),
+    detail: assertUltramodernWorkspaceEventPayload(eventName, payload),
   });
 
-export const dispatchTractorEvent = <Name extends TractorEventName>(
+export const dispatchUltramodernWorkspaceEvent = <
+  Name extends UltramodernWorkspaceEventName,
+>(
   target: EventTarget,
   eventName: Name,
-  payload: TractorEventPayloadMap[Name],
-) => target.dispatchEvent(createTractorEvent(eventName, payload));
+  payload: UltramodernWorkspaceEventPayloadMap[Name],
+) =>
+  target.dispatchEvent(
+    createUltramodernWorkspaceEvent(eventName, payload),
+  );
 
-export const onTractorEvent = <Name extends TractorEventName>(
+export const onUltramodernWorkspaceEvent = <
+  Name extends UltramodernWorkspaceEventName,
+>(
   target: EventTarget,
   eventName: Name,
   handler: (
-    payload: TractorEventPayloadMap[Name],
-    event: CustomEvent<TractorEventPayloadMap[Name]>,
+    payload: UltramodernWorkspaceEventPayloadMap[Name],
+    event: CustomEvent<UltramodernWorkspaceEventPayloadMap[Name]>,
   ) => void,
 ) => {
   const listener = (event: Event) => {
     if (!('detail' in event)) {
-      throw new TractorEventValidationError(eventName, undefined);
+      throw new UltramodernWorkspaceEventValidationError(
+        eventName,
+        undefined,
+      );
     }
 
     const customEvent = event as CustomEvent<unknown>;
     handler(
-      assertTractorEventPayload(eventName, customEvent.detail),
-      customEvent as CustomEvent<TractorEventPayloadMap[Name]>,
+      assertUltramodernWorkspaceEventPayload(eventName, customEvent.detail),
+      customEvent as CustomEvent<UltramodernWorkspaceEventPayloadMap[Name]>,
     );
   };
 
@@ -298,169 +307,94 @@ export const onTractorEvent = <Name extends TractorEventName>(
   };
 };
 
-const normalizeCheckoutLine = (
-  line: CheckoutCartLinePayload,
-): CheckoutCartLinePayload => {
-  if (!isCheckoutCartLinePayload(line)) {
-    throw new TractorEventValidationError('checkout:cart-updated', line);
-  }
-
-  return {
-    quantity: line.quantity,
-    sku: line.sku,
-    ...(line.name === undefined ? {} : { name: line.name }),
-    ...(line.unitPriceCents === undefined
-      ? {}
-      : { unitPriceCents: line.unitPriceCents }),
-  };
-};
-
-export const createCheckoutCartSnapshot = (
-  lines: readonly CheckoutCartLinePayload[],
-): CheckoutCartUpdatedPayload => {
-  const normalizedLines = lines.map(line => normalizeCheckoutLine(line));
-  const subtotalCents = normalizedLines.reduce(
-    (total, line) => total + (line.unitPriceCents ?? 0) * line.quantity,
-    0,
+export const dispatchUltramodernNavigate = (
+  target: EventTarget,
+  payload: UltramodernNavigatePayload,
+) =>
+  dispatchUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.navigate,
+    payload,
   );
 
-  return {
-    lines: normalizedLines,
-    totalQuantity: normalizedLines.reduce(
-      (total, line) => total + line.quantity,
-      0,
-    ),
-    ...(subtotalCents === 0 ? {} : { subtotalCents }),
-  };
-};
-
-export const applyCheckoutCartEvent = (
-  cart: CheckoutCartUpdatedPayload,
-  eventName:
-    | 'checkout:add-to-cart'
-    | 'checkout:remove-from-cart'
-    | 'checkout:clear-cart',
-  payload:
-    | CheckoutAddToCartPayload
-    | CheckoutRemoveFromCartPayload
-    | CheckoutClearCartPayload,
-): CheckoutCartUpdatedPayload => {
-  if (eventName === 'checkout:clear-cart') {
-    assertTractorEventPayload(eventName, payload);
-    return createCheckoutCartSnapshot([]);
-  }
-
-  if (eventName === 'checkout:remove-from-cart') {
-    const removePayload = assertTractorEventPayload(eventName, payload);
-    return createCheckoutCartSnapshot(
-      cart.lines.filter(line => line.sku !== removePayload.sku),
-    );
-  }
-
-  const addPayload = assertTractorEventPayload(eventName, payload);
-  const lines = cart.lines.map(normalizeCheckoutLine);
-  const existingIndex = lines.findIndex(line => line.sku === addPayload.sku);
-  const nextLine = normalizeCheckoutLine({
-    quantity: addPayload.quantity,
-    sku: addPayload.sku,
-    ...(addPayload.name === undefined ? {} : { name: addPayload.name }),
-    ...(addPayload.unitPriceCents === undefined
-      ? {}
-      : { unitPriceCents: addPayload.unitPriceCents }),
-  });
-
-  if (existingIndex === -1) {
-    return createCheckoutCartSnapshot([...lines, nextLine]);
-  }
-
-  const existing = lines[existingIndex];
-  return createCheckoutCartSnapshot(
-    lines.map((line, index) =>
-      index === existingIndex
-        ? normalizeCheckoutLine({
-            ...line,
-            ...nextLine,
-            quantity: existing.quantity + addPayload.quantity,
-          })
-        : line,
-    ),
+export const dispatchUltramodernRouteSettled = (
+  target: EventTarget,
+  payload: UltramodernRouteSettledPayload,
+) =>
+  dispatchUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.routeSettled,
+    payload,
   );
-};
 
-export const dispatchCheckoutAddToCart = (
+export const dispatchUltramodernRemoteReady = (
   target: EventTarget,
-  payload: CheckoutAddToCartPayload,
-) => dispatchTractorEvent(target, 'checkout:add-to-cart', payload);
+  payload: UltramodernRemoteReadyPayload,
+) =>
+  dispatchUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.remoteReady,
+    payload,
+  );
 
-export const dispatchCheckoutCartUpdated = (
+export const dispatchUltramodernPerformanceSignal = (
   target: EventTarget,
-  payload: CheckoutCartUpdatedPayload,
-) => dispatchTractorEvent(target, 'checkout:cart-updated', payload);
+  payload: UltramodernPerformanceSignalPayload,
+) =>
+  dispatchUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.performanceSignal,
+    payload,
+  );
 
-export const dispatchCheckoutRemoveFromCart = (
-  target: EventTarget,
-  payload: CheckoutRemoveFromCartPayload,
-) => dispatchTractorEvent(target, 'checkout:remove-from-cart', payload);
-
-export const dispatchCheckoutClearCart = (
-  target: EventTarget,
-  payload: CheckoutClearCartPayload = {},
-) => dispatchTractorEvent(target, 'checkout:clear-cart', payload);
-
-export const dispatchExploreSelectedShop = (
-  target: EventTarget,
-  payload: ExploreSelectedShopPayload,
-) => dispatchTractorEvent(target, 'explore:selected-shop', payload);
-
-export const dispatchMfNavigate = (
-  target: EventTarget,
-  payload: MfNavigatePayload,
-) => dispatchTractorEvent(target, 'mf:navigate', payload);
-
-export const onCheckoutAddToCart = (
+export const onUltramodernNavigate = (
   target: EventTarget,
   handler: (
-    payload: CheckoutAddToCartPayload,
-    event: CustomEvent<CheckoutAddToCartPayload>,
+    payload: UltramodernNavigatePayload,
+    event: CustomEvent<UltramodernNavigatePayload>,
   ) => void,
-) => onTractorEvent(target, 'checkout:add-to-cart', handler);
+) =>
+  onUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.navigate,
+    handler,
+  );
 
-export const onCheckoutCartUpdated = (
+export const onUltramodernRouteSettled = (
   target: EventTarget,
   handler: (
-    payload: CheckoutCartUpdatedPayload,
-    event: CustomEvent<CheckoutCartUpdatedPayload>,
+    payload: UltramodernRouteSettledPayload,
+    event: CustomEvent<UltramodernRouteSettledPayload>,
   ) => void,
-) => onTractorEvent(target, 'checkout:cart-updated', handler);
+) =>
+  onUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.routeSettled,
+    handler,
+  );
 
-export const onCheckoutRemoveFromCart = (
+export const onUltramodernRemoteReady = (
   target: EventTarget,
   handler: (
-    payload: CheckoutRemoveFromCartPayload,
-    event: CustomEvent<CheckoutRemoveFromCartPayload>,
+    payload: UltramodernRemoteReadyPayload,
+    event: CustomEvent<UltramodernRemoteReadyPayload>,
   ) => void,
-) => onTractorEvent(target, 'checkout:remove-from-cart', handler);
+) =>
+  onUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.remoteReady,
+    handler,
+  );
 
-export const onCheckoutClearCart = (
+export const onUltramodernPerformanceSignal = (
   target: EventTarget,
   handler: (
-    payload: CheckoutClearCartPayload,
-    event: CustomEvent<CheckoutClearCartPayload>,
+    payload: UltramodernPerformanceSignalPayload,
+    event: CustomEvent<UltramodernPerformanceSignalPayload>,
   ) => void,
-) => onTractorEvent(target, 'checkout:clear-cart', handler);
-
-export const onExploreSelectedShop = (
-  target: EventTarget,
-  handler: (
-    payload: ExploreSelectedShopPayload,
-    event: CustomEvent<ExploreSelectedShopPayload>,
-  ) => void,
-) => onTractorEvent(target, 'explore:selected-shop', handler);
-
-export const onMfNavigate = (
-  target: EventTarget,
-  handler: (
-    payload: MfNavigatePayload,
-    event: CustomEvent<MfNavigatePayload>,
-  ) => void,
-) => onTractorEvent(target, 'mf:navigate', handler);
+) =>
+  onUltramodernWorkspaceEvent(
+    target,
+    ultramodernWorkspaceEventNames.performanceSignal,
+    handler,
+  );
