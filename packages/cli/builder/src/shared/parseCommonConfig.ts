@@ -295,6 +295,7 @@ export async function parseCommonConfig(
     rsbuildPlugins.push(
       pluginSvgr({
         mixedImport: true,
+        parallel: true,
         svgrOptions: {
           exportType: svgDefaultExport === 'component' ? 'default' : 'named',
         },

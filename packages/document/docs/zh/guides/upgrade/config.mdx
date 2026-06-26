@@ -359,7 +359,9 @@ export default {
 
 ### tools.babel
 
-**变更内容**：该配置已废弃，框架不再内置 Babel，请使用 [Rsbuild 的 Babel 插件](https://v0.rsbuild.rs/plugins/list/plugin-babel) 来启用支持。
+**变更内容**：该配置已废弃，框架不再内置 Babel，请使用 [Rsbuild 的 Babel 插件](https://rsbuild.rs/plugins/list/plugin-babel) 来启用支持。
+
+当 Babel 选项都是可序列化的普通数据时，可以设置 `parallel: true`，通过 Rsbuild 的 worker 模式运行 Babel。包含函数的 Babel 选项不要启用该模式。
 
 **迁移示例**：
 
@@ -387,6 +389,7 @@ export default {
   // ...
   builderPlugins: [
     pluginBabel({
+      parallel: true,
       babelLoaderOptions: {
         plugins: [
           [

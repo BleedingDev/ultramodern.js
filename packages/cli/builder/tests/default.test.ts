@@ -30,6 +30,36 @@ const collectSwcLoaderOptions = (value: unknown): any[] => {
   return matches;
 };
 
+const collectSvgrLoaders = (value: unknown): any[] => {
+  const matches: any[] = [];
+  const visit = (item: unknown) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+
+    if (
+      'loader' in item &&
+      typeof (item as { loader?: unknown }).loader === 'string' &&
+      (item as { loader: string }).loader.includes(
+        '@rsbuild/plugin-svgr/dist/loader.mjs',
+      )
+    ) {
+      matches.push(item);
+    }
+
+    for (const child of Object.values(item)) {
+      if (Array.isArray(child)) {
+        child.forEach(visit);
+      } else {
+        visit(child);
+      }
+    }
+  };
+
+  visit(value);
+  return matches;
+};
+
 describe('builder rspack', () => {
   afterEach(() => {
     rs.unstubAllEnvs();
@@ -230,5 +260,22 @@ describe('builder rspack', () => {
         options => options?.jsc?.transform?.reactCompiler === false,
       ),
     ).toBe(true);
+  });
+
+  it('should run built-in SVGR loaders in parallel', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {},
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    const svgrLoaders = collectSvgrLoaders(bundlerConfigs[0]);
+
+    expect(svgrLoaders.length).toBeGreaterThan(0);
+    expect(svgrLoaders.every(loader => loader.parallel === true)).toBe(true);
   });
 });

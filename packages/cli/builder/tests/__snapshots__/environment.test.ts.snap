@@ -1213,6 +1213,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
               ],
             },
@@ -1287,6 +1288,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
@@ -2277,6 +2279,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
               ],
             },
@@ -2346,6 +2349,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
@@ -3199,6 +3203,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
               ],
             },
@@ -3268,6 +3273,7 @@ exports[`builder environment compat > should generator environment config correc
                       ],
                     },
                   },
+                  "parallel": true,
                 },
                 {
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/plugin-svgr/dist/assetLoader.mjs",
