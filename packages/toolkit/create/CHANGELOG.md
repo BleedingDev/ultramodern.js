@@ -4,6 +4,38 @@
 
 ## 3.4.0
 
+### BleedingDev 3.4.0-ultramodern.13 Migration Notes
+
+- The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
+  UltraModern cleanup cohort that addresses the generated-app bloat found in
+  `3.4.0-ultramodern.12`.
+- Fresh generated workspaces commit compact UltraModern provenance and config
+  in `.modernjs/ultramodern.json` instead of committing the large generated
+  contract, package-source, and template-manifest metadata files.
+- Generated framework scripts are now small wrappers around the versioned
+  `modern-js-create ultramodern` CLI. Framework-owned validation, proof,
+  public-surface, performance-readiness, and Module Federation type checks live
+  in the published create package instead of being copied into every app.
+- Module Federation type validation now discovers real generated app configs,
+  reads actual `exposes`, requires non-empty `dist/@mf-types.zip` archives for
+  exposing apps, and checks the `tsgo` compiler plus generated MF tsconfig path.
+- Generated Cloudflare Worker output accepts generic Wrangler-compatible
+  `deploy.worker.wrangler` config and protected `deploy.worker.artifacts`
+  staging, while server-only app directories are excluded from public assets.
+- Nested parent-monorepo consumption is now an explicit bridge mode with parent
+  workspace package globs, generated app dependencies, source/test aliases,
+  delegated gates, lockfile policy, and React singleton expectations.
+- Codex skill bodies are generated under `.codex/skills`, remain default-on,
+  preserve unrelated existing skills, and can be disabled with
+  `ULTRAMODERN_SKIP_CODEX_SKILLS=1` or `ULTRAMODERN_CODEX_SKILLS=0`.
+- Generated workspaces ignore `.codex/reports/` and `apps/*/.modern-js/`
+  generated output.
+- Builder diagnostics now include clearer server-only/RSC warning attribution
+  so app authors can distinguish server graph warnings from public bundle leaks.
+- The upstream Module Federation splitChunks warning may still appear until the
+  Module Federation integration releases its own fix; this is tracked outside
+  the generator cleanup and should not be hidden with app-level shims.
+
 ### BleedingDev 3.4.0-ultramodern.1 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the

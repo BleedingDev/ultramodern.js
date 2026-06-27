@@ -13,8 +13,8 @@ const scriptPath = path.join(
 
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
-  'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
-  'template-workspace/.agents/skills-lock.json',
+  'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
+  'template-workspace/.codex/skills-lock.json',
   'template-workspace/.codex/hooks.json',
   'template-workspace/.github/renovate.json',
   'template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
@@ -204,7 +204,7 @@ test('publish-existing rejects create packages missing hidden workspace template
     );
     assert.match(
       result.stderr,
-      /template-workspace\/\.agents\/skills-lock\.json/,
+      /template-workspace\/\.codex\/skills-lock\.json/,
     );
   } finally {
     removeDir(outDir);

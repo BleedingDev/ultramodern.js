@@ -62,8 +62,8 @@ const createPublishedPaths = [
   'dist/types/ultramodern-workspace/codesmith.d.ts',
   'dist/types/ultramodern-workspace/public-api.d.ts',
   'template-workspace/.agents/agent-reference-repos.json',
-  'template-workspace/.agents/rstackjs-agent-skills-LICENSE',
-  'template-workspace/.agents/skills-lock.json',
+  'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
+  'template-workspace/.codex/skills-lock.json',
   'template-workspace/.codex/hooks.json',
   'template-workspace/.github/renovate.json',
   'template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
@@ -617,14 +617,14 @@ test('validateSourceProof categorizes missing create package files', async () =>
   fs.rmSync(
     path.join(
       fixture.repoRoot,
-      '.modern/bleedingdev-publish/packages/create/template-workspace/.agents/skills-lock.json',
+      '.modern/bleedingdev-publish/packages/create/template-workspace/.codex/skills-lock.json',
     ),
   );
 
   try {
     assert.throws(
       () => validateSourceProof(fixture),
-      /template\/package files: @bleedingdev\/modern-js-create staged package is missing required published path: template-workspace\/\.agents\/skills-lock\.json/,
+      /template\/package files: @bleedingdev\/modern-js-create staged package is missing required published path: template-workspace\/\.codex\/skills-lock\.json/,
     );
   } finally {
     removeDir(fixture.repoRoot);

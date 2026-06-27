@@ -748,14 +748,10 @@ function runInstalledCreateSmoke({
   );
   assertProof(
     fs.existsSync(
-      path.join(
-        consumerDir,
-        cliWorkspace,
-        '.modernjs/ultramodern-workspace-template-manifest.json',
-      ),
+      path.join(consumerDir, cliWorkspace, '.modernjs/ultramodern.json'),
     ),
     'generated output',
-    'Installed create CLI did not generate the workspace template manifest',
+    'Installed create CLI did not generate compact UltraModern config',
   );
 
   const packageSpecifier = createItem.targetName;
@@ -809,7 +805,7 @@ function runInstalledCreateSmoke({
       throw new Error('Expected MicroVertical dry-run plan');
     }
     for (const relativePath of [
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
       'apps/shell-super-app/package.json',
       'verticals/catalog/package.json',
       'verticals/catalog/shared/effect/api.ts',
