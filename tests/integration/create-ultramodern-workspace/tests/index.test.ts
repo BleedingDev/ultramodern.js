@@ -2376,8 +2376,8 @@ process.exit(1);
         'modern.config.ts',
         'module-federation.config.ts',
         'package.json',
-        'api',
         'shared',
+        'api',
       ],
       references: [
         { path: '../../packages/shared-contracts' },
@@ -2423,8 +2423,9 @@ process.exit(1);
     );
     expect(catalogEffectApi).not.toContain('Schema.NumberFromString');
     expect(catalogEffectEntry).toContain(
-      "from '../../src/ultramodern-build.ts'",
+      "from '../../shared/ultramodern-build.ts'",
     );
+    expect(catalogEffectEntry).not.toContain('../../src/ultramodern-build');
     expect(catalogEffectEntry).toContain("from '../../shared/effect/api.ts'");
     expect(catalogModuleFederationConfig).toContain(`bridge: {
     enableBridgeRouter: false,

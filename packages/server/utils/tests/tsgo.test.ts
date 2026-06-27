@@ -124,6 +124,9 @@ describe('createResolvedTsgoConfig', () => {
       );
       expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
       expect(resolvedFiles).toContain(path.join(example, 'shared/index.ts'));
+      expect(resolvedFiles).toContain(
+        path.join(example, 'modern-app-env.d.ts'),
+      );
       expect(resolvedFiles).not.toContain(
         path.join(example, 'src/modern-tanstack/register.gen.d.ts'),
       );

@@ -122,11 +122,18 @@ const filterSourceFiles = (
       .split(path.sep)
       .join(path.posix.sep);
 
-    return sourcePosixPaths.some(sourceDir =>
-      absoluteFileName.includes(sourceDir),
+    if (isAppRouterGeneratedDeclaration(absoluteFileName)) {
+      return false;
+    }
+    return (
+      fileName.endsWith('.d.ts') ||
+      sourcePosixPaths.some(sourceDir => absoluteFileName.includes(sourceDir))
     );
   });
 };
+
+const isAppRouterGeneratedDeclaration = (absoluteFileName: string) =>
+  /\/src\/modern-tanstack\/.*\.gen\.d\.ts$/u.test(absoluteFileName);
 
 const runTsgo = (
   tsgoBinPath: string,
