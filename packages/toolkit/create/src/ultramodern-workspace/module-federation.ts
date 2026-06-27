@@ -242,11 +242,6 @@ ${bffPluginEntry}        moduleFederationPlugin(),
 
 export function createSharedModuleFederationConfig(): string {
   return `  shared: {
-    '@modern-js/plugin-i18n/runtime': {
-      requiredVersion: pluginI18nVersion,
-      singleton: true,
-      treeShaking: false,
-    },
     '@modern-js/plugin-i18n/runtime/no-react-i18next': {
       requiredVersion: pluginI18nVersion,
       singleton: true,

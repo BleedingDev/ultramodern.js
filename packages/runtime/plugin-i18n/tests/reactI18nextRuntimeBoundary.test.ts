@@ -19,6 +19,15 @@ describe('react-i18next runtime boundary', () => {
     expect(core).not.toContain("import('react-i18next')");
   });
 
+  test('keeps the runtime plugin factory entry synchronous for federation', () => {
+    const core = readRuntimeSource('core.tsx');
+
+    expect(core).not.toContain("from './i18n/backend/middleware'");
+    expect(core).not.toContain("from './i18n/utils'");
+    expect(core).toContain("import('./i18n/backend/middleware')");
+    expect(core).toContain("import('./i18n/utils')");
+  });
+
   test('keeps the default runtime entry wired to react-i18next integration', () => {
     const defaultEntry = readRuntimeSource('index.tsx');
 

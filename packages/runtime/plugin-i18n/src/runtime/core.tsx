@@ -22,7 +22,6 @@ import {
 import type { I18nInitOptions, I18nInstance } from './i18n';
 import { getI18nInstance } from './i18n';
 import { mergeBackendOptions } from './i18n/backend';
-import { useI18nextBackend } from './i18n/backend/middleware';
 import {
   detectLanguageWithPriority,
   exportServerLngToWindow,
@@ -30,17 +29,36 @@ import {
 } from './i18n/detection';
 import { useI18nextLanguageDetector } from './i18n/detection/middleware';
 import { getI18nextInstanceForProvider } from './i18n/instance';
-import {
-  changeI18nLanguage,
-  ensureLanguageMatch,
-  initializeI18nInstance,
-  setupClonedInstance,
-} from './i18n/utils';
 import { getPathname } from './utils';
 import './types';
 
 export type { I18nSdkLoader, I18nSdkLoadOptions } from '../shared/type';
 export type { Resources } from './i18n/instance';
+
+type I18nLifecycleHelpers = {
+  useI18nextBackend: typeof import('./i18n/backend/middleware')['useI18nextBackend'];
+  changeI18nLanguage: typeof import('./i18n/utils')['changeI18nLanguage'];
+  ensureLanguageMatch: typeof import('./i18n/utils')['ensureLanguageMatch'];
+  initializeI18nInstance: typeof import('./i18n/utils')['initializeI18nInstance'];
+  setupClonedInstance: typeof import('./i18n/utils')['setupClonedInstance'];
+};
+
+let i18nLifecycleHelpersPromise: Promise<I18nLifecycleHelpers> | undefined;
+
+function loadI18nLifecycleHelpers(): Promise<I18nLifecycleHelpers> {
+  i18nLifecycleHelpersPromise ??= Promise.all([
+    import('./i18n/backend/middleware'),
+    import('./i18n/utils'),
+  ]).then(([backendMiddleware, utils]) => ({
+    useI18nextBackend: backendMiddleware.useI18nextBackend,
+    changeI18nLanguage: utils.changeI18nLanguage,
+    ensureLanguageMatch: utils.ensureLanguageMatch,
+    initializeI18nInstance: utils.initializeI18nInstance,
+    setupClonedInstance: utils.setupClonedInstance,
+  }));
+
+  return i18nLifecycleHelpersPromise;
+}
 
 export interface I18nPluginOptions {
   entryName?: string;
@@ -104,6 +122,13 @@ export const createI18nPlugin =
       };
 
       api.onBeforeRender(async context => {
+        const {
+          useI18nextBackend,
+          changeI18nLanguage,
+          ensureLanguageMatch,
+          initializeI18nInstance,
+          setupClonedInstance,
+        } = await loadI18nLifecycleHelpers();
         let i18nInstance = await getI18nInstance(userI18nInstance);
         const { i18n: otherConfig } = api.getRuntimeConfig();
         const { initOptions: otherInitOptions } = otherConfig || {};

@@ -149,8 +149,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModuleFederationConfig,
-      /'@modern-js\/plugin-i18n\/runtime': \{\s*requiredVersion: pluginI18nVersion,[\s\S]*?'@modern-js\/plugin-i18n\/runtime\/no-react-i18next': \{/,
-      'generated Module Federation shared config must keep plugin-i18n runtime keys sorted for oxlint',
+      /'@modern-js\/plugin-i18n\/runtime\/no-react-i18next': \{\s*requiredVersion: pluginI18nVersion,\s*singleton: true,\s*treeShaking: false,\s*\}/,
+      'generated Module Federation shared config must publish the no-react i18n runtime as the canonical singleton',
+    );
+    assert.doesNotMatch(
+      shellModuleFederationConfig,
+      /'@modern-js\/plugin-i18n\/runtime': \{/,
+      'generated Module Federation shared config must not publish the aliased public i18n runtime key',
     );
     assert.match(
       shellModuleFederationConfig,
