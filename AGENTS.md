@@ -5,6 +5,44 @@
 3. Hacks that hide framework defects in an app or demo are forbidden. Do not add app-level shims, custom navigation wrappers, manual click interception, synthetic `<a>` handlers, local config suppressions, generated-file edits, hook bypasses, or one-off patches to make a broken framework behavior look fixed. Use native framework/router primitives directly in apps, and fix broken behavior in the owning framework/runtime/tooling layer.
 4. If `/Users/satan/side/experiments/tractor-store-vertical` exists when UltraModern.js generator/runtime/tooling changes, update and validate that demo as downstream release acceptance before closing the work. Preserve its visible Tractor UI unless the user explicitly requests a design change.
 
+# AGENTS.md - Modern.js monorepo
+
+## Repository Shape
+
+- Modern.js is a React-based progressive web framework; the upstream mainline is v3.
+- This is a pnpm + nx monorepo. Major package areas:
+  - `packages/solutions/app-tools` - app engineering solution, high-risk.
+  - `packages/cli/*` - builder and CLI plugins, high-risk.
+  - `packages/runtime/*` - runtime, high-risk.
+  - `packages/server/*` - server and BFF, high-risk.
+  - `packages/toolkit/*` - utilities, including `create`.
+  - `packages/document` - Rspress documentation site, emits llms.txt.
+
+## Common Commands
+
+- Install dependencies: `pnpm install`
+- Build one package: `pnpm --filter <pkg> build`
+- Unit tests: `pnpm test:ut` from repo root, or `pnpm --filter <pkg> test` for a package.
+- Framework integration tests: `pnpm test:framework`
+- Builder e2e tests: `pnpm test:builder`
+- Skill regressions: `node tests/skill/run.mjs` and `node tests/skill/feature-enable.mjs`
+- Style: Biome via `biome.json`; run lint before submit.
+- Published changes need a changeset: `pnpm change`
+
+## Boundaries
+
+- Do not hand-edit `pnpm-lock.yaml`, `dist/`, `node_modules/`, or package `CHANGELOG.md` unless the task explicitly requires it.
+- Do not change framework runtime semantics without tests.
+- Do not commit secrets or tokens.
+- Prefer Modern.js docs lookup through `https://modernjs.dev/llms.txt`; use `https://modernjs.dev/llms-full.txt` only for larger targeted excerpts.
+- Match answers and changes to the repository's current version, not unreleased future docs.
+
+## Skills Routing
+
+- User-facing Modern.js application skills live under root `skills/<name>/`.
+- Maintainer-facing repository skills live under `scripts/skills/<name>/`.
+- `.claude/skills`, `.agents/skills`, and `.cursor/skills` are generated mirrors from `pnpm sync:skills` and should not be hand-edited.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 

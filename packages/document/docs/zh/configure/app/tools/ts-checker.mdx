@@ -43,6 +43,8 @@ const defaultOptions = {
 
 ## 示例
 
+### Object 类型
+
 当 `tsChecker` 的值为 Object 类型时，会与默认配置进行深层合并。
 
 ```ts
@@ -56,6 +58,23 @@ export default {
   },
 };
 ```
+
+### Function 类型
+
+当 `tsChecker` 的值为函数时，默认配置会作为第一个参数传入。你可以直接修改配置对象，也可以返回一个对象作为最终配置。
+
+```ts
+export default {
+  tools: {
+    tsChecker(options) {
+      options.async = false;
+      return options;
+    },
+  },
+};
+```
+
+> 更多详情请参考 [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check)。
 
 ## TypeScript Go 默认开启
 

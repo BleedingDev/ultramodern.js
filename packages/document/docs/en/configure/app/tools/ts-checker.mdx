@@ -43,7 +43,9 @@ By default, the [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild
 
 ## Example
 
-When the value of `tsChecker` is of type Object, it will be deeply merged with the default configuration.
+### Object Type
+
+When the value of `tsChecker` is an object, it will be deeply merged with the default configuration.
 
 ```ts
 export default {
@@ -56,6 +58,23 @@ export default {
   },
 };
 ```
+
+### Function Type
+
+When the value of `tsChecker` is a function, the default configuration will be passed as the first argument. You can directly modify the configuration object or return an object as the final configuration.
+
+```ts
+export default {
+  tools: {
+    tsChecker(options) {
+      options.async = false;
+      return options;
+    },
+  },
+};
+```
+
+> Please refer to [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) for more details.
 
 ## TypeScript Go by Default
 

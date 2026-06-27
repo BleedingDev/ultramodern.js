@@ -145,7 +145,8 @@
       "!**/packages/cli/flight-server-transform-plugin/tests/fixture/**/*",
       "!**/@mf-types",
       "!**/packages/toolkit/create/template/**/*",
-      "!**/packages/toolkit/sandpack-react/scripts/mwa-template/**/*"
+      "!**/packages/toolkit/sandpack-react/scripts/mwa-template/**/*",
+      "!**/tests/skill/fixtures/**/*"
     ]
   }
 }

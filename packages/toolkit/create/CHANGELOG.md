@@ -1,5 +1,7 @@
 # @modern-js/create
 
+## 3.5.0
+
 ## 3.4.0
 
 ### BleedingDev 3.4.0-ultramodern.1 Migration Notes

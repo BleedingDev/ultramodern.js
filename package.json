@@ -38,6 +38,7 @@
     "check-changeset": "cd ./scripts/check-changeset && pnpm start",
     "check-dependencies": "node ./scripts/check-dependencies.js",
     "update-codesmith": "cd ./scripts/update-codesmith && pnpm start",
+    "sync:skills": "node ./scripts/sync-skills.mjs",
     "update-rspress": "npx taze major --include /rspress/ -w -r -l",
     "update-rsbuild": "npx taze major --include /rsbuild/ -w -r -l",
     "update-nx-cache": "cross-env NX_DAEMON=false nx reset && npm run prepare-build",

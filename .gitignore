@@ -71,3 +71,8 @@ dist-ssg
 
 # agent planning artifacts (local only)
 .codex/
+.swe
+.cursor
+.claude
+.agents/
+.specify/
