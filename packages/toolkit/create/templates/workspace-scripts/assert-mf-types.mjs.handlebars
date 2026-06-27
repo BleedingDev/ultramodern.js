@@ -6,10 +6,63 @@ const generatedContractPath = path.join(
   root,
   '.modernjs/ultramodern-generated-contract.json',
 );
-const generatedContract = fs.existsSync(generatedContractPath)
-  ? JSON.parse(fs.readFileSync(generatedContractPath, 'utf-8'))
-  : undefined;
+const compactConfigPath = path.join(root, '.modernjs/ultramodern.json');
 const defaultAppDirs = {{defaultAppDirsJson}};
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function normalizeRelativePath(value) {
+  return String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
+}
+
+function readGeneratedContractView() {
+  if (fs.existsSync(compactConfigPath)) {
+    const compactConfig = readJson(compactConfigPath);
+    return {
+      sourcePath: compactConfigPath,
+      apps: Array.isArray(compactConfig.topology?.apps)
+        ? compactConfig.topology.apps.map(app => {
+            const moduleFederation =
+              app.moduleFederation && typeof app.moduleFederation === 'object'
+                ? app.moduleFederation
+                : {};
+            return {
+              id: String(app.id),
+              path:
+                typeof app.path === 'string'
+                  ? normalizeRelativePath(app.path)
+                  : '.',
+              moduleFederation: {
+                exposes: Array.isArray(moduleFederation.exposes)
+                  ? moduleFederation.exposes.filter(
+                      expose => typeof expose === 'string',
+                    )
+                  : [],
+                dts: {
+                  compilerInstance:
+                    moduleFederation.dts?.compilerInstance ?? 'tsgo',
+                  tsConfigPath:
+                    moduleFederation.dts?.tsConfigPath ??
+                    './tsconfig.mf-types.json',
+                },
+              },
+            };
+          })
+        : [],
+    };
+  }
+  if (fs.existsSync(generatedContractPath)) {
+    return {
+      sourcePath: generatedContractPath,
+      ...readJson(generatedContractPath),
+    };
+  }
+  return undefined;
+}
+
+const generatedContract = readGeneratedContractView();
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {

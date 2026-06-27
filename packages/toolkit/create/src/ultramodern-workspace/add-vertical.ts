@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WORKSPACE_PACKAGE_VERSION } from '../ultramodern-package-source';
+import { readUltramodernConfig } from '../ultramodern-tooling/config';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
   createShellFrameComponent,
 } from './app-files';
-import { createGeneratedContract } from './contracts';
+import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createShellPage,
   createShellRemoteComponents,
@@ -24,6 +25,7 @@ import {
   GENERATED_CONTRACT_PATH,
   remoteDependencyAlias,
   shellApp,
+  ULTRAMODERN_CONFIG_PATH,
   zephyrRemoteDependency,
 } from './descriptors';
 import {
@@ -76,7 +78,7 @@ import type {
 } from './types';
 import { isRecord } from './types';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
-import { writeApp } from './write-workspace';
+import { createCompactUltramodernConfig, writeApp } from './write-workspace';
 
 const FIRST_VERTICAL_PORT = 4101;
 const TOPOLOGY_PATH = 'topology/reference-topology.json';
@@ -97,6 +99,7 @@ export type AddUltramodernVerticalPreflight = {
   overlay: Record<string, any>;
   packageSource: ResolvedPackageSource;
   enableTailwind: boolean;
+  bridge?: UltramodernBridgeConfig;
   vertical: WorkspaceApp;
   updatedVerticals: WorkspaceApp[];
 };
@@ -115,10 +118,15 @@ export function existingPackageSource(
     });
   }
 
-  const metadataPath = path.join(
-    workspaceRoot,
-    '.modernjs/ultramodern-package-source.json',
-  );
+  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
+  if (fs.existsSync(compactPath)) {
+    const compactConfig = readUltramodernConfig(workspaceRoot);
+    if (compactConfig.packageSource) {
+      return compactConfig.packageSource;
+    }
+  }
+
+  const metadataPath = path.join(workspaceRoot, PACKAGE_SOURCE_METADATA_PATH);
   if (!fs.existsSync(metadataPath)) {
     return resolvePackageSource({
       targetDir: workspaceRoot,
@@ -156,6 +164,11 @@ export function existingPackageSource(
 }
 
 export function existingTailwindEnabled(workspaceRoot: string): boolean {
+  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
+  if (fs.existsSync(compactPath)) {
+    return readUltramodernConfig(workspaceRoot).features.tailwind;
+  }
+
   const contractPath = path.join(workspaceRoot, GENERATED_CONTRACT_PATH);
   if (!fs.existsSync(contractPath)) {
     return true;
@@ -170,6 +183,15 @@ export function existingTailwindEnabled(workspaceRoot: string): boolean {
   return shell?.styling && isRecord(shell.styling)
     ? shell.styling.tailwind !== false
     : true;
+}
+
+export function existingBridgeConfig(
+  workspaceRoot: string,
+): UltramodernBridgeConfig | undefined {
+  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
+  return fs.existsSync(compactPath)
+    ? readUltramodernConfig(workspaceRoot).bridge
+    : undefined;
 }
 
 export function assertValidVerticalName(name: string): string {
@@ -201,6 +223,7 @@ export function updateRootWorkspaceScripts(
   scope: string,
   packageSource: ResolvedPackageSource,
   remotes: WorkspaceApp[],
+  bridge?: UltramodernBridgeConfig,
 ) {
   const packagePath = path.join(workspaceRoot, 'package.json');
   const rootPackage = readJsonFile(packagePath);
@@ -208,6 +231,7 @@ export function updateRootWorkspaceScripts(
     scope,
     packageSource,
     remotes,
+    bridge,
   ) as Record<string, any>;
   rootPackage.scripts = generatedRootPackage.scripts;
   writeJsonFile(packagePath, rootPackage as JsonValue);
@@ -219,12 +243,20 @@ export function rewriteShellAppFiles(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
   remotes: WorkspaceApp[],
+  bridge?: UltramodernBridgeConfig,
 ) {
   const shellHost = createShellHost(remotes);
   const publicWeb = createPublicWebAppArtifacts(shellHost);
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/package.json`),
-    createAppPackage(scope, shellHost, packageSource, enableTailwind, remotes),
+    createAppPackage(
+      scope,
+      shellHost,
+      packageSource,
+      enableTailwind,
+      remotes,
+      bridge,
+    ),
   );
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/tsconfig.json`),
@@ -494,12 +526,7 @@ export function prepareAddUltramodernVertical(
   const topology = readRequiredJsonObject(topologyPath);
   const ownership = readRequiredJsonObject(ownershipPath);
   const overlay = readRequiredJsonObject(overlayPath);
-  readRequiredJsonObject(
-    path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
-  );
-  readRequiredJsonObject(
-    path.join(options.workspaceRoot, PACKAGE_SOURCE_METADATA_PATH),
-  );
+  readRequiredWorkspaceConfig(options.workspaceRoot);
 
   assertOptionalJsonObject(topology.shell, 'topology.shell', topologyPath);
   assertOptionalJsonArray(
@@ -523,6 +550,7 @@ export function prepareAddUltramodernVertical(
   );
   const enableTailwind =
     options.enableTailwind ?? existingTailwindEnabled(options.workspaceRoot);
+  const bridge = existingBridgeConfig(options.workspaceRoot);
   const existingVerticals = verticalsFromTopology(topology, overlay.ports);
   const port = nextAvailablePort(overlay.ports);
   const vertical = createVerticalDescriptor(name, port);
@@ -546,6 +574,7 @@ export function prepareAddUltramodernVertical(
     overlay,
     packageSource,
     enableTailwind,
+    bridge,
     vertical,
     updatedVerticals,
   };
@@ -564,6 +593,19 @@ function readRequiredJsonObject(filePath: string): Record<string, any> {
   }
 
   return value;
+}
+
+function readRequiredWorkspaceConfig(workspaceRoot: string) {
+  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
+  if (fs.existsSync(compactPath)) {
+    readRequiredJsonObject(compactPath);
+    return;
+  }
+
+  readRequiredJsonObject(path.join(workspaceRoot, GENERATED_CONTRACT_PATH));
+  readRequiredJsonObject(
+    path.join(workspaceRoot, PACKAGE_SOURCE_METADATA_PATH),
+  );
 }
 
 function assertOptionalJsonObject(
@@ -739,7 +781,7 @@ function createVerticalPlan(
     shellDependencyChanges: createShellDependencyChanges(scope, vertical),
     generatedContractChanges: [
       {
-        path: GENERATED_CONTRACT_PATH,
+        path: ULTRAMODERN_CONFIG_PATH,
         addedAppIds: [vertical.id],
         shellVerticalRefs: updatedVerticals.map(vertical => vertical.id),
       },
@@ -831,9 +873,9 @@ function createDryRunJsonMutations(
       description: 'Keep shell Module Federation DTS compilation scoped',
     },
     {
-      path: GENERATED_CONTRACT_PATH,
-      pointer: '/apps',
-      description: `Regenerate contract with ${vertical.id}`,
+      path: ULTRAMODERN_CONFIG_PATH,
+      pointer: '/topology/apps',
+      description: `Regenerate compact config with ${vertical.id}`,
     },
   ];
 }
@@ -876,6 +918,7 @@ export function addUltramodernVertical(
     overlay,
     packageSource,
     enableTailwind,
+    bridge,
     vertical,
     updatedVerticals,
   } = prepareAddUltramodernVertical(options);
@@ -886,6 +929,8 @@ export function addUltramodernVertical(
     vertical,
     packageSource,
     enableTailwind,
+    updatedVerticals,
+    bridge,
   );
   topology.shell ??= {};
   topology.shell.verticalRefs ??= [];
@@ -912,9 +957,11 @@ export function addUltramodernVertical(
   writeJsonFile(ownershipPath, ownership as JsonValue);
   writeJsonFile(overlayPath, overlay as JsonValue);
   writeJsonFile(
-    path.join(options.workspaceRoot, GENERATED_CONTRACT_PATH),
-    createGeneratedContract(
+    path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH),
+    createCompactUltramodernConfig(
       scope,
+      options.modernVersion,
+      packageSource,
       [
         {
           ...shellApp,
@@ -923,6 +970,7 @@ export function addUltramodernVertical(
         ...updatedVerticals,
       ],
       enableTailwind,
+      bridge,
     ),
   );
   rewriteShellAppFiles(
@@ -931,6 +979,7 @@ export function addUltramodernVertical(
     packageSource,
     enableTailwind,
     updatedVerticals,
+    bridge,
   );
   writeGeneratedWorkspaceScripts(
     options.workspaceRoot,
@@ -945,6 +994,7 @@ export function addUltramodernVertical(
     scope,
     packageSource,
     updatedVerticals,
+    bridge,
   );
   writeJsonFile(
     path.join(options.workspaceRoot, 'tsconfig.json'),

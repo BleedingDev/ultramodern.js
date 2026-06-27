@@ -10,10 +10,12 @@ import {
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
+const createBinPath = path.join(packageRoot, 'bin/run.js');
 
 const hermeticEnv = {
   ...process.env,
   MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
+  ULTRAMODERN_CREATE_BIN: createBinPath,
 };
 
 function runCli(cwd: string, args: string[]) {
@@ -51,6 +53,7 @@ function runGeneratedWorkspaceCheck(workspaceDir: string) {
     {
       cwd: workspaceDir,
       encoding: 'utf8',
+      env: hermeticEnv,
     },
   );
 }
@@ -87,6 +90,42 @@ function appById(apps: any[], id: string): any {
   return app;
 }
 
+function assertModuleFederationWarningHygiene(
+  modernConfig: string,
+  label: string,
+) {
+  assert.match(
+    modernConfig,
+    /const moduleFederationDevServerOrigin =\s*envValue\('ULTRAMODERN_MF_DEV_ORIGIN'\) \|\| 'http:\/\/localhost:3020';/,
+    `${label} must default MF dev CORS to the local shell origin, with an explicit trusted-origin override`,
+  );
+  assert.match(
+    modernConfig,
+    /splitChunks:\s*\{\s*chunks:\s*'async',\s*\},/,
+    `${label} must set stream-SSR-compatible splitChunks defaults before MF mutates the bundler chain`,
+  );
+  assert.match(
+    modernConfig,
+    /devServer:\s*\{\s*headers:\s*\{\s*'Access-Control-Allow-Headers':\s*'Accept, Authorization, Content-Type, X-Requested-With',\s*'Access-Control-Allow-Methods':\s*'GET, HEAD, OPTIONS',\s*'Access-Control-Allow-Origin':\s*moduleFederationDevServerOrigin,\s*\},\s*\},/,
+    `${label} must provide explicit devServer headers so MF does not inject wildcard CORS defaults`,
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /'Access-Control-Allow-(?:Headers|Origin)':\s*'\*'/,
+    `${label} must not emit wildcard MF dev CORS headers`,
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /devServer:\s*\{\s*headers:\s*\{\s*\}\s*\}/,
+    `${label} must not leave devServer.headers empty`,
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /splitChunks:\s*false/,
+    `${label} must not disable splitChunks to hide stream SSR warnings`,
+  );
+}
+
 function assertGeneratedVerticalFiles(workspaceDir: string, id: string) {
   for (const relativePath of [
     `verticals/${id}/api/effect/index.ts`,
@@ -121,9 +160,9 @@ function assertIntegratedVertical(
     workspaceDir,
     'topology/local-overlays/development.json',
   );
-  const contract = readJson(
+  const ultramodernConfig = readJson(
     workspaceDir,
-    '.modernjs/ultramodern-generated-contract.json',
+    '.modernjs/ultramodern.json',
   );
   const shellPackage = readJson(
     workspaceDir,
@@ -135,7 +174,11 @@ function assertIntegratedVertical(
   );
   const topologyEntry = appById(topology.verticals, id);
   const ownershipEntry = appById(ownership.owners, id);
-  const contractEntry = appById(contract.apps, id);
+  const configEntry = appById(ultramodernConfig.topology.apps, id);
+  const moduleFederationEntry = appById(
+    ultramodernConfig.moduleFederation.apps,
+    id,
+  );
 
   assertGeneratedVerticalFiles(workspaceDir, id);
   assert.deepEqual(topologyEntry.moduleFederation.exposes, [
@@ -158,23 +201,19 @@ function assertIntegratedVertical(
   assert.equal(overlay.manifests[id], manifestUrl);
   assert.equal(overlay.apis[id], apiUrl);
 
-  assert.equal(contractEntry.package, packageName);
-  assert.equal(contractEntry.path, `verticals/${id}`);
-  assert.equal(contractEntry.kind, 'vertical');
-  assert.equal(contractEntry.ssr.mode, 'string');
-  assert.equal(contractEntry.ssr.moduleFederationAppSSR, true);
-  assert.deepEqual(contractEntry.moduleFederation.exposes, [
+  assert.equal(configEntry.package, packageName);
+  assert.equal(configEntry.path, `verticals/${id}`);
+  assert.equal(configEntry.kind, 'vertical');
+  assert.equal(configEntry.moduleFederation.ssr, true);
+  assert.deepEqual(configEntry.moduleFederation.exposes, [
     './Route',
     './Widget',
   ]);
-  assert.equal(contractEntry.moduleFederation.name, mfName);
-  assert.equal(contractEntry.effect.prefix, `/${id}-api`);
-  assert.equal(contractEntry.i18n.namespace, id);
-  assert.equal(contractEntry.styling.tailwind, true);
-  assert.equal(
-    contractEntry.styling.federation.rootSelector,
-    `[data-app-id="${id}"]`,
-  );
+  assert.equal(configEntry.moduleFederation.name, mfName);
+  assert.equal(configEntry.effectApi.prefix, `/${id}-api`);
+  assert.equal(moduleFederationEntry.role, 'remote');
+  assert.equal(moduleFederationEntry.name, mfName);
+  assert.deepEqual(moduleFederationEntry.exposes, ['./Route', './Widget']);
 
   assert.equal(verticalPackage.name, packageName);
   assert.equal(
@@ -238,9 +277,9 @@ test('workspace and MicroVertical integration stays coherent across public API a
       workspaceDir,
       'topology/local-overlays/development.json',
     );
-    const contract = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
     );
     const rootPackage = readJson(workspaceDir, 'package.json');
     const shellPackage = readJson(
@@ -251,22 +290,42 @@ test('workspace and MicroVertical integration stays coherent across public API a
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
     );
-    const packageSource = readJson(
+    const catalogModernConfig = read(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      'verticals/catalog/modern.config.ts',
     );
+    const checkoutModernConfig = read(
+      workspaceDir,
+      'verticals/checkout/modern.config.ts',
+    );
+    const packageSource = ultramodernConfig.packageSource;
 
     assert.deepEqual(topology.shell.verticalRefs, ['catalog', 'checkout']);
+    assert.deepEqual(
+      fs.readdirSync(path.join(workspaceDir, '.modernjs')).sort(),
+      ['ultramodern.json'],
+    );
     assert.match(shellModernConfig, /mode:\s*'string'/);
     assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
-    assert.doesNotMatch(shellModernConfig, /splitChunks:\s*false/);
+    assertModuleFederationWarningHygiene(
+      shellModernConfig,
+      'generated shell Modern config',
+    );
+    assertModuleFederationWarningHygiene(
+      catalogModernConfig,
+      'generated catalog Modern config',
+    );
+    assertModuleFederationWarningHygiene(
+      checkoutModernConfig,
+      'generated checkout Modern config',
+    );
     assert.match(
       shellModernConfig,
       /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
     );
-    assert.equal(appById(contract.apps, 'shell-super-app').ssr.mode, 'string');
     assert.equal(
-      appById(contract.apps, 'shell-super-app').ssr.moduleFederationAppSSR,
+      appById(ultramodernConfig.topology.apps, 'shell-super-app')
+        .moduleFederation.ssr,
       true,
     );
     assert.deepEqual(
@@ -279,20 +338,26 @@ test('workspace and MicroVertical integration stays coherent across public API a
       'shell-super-app',
     ]);
     assert.deepEqual(
-      contract.apps.map((app: any) => app.id),
+      ultramodernConfig.topology.apps.map((app: any) => app.id),
       ['shell-super-app', 'catalog', 'checkout'],
     );
     assert.deepEqual(
-      appById(contract.apps, 'shell-super-app').moduleFederation.verticalRefs,
+      appById(ultramodernConfig.topology.apps, 'shell-super-app')
+        .moduleFederation.verticalRefs,
       ['catalog', 'checkout'],
     );
     assert.deepEqual(
-      appById(contract.apps, 'shell-super-app').moduleFederation.remotes.map(
-        (remote: any) => remote.id,
-      ),
+      appById(
+        ultramodernConfig.topology.apps,
+        'shell-super-app',
+      ).moduleFederation.remotes.map((remote: any) => remote.id),
       ['catalog', 'checkout'],
     );
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.equal(
+      rootPackage.modernjs.packageSource.config,
+      './.modernjs/ultramodern.json',
+    );
     assert.equal(rootPackage.type, 'module');
     assert.equal(
       shellPackage.type,
@@ -312,14 +377,9 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(rootPackage.scripts.build, /verticals\/\*/);
     assert.match(rootPackage.scripts.check, /contract:check/);
     assert.equal(packageSource.strategy, 'install');
-    assert.equal(
-      packageSource.modernPackages.specifier,
-      '3.2.0-ultramodern.108',
-    );
-    assert.equal(
-      packageSource.modernPackages.aliases['@modern-js/runtime'],
-      '@bleedingdev/modern-js-runtime',
-    );
+    assert.equal(packageSource.modernPackageVersion, '3.2.0-ultramodern.108');
+    assert.equal(packageSource.aliasScope, 'bleedingdev');
+    assert.equal(packageSource.aliasPackageNamePrefix, 'modern-js-');
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
       'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.108',
@@ -408,38 +468,44 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
     {
       workspaceName: 'shell-ssr-corrupt',
       mutate: (workspaceDir: string) => {
-        const contract = readJson(
+        const ultramodernConfig = readJson(
           workspaceDir,
-          '.modernjs/ultramodern-generated-contract.json',
+          '.modernjs/ultramodern.json',
         );
-        appById(contract.apps, 'shell-super-app').ssr.mode = 'stream';
+        appById(
+          ultramodernConfig.topology.apps,
+          'shell-super-app',
+        ).moduleFederation.ssr = false;
         writeJson(
           workspaceDir,
-          '.modernjs/ultramodern-generated-contract.json',
-          contract,
+          '.modernjs/ultramodern.json',
+          ultramodernConfig,
         );
       },
       expectedContract:
-        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json shell SSR contract\./,
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json shell SSR contract\./,
       expectedFixArea:
         /Fix area: restore generated string SSR Module Federation settings\./,
     },
     {
       workspaceName: 'vertical-ssr-corrupt',
       mutate: (workspaceDir: string) => {
-        const contract = readJson(
+        const ultramodernConfig = readJson(
           workspaceDir,
-          '.modernjs/ultramodern-generated-contract.json',
+          '.modernjs/ultramodern.json',
         );
-        appById(contract.apps, 'catalog').ssr.mode = 'stream';
+        appById(
+          ultramodernConfig.topology.apps,
+          'catalog',
+        ).moduleFederation.ssr = false;
         writeJson(
           workspaceDir,
-          '.modernjs/ultramodern-generated-contract.json',
-          contract,
+          '.modernjs/ultramodern.json',
+          ultramodernConfig,
         );
       },
       expectedContract:
-        /MicroVertical contract self-check failed: \.modernjs\/ultramodern-generated-contract\.json apps\.catalog\./,
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json apps\.catalog\./,
       expectedFixArea:
         /Fix area: regenerate the generated MicroVertical contract entry\./,
     },
@@ -495,11 +561,11 @@ test('generated workspace self-check accepts stable formatting but rejects wrong
       },
     });
 
-    const contract = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
     );
-    const expectedNodeVersion = contract.node.version;
+    const expectedNodeVersion = ultramodernConfig.workspace.node.version;
     const workflowPath = path.join(
       workspaceDir,
       '.github/workflows/ultramodern-workspace-gates.yml',
@@ -580,10 +646,11 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
     });
 
     const rootPackage = readJson(workspaceDir, 'package.json');
-    const packageSource = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
+    const packageSource = ultramodernConfig.packageSource;
     const shellPackage = readJson(
       workspaceDir,
       'apps/shell-super-app/package.json',
@@ -592,14 +659,14 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
       workspaceDir,
       'verticals/catalog/package.json',
     );
-    const contract = readJson(
-      workspaceDir,
-      '.modernjs/ultramodern-generated-contract.json',
-    );
 
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
+    assert.equal(
+      rootPackage.modernjs.packageSource.config,
+      './.modernjs/ultramodern.json',
+    );
     assert.equal(packageSource.strategy, 'workspace');
-    assert.equal(packageSource.modernPackages.specifier, 'workspace:*');
+    assert.equal(packageSource.modernPackageVersion, 'workspace:*');
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
       'workspace:*',
@@ -628,11 +695,15 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
     ]) {
       assert.equal(exists(workspaceDir, relativePath), false, relativePath);
     }
+    assert.equal(ultramodernConfig.features.tailwind, false);
     assert.equal(
-      appById(contract.apps, 'shell-super-app').styling.tailwind,
-      false,
+      appById(ultramodernConfig.topology.apps, 'shell-super-app').kind,
+      'shell',
     );
-    assert.equal(appById(contract.apps, 'catalog').styling.tailwind, false);
+    assert.equal(
+      appById(ultramodernConfig.topology.apps, 'catalog').kind,
+      'vertical',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

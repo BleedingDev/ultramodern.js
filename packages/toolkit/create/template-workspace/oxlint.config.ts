@@ -10,6 +10,7 @@ export default defineConfig({
   extends: [core, react],
   ignorePatterns: [
     '.agents',
+    '.codex/skills',
     '.output',
     'dist',
     'node_modules',

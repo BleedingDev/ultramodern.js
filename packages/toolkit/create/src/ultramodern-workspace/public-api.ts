@@ -3,6 +3,18 @@ export {
   planUltramodernVertical,
 } from './add-vertical';
 export type {
+  UltramodernBridgeConfig,
+  UltramodernBridgeConfigInput,
+  UltramodernBridgeGate,
+  UltramodernBridgeGateInput,
+  UltramodernBridgeLockfilePolicy,
+  UltramodernBridgeTestAlias,
+  UltramodernBridgeWorkspacePackage,
+  UltramodernBridgeWorkspacePackageInput,
+  UltramodernEnabledBridgeConfigInput,
+} from './bridge-config';
+export { normalizeUltramodernBridgeConfig } from './bridge-config';
+export type {
   AddUltramodernVerticalOptions,
   UltramodernCodeSmithOverlay,
   UltramodernCodeSmithOverlayRuntimeConfig,

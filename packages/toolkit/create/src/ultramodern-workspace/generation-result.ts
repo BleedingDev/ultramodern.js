@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { appHasEffectApi, GENERATED_CONTRACT_PATH } from './descriptors';
+import { appHasEffectApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
   ResolvedPackageSource,
@@ -107,7 +107,7 @@ export function createGenerationResult(options: {
         .filter(app => app.effectApiPrefix)
         .map(app => [app.id, app.effectApiPrefix as string]),
     ),
-    generatedContractPath: GENERATED_CONTRACT_PATH,
+    generatedContractPath: ULTRAMODERN_CONFIG_PATH,
     warnings: options.warnings ?? [],
   };
 }

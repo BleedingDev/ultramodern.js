@@ -1,15 +1,19 @@
 import type {
+  CloudflareWorkerArtifactConfig,
   CloudflareWorkerSecurityConfig,
   DeployTarget,
+  JsonValue,
 } from './cloudflareDeploy';
 
 export type {
+  CloudflareWorkerArtifactConfig,
   CloudflareWorkerSecurityConfig,
   CloudflareWorkerSecurityCorsConfig,
   CloudflareWorkerSecurityCspConfig,
   CloudflareWorkerSecurityCspMode,
   CloudflareWorkerSecurityNoindexConfig,
   DeployTarget,
+  JsonValue,
 } from './cloudflareDeploy';
 
 export interface MicroFrontend {
@@ -49,5 +53,24 @@ export interface DeployUserConfig {
     compatibilityDate?: string;
     ssr?: boolean;
     security?: CloudflareWorkerSecurityConfig;
+    /**
+     * Raw Wrangler-compatible config merged into `.output/wrangler.json`.
+     * Framework-owned worker invariants still win for `main`, the assets
+     * binding/directory/run mode, and required compatibility flags.
+     */
+    wrangler?: Record<string, JsonValue>;
+    /**
+     * Additional app-root files or directories to stage under `.output`.
+     * Use this for provider resources such as migrations or generated config.
+     */
+    artifacts?: CloudflareWorkerArtifactConfig[];
+    /**
+     * Dist output paths that must not be copied into Cloudflare public assets.
+     * Entries are slash-normalized path prefixes relative to the app dist root.
+     * Top-level `api` and `shared` dist directories are excluded when matching
+     * source directories exist in the app root because they conventionally
+     * contain server-only implementation code.
+     */
+    publicAssetExcludes?: string[];
   };
 }

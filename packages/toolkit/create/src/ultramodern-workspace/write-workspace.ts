@@ -8,13 +8,13 @@ import {
   createShellFrameComponent,
   createTailwindConfig,
 } from './app-files';
+import type { UltramodernBridgeConfig } from './bridge-config';
+import { normalizeUltramodernBridgeConfig } from './bridge-config';
 import {
   createDevelopmentOverlay,
-  createGeneratedContract,
   createOwnership,
-  createPackageSourceMetadata,
-  createTemplateManifest,
   createTopology,
+  createUltramodernConfig,
 } from './contracts';
 import {
   createLayout,
@@ -29,9 +29,9 @@ import {
   appHasEffectApi,
   appI18nNamespace,
   createShellHost,
-  GENERATED_CONTRACT_PATH,
   sharedPackages,
   shellApp,
+  ULTRAMODERN_CONFIG_PATH,
 } from './descriptors';
 import {
   createEffectClient,
@@ -39,7 +39,12 @@ import {
   createEffectSharedApi,
   createShellEffectClient,
 } from './effect-api';
-import { copyRootTemplate, writeFile, writeJson } from './fs-io';
+import {
+  copyRootTemplate,
+  writeFile,
+  writeFileReplacing,
+  writeJson,
+} from './fs-io';
 import {
   createFileSnapshot,
   createGenerationResult,
@@ -69,6 +74,7 @@ import {
 import { resolvePackageSource } from './package-source';
 import { createPublicWebAppArtifacts } from './public-surface';
 import type {
+  JsonValue,
   ResolvedPackageSource,
   UltramodernGenerationResult,
   UltramodernWorkspaceOptions,
@@ -91,6 +97,7 @@ export function writeApp(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
+  bridge?: UltramodernBridgeConfig,
 ) {
   const resolvedApp = app.kind === 'shell' ? createShellHost(remotes) : app;
   const publicWeb = createPublicWebAppArtifacts(resolvedApp);
@@ -107,6 +114,7 @@ export function writeApp(
       packageSource,
       enableTailwind,
       remotes,
+      bridge,
     ),
   );
   writeJson(
@@ -301,12 +309,92 @@ export function writeSharedPackages(targetDir: string, scope: string) {
   );
 }
 
+function createCompactRootPackageJson(
+  scope: string,
+  packageSource: ResolvedPackageSource,
+  remotes: WorkspaceApp[],
+  bridge?: UltramodernBridgeConfig,
+) {
+  const rootPackage = createRootPackageJson(
+    scope,
+    packageSource,
+    remotes,
+    bridge,
+  ) as Record<string, any>;
+
+  if (
+    rootPackage.modernjs?.packageSource &&
+    typeof rootPackage.modernjs.packageSource === 'object'
+  ) {
+    rootPackage.modernjs.packageSource.config = `./${ULTRAMODERN_CONFIG_PATH}`;
+  }
+
+  return rootPackage as JsonValue;
+}
+
+export function createCompactUltramodernConfig(
+  scope: string,
+  modernVersion: string,
+  packageSource: ResolvedPackageSource,
+  apps: WorkspaceApp[] = [createShellHost()],
+  enableTailwind = true,
+  bridge?: UltramodernBridgeConfig,
+): JsonValue {
+  const config = createUltramodernConfig(
+    scope,
+    modernVersion,
+    packageSource,
+    apps,
+    enableTailwind,
+    bridge,
+  ) as Record<string, any>;
+
+  if (
+    config.packageSource &&
+    typeof config.packageSource === 'object' &&
+    !Array.isArray(config.packageSource)
+  ) {
+    delete config.packageSource.metadata;
+  }
+
+  return config as JsonValue;
+}
+
+function writePnpmWorkspacePackages(
+  targetDir: string,
+  bridge: UltramodernBridgeConfig | undefined,
+) {
+  if (!bridge) {
+    return;
+  }
+
+  const pnpmWorkspacePath = `${targetDir}/pnpm-workspace.yaml`;
+  const pnpmWorkspace = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
+  const packages = [
+    'apps/*',
+    'verticals/*',
+    'packages/*',
+    ...bridge.workspacePackages.map(entry => entry.pattern),
+  ];
+  const renderedPackages = packages.map(pattern => `  - ${pattern}`).join('\n');
+
+  writeFileReplacing(
+    targetDir,
+    'pnpm-workspace.yaml',
+    pnpmWorkspace.replace(
+      /^packages:\n(?: {2}- .+\n)+/u,
+      `packages:\n${renderedPackages}\n`,
+    ),
+  );
+}
+
 export function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
 ): UltramodernGenerationResult {
   const beforeFiles = createFileSnapshot(options.targetDir);
   const scope = toPackageScope(options.packageName);
   const packageSource = resolvePackageSource(options);
+  const bridge = normalizeUltramodernBridgeConfig(options.bridge);
   const enableTailwind = options.enableTailwind !== false;
   const initialVerticals: WorkspaceApp[] = [];
   const createdApps = [createShellHost(initialVerticals), ...initialVerticals];
@@ -324,11 +412,17 @@ export function generateUltramodernWorkspace(
     typescriptVersion: TYPESCRIPT_VERSION,
     tailwindEnabled: String(enableTailwind),
   });
+  writePnpmWorkspacePackages(options.targetDir, bridge);
 
   writeJson(
     options.targetDir,
     'package.json',
-    createRootPackageJson(scope, packageSource, initialVerticals),
+    createCompactRootPackageJson(
+      scope,
+      packageSource,
+      initialVerticals,
+      bridge,
+    ),
   );
   writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase());
   writeJson(
@@ -353,18 +447,15 @@ export function generateUltramodernWorkspace(
   );
   writeJson(
     options.targetDir,
-    '.modernjs/ultramodern-workspace-template-manifest.json',
-    createTemplateManifest(options.modernVersion, packageSource),
-  );
-  writeJson(
-    options.targetDir,
-    '.modernjs/ultramodern-package-source.json',
-    createPackageSourceMetadata(scope, packageSource),
-  );
-  writeJson(
-    options.targetDir,
-    GENERATED_CONTRACT_PATH,
-    createGeneratedContract(scope, createdApps, enableTailwind),
+    ULTRAMODERN_CONFIG_PATH,
+    createCompactUltramodernConfig(
+      scope,
+      options.modernVersion,
+      packageSource,
+      createdApps,
+      enableTailwind,
+      bridge,
+    ),
   );
 
   writeApp(
@@ -374,6 +465,7 @@ export function generateUltramodernWorkspace(
     packageSource,
     enableTailwind,
     initialVerticals,
+    bridge,
   );
   for (const remote of initialVerticals) {
     writeApp(
@@ -383,6 +475,7 @@ export function generateUltramodernWorkspace(
       packageSource,
       enableTailwind,
       initialVerticals,
+      bridge,
     );
   }
   writeSharedPackages(options.targetDir, scope);

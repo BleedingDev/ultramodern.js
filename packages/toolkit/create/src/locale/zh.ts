@@ -58,6 +58,25 @@ export const ZH_LOCALE = {
       '      --ultramodern-package-scope npm alias 安装使用的发布 scope（例如 bleedingdev）',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix npm alias 包名前缀（默认：modern-js-）',
+    optionBridge: '      --bridge 为新工作区启用显式的嵌套父 monorepo 桥接模式',
+    optionBridgeParentRoot:
+      '      --bridge-parent-root <路径> 桥接模式使用的父 monorepo 根目录',
+    optionBridgeWorkspacePackage:
+      '      --bridge-workspace-package <glob> 生成应用消费的父工作区包 glob',
+    optionBridgeWorkspacePackageName:
+      '      --bridge-workspace-package-name <glob=包名[,包名]> 桥接工作区 glob 覆盖的包名',
+    optionBridgeTestAlias:
+      '      --bridge-test-alias <glob:别名=目标> 桥接工作区包 glob 的测试/源码 alias',
+    optionBridgeDependency:
+      '      --bridge-dependency <包名[,包名]> 生成应用显式消费的父包依赖',
+    optionBridgeLockfilePolicy:
+      '      --bridge-lockfile-policy <nested|parent> 桥接 lockfile 归属策略（默认：nested）',
+    optionBridgeGate:
+      '      --bridge-gate <名称=命令> 桥接包委托给父工作区执行的 gate 命令',
+    optionBridgeGateCwd:
+      '      --bridge-gate-cwd <名称=目录> 指定桥接 gate 的工作目录',
+    optionBridgeReactSingleton:
+      '      --bridge-react-singleton <包名[,包名]> React 单例包预期（默认：react,react-dom）',
     optionVertical:
       '      --vertical[=<名称>] 修改当前已有的 UltraModern 工作区，并接入 MicroVertical',
     optionVerticalName:

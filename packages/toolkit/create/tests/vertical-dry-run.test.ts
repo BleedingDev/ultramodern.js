@@ -168,7 +168,7 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
     ]);
     assert.deepEqual(plan.generatedContractChanges, [
       {
-        path: '.modernjs/ultramodern-generated-contract.json',
+        path: '.modernjs/ultramodern.json',
         addedAppIds: ['catalog'],
         shellVerticalRefs: ['catalog'],
       },

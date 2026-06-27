@@ -2,6 +2,7 @@ import type {
   ResolvedUltramodernPackageSource,
   UltramodernPackageSourceStrategy,
 } from '../ultramodern-package-source';
+import type { UltramodernBridgeConfigInput } from './bridge-config';
 
 export type JsonValue =
   | string
@@ -122,6 +123,7 @@ export type UltramodernWorkspaceOptions = {
   modernVersion: string;
   enableTailwind?: boolean;
   overlays?: UltramodernCodeSmithOverlay[];
+  bridge?: UltramodernBridgeConfigInput;
   packageSource?: {
     strategy?: UltramodernPackageSourceStrategy;
     modernPackageVersion?: string;

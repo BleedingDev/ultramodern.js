@@ -13,11 +13,18 @@ import {
   type ResolvedUltramodernPackageSource,
   WORKSPACE_PACKAGE_VERSION,
 } from './ultramodern-package-source';
+import { runUltramodernToolingCli } from './ultramodern-tooling/commands';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
   planUltramodernVertical,
 } from './ultramodern-workspace';
+import {
+  hasUltramodernBridgeCliOptions,
+  parseUltramodernBridgeCliOptions,
+  ultramodernBridgeCliBooleanFlags,
+  ultramodernBridgeCliValueFlags,
+} from './ultramodern-workspace/bridge-config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const createPackageRoot = resolveCreatePackageRoot(__dirname);
@@ -121,6 +128,16 @@ function showHelp() {
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageRegistry));
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageScope));
   console.log(i18n.t(localeKeys.help.optionUltramodernPackageNamePrefix));
+  console.log(i18n.t(localeKeys.help.optionBridge));
+  console.log(i18n.t(localeKeys.help.optionBridgeParentRoot));
+  console.log(i18n.t(localeKeys.help.optionBridgeWorkspacePackage));
+  console.log(i18n.t(localeKeys.help.optionBridgeWorkspacePackageName));
+  console.log(i18n.t(localeKeys.help.optionBridgeTestAlias));
+  console.log(i18n.t(localeKeys.help.optionBridgeDependency));
+  console.log(i18n.t(localeKeys.help.optionBridgeLockfilePolicy));
+  console.log(i18n.t(localeKeys.help.optionBridgeGate));
+  console.log(i18n.t(localeKeys.help.optionBridgeGateCwd));
+  console.log(i18n.t(localeKeys.help.optionBridgeReactSingleton));
   console.log(i18n.t(localeKeys.help.optionVertical));
   console.log(i18n.t(localeKeys.help.optionVerticalName));
   console.log(i18n.t(localeKeys.help.optionDryRun));
@@ -292,6 +309,7 @@ function collectPositionalArgs(args: string[]): string[] {
     '--ultramodern-package-name-prefix',
     VERTICAL_NAME_FLAG,
     CODESMITH_OVERLAY_FLAG,
+    ...ultramodernBridgeCliValueFlags,
   ]);
   const optionWithoutValue = new Set([
     '--help',
@@ -305,6 +323,7 @@ function collectPositionalArgs(args: string[]): string[] {
     DRY_RUN_FLAG,
     VERTICAL_FLAG,
     LEGACY_MODERN_JS_FLAG,
+    ...ultramodernBridgeCliBooleanFlags,
   ]);
   const positionalArgs: string[] = [];
 
@@ -330,7 +349,11 @@ function collectPositionalArgs(args: string[]): string[] {
       arg.startsWith('--ultramodern-package-name-prefix=') ||
       arg.startsWith(`${VERTICAL_FLAG}=`) ||
       arg.startsWith(`${VERTICAL_NAME_FLAG}=`) ||
-      arg.startsWith(`${CODESMITH_OVERLAY_FLAG}=`)
+      arg.startsWith(`${CODESMITH_OVERLAY_FLAG}=`) ||
+      ultramodernBridgeCliBooleanFlags.some(flag =>
+        arg.startsWith(`${flag}=`),
+      ) ||
+      ultramodernBridgeCliValueFlags.some(flag => arg.startsWith(`${flag}=`))
     ) {
       continue;
     }
@@ -472,6 +495,15 @@ function detectCodeSmithOverlays(args: string[]) {
   }
 
   return overlays.length > 0 ? overlays : undefined;
+}
+
+function readBridgeCliOptions(args: string[]) {
+  try {
+    return parseUltramodernBridgeCliOptions(args);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
 
 function detectUltramodernPackageSource(
@@ -752,6 +784,11 @@ async function getProjectName(): Promise<{
 async function main() {
   const args = process.argv.slice(2);
 
+  if (args[0] === 'ultramodern') {
+    process.exitCode = await runUltramodernToolingCli(args.slice(1));
+    return;
+  }
+
   if (args.includes('--help') || args.includes('-h')) {
     showHelp();
     return;
@@ -776,6 +813,7 @@ async function main() {
   const dryRun = detectDryRunFlag(args);
   const verticalInput = resolveVerticalCliInput(args);
   const overlays = detectCodeSmithOverlays(args);
+  const bridgeRequested = hasUltramodernBridgeCliOptions(args);
 
   if (dryRun && !verticalInput.addVertical) {
     console.error(
@@ -783,6 +821,15 @@ async function main() {
     );
     process.exit(1);
   }
+
+  if (verticalInput.addVertical && bridgeRequested) {
+    console.error(
+      'Bridge options are supported only when creating a new UltraModern workspace.',
+    );
+    process.exit(1);
+  }
+
+  const bridge = readBridgeCliOptions(args);
 
   if (!dryRun) {
     console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
@@ -863,6 +910,7 @@ async function main() {
     packageName: generatedPackageName,
     modernVersion: version,
     enableTailwind: detectTailwindFlag(),
+    bridge,
     overlays,
     packageSource,
   });

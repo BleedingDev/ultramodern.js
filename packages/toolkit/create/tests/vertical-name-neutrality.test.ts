@@ -103,19 +103,30 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
       assert.equal(typeof localeResource.routeSurface, 'string');
     }
 
-    // Domain operations come from the single generic path for every stem.
-    const contract = JSON.parse(
-      read('.modernjs/ultramodern-generated-contract.json'),
-    );
+    const ultramodernConfig = JSON.parse(read('.modernjs/ultramodern.json'));
     for (const name of ['records', 'actions', 'workspace']) {
-      const appContract = contract.apps.find(
+      const appConfig = ultramodernConfig.topology.apps.find(
         (app: { id: string }) => app.id === name,
       );
-      assert.ok(appContract, `${name} must be in the generated contract`);
-      assert.deepEqual(
-        Object.keys(appContract.effect.domainOperations).sort(),
-        ['workspaceCreate', 'workspaceDetail', 'workspaceFeed'],
-        `${name} must use the generic domain operations`,
+      assert.ok(appConfig, `${name} must be in the compact topology metadata`);
+      assert.equal(appConfig.path, `verticals/${name}`);
+      assert.equal(appConfig.effectApi.prefix, `/${name}-api`);
+
+      const sharedApi = read(`verticals/${name}/shared/effect/api.ts`);
+      assert.match(
+        sharedApi,
+        new RegExp(`HttpApiEndpoint\\.get\\('list', '/effect/${name}'`),
+        `${name} must use the generic list endpoint`,
+      );
+      assert.match(
+        sharedApi,
+        new RegExp(`HttpApiEndpoint\\.get\\('get', '/effect/${name}/:id'`),
+        `${name} must use the generic detail endpoint`,
+      );
+      assert.match(
+        sharedApi,
+        new RegExp(`HttpApiEndpoint\\.post\\('create', '/effect/${name}'`),
+        `${name} must use the generic create endpoint`,
       );
     }
   } finally {

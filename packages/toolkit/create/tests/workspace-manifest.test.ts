@@ -14,33 +14,31 @@ import {
  */
 const expectedWorkspaceManifest = [
   '.agents/agent-reference-repos.json',
-  '.agents/rstackjs-agent-skills-LICENSE',
-  '.agents/skills-lock.json',
-  '.agents/skills/rsbuild-best-practices/SKILL.md',
-  '.agents/skills/rsdoctor-analysis/SKILL.md',
-  '.agents/skills/rsdoctor-analysis/references/command-map.md',
-  '.agents/skills/rsdoctor-analysis/references/common-analysis-patterns.md',
-  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-common.md',
-  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-rspack.md',
-  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor-webpack.md',
-  '.agents/skills/rsdoctor-analysis/references/install-rsdoctor.md',
-  '.agents/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
-  '.agents/skills/rslib-best-practices/SKILL.md',
-  '.agents/skills/rslib-modern-package/SKILL.md',
-  '.agents/skills/rspack-best-practices/SKILL.md',
-  '.agents/skills/rspack-tracing/SKILL.md',
-  '.agents/skills/rspack-tracing/references/bottlenecks.md',
-  '.agents/skills/rspack-tracing/references/tracing-guide.md',
-  '.agents/skills/rspack-tracing/scripts/analyze_trace.js',
-  '.agents/skills/rstest-best-practices/SKILL.md',
   '.codex/hooks.json',
+  '.codex/rstackjs-agent-skills-LICENSE',
+  '.codex/skills-lock.json',
+  '.codex/skills/rsbuild-best-practices/SKILL.md',
+  '.codex/skills/rsdoctor-analysis/SKILL.md',
+  '.codex/skills/rsdoctor-analysis/references/command-map.md',
+  '.codex/skills/rsdoctor-analysis/references/common-analysis-patterns.md',
+  '.codex/skills/rsdoctor-analysis/references/install-rsdoctor-common.md',
+  '.codex/skills/rsdoctor-analysis/references/install-rsdoctor-rspack.md',
+  '.codex/skills/rsdoctor-analysis/references/install-rsdoctor-webpack.md',
+  '.codex/skills/rsdoctor-analysis/references/install-rsdoctor.md',
+  '.codex/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
+  '.codex/skills/rslib-best-practices/SKILL.md',
+  '.codex/skills/rslib-modern-package/SKILL.md',
+  '.codex/skills/rspack-best-practices/SKILL.md',
+  '.codex/skills/rspack-tracing/SKILL.md',
+  '.codex/skills/rspack-tracing/references/bottlenecks.md',
+  '.codex/skills/rspack-tracing/references/tracing-guide.md',
+  '.codex/skills/rspack-tracing/scripts/analyze_trace.js',
+  '.codex/skills/rstest-best-practices/SKILL.md',
   '.github/renovate.json',
   '.github/workflows/ultramodern-workspace-gates.yml',
   '.gitignore',
   '.mise.toml',
-  '.modernjs/ultramodern-generated-contract.json',
-  '.modernjs/ultramodern-package-source.json',
-  '.modernjs/ultramodern-workspace-template-manifest.json',
+  '.modernjs/ultramodern.json',
   'AGENTS.md',
   'README.md',
   'apps/shell-super-app/locales/cs/shell.json',
@@ -87,7 +85,6 @@ const expectedWorkspaceManifest = [
   'scripts/generate-public-surface-assets.mjs',
   'scripts/proof-cloudflare-version.mjs',
   'scripts/setup-agent-reference-repos.mjs',
-  'scripts/ultramodern-cloudflare-proof.mjs',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mjs',
   'scripts/ultramodern-typecheck.mjs',
@@ -196,7 +193,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     assert.deepEqual(workspaceResult.effectApiPrefixes, {});
     assert.equal(
       workspaceResult.generatedContractPath,
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
     );
     assert.deepEqual(workspaceResult.warnings, []);
     assert.deepEqual(listFiles(workspaceDir), expectedWorkspaceManifest);
@@ -213,13 +210,12 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     assert.deepEqual(verticalResult.createdPaths, expectedVerticalManifest);
     assert.ok(
       [
-        '.modernjs/ultramodern-generated-contract.json',
+        '.modernjs/ultramodern.json',
         'apps/shell-super-app/package.json',
         'apps/shell-super-app/tsconfig.json',
         'apps/shell-super-app/src/effect/vertical-clients.ts',
         'apps/shell-super-app/src/routes/vertical-components.tsx',
         'package.json',
-        'scripts/validate-ultramodern-workspace.mjs',
         'topology/local-overlays/development.json',
         'topology/ownership.json',
         'topology/reference-topology.json',
@@ -256,7 +252,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     });
     assert.equal(
       verticalResult.generatedContractPath,
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
     );
     assert.deepEqual(verticalResult.warnings, []);
     assert.deepEqual(listFiles(workspaceDir), [

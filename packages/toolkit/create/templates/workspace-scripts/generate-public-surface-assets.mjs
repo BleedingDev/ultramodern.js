@@ -4,16 +4,251 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const workspaceRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
+  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
 const contractPath = path.join(
   workspaceRoot,
   '.modernjs/ultramodern-generated-contract.json',
 );
+const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function toKebabCase(value) {
+  return String(value)
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
+    .replace(/[._]+/gu, '-')
+    .toLowerCase()
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+}
+
+function toEnvSegment(value) {
+  return toKebabCase(value).replace(/-/gu, '_').toUpperCase();
+}
+
+function normalizeRelativePath(value) {
+  return String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
+}
+
+function appNamespace(app) {
+  return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
+}
+
+function defaultPortEnv(app) {
+  return app.kind === 'shell'
+    ? 'SHELL_SUPER_APP_PORT'
+    : `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_PORT`;
+}
+
+function defaultPort(app) {
+  return app.kind === 'shell' ? 3020 : 3030;
+}
+
+function normalizeCompactApp(rawApp) {
+  const id = String(rawApp.id);
+  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+  const appPath =
+    typeof rawApp.path === 'string'
+      ? normalizeRelativePath(rawApp.path)
+      : kind === 'shell'
+        ? 'apps/shell-super-app'
+        : `verticals/${toKebabCase(id)}`;
+  const packageSuffix =
+    typeof rawApp.packageSuffix === 'string'
+      ? rawApp.packageSuffix
+      : appPath.split('/').at(-1) ?? id;
+  const domain =
+    typeof rawApp.domain === 'string'
+      ? rawApp.domain
+      : kind === 'vertical'
+        ? packageSuffix
+        : undefined;
+  const moduleFederation =
+    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
+      ? rawApp.moduleFederation
+      : {};
+
+  return {
+    id,
+    kind,
+    path: appPath,
+    packageSuffix,
+    domain,
+    port:
+      typeof rawApp.port === 'number'
+        ? rawApp.port
+        : defaultPort({ id, kind, domain }),
+    portEnv:
+      typeof rawApp.portEnv === 'string'
+        ? rawApp.portEnv
+        : defaultPortEnv({ id, kind, domain }),
+    mfName:
+      typeof moduleFederation.name === 'string'
+        ? moduleFederation.name
+        : kind === 'shell'
+          ? 'shellSuperApp'
+          : `vertical${toKebabCase(domain ?? id)
+              .split('-')
+              .filter(Boolean)
+              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+              .join('')}`,
+    exposes: Array.isArray(moduleFederation.exposes)
+      ? moduleFederation.exposes.filter(expose => typeof expose === 'string')
+      : [],
+    verticalRefs: Array.isArray(moduleFederation.verticalRefs)
+      ? moduleFederation.verticalRefs.filter(ref => typeof ref === 'string')
+      : [],
+    marker: {
+      appId: id,
+    },
+    effectApi:
+      rawApp.effectApi && typeof rawApp.effectApi === 'object'
+        ? {
+            stem:
+              typeof rawApp.effectApi.stem === 'string'
+                ? rawApp.effectApi.stem
+                : domain ?? id,
+            prefix:
+              typeof rawApp.effectApi.prefix === 'string'
+                ? rawApp.effectApi.prefix
+                : `/${domain ?? id}-api`,
+          }
+        : undefined,
+  };
+}
+
+function createRouteOwnedEntries(app) {
+  const namespace = appNamespace(app);
+  const base = {
+    descriptionKey: `${namespace}.seo.description`,
+    mfBoundaryId: app.mfName,
+    namespace,
+    ownerAppId: app.id,
+    public: false,
+    indexable: false,
+    publicSurface: 'private-app-screen',
+  };
+
+  return [
+    {
+      ...base,
+      canonicalPath: '/',
+      id: app.kind === 'shell' ? 'shell-home' : `${app.id}-home`,
+      localisedPaths: {
+        cs: '/',
+        en: '/',
+      },
+      titleKey: app.kind === 'shell' ? 'shell.title' : `${namespace}.title`,
+    },
+  ];
+}
+
+function createPublicRoutes(app) {
+  return createRouteOwnedEntries(app)
+    .filter(route => route.public && route.indexable)
+    .map(route => ({
+      canonicalPath: route.canonicalPath,
+      id: route.id,
+      localisedPaths: route.localisedPaths,
+      namespace: route.namespace,
+      ownerAppId: route.ownerAppId,
+      descriptionKey: route.descriptionKey,
+      titleKey: route.titleKey,
+    }));
+}
+
+function createPublicSurface(app) {
+  const publicRoutes = createPublicRoutes(app);
+  return {
+    authoring: 'colocated-route-meta',
+    artifactLifecycle: 'build-and-deploy-output',
+    generatedManifest: './src/routes/ultramodern-route-metadata',
+    source: 'route-owned-public-routes',
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    outputRoot: 'dist/public',
+    cloudflareOutputRoot: '.output/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    files:
+      publicRoutes.length > 0
+        ? ['robots.txt', 'sitemap.xml', 'site.webmanifest']
+        : ['robots.txt'],
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    languages: ['en', 'cs'],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: 'route.sitemap.mjs',
+      entryExport: 'default-or-entries',
+      paramsSource: 'params-or-localeParams',
+      draftPolicy: 'omit-draft-by-default',
+      indexablePolicy: 'omit-indexable-false',
+      lifecycle: 'executed-during-public-surface-generation',
+    },
+    contentSources: [],
+    publicRoutes,
+    routeEntries: [],
+    concreteUrlPaths: [],
+  };
+}
+
+function createCloudflareDeploy(config, app) {
+  const packageScope =
+    typeof config.workspace?.packageScope === 'string'
+      ? config.workspace.packageScope
+      : path.basename(workspaceRoot);
+  const compatibilityDate =
+    typeof config.deploy?.worker?.compatibilityDate === 'string'
+      ? config.deploy.worker.compatibilityDate
+      : '2026-06-02';
+  return {
+    workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(0, 63),
+    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+    compatibilityDate,
+    compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
+  };
+}
+
+function synthesizeContractFromCompactConfig(config) {
+  const apps = Array.isArray(config.topology?.apps)
+    ? config.topology.apps.map(normalizeCompactApp)
+    : [];
+
+  return {
+    sourcePath: compactConfigPath,
+    apps: apps.map(app => ({
+      ...app,
+      deploy: {
+        cloudflare: createCloudflareDeploy(config, app),
+      },
+      routes: {
+        publicSurface: createPublicSurface(app),
+      },
+    })),
+  };
+}
+
+function readGeneratedContractView() {
+  if (fs.existsSync(compactConfigPath)) {
+    return synthesizeContractFromCompactConfig(readJson(compactConfigPath));
+  }
+  if (fs.existsSync(contractPath)) {
+    return {
+      sourcePath: contractPath,
+      ...readJson(contractPath),
+    };
+  }
+  throw new Error(
+    `Missing UltraModern config. Expected ${path.relative(
+      workspaceRoot,
+      compactConfigPath,
+    )} or ${path.relative(workspaceRoot, contractPath)}.`,
+  );
 }
 
 function parseArgs(argv) {
@@ -517,10 +752,10 @@ try {
     printHelp();
     process.exit(0);
   }
-  const contract = readJson(contractPath);
+  const contract = readGeneratedContractView();
   const app = contract.apps?.find(candidate => candidate.id === args.appId);
   if (!app) {
-    throw new Error(`Unknown app in generated contract: ${args.appId}`);
+    throw new Error(`Unknown app in UltraModern config: ${args.appId}`);
   }
   await generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
 } catch (error) {

@@ -3,7 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
-import type { CloudflareWorkerSecurityConfig } from '../../src/types/config/deploy';
+import type {
+  CloudflareWorkerArtifactConfig,
+  CloudflareWorkerSecurityConfig,
+  JsonValue,
+} from '../../src/types/config/deploy';
 
 const tempDirectories: string[] = [];
 
@@ -21,13 +25,23 @@ const createAssetBinding = (publicDirectory: string) => ({
 });
 
 async function createFixture({
+  artifacts,
   compatibilityDate,
   includeBffWorker = true,
+  includeServerOnlyDistSources = false,
+  publicAssetExcludes,
+  sourceFiles,
+  wrangler,
   workerName,
   workerSecurity,
 }: {
+  artifacts?: CloudflareWorkerArtifactConfig[];
   compatibilityDate?: string;
   includeBffWorker?: boolean;
+  includeServerOnlyDistSources?: boolean;
+  publicAssetExcludes?: string[];
+  sourceFiles?: Record<string, Record<string, string>>;
+  wrangler?: Record<string, JsonValue>;
   workerName?: string;
   workerSecurity?: Record<string, unknown>;
 } = {}) {
@@ -37,6 +51,17 @@ async function createFixture({
   tempDirectories.push(appDirectory);
 
   const distDirectory = path.join(appDirectory, 'dist');
+  if (includeServerOnlyDistSources) {
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+  }
+  for (const [directory, files] of Object.entries(sourceFiles ?? {})) {
+    for (const [filename, content] of Object.entries(files)) {
+      const filePath = path.join(appDirectory, directory, filename);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content);
+    }
+  }
   await fs.mkdir(path.join(distDirectory, 'static'), { recursive: true });
   await fs.mkdir(path.join(distDirectory, 'worker'), { recursive: true });
   await fs.mkdir(path.join(distDirectory, 'bundles'), { recursive: true });
@@ -269,6 +294,22 @@ async function createFixture({
       ],
     }),
   );
+  if (includeServerOnlyDistSources) {
+    await fs.mkdir(path.join(distDirectory, 'api'), { recursive: true });
+    await fs.mkdir(path.join(distDirectory, 'shared'), { recursive: true });
+    await fs.mkdir(path.join(distDirectory, 'private-assets'), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(distDirectory, 'api/index.ts'), 'server api');
+    await fs.writeFile(
+      path.join(distDirectory, 'shared/schema.ts'),
+      'server shared',
+    );
+    await fs.writeFile(
+      path.join(distDirectory, 'private-assets/data.json'),
+      '{}',
+    );
+  }
 
   const preset = createCloudflarePreset({
     appContext: {
@@ -282,9 +323,12 @@ async function createFixture({
       },
       deploy: {
         worker: {
+          artifacts,
           compatibilityDate,
           name: workerName,
+          publicAssetExcludes,
           security: workerSecurity,
+          wrangler,
         },
       },
     } as any,
@@ -541,6 +585,136 @@ describe('cloudflare deploy preset', () => {
     expect(wranglerConfig.name).toBe('commerce-production-worker');
   });
 
+  it('merges Wrangler config, stages artifacts, and enforces Worker invariants', async () => {
+    const { outputDirectory } = await createFixture({
+      artifacts: [
+        {
+          from: 'ops/runtime-policy.json',
+          to: 'config/runtime-policy.json',
+        },
+      ],
+      sourceFiles: {
+        ops: {
+          'runtime-policy.json': '{"revision":"2026-06-27"}',
+        },
+      },
+      wrangler: {
+        compatibility_date: '2026-05-01',
+        compatibility_flags: ['streams_enable_constructors', 'nodejs_compat'],
+        main: 'custom-entry.mjs',
+        assets: {
+          binding: 'CUSTOM_ASSETS',
+          directory: './static-assets',
+          html_handling: 'auto-trailing-slash',
+          run_worker_first: false,
+        },
+        observability: {
+          enabled: true,
+        },
+        placement: {
+          mode: 'smart',
+        },
+        vars: {
+          FEATURE_FLAG: 'enabled',
+        },
+      },
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+
+    expect(wranglerConfig.compatibility_date).toBe('2026-05-01');
+    expect(wranglerConfig.main).toBe('server/index.mjs');
+    expect(wranglerConfig.compatibility_flags).toEqual([
+      'streams_enable_constructors',
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+    ]);
+    expect(wranglerConfig.assets).toEqual({
+      binding: 'ASSETS',
+      directory: './public',
+      html_handling: 'auto-trailing-slash',
+      run_worker_first: true,
+    });
+    expect(wranglerConfig.observability).toEqual({
+      enabled: true,
+    });
+    expect(wranglerConfig.placement).toEqual({
+      mode: 'smart',
+    });
+    expect(wranglerConfig.vars).toEqual({
+      FEATURE_FLAG: 'enabled',
+    });
+    await expect(
+      fs.readFile(
+        path.join(outputDirectory, 'config/runtime-policy.json'),
+        'utf-8',
+      ),
+    ).resolves.toBe('{"revision":"2026-06-27"}');
+  });
+
+  it('rejects artifacts staged into framework-owned Cloudflare output paths', async () => {
+    const reservedDestinations = [
+      'public/config.json',
+      'server/config.json',
+      'worker/config.js',
+      'wrangler.json',
+      'package.json',
+    ];
+
+    for (const destination of reservedDestinations) {
+      await expect(
+        createFixture({
+          artifacts: [
+            {
+              from: 'ops/config.json',
+              to: destination,
+            },
+          ],
+          sourceFiles: {
+            ops: {
+              'config.json': '{}',
+            },
+          },
+        }),
+      ).rejects.toThrow(/deploy\.worker\.artifacts\[0\]\.to/u);
+    }
+  });
+
+  it('rejects artifact paths that escape through parent directory segments', async () => {
+    await expect(
+      createFixture({
+        artifacts: [
+          {
+            from: 'ops/..',
+            to: 'config/runtime-policy.json',
+          },
+        ],
+        sourceFiles: {
+          ops: {
+            'runtime-policy.json': '{}',
+          },
+        },
+      }),
+    ).rejects.toThrow(/deploy\.worker\.artifacts\[0\]\.from/u);
+
+    await expect(
+      createFixture({
+        artifacts: [
+          {
+            from: 'ops/runtime-policy.json',
+            to: 'config/..',
+          },
+        ],
+        sourceFiles: {
+          ops: {
+            'runtime-policy.json': '{}',
+          },
+        },
+      }),
+    ).rejects.toThrow(/deploy\.worker\.artifacts\[0\]\.to/u);
+  });
+
   it('places client-facing assets under the configured public asset root only', async () => {
     const { outputDirectory } = await createFixture();
     const wranglerConfig = JSON.parse(
@@ -606,6 +780,30 @@ describe('cloudflare deploy preset', () => {
     ).rejects.toThrow();
     await expect(
       fs.access(path.join(publicDirectory, 'bundles/main.js')),
+    ).rejects.toThrow();
+  });
+
+  it('excludes server-only and configured paths from Cloudflare public assets', async () => {
+    const { outputDirectory } = await createFixture({
+      includeServerOnlyDistSources: true,
+      publicAssetExcludes: ['private-assets', 'static/app.css'],
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.access(path.join(publicDirectory, 'static/app.js')),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.access(path.join(publicDirectory, 'static/app.css')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'api/index.ts')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'shared/schema.ts')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'private-assets/data.json')),
     ).rejects.toThrow();
   });
 

@@ -154,6 +154,43 @@ test('CLI MicroVertical flow rejects missing vertical names without writes', () 
   }
 });
 
+test('CLI MicroVertical flow rejects bridge options without writes', () => {
+  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-bridge');
+
+  try {
+    const before = snapshotWorkspace(workspaceDir);
+    const result = runCli(workspaceDir, [
+      '--vertical=catalog',
+      '--bridge-parent-root=..',
+    ]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /Bridge options are supported only when creating a new UltraModern workspace/,
+    );
+    assert.deepEqual(snapshotWorkspace(workspaceDir), before);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('CLI help documents bridge mode options', () => {
+  const result = runCli(packageRoot, ['--help']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--bridge Enable explicit/);
+  assert.match(result.stdout, /--bridge-parent-root <path>/);
+  assert.match(result.stdout, /--bridge-workspace-package <glob>/);
+  assert.match(result.stdout, /--bridge-workspace-package-name <glob=package/);
+  assert.match(result.stdout, /--bridge-test-alias <glob:alias=target>/);
+  assert.match(result.stdout, /--bridge-dependency <package/);
+  assert.match(result.stdout, /--bridge-lockfile-policy <nested\|parent>/);
+  assert.match(result.stdout, /--bridge-gate <name=command>/);
+  assert.match(result.stdout, /--bridge-gate-cwd <name=cwd>/);
+  assert.match(result.stdout, /--bridge-react-singleton <package/);
+});
+
 test('CLI help documents MicroVertical positional and explicit forms', () => {
   const result = runCli(packageRoot, ['--help']);
 

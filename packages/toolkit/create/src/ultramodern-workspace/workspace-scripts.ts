@@ -27,16 +27,75 @@ import {
   PNPM_VERSION,
 } from './versions';
 
-export function createAssertMfTypesScript(
-  remotes: WorkspaceApp[] = [],
-): string {
-  return renderFileTemplate('workspace-scripts/assert-mf-types.mjs', {
-    defaultAppDirsJson: JSON.stringify(
-      remotes.map(remote => remote.directory),
-      null,
-      2,
-    ),
-  });
+function createToolWrapperScript(command: string, extraArgs: string[] = []) {
+  const commandJson = JSON.stringify(command);
+  const extraArgsJson = JSON.stringify(extraArgs);
+
+  return `#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const createBin = process.env.ULTRAMODERN_CREATE_BIN;
+const forwardedArgs = process.argv.slice(2);
+const workspaceRoot =
+  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ultramodernArgs = ['ultramodern', ${commandJson}, ...${extraArgsJson}, ...forwardedArgs];
+const result = createBin
+  ? spawnSync(process.execPath, [createBin, ...ultramodernArgs], {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      stdio: 'inherit',
+    })
+  : spawnSync('modern-js-create', ultramodernArgs, {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      shell: process.platform === 'win32',
+      stdio: 'inherit',
+    });
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);
+`;
+}
+
+function createSkillsToolWrapperScript() {
+  return `#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const createBin = process.env.ULTRAMODERN_CREATE_BIN;
+const forwardedArgs = process.argv.slice(2);
+const workspaceRoot =
+  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const checkOnly = forwardedArgs.includes('--check');
+const skillArgs = checkOnly
+  ? ['skills', 'check', ...forwardedArgs.filter(arg => arg !== '--check')]
+  : ['skills', 'install', ...forwardedArgs];
+const ultramodernArgs = ['ultramodern', ...skillArgs];
+const result = createBin
+  ? spawnSync(process.execPath, [createBin, ...ultramodernArgs], {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      stdio: 'inherit',
+    })
+  : spawnSync('modern-js-create', ultramodernArgs, {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      shell: process.platform === 'win32',
+      stdio: 'inherit',
+    });
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);
+`;
 }
 
 export function createWorkspaceValidationScript(
@@ -130,51 +189,27 @@ export function createWorkspaceI18nBoundaryValidationScript(): string {
   );
 }
 
-export function createPublicSurfaceAssetsScript(): string {
-  return readFileTemplate(
-    'workspace-scripts/generate-public-surface-assets.mjs',
-  );
-}
-
-export function createCloudflareProofHelperScript(): string {
-  return readFileTemplate('workspace-scripts/ultramodern-cloudflare-proof.mjs');
-}
-
-export function createCloudflareVersionProofScript(): string {
-  return readFileTemplate('workspace-scripts/proof-cloudflare-version.mjs');
-}
-
 export function createPerformanceReadinessConfigScript(): string {
   return readFileTemplate(
     'workspace-scripts/ultramodern-performance-readiness.config.mjs',
   );
 }
 
-export function createPerformanceReadinessScript(): string {
-  return readFileTemplate(
-    'workspace-scripts/ultramodern-performance-readiness.mjs',
-  );
-}
-
-export function createUltramodernTypecheckScript(): string {
-  return readFileTemplate('workspace-scripts/ultramodern-typecheck.mjs');
-}
-
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
-  scope: string,
-  enableTailwind: boolean,
-  remotes: WorkspaceApp[] = [],
+  _scope: string,
+  _enableTailwind: boolean,
+  _remotes: WorkspaceApp[] = [],
 ) {
   writeFileReplacing(
     targetDir,
     'scripts/assert-mf-types.mjs',
-    createAssertMfTypesScript(remotes),
+    createToolWrapperScript('mf-types'),
   );
   writeFileReplacing(
     targetDir,
     'scripts/validate-ultramodern-workspace.mjs',
-    createWorkspaceValidationScript(scope, enableTailwind, remotes),
+    createToolWrapperScript('validate'),
   );
   writeFileReplacing(
     targetDir,
@@ -184,17 +219,12 @@ export function writeGeneratedWorkspaceScripts(
   writeFileReplacing(
     targetDir,
     'scripts/generate-public-surface-assets.mjs',
-    createPublicSurfaceAssetsScript(),
-  );
-  writeFileReplacing(
-    targetDir,
-    'scripts/ultramodern-cloudflare-proof.mjs',
-    createCloudflareProofHelperScript(),
+    createToolWrapperScript('public-surface'),
   );
   writeFileReplacing(
     targetDir,
     'scripts/proof-cloudflare-version.mjs',
-    createCloudflareVersionProofScript(),
+    createToolWrapperScript('cloudflare-proof'),
   );
   writeFileReplacing(
     targetDir,
@@ -204,11 +234,16 @@ export function writeGeneratedWorkspaceScripts(
   writeFileReplacing(
     targetDir,
     'scripts/ultramodern-performance-readiness.mjs',
-    createPerformanceReadinessScript(),
+    createToolWrapperScript('performance-readiness'),
   );
   writeFileReplacing(
     targetDir,
     'scripts/ultramodern-typecheck.mjs',
-    createUltramodernTypecheckScript(),
+    createToolWrapperScript('typecheck'),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/bootstrap-agent-skills.mjs',
+    createSkillsToolWrapperScript(),
   );
 }

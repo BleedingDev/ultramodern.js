@@ -1,11 +1,17 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
-import type { CloudflareWorkerSecurityConfig } from '../../../types/config/deploy';
+import type {
+  CloudflareWorkerArtifactConfig,
+  CloudflareWorkerSecurityConfig,
+  JsonValue,
+} from '../../../types/config/deploy';
 import { readTemplate } from '../utils';
 import type { CreatePreset } from './platform';
 
 const WORKER_ENTRY = 'server/index.mjs';
 const WORKER_MANIFEST = 'server/modern-worker-manifest.json';
+const WRANGLER_CONFIG_FILE = 'wrangler.json';
+const OUTPUT_PACKAGE_FILE = 'package.json';
 const ASSETS_BINDING = 'ASSETS';
 const ROUTE_SPEC_FILE = 'route.json';
 const ROUTE_SPEC_OUTPUT = `server/${ROUTE_SPEC_FILE}`;
@@ -14,11 +20,26 @@ const ROUTE_MANIFEST_FILE = 'routes-manifest.json';
 const PUBLIC_ASSETS_DIRECTORY = 'public';
 const WORKER_BUNDLE_DIRECTORY = 'worker';
 const SERVER_BUNDLE_DIRECTORY = 'bundles';
+const SERVER_OUTPUT_DIRECTORY = 'server';
+const DEFAULT_SERVER_ONLY_PUBLIC_ASSET_EXCLUDES = ['api', 'shared'] as const;
 const BFF_EFFECT_WORKER_ENTRY = `${WORKER_BUNDLE_DIRECTORY}/__modern_bff_effect.js`;
 const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
   'Ensure the Effect BFF entry exists at api/effect/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 const DEFAULT_COMPATIBILITY_DATE = '2026-06-02';
 const COMPATIBILITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+const REQUIRED_COMPATIBILITY_FLAGS = [
+  'nodejs_compat',
+  'global_fetch_strictly_public',
+] as const;
+const RESERVED_ARTIFACT_DESTINATION_FILES = new Set([
+  WRANGLER_CONFIG_FILE,
+  OUTPUT_PACKAGE_FILE,
+]);
+const RESERVED_ARTIFACT_DESTINATION_DIRECTORIES = new Set([
+  PUBLIC_ASSETS_DIRECTORY,
+  SERVER_OUTPUT_DIRECTORY,
+  WORKER_BUNDLE_DIRECTORY,
+]);
 const DEFAULT_SECURITY_HEADERS = {
   referrerPolicy: 'strict-origin-when-cross-origin',
   contentTypeOptions: 'nosniff',
@@ -84,6 +105,34 @@ const getConfiguredWorkerName = (
 ) => {
   const configuredName = modernConfig.deploy?.worker?.name?.trim();
   return configuredName || getWorkerName(appDirectory);
+};
+
+const normalizeRelativePath = (
+  value: unknown,
+  label: string,
+  scope = 'app output',
+) => {
+  if (typeof value !== 'string') {
+    throw new Error(`${label} must be a relative path inside the ${scope}.`);
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/u, '')
+    .replace(/\/+$/u, '');
+  const segments = normalized.split('/');
+
+  if (
+    !normalized ||
+    path.isAbsolute(normalized) ||
+    normalized === '.' ||
+    segments.includes('..')
+  ) {
+    throw new Error(`${label} must be a relative path inside the ${scope}.`);
+  }
+
+  return normalized;
 };
 
 const normalizeDirectiveValues = (value: string[] | string) => {
@@ -241,6 +290,140 @@ const createCloudflareWorkerSecurityPolicy = (
   };
 };
 
+const isJsonRecord = (value: unknown): value is Record<string, JsonValue> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getConfiguredWrangler = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  const wrangler = modernConfig.deploy?.worker?.wrangler;
+
+  if (wrangler === undefined) {
+    return {};
+  }
+
+  if (!isJsonRecord(wrangler)) {
+    throw new Error('deploy.worker.wrangler must be a JSON object.');
+  }
+
+  return wrangler;
+};
+
+const createWranglerCompatibilityFlags = (
+  configuredFlags: JsonValue | undefined,
+) => {
+  if (configuredFlags === undefined) {
+    return [...REQUIRED_COMPATIBILITY_FLAGS];
+  }
+
+  if (
+    !Array.isArray(configuredFlags) ||
+    configuredFlags.some(flag => typeof flag !== 'string')
+  ) {
+    throw new Error(
+      'deploy.worker.wrangler.compatibility_flags must be an array of strings.',
+    );
+  }
+
+  return [...new Set([...configuredFlags, ...REQUIRED_COMPATIBILITY_FLAGS])];
+};
+
+const createWranglerAssetsConfig = (
+  configuredAssets: JsonValue | undefined,
+) => {
+  if (configuredAssets !== undefined && !isJsonRecord(configuredAssets)) {
+    throw new Error('deploy.worker.wrangler.assets must be an object.');
+  }
+
+  return {
+    ...(isJsonRecord(configuredAssets) ? configuredAssets : {}),
+    directory: `./${PUBLIC_ASSETS_DIRECTORY}`,
+    binding: ASSETS_BINDING,
+    run_worker_first: true,
+  };
+};
+
+const createWranglerConfig = (
+  appDirectory: string,
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  const wrangler = getConfiguredWrangler(modernConfig);
+
+  return {
+    $schema: 'node_modules/wrangler/config-schema.json',
+    name: getConfiguredWorkerName(appDirectory, modernConfig),
+    compatibility_date: getCompatibilityDate(modernConfig),
+    ...wrangler,
+    main: WORKER_ENTRY,
+    compatibility_flags: createWranglerCompatibilityFlags(
+      wrangler.compatibility_flags,
+    ),
+    assets: createWranglerAssetsConfig(wrangler.assets),
+  };
+};
+
+const normalizeCloudflareArtifact = (
+  artifact: CloudflareWorkerArtifactConfig,
+  index: number,
+) => {
+  const from = normalizeRelativePath(
+    artifact.from,
+    `deploy.worker.artifacts[${index}].from`,
+    'app root',
+  );
+  const to = normalizeRelativePath(
+    artifact.to,
+    `deploy.worker.artifacts[${index}].to`,
+    'Cloudflare output',
+  );
+  const [topLevelDestination] = to.split('/');
+  const reservedDestination = RESERVED_ARTIFACT_DESTINATION_FILES.has(to)
+    ? to
+    : topLevelDestination;
+
+  if (
+    RESERVED_ARTIFACT_DESTINATION_FILES.has(to) ||
+    RESERVED_ARTIFACT_DESTINATION_DIRECTORIES.has(topLevelDestination)
+  ) {
+    throw new Error(
+      `deploy.worker.artifacts[${index}].to must not target generated Cloudflare output path ${JSON.stringify(
+        reservedDestination,
+      )}.`,
+    );
+  }
+
+  return {
+    from,
+    to,
+    index,
+  };
+};
+
+const getCloudflareArtifacts = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) =>
+  (modernConfig.deploy?.worker?.artifacts ?? []).map(
+    normalizeCloudflareArtifact,
+  );
+
+const copyCloudflareArtifacts = async (
+  appDirectory: string,
+  outputDirectory: string,
+  artifacts: ReturnType<typeof getCloudflareArtifacts>,
+) => {
+  for (const artifact of artifacts) {
+    const sourcePath = path.join(appDirectory, artifact.from);
+
+    if (!(await fse.pathExists(sourcePath))) {
+      throw new Error(
+        `deploy.worker.artifacts[${artifact.index}].from does not exist: ${artifact.from}`,
+      );
+    }
+
+    await fse.copy(sourcePath, path.join(outputDirectory, artifact.to));
+  }
+};
+
 const readRouteSpec = async (outputDirectory: string) => {
   const routeSpecPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
 
@@ -373,7 +556,28 @@ const createWorkerModuleLoaders = (manifest: any) => {
   return `{\n${loaders.join(',\n')}\n}`;
 };
 
-const shouldCopyToPublicAssets = (src: string, distDirectory: string) => {
+const getPublicAssetExcludes = (
+  appDirectory: string,
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) =>
+  [
+    ...DEFAULT_SERVER_ONLY_PUBLIC_ASSET_EXCLUDES.filter(directory => {
+      try {
+        return fse.statSync(path.join(appDirectory, directory)).isDirectory();
+      } catch {
+        return false;
+      }
+    }),
+    ...(modernConfig.deploy?.worker?.publicAssetExcludes ?? []),
+  ].map(entry =>
+    normalizeRelativePath(entry, 'deploy.worker.publicAssetExcludes'),
+  );
+
+const shouldCopyToPublicAssets = (
+  src: string,
+  distDirectory: string,
+  publicAssetExcludes: string[],
+) => {
   const relativePath = path.relative(distDirectory, src);
 
   if (!relativePath) {
@@ -386,7 +590,12 @@ const shouldCopyToPublicAssets = (src: string, distDirectory: string) => {
   return (
     normalizedRelativePath !== ROUTE_SPEC_FILE &&
     topLevelDirectory !== WORKER_BUNDLE_DIRECTORY &&
-    topLevelDirectory !== SERVER_BUNDLE_DIRECTORY
+    topLevelDirectory !== SERVER_BUNDLE_DIRECTORY &&
+    !publicAssetExcludes.some(
+      exclude =>
+        normalizedRelativePath === exclude ||
+        normalizedRelativePath.startsWith(`${exclude}/`),
+    )
   );
 };
 
@@ -425,8 +634,12 @@ export const createCloudflarePreset: CreatePreset = ({
   const workerEntryPath = path.join(outputDirectory, WORKER_ENTRY);
   const workerManifestPath = path.join(outputDirectory, WORKER_MANIFEST);
   const routeSpecOutputPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
-  const wranglerConfigPath = path.join(outputDirectory, 'wrangler.json');
-  const workerName = getConfiguredWorkerName(appDirectory, modernConfig);
+  const wranglerConfigPath = path.join(outputDirectory, WRANGLER_CONFIG_FILE);
+  const cloudflareArtifacts = getCloudflareArtifacts(modernConfig);
+  const publicAssetExcludes = getPublicAssetExcludes(
+    appDirectory,
+    modernConfig,
+  );
 
   return {
     async prepare() {
@@ -434,7 +647,8 @@ export const createCloudflarePreset: CreatePreset = ({
     },
     async writeOutput() {
       await fse.copy(distDirectory, publicDirectory, {
-        filter: src => shouldCopyToPublicAssets(src, distDirectory),
+        filter: src =>
+          shouldCopyToPublicAssets(src, distDirectory, publicAssetExcludes),
       });
       await fse.ensureDir(path.dirname(workerEntryPath));
       await fse.ensureDir(path.dirname(workerManifestPath));
@@ -468,24 +682,15 @@ export const createCloudflarePreset: CreatePreset = ({
           },
         );
       }
+      await copyCloudflareArtifacts(
+        appDirectory,
+        outputDirectory,
+        cloudflareArtifacts,
+      );
 
       await fse.writeJSON(
         wranglerConfigPath,
-        {
-          $schema: 'node_modules/wrangler/config-schema.json',
-          name: workerName,
-          main: WORKER_ENTRY,
-          compatibility_date: getCompatibilityDate(modernConfig),
-          compatibility_flags: [
-            'nodejs_compat',
-            'global_fetch_strictly_public',
-          ],
-          assets: {
-            directory: `./${PUBLIC_ASSETS_DIRECTORY}`,
-            binding: ASSETS_BINDING,
-            run_worker_first: true,
-          },
-        },
+        createWranglerConfig(appDirectory, modernConfig),
         {
           spaces: 2,
         },
@@ -498,7 +703,7 @@ export const createCloudflarePreset: CreatePreset = ({
           spaces: 2,
         },
       );
-      await fse.writeJSON(path.join(outputDirectory, 'package.json'), {
+      await fse.writeJSON(path.join(outputDirectory, OUTPUT_PACKAGE_FILE), {
         type: 'module',
       });
     },

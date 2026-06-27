@@ -175,6 +175,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           import {
             addUltramodernVertical,
             generateUltramodernWorkspace,
+            normalizeUltramodernBridgeConfig,
             planUltramodernVertical,
           } from '@modern-js/create/ultramodern-workspace';
 
@@ -199,6 +200,12 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             name: 'checkout',
             modernVersion: '3.2.1',
           });
+          const bridgeConfig = normalizeUltramodernBridgeConfig({
+            parentRoot: '..',
+            workspacePackages: [{ pattern: '../packages/*' }],
+            dependencies: ['@acme/ui'],
+            gates: [{ name: 'typecheck', command: 'pnpm nx typecheck @acme/ui' }],
+          });
 
           if (
             workspaceResult.operation !== 'workspace' ||
@@ -220,8 +227,15 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           ) {
             throw new Error('Expected typed MicroVertical dry-run plan');
           }
+          if (
+            bridgeConfig.enabled !== true ||
+            bridgeConfig.lockfilePolicy !== 'nested' ||
+            bridgeConfig.reactSingletons.join(',') !== 'react,react-dom'
+          ) {
+            throw new Error('Expected typed bridge config normalizer');
+          }
           for (const relativePath of [
-            '.modernjs/ultramodern-workspace-template-manifest.json',
+            '.modernjs/ultramodern.json',
             'apps/shell-super-app/package.json',
             'verticals/catalog/package.json',
             'verticals/catalog/shared/effect/api.ts',
@@ -262,6 +276,7 @@ test('built public UltraModern subpath can be required from CommonJS', () => {
           const expected = [
             'addUltramodernVertical',
             'generateUltramodernWorkspace',
+            'normalizeUltramodernBridgeConfig',
             'planUltramodernVertical',
           ];
           if (JSON.stringify(keys) !== JSON.stringify(expected)) {
@@ -375,11 +390,7 @@ test('built CLI resolves workspace template for default scaffold', () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
       fs.existsSync(
-        path.join(
-          tmpDir,
-          'smoke-workspace',
-          '.modernjs/ultramodern-workspace-template-manifest.json',
-        ),
+        path.join(tmpDir, 'smoke-workspace', '.modernjs/ultramodern.json'),
       ),
       true,
     );
@@ -459,14 +470,17 @@ test('--workspace forces workspace protocol dependencies without registry access
     );
 
     assert.equal(result.status, 0, result.stderr);
-    const packageSource = JSON.parse(
+    const ultramodernConfig = JSON.parse(
       readGeneratedFile(
         path.join(tmpDir, 'workspace-flag-smoke'),
-        '.modernjs/ultramodern-package-source.json',
+        '.modernjs/ultramodern.json',
       ),
     );
-    assert.equal(packageSource.strategy, 'workspace');
-    assert.equal(packageSource.modernPackages.specifier, 'workspace:*');
+    assert.equal(ultramodernConfig.packageSource.strategy, 'workspace');
+    assert.equal(
+      ultramodernConfig.packageSource.modernPackageVersion,
+      'workspace:*',
+    );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -527,14 +541,17 @@ test('registry lookup failure falls back to the packaged framework version', () 
       result.stderr,
       /Falling back to the packaged framework version/,
     );
-    const packageSource = JSON.parse(
+    const ultramodernConfig = JSON.parse(
       readGeneratedFile(
         path.join(tmpDir, 'offline-fallback-smoke'),
-        '.modernjs/ultramodern-package-source.json',
+        '.modernjs/ultramodern.json',
       ),
     );
-    assert.equal(packageSource.strategy, 'install');
-    assert.equal(packageSource.modernPackages.specifier, packagedVersion);
+    assert.equal(ultramodernConfig.packageSource.strategy, 'install');
+    assert.equal(
+      ultramodernConfig.packageSource.modernPackageVersion,
+      packagedVersion,
+    );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

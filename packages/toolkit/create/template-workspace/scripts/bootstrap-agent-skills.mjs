@@ -2,19 +2,22 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = process.cwd();
-const lockPath = path.join(root, '.agents/skills-lock.json');
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const templateWorkspaceDir = path.resolve(scriptDir, '..');
+const vendoredSkillsDir = path.join(templateWorkspaceDir, '.codex/skills');
+const lockPath = path.join(root, '.codex/skills-lock.json');
 const checkOnly = process.argv.includes('--check');
-const force = process.argv.includes('--force');
 const postinstall = process.argv.includes('--postinstall');
 const truthy = value => /^(1|true|yes|on)$/i.test(String(value ?? ''));
 const falsy = value => /^(0|false|no|off)$/i.test(String(value ?? ''));
 const skipRequested =
-  truthy(process.env.ULTRAMODERN_SKIP_AGENT_SKILLS) ||
-  falsy(process.env.ULTRAMODERN_AGENT_SKILLS);
+  truthy(process.env.ULTRAMODERN_SKIP_CODEX_SKILLS) ||
+  falsy(process.env.ULTRAMODERN_CODEX_SKILLS);
 const cloneTimeoutMs = Number.parseInt(
-  process.env.ULTRAMODERN_AGENT_SKILLS_CLONE_TIMEOUT_MS ?? '60000',
+  process.env.ULTRAMODERN_CODEX_SKILLS_CLONE_TIMEOUT_MS ?? '60000',
   10,
 );
 
@@ -60,7 +63,7 @@ const requireGit = () => {
   }
 
   throw new Error(
-    'Git is required to install agent skills. Install git yourself (for example "brew install git" or "sudo apt-get install git") and run pnpm skills:install again. This script never installs system packages on your behalf.',
+    'Git is required to install clone-backed Codex skills. Install git yourself (for example "brew install git" or "sudo apt-get install git") and run pnpm skills:install again. This script never installs system packages on your behalf.',
   );
 };
 
@@ -172,31 +175,42 @@ const resolveSkillDir = (sourceRoot, skillName) => {
 };
 
 if (!fs.existsSync(lockPath)) {
-  console.error('Missing .agents/skills-lock.json');
+  console.error('Missing .codex/skills-lock.json');
   process.exit(1);
 }
 
 const lock = readJson(lockPath);
-const installDir = path.join(root, lock.installDir ?? '.agents/skills');
+const installDir = path.join(root, lock.installDir ?? '.codex/skills');
 const sources = lock.sources ?? [];
-const requiredCloneSources = sources.filter(
-  source => source.install === 'clone',
-);
+const vendoredSources = sources.filter(source => source.install === 'vendored');
+const cloneSources = sources.filter(source => source.install === 'clone');
 const optionalCloneSources = sources.filter(
   source => source.install === 'clone-if-authorized',
 );
-const cloneSourceSkillNames = new Set(
-  [...requiredCloneSources, ...optionalCloneSources].flatMap(source =>
-    (source.baseline ?? []).map(skill => skill.name),
+const explicitSourceSkillNames = new Set(
+  [...vendoredSources, ...cloneSources, ...optionalCloneSources].flatMap(
+    source => (source.baseline ?? []).map(skill => skill.name),
   ),
 );
-const vendoredRequiredSkills = (lock.baseline ?? []).filter(
-  skill => !cloneSourceSkillNames.has(skill.name),
-);
-const cloneOptIn = truthy(process.env.ULTRAMODERN_AGENT_SKILLS);
+const skillsForSource = source =>
+  source.baseline ??
+  (source.install === 'vendored'
+    ? (lock.baseline ?? []).filter(
+        skill => !explicitSourceSkillNames.has(skill.name),
+      )
+    : []);
+const lockedSkillNames = (lock.baseline ?? []).map(skill => skill.name);
+const installedSkillNames = () =>
+  lockedSkillNames.filter(skillName =>
+    fs.existsSync(path.join(installDir, skillName, 'SKILL.md')),
+  );
+const missingSkillNames = () =>
+  lockedSkillNames.filter(
+    skillName => !fs.existsSync(path.join(installDir, skillName, 'SKILL.md')),
+  );
 
 if (skipRequested) {
-  const reason = 'agent skills bootstrap skipped by environment';
+  const reason = 'Codex skills bootstrap skipped by environment';
   if (checkOnly) {
     console.log(reason);
     process.exit(0);
@@ -207,80 +221,76 @@ if (skipRequested) {
 }
 
 if (checkOnly) {
-  const missingVendored = vendoredRequiredSkills
-    .map(skill => skill.name)
-    .filter(
-      skillName => !fs.existsSync(path.join(installDir, skillName, 'SKILL.md')),
-    );
-  const missingCloneInstalled = [
-    ...requiredCloneSources,
-    ...optionalCloneSources,
-  ].flatMap(source =>
-    (source.baseline ?? [])
-      .map(skill => skill.name)
-      .filter(
-        skillName =>
-          !fs.existsSync(path.join(installDir, skillName, 'SKILL.md')),
-      ),
-  );
-
-  if (missingVendored.length > 0) {
-    console.error(
-      `Required agent skills not installed: ${missingVendored.join(', ')}. Run pnpm skills:install.`,
-    );
-    process.exit(1);
-  }
-
-  if (missingCloneInstalled.length > 0) {
+  const missing = missingSkillNames();
+  const installed = installedSkillNames();
+  if (missing.length > 0) {
     console.log(
-      `Advisory: clone-installed agent skills are not present: ${missingCloneInstalled.join(', ')}. This is expected in CI, nested generated workspaces, and postinstall-only installs; run pnpm skills:install when you need those skills.`,
+      `Advisory: pinned Codex skills are not installed: ${missing.join(', ')}. This is expected in offline postinstall runs and fresh check-only CI; run pnpm skills:install when you need local skill bodies.`,
     );
   } else {
-    console.log('All pinned agent skills are installed.');
+    console.log('All pinned Codex skills are installed.');
   }
-  process.exit(0);
-}
-
-if (postinstall && !cloneOptIn) {
-  console.log(
-    'Skipping agent skill repository clones during postinstall. Run pnpm skills:install (or set ULTRAMODERN_AGENT_SKILLS=1 before installing) to fetch them.',
-  );
-  installLefthook();
+  if (installed.length > 0) {
+    console.log(`Installed Codex skills: ${installed.join(', ')}.`);
+  }
   process.exit(0);
 }
 
 fs.mkdirSync(installDir, { recursive: true });
-requireGit();
 
-for (const source of [...requiredCloneSources, ...optionalCloneSources]) {
+const installSkillFromDir = (sourceSkillDir, skillName) => {
+  const targetSkillDir = path.join(installDir, skillName);
+  if (path.resolve(sourceSkillDir) === path.resolve(targetSkillDir)) {
+    console.log(`Pinned Codex skill ${skillName} is already present`);
+    return;
+  }
+  if (fs.existsSync(targetSkillDir)) {
+    removeTree(targetSkillDir);
+  }
+  fs.mkdirSync(path.dirname(targetSkillDir), { recursive: true });
+  fs.cpSync(sourceSkillDir, targetSkillDir, { recursive: true });
+  console.log(`Installed Codex skill ${skillName}`);
+};
+
+for (const source of vendoredSources) {
+  for (const skill of skillsForSource(source)) {
+    const sourceSkillDir = resolveSkillDir(vendoredSkillsDir, skill.name);
+    if (!sourceSkillDir) {
+      throw new Error(
+        `Vendored Codex skill ${skill.name} not found in ${vendoredSkillsDir}`,
+      );
+    }
+    installSkillFromDir(sourceSkillDir, skill.name);
+  }
+}
+
+const cloneInstallSources = postinstall
+  ? cloneSources
+  : [...cloneSources, ...optionalCloneSources];
+
+for (const source of cloneInstallSources) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-skills-'));
   try {
     try {
+      requireGit();
       cloneSource(source, tempDir);
     } catch (error) {
       if (source.install === 'clone-if-authorized' || postinstall) {
-        console.warn(`Skipping ${source.repository}; ${error.message}`);
+        console.warn(
+          `Advisory: unable to install Codex skills from ${source.repository}; ${error.message}. Offline postinstall may continue. Run pnpm skills:install later when network access is available.`,
+        );
         continue;
       }
       throw error;
     }
-    for (const skill of source.baseline ?? []) {
+    for (const skill of skillsForSource(source)) {
       const sourceSkillDir = resolveSkillDir(tempDir, skill.name);
       if (!sourceSkillDir) {
         throw new Error(
           `Skill ${skill.name} not found in ${source.repository}`,
         );
       }
-      const targetSkillDir = path.join(installDir, skill.name);
-      if (fs.existsSync(targetSkillDir)) {
-        if (!force) {
-          console.log(`Skipping existing ${skill.name}`);
-          continue;
-        }
-        removeTree(targetSkillDir);
-      }
-      fs.cpSync(sourceSkillDir, targetSkillDir, { recursive: true });
-      console.log(`Installed ${skill.name}`);
+      installSkillFromDir(sourceSkillDir, skill.name);
     }
   } finally {
     removeTree(tempDir);

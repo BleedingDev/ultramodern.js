@@ -5,6 +5,7 @@ export default defineConfig({
   extends: [ultracite],
   ignorePatterns: [
     '.agents',
+    '.codex/skills',
     '.output',
     '**/*.json',
     'dist',

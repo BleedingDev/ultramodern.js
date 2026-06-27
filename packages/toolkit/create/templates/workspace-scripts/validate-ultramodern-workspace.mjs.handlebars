@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,6 +15,21 @@ const expectedCloudflareBuildScript = {{expectedCloudflareBuildScriptJson}};
 const expectedCloudflareDeployScript = {{expectedCloudflareDeployScriptJson}};
 const expectedCloudflareSecurity = {{expectedCloudflareSecurityJson}};
 const publicSurfaceManagedSourceAssetPaths = {{publicSurfaceManagedSourceAssetPathsJson}};
+const compactConfigPath = '.modernjs/ultramodern.json';
+const legacyGeneratedContractPath =
+  '.modernjs/ultramodern-generated-contract.json';
+const legacyPackageSourcePath = '.modernjs/ultramodern-package-source.json';
+const legacyTemplateManifestPath =
+  '.modernjs/ultramodern-workspace-template-manifest.json';
+const modernPackageCohort = [
+  '@modern-js/create',
+  '@modern-js/code-tools',
+  '@modern-js/app-tools',
+  '@modern-js/plugin-bff',
+  '@modern-js/plugin-i18n',
+  '@modern-js/plugin-tanstack',
+  '@modern-js/runtime',
+];
 const expectedModernPackageSpecifier = packageName => {
   if (packageSource.strategy === 'workspace') {
     return 'workspace:*';
@@ -70,6 +86,682 @@ const assertArray = (value, contract, fixArea) => {
 };
 const findById = (entries, id) =>
   Array.isArray(entries) ? entries.find(entry => entry?.id === id) : undefined;
+const exists = relativePath => fs.existsSync(path.join(root, relativePath));
+const hasCompactConfig = exists(compactConfigPath);
+const generatedContractLabel = hasCompactConfig
+  ? compactConfigPath
+  : legacyGeneratedContractPath;
+const toKebabCase = value =>
+  String(value)
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
+    .replace(/[._]+/gu, '-')
+    .toLowerCase()
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+const toPascalCase = value =>
+  toKebabCase(value)
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+const toCamelCase = value => {
+  const pascal = toPascalCase(value);
+  return `${pascal.charAt(0).toLowerCase()}${pascal.slice(1)}`;
+};
+const toEnvSegment = value => toKebabCase(value).replace(/-/gu, '_').toUpperCase();
+const packageNameFor = (scope, suffix) => `@${scope}/${suffix}`;
+const normalizeRelativePath = value =>
+  String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
+const appNamespace = app => (app.kind === 'shell' ? 'shell' : (app.domain ?? app.id));
+const tailwindPrefixFor = app =>
+  app.kind === 'shell'
+    ? 'shell'
+    : String(app.domain ?? app.id).toLowerCase().replace(/[^a-z0-9]/gu, '');
+const buildMarkerFor = app =>
+  crypto
+    .createHash('sha256')
+    .update(`${packageScope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .digest('hex')
+    .slice(0, 16);
+const normalizeCompactApp = rawApp => {
+  const id = String(rawApp.id);
+  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+  const appPath =
+    typeof rawApp.path === 'string'
+      ? normalizeRelativePath(rawApp.path)
+      : kind === 'shell'
+        ? 'apps/shell-super-app'
+        : `verticals/${toKebabCase(id)}`;
+  const packageSuffix =
+    typeof rawApp.packageSuffix === 'string'
+      ? rawApp.packageSuffix
+      : appPath.split('/').at(-1) ?? id;
+  const domain =
+    typeof rawApp.domain === 'string'
+      ? rawApp.domain
+      : kind === 'vertical'
+        ? packageSuffix
+        : undefined;
+  const moduleFederation =
+    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
+      ? rawApp.moduleFederation
+      : {};
+  const effectApi =
+    rawApp.effectApi && typeof rawApp.effectApi === 'object'
+      ? {
+          stem:
+            typeof rawApp.effectApi.stem === 'string'
+              ? rawApp.effectApi.stem
+              : domain ?? id,
+          prefix:
+            typeof rawApp.effectApi.prefix === 'string'
+              ? rawApp.effectApi.prefix
+              : `/${domain ?? id}-api`,
+          consumedBy: Array.isArray(rawApp.effectApi.consumedBy)
+            ? rawApp.effectApi.consumedBy.filter(
+                consumer => typeof consumer === 'string',
+              )
+            : ['shell-super-app', id],
+        }
+      : undefined;
+
+  return {
+    id,
+    kind,
+    path: appPath,
+    package: typeof rawApp.package === 'string' ? rawApp.package : undefined,
+    packageSuffix,
+    domain,
+    port:
+      typeof rawApp.port === 'number'
+        ? rawApp.port
+        : kind === 'shell'
+          ? 3020
+          : 3030,
+    portEnv:
+      typeof rawApp.portEnv === 'string'
+        ? rawApp.portEnv
+        : kind === 'shell'
+          ? 'SHELL_SUPER_APP_PORT'
+          : `VERTICAL_${toEnvSegment(domain ?? id)}_PORT`,
+    mfName:
+      typeof moduleFederation.name === 'string'
+        ? moduleFederation.name
+        : kind === 'shell'
+          ? 'shellSuperApp'
+          : `vertical${toPascalCase(domain ?? id)}`,
+    exposes: Array.isArray(moduleFederation.exposes)
+      ? moduleFederation.exposes.filter(expose => typeof expose === 'string')
+      : [],
+    moduleFederationSsr: moduleFederation.ssr !== false,
+    verticalRefs: Array.isArray(moduleFederation.verticalRefs)
+      ? moduleFederation.verticalRefs.filter(ref => typeof ref === 'string')
+      : [],
+    effectApi,
+  };
+};
+const compactAppsFromConfig = config =>
+  Array.isArray(config.topology?.apps)
+    ? config.topology.apps.map(normalizeCompactApp)
+    : [];
+const remoteDependencyAliasFor = app => toCamelCase(app.domain ?? app.id.replace(/^remote-/u, ''));
+const remoteContractsFor = (app, apps) =>
+  (app.verticalRefs ?? [])
+    .map(ref => apps.find(candidate => candidate.id === ref))
+    .filter(Boolean)
+    .map(remote => ({
+      id: remote.id,
+      alias: remoteDependencyAliasFor(remote),
+      name: remote.mfName,
+      manifestEnv: `VERTICAL_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`,
+      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+    }));
+const createRouteOwnedEntries = app => {
+  const namespace = appNamespace(app);
+  const base = {
+    descriptionKey: `${namespace}.seo.description`,
+    mfBoundaryId: app.mfName,
+    namespace,
+    ownerAppId: app.id,
+    public: false,
+    indexable: false,
+    publicSurface: 'private-app-screen',
+  };
+
+  return [
+    {
+      ...base,
+      canonicalPath: '/',
+      id: app.kind === 'shell' ? 'shell-home' : `${app.id}-home`,
+      localisedPaths: {
+        cs: '/',
+        en: '/',
+      },
+      titleKey: app.kind === 'shell' ? 'shell.title' : `${namespace}.title`,
+    },
+  ];
+};
+const createPublicRoutes = app =>
+  createRouteOwnedEntries(app)
+    .filter(route => route.public && route.indexable)
+    .map(route => ({
+      canonicalPath: route.canonicalPath,
+      id: route.id,
+      localisedPaths: route.localisedPaths,
+      namespace: route.namespace,
+      ownerAppId: route.ownerAppId,
+      descriptionKey: route.descriptionKey,
+      titleKey: route.titleKey,
+    }));
+const createLocalisedUrls = app =>
+  Object.fromEntries(
+    createRouteOwnedEntries(app).flatMap(route => {
+      if (route.canonicalPath === '/') {
+        return [];
+      }
+      return Array.from(
+        new Set([route.canonicalPath, ...Object.values(route.localisedPaths)]),
+      ).map(pathname => [pathname, route.localisedPaths]);
+    }),
+  );
+const createPublicSurface = app => {
+  const publicRoutes = createPublicRoutes(app);
+  return {
+    authoring: 'colocated-route-meta',
+    artifactLifecycle: 'build-and-deploy-output',
+    generatedManifest: './src/routes/ultramodern-route-metadata',
+    source: 'route-owned-public-routes',
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    outputRoot: 'dist/public',
+    cloudflareOutputRoot: '.output/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    files:
+      publicRoutes.length > 0
+        ? ['robots.txt', 'sitemap.xml', 'site.webmanifest']
+        : ['robots.txt'],
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    languages: ['en', 'cs'],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: 'route.sitemap.mjs',
+      entryExport: 'default-or-entries',
+      paramsSource: 'params-or-localeParams',
+      draftPolicy: 'omit-draft-by-default',
+      indexablePolicy: 'omit-indexable-false',
+      lifecycle: 'executed-during-public-surface-generation',
+    },
+    contentSources: [],
+    publicRoutes,
+    routeEntries: [],
+    concreteUrlPaths: [],
+  };
+};
+const createPublicHead = () => ({
+  authoring: 'colocated-route-meta',
+  generator: './src/routes/ultramodern-route-head',
+  renderer: '@modern-js/runtime/head Helmet',
+  ssr: true,
+  title: {
+    required: true,
+    source: 'route.titleKey',
+  },
+  description: {
+    required: true,
+    source: 'route.descriptionKey',
+  },
+  canonical: {
+    publicIndexableOnly: true,
+    source: 'localized canonical route URL',
+  },
+  alternates: {
+    hreflang: ['en', 'cs'],
+    xDefault: 'en',
+  },
+  openGraph: {
+    publicIndexableOnly: true,
+    required: ['og:title', 'og:description', 'og:url', 'og:type'],
+  },
+  twitter: {
+    publicIndexableOnly: true,
+    required: ['twitter:card', 'twitter:title', 'twitter:description'],
+  },
+  structuredData: {
+    publicIndexableOnly: true,
+    optional: true,
+    source: 'route.jsonLd',
+    inference: false,
+    helperModule: './src/routes/ultramodern-jsonld',
+    helperTypes: [
+      'WebPage',
+      'WebApplication',
+      'SoftwareApplication',
+      'BreadcrumbList',
+      'FAQPage',
+      'Organization',
+    ],
+    sanitizesHtmlOpenBracket: true,
+  },
+  privateRouteRobots: 'noindex, nofollow',
+});
+const createQualityGates = () => ({
+  publicRoutes: {
+    requireSitemapWhenPresent: true,
+    requireRobotsSitemapConsistency: true,
+    requireWebManifestWhenPresent: true,
+  },
+  statusCodes: {
+    notFoundRoute: '/__ultramodern-smoke-missing',
+    unknownRouteStatus: 404,
+  },
+  indexing: {
+    previewNoindex: true,
+    productionPublicRoutesIndexable: true,
+  },
+  assets: {
+    cssPreloadRequired: true,
+    cssResponseRequired: true,
+    cacheControlRequiredForCss: true,
+    sourcemapsPubliclyReferenced: false,
+  },
+  budgets: {
+    ssrHtmlMaxBytes: 250_000,
+    mfManifestMaxBytes: 500_000,
+    localeJsonMaxBytes: 100_000,
+    sitemapXmlMaxBytes: 500_000,
+    cssAssetMaxBytes: 750_000,
+  },
+  csp: {
+    finalMode: 'report-only-dogfood',
+    decision:
+      'Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface.',
+  },
+});
+const createCloudflareRoutes = app => ({
+  ssr: '/en',
+  mfManifest: '/mf-manifest.json',
+  locale: `/locales/en/${appNamespace(app)}.json`,
+  ...(app.effectApi
+    ? {
+        effectReadiness: `${app.effectApi.prefix}/effect/${app.effectApi.stem}/readiness`,
+      }
+    : {}),
+});
+const createCloudflareDeploy = app => ({
+  target: 'cloudflare',
+  workerName: expectedWorkerName(app.packageSuffix),
+  publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+  compatibilityDate: '{{cloudflareCompatibilityDate}}',
+  compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
+  assetsBinding: 'ASSETS',
+  routes: createCloudflareRoutes(app),
+  security: expectedCloudflareSecurity,
+  qualityGates: createQualityGates(),
+  evidence: {
+    proofScript: 'scripts/proof-cloudflare-version.mjs',
+    reportDefault:
+      '.codex/reports/cloudflare-version-proof/public-url-proof.json',
+  },
+});
+const createEffectReadiness = app => ({
+  endpoint: `/effect/${app.effectApi.stem}/readiness`,
+  marker: {
+    ui: 'ultramodernUiMarker',
+    api: 'ultramodernApiMarker',
+    skew: 'none',
+  },
+  checks: ['moduleFederation', 'ssr', 'translations', 'effectBff'],
+});
+const createEffectRequestContext = () => ({
+  propagatedHeaders: [
+    'accept-language',
+    'authorization',
+    'traceparent',
+    'x-correlation-id',
+    'x-tenant-id',
+    'x-ultramodern-env',
+    'x-vertical-version-id',
+  ],
+  source: 'shell-to-vertical-effect-client',
+});
+const createEffectDomainOperations = app => {
+  const stem = app.effectApi.stem;
+  const group = toCamelCase(stem);
+  const basePath = `/effect/${stem}`;
+  return {
+    workspaceFeed: {
+      client: `list${toPascalCase(stem)}`,
+      method: 'GET',
+      path: basePath,
+      resource: 'workspace-items',
+      owner: app.id,
+    },
+    workspaceDetail: {
+      client: `get${toPascalCase(stem)}`,
+      method: 'GET',
+      path: `${basePath}/:id`,
+      resource: 'workspace-item',
+      owner: app.id,
+    },
+    workspaceCreate: {
+      client: `create${toPascalCase(stem)}`,
+      method: 'POST',
+      path: basePath,
+      resource: group,
+      owner: app.id,
+    },
+  };
+};
+const createEffectOperationContract = app => ({
+  group: toCamelCase(app.effectApi.stem),
+  operations: {
+    readiness: {
+      method: 'GET',
+      path: `/effect/${app.effectApi.stem}/readiness`,
+      source: 'generated-client',
+    },
+  },
+});
+const createAppConfigContract = app => ({
+  preset: 'presetUltramodern',
+  plugins: [
+    'appTools',
+    'tanstackRouterPlugin',
+    'i18nPlugin',
+    ...(app.effectApi ? ['bffPlugin'] : []),
+    'moduleFederationPlugin',
+    'zephyrRspackPlugin',
+  ],
+  dev: {
+    assetPrefix: '/',
+  },
+  output: {
+    assetPrefix: {
+      envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
+      default: '/',
+    },
+    disableTsChecker: false,
+  },
+  performance: {
+    readinessDiagnostics: {
+      default: 'enabled',
+      optOut: {
+        env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+        config: 'scripts/ultramodern-performance-readiness.config.mjs',
+      },
+      failOn: 'framework-invariant',
+    },
+  },
+  rspack: {
+    output: {
+      uniqueName: app.mfName,
+      chunkLoadingGlobal: expectedChunkLoadingGlobal(app.mfName),
+    },
+  },
+  source: {
+    siteUrl: {
+      envFallbackOrder: [
+        'MODERN_PUBLIC_SITE_URL',
+        `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+        'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+        app.portEnv,
+      ],
+      defaultLocalhostPort: app.port,
+    },
+  },
+});
+const cssDedupe = () => ({
+  strategy: 'shared-token-package-plus-css-content-hash',
+  sharedPackage: packageNameFor(packageScope, 'shared-design-tokens'),
+  sharedLayers: ['ultramodern-shared-tokens'],
+  runtimeLoad: 'once-per-content-hash',
+  duplicateBaseStylesAllowed: false,
+});
+const createStylingContract = app => {
+  const sharedTokenPackage = packageNameFor(packageScope, 'shared-design-tokens');
+  const ownedLayers =
+    app.kind === 'shell'
+      ? ['ultramodern-shell-base', 'ultramodern-shell-overlay']
+      : [`ultramodern-vertical-${app.domain ?? app.id}`];
+
+  return {
+    tailwind: tailwindEnabled,
+    federation: {
+      owner: {
+        id: app.id,
+        package: app.package ?? packageNameFor(packageScope, app.packageSuffix),
+      },
+      role: app.kind === 'shell' ? 'shell-base-overlay' : 'vertical-css',
+      rootSelector: `[data-app-id="${app.id}"]`,
+      classPrefix: `${tailwindPrefixFor(app)}:`,
+      layers: {
+        shared: ['ultramodern-shared-tokens'],
+        owned: ownedLayers,
+      },
+      entrypoints: {
+        layoutImport: 'src/routes/layout.tsx',
+        css: ['src/routes/index.css'],
+        ...(app.kind === 'shell'
+          ? {}
+          : { federationEntry: 'src/federation-entry.tsx' }),
+      },
+      assets: {
+        shared: [`${sharedTokenPackage}/tokens.css`],
+        owned: ['src/routes/index.css'],
+      },
+      dedupe: cssDedupe(),
+      ssr: {
+        cloudflare: true,
+        firstPaintRequired: true,
+        verticalCss:
+          app.kind === 'shell'
+            ? 'host-preloads-shell-and-shared-css'
+            : 'federated-manifest-owned-css',
+      },
+    },
+  };
+};
+const createAppContract = (app, apps) => ({
+  id: app.id,
+  package: app.package ?? packageNameFor(packageScope, app.packageSuffix),
+  path: app.path,
+  kind: app.kind,
+  config: createAppConfigContract(app),
+  styling: createStylingContract(app),
+  deploy: {
+    target: 'cloudflare',
+    cloudflare: createCloudflareDeploy(app),
+    worker: {
+      compatibilityDate: '{{cloudflareCompatibilityDate}}',
+      name: expectedWorkerName(app.packageSuffix),
+      security: expectedCloudflareSecurity,
+      ssr: true,
+    },
+  },
+  ssr: app.moduleFederationSsr
+    ? {
+        mode: 'string',
+        moduleFederationAppSSR: true,
+      }
+    : undefined,
+  i18n: {
+    languages: ['en', 'cs'],
+    namespace: appNamespace(app),
+    localisedUrls: createLocalisedUrls(app),
+  },
+  routes: {
+    source: 'route-owned',
+    metadataAuthoring: 'colocated-route-meta',
+    generatedManifest: true,
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    localisedUrls: createLocalisedUrls(app),
+    owned: createRouteOwnedEntries(app),
+    publicRoutes: createPublicRoutes(app),
+    privateByDefault: true,
+    publicnessDefault: 'private-app-screen',
+    publicHead: createPublicHead(),
+    publicSurface: createPublicSurface(app),
+  },
+  moduleFederation: {
+    name: app.mfName,
+    ...(app.verticalRefs?.length
+      ? {
+          verticalRefs: app.verticalRefs,
+          remotes: remoteContractsFor(app, apps),
+        }
+      : {}),
+    exposes: app.exposes,
+    dts: {
+      compilerInstance: 'tsgo',
+      displayErrorInTerminal: true,
+      tsConfigPath: './tsconfig.mf-types.json',
+    },
+    browserSafeExposesOnly: true,
+  },
+  marker: {
+    appId: app.id,
+    packageName: app.package ?? packageNameFor(packageScope, app.packageSuffix),
+    version: '0.1.0',
+    build: buildMarkerFor(app),
+    deployProfile: 'cloudflare-ssr-mf-effect-v1',
+    uiSurface: 'ui',
+    ...(app.effectApi ? { apiSurface: 'effect-bff' } : {}),
+  },
+  ...(app.effectApi
+    ? {
+        effect: {
+          runtime: 'effect',
+          import: '@modern-js/plugin-bff/effect-edge',
+          prefix: app.effectApi.prefix,
+          openapi: '/openapi.json',
+          workerEntry: 'worker/__modern_bff_effect.js',
+          contract: './shared/effect/api',
+          client: './effect/client',
+          readiness: createEffectReadiness(app),
+          requestContext: createEffectRequestContext(),
+          domainOperations: createEffectDomainOperations(app),
+          ...createEffectOperationContract(app),
+        },
+      }
+    : {}),
+});
+const createCssFederationContract = () => ({
+  sharedDesignTokens: {
+    owner: {
+      id: 'shared-design-tokens',
+      package: packageNameFor(packageScope, 'shared-design-tokens'),
+    },
+    role: 'shared-design-tokens',
+    rootSelector: ':root',
+    classPrefix: '--um-',
+    layers: {
+      owned: ['ultramodern-shared-tokens'],
+    },
+    entrypoints: {
+      css: ['packages/shared-design-tokens/src/tokens.css'],
+    },
+    assets: {
+      exports: ['./tokens.css'],
+    },
+    dedupe: cssDedupe(),
+    ssr: {
+      firstPaintRequired: true,
+    },
+  },
+});
+const createPerformanceReadinessContract = () => ({
+  default: 'enabled',
+  mode: 'diagnostic',
+  scope: 'ultramodern-generated-and-framework-owned',
+  report: {
+    script: 'scripts/ultramodern-performance-readiness.mjs',
+    config: 'scripts/ultramodern-performance-readiness.config.mjs',
+    deterministic: true,
+  },
+  optOut: {
+    env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+  },
+  signals: [
+    'bfcache',
+    'core-web-vitals-rum',
+    'duplicate-prefetch-warmup',
+    'cache-policy-sanity',
+    'save-data-behavior',
+    'cloudflare-ssr-cache-hints',
+  ].map(id => ({ id })),
+});
+const createModernPackageAliases = packageSourceConfig => {
+  if (typeof packageSourceConfig?.aliasScope !== 'string') {
+    return undefined;
+  }
+  const scope = packageSourceConfig.aliasScope.replace(/^@/u, '');
+  const prefix =
+    typeof packageSourceConfig.aliasPackageNamePrefix === 'string'
+      ? packageSourceConfig.aliasPackageNamePrefix
+      : '';
+  return Object.fromEntries(
+    modernPackageCohort.map(packageName => [
+      packageName,
+      `@${scope}/${prefix}${packageName.split('/').at(-1)}`,
+    ]),
+  );
+};
+const synthesizePackageSourceFromCompact = config => {
+  const source = config.packageSource ?? {};
+  const strategy = source.strategy === 'install' ? 'install' : 'workspace';
+  const specifier =
+    strategy === 'install' && typeof source.modernPackageVersion === 'string'
+      ? source.modernPackageVersion
+      : 'workspace:*';
+  const aliases = createModernPackageAliases(source);
+  return {
+    schemaVersion: 1,
+    strategy,
+    modernPackages: {
+      packages: modernPackageCohort,
+      specifier,
+      ...(typeof source.registry === 'string'
+        ? { registry: source.registry }
+        : {}),
+      ...(aliases ? { aliases } : {}),
+    },
+    generatedWorkspacePackages: {
+      packages: [
+        packageNameFor(packageScope, 'shared-contracts'),
+        packageNameFor(packageScope, 'shared-design-tokens'),
+      ],
+      specifier: 'workspace:*',
+    },
+  };
+};
+const synthesizeGeneratedContractFromCompact = config => {
+  const apps = compactAppsFromConfig(config);
+  return {
+    schemaVersion: 1,
+    profile: config.profile ?? 'cloudflare-ssr-mf-effect-v1',
+    node: {
+      version: config.workspace?.node?.version ?? expectedNodeVersion,
+      engineRange: '>=26',
+    },
+    performanceReadiness: createPerformanceReadinessContract(),
+    cssFederation: createCssFederationContract(),
+    apps: apps.map(app => createAppContract(app, apps)),
+  };
+};
+const readPackageSourceView = config => {
+  if (config) {
+    return synthesizePackageSourceFromCompact(config);
+  }
+  return readJson(legacyPackageSourcePath);
+};
+const readGeneratedContractView = config => {
+  if (config) {
+    return synthesizeGeneratedContractFromCompact(config);
+  }
+  return readJson(legacyGeneratedContractPath);
+};
 const expectedManifestUrl = vertical =>
   `http://localhost:${vertical.port}/mf-manifest.json`;
 const expectedApiUrl = vertical =>
@@ -177,7 +869,7 @@ const assertMicroVerticalContractGraph = ({
   );
   assertArray(
     generatedContract.apps,
-    '.modernjs/ultramodern-generated-contract.json apps',
+    `${generatedContractLabel} apps`,
     'regenerate the generated contract from the workspace topology',
   );
 
@@ -202,26 +894,26 @@ const assertMicroVerticalContractGraph = ({
   assertSameJson(
     generatedContract.apps.map(app => app?.id),
     expectedAppIds,
-    '.modernjs/ultramodern-generated-contract.json apps',
+    `${generatedContractLabel} apps`,
     'regenerate the generated contract after topology changes',
   );
 
   const shellContract = findById(generatedContract.apps, 'shell-super-app');
   assertObject(
     shellContract,
-    '.modernjs/ultramodern-generated-contract.json apps.shell-super-app',
+    `${generatedContractLabel} apps.shell-super-app`,
     'regenerate the generated shell contract entry',
   );
   assertSameJson(
     shellContract.moduleFederation?.verticalRefs ?? [],
     expectedVerticalIds,
-    '.modernjs/ultramodern-generated-contract.json shell moduleFederation.verticalRefs',
+    `${generatedContractLabel} shell moduleFederation.verticalRefs`,
     'regenerate the generated shell Module Federation contract',
   );
   assertSameJson(
     (shellContract.moduleFederation?.remotes ?? []).map(remoteContractSubset),
     expectedShellRemotes,
-    '.modernjs/ultramodern-generated-contract.json shell moduleFederation.remotes',
+    `${generatedContractLabel} shell moduleFederation.remotes`,
     'regenerate the generated shell Module Federation contract',
   );
   assertSameJson(
@@ -230,7 +922,7 @@ const assertMicroVerticalContractGraph = ({
       mode: 'string',
       moduleFederationAppSSR: true,
     },
-    '.modernjs/ultramodern-generated-contract.json shell SSR contract',
+    `${generatedContractLabel} shell SSR contract`,
     'restore generated string SSR Module Federation settings',
   );
 
@@ -343,7 +1035,7 @@ const assertMicroVerticalContractGraph = ({
 
     assertObject(
       contractEntry,
-      `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
+      `${generatedContractLabel} apps.${vertical.id}`,
       'regenerate the generated MicroVertical contract entry',
     );
     assertSameJson(
@@ -386,7 +1078,7 @@ const assertMicroVerticalContractGraph = ({
           moduleFederationAppSSR: true,
         },
       },
-      `.modernjs/ultramodern-generated-contract.json apps.${vertical.id}`,
+      `${generatedContractLabel} apps.${vertical.id}`,
       'regenerate the generated MicroVertical contract entry',
     );
   }
@@ -770,15 +1462,12 @@ const requiredPaths = [
   'oxfmt.config.ts',
   '.github/renovate.json',
   '.github/workflows/ultramodern-workspace-gates.yml',
-  '.agents/skills-lock.json',
   '.agents/agent-reference-repos.json',
-  '.agents/rstackjs-agent-skills-LICENSE',
+  '.codex/skills-lock.json',
+  '.codex/rstackjs-agent-skills-LICENSE',
   'topology/reference-topology.json',
   'topology/ownership.json',
   'topology/local-overlays/development.json',
-  '.modernjs/ultramodern-workspace-template-manifest.json',
-  '.modernjs/ultramodern-package-source.json',
-  '.modernjs/ultramodern-generated-contract.json',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
   'scripts/check-ultramodern-i18n-boundaries.mjs',
@@ -788,6 +1477,7 @@ const requiredPaths = [
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mjs',
   'scripts/ultramodern-typecheck.mjs',
+  'scripts/validate-ultramodern-workspace.mjs',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/tsconfig.json',
   'apps/shell-super-app/tsconfig.mf-types.json',
@@ -830,6 +1520,16 @@ if (tailwindEnabled) {
   );
 }
 
+if (hasCompactConfig) {
+  requiredPaths.push(compactConfigPath);
+} else {
+  requiredPaths.push(
+    legacyTemplateManifestPath,
+    legacyPackageSourcePath,
+    legacyGeneratedContractPath,
+  );
+}
+
 for (const vertical of fullStackVerticals) {
   requiredMicroVerticalPaths(vertical).forEach(
     assertRequiredVerticalFile(vertical),
@@ -841,9 +1541,21 @@ for (const requiredPath of requiredPaths) {
 for (const oldRemotePath of oldRemotePaths) {
   assertNotExists(oldRemotePath);
 }
+if (hasCompactConfig) {
+  for (const retiredMetadataPath of [
+    legacyTemplateManifestPath,
+    legacyPackageSourcePath,
+    legacyGeneratedContractPath,
+  ]) {
+    assertNotExists(retiredMetadataPath);
+  }
+}
 const rootPackage = readJson('package.json');
-const packageSource = readJson('.modernjs/ultramodern-package-source.json');
-const generatedContract = readJson('.modernjs/ultramodern-generated-contract.json');
+const ultramodernConfig = hasCompactConfig ? readJson(compactConfigPath) : undefined;
+const bridgeConfig =
+  ultramodernConfig?.bridge?.enabled === true ? ultramodernConfig.bridge : undefined;
+const packageSource = readPackageSourceView(ultramodernConfig);
+const generatedContract = readGeneratedContractView(ultramodernConfig);
 const topology = readJson('topology/reference-topology.json');
 const ownership = readJson('topology/ownership.json');
 const overlay = readJson('topology/local-overlays/development.json');
@@ -882,7 +1594,13 @@ assert(
 );
 assert(!workflowText.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24'), 'CI workflow must not carry the legacy Node 24 override');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
-assert(rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern-package-source.json', 'Root must point at package source metadata');
+assert(
+  rootPackage.modernjs?.packageSource?.config ===
+    (hasCompactConfig ? './.modernjs/ultramodern.json' : './.modernjs/ultramodern-package-source.json'),
+  hasCompactConfig
+    ? 'Root must point at compact UltraModern config'
+    : 'Root must point at package source metadata',
+);
 assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy, 'Root package source strategy must match metadata');
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
 assert(packageSource.strategy === 'install' || packageSource.modernPackages?.specifier === 'workspace:*', 'Workspace package source must be explicitly backed by workspace:*');
@@ -930,22 +1648,58 @@ assert(
 );
 assert(rootPackage.scripts?.['cloudflare:build'] === expectedCloudflareBuildScript, 'Root cloudflare:build script is incorrect');
 assert(!('ultramodern:check' in (rootPackage.scripts ?? {})), 'Root must not expose ultramodern:check');
-assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json', 'Root typecheck must run TS-Go build mode across project references');
+if (bridgeConfig) {
+  assert(
+    rootPackage.scripts?.typecheck ===
+      'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck',
+    'Bridge root typecheck must check generated package boundaries without building parent implementation sources',
+  );
+  assert(Array.isArray(bridgeConfig.workspacePackages), 'Bridge config must record workspace package patterns');
+  for (const workspacePackage of bridgeConfig.workspacePackages) {
+    assert(
+      rootPackage.workspaces?.includes(workspacePackage.pattern),
+      `Root workspaces must include bridge package pattern ${workspacePackage.pattern}`,
+    );
+    assert(
+      readText('pnpm-workspace.yaml').includes(`  - ${workspacePackage.pattern}`),
+      `pnpm-workspace.yaml must include bridge package pattern ${workspacePackage.pattern}`,
+    );
+  }
+  for (const gate of bridgeConfig.gates ?? []) {
+    const expectedGateScript = `${gate.cwd ? `cd ${gate.cwd} && ` : ''}${gate.command}`;
+    assert(
+      rootPackage.scripts?.[`bridge:${gate.name}`] === expectedGateScript,
+      `Bridge gate script bridge:${gate.name} is incorrect`,
+    );
+  }
+  assert(rootPackage.scripts?.['bridge:check'], 'Bridge workspaces must expose bridge:check');
+} else {
+  assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json', 'Root typecheck must run TS-Go build mode across project references');
+}
 assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose contract:check');
 assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose i18n:boundaries');
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mjs', 'Root must expose default-on performance readiness diagnostics');
-assert(rootPackage.scripts?.check?.endsWith('&& pnpm performance:readiness'), 'Root check must run default-on performance readiness diagnostics');
+assert(
+  bridgeConfig
+    ? rootPackage.scripts?.check?.endsWith('&& pnpm performance:readiness && pnpm bridge:check')
+    : rootPackage.scripts?.check?.endsWith('&& pnpm performance:readiness'),
+  'Root check must run default-on performance readiness diagnostics and bridge gates when configured',
+);
 const performanceReadinessConfig = readText('scripts/ultramodern-performance-readiness.config.mjs');
-const performanceReadinessScript = readText('scripts/ultramodern-performance-readiness.mjs');
+const assertToolWrapper = (scriptPath, command) => {
+  const source = readText(scriptPath);
+  assert(source.includes('modern-js-create'), `${scriptPath} must delegate to modern-js-create`);
+  assert(source.includes('ULTRAMODERN_CREATE_BIN'), `${scriptPath} must support local create-bin overrides for generated-workspace tests`);
+  assert(source.includes("'ultramodern'") || source.includes('"ultramodern"'), `${scriptPath} must dispatch through the UltraModern tool surface`);
+  assert(source.includes(command), `${scriptPath} must dispatch ${command}`);
+};
 assert(performanceReadinessConfig.includes('UltramodernPerformanceReadinessDiagnosticsConfig'), 'Performance readiness config must carry the typed opt-out surface');
 assert(performanceReadinessConfig.includes('enabled: true'), 'Performance readiness diagnostics must be default-on');
 assert(performanceReadinessConfig.includes("failOn: 'framework-invariant'"), 'Performance readiness diagnostics must only fail framework invariants by default');
-assert(performanceReadinessScript.includes("ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS"), 'Performance readiness script must support env opt-out');
-assert(performanceReadinessScript.includes('ultramodern-performance-readiness-diagnostics-v1'), 'Performance readiness script must emit the deterministic report profile');
+assertToolWrapper('scripts/validate-ultramodern-workspace.mjs', 'validate');
+assertToolWrapper('scripts/ultramodern-performance-readiness.mjs', 'performance-readiness');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mjs');
-const ultramodernTypecheckScript = readText('scripts/ultramodern-typecheck.mjs');
-assert(ultramodernTypecheckScript.includes("'--checkers'") && ultramodernTypecheckScript.includes("'--builders'"), 'Root typecheck script must drive TS-Go checker and builder parallelism');
-assert(ultramodernTypecheckScript.includes('effect-tsgo') && ultramodernTypecheckScript.includes('get-exe-path'), 'Root typecheck script must resolve the @effect/tsgo native-preview binary');
+assertToolWrapper('scripts/ultramodern-typecheck.mjs', 'typecheck');
 assert(
   i18nBoundaryScript.includes("from '@modern-js/code-tools'") &&
     i18nBoundaryScript.includes('runWorkspaceSourceCheck'),
@@ -956,10 +1710,13 @@ assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeploySc
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mjs', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mjs --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall", 'Root postinstall must only format and run the clone-free skills bootstrap; repository clones are explicit opt-in steps');
+assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall", 'Root postinstall must format, run the default-on Codex skills bootstrap, and leave reference repository installs explicit');
 assert(rootPackage.scripts?.['agents:refs:install'] === 'node ./scripts/setup-agent-reference-repos.mjs', 'Root must expose agents:refs:install as the explicit reference repo installer');
 const agentSkillsBootstrap = readText('scripts/bootstrap-agent-skills.mjs');
-assert(agentSkillsBootstrap.includes('never installs system packages'), 'Agent skills bootstrap must declare the no-system-install policy');
+assertToolWrapper('scripts/assert-mf-types.mjs', 'mf-types');
+assertToolWrapper('scripts/generate-public-surface-assets.mjs', 'public-surface');
+assertToolWrapper('scripts/proof-cloudflare-version.mjs', 'cloudflare-proof');
+assertToolWrapper('scripts/bootstrap-agent-skills.mjs', 'skills');
 assert(!agentSkillsBootstrap.includes("run('brew'") && !agentSkillsBootstrap.includes('runShell('), 'Agent skills bootstrap must never invoke system package managers');
 const agentReferenceRepoSetup = readText('scripts/setup-agent-reference-repos.mjs');
 assert(agentReferenceRepoSetup.includes("['commit', '--no-verify', '-m', message]"), 'Agent reference repo installer commits must skip hooks during postinstall');

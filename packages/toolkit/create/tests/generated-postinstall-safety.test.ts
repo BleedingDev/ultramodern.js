@@ -7,10 +7,12 @@ import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 
 /**
  * Supply-chain guardrails for generated workspaces: a plain `pnpm install`
- * (postinstall) must never clone GitHub repositories or install system
- * packages with sudo. Repo cloning is an explicit opt-in (`pnpm
- * skills:install`, `pnpm agents:refs:install`, or ULTRAMODERN_AGENT_SKILLS=1).
+ * (postinstall) must never install system packages with sudo or install
+ * reference repositories. Codex skills are default-on, repo-owned, and may
+ * skip clone-backed skills only as an advisory offline fallback.
  */
+
+const createBinPath = path.resolve(__dirname, '../bin/run.js');
 
 function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
   const tempRoot = fs.mkdtempSync(
@@ -53,10 +55,11 @@ function writeCommandShim(
 
 function createFakeGitAndLefthookBin(
   tempRoot: string,
-  options: { topLevel?: string },
+  options: { failNetwork?: boolean; topLevel?: string },
 ) {
   const fakeBinDir = path.join(tempRoot, 'fake-bin');
   const gitLog = path.join(tempRoot, 'git.log');
+  const ghLog = path.join(tempRoot, 'gh.log');
   const lefthookLog = path.join(tempRoot, 'lefthook.log');
   fs.mkdirSync(fakeBinDir);
 
@@ -87,7 +90,19 @@ if (args[0] === 'init') {
 if (args[0] === 'branch') {
   process.exit(0);
 }
+if (${JSON.stringify(options.failNetwork === true)} && (args[0] === 'clone' || args[0] === 'fetch')) {
+  process.exit(1);
+}
 process.exit(0);
+`,
+  );
+  writeCommandShim(
+    fakeBinDir,
+    'gh',
+    `
+const fs = require('node:fs');
+fs.appendFileSync(${JSON.stringify(ghLog)}, \`\${process.argv.slice(2).join(' ')}\\n\`);
+process.exit(1);
 `,
   );
   writeCommandShim(
@@ -100,7 +115,7 @@ process.exit(0);
 `,
   );
 
-  return { fakeBinDir, gitLog, lefthookLog };
+  return { fakeBinDir, ghLog, gitLog, lefthookLog };
 }
 
 function withFakeToolEnv(fakeBinDir: string) {
@@ -116,14 +131,23 @@ function withFakeToolEnv(fakeBinDir: string) {
   }
   const commandExtension = process.platform === 'win32' ? '.cmd' : '';
   env.ULTRAMODERN_GIT_BIN = path.join(fakeBinDir, `git${commandExtension}`);
+  env.ULTRAMODERN_GH_BIN = path.join(fakeBinDir, `gh${commandExtension}`);
   env.ULTRAMODERN_LEFTHOOK_BIN = path.join(
     fakeBinDir,
     `lefthook${commandExtension}`,
   );
+  env.ULTRAMODERN_CREATE_BIN = createBinPath;
   return env;
 }
 
-test('generated postinstall never clones repositories or installs system packages', () => {
+function withCreateBinEnv() {
+  return {
+    ...process.env,
+    ULTRAMODERN_CREATE_BIN: createBinPath,
+  };
+}
+
+test('generated postinstall owns Codex skills without system packages or reference repos', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
@@ -149,6 +173,19 @@ test('generated postinstall never clones repositories or installs system package
       path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mjs'),
       'utf-8',
     );
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, '.codex/skills-lock.json')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          '.codex/skills/rsbuild-best-practices/SKILL.md',
+        ),
+      ),
+      true,
+    );
     assert.ok(
       !bootstrapScript.includes("run('brew'") &&
         !bootstrapScript.includes('runShell('),
@@ -156,8 +193,13 @@ test('generated postinstall never clones repositories or installs system package
     );
     assert.match(
       bootstrapScript,
-      /never installs system packages/,
-      'bootstrap script must fail with the actionable no-sudo message when git is missing',
+      /modern-js-create/,
+      'generated bootstrap script must delegate to the versioned create tool surface',
+    );
+    assert.match(
+      bootstrapScript,
+      /ULTRAMODERN_CREATE_BIN/,
+      'generated bootstrap script must support local create-bin overrides for tests',
     );
 
     const oxfmtConfig = fs.readFileSync(
@@ -169,6 +211,7 @@ test('generated postinstall never clones repositories or installs system package
       'utf-8',
     );
     for (const generatedOutputPattern of [
+      "'.codex/skills'",
       "'.output'",
       "'**/modern-tanstack/**'",
       "'**/routeTree.gen.*'",
@@ -181,13 +224,29 @@ test('generated postinstall never clones repositories or installs system package
   }
 });
 
-test('bootstrap-agent-skills --postinstall skips clones and exits cleanly offline', () => {
+test('bootstrap-agent-skills --postinstall installs vendored Codex skills and keeps user skills offline', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
-    const env = { ...process.env };
-    delete env.ULTRAMODERN_AGENT_SKILLS;
-    delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
+    fs.rmSync(path.join(workspaceDir, '.codex/skills/rsbuild-best-practices'), {
+      force: true,
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(workspaceDir, '.codex/skills/local-user-skill'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspaceDir, '.codex/skills/local-user-skill/SKILL.md'),
+      '# Local user skill\n',
+      'utf-8',
+    );
+    const { fakeBinDir } = createFakeGitAndLefthookBin(tempRoot, {
+      failNetwork: true,
+      topLevel: undefined,
+    });
+    const env = withFakeToolEnv(fakeBinDir);
+    delete env.ULTRAMODERN_CODEX_SKILLS;
+    delete env.ULTRAMODERN_SKIP_CODEX_SKILLS;
 
     const result = spawnSync(
       process.execPath,
@@ -201,12 +260,26 @@ test('bootstrap-agent-skills --postinstall skips clones and exits cleanly offlin
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(
-      result.stdout,
-      /Skipping agent skill repository clones during postinstall/,
+      result.stderr,
+      /Advisory: unable to install Codex skills from https:\/\/github.com\/module-federation\/agent-skills/,
     );
-    // The clone-installed mf skill must not have been fetched.
     assert.equal(
-      fs.existsSync(path.join(workspaceDir, '.agents/skills/mf')),
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          '.codex/skills/rsbuild-best-practices/SKILL.md',
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(workspaceDir, '.codex/skills/local-user-skill/SKILL.md'),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, '.codex/skills/mf')),
       false,
     );
   } finally {
@@ -220,11 +293,11 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
   try {
     const { fakeBinDir, gitLog, lefthookLog } = createFakeGitAndLefthookBin(
       tempRoot,
-      { topLevel: tempRoot },
+      { failNetwork: true, topLevel: tempRoot },
     );
     const env = withFakeToolEnv(fakeBinDir);
-    delete env.ULTRAMODERN_AGENT_SKILLS;
-    delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
+    delete env.ULTRAMODERN_CODEX_SKILLS;
+    delete env.ULTRAMODERN_SKIP_CODEX_SKILLS;
 
     const result = spawnSync(
       process.execPath,
@@ -239,7 +312,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /nested inside another Git worktree/);
     assert.match(fs.readFileSync(gitLog, 'utf-8'), /rev-parse --show-toplevel/);
-    assert.doesNotMatch(fs.readFileSync(gitLog, 'utf-8'), /^init\b/m);
+    assert.doesNotMatch(fs.readFileSync(gitLog, 'utf-8'), /^init -b main$/m);
     assert.equal(fs.existsSync(lefthookLog), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -252,11 +325,11 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
   try {
     const { fakeBinDir, gitLog, lefthookLog } = createFakeGitAndLefthookBin(
       tempRoot,
-      { topLevel: undefined },
+      { failNetwork: true, topLevel: undefined },
     );
     const env = withFakeToolEnv(fakeBinDir);
-    delete env.ULTRAMODERN_AGENT_SKILLS;
-    delete env.ULTRAMODERN_SKIP_AGENT_SKILLS;
+    delete env.ULTRAMODERN_CODEX_SKILLS;
+    delete env.ULTRAMODERN_SKIP_CODEX_SKILLS;
 
     const result = spawnSync(
       process.execPath,
@@ -276,7 +349,57 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
   }
 });
 
-test('skills:check passes with vendored skills and advises about clone-installed ones', () => {
+test('bootstrap-agent-skills --postinstall supports documented Codex skill opt-outs', () => {
+  for (const envPatch of [
+    { ULTRAMODERN_SKIP_CODEX_SKILLS: '1' },
+    { ULTRAMODERN_CODEX_SKILLS: '0' },
+  ]) {
+    const { tempRoot, workspaceDir } = scaffoldWorkspace();
+
+    try {
+      fs.rmSync(
+        path.join(workspaceDir, '.codex/skills/rsbuild-best-practices'),
+        {
+          force: true,
+          recursive: true,
+        },
+      );
+      const { fakeBinDir } = createFakeGitAndLefthookBin(tempRoot, {
+        topLevel: tempRoot,
+      });
+      const env = { ...withFakeToolEnv(fakeBinDir), ...envPatch };
+
+      const result = spawnSync(
+        process.execPath,
+        ['scripts/bootstrap-agent-skills.mjs', '--postinstall'],
+        {
+          cwd: workspaceDir,
+          encoding: 'utf-8',
+          env,
+        },
+      );
+
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(
+        result.stdout,
+        /Codex skills bootstrap skipped by environment/,
+      );
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            workspaceDir,
+            '.codex/skills/rsbuild-best-practices/SKILL.md',
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('skills:check advises about missing clone-backed Codex skills', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
@@ -286,15 +409,20 @@ test('skills:check passes with vendored skills and advises about clone-installed
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
+        env: withCreateBinEnv(),
       },
     );
 
-    // Vendored skills ship with the scaffold, so the gate passes offline;
-    // missing clone-installed skills surface as an advisory, not a failure.
+    // Clone-backed skill bodies may be missing after offline postinstall.
+    // Missing local bodies are advisory so CI can stay offline.
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /Advisory: clone-installed agent skills are not present: .*mf.*run pnpm skills:install/,
+      /Advisory: pinned Codex skills are not installed: .*mf.*run pnpm skills:install/,
+    );
+    assert.match(
+      result.stdout,
+      /Installed Codex skills: .*rsbuild-best-practices/,
     );
     assert.doesNotMatch(result.stderr, /clone-installed agent skills/u);
   } finally {

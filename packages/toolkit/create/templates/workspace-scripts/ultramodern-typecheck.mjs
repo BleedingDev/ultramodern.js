@@ -9,11 +9,13 @@ import {
   mkdirSync,
 } from 'node:fs';
 import os from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
-const workspaceRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT
+  ? resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT)
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
 const cpuCount = Math.max(
   1,
   typeof os.availableParallelism === 'function'

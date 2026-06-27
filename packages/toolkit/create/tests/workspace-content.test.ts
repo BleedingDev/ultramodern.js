@@ -21,10 +21,9 @@ const fixturesDir = path.join(__dirname, 'fixtures');
  *   renderer while containing literal `{{ ... }}` JSX text — the
  *   placeholder-collision risk class. The fixture proves intended
  *   placeholders are substituted and literal brace text is left intact.
- * - scripts/validate-ultramodern-workspace.mjs: the most placeholder-dense
- *   handlebars template; snapshotted after a vertical joins so every
- *   data-driven placeholder (verticals, route metadata, security contract)
- *   is exercised.
+ * - generated script wrappers: pinned with targeted assertions after a
+ *   vertical joins. The placeholder-dense validator now lives in the
+ *   versioned @modern-js/create tool surface instead of copied app source.
  * - verticals/catalog/shared/effect/api.ts: fully code-generated Effect API
  *   contract file (no template on disk), the pure-codegen risk class.
  * - verticals/catalog/src/effect/catalog-client.ts: the generated Effect
@@ -46,7 +45,6 @@ const defaultScaffoldSnapshots = [
 ];
 
 const catalogVerticalSnapshots = [
-  'scripts/validate-ultramodern-workspace.mjs',
   'verticals/catalog/shared/effect/api.ts',
   'verticals/catalog/src/effect/catalog-client.ts',
   'verticals/catalog/src/routes/[lang]/page.tsx',
@@ -100,6 +98,39 @@ function assertContentSnapshot(
     actual,
     expected,
     `Rendered content of ${relativePath} diverged from tests/fixtures/${fixtureGroup}/${relativePath}.snap — update the fixture only for intentional output changes.`,
+  );
+}
+
+function assertModuleFederationWarningHygiene(modernConfig: string) {
+  assert.match(
+    modernConfig,
+    /const moduleFederationDevServerOrigin =\s*envValue\('ULTRAMODERN_MF_DEV_ORIGIN'\) \|\| 'http:\/\/localhost:3020';/,
+    'generated Modern config must default MF dev CORS to the local shell origin, with an explicit trusted-origin override',
+  );
+  assert.match(
+    modernConfig,
+    /splitChunks:\s*\{\s*chunks:\s*'async',\s*\},/,
+    'generated Modern config must set stream-SSR-compatible splitChunks defaults before MF mutates the bundler chain',
+  );
+  assert.match(
+    modernConfig,
+    /devServer:\s*\{\s*headers:\s*\{\s*'Access-Control-Allow-Headers':\s*'Accept, Authorization, Content-Type, X-Requested-With',\s*'Access-Control-Allow-Methods':\s*'GET, HEAD, OPTIONS',\s*'Access-Control-Allow-Origin':\s*moduleFederationDevServerOrigin,\s*\},\s*\},/,
+    'generated Modern config must provide explicit devServer headers so MF does not inject wildcard CORS defaults',
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /'Access-Control-Allow-(?:Headers|Origin)':\s*'\*'/,
+    'generated Modern config must not emit wildcard MF dev CORS headers',
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /devServer:\s*\{\s*headers:\s*\{\s*\}\s*\}/,
+    'generated Modern config must not leave devServer.headers empty',
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /splitChunks:\s*false/,
+    'generated Modern config must not disable splitChunks to hide stream SSR warnings',
   );
 }
 
@@ -162,6 +193,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /ignoreWarnings|modern-js-plugin-i18n/,
       'generated Modern config must not suppress i18n bundler warnings',
     );
+    assertModuleFederationWarningHygiene(shellModernConfig);
     assert.match(
       shellModuleFederationConfig,
       /tsConfigPath: '\.\/tsconfig\.mf-types\.json'/,
@@ -239,32 +271,44 @@ test('rendered contents of the highest-risk generated files match the checked-in
       );
     }
 
-    // Provenance contract: the manifest must point at the live module
-    // generator (the pre-split monolith path is gone) and the integrity
-    // checksums must cover both template trees that produce output.
-    const manifest = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          workspaceDir,
-          '.modernjs/ultramodern-workspace-template-manifest.json',
-        ),
-        'utf-8',
-      ),
+    // Provenance contract: fresh workspaces keep compact config in source and
+    // leave large framework contract interpretation to @modern-js/create.
+    const compactConfig = readJson(
+      path.join(workspaceDir, '.modernjs/ultramodern.json'),
     );
     assert.equal(
-      manifest.source.generator,
-      'packages/toolkit/create/src/ultramodern-workspace/',
+      (compactConfig.generator as Record<string, unknown>).package,
+      '@modern-js/create',
     );
-    assert.deepEqual(
-      manifest.integrity.checksums.map(
-        (checksum: { scope: string }) => checksum.scope,
-      ),
-      ['source-tree', 'file-templates-tree'],
+    assert.equal(
+      (compactConfig.generator as Record<string, unknown>).version,
+      '3.2.1',
     );
-    for (const checksum of manifest.integrity.checksums) {
-      assert.equal(checksum.algorithm, 'sha256');
-      assert.match(checksum.value, /^[0-9a-f]{64}$/);
-    }
+    assert.equal(
+      (compactConfig.packageSource as Record<string, unknown>)
+        .modernPackageVersion,
+      '3.2.0-ultramodern.108',
+    );
+    assert.equal(
+      (compactConfig.packageSource as Record<string, unknown>).metadata,
+      undefined,
+    );
+    assert.equal(
+      (compactConfig.topology as Record<string, unknown>).source,
+      './topology/reference-topology.json',
+    );
+    assert.doesNotMatch(
+      JSON.stringify(compactConfig),
+      /ultramodern-(?:generated-contract|package-source|workspace-template-manifest)\.json/,
+    );
+    const rootPackage = readJson(path.join(workspaceDir, 'package.json'));
+    assert.equal(
+      (
+        (rootPackage.modernjs as Record<string, unknown>)
+          .packageSource as Record<string, unknown>
+      ).config,
+      './.modernjs/ultramodern.json',
+    );
 
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -274,6 +318,14 @@ test('rendered contents of the highest-risk generated files match the checked-in
     for (const relativePath of catalogVerticalSnapshots) {
       assertContentSnapshot(workspaceDir, 'catalog-vertical', relativePath);
     }
+    const validationWrapper = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mjs'),
+      'utf-8',
+    );
+    assert.match(validationWrapper, /modern-js-create/);
+    assert.match(validationWrapper, /ULTRAMODERN_CREATE_BIN/);
+    assert.match(validationWrapper, /'ultramodern'/);
+    assert.match(validationWrapper, /"validate"/);
     assert.deepEqual(
       readJson(
         path.join(workspaceDir, 'verticals/catalog/tsconfig.mf-types.json'),

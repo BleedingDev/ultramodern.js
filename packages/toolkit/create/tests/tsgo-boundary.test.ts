@@ -168,14 +168,14 @@ test('generated package module scopes keep MF apps compatible with classic compi
         'utf-8',
       ),
     );
-    const generatedContract = JSON.parse(
+    const ultramodernConfig = JSON.parse(
       fs.readFileSync(
-        path.join(
-          workspaceDir,
-          '.modernjs/ultramodern-generated-contract.json',
-        ),
+        path.join(workspaceDir, '.modernjs/ultramodern.json'),
         'utf-8',
       ),
+    );
+    const shellConfig = ultramodernConfig.topology.apps.find(
+      (app: { id: string }) => app.id === 'shell-super-app',
     );
 
     assert.equal(rootPackageJson.type, 'module');
@@ -200,18 +200,9 @@ test('generated package module scopes keep MF apps compatible with classic compi
       'generated apps must install the latest TS7 native-preview dev checker',
     );
     assert.equal(
-      generatedContract.versions?.typescript,
-      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-      'generated contracts should treat TS7 native-preview as the primary TypeScript lane',
-    );
-    assert.equal(
-      generatedContract.versions?.typescriptCompatibility,
-      TYPESCRIPT_STABLE_VERSION,
-    );
-    assert.equal(
-      generatedContract.versions?.typescriptNativePreview,
-      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-      'generated contracts should document native-preview as the TS7 latest-dev lane',
+      shellConfig?.moduleFederation?.dts?.compilerInstance,
+      'tsgo',
+      'compact metadata should keep MF DTS generation on the TS-Go lane',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

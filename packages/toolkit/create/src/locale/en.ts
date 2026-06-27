@@ -62,6 +62,26 @@ export const EN_LOCALE = {
       '      --ultramodern-package-scope Publish scope for npm alias installs (for example bleedingdev)',
     optionUltramodernPackageNamePrefix:
       '      --ultramodern-package-name-prefix Prefix for npm alias package names (default: modern-js-)',
+    optionBridge:
+      '      --bridge Enable explicit nested parent-monorepo bridge mode for new workspaces',
+    optionBridgeParentRoot:
+      '      --bridge-parent-root <path> Parent monorepo root for bridge mode',
+    optionBridgeWorkspacePackage:
+      '      --bridge-workspace-package <glob> Parent workspace package glob consumed by generated apps',
+    optionBridgeWorkspacePackageName:
+      '      --bridge-workspace-package-name <glob=package[,package]> Package names covered by a bridge workspace glob',
+    optionBridgeTestAlias:
+      '      --bridge-test-alias <glob:alias=target> Test/source alias for a bridge workspace package glob',
+    optionBridgeDependency:
+      '      --bridge-dependency <package[,package]> Explicit parent package dependency consumed by generated apps',
+    optionBridgeLockfilePolicy:
+      '      --bridge-lockfile-policy <nested|parent> Bridge lockfile ownership policy (default: nested)',
+    optionBridgeGate:
+      '      --bridge-gate <name=command> Delegated parent workspace gate command for bridge packages',
+    optionBridgeGateCwd:
+      '      --bridge-gate-cwd <name=cwd> Working directory for a named bridge gate',
+    optionBridgeReactSingleton:
+      '      --bridge-react-singleton <package[,package]> React singleton package expectation (default: react,react-dom)',
     optionVertical:
       '      --vertical[=<name>] Mutate the current existing UltraModern workspace and wire a MicroVertical',
     optionVerticalName:

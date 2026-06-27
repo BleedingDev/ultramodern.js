@@ -7,6 +7,26 @@ export type DeployTarget =
 
 export type CloudflareWorkerSecurityCspMode = 'enforce' | 'report-only' | 'off';
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export interface CloudflareWorkerArtifactConfig {
+  /**
+   * Source file or directory, relative to the app root, to copy into
+   * `.output` after framework output has been staged.
+   */
+  from: string;
+  /**
+   * Destination path relative to `.output`.
+   */
+  to: string;
+}
+
 export interface CloudflareWorkerSecurityCspConfig {
   mode?: CloudflareWorkerSecurityCspMode;
   directives?: Record<string, string[] | string | false>;

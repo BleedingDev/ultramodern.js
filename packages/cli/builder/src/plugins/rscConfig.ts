@@ -12,6 +12,45 @@ const RENDER_RSC_RUNTIME = '@modern-js/render/rsc';
 const RENDER_RSC_WORKER_RUNTIME = '@modern-js/render/rsc-worker';
 const RSC_COMMON_LAYER = 'rsc-common';
 const ENTRY_NAME_VAR = '__MODERN_JS_ENTRY_NAME';
+const SERVER_ONLY_MARKER_PATTERN =
+  /(?:^|[/\\])server-only[/\\]index\.js(?:\?|$)/;
+const SERVER_ONLY_MESSAGE_PATTERN =
+  /server-only|server only|only works in a Server Component|cannot be imported (?:directly )?(?:from|into) (?:a )?Client Component/i;
+const SERVER_ONLY_DIAGNOSTIC_PREFIX =
+  '[Modern.js RSC server-only diagnostic context]';
+
+type RspackDiagnostic = Error & {
+  details?: string;
+  file?: string;
+  module?: DiagnosticModule | null;
+  moduleTrace?: Array<{
+    module?: DiagnosticModule | null;
+    moduleName?: string;
+    origin?: DiagnosticModule | null;
+    originName?: string;
+  }>;
+};
+
+type DiagnosticModule = {
+  resource?: string;
+  request?: string;
+  userRequest?: string;
+  rawRequest?: string;
+  layer?: string;
+  context?: string;
+  identifier?: () => string;
+  readableIdentifier?: (requestShortener?: unknown) => string;
+  nameForCondition?: () => string | undefined;
+};
+
+type DiagnosticCompilation = {
+  errors: RspackDiagnostic[];
+  name?: string;
+  moduleGraph?: {
+    getIssuer?: (module: DiagnosticModule) => DiagnosticModule | null;
+  };
+  warnings: RspackDiagnostic[];
+};
 
 const createVirtualModule = (content: string) =>
   `data:text/javascript,${encodeURIComponent(content)}`;
@@ -83,6 +122,193 @@ const disableReactCompilerInSwcLoaders = (
   for (const item of Object.values(record)) {
     disableReactCompilerInSwcLoaders(item, seen);
   }
+};
+
+const normalizeDiagnosticText = (diagnostic: RspackDiagnostic) =>
+  [
+    diagnostic.message,
+    diagnostic.details,
+    diagnostic.file,
+    getModulePath(diagnostic.module),
+    getModuleIdentifier(diagnostic.module),
+  ]
+    .filter((item): item is string => Boolean(item))
+    .join('\n');
+
+const isServerOnlyDiagnostic = (diagnostic: RspackDiagnostic) => {
+  const text = normalizeDiagnosticText(diagnostic);
+  return (
+    SERVER_ONLY_MARKER_PATTERN.test(text) ||
+    SERVER_ONLY_MESSAGE_PATTERN.test(text)
+  );
+};
+
+const isEnrichedServerOnlyDiagnostic = (diagnostic: RspackDiagnostic) =>
+  diagnostic.message.includes(SERVER_ONLY_DIAGNOSTIC_PREFIX) ||
+  diagnostic.details?.includes(SERVER_ONLY_DIAGNOSTIC_PREFIX);
+
+const getModulePath = (module?: DiagnosticModule | null) => {
+  if (!module) {
+    return undefined;
+  }
+  return module.resource || module.nameForCondition?.() || module.userRequest;
+};
+
+const getModuleIdentifier = (module?: DiagnosticModule | null) => {
+  if (!module) {
+    return undefined;
+  }
+  return (
+    getModulePath(module) ||
+    module.readableIdentifier?.() ||
+    module.identifier?.() ||
+    module.request ||
+    module.rawRequest
+  );
+};
+
+const formatModuleContext = (module?: DiagnosticModule | null) => {
+  const id = getModuleIdentifier(module);
+  if (!id) {
+    return undefined;
+  }
+  const layer = module?.layer ? ` [layer: ${module.layer}]` : '';
+  return `${id}${layer}`;
+};
+
+const getIssuerChain = (
+  compilation: DiagnosticCompilation,
+  module?: DiagnosticModule | null,
+) => {
+  const chain: string[] = [];
+  const seen = new Set<DiagnosticModule>();
+  let current = module;
+
+  while (current && !seen.has(current) && chain.length < 8) {
+    seen.add(current);
+    const issuer = compilation.moduleGraph?.getIssuer?.(current);
+    const formatted = formatModuleContext(issuer);
+    if (!issuer || !formatted) {
+      break;
+    }
+    chain.push(formatted);
+    current = issuer;
+  }
+
+  return chain;
+};
+
+const getModuleTraceChain = (diagnostic: RspackDiagnostic) => {
+  const trace = diagnostic.moduleTrace || [];
+  const chain: string[] = [];
+
+  for (const item of trace) {
+    const formatted =
+      formatModuleContext(item.origin) ||
+      item.originName ||
+      formatModuleContext(item.module) ||
+      item.moduleName;
+    if (formatted && !chain.includes(formatted)) {
+      chain.push(formatted);
+    }
+  }
+
+  return chain.slice(0, 8);
+};
+
+const appendDiagnosticDetails = (
+  diagnostic: RspackDiagnostic,
+  lines: string[],
+) => {
+  const context = `${SERVER_ONLY_DIAGNOSTIC_PREFIX}\n${lines.join('\n')}`;
+  diagnostic.details = diagnostic.details
+    ? `${diagnostic.details}\n\n${context}`
+    : context;
+};
+
+export const enrichServerOnlyDiagnostics = (
+  compilation: DiagnosticCompilation,
+  environmentName?: string,
+) => {
+  const diagnostics = [...compilation.warnings, ...compilation.errors];
+
+  for (const diagnostic of diagnostics as RspackDiagnostic[]) {
+    if (
+      !isServerOnlyDiagnostic(diagnostic) ||
+      isEnrichedServerOnlyDiagnostic(diagnostic)
+    ) {
+      continue;
+    }
+
+    const lines = [
+      `Environment: ${environmentName || compilation.name || 'unknown'}`,
+    ];
+    const markerModule = formatModuleContext(diagnostic.module);
+    if (markerModule) {
+      lines.push(`Matched module: ${markerModule}`);
+    }
+
+    const issuerChain = getIssuerChain(compilation, diagnostic.module);
+    const moduleTraceChain = getModuleTraceChain(diagnostic);
+    const importerChain =
+      issuerChain.length > 0 ? issuerChain : moduleTraceChain;
+    if (importerChain.length > 0) {
+      lines.push(`Importer chain: ${importerChain.join(' -> ')}`);
+    }
+
+    appendDiagnosticDetails(diagnostic, lines);
+  }
+};
+
+const applyServerOnlyDiagnosticPlugin = (
+  compiler: Rspack.Compiler,
+  environmentName?: string,
+) => {
+  compiler.hooks.thisCompilation.tap(
+    'ModernJsServerOnlyDiagnosticContextPlugin',
+    compilation => {
+      compilation.hooks.processWarnings.tap(
+        'ModernJsServerOnlyDiagnosticContextPlugin',
+        warnings => {
+          enrichServerOnlyDiagnostics(
+            {
+              errors: compilation.errors,
+              moduleGraph: compilation.moduleGraph,
+              warnings,
+            },
+            environmentName || compilation.name || compiler.name,
+          );
+          return warnings;
+        },
+      );
+
+      compilation.hooks.afterSeal.tapPromise(
+        'ModernJsServerOnlyDiagnosticContextPlugin',
+        async () => {
+          enrichServerOnlyDiagnostics(
+            compilation,
+            environmentName || compilation.name || compiler.name,
+          );
+        },
+      );
+    },
+  );
+};
+
+const applyServerOnlyDiagnosticPlugins = (
+  compiler: Rspack.Compiler | Rspack.MultiCompiler,
+  environments: Record<string, { name: string; index: number }>,
+) => {
+  const compilers = 'compilers' in compiler ? compiler.compilers : [compiler];
+
+  compilers.forEach((childCompiler, index) => {
+    const environmentName =
+      childCompiler.name ||
+      Object.values(environments).find(
+        environment => environment.index === index,
+      )?.name;
+    applyServerOnlyDiagnosticPlugin(childCompiler, environmentName);
+  });
 };
 
 /**
@@ -259,6 +485,10 @@ export function pluginRscConfig(): RsbuildPlugin {
             layer: RSC_COMMON_LAYER,
           });
         }
+      });
+
+      api.onAfterCreateCompiler(({ compiler, environments }) => {
+        applyServerOnlyDiagnosticPlugins(compiler, environments);
       });
 
       // 4. Add entry name virtual module for client-side entries

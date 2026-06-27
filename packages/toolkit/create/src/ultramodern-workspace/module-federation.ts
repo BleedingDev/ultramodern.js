@@ -86,6 +86,8 @@ const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
 const configuredCloudflareUrl = envValue('${createCloudflarePublicUrlEnv(app)}');
 const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX');
 const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX');
+const moduleFederationDevServerOrigin =
+  envValue('ULTRAMODERN_MF_DEV_ORIGIN') || 'http://localhost:${shellApp.port}';
 const cloudflareWorkersDevSubdomain = envValue(
   'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
 );
@@ -211,6 +213,9 @@ ${bffPluginEntry}        moduleFederationPlugin(),
         },
         mainEntryName: 'index',
       },
+      splitChunks: {
+        chunks: 'async',
+      },
       tools: {
         autoprefixer: {
           overrideBrowserslist: ['defaults'],
@@ -219,6 +224,14 @@ ${bffPluginEntry}        moduleFederationPlugin(),
           chain.output
             .uniqueName('${createRspackUniqueName(app)}')
             .chunkLoadingGlobal('${createRspackChunkLoadingGlobal(app)}');
+        },
+        devServer: {
+          headers: {
+            'Access-Control-Allow-Headers':
+              'Accept, Authorization, Content-Type, X-Requested-With',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Origin': moduleFederationDevServerOrigin,
+          },
         },
       },
     },
@@ -377,6 +390,7 @@ export function createShellModuleFederationConfig(
   };
 
   return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
+// ultramodern-mf: host-only
 import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';

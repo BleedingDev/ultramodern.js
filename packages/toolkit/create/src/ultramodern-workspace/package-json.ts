@@ -2,6 +2,7 @@ import {
   modernPackageSpecifier,
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
+import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   appHasEffectApi,
   remoteDependencyAlias,
@@ -125,6 +126,7 @@ export function appDependencies(
   packageSource: ResolvedPackageSource,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  bridge?: UltramodernBridgeConfig,
 ): Record<string, string> {
   const dependencies: Record<string, string> = {
     '@modern-js/plugin-tanstack': modernPackageSpecifier(
@@ -151,6 +153,10 @@ export function appDependencies(
     'react-dom': REACT_DOM_VERSION,
     'react-router': REACT_ROUTER_VERSION,
   };
+
+  for (const dependency of bridge?.dependencies ?? []) {
+    dependencies[dependency] = WORKSPACE_PACKAGE_VERSION;
+  }
 
   if (app.kind === 'shell') {
     dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
@@ -209,6 +215,7 @@ export function createRootPackageJson(
   scope: string,
   packageSource: ResolvedPackageSource,
   remotes: WorkspaceApp[] = [],
+  bridge?: UltramodernBridgeConfig,
 ): JsonValue {
   const shellFilter = `--filter ${packageName(scope, shellApp.packageSuffix)}`;
   const remoteFilters = remotes.map(
@@ -226,6 +233,31 @@ export function createRootPackageJson(
     remotes.length > 0
       ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && '
       : '';
+  const generatedPackageTypecheck =
+    'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck';
+  const typecheck = bridge
+    ? generatedPackageTypecheck
+    : 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json';
+  const bridgeScripts = bridge
+    ? {
+        ...Object.fromEntries(
+          bridge.gates.map(gate => [
+            `bridge:${gate.name}`,
+            `${gate.cwd ? `cd ${gate.cwd} && ` : ''}${gate.command}`,
+          ]),
+        ),
+        'bridge:check': bridge.gates
+          .map(gate => `pnpm run bridge:${gate.name}`)
+          .join(' && '),
+      }
+    : {};
+  const bridgeCheck = bridge ? ' && pnpm bridge:check' : '';
+  const workspacePackages = [
+    'apps/*',
+    'verticals/*',
+    'packages/*',
+    ...(bridge?.workspacePackages.map(entry => entry.pattern) ?? []),
+  ];
 
   return {
     private: true,
@@ -250,8 +282,7 @@ export function createRootPackageJson(
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint apps verticals packages',
       'lint:fix': 'oxlint apps verticals packages --fix',
-      typecheck:
-        'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json',
+      typecheck,
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
@@ -266,16 +297,16 @@ export function createRootPackageJson(
         'node ./scripts/ultramodern-performance-readiness.mjs',
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
+      ...bridgeScripts,
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
-      check:
-        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check && pnpm performance:readiness',
+      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
     },
     engines: {
       node: '>=26',
       pnpm: '>=11',
     },
-    workspaces: ['apps/*', 'verticals/*', 'packages/*'],
+    workspaces: workspacePackages,
     modernjs: {
       preset: 'presetUltramodern',
       workspace: 'ultramodern-superapp',
@@ -283,7 +314,7 @@ export function createRootPackageJson(
       ownership: './topology/ownership.json',
       packageSource: {
         strategy: packageSource.strategy,
-        config: './.modernjs/ultramodern-package-source.json',
+        config: './.modernjs/ultramodern.json#packageSource',
       },
     },
     devDependencies: {
@@ -485,6 +516,7 @@ export function createAppPackage(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
+  bridge?: UltramodernBridgeConfig,
 ): JsonValue {
   const publicSurfaceBuildCommand = createPublicSurfaceGenerationCommand(
     app,
@@ -528,7 +560,7 @@ export function createAppPackage(
       ...(appHasEffectApi(app) ? { apiRuntime: 'effect-bff' } : {}),
     },
     'zephyr:dependencies': createZephyrDependencies(scope, app, remotes),
-    dependencies: appDependencies(scope, packageSource, app, remotes),
+    dependencies: appDependencies(scope, packageSource, app, remotes, bridge),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
 

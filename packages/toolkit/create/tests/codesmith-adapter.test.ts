@@ -27,6 +27,16 @@ function readJson(workspaceDir: string, relativePath: string): any {
   return JSON.parse(read(workspaceDir, relativePath));
 }
 
+function comparableCompactConfig(config: any) {
+  return {
+    ...config,
+    generator: {
+      ...config.generator,
+      version: '<ignored>',
+    },
+  };
+}
+
 function runCli(cwd: string, args: string[]) {
   assert.equal(fs.existsSync(builtCliPath), true, builtCliPath);
   return spawnSync(process.execPath, [builtCliPath, ...args], {
@@ -105,9 +115,9 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
       aliasScope: 'bleedingdev',
     });
     const workspaceDir = path.join(tempRoot, 'codesmith-workspace');
-    const packageSource = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
     const shellPackage = readJson(
       workspaceDir,
@@ -116,14 +126,15 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
 
     assert.equal(result.operation, 'workspace');
     assert.equal(result.packageSource.strategy, 'install');
-    assert.equal(packageSource.strategy, 'install');
+    assert.equal(ultramodernConfig.packageSource.strategy, 'install');
     assert.equal(
-      packageSource.modernPackages.registry,
+      ultramodernConfig.packageSource.registry,
       'https://registry.npmjs.org/',
     );
+    assert.equal(ultramodernConfig.packageSource.aliasScope, 'bleedingdev');
     assert.equal(
-      packageSource.modernPackages.aliases['@modern-js/runtime'],
-      '@bleedingdev/modern-js-runtime',
+      ultramodernConfig.packageSource.aliasPackageNamePrefix,
+      'modern-js-',
     );
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
@@ -171,11 +182,12 @@ test('CodeSmith adapter MicroVertical output matches CLI contract output', async
 
     assert.equal(codesmithResult.operation, 'vertical');
     assert.deepEqual(
-      readJson(
-        codesmithWorkspace,
-        '.modernjs/ultramodern-generated-contract.json',
+      comparableCompactConfig(
+        readJson(codesmithWorkspace, '.modernjs/ultramodern.json'),
       ),
-      readJson(cliWorkspace, '.modernjs/ultramodern-generated-contract.json'),
+      comparableCompactConfig(
+        readJson(cliWorkspace, '.modernjs/ultramodern.json'),
+      ),
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -10,6 +10,7 @@ import type { Ownership, WorkspaceApp, WorkspaceEffectApi } from './types';
 
 export const GENERATED_CONTRACT_PATH =
   '.modernjs/ultramodern-generated-contract.json';
+export const ULTRAMODERN_CONFIG_PATH = '.modernjs/ultramodern.json';
 
 export const shellApp: WorkspaceApp = {
   id: 'shell-super-app',

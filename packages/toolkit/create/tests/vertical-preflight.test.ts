@@ -7,6 +7,7 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 
+const ultramodernConfigPath = '.modernjs/ultramodern.json';
 const generatedContractPath = '.modernjs/ultramodern-generated-contract.json';
 const packageSourcePath = '.modernjs/ultramodern-package-source.json';
 const topologyPath = 'topology/reference-topology.json';
@@ -166,25 +167,48 @@ test('preflight rejects invalid fresh vertical input before writes', () => {
   }
 });
 
-test('preflight verifies required workspace JSON contract files', () => {
-  const missing = createWorkspace();
+test('preflight verifies compact config and legacy fallback fixtures', () => {
   const nonObject = createWorkspace();
+  const legacyFallback = createWorkspace();
 
   try {
-    fs.rmSync(path.join(missing.workspaceDir, generatedContractPath));
-    expectAddVerticalFailureLeavesWorkspaceUnchanged(
-      missing.workspaceDir,
-      /Missing UltraModern workspace file: .*ultramodern-generated-contract\.json/,
-    );
-
-    writeJson(nonObject.workspaceDir, packageSourcePath, []);
+    writeJson(nonObject.workspaceDir, ultramodernConfigPath, []);
     expectAddVerticalFailureLeavesWorkspaceUnchanged(
       nonObject.workspaceDir,
-      /UltraModern workspace file must contain a JSON object: .*ultramodern-package-source\.json/,
+      /UltraModern workspace file must contain a JSON object: .*ultramodern\.json/,
+    );
+
+    fs.rmSync(path.join(legacyFallback.workspaceDir, ultramodernConfigPath));
+    writeJson(legacyFallback.workspaceDir, generatedContractPath, {
+      apps: [],
+    });
+    writeJson(legacyFallback.workspaceDir, packageSourcePath, {
+      schemaVersion: 1,
+      strategy: 'install',
+      modernPackages: {
+        specifier: '3.2.0-ultramodern.108',
+        aliases: {
+          '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+        },
+      },
+    });
+    addUltramodernVertical({
+      workspaceRoot: legacyFallback.workspaceDir,
+      name: 'checkout',
+      modernVersion: '3.2.1',
+    });
+    const compactConfig = readJson(
+      legacyFallback.workspaceDir,
+      ultramodernConfigPath,
+    );
+    assert.equal(compactConfig.packageSource.strategy, 'install');
+    assert.equal(
+      compactConfig.packageSource.modernPackageVersion,
+      '3.2.0-ultramodern.108',
     );
   } finally {
-    fs.rmSync(missing.tempRoot, { recursive: true, force: true });
     fs.rmSync(nonObject.tempRoot, { recursive: true, force: true });
+    fs.rmSync(legacyFallback.tempRoot, { recursive: true, force: true });
   }
 });
 
