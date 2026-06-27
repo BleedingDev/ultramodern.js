@@ -157,6 +157,11 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /'@modern-js\/plugin-i18n\/runtime': \{/,
       'generated Module Federation shared config must not publish the aliased public i18n runtime key',
     );
+    assert.doesNotMatch(
+      shellModernConfig,
+      /ignoreWarnings|modern-js-plugin-i18n/,
+      'generated Modern config must not suppress i18n bundler warnings',
+    );
     assert.match(
       shellModuleFederationConfig,
       /tsConfigPath: '\.\/tsconfig\.mf-types\.json'/,

@@ -219,12 +219,6 @@ ${bffPluginEntry}        moduleFederationPlugin(),
           chain.output
             .uniqueName('${createRspackUniqueName(app)}')
             .chunkLoadingGlobal('${createRspackChunkLoadingGlobal(app)}');
-          chain.ignoreWarnings([
-            {
-              message: /the request of a dependency is an expression/u,
-              module: /modern-js-plugin-i18n/u,
-            },
-          ]);
         },
       },
     },
