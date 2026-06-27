@@ -450,6 +450,17 @@ export function createAppTsConfig(
   });
 }
 
+export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {
+  const exposedFiles = Object.values(app.exposes ?? {}).map(exposePath =>
+    exposePath.replace(/^\.\//u, ''),
+  );
+
+  return {
+    extends: './tsconfig.json',
+    include: [...new Set([...exposedFiles, 'src/modern-app-env.d.ts'])],
+  };
+}
+
 export function createSharedPackageTsConfig(packageDir: string): JsonValue {
   return createPackageTsConfig(packageDir, {
     include: ['src'],

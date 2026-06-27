@@ -628,8 +628,9 @@ export function createAppGeneratedContract(
         : {}),
       exposes: Object.keys(app.exposes ?? {}),
       dts: {
-        displayErrorInTerminal: true,
         compilerInstance: 'tsgo',
+        displayErrorInTerminal: true,
+        tsConfigPath: './tsconfig.mf-types.json',
       },
       browserSafeExposesOnly: true,
       zephyrRspackPlugin: ZEPHYR_RSPACK_PLUGIN_VERSION,

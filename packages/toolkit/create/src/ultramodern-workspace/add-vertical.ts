@@ -49,6 +49,7 @@ import {
 } from './naming';
 import { runCodeSmithOverlays } from './overlays';
 import {
+  createAppMfTypesTsConfig,
   createAppPackage,
   createAppTsConfig,
   createRootPackageJson,
@@ -228,6 +229,10 @@ export function rewriteShellAppFiles(
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/tsconfig.json`),
     createAppTsConfig(shellHost, remotes),
+  );
+  writeJsonFile(
+    path.join(workspaceRoot, `${shellApp.directory}/tsconfig.mf-types.json`),
+    createAppMfTypesTsConfig(shellHost),
   );
   writeFileReplacing(
     workspaceRoot,
@@ -819,6 +824,11 @@ function createDryRunJsonMutations(
       path: `${shellApp.directory}/tsconfig.json`,
       pointer: '/references',
       description: `Add ${vertical.id} to the shell TS-Go project references`,
+    },
+    {
+      path: `${shellApp.directory}/tsconfig.mf-types.json`,
+      pointer: '/include',
+      description: 'Keep shell Module Federation DTS compilation scoped',
     },
     {
       path: GENERATED_CONTRACT_PATH,

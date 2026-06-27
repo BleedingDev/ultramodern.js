@@ -414,6 +414,7 @@ const moduleFederationConfig: Parameters<
     generateTypes: {
       compilerInstance: 'tsgo',
     },
+    tsConfigPath: './tsconfig.mf-types.json',
   },
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
@@ -502,6 +503,7 @@ const moduleFederationConfig: Parameters<
     generateTypes: {
       compilerInstance: 'tsgo',
     },
+    tsConfigPath: './tsconfig.mf-types.json',
   },
   exposes: ${exposes},
   filename: 'remoteEntry.js',

@@ -67,6 +67,7 @@ const expectedWorkspaceManifest = [
   'apps/shell-super-app/src/ultramodern-build.ts',
   'apps/shell-super-app/tailwind.config.ts',
   'apps/shell-super-app/tsconfig.json',
+  'apps/shell-super-app/tsconfig.mf-types.json',
   'lefthook.yml',
   'oxfmt.config.ts',
   'oxlint.config.ts',
@@ -128,6 +129,7 @@ const expectedVerticalManifest = [
   'verticals/catalog/src/ultramodern-build.ts',
   'verticals/catalog/tailwind.config.ts',
   'verticals/catalog/tsconfig.json',
+  'verticals/catalog/tsconfig.mf-types.json',
 ];
 
 function listFiles(root: string, dir = root): string[] {

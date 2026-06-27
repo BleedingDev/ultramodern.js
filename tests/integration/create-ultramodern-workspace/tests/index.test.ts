@@ -1268,6 +1268,7 @@ describe('create-ultramodern-workspace', () => {
       'topology/local-overlays/development.json',
       'apps/shell-super-app/package.json',
       'apps/shell-super-app/tsconfig.json',
+      'apps/shell-super-app/tsconfig.mf-types.json',
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
       'apps/shell-super-app/src/ultramodern-build.ts',
@@ -1376,6 +1377,12 @@ describe('create-ultramodern-workspace', () => {
         { path: '../../packages/shared-contracts' },
         { path: '../../packages/shared-design-tokens' },
       ],
+    });
+    expect(
+      readJson(workspaceDir, 'apps/shell-super-app/tsconfig.mf-types.json'),
+    ).toEqual({
+      extends: './tsconfig.json',
+      include: ['src/modern-app-env.d.ts'],
     });
     expect(
       readJson(workspaceDir, 'packages/shared-contracts/tsconfig.json'),
@@ -1659,6 +1666,7 @@ describe('create-ultramodern-workspace', () => {
       dts: {
         displayErrorInTerminal: true,
         compilerInstance: 'tsgo',
+        tsConfigPath: './tsconfig.mf-types.json',
       },
     });
     expect(shellContract.moduleFederation.remoteRefs ?? []).toEqual([]);
@@ -1670,6 +1678,9 @@ describe('create-ultramodern-workspace', () => {
     const shellModernConfig = readText(
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
+    );
+    expect(shellModuleFederationConfig).toContain(
+      "tsConfigPath: './tsconfig.mf-types.json'",
     );
     expect(shellModernConfig).toContain('security: {');
     expect(shellModernConfig).toContain("compatibilityDate: '2026-06-02'");
@@ -2244,6 +2255,7 @@ process.exit(1);
 
     for (const relativePath of [
       'verticals/catalog/package.json',
+      'verticals/catalog/tsconfig.mf-types.json',
       'verticals/catalog/modern.config.ts',
       'verticals/catalog/module-federation.config.ts',
       'verticals/catalog/api/effect/index.ts',
@@ -2344,6 +2356,10 @@ process.exit(1);
       workspaceDir,
       'verticals/catalog/tsconfig.json',
     );
+    const catalogMfTypesTsConfig = readJson(
+      workspaceDir,
+      'verticals/catalog/tsconfig.mf-types.json',
+    );
     expect(baseTsConfig.compilerOptions.allowImportingTsExtensions).toBe(true);
     expect(rootTsConfig.references).toEqual([
       { path: 'packages/shared-contracts' },
@@ -2384,6 +2400,14 @@ process.exit(1);
         { path: '../../packages/shared-design-tokens' },
       ],
     });
+    expect(catalogMfTypesTsConfig).toEqual({
+      extends: './tsconfig.json',
+      include: [
+        'src/federation-entry.tsx',
+        'src/components/catalog-widget.tsx',
+        'src/modern-app-env.d.ts',
+      ],
+    });
     expect(shellContract.moduleFederation.remotes).toContainEqual(
       expect.objectContaining({
         id: 'catalog',
@@ -2409,6 +2433,9 @@ process.exit(1);
     const catalogEffectApi = readText(
       workspaceDir,
       'verticals/catalog/shared/effect/api.ts',
+    );
+    expect(catalogModuleFederationConfig).toContain(
+      "tsConfigPath: './tsconfig.mf-types.json'",
     );
     expect(catalogModernConfig).toContain("entry: './api/effect/index'");
     expect(catalogModernConfig).toContain('const assetPrefix =');

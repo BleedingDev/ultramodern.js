@@ -48,6 +48,15 @@ for (const appDir of appDirs) {
       `Module Federation DTS must use the workspace TypeScript compiler: ${appDir}`,
     );
   }
+  if (
+    contractEntry &&
+    contractEntry.moduleFederation?.dts?.tsConfigPath !==
+      './tsconfig.mf-types.json'
+  ) {
+    throw new Error(
+      `Module Federation DTS must use the dedicated public-surface tsconfig: ${appDir}`,
+    );
+  }
 
   if (contractEntry && contractEntry.moduleFederation?.exposes?.length === 0) {
     continue;

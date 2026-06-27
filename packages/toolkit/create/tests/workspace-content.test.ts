@@ -153,6 +153,21 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated Module Federation shared config must keep plugin-i18n runtime keys sorted for oxlint',
     );
     assert.match(
+      shellModuleFederationConfig,
+      /tsConfigPath: '\.\/tsconfig\.mf-types\.json'/,
+      'generated Module Federation config must use the dedicated DTS tsconfig',
+    );
+    assert.deepEqual(
+      readJson(
+        path.join(workspaceDir, 'apps/shell-super-app/tsconfig.mf-types.json'),
+      ),
+      {
+        extends: './tsconfig.json',
+        include: ['src/modern-app-env.d.ts'],
+      },
+      'generated shell MF DTS tsconfig must not include app router ambient registrations',
+    );
+    assert.match(
       shellRouteHead,
       /const jsonLd = route\?\.jsonLd;/,
       'generated route head must read JSON-LD only from explicit route metadata',
@@ -249,6 +264,20 @@ test('rendered contents of the highest-risk generated files match the checked-in
     for (const relativePath of catalogVerticalSnapshots) {
       assertContentSnapshot(workspaceDir, 'catalog-vertical', relativePath);
     }
+    assert.deepEqual(
+      readJson(
+        path.join(workspaceDir, 'verticals/catalog/tsconfig.mf-types.json'),
+      ),
+      {
+        extends: './tsconfig.json',
+        include: [
+          'src/federation-entry.tsx',
+          'src/components/catalog-widget.tsx',
+          'src/modern-app-env.d.ts',
+        ],
+      },
+      'generated vertical MF DTS tsconfig must only include exposed public surfaces',
+    );
 
     // Regression: the vertical page once read the bare identifier
     // `supportedLanguages` without declaring it, so every --vertical

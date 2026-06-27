@@ -56,6 +56,7 @@ import {
 import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
 import { runCodeSmithOverlays } from './overlays';
 import {
+  createAppMfTypesTsConfig,
   createAppPackage,
   createAppTsConfig,
   createRootPackageJson,
@@ -111,6 +112,11 @@ export function writeApp(
     targetDir,
     `${resolvedApp.directory}/tsconfig.json`,
     createAppTsConfig(resolvedApp, remotes),
+  );
+  writeJson(
+    targetDir,
+    `${resolvedApp.directory}/tsconfig.mf-types.json`,
+    createAppMfTypesTsConfig(resolvedApp),
   );
   writeFile(
     targetDir,
