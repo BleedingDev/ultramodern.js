@@ -4,21 +4,22 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.17 Migration Notes
+### BleedingDev 3.4.0-ultramodern.18 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern cleanup cohort that addresses the generated-app bloat found in
   `3.4.0-ultramodern.12`.
-- `3.4.0-ultramodern.17` supersedes `3.4.0-ultramodern.13`,
-  `3.4.0-ultramodern.14`, `3.4.0-ultramodern.15`, and
-  `3.4.0-ultramodern.16`. The `.13` cohort
+- `3.4.0-ultramodern.18` supersedes `3.4.0-ultramodern.13` through
+  `3.4.0-ultramodern.17`. The `.13` cohort
   published the cleanup, but fresh workspaces could fail `format:check`; `.14`
   preformatted generated files, but downstream Cloudflare Worker SSR could
   still crash when a federated remote published `publicPath: "/"`; `.15` fixed
   the SSR runtime path, but generated Cloudflare proof still compared raw MF
   manifest `publicPath` strings instead of their resolved asset base; `.16`
   fixed that proof but compact validation could under-describe customized
-  component exposes. Use `.17` as the migration target.
+  component exposes; `.17` fixed compact expose validation but still used a
+  single-segment unknown-route probe and origin-relative remote asset prefixes.
+  Use `.18` as the migration target.
 - Fresh generated workspaces commit compact UltraModern provenance and config
   in `.modernjs/ultramodern.json` instead of committing the large generated
   contract, package-source, and template-manifest metadata files.
@@ -34,8 +35,12 @@
 - Generated Cloudflare Worker output accepts generic Wrangler-compatible
   `deploy.worker.wrangler` config and protected `deploy.worker.artifacts`
   staging, while server-only app directories are excluded from public assets.
-  Cloudflare proof now resolves relative MF manifest `publicPath` values, so
-  valid origin-relative manifests pass and wrong remote origins still fail.
+  Cloudflare proof now resolves relative MF manifest `publicPath` values and
+  probes a two-segment missing route so locale-prefixed workspaces do not
+  accidentally treat the smoke route as a valid language. Generated remotes
+  publish an own-origin default asset prefix for dev and Cloudflare deploys so
+  browser Module Federation hydration loads `remoteEntry.js` and expose chunks
+  from the remote app, not the shell host.
 - Nested parent-monorepo consumption is now an explicit bridge mode with parent
   workspace package globs, generated app dependencies, source/test aliases,
   delegated gates, lockfile policy, and React singleton expectations.

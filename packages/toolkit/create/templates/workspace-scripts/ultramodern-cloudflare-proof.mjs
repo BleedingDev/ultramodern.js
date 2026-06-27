@@ -478,7 +478,8 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
 async function validateNotFound(evidence, app, publicUrl) {
   const qualityGates = app.deploy?.cloudflare?.qualityGates ?? {};
   const notFoundRoute =
-    qualityGates.statusCodes?.notFoundRoute ?? '/__ultramodern-smoke-missing';
+    qualityGates.statusCodes?.notFoundRoute ??
+    '/__ultramodern-smoke-missing/nope';
   const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? 404;
   const response = await fetchText(joinUrl(publicUrl, notFoundRoute));
   evidence.assertions.push({

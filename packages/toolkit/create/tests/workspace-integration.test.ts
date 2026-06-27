@@ -591,8 +591,8 @@ test('generated workspace self-check accepts stable formatting but rejects wrong
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
     ).replace(
-      /const assetPrefix =\n\s+configuredModernAssetPrefix \|\| configuredUltramodernAssetPrefix \|\| '\/';/u,
-      "const assetPrefix = configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/';",
+      /const assetPrefix =\n\s+configuredModernAssetPrefix \|\| configuredUltramodernAssetPrefix \|\| defaultAssetPrefix;/u,
+      'const assetPrefix = configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix;',
     );
     fs.writeFileSync(modernConfigPath, sameLineAssetPrefix, 'utf-8');
 

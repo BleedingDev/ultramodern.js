@@ -463,7 +463,7 @@ const createQualityGates = () => ({
     requireWebManifestWhenPresent: true,
   },
   statusCodes: {
-    notFoundRoute: '/__ultramodern-smoke-missing',
+    notFoundRoute: '/__ultramodern-smoke-missing/nope',
     unknownRouteStatus: 404,
   },
   indexing: {
@@ -590,7 +590,7 @@ const createAppConfigContract = app => ({
   output: {
     assetPrefix: {
       envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
-      default: '/',
+      default: app.kind === 'shell' ? '/' : 'app-public-origin',
     },
     disableTsChecker: false,
   },
@@ -1902,8 +1902,9 @@ assert(shellModernConfig.includes('name: cloudflareWorkerName'), 'Shell modern.c
 assert(shellModernConfig.includes('const assetPrefix ='), 'Shell modern.config.ts must derive a dedicated asset prefix');
 assert(shellModernConfig.includes("const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX')"), 'Shell asset prefix must support ULTRAMODERN_ASSET_PREFIX');
 assert(shellModernConfig.includes("const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX')"), 'Shell asset prefix must support MODERN_ASSET_PREFIX');
+assert(shellModernConfig.includes("const defaultAssetPrefix = '/'"), 'Shell asset prefix must default to origin-relative assets');
 const shellAssetPrefixExpression = extractAssetPrefixExpression(shellModernConfig);
-assert(shellAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'"), 'Shell asset prefix fallback order is incorrect');
+assert(shellAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix"), 'Shell asset prefix fallback order is incorrect');
 assert(!shellAssetPrefixExpression.includes('configuredSiteUrl') && !shellAssetPrefixExpression.includes('MODERN_PUBLIC_SITE_URL'), 'Shell asset prefix must not fall back to MODERN_PUBLIC_SITE_URL');
 assert(!shellAssetPrefixExpression.includes('configuredCloudflareUrl') && !shellAssetPrefixExpression.includes('ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP'), 'Shell asset prefix must not fall back to the per-app public URL');
 assert(!shellAssetPrefixExpression.includes('inferredCloudflareUrl') && !shellAssetPrefixExpression.includes('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN'), 'Shell asset prefix must not infer workers.dev URLs');
@@ -2001,15 +2002,17 @@ for (const vertical of fullStackVerticals) {
   assert(modernConfig.includes('const assetPrefix ='), `${vertical.id} modern.config.ts must derive a dedicated asset prefix`);
   assert(modernConfig.includes("const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX')"), `${vertical.id} asset prefix must support ULTRAMODERN_ASSET_PREFIX`);
   assert(modernConfig.includes("const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX')"), `${vertical.id} asset prefix must support MODERN_ASSET_PREFIX`);
+  assert(modernConfig.includes('const defaultRemoteAssetPrefix'), `${vertical.id} asset prefix must derive the remote asset origin`);
+  assert(modernConfig.includes('const defaultAssetPrefix = defaultRemoteAssetPrefix'), `${vertical.id} asset prefix must default to its own remote origin`);
   const verticalAssetPrefixExpression = extractAssetPrefixExpression(modernConfig);
-  assert(verticalAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'"), `${vertical.id} asset prefix fallback order is incorrect`);
+  assert(verticalAssetPrefixExpression.includes("configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix"), `${vertical.id} asset prefix fallback order is incorrect`);
   assert(!verticalAssetPrefixExpression.includes('configuredSiteUrl') && !verticalAssetPrefixExpression.includes('MODERN_PUBLIC_SITE_URL'), `${vertical.id} asset prefix must not fall back to MODERN_PUBLIC_SITE_URL`);
-  assert(!verticalAssetPrefixExpression.includes('configuredCloudflareUrl') && !verticalAssetPrefixExpression.includes(`ULTRAMODERN_PUBLIC_URL_${vertical.id.replace(/-/g, '_').toUpperCase()}`), `${vertical.id} asset prefix must not fall back to the per-app public URL`);
-  assert(!verticalAssetPrefixExpression.includes('inferredCloudflareUrl') && !verticalAssetPrefixExpression.includes('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN'), `${vertical.id} asset prefix must not infer workers.dev URLs`);
+  assert(modernConfig.includes(`envValue('ULTRAMODERN_PUBLIC_URL_${vertical.id.replace(/-/g, '_').toUpperCase()}')`), `${vertical.id} asset prefix must read its per-app public URL`);
+  assert(modernConfig.includes('inferredCloudflareUrl'), `${vertical.id} asset prefix must support workers.dev origin inference`);
   assert(modernConfig.includes("assetPrefix: '/'"), `${vertical.id} modern.config.ts must keep dev assets origin-relative`);
   assert(modernConfig.includes('assetPrefix,'), `${vertical.id} modern.config.ts must wire output.assetPrefix to the derived asset prefix`);
   assert(contractEntry?.config?.dev?.assetPrefix === '/', `${vertical.id} dev asset prefix must stay origin-relative`);
-  assert(contractEntry?.config?.output?.assetPrefix?.default === '/', `${vertical.id} asset prefix must default to origin-relative paths`);
+  assert(contractEntry?.config?.output?.assetPrefix?.default === 'app-public-origin', `${vertical.id} asset prefix must default to its app public origin`);
   assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), `${vertical.id} asset prefix env fallback order is incorrect`);
   assert(contractEntry?.config?.output?.disableTsChecker === false, `${vertical.id} must keep the framework TypeScript checker enabled`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.default === 'enabled', `${vertical.id} performance readiness diagnostics must be default-on`);

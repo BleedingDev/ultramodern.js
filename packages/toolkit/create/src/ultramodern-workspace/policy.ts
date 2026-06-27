@@ -95,7 +95,7 @@ export const PUBLIC_WEBSITE_POLICY = {
       requireWebManifestWhenPresent: true,
     },
     statusCodes: {
-      notFoundRoute: '/__ultramodern-smoke-missing',
+      notFoundRoute: '/__ultramodern-smoke-missing/nope',
       unknownRouteStatus: 404,
     },
     indexing: {

@@ -40,6 +40,15 @@ export function createAppModernConfig(
 `
     : '';
   const bffPluginEntry = appHasEffectApi(app) ? '        bffPlugin(),\n' : '';
+  const defaultAssetPrefixSource =
+    app.kind === 'shell'
+      ? "const defaultAssetPrefix = '/';"
+      : `const defaultRemoteAssetPrefix = (
+  configuredCloudflareUrl ||
+  inferredCloudflareUrl ||
+  (cloudflareDeployEnabled ? '/' : \`http://localhost:\${port}\`)
+).replace(/\\/+$/u, '') + '/';
+const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
   return `// @effect-diagnostics processEnv:off
 import {
   appTools,
@@ -102,12 +111,12 @@ const siteUrl =
   configuredCloudflareUrl ||
   inferredCloudflareUrl ||
   \`http://localhost:\${port}\`;
-// Asset loading is intentionally independent from the canonical site URL and
-// deployment public URL. Without an explicit asset prefix, assets stay
-// origin-relative so self-hosted apps, tunnels, and reverse proxies never leak
-// localhost URLs into production HTML.
+${defaultAssetPrefixSource}
+// Asset loading is intentionally independent from the canonical site URL.
+// Module Federation remotes must publish an absolute publicPath so browsers
+// load remoteEntry.js and exposed chunks from the remote origin, not the host.
 const assetPrefix =
-  configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/';
+  configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix;
 
 if (
   cloudflareDeployEnabled &&
