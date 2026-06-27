@@ -4,16 +4,19 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.15 Migration Notes
+### BleedingDev 3.4.0-ultramodern.16 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern cleanup cohort that addresses the generated-app bloat found in
   `3.4.0-ultramodern.12`.
-- `3.4.0-ultramodern.15` supersedes `3.4.0-ultramodern.13` and
-  `3.4.0-ultramodern.14`. The `.13` cohort published the cleanup, but fresh
-  workspaces could fail `format:check`; `.14` preformatted generated files, but
-  downstream Cloudflare Worker SSR could still crash when a federated remote
-  published `publicPath: "/"`. Use `.15` as the migration target.
+- `3.4.0-ultramodern.16` supersedes `3.4.0-ultramodern.13`,
+  `3.4.0-ultramodern.14`, and `3.4.0-ultramodern.15`. The `.13` cohort
+  published the cleanup, but fresh workspaces could fail `format:check`; `.14`
+  preformatted generated files, but downstream Cloudflare Worker SSR could
+  still crash when a federated remote published `publicPath: "/"`; `.15` fixed
+  the SSR runtime path, but generated Cloudflare proof still compared raw MF
+  manifest `publicPath` strings instead of their resolved asset base. Use `.16`
+  as the migration target.
 - Fresh generated workspaces commit compact UltraModern provenance and config
   in `.modernjs/ultramodern.json` instead of committing the large generated
   contract, package-source, and template-manifest metadata files.
@@ -27,6 +30,8 @@
 - Generated Cloudflare Worker output accepts generic Wrangler-compatible
   `deploy.worker.wrangler` config and protected `deploy.worker.artifacts`
   staging, while server-only app directories are excluded from public assets.
+  Cloudflare proof now resolves relative MF manifest `publicPath` values, so
+  valid origin-relative manifests pass and wrong remote origins still fail.
 - Nested parent-monorepo consumption is now an explicit bridge mode with parent
   workspace package globs, generated app dependencies, source/test aliases,
   delegated gates, lockfile policy, and React singleton expectations.

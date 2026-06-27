@@ -6,6 +6,20 @@ function normalizeUrlWithTrailingSlash(url) {
   return url.endsWith('/') ? url : `${url}/`;
 }
 
+function resolveModuleFederationPublicPath(publicPath, manifestUrl) {
+  if (typeof publicPath !== 'string' || publicPath.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    return normalizeUrlWithTrailingSlash(
+      new URL(publicPath.trim(), manifestUrl).toString(),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchText(url) {
   const response = await fetch(url);
   return {
@@ -721,7 +735,8 @@ async function validateModuleFederationManifestEvidence(evidence, app, publicUrl
   const budgets = qualityGates.budgets ?? {};
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
-  const manifest = await fetchText(joinUrl(publicUrl, manifestRoute));
+  const manifestUrl = joinUrl(publicUrl, manifestRoute);
+  const manifest = await fetchText(manifestUrl);
   const manifestJson = parseMaybeJson(manifest.body);
   evidence.assertions.push({
     type: 'mf-manifest',
@@ -754,17 +769,26 @@ async function validateModuleFederationManifestEvidence(evidence, app, publicUrl
     manifest.accessControlAllowOrigin === '*',
     `${app.id} MF manifest is missing Cloudflare CORS headers`,
   );
-  const expectedPublicPath = normalizeUrlWithTrailingSlash(publicUrl);
+  const expectedPublicPath = normalizeUrlWithTrailingSlash(
+    new URL('.', manifestUrl).toString(),
+  );
   const manifestPublicPath = manifestJson?.metaData?.publicPath;
+  const resolvedPublicPath = resolveModuleFederationPublicPath(
+    manifestPublicPath,
+    manifestUrl,
+  );
   evidence.assertions.push({
     type: 'mf-manifest-public-path',
     expected: expectedPublicPath,
     actual: manifestPublicPath,
-    status: manifestPublicPath === expectedPublicPath ? 'pass' : 'fail',
+    resolved: resolvedPublicPath,
+    status: resolvedPublicPath === expectedPublicPath ? 'pass' : 'fail',
   });
   assert(
-    manifestPublicPath === expectedPublicPath,
-    `${app.id} MF manifest publicPath must resolve remote assets from ${expectedPublicPath}`,
+    resolvedPublicPath === expectedPublicPath,
+    `${app.id} MF manifest publicPath must resolve remote assets from ${expectedPublicPath}; got ${String(
+      manifestPublicPath,
+    )}`,
   );
 }
 
@@ -848,4 +872,4 @@ async function validateApp(app, publicUrl) {
   return evidence;
 }
 
-export { validateApp };
+export { resolveModuleFederationPublicPath, validateApp };

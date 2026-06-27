@@ -38,6 +38,8 @@
   publishes a relative `metaData.publicPath` such as `/`, preventing deployed
   shell Workers from throwing `TypeError: Invalid URL string` while injecting
   rendered Module Federation CSS links.
+  BleedingDev `3.4.0-ultramodern.16` carries this runtime fix forward and pairs
+  it with the `@modern-js/create` Cloudflare proof update.
 
 - 4c7f658: fix(runtime,app-tools): inject CSS of React.lazy descendants into streaming SSR shell to prevent FOUC; slim inline route manifest to only `chunkIds` when RSC is disabled
 
