@@ -82,7 +82,9 @@
   },
   "dependencies": {
     "@modern-js/codesmith": "2.6.9",
-    "@modern-js/i18n-utils": "workspace:*"
+    "@modern-js/i18n-utils": "workspace:*",
+    "oxfmt": "0.55.0",
+    "ultracite": "7.8.3"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",

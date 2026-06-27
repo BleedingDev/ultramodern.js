@@ -218,6 +218,8 @@ const makeFixture = ({
       version: '3.2.0-ultramodern.1',
       dependencies: {
         '@modern-js/codesmith': stagedCreateCodeSmithDependency,
+        oxfmt: '0.55.0',
+        ultracite: '7.8.3',
         ...(createI18nDependencyBlock === 'dependencies'
           ? createI18nDependency
           : {}),
@@ -340,6 +342,14 @@ test('validateSourceProof accepts staged local cohort metadata', async () => {
       {
         dependencyName: '@modern-js/i18n-utils',
         specifier: 'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
+      },
+      {
+        dependencyName: 'oxfmt',
+        specifier: '0.55.0',
+      },
+      {
+        dependencyName: 'ultracite',
+        specifier: '7.8.3',
       },
     ]);
     assert.deepEqual(proof.createPackageProof.runtimeProof, {

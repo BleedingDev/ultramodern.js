@@ -1,18 +1,55 @@
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveCreatePackageRoot } from '../create-package-root';
 import { normalizePath } from './naming';
 import type { JsonValue } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 export const createPackageRoot = resolveCreatePackageRoot(__dirname);
 export const workspaceTemplateDir = path.join(
   createPackageRoot,
   'template-workspace',
 );
 export const fileTemplatesDir = path.join(createPackageRoot, 'templates');
+const preformatConfigDir = '.modern-js';
+const preformatConfigPath = path.join(
+  preformatConfigDir,
+  'ultramodern-preformat.oxfmt.config.mjs',
+);
+const workspaceOxfmtIgnorePatterns = [
+  '.agents',
+  '.codex/skills',
+  '.output',
+  '**/*.json',
+  'dist',
+  'node_modules',
+  'repos/**',
+  '.modern',
+  '.modernjs',
+  '**/modern-tanstack/**',
+  '**/routeTree.gen.*',
+];
+const formattableExtensions = new Set([
+  '.cjs',
+  '.cts',
+  '.js',
+  '.json',
+  '.jsonc',
+  '.jsx',
+  '.mjs',
+  '.mts',
+  '.md',
+  '.mdx',
+  '.ts',
+  '.tsx',
+  '.yaml',
+  '.yml',
+]);
 
 export function readFileTemplate(relativePath: string): string {
   return fs.readFileSync(path.join(fileTemplatesDir, relativePath), 'utf-8');
@@ -77,6 +114,122 @@ export function writeJson(
   value: JsonValue,
 ) {
   writeFile(targetDir, relativePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+export function formatGeneratedWorkspaceFiles(
+  targetDir: string,
+  relativePaths?: readonly string[],
+) {
+  const oxfmtBin = resolveOxfmtBin();
+  const oxfmtConfigPath = writePreformatConfig(targetDir);
+  const targets =
+    relativePaths === undefined
+      ? [targetDir, `!${normalizePath(path.join(targetDir, 'repos'))}/**`]
+      : relativePaths
+          .filter(relativePath =>
+            formattableExtensions.has(path.extname(relativePath)),
+          )
+          .map(relativePath => path.join(targetDir, relativePath));
+
+  if (targets.length === 0) {
+    removePreformatConfig(targetDir);
+    return;
+  }
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        oxfmtBin,
+        '--config',
+        oxfmtConfigPath,
+        '--no-error-on-unmatched-pattern',
+        ...targets,
+      ],
+      {
+        cwd: targetDir,
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          FORCE_COLOR: '0',
+        },
+      },
+    );
+
+    if (result.status !== 0) {
+      const detail = [result.stderr.trim(), result.stdout.trim()]
+        .filter(Boolean)
+        .join('\n');
+      throw new Error(
+        ['Failed to format generated UltraModern workspace output.', detail]
+          .filter(Boolean)
+          .join('\n'),
+      );
+    }
+  } finally {
+    removePreformatConfig(targetDir);
+  }
+}
+
+function writePreformatConfig(targetDir: string) {
+  const configPath = path.join(targetDir, preformatConfigPath);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const oxfmtUrl = pathToFileURL(resolveOxfmtEntry()).href;
+  const ultraciteConfigUrl = pathToFileURL(resolveUltraciteOxfmtConfig()).href;
+  fs.writeFileSync(
+    configPath,
+    [
+      `import { defineConfig } from ${JSON.stringify(oxfmtUrl)};`,
+      `import ultracite from ${JSON.stringify(ultraciteConfigUrl)};`,
+      '',
+      'export default defineConfig({',
+      '  extends: [ultracite],',
+      '  ignorePatterns: [',
+      ...workspaceOxfmtIgnorePatterns.map(
+        pattern => `    ${JSON.stringify(pattern)},`,
+      ),
+      '  ],',
+      '  singleQuote: true,',
+      '});',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  return configPath;
+}
+
+function removePreformatConfig(targetDir: string) {
+  fs.rmSync(path.join(targetDir, preformatConfigPath), { force: true });
+  try {
+    fs.rmdirSync(path.join(targetDir, preformatConfigDir));
+  } catch {
+    // The generated workspace may legitimately have other tool output here.
+  }
+}
+
+function resolveOxfmtBin() {
+  const packageJsonPath = require.resolve('oxfmt/package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+    bin?: string | Record<string, string>;
+  };
+  const binPath =
+    typeof packageJson.bin === 'string'
+      ? packageJson.bin
+      : packageJson.bin?.oxfmt;
+
+  if (typeof binPath !== 'string' || binPath.length === 0) {
+    throw new Error('Unable to resolve oxfmt binary from package metadata.');
+  }
+
+  return path.join(path.dirname(packageJsonPath), binPath);
+}
+
+function resolveOxfmtEntry() {
+  return require.resolve('oxfmt');
+}
+
+function resolveUltraciteOxfmtConfig() {
+  return require.resolve('ultracite/oxfmt');
 }
 
 export function renderTemplate(

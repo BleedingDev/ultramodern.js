@@ -23,7 +23,7 @@ export default function ShellFrame({ children }: ShellFrameProps) {
             className="shell:h-10 shell:w-10 shell:cursor-pointer shell:appearance-none shell:border-0 shell:bg-transparent shell:p-0 shell:text-center shell:text-3xl shell:font-black shell:leading-none shell:text-stone-950 shell:shadow-none shell:[appearance:none] shell:[text-align-last:center] shell:focus-visible:rounded-md shell:focus-visible:outline-3 shell:focus-visible:outline-offset-2 shell:focus-visible:outline-emerald-700/40 shell:[&::-ms-expand]:hidden shell:[&::picker-icon]:hidden shell:[&_option]:text-xl"
             id="ultramodern-language"
             name="language"
-            onChange={event => {
+            onChange={(event) => {
               const nextLanguage = event.currentTarget.value;
               const targetHref = alternates[nextLanguage];
               if (targetHref !== undefined) {

@@ -41,6 +41,7 @@ import {
 } from './effect-api';
 import {
   copyRootTemplate,
+  formatGeneratedWorkspaceFiles,
   writeFile,
   writeFileReplacing,
   writeJson,
@@ -486,13 +487,31 @@ export function generateUltramodernWorkspace(
     initialVerticals,
   );
 
+  const preliminaryAfterFiles = createFileSnapshot(options.targetDir);
+  const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
+  const preliminaryResult = createGenerationResult({
+    operation: 'workspace',
+    workspaceRoot: options.targetDir,
+    packageScope: scope,
+    packageSource,
+    createdApps,
+    createdPaths: preliminaryDiff.createdPaths,
+    rewrittenPaths: preliminaryDiff.rewrittenPaths,
+  });
+  runCodeSmithOverlays({
+    workspaceRoot: options.targetDir,
+    overlays: options.overlays,
+    result: preliminaryResult,
+  });
+  formatGeneratedWorkspaceFiles(options.targetDir);
+
   const afterFiles = createFileSnapshot(options.targetDir);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(
     beforeFiles,
     afterFiles,
   );
 
-  const result = createGenerationResult({
+  return createGenerationResult({
     operation: 'workspace',
     workspaceRoot: options.targetDir,
     packageScope: scope,
@@ -501,10 +520,4 @@ export function generateUltramodernWorkspace(
     createdPaths,
     rewrittenPaths,
   });
-  runCodeSmithOverlays({
-    workspaceRoot: options.targetDir,
-    overlays: options.overlays,
-    result,
-  });
-  return result;
 }

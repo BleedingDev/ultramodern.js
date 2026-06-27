@@ -76,7 +76,7 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
         `verticals/${name}/src/routes/ultramodern-route-metadata.ts`,
       );
       assert.ok(
-        routeMetadata.includes(`"id": "${name}-home"`),
+        routeMetadata.includes(`id: '${name}-home'`),
         `${name} must own its home route`,
       );
       for (const phantom of [
@@ -86,7 +86,7 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
         '/unavailable',
       ]) {
         assert.ok(
-          !routeMetadata.includes(`"canonicalPath": "${phantom}"`),
+          !routeMetadata.includes(`canonicalPath: '${phantom}'`),
           `${name} must not own the phantom demo route ${phantom}`,
         );
       }

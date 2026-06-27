@@ -32,7 +32,12 @@ import {
   createShellEffectClient,
   effectApiTopologyMetadata,
 } from './effect-api';
-import { readJsonFile, writeFileReplacing, writeJsonFile } from './fs-io';
+import {
+  formatGeneratedWorkspaceFiles,
+  readJsonFile,
+  writeFileReplacing,
+  writeJsonFile,
+} from './fs-io';
 import {
   createFileSnapshot,
   createGenerationResult,
@@ -1006,13 +1011,36 @@ export function addUltramodernVertical(
       ...updatedVerticals,
     ]),
   );
+  const preliminaryAfterFiles = createFileSnapshot(options.workspaceRoot);
+  const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
+
+  const preliminaryResult = createGenerationResult({
+    operation: 'vertical',
+    workspaceRoot: options.workspaceRoot,
+    packageScope: scope,
+    packageSource,
+    createdApps: [vertical],
+    createdPaths: preliminaryDiff.createdPaths,
+    rewrittenPaths: preliminaryDiff.rewrittenPaths,
+  });
+  runCodeSmithOverlays({
+    workspaceRoot: options.workspaceRoot,
+    overlays: options.overlays,
+    result: preliminaryResult,
+  });
+  const afterOverlaysFiles = createFileSnapshot(options.workspaceRoot);
+  const changedPaths = diffFileSnapshots(beforeFiles, afterOverlaysFiles);
+  formatGeneratedWorkspaceFiles(options.workspaceRoot, [
+    ...changedPaths.createdPaths,
+    ...changedPaths.rewrittenPaths,
+  ]);
   const afterFiles = createFileSnapshot(options.workspaceRoot);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(
     beforeFiles,
     afterFiles,
   );
 
-  const result = createGenerationResult({
+  return createGenerationResult({
     operation: 'vertical',
     workspaceRoot: options.workspaceRoot,
     packageScope: scope,
@@ -1021,10 +1049,4 @@ export function addUltramodernVertical(
     createdPaths,
     rewrittenPaths,
   });
-  runCodeSmithOverlays({
-    workspaceRoot: options.workspaceRoot,
-    overlays: options.overlays,
-    result,
-  });
-  return result;
 }

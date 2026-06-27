@@ -26,12 +26,8 @@ import type {
 
 export { Effect, runEffectRequest };
 
-type CatalogEffectGroups = typeof catalogEffectApi extends HttpApi.HttpApi<
-  infer _ApiId,
-  infer Groups
->
-  ? Groups
-  : never;
+type CatalogEffectGroups =
+  typeof catalogEffectApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 
 export type CatalogClient = HttpApiClient.Client<
   Extract<CatalogEffectGroups, HttpApiGroup.Any>,
@@ -44,11 +40,7 @@ export type CatalogClientError =
   | HttpClientError.HttpClientError
   | Schema.SchemaError;
 
-export type CatalogClientEffect<Success> = Effect.Effect<
-  Success,
-  CatalogClientError,
-  never
->;
+export type CatalogClientEffect<Success> = Effect.Effect<Success, CatalogClientError, never>;
 
 export interface CatalogClientOptions {
   baseUrl?: string | URL;
@@ -67,9 +59,7 @@ export const createCatalogClient = (
       ...(options.operationContext === undefined
         ? {}
         : { operationContext: options.operationContext }),
-      ...(options.traceparent === undefined
-        ? {}
-        : { traceparent: options.traceparent }),
+      ...(options.traceparent === undefined ? {} : { traceparent: options.traceparent }),
     },
   });
 
@@ -78,24 +68,16 @@ export const listCatalog = (
 ): CatalogClientEffect<CatalogListResponse> =>
   createCatalogClient({
     ...options,
-    operationContext:
-      options.operationContext ?? catalogOperationContexts.list,
-  }).pipe(
-    Effect.flatMap(client =>
-      client.catalog.list({ query: { limit: options.limit } }),
-    ),
-  );
+    operationContext: options.operationContext ?? catalogOperationContexts.list,
+  }).pipe(Effect.flatMap((client) => client.catalog.list({ query: { limit: options.limit } })));
 
 export const getCatalogReadiness = (
   options: CatalogClientOptions = {},
 ): CatalogClientEffect<CatalogReadiness> =>
   createCatalogClient({
     ...options,
-    operationContext:
-      options.operationContext ?? catalogOperationContexts.readiness,
-  }).pipe(
-    Effect.flatMap(client => client.catalog.readiness({})),
-  );
+    operationContext: options.operationContext ?? catalogOperationContexts.readiness,
+  }).pipe(Effect.flatMap((client) => client.catalog.readiness({})));
 
 export const getCatalog = (
   id: string,
@@ -103,11 +85,8 @@ export const getCatalog = (
 ): CatalogClientEffect<CatalogItem> =>
   createCatalogClient({
     ...options,
-    operationContext:
-      options.operationContext ?? catalogOperationContexts.get,
-  }).pipe(
-    Effect.flatMap(client => client.catalog.get({ params: { id } })),
-  );
+    operationContext: options.operationContext ?? catalogOperationContexts.get,
+  }).pipe(Effect.flatMap((client) => client.catalog.get({ params: { id } })));
 
 export const createCatalog = (
   title: string,
@@ -115,10 +94,5 @@ export const createCatalog = (
 ): CatalogClientEffect<CatalogCreateResponse> =>
   createCatalogClient({
     ...options,
-    operationContext:
-      options.operationContext ?? catalogOperationContexts.create,
-  }).pipe(
-    Effect.flatMap(client =>
-      client.catalog.create({ payload: { title } }),
-    ),
-  );
+    operationContext: options.operationContext ?? catalogOperationContexts.create,
+  }).pipe(Effect.flatMap((client) => client.catalog.create({ payload: { title } })));

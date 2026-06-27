@@ -325,7 +325,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.match(validationWrapper, /modern-js-create/);
     assert.match(validationWrapper, /ULTRAMODERN_CREATE_BIN/);
     assert.match(validationWrapper, /'ultramodern'/);
-    assert.match(validationWrapper, /"validate"/);
+    assert.match(validationWrapper, /'validate'/);
     assert.deepEqual(
       readJson(
         path.join(workspaceDir, 'verticals/catalog/tsconfig.mf-types.json'),
@@ -447,7 +447,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       generatedSharedApi,
-      /Schema\.TaggedStruct\('CatalogNotFound'/,
+      /Schema\.TaggedStruct\(\s*'CatalogNotFound'/,
       'generated shared API must build not-found schemas without class inheritance',
     );
     assert.doesNotMatch(

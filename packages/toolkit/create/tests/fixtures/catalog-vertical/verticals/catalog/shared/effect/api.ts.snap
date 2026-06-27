@@ -81,23 +81,18 @@ export const catalogCreatePayloadSchema: Schema.Codec<CatalogCreatePayload> = Sc
   title: Schema.String,
 });
 
-export const catalogNotFoundSchema: Schema.Codec<CatalogNotFound> = Schema.TaggedStruct('CatalogNotFound', {
-  id: Schema.String,
-}).pipe(
-  HttpApiSchema.status(404),
-);
+export const catalogNotFoundSchema: Schema.Codec<CatalogNotFound> = Schema.TaggedStruct(
+  'CatalogNotFound',
+  {
+    id: Schema.String,
+  },
+).pipe(HttpApiSchema.status(404));
 
 export interface OperationContext {
   method: string;
   operationId: string;
   routePath: string;
-  source:
-    | 'client'
-    | 'server'
-    | 'generated-client'
-    | 'effect-adapter'
-    | 'data-platform'
-    | 'unknown';
+  source: 'client' | 'server' | 'generated-client' | 'effect-adapter' | 'data-platform' | 'unknown';
   traceId?: string;
 }
 

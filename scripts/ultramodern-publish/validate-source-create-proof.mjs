@@ -37,6 +37,8 @@ const dependencyBlockNames = [
 const requiredCreateRuntimeDependencies = [
   '@modern-js/codesmith',
   '@modern-js/i18n-utils',
+  'oxfmt',
+  'ultracite',
 ];
 const requiredCreatePublishedPaths = [
   'bin/run.js',
