@@ -28,6 +28,15 @@ describe('react-i18next runtime boundary', () => {
     expect(core).toContain("import('./i18n/utils')");
   });
 
+  test('keeps the Modern i18n context stable across federated runtime copies', () => {
+    const context = readRuntimeSource('context.tsx');
+
+    expect(context).toContain(
+      "Symbol.for(\n  '@modern-js/plugin-i18n/runtime/ModernI18nContext'",
+    );
+    expect(context).toContain('globalStore[modernI18nContextKey] ??=');
+  });
+
   test('keeps the default runtime entry wired to react-i18next integration', () => {
     const defaultEntry = readRuntimeSource('index.tsx');
 

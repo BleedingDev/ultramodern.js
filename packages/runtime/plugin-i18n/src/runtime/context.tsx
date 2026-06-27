@@ -32,7 +32,24 @@ export interface ModernI18nContextValue {
   updateLanguage?: (newLang: string) => void;
 }
 
-const ModernI18nContext = createContext<ModernI18nContextValue | null>(null);
+const modernI18nContextKey = Symbol.for(
+  '@modern-js/plugin-i18n/runtime/ModernI18nContext',
+);
+
+type ModernI18nGlobal = typeof globalThis & {
+  [key: symbol]:
+    | ReturnType<typeof createContext<ModernI18nContextValue | null>>
+    | undefined;
+};
+
+const getModernI18nContext = () => {
+  const globalStore = globalThis as ModernI18nGlobal;
+  globalStore[modernI18nContextKey] ??=
+    createContext<ModernI18nContextValue | null>(null);
+  return globalStore[modernI18nContextKey];
+};
+
+const ModernI18nContext = getModernI18nContext();
 
 export interface ModernI18nProviderProps {
   children: ReactNode;
