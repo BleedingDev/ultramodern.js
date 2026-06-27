@@ -122,9 +122,8 @@ const filterSourceFiles = (
       .split(path.sep)
       .join(path.posix.sep);
 
-    return (
-      fileName.endsWith('.d.ts') ||
-      sourcePosixPaths.some(sourceDir => absoluteFileName.includes(sourceDir))
+    return sourcePosixPaths.some(sourceDir =>
+      absoluteFileName.includes(sourceDir),
     );
   });
 };

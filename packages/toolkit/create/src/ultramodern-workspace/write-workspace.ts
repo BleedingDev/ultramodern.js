@@ -51,6 +51,7 @@ import {
   createRemoteModuleFederationConfig,
   createShellModuleFederationConfig,
   createUltramodernBuildModule,
+  createUltramodernBuildReexportModule,
 } from './module-federation';
 import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
 import { runCodeSmithOverlays } from './overlays';
@@ -119,6 +120,11 @@ export function writeApp(
   writeFile(
     targetDir,
     `${resolvedApp.directory}/src/ultramodern-build.ts`,
+    createUltramodernBuildReexportModule(),
+  );
+  writeFile(
+    targetDir,
+    `${resolvedApp.directory}/shared/ultramodern-build.ts`,
     createUltramodernBuildModule(scope, resolvedApp),
   );
   writeFile(

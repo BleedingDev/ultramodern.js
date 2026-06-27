@@ -38,7 +38,7 @@ export interface CatalogCreatePayload {
 }
 
 export interface CatalogListResponse {
-  readonly items: ReadonlyArray<CatalogItem>;
+  readonly items: readonly CatalogItem[];
 }
 
 export interface CatalogCreateResponse {
@@ -50,7 +50,7 @@ export interface CatalogNotFound {
   readonly id: string;
 }
 
-export const catalogMarkerSchema: Schema.Schema<CatalogMarker> = Schema.Struct({
+export const catalogMarkerSchema: Schema.Codec<CatalogMarker> = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
   deployProfile: Schema.String,
@@ -59,13 +59,13 @@ export const catalogMarkerSchema: Schema.Schema<CatalogMarker> = Schema.Struct({
   version: Schema.String,
 });
 
-export const catalogItemSchema: Schema.Schema<CatalogItem> = Schema.Struct({
+export const catalogItemSchema: Schema.Codec<CatalogItem> = Schema.Struct({
   id: Schema.String,
   marker: catalogMarkerSchema,
   title: Schema.String,
 });
 
-export const catalogReadinessSchema: Schema.Schema<CatalogReadiness> = Schema.Struct({
+export const catalogReadinessSchema: Schema.Codec<CatalogReadiness> = Schema.Struct({
   checks: Schema.Struct({
     effectBff: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
@@ -77,11 +77,11 @@ export const catalogReadinessSchema: Schema.Schema<CatalogReadiness> = Schema.St
   versionSkew: Schema.Literal('none'),
 });
 
-export const catalogCreatePayloadSchema: Schema.Schema<CatalogCreatePayload> = Schema.Struct({
+export const catalogCreatePayloadSchema: Schema.Codec<CatalogCreatePayload> = Schema.Struct({
   title: Schema.String,
 });
 
-export const catalogNotFoundSchema: Schema.Schema<CatalogNotFound> = Schema.TaggedStruct('CatalogNotFound', {
+export const catalogNotFoundSchema: Schema.Codec<CatalogNotFound> = Schema.TaggedStruct('CatalogNotFound', {
   id: Schema.String,
 }).pipe(
   HttpApiSchema.status(404),

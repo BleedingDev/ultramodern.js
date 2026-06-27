@@ -119,10 +119,12 @@ const createRemoteFallback = (specifier: string) =>
   ({ error }: { error: Error }) => {
     const { t } = useModernI18n();
     const classification = classifyModuleFederationFallback(error);
+    const telemetryEntry =
+      typeof window === 'undefined' ? undefined : window.location.href;
     const telemetry = createModuleFederationFallbackTelemetry({
       appName: '${shellApp.id}',
       classification,
-      entry: typeof window === 'undefined' ? undefined : window.location.href,
+      ...(telemetryEntry === undefined ? {} : { entry: telemetryEntry }),
       error,
       eventName: 'mf.client.remote.fallback',
       exportName: 'default',
@@ -135,7 +137,7 @@ const createRemoteFallback = (specifier: string) =>
       void emitModuleFederationFallbackTelemetry({
         appName: telemetry.appName,
         classification,
-        entry: telemetry.entry,
+        ...(telemetry.entry === undefined ? {} : { entry: telemetry.entry }),
         error,
         eventName: telemetry.eventName,
         exportName: 'default',

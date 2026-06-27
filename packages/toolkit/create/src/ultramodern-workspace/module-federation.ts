@@ -460,6 +460,15 @@ export const ultramodernApiMarker = {
 `;
 }
 
+export function createUltramodernBuildReexportModule(): string {
+  return `export {
+  ultramodernApiMarker,
+  ultramodernUiMarker,
+  ultramodernVerticalIdentity,
+} from '../shared/ultramodern-build';
+`;
+}
+
 export function createRemoteModuleFederationConfig(
   scope: string,
   app: WorkspaceApp,

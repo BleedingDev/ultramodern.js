@@ -271,6 +271,28 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /const \{[^}]*\bsupportedLanguages\b[^}]*\} = useModernI18n\(\);/,
       'supportedLanguages must be destructured from useModernI18n() — otherwise the generated page references an undeclared identifier',
     );
+    const verticalComponents = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/vertical-components.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      verticalComponents,
+      /\.\.\.\(telemetryEntry === undefined \? \{\} : \{ entry: telemetryEntry \}\)/,
+      'generated Module Federation telemetry must omit entry on SSR instead of passing explicit undefined',
+    );
+    assert.match(
+      verticalComponents,
+      /\.\.\.\(telemetry\.entry === undefined \? \{\} : \{ entry: telemetry\.entry \}\)/,
+      'generated Module Federation telemetry emit must omit entry when the payload has no browser URL',
+    );
+    assert.doesNotMatch(
+      verticalComponents,
+      /entry: .*undefined/,
+      'generated Module Federation telemetry must stay compatible with exactOptionalPropertyTypes',
+    );
 
     // Regression: the generated Effect client once accepted
     // locale/operationContext/traceparent options and then passed only
@@ -317,6 +339,16 @@ test('rendered contents of the highest-risk generated files match the checked-in
       path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
       'utf-8',
     );
+    assert.doesNotMatch(
+      generatedSharedApi,
+      /ReadonlyArray</,
+      'generated shared Effect APIs must use readonly T[] array syntax so generated oxlint rules pass',
+    );
+    assert.doesNotMatch(
+      generatedSharedApi,
+      /Schema\.Schema</,
+      'generated shared Effect schemas must preserve codec service channels so strict generated clients do not infer unknown requirements',
+    );
     assert.match(
       generatedSharedApi,
       /export interface CatalogNotFound \{/,
@@ -340,6 +372,16 @@ test('rendered contents of the highest-risk generated files match the checked-in
       generatedEffectEntry,
       /const effectBff: EffectBffDefinition<typeof catalogEffectApi, EffectRuntimeLayer> &\s*EffectBffRuntime<typeof catalogEffectApi, EffectRuntimeLayer>/,
       'generated Effect entry must name its default export type for declaration emit',
+    );
+    assert.match(
+      generatedEffectEntry,
+      /from '\.\.\/\.\.\/shared\/ultramodern-build\.ts';/,
+      'generated Effect entry must read build metadata from the BFF-visible shared boundary',
+    );
+    assert.doesNotMatch(
+      generatedEffectEntry,
+      /src\/ultramodern-build/,
+      'generated Effect entry must not import app src modules during server compilation',
     );
     assert.doesNotMatch(
       generatedEffectEntry,

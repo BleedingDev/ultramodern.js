@@ -101,7 +101,7 @@ export interface CheckoutCartLine {
 }
 
 export interface CheckoutCart {
-  readonly lines: ReadonlyArray<CheckoutCartLine>;
+  readonly lines: readonly CheckoutCartLine[];
   readonly subtotalCents: number;
   readonly totalQuantity: number;
 }
@@ -117,27 +117,27 @@ export interface CheckoutRemoveCartItemPayload {
   readonly sku: string;
 }
 
-export const checkoutCartLineSchema: Schema.Schema<CheckoutCartLine> = Schema.Struct({
+export const checkoutCartLineSchema: Schema.Codec<CheckoutCartLine> = Schema.Struct({
   sku: Schema.String,
   name: Schema.String,
   quantity: Schema.Finite,
   unitPriceCents: Schema.Finite,
 });
 
-export const checkoutCartSchema: Schema.Schema<CheckoutCart> = Schema.Struct({
+export const checkoutCartSchema: Schema.Codec<CheckoutCart> = Schema.Struct({
   lines: Schema.Array(checkoutCartLineSchema),
   subtotalCents: Schema.Finite,
   totalQuantity: Schema.Finite,
 });
 
-export const checkoutAddCartItemPayloadSchema: Schema.Schema<CheckoutAddCartItemPayload> = Schema.Struct({
+export const checkoutAddCartItemPayloadSchema: Schema.Codec<CheckoutAddCartItemPayload> = Schema.Struct({
   sku: Schema.String,
   name: Schema.optional(Schema.String),
   quantity: Schema.Finite,
   unitPriceCents: Schema.optional(Schema.Finite),
 });
 
-export const checkoutRemoveCartItemPayloadSchema: Schema.Schema<CheckoutRemoveCartItemPayload> = Schema.Struct({
+export const checkoutRemoveCartItemPayloadSchema: Schema.Codec<CheckoutRemoveCartItemPayload> = Schema.Struct({
   sku: Schema.String,
 });
 `;
@@ -485,7 +485,7 @@ export interface ${createPayloadType} {
 }
 
 export interface ${listResponseType} {
-  readonly items: ReadonlyArray<${itemType}>;
+  readonly items: readonly ${itemType}[];
 }
 
 export interface ${createResponseType} {
@@ -497,7 +497,7 @@ export interface ${notFoundErrorExport} {
   readonly id: string;
 }
 
-export const ${markerSchemaExport}: Schema.Schema<${markerType}> = Schema.Struct({
+export const ${markerSchemaExport}: Schema.Codec<${markerType}> = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
   deployProfile: Schema.String,
@@ -506,13 +506,13 @@ export const ${markerSchemaExport}: Schema.Schema<${markerType}> = Schema.Struct
   version: Schema.String,
 });
 
-export const ${schemaExport}: Schema.Schema<${itemType}> = Schema.Struct({
+export const ${schemaExport}: Schema.Codec<${itemType}> = Schema.Struct({
   id: Schema.String,
   marker: ${markerSchemaExport},
   title: Schema.String,
 });
 
-export const ${readinessSchemaExport}: Schema.Schema<${readinessType}> = Schema.Struct({
+export const ${readinessSchemaExport}: Schema.Codec<${readinessType}> = Schema.Struct({
   checks: Schema.Struct({
     effectBff: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
@@ -524,11 +524,11 @@ export const ${readinessSchemaExport}: Schema.Schema<${readinessType}> = Schema.
   versionSkew: Schema.Literal('none'),
 });
 
-export const ${createPayloadSchemaExport}: Schema.Schema<${createPayloadType}> = Schema.Struct({
+export const ${createPayloadSchemaExport}: Schema.Codec<${createPayloadType}> = Schema.Struct({
   title: Schema.String,
 });
 
-${checkoutCartSharedSchemaSection}export const ${notFoundSchemaExport}: Schema.Schema<${notFoundErrorExport}> = Schema.TaggedStruct('${notFoundErrorExport}', {
+${checkoutCartSharedSchemaSection}export const ${notFoundSchemaExport}: Schema.Codec<${notFoundErrorExport}> = Schema.TaggedStruct('${notFoundErrorExport}', {
   id: Schema.String,
 }).pipe(
   HttpApiSchema.status(404),
@@ -648,7 +648,7 @@ import type {
   EffectBffRuntime,
   EffectRuntimeLayer,
 } from '@modern-js/plugin-bff/effect-edge';
-import { ultramodernApiMarker } from '../../src/ultramodern-build.ts';
+import { ultramodernApiMarker } from '../../shared/ultramodern-build.ts';
 import {
   ${apiExport},
   ${groupName}OperationContexts,

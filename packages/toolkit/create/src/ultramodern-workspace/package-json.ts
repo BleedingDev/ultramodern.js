@@ -405,9 +405,10 @@ export function createPackageTsConfig(
     'modern.config.ts',
     'module-federation.config.ts',
     'package.json',
+    'shared',
   ];
   if (resolvedOptions.includeApi) {
-    include.push('api', 'shared');
+    include.push('api');
   }
   const references = createReferences(
     packageDir,

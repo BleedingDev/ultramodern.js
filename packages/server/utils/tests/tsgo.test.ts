@@ -88,6 +88,54 @@ describe('createResolvedTsgoConfig', () => {
     }
   });
 
+  it('filters app-side generated declarations out of BFF server compiles', async () => {
+    const { example, tempRoot } = await createIsolatedTsExample();
+    const tsconfigPath = path.join(example, 'tsconfig.json');
+    const sourceDirs = [
+      path.join(example, 'api'),
+      path.join(example, 'shared'),
+    ];
+
+    await fs.outputFile(
+      path.join(example, 'src/modern-tanstack/register.gen.d.ts'),
+      "import type { router } from './index/router.gen';\nexport type RegisteredRouter = typeof router;\n",
+    );
+    await fs.outputFile(
+      path.join(example, 'src/modern-tanstack/index/router.gen.ts'),
+      "import page from '../../routes/page';\nexport const router = { page };\n",
+    );
+    await fs.outputFile(
+      path.join(example, 'src/routes/page.tsx'),
+      'export default function Page() { return null; }\n',
+    );
+
+    const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
+      example,
+      tsconfigPath,
+      path.join(example, 'dist-bff'),
+      sourceDirs,
+      undefined,
+      getTsgoBinPath(example),
+    );
+
+    try {
+      const resolvedFiles = (config.files ?? []).map(file =>
+        path.resolve(example, file),
+      );
+      expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
+      expect(resolvedFiles).toContain(path.join(example, 'shared/index.ts'));
+      expect(resolvedFiles).not.toContain(
+        path.join(example, 'src/modern-tanstack/register.gen.d.ts'),
+      );
+      expect(resolvedFiles).not.toContain(
+        path.join(example, 'src/modern-tanstack/index/router.gen.ts'),
+      );
+    } finally {
+      await fs.remove(resolvedConfigPath);
+      await fs.remove(tempRoot);
+    }
+  });
+
   it('uses unique file names for concurrent compiles in one process', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, 'tsconfig.json');
