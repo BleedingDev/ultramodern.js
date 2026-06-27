@@ -124,6 +124,73 @@ const makeManifest = () => ({
   ],
 });
 
+const makePublishOrderFixture = () => {
+  const root = makeTempDir();
+  const packages = [
+    {
+      sourceName: '@modern-js/create',
+      targetName: '@bleedingdev/modern-js-create',
+      dependencies: {
+        '@modern-js/i18n-utils':
+          'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
+      },
+    },
+    {
+      sourceName: '@modern-js/i18n-utils',
+      targetName: '@bleedingdev/modern-js-i18n-utils',
+      dependencies: {
+        '@modern-js/utils':
+          'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+      },
+    },
+    {
+      sourceName: '@modern-js/runtime',
+      targetName: '@bleedingdev/modern-js-runtime',
+      dependencies: {},
+    },
+    {
+      sourceName: '@modern-js/utils',
+      targetName: '@bleedingdev/modern-js-utils',
+      dependencies: {},
+    },
+  ].map(item => {
+    const packageDir = path.join(
+      root,
+      item.targetName.replaceAll('/', '__'),
+      'package',
+    );
+    writeJson(path.join(packageDir, 'package.json'), {
+      name: item.targetName,
+      version: '3.2.0-ultramodern.1',
+      dependencies: item.dependencies,
+      publishConfig: {
+        access: 'public',
+      },
+    });
+
+    return {
+      sourceName: item.sourceName,
+      targetName: item.targetName,
+      version: '3.2.0-ultramodern.1',
+      packageDir: path.relative(repoRoot, packageDir),
+    };
+  });
+
+  return {
+    root,
+    manifest: {
+      ...makeManifest(),
+      aliases: {
+        '@modern-js/create': '@bleedingdev/modern-js-create',
+        '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
+        '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+        '@modern-js/utils': '@bleedingdev/modern-js-utils',
+      },
+      packages,
+    },
+  };
+};
+
 test('publish-existing rejects create packages missing hidden workspace template files', () => {
   const outDir = makeCreateFixture({ includeTemplateDotFiles: false });
 
@@ -285,6 +352,76 @@ test('orderPublishItems publishes create last so users do not see an incomplete 
   assert.deepEqual(
     orderPublishItems(manifest.packages).map(item => item.sourceName),
     ['@modern-js/runtime', '@modern-js/create'],
+  );
+});
+
+test('orderPublishItems publishes hard dependencies before consumers', async () => {
+  const { orderPublishItems } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = makePublishOrderFixture();
+
+  try {
+    const orderedSourceNames = orderPublishItems(
+      fixture.manifest.packages,
+      fixture.manifest,
+    ).map(item => item.sourceName);
+    assert(
+      orderedSourceNames.indexOf('@modern-js/utils') <
+        orderedSourceNames.indexOf('@modern-js/i18n-utils'),
+    );
+    assert(
+      orderedSourceNames.indexOf('@modern-js/i18n-utils') <
+        orderedSourceNames.indexOf('@modern-js/create'),
+    );
+    assert.equal(
+      orderedSourceNames.at(-1),
+      '@modern-js/create',
+      'create must still publish last',
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('assertRegistryTarballReachable rejects missing npm tarballs', async () => {
+  const { assertRegistryTarballReachable } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+
+  await assert.rejects(
+    () =>
+      assertRegistryTarballReachable(
+        '@bleedingdev/modern-js-utils',
+        '3.2.0-ultramodern.1',
+        {
+          tarball:
+            'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz',
+        },
+        async () => ({ ok: false, status: 404 }),
+      ),
+    /returned HTTP 404/,
+  );
+});
+
+test('assertRegistryTarballReachable accepts reachable npm tarballs', async () => {
+  const { assertRegistryTarballReachable } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+
+  await assert.doesNotReject(() =>
+    assertRegistryTarballReachable(
+      '@bleedingdev/modern-js-utils',
+      '3.2.0-ultramodern.1',
+      {
+        tarball:
+          'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz',
+      },
+      async (_url, init) => {
+        assert.equal(init.method, 'HEAD');
+        return { ok: true, status: 200 };
+      },
+    ),
   );
 });
 

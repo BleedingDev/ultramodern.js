@@ -659,6 +659,36 @@ async function resolveRegistryDistTag(packageName, tag) {
   return typeof distTags?.[tag] === 'string' ? distTags[tag] : undefined;
 }
 
+async function resolveRegistryPackageDist(packageName, version) {
+  const { stdout } = await execFileAsync(
+    'npm',
+    ['view', `${packageName}@${version}`, 'dist', '--json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    },
+  );
+  return JSON.parse(stdout);
+}
+
+async function assertRegistryTarballReachable(
+  packageName,
+  version,
+  dist,
+  fetchImpl = globalThis.fetch,
+) {
+  if (!dist || typeof dist.tarball !== 'string') {
+    throw new Error(`${packageName}@${version} is missing dist.tarball`);
+  }
+
+  const response = await fetchImpl(dist.tarball, { method: 'HEAD' });
+  if (!response.ok) {
+    throw new Error(
+      `${packageName}@${version} tarball ${dist.tarball} returned HTTP ${response.status}`,
+    );
+  }
+}
+
 async function verifyRegistryPackage(packageName, version) {
   const attempts = 12;
   const retryDelayMs = 5000;
@@ -675,6 +705,11 @@ async function verifyRegistryPackage(packageName, version) {
           `Published package ${packageName}@${version} resolved unexpected version ${publishedVersion}`,
         );
       }
+      await assertRegistryTarballReachable(
+        packageName,
+        version,
+        await resolveRegistryPackageDist(packageName, version),
+      );
       return;
     } catch (error) {
       lastError =
@@ -834,8 +869,51 @@ async function validateRegistryCohort(
   }
 }
 
-function orderPublishItems(packages) {
-  return [...packages].sort((left, right) => {
+function dependencyTargetForSpecifier(dependencyName, specifier, manifest) {
+  const targetNames = new Set(manifest.packages.map(item => item.targetName));
+  const aliasedTarget = manifest.aliases?.[dependencyName];
+  if (targetNames.has(aliasedTarget)) {
+    return aliasedTarget;
+  }
+  if (targetNames.has(dependencyName)) {
+    return dependencyName;
+  }
+  if (typeof specifier !== 'string') {
+    return undefined;
+  }
+
+  const match = /^npm:(?<packageName>@[^/]+\/[^@]+|[^@]+)@/u.exec(specifier);
+  const packageName = match?.groups?.packageName;
+  return packageName && targetNames.has(packageName) ? packageName : undefined;
+}
+
+function publishDependenciesForItem(item, manifest) {
+  const packageJsonPath = path.join(repoRoot, item.packageDir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return [];
+  }
+  const packageJson = readJsonFile(packageJsonPath);
+  const dependencies = ['dependencies', 'optionalDependencies'].flatMap(
+    blockName => Object.entries(packageJson[blockName] ?? {}),
+  );
+
+  return [
+    ...new Set(
+      dependencies
+        .map(([dependencyName, specifier]) =>
+          dependencyTargetForSpecifier(dependencyName, specifier, manifest),
+        )
+        .filter(
+          dependencyTarget =>
+            dependencyTarget !== undefined &&
+            dependencyTarget !== item.targetName,
+        ),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+}
+
+function orderPublishItems(packages, manifest = { aliases: {}, packages }) {
+  const sourceOrderedPackages = [...packages].sort((left, right) => {
     if (left.sourceName === '@modern-js/create') {
       return 1;
     }
@@ -844,12 +922,44 @@ function orderPublishItems(packages) {
     }
     return left.sourceName.localeCompare(right.sourceName);
   });
+  const byTargetName = new Map(
+    sourceOrderedPackages.map(item => [item.targetName, item]),
+  );
+  const visiting = new Set();
+  const visited = new Set();
+  const ordered = [];
+
+  const visit = item => {
+    if (visited.has(item.targetName)) {
+      return;
+    }
+    if (visiting.has(item.targetName)) {
+      throw new Error(
+        `BleedingDev publish dependency cycle includes ${item.targetName}`,
+      );
+    }
+
+    visiting.add(item.targetName);
+    for (const dependencyTarget of publishDependenciesForItem(item, manifest)) {
+      const dependency = byTargetName.get(dependencyTarget);
+      if (dependency) {
+        visit(dependency);
+      }
+    }
+    visiting.delete(item.targetName);
+    visited.add(item.targetName);
+    ordered.push(item);
+  };
+
+  for (const item of sourceOrderedPackages) {
+    visit(item);
+  }
+
+  return ordered;
 }
 
 async function publishManifestPackages(manifest, options) {
-  let nextIndex = 0;
-  const publishItems = orderPublishItems(manifest.packages);
-  const concurrency = Math.min(options.publishConcurrency, publishItems.length);
+  const publishItems = orderPublishItems(manifest.packages, manifest);
 
   const publishOne = async item => {
     const packageDir = path.join(repoRoot, item.packageDir);
@@ -876,33 +986,16 @@ async function publishManifestPackages(manifest, options) {
     }
   };
 
-  const failures = [];
-  const workers = Array.from({ length: concurrency }, async () => {
-    while (nextIndex < publishItems.length && failures.length === 0) {
-      const item = publishItems[nextIndex];
-      nextIndex += 1;
-      try {
-        await publishOne(item);
-      } catch (error) {
-        failures.push(error);
-      }
-    }
-  });
-
   console.log(
-    `Publishing ${manifest.packages.length} package(s) with concurrency ${concurrency}`,
+    `Publishing ${manifest.packages.length} package(s) in dependency order`,
   );
-  await Promise.all(workers);
-
-  if (failures.length === 1) {
-    throw failures[0];
-  }
-  if (failures.length > 1) {
-    throw new Error(
-      failures
-        .map(error => (error instanceof Error ? error.message : String(error)))
-        .join('\n'),
+  if (options.publishConcurrency !== 1) {
+    console.log(
+      `Ignoring publish concurrency ${options.publishConcurrency}; full-cohort packages publish sequentially so dependency tarballs are fetchable before consumers.`,
     );
+  }
+  for (const item of publishItems) {
+    await publishOne(item);
   }
 
   await validateRegistryCohort(manifest, options);
@@ -1007,6 +1100,7 @@ if (isDirectRun()) {
 }
 
 export {
+  assertRegistryTarballReachable,
   orderPublishItems,
   parseArgs,
   validateFullCohortManifest,
