@@ -583,6 +583,28 @@ function getRemoteManifestUrl(remote, request) {
   return new URL(entry, request.url).toString();
 }
 
+function ensureTrailingSlash(value) {
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
+function getRemoteAssetBase(remoteManifest, manifestUrl) {
+  const publicPath =
+    typeof remoteManifest?.metaData?.publicPath === 'string'
+      ? remoteManifest.metaData.publicPath
+      : undefined;
+  const fallbackBase = new URL('.', manifestUrl).toString();
+
+  if (!publicPath || publicPath === 'auto') {
+    return fallbackBase;
+  }
+
+  try {
+    return new URL(ensureTrailingSlash(publicPath), manifestUrl).toString();
+  } catch {
+    return fallbackBase;
+  }
+}
+
 async function fetchRemoteJson(jsonUrl) {
   if (!remoteJsonPromises.has(jsonUrl)) {
     remoteJsonPromises.set(
@@ -699,10 +721,7 @@ async function collectRenderedRemoteCssHrefs(html, request, env) {
 
       const remoteManifest = await fetchRemoteJson(manifestUrl);
       const remoteExpose = findRemoteExpose(remoteManifest, expose);
-      const publicPath =
-        typeof remoteManifest?.metaData?.publicPath === 'string'
-          ? remoteManifest.metaData.publicPath
-          : manifestUrl;
+      const publicPath = getRemoteAssetBase(remoteManifest, manifestUrl);
       const remoteRouteManifest = await fetchRemoteJson(
         new URL('routes-manifest.json', publicPath).toString(),
       );

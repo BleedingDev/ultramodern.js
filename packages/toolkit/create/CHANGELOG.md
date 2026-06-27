@@ -4,15 +4,16 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.14 Migration Notes
+### BleedingDev 3.4.0-ultramodern.15 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern cleanup cohort that addresses the generated-app bloat found in
   `3.4.0-ultramodern.12`.
-- `3.4.0-ultramodern.14` supersedes `3.4.0-ultramodern.13`. The `.13` cohort
-  published the cleanup, but fresh workspaces could fail `format:check`;
-  `.14` preformats generated files with the same `oxfmt`/Ultracite config that
-  generated workspaces enforce.
+- `3.4.0-ultramodern.15` supersedes `3.4.0-ultramodern.13` and
+  `3.4.0-ultramodern.14`. The `.13` cohort published the cleanup, but fresh
+  workspaces could fail `format:check`; `.14` preformatted generated files, but
+  downstream Cloudflare Worker SSR could still crash when a federated remote
+  published `publicPath: "/"`. Use `.15` as the migration target.
 - Fresh generated workspaces commit compact UltraModern provenance and config
   in `.modernjs/ultramodern.json` instead of committing the large generated
   contract, package-source, and template-manifest metadata files.

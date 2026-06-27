@@ -1,22 +1,25 @@
-# MIGRATION-PLAYBOOK-0003: UltraModern 3.4.0-ultramodern.14
+# MIGRATION-PLAYBOOK-0003: UltraModern 3.4.0-ultramodern.15
 
 - Status: Accepted
 - Date: 2026-06-27
 - From: `3.4.0-ultramodern.12`
-- To: `3.4.0-ultramodern.14`
+- To: `3.4.0-ultramodern.15`
 - Related packages: `@bleedingdev/modern-js-create`,
   `@bleedingdev/modern-js-app-tools`, `@bleedingdev/modern-js-builder`
 
 ## 1. Purpose
 
-`3.4.0-ultramodern.14` is the cleanup release for generated UltraModern.js
+`3.4.0-ultramodern.15` is the cleanup release for generated UltraModern.js
 workspaces. It keeps the framework behavior in the framework package and keeps
 generated apps focused on app-owned configuration and product code.
 
-`3.4.0-ultramodern.14` supersedes `3.4.0-ultramodern.13`. The `.13` cohort
-published the framework cleanup, but fresh generated workspaces could fail
-`format:check` because generated source was not preformatted with the generated
-workspace's own `oxfmt`/Ultracite config. Use `.14` as the migration target.
+`3.4.0-ultramodern.15` supersedes `3.4.0-ultramodern.13` and
+`3.4.0-ultramodern.14`. The `.13` cohort published the framework cleanup, but
+fresh generated workspaces could fail `format:check` because generated source
+was not preformatted with the generated workspace's own `oxfmt`/Ultracite
+config. The `.14` cohort fixed generation formatting, but downstream deployed
+Cloudflare Worker SSR could still crash when a federated remote published
+`publicPath: "/"`. Use `.15` as the migration target.
 
 This release addresses the main issues found while consuming UltraModern.js
 inside a larger repository:
@@ -42,9 +45,9 @@ inside a larger repository:
 Use the exact cohort for release proof:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.4.0-ultramodern.14 my-workspace \
+pnpm dlx @bleedingdev/modern-js-create@3.4.0-ultramodern.15 my-workspace \
   --ultramodern-package-source install \
-  --ultramodern-package-version 3.4.0-ultramodern.14
+  --ultramodern-package-version 3.4.0-ultramodern.15
 ```
 
 Then validate from the generated workspace:
@@ -62,11 +65,11 @@ mise exec -- pnpm build
 Migrate one published cohort at a time.
 
 1. Update every generated `@modern-js/*` dependency alias to the same
-   `3.4.0-ultramodern.14` cohort.
+   `3.4.0-ultramodern.15` cohort.
 2. Update `@modern-js/create` / `@bleedingdev/modern-js-create` references to
-   `3.4.0-ultramodern.14`.
+   `3.4.0-ultramodern.15`.
 3. Replace generated validator/proof script bodies with the new wrapper form
-   from a fresh `.14` workspace:
+   from a fresh `.15` workspace:
 
    ```js
    #!/usr/bin/env node
@@ -124,9 +127,9 @@ larger repository and intentionally consumes parent packages.
 Example:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.4.0-ultramodern.14 app-name \
+pnpm dlx @bleedingdev/modern-js-create@3.4.0-ultramodern.15 app-name \
   --ultramodern-package-source install \
-  --ultramodern-package-version 3.4.0-ultramodern.14 \
+  --ultramodern-package-version 3.4.0-ultramodern.15 \
   --bridge \
   --bridge-parent-root ../.. \
   --bridge-workspace-package ../../libs/ui \

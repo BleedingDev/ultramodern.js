@@ -1185,6 +1185,103 @@ describe('cloudflare deploy preset', () => {
     }
   });
 
+  it('resolves relative remote publicPath values against the remote manifest URL', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const originalFetch = globalThis.fetch;
+    const remoteManifests: Record<string, unknown> = {
+      'https://checkout.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: '/',
+        },
+        exposes: [
+          {
+            name: 'CartPage',
+            path: './CartPage',
+            assets: {
+              css: {
+                async: [],
+                sync: [],
+              },
+            },
+          },
+        ],
+      },
+      'https://checkout.example.com/routes-manifest.json': {
+        routeAssets: {
+          index: {
+            referenceCssAssets: ['static/css/checkout.css'],
+          },
+        },
+      },
+      'https://explore.example.com/mf-manifest.json': {
+        metaData: {
+          publicPath: '/',
+        },
+        exposes: [
+          {
+            name: 'Header',
+            path: './Header',
+            assets: {
+              css: {
+                async: ['static/css/explore.css'],
+                sync: [],
+              },
+            },
+          },
+        ],
+      },
+      'https://explore.example.com/routes-manifest.json': {
+        routeAssets: {},
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const manifest = remoteManifests[url];
+
+      if (manifest) {
+        return new Response(JSON.stringify(manifest), {
+          headers: {
+            'content-type': 'application/json',
+          },
+        });
+      }
+
+      return originalFetch(input);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request('https://example.com/styled'),
+        {
+          ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+        },
+      );
+      const html = await response.text();
+      const linkHeader = response.headers.get('link');
+
+      expect(response.status).toBe(200);
+      expect(linkHeader).toContain(
+        '<https://explore.example.com/static/css/explore.css>; rel=preload; as=style',
+      );
+      expect(linkHeader).toContain(
+        '<https://checkout.example.com/static/css/checkout.css>; rel=preload; as=style',
+      );
+      expect(html).toContain(
+        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+      );
+      expect(html).toContain(
+        '<link rel="stylesheet" href="https://checkout.example.com/static/css/checkout.css">',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('serves fingerprinted Cloudflare assets with immutable cache headers', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
