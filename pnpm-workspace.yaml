@@ -44,6 +44,9 @@ patchedDependencies:
   # import the DTS plugin in the TS 7 native-preview lane.
   '@module-federation/manifest@2.6.0': patches/@module-federation__manifest@2.6.0.patch
   '@module-federation/rspack@2.6.0': patches/@module-federation__rspack@2.6.0.patch
+  # Stop TanStack loadMatches from dereferencing cached preload matches after
+  # RouterCore.updateMatch deletes them on redirect.
+  '@tanstack/router-core@1.171.13': patches/@tanstack__router-core@1.171.13.patch
 
 overrides:
   micromatch: ^4.0.8

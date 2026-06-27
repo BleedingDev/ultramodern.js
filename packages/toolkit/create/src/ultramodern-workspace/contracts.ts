@@ -760,6 +760,7 @@ export function createTemplateManifest(
         'package.json',
         'oxfmt.config.ts',
         'oxlint.config.ts',
+        'patches/**',
         'pnpm-workspace.yaml',
         'scripts/**',
         'topology/**',

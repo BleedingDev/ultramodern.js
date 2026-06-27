@@ -41,6 +41,7 @@ pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 patchedDependencies:
   '@module-federation/manifest@2.6.0': 3a621e068c904663261b452a76ea08516c809f13542d13dbfef3397912d342b7
   '@module-federation/rspack@2.6.0': 9879c6fa61d9945dc51e2e5fc6f8abdcb8d59be1579e5880c92350673613b3a1
+  '@tanstack/router-core@1.171.13': 0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3
 
 importers:
 
@@ -899,7 +900,7 @@ importers:
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/router-core':
         specifier: 1.171.13
-        version: 1.171.13
+        version: 1.171.13(patch_hash=0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -20327,7 +20328,7 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.0
       '@tanstack/react-store': 0.9.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tanstack/router-core': 1.171.13
+      '@tanstack/router-core': 1.171.13(patch_hash=0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3)
       isbot: 5.1.44
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -20339,7 +20340,7 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
 
-  '@tanstack/router-core@1.171.13':
+  '@tanstack/router-core@1.171.13(patch_hash=0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3)':
     dependencies:
       '@tanstack/history': 1.162.0
       cookie-es: 3.1.1

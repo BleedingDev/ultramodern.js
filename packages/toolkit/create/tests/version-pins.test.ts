@@ -30,6 +30,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
   );
   assert.match(
     pnpmWorkspaceTemplate,
+    /'@tanstack\/router-core@\{\{tanstackRouterVersion\}\}': patches\/@tanstack__router-core@\{\{tanstackRouterVersion\}\}\.patch/,
+    'pnpm-workspace patchedDependency must use the tanstackRouterVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
     /node-fetch: '\{\{nodeFetchVersion\}\}'/,
     'pnpm-workspace override must use the nodeFetchVersion placeholder',
   );
@@ -92,6 +97,12 @@ test('generated workspace renders the pins from versions.ts', () => {
         `'@tanstack/react-router': ${TANSTACK_ROUTER_VERSION}`,
       ),
       'generated pnpm-workspace override must match TANSTACK_ROUTER_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(
+        `'@tanstack/router-core@${TANSTACK_ROUTER_VERSION}': patches/@tanstack__router-core@${TANSTACK_ROUTER_VERSION}.patch`,
+      ),
+      'generated pnpm-workspace patchedDependency must match TANSTACK_ROUTER_VERSION',
     );
     assert.ok(
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),

@@ -79,6 +79,7 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-design-tokens/src/tokens.css',
   'packages/shared-design-tokens/tsconfig.json',
+  'patches/@tanstack__router-core@1.171.13.patch',
   'pnpm-workspace.yaml',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',

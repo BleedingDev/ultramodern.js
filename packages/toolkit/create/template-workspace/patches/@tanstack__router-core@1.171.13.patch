@@ -1,0 +1,51 @@
+diff --git a/dist/cjs/load-matches.cjs b/dist/cjs/load-matches.cjs
+index c09976a80c2c112b7dac6f941e643c81eeaf8d52..ec5156d89e9c5924a9ec0c19aad79711124f9ff4 100644
+--- a/dist/cjs/load-matches.cjs
++++ b/dist/cjs/load-matches.cjs
+@@ -442,0 +443 @@
++					if (!match) return;
+@@ -472,0 +474 @@
++			if (!match) return inner.matches[index];
+@@ -487,0 +490 @@
++	if (!match) return inner.matches[index];
+@@ -503 +506 @@
+-		return inner.router.getMatch(matchId);
++		return inner.router.getMatch(matchId) ?? inner.matches[index];
+diff --git a/dist/esm/load-matches.js b/dist/esm/load-matches.js
+index bcea2e0d88d037a01b93bf36dd6e643f98028e83..57484bf2825dab47030a1d4f905b9fb2e6067310 100644
+--- a/dist/esm/load-matches.js
++++ b/dist/esm/load-matches.js
+@@ -442,0 +443 @@
++					if (!match) return;
+@@ -472,0 +474 @@
++			if (!match) return inner.matches[index];
+@@ -487,0 +490 @@
++	if (!match) return inner.matches[index];
+@@ -503 +506 @@
+-		return inner.router.getMatch(matchId);
++		return inner.router.getMatch(matchId) ?? inner.matches[index];
+diff --git a/src/load-matches.ts b/src/load-matches.ts
+index f901a0c97ddf0618dd83229ac260277b46e2676d..76674e01e89ac2cbaba4d776c2be3bf0e3fdb432 100644
+--- a/src/load-matches.ts
++++ b/src/load-matches.ts
+@@ -838 +838,4 @@
+-          const match = inner.router.getMatch(matchId)!
++          const match = inner.router.getMatch(matchId)
++          if (!match) {
++            return
++          }
+@@ -906 +909,4 @@
+-      const match = inner.router.getMatch(matchId)!
++      const match = inner.router.getMatch(matchId)
++      if (!match) {
++        return inner.matches[index]!
++      }
+@@ -936 +942,4 @@
+-  const match = inner.router.getMatch(matchId)!
++  const match = inner.router.getMatch(matchId)
++  if (!match) {
++    return inner.matches[index]!
++  }
+@@ -955 +964 @@
+-    return inner.router.getMatch(matchId)!
++    return inner.router.getMatch(matchId) ?? inner.matches[index]!
