@@ -196,4 +196,48 @@ describe('createResolvedTsgoConfig', () => {
       await fs.remove(tempRoot);
     }
   });
+
+  it('keeps allowImportingTsExtensions valid when forcing emit', async () => {
+    const { example, tempRoot } = await createIsolatedTsExample();
+    const tsconfigPath = path.join(example, 'tsconfig.allow-importing-ts.json');
+    const sourceDirs = [path.join(example, 'api')];
+
+    await fs.outputJSON(tsconfigPath, {
+      compilerOptions: {
+        allowImportingTsExtensions: true,
+        module: 'preserve',
+        moduleResolution: 'Bundler',
+        noEmit: true,
+        target: 'ESNext',
+      },
+      files: ['api/index.ts'],
+    });
+
+    const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
+      example,
+      tsconfigPath,
+      path.join(example, 'dist-allow-importing-ts'),
+      sourceDirs,
+      'module',
+      getTsgoBinPath(example),
+    );
+
+    try {
+      expect(config.compilerOptions?.allowImportingTsExtensions).toBe(true);
+      expect(config.compilerOptions?.noEmit).toBe(false);
+      expect(config.compilerOptions?.rewriteRelativeImportExtensions).toBe(
+        true,
+      );
+      await expect(fs.readJSON(resolvedConfigPath)).resolves.toMatchObject({
+        compilerOptions: {
+          allowImportingTsExtensions: true,
+          noEmit: false,
+          rewriteRelativeImportExtensions: true,
+        },
+      });
+    } finally {
+      await fs.remove(resolvedConfigPath);
+      await fs.remove(tempRoot);
+    }
+  });
 });

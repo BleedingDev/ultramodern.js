@@ -10,6 +10,7 @@ import {
 
 type TsgoConfig = {
   compilerOptions?: {
+    allowImportingTsExtensions?: boolean;
     baseUrl?: unknown;
     module?: string;
     moduleResolution?: string;
@@ -17,6 +18,7 @@ type TsgoConfig = {
     noEmitOnError?: boolean;
     outDir?: string;
     rootDir?: string;
+    rewriteRelativeImportExtensions?: boolean;
     verbatimModuleSyntax?: boolean;
   };
   files?: string[];
@@ -61,6 +63,9 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
   config.compilerOptions.noEmit = false;
+  if (config.compilerOptions.allowImportingTsExtensions === true) {
+    config.compilerOptions.rewriteRelativeImportExtensions = true;
+  }
   // `--showConfig` emits `files` relative to the tsconfig directory.
   config.files = filterSourceFiles(tsconfigDir, sourceDirs, config.files);
   delete config.include;
