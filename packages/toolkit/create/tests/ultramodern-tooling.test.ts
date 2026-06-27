@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
-import { readUltramodernConfig } from '../src/ultramodern-tooling/config';
+import {
+  readUltramodernConfig,
+  workspaceAppsFromToolingConfig,
+} from '../src/ultramodern-tooling/config';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
@@ -175,4 +178,61 @@ test('UltraModern mf-types validates real Module Federation config files', async
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('compact UltraModern config maps component exposes to concrete DTS source files', () => {
+  const apps = workspaceAppsFromToolingConfig({
+    schemaVersion: 1,
+    source: 'compact',
+    sourcePath: '.modernjs/ultramodern.json',
+    workspace: {
+      packageScope: 'tooling-exposes',
+    },
+    features: {
+      tailwind: true,
+    },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          moduleFederation: {
+            role: 'host',
+            name: 'shellSuperApp',
+            exposes: [],
+            verticalRefs: ['catalog'],
+          },
+        },
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          domain: 'catalog',
+          moduleFederation: {
+            role: 'remote',
+            name: 'verticalCatalog',
+            exposes: ['./ProductGrid', './Route', './Widget', './Custom'],
+            exposePaths: {
+              './Custom': './src/features/custom-surface.tsx',
+            },
+          },
+          effectApi: {
+            stem: 'catalog',
+            prefix: '/catalog-api',
+            consumedBy: ['shell-super-app', 'catalog'],
+          },
+        },
+      ],
+    },
+  });
+
+  const catalog = apps.find(app => app.id === 'catalog');
+
+  assert.deepEqual(catalog?.exposes, {
+    './Custom': './src/features/custom-surface.tsx',
+    './ProductGrid': './src/components/product-grid.tsx',
+    './Route': './src/federation-entry.tsx',
+    './Widget': './src/components/catalog-widget.tsx',
+  });
 });

@@ -22,7 +22,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `CI-HARDENING-0001-mv-tier-budgets-and-flake-policy.md` (Retired 2026-06-12)
 - `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
 - `MIGRATION-PLAYBOOK-0002-ultramodern-shared-checks.md`
-- `MIGRATION-PLAYBOOK-0003-ultramodern-3-4-0-ultramodern-16.md`
+- `MIGRATION-PLAYBOOK-0003-ultramodern-3-4-0-ultramodern-17.md`
 - `SUNSET-DECISION-0001-compatibility-lanes.md`
 - `DEPENDENCY-0001-parallel-lane-matrix.md`
 - `DIAG-0001-rsdoctor-diagnostics-contract.md` (Reverted 2026-06-12)

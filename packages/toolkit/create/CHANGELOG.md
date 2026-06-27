@@ -4,19 +4,21 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.16 Migration Notes
+### BleedingDev 3.4.0-ultramodern.17 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern cleanup cohort that addresses the generated-app bloat found in
   `3.4.0-ultramodern.12`.
-- `3.4.0-ultramodern.16` supersedes `3.4.0-ultramodern.13`,
-  `3.4.0-ultramodern.14`, and `3.4.0-ultramodern.15`. The `.13` cohort
+- `3.4.0-ultramodern.17` supersedes `3.4.0-ultramodern.13`,
+  `3.4.0-ultramodern.14`, `3.4.0-ultramodern.15`, and
+  `3.4.0-ultramodern.16`. The `.13` cohort
   published the cleanup, but fresh workspaces could fail `format:check`; `.14`
   preformatted generated files, but downstream Cloudflare Worker SSR could
   still crash when a federated remote published `publicPath: "/"`; `.15` fixed
   the SSR runtime path, but generated Cloudflare proof still compared raw MF
-  manifest `publicPath` strings instead of their resolved asset base. Use `.16`
-  as the migration target.
+  manifest `publicPath` strings instead of their resolved asset base; `.16`
+  fixed that proof but compact validation could under-describe customized
+  component exposes. Use `.17` as the migration target.
 - Fresh generated workspaces commit compact UltraModern provenance and config
   in `.modernjs/ultramodern.json` instead of committing the large generated
   contract, package-source, and template-manifest metadata files.
@@ -27,6 +29,8 @@
 - Module Federation type validation now discovers real generated app configs,
   reads actual `exposes`, requires non-empty `dist/@mf-types.zip` archives for
   exposing apps, and checks the `tsgo` compiler plus generated MF tsconfig path.
+  Compact config validation also maps component exposes to concrete DTS source
+  files, with explicit `exposePaths` overrides for non-standard files.
 - Generated Cloudflare Worker output accepts generic Wrangler-compatible
   `deploy.worker.wrangler` config and protected `deploy.worker.artifacts`
   staging, while server-only app directories are excluded from public assets.

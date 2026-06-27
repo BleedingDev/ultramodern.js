@@ -37,6 +37,7 @@ export type UltramodernToolingConfigApp = {
     role?: 'host' | 'remote';
     name?: string;
     exposes?: string[];
+    exposePaths?: Record<string, string>;
     verticalRefs?: string[];
     hostOnly?: boolean;
     noExposes?: boolean;
@@ -225,6 +226,20 @@ function normalizeCompactConfig(
                             typeof expose === 'string',
                         )
                       : undefined,
+                    exposePaths:
+                      app.moduleFederation.exposePaths !== null &&
+                      typeof app.moduleFederation.exposePaths === 'object' &&
+                      !Array.isArray(app.moduleFederation.exposePaths)
+                        ? Object.fromEntries(
+                            Object.entries(
+                              app.moduleFederation.exposePaths,
+                            ).filter(
+                              (entry): entry is [string, string] =>
+                                typeof entry[0] === 'string' &&
+                                typeof entry[1] === 'string',
+                            ),
+                          )
+                        : undefined,
                     verticalRefs: Array.isArray(
                       app.moduleFederation.verticalRefs,
                     )
@@ -405,15 +420,21 @@ export function workspaceAppsFromToolingConfig(
 
     const domain = app.domain ?? app.id;
     const packageSuffix = app.packageSuffix ?? domain;
+    const exposePaths = app.moduleFederation?.exposePaths ?? {};
     const exposes = Object.fromEntries(
-      (app.moduleFederation?.exposes ?? []).map(expose => [
-        expose,
-        expose === './Route'
-          ? './src/federation-entry.tsx'
-          : expose === './Widget'
-            ? `./src/components/${domain}-widget.tsx`
-            : '',
-      ]),
+      (app.moduleFederation?.exposes ?? []).map(expose => {
+        const configuredPath = exposePaths[expose];
+        const inferredPath =
+          expose === './Route'
+            ? './src/federation-entry.tsx'
+            : expose === './Widget'
+              ? `./src/components/${domain}-widget.tsx`
+              : `./src/components/${toKebabCase(
+                  expose.replace(/^\.\//u, ''),
+                )}.tsx`;
+
+        return [expose, configuredPath ?? inferredPath];
+      }),
     );
 
     return {
