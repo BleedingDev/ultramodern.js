@@ -6,6 +6,7 @@ import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
   NODE_FETCH_VERSION,
   PNPM_VERSION,
+  TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -30,8 +31,13 @@ test('static templates read version pins from versions.ts placeholders', () => {
   );
   assert.match(
     pnpmWorkspaceTemplate,
-    /'@tanstack\/router-core@\{\{tanstackRouterVersion\}\}': patches\/@tanstack__router-core@\{\{tanstackRouterVersion\}\}\.patch/,
-    'pnpm-workspace patchedDependency must use the tanstackRouterVersion placeholder',
+    /'@tanstack\/router-core': \{\{tanstackRouterCoreVersion\}\}/,
+    'pnpm-workspace override must use the tanstackRouterCoreVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'@tanstack\/router-core@\{\{tanstackRouterCoreVersion\}\}': patches\/@tanstack__router-core@\{\{tanstackRouterCoreVersion\}\}\.patch/,
+    'pnpm-workspace patchedDependency must use the tanstackRouterCoreVersion placeholder',
   );
   assert.match(
     pnpmWorkspaceTemplate,
@@ -58,6 +64,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
     pnpmWorkspaceTemplate,
     new RegExp(TANSTACK_ROUTER_VERSION.replace(/\./g, '\\.')),
     'pnpm-workspace template must not re-hardcode the TanStack Router pin',
+  );
+  assert.doesNotMatch(
+    pnpmWorkspaceTemplate,
+    new RegExp(TANSTACK_ROUTER_CORE_VERSION.replace(/\./g, '\\.')),
+    'pnpm-workspace template must not re-hardcode the TanStack Router Core pin',
   );
 
   assert.match(
@@ -100,9 +111,24 @@ test('generated workspace renders the pins from versions.ts', () => {
     );
     assert.ok(
       pnpmWorkspace.includes(
-        `'@tanstack/router-core@${TANSTACK_ROUTER_VERSION}': patches/@tanstack__router-core@${TANSTACK_ROUTER_VERSION}.patch`,
+        `'@tanstack/router-core': ${TANSTACK_ROUTER_CORE_VERSION}`,
       ),
-      'generated pnpm-workspace patchedDependency must match TANSTACK_ROUTER_VERSION',
+      'generated pnpm-workspace override must match TANSTACK_ROUTER_CORE_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(
+        `'@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}': patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+      ),
+      'generated pnpm-workspace patchedDependency must match TANSTACK_ROUTER_CORE_VERSION',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+        ),
+      ),
+      'generated router-core patch file must match TANSTACK_ROUTER_CORE_VERSION',
     );
     assert.ok(
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),

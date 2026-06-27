@@ -41,6 +41,7 @@ peerDependencyRules:
 
 overrides:
   '@tanstack/react-router': {{tanstackRouterVersion}}
+  '@tanstack/router-core': {{tanstackRouterCoreVersion}}
   node-fetch: '{{nodeFetchVersion}}'
 
 allowBuilds:
@@ -53,4 +54,4 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  '@tanstack/router-core@{{tanstackRouterVersion}}': patches/@tanstack__router-core@{{tanstackRouterVersion}}.patch
+  '@tanstack/router-core@{{tanstackRouterCoreVersion}}': patches/@tanstack__router-core@{{tanstackRouterCoreVersion}}.patch

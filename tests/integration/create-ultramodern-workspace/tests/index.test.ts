@@ -214,6 +214,7 @@ function expectPnpm11Policy(workspaceDir: string) {
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
     '@tanstack/react-router': '1.170.16',
+    '@tanstack/router-core': '1.171.13',
     'node-fetch': '^3.3.2',
   });
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');

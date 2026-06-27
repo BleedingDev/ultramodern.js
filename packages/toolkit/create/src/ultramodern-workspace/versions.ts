@@ -4,6 +4,7 @@
  * checked-in templates under templates/ and template-workspace/.
  */
 export const TANSTACK_ROUTER_VERSION = '1.170.16';
+export const TANSTACK_ROUTER_CORE_VERSION = '1.171.13';
 export const MODULE_FEDERATION_VERSION = '2.6.0';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 export const ZEPHYR_AGENT_VERSION = '1.1.1';
@@ -36,6 +37,7 @@ export const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
 
 export const ultramodernWorkspaceVersions = {
   tanstackRouter: TANSTACK_ROUTER_VERSION,
+  tanstackRouterCore: TANSTACK_ROUTER_CORE_VERSION,
   moduleFederation: MODULE_FEDERATION_VERSION,
   tailwind: TAILWIND_VERSION,
   tailwindPostcss: TAILWIND_POSTCSS_VERSION,

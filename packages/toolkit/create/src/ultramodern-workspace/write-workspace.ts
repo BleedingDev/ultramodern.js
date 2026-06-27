@@ -78,6 +78,7 @@ import {
   NODE_FETCH_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
+  TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
   TYPESCRIPT_VERSION,
 } from './versions';
@@ -318,6 +319,7 @@ export function generateUltramodernWorkspace(
     nodeVersion: NODE_VERSION,
     pnpmVersion: PNPM_VERSION,
     nodeFetchVersion: NODE_FETCH_VERSION,
+    tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
     typescriptVersion: TYPESCRIPT_VERSION,
     tailwindEnabled: String(enableTailwind),
