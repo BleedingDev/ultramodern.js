@@ -237,6 +237,8 @@ function assertIntegratedVertical(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
   );
+  assert.equal(shellPackage.dependencies['react-router-dom'], '7.18.0');
+  assert.equal(verticalPackage.dependencies['react-router-dom'], '7.18.0');
   assert.equal(shellPackage.dependencies[packageName], 'workspace:*');
   assert.equal(
     shellPackage['zephyr:dependencies'][id],

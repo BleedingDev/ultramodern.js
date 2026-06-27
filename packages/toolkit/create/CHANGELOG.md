@@ -4,13 +4,13 @@
 
 ## 3.4.0
 
-### BleedingDev 3.4.0-ultramodern.18 Migration Notes
+### BleedingDev 3.4.0-ultramodern.19 Migration Notes
 
 - The BleedingDev `@bleedingdev/modern-js-create` package now publishes the
   UltraModern cleanup cohort that addresses the generated-app bloat found in
   `3.4.0-ultramodern.12`.
-- `3.4.0-ultramodern.18` supersedes `3.4.0-ultramodern.13` through
-  `3.4.0-ultramodern.17`. The `.13` cohort
+- `3.4.0-ultramodern.19` supersedes `3.4.0-ultramodern.13` through
+  `3.4.0-ultramodern.18`. The `.13` cohort
   published the cleanup, but fresh workspaces could fail `format:check`; `.14`
   preformatted generated files, but downstream Cloudflare Worker SSR could
   still crash when a federated remote published `publicPath: "/"`; `.15` fixed
@@ -19,7 +19,11 @@
   fixed that proof but compact validation could under-describe customized
   component exposes; `.17` fixed compact expose validation but still used a
   single-segment unknown-route probe and origin-relative remote asset prefixes.
-  Use `.18` as the migration target.
+  `.18` fixed those remote deployment issues, but generated vertical configs
+  used string concatenation that failed the generated `oxlint` gate after
+  adding a MicroVertical, and Worker builds could rely on transitive
+  `react-router-dom` resolution through Module Federation bridge code.
+  Use `.19` as the migration target.
 - Fresh generated workspaces commit compact UltraModern provenance and config
   in `.modernjs/ultramodern.json` instead of committing the large generated
   contract, package-source, and template-manifest metadata files.

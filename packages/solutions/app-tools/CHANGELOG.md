@@ -38,7 +38,7 @@
   publishes a relative `metaData.publicPath` such as `/`, preventing deployed
   shell Workers from throwing `TypeError: Invalid URL string` while injecting
   rendered Module Federation CSS links.
-  BleedingDev `3.4.0-ultramodern.18` carries this runtime fix forward and pairs
+  BleedingDev `3.4.0-ultramodern.19` carries this runtime fix forward and pairs
   it with the `@modern-js/create` Cloudflare proof and generated remote asset
   prefix updates.
 

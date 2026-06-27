@@ -43,11 +43,11 @@ export function createAppModernConfig(
   const defaultAssetPrefixSource =
     app.kind === 'shell'
       ? "const defaultAssetPrefix = '/';"
-      : `const defaultRemoteAssetPrefix = (
+      : `const remoteAssetOrigin =
   configuredCloudflareUrl ||
   inferredCloudflareUrl ||
-  (cloudflareDeployEnabled ? '/' : \`http://localhost:\${port}\`)
-).replace(/\\/+$/u, '') + '/';
+  (cloudflareDeployEnabled ? '/' : \`http://localhost:\${port}\`);
+const defaultRemoteAssetPrefix = \`\${remoteAssetOrigin.replace(/\\/+$/u, '')}/\`;
 const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
   return `// @effect-diagnostics processEnv:off
 import {
