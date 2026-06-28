@@ -2,6 +2,26 @@
 
 ## 3.5.0
 
+### BleedingDev Strict Effect API Migration Notes
+
+- The next BleedingDev UltraModern cohort moves generated Effect APIs out of
+  side-path directories. Generated verticals now use `api/index.ts`,
+  `shared/api.ts`, and `src/api/*-client.ts`; shell API aggregates live under
+  `apps/shell-super-app/src/api/*`.
+- Generated configs explicitly set `bff.effect.entry: './api/index'` and
+  `bff.effect.strictEffectApproach: true`. The Effect runtime rejects raw
+  request handlers, default request handlers, and unbranded `createHandler`
+  factories instead of accepting them as compatibility paths.
+- Older generated workspaces must remove `api/effect`, `shared/effect`,
+  `src/effect`, `apps/shell-super-app/src/effect`, `api.effect` topology, and
+  shared Effect API packages. Update package exports to `./api` and
+  `./api/client`, then run `pnpm api:check`,
+  `scripts/validate-ultramodern-workspace.mjs`, `pnpm check`, and `pnpm build`.
+- `3.4.0-ultramodern.19` and earlier packages do not contain
+  `strictEffectApproach`. Do not migrate a repo to this layout while still
+  validating against those published package types; use the local Modern.js
+  workspace or pin a newer published cohort once available.
+
 ## 3.4.0
 
 ### BleedingDev 3.4.0-ultramodern.19 Migration Notes

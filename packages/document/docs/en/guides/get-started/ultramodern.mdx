@@ -71,6 +71,41 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
+Strict Effect API migration is not compatible with
+`3.4.0-ultramodern.19` or older package cohorts. Those packages do not include
+the `strictEffectApproach` config type or the direct `api/index.ts`
+generator/checks. Until a newer BleedingDev cohort is published, use the local
+Modern.js workspace for migration validation; after publication, pin that exact
+new cohort with `--ultramodern-package-version`.
+
+When migrating a generated workspace that already has Effect API files, make the
+move explicit and do not keep compatibility aliases:
+
+1. Move each vertical server entry from `verticals/<id>/api/effect/index.ts` to
+   `verticals/<id>/api/index.ts`.
+2. Move each shared API contract from `verticals/<id>/shared/effect/api.ts` to
+   `verticals/<id>/shared/api.ts`.
+3. Move generated clients from `verticals/<id>/src/effect/*-client.ts` to
+   `verticals/<id>/src/api/*-client.ts`.
+4. Move shell API aggregates from `apps/shell-super-app/src/effect/*` to
+   `apps/shell-super-app/src/api/*`.
+5. Update imports and package exports to use `./api`, `./api/client`, and
+   `@<workspace>/<vertical>/api/client`; remove `./effect/client`,
+   `./shared/effect/api`, and shared Effect API packages.
+6. Update every vertical `modern.config.ts` to use
+   `bff.effect.entry: './api/index'` and
+   `bff.effect.strictEffectApproach: true`.
+7. Update topology so API metadata lives directly under `api` with
+   `api.bff.strictEffectApproach: true`; do not keep `api.effect`.
+8. Run `pnpm api:check`,
+   `scripts/validate-ultramodern-workspace.mjs`, `pnpm check`, and
+   `pnpm build`.
+
+If a migration fails, fix the owning generated contract, topology, package
+exports, or API module. Do not add app-level aliases, raw request handlers,
+manual `Response` construction, local type casts, or package shims to make the
+old layout pass.
+
 Use one package-source strategy per repo. The published BleedingDev create
 package defaults to `--ultramodern-package-source=install` and records the
 exact cohort in `.modernjs/ultramodern.json`. Keep `--workspace` only for local

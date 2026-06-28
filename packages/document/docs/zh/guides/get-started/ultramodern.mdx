@@ -70,6 +70,37 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
+严格 Effect API 迁移不兼容 `3.4.0-ultramodern.19` 或更早的包 cohort。
+这些包还没有 `strictEffectApproach` 配置类型，也没有直接 `api/index.ts`
+的生成器和检查。新的 BleedingDev cohort 发布前，迁移校验应使用本地
+Modern.js workspace；发布后，用 `--ultramodern-package-version` 固定该新
+cohort。
+
+迁移已经带有 Effect API 文件的生成 workspace 时，明确移动文件，不保留兼容别名：
+
+1. 将每个 vertical 服务端入口从 `verticals/<id>/api/effect/index.ts` 移到
+   `verticals/<id>/api/index.ts`。
+2. 将每个共享 API 契约从 `verticals/<id>/shared/effect/api.ts` 移到
+   `verticals/<id>/shared/api.ts`。
+3. 将生成客户端从 `verticals/<id>/src/effect/*-client.ts` 移到
+   `verticals/<id>/src/api/*-client.ts`。
+4. 将 shell API 聚合从 `apps/shell-super-app/src/effect/*` 移到
+   `apps/shell-super-app/src/api/*`。
+5. 更新 imports 和 package exports，使用 `./api`、`./api/client` 与
+   `@<workspace>/<vertical>/api/client`；删除 `./effect/client`、
+   `./shared/effect/api` 和 shared Effect API 包。
+6. 更新每个 vertical 的 `modern.config.ts`，设置
+   `bff.effect.entry: './api/index'` 和
+   `bff.effect.strictEffectApproach: true`。
+7. 更新 topology，让 API metadata 直接位于 `api` 下，并设置
+   `api.bff.strictEffectApproach: true`；不要保留 `api.effect`。
+8. 运行 `pnpm api:check`、`scripts/validate-ultramodern-workspace.mjs`、
+   `pnpm check` 和 `pnpm build`。
+
+如果迁移失败，应修复归属的生成契约、topology、package exports 或 API 模块。
+不要添加 app 级 alias、原始 request handler、手写 `Response`、本地类型断言或包
+shim 来让旧布局通过。
+
 每个仓库只使用一种 package-source 策略。已发布的 BleedingDev create 包默认使用
 `--ultramodern-package-source=install`，并把精确 cohort 记录到
 `.modernjs/ultramodern.json`。`--workspace` 只用于本地 monorepo
