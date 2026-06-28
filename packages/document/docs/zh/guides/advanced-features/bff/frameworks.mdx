@@ -12,6 +12,14 @@ Modern.js 目前支持两种 BFF 运行时框架：
 
 `effect` 与 `hono` 为严格模式，两者之间不会自动回退。
 
+::::info
+本页记录通用 Modern.js 运行时能力。生成的 UltraModern workspace 始终使用
+`effect` 运行时，并设置 `bff.effect.strictEffectApproach: true`。新增或修改生成的
+UltraModern HTTP API 时，先改 `shared/api.ts`，再改 `api/index.ts`；不要在这些
+workspace 中加入 Hono/file-convention handler、原始 request parsing 或手写
+`Response`。
+::::
+
 ## 切换到 Effect 运行时
 
 ```ts title="modern.config.ts"

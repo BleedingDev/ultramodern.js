@@ -1,6 +1,7 @@
 # MIGRATION-PLAYBOOK-0003: UltraModern 3.4.0-ultramodern.19
 
-- Status: Accepted
+- Status: Superseded for strict Effect/API migration by
+  `3.5.0-ultramodern.0`; retained as historical 3.4 cleanup guidance.
 - Date: 2026-06-27
 - From: `3.4.0-ultramodern.12`
 - To: `3.4.0-ultramodern.19`

@@ -18,7 +18,7 @@ The target is one adoption path:
 1. start as one `presetUltramodern(...)` app,
 2. split feature slices into shell-owned route modules,
 3. graduate isolated slices into MF remotes,
-4. move cross-project data and workflows into strict Effect or explicit Hono service contracts.
+4. move cross-project data and workflows into strict Effect HttpApi service contracts.
 
 This document is the missing delivery bridge between the completed framework work and downstream super-app adoption.
 
@@ -57,7 +57,7 @@ Reference implementations:
 
 An independent service owns:
 
-- effect or hono transport/runtime,
+- Effect HttpApi transport/runtime for generated HTTP APIs,
 - operation contracts,
 - request/trace/locale propagation,
 - cross-project identity and envelope policy,
@@ -67,7 +67,6 @@ Reference implementations:
 
 - cross-project producer/consumer apps: [tests/integration/bff-corss-project](/Users/satan/side/experiments/modernjs/tests/integration/bff-corss-project)
 - build/serve parity and generated client proof: [tests/integration/bff-runtime-parity](/Users/satan/side/experiments/modernjs/tests/integration/bff-runtime-parity)
-- explicit Hono compatibility lane: [tests/integration/bff-hono](/Users/satan/side/experiments/modernjs/tests/integration/bff-hono)
 
 ## 3. Extraction Workflow
 
@@ -114,10 +113,6 @@ Preferred path:
 
 - Effect-first for new strict contracts.
 
-Compatibility path:
-
-- Hono remains explicit for existing Modern.js-style handlers.
-
 Canonical references:
 
 - strict Effect propagation helpers: [packages/server/create-request/src/requestContext.ts](/Users/satan/side/experiments/modernjs/packages/server/create-request/src/requestContext.ts)
@@ -147,7 +142,7 @@ For a new Micro Vertical under `presetUltramodern(...)`:
 2. Prove route/data ownership locally.
 3. Add contract coverage before extracting a remote or service.
 4. Use generated request-context helpers instead of ad hoc locale/trace header plumbing.
-5. Keep Hono usage explicit and compatibility-scoped.
+5. Keep generated HTTP APIs on Effect HttpApi contracts.
 6. Require fallback behavior and telemetry before independent deployment.
 7. Keep shell/remote/service boundaries visible in release gates and certification evidence.
 
@@ -158,5 +153,4 @@ The repo now has one explicit delivery story:
 - `presetUltramodern(...)` is the single public entrypoint,
 - TanStack + MF provides the preferred shell/remote composition path,
 - Effect provides the preferred service contract path,
-- Hono remains an explicit compatibility lane,
 - and the reference examples above are the canonical adoption guides for downstream teams.

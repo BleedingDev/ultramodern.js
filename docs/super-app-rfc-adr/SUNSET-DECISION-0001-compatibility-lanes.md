@@ -29,7 +29,7 @@ Wave 0 established the support tiers in `ADR-0010-mv-wave0-contract-first-gates.
 
 Wave 1-3 evidence supports promotion of Golden as the target default, not deletion of Compat:
 
-1. `DELIVERY-0001-micro-vertical-reference-delivery.md` defines the intended path from one app to shell route modules, MF remotes, and strict Effect or explicit Hono service contracts.
+1. `DELIVERY-0001-micro-vertical-reference-delivery.md` defines the intended path from one app to shell route modules, MF remotes, and strict Effect HttpApi service contracts.
 2. `ADR-0011-mf-vs-garfish-runtime-parity-contract.md` requires parity evidence and known non-equivalence disposition before runtime canonicality claims.
 3. `ADR-0012-mv-topology-manifest-and-zephyr-profile.md` defines topology IDs, immutable artifacts, environment overlays, LKG, revocation, and kill switches.
 4. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollout-evidence.md` certifies progressive production rollout with signed manifests, in-budget SLOs, rollback triggers, kill-switch availability, and owner approvals.

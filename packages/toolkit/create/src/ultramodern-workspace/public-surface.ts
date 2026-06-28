@@ -115,7 +115,7 @@ export function createPublicSurfaceGenerationCommand(
 ): string {
   return `node ${relativeRootFor(
     app.directory,
-  )}/scripts/generate-public-surface-assets.mjs --app ${app.id} --target ${target}${
+  )}/scripts/generate-public-surface-assets.mts --app ${app.id} --target ${target}${
     requirePublicOrigin ? ' --require-public-origin' : ''
   }`;
 }
@@ -146,7 +146,7 @@ export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     metadataExport: './src/routes/ultramodern-route-metadata',
-    generator: 'scripts/generate-public-surface-assets.mjs',
+    generator: 'scripts/generate-public-surface-assets.mts',
     outputRoot: 'dist/public',
     cloudflareOutputRoot: '.output/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
@@ -164,7 +164,7 @@ export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     },
     // The default scaffold ships private-only routes; users add
     // route-owned content sources when they opt routes into the public
-    // surface (consumed by scripts/generate-public-surface-assets.mjs).
+    // surface (consumed by scripts/generate-public-surface-assets.mts).
     contentSources: [],
     publicRoutes: createPublicRouteMetadata(app),
     routeEntries: createPublicSurfaceRouteEntries(app),

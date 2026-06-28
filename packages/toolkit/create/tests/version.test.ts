@@ -216,7 +216,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           if (
             verticalResult.operation !== 'vertical' ||
             verticalResult.assignedPorts.catalog !== 4101 ||
-            verticalResult.effectApiPrefixes.catalog !== '/catalog-api'
+            verticalResult.apiPrefixes.catalog !== '/catalog-api'
           ) {
             throw new Error('Expected typed MicroVertical generation result');
           }

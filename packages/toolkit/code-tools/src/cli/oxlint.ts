@@ -76,13 +76,13 @@ const resolvePluginPath = (): string => {
   const root = findPackageRoot();
   const sourcePluginPath = path.join(root, 'src/oxlint-plugin.ts');
   const pluginPath = resolveExistingPath([
+    sourcePluginPath,
     path.join(root, 'dist/esm-node/oxlint-plugin.mjs'),
     path.join(root, 'dist/esm-node/oxlint-plugin.js'),
     path.join(root, 'dist/esm/oxlint-plugin.mjs'),
     path.join(root, 'dist/esm/oxlint-plugin.js'),
     path.join(root, 'dist/cjs/oxlint-plugin.js'),
     path.join(root, 'dist/cjs/oxlint-plugin.cjs'),
-    sourcePluginPath,
   ]);
 
   if (!pluginPath) {
@@ -119,9 +119,7 @@ const containsLintableSource = (filePath: string): boolean => {
 
   const stats = fs.statSync(filePath);
   if (stats.isFile()) {
-    return (
-      /\.(?:js|jsx|ts|tsx)$/u.test(filePath) && !filePath.endsWith('.d.ts')
-    );
+    return /\.(?:[cm]?[jt]sx?)$/u.test(filePath) && !filePath.endsWith('.d.ts');
   }
 
   if (!stats.isDirectory()) {

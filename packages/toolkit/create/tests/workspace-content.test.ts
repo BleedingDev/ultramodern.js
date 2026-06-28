@@ -319,7 +319,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
       assertContentSnapshot(workspaceDir, 'catalog-vertical', relativePath);
     }
     const validationWrapper = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mjs'),
+      path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),
       'utf-8',
     );
     assert.match(validationWrapper, /modern-js-create/);

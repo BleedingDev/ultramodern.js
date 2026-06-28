@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 import {
-  appHasEffectApi,
+  appHasApi,
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
   createRemoteManifestEnv,
-  effectApiPrefix,
   remoteDependencyAlias,
+  resolveApiPrefix,
   resolveRemoteRefs,
   shellApp,
 } from './descriptors';
@@ -23,10 +23,10 @@ export function createAppModernConfig(
   scope: string,
   app: WorkspaceApp,
 ): string {
-  const bffImport = appHasEffectApi(app)
+  const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
     : '';
-  const bffConfig = appHasEffectApi(app)
+  const bffConfig = appHasApi(app)
     ? `      bff: {
         effect: {
           entry: './api/index',
@@ -35,12 +35,12 @@ export function createAppModernConfig(
           },
           strictEffectApproach: true,
         },
-        prefix: '${effectApiPrefix(app)}',
+        prefix: '${resolveApiPrefix(app)}',
         runtimeFramework: 'effect',
       },
 `
     : '';
-  const bffPluginEntry = appHasEffectApi(app) ? '        bffPlugin(),\n' : '';
+  const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
   const defaultAssetPrefixSource =
     app.kind === 'shell'
       ? "const defaultAssetPrefix = '/';"
@@ -185,7 +185,7 @@ ${bffConfig}      ...(cloudflareDeployEnabled
               '/@mf-types',
               '/assets',
               '/bundles',
-              '${effectApiPrefix(app)}',
+              '${resolveApiPrefix(app)}',
               '/locales',
               '/mf-manifest.json',
               '/mf-stats.json',

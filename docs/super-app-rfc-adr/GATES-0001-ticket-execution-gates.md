@@ -13,7 +13,7 @@ Goals:
 
 1. Keep implementation quality consistent.
 2. Prevent silent regressions and under-validated merges.
-3. Enforce Effect-first and TanStack-first defaults while preserving compatibility lanes.
+3. Enforce Effect-first and TanStack-first defaults while preserving upstream and migration compatibility.
 
 ## 2. Gate Model
 
@@ -25,7 +25,7 @@ Required artifacts:
 
 1. Scope statement mapped to target architecture (`ARCH-0001` + relevant ADRs).
 2. Out-of-scope statement (what this ticket explicitly does not change).
-3. Compatibility-lane impact assessment (Hono / React Router only if needed).
+3. Existing Modern.js behavior impact assessment (Hono / React Router only when a ticket touches generic Modern.js paths).
 
 Pass criteria:
 
@@ -37,9 +37,9 @@ Acceptance checklist (must be attached to ticket comments or linked docs):
 
 1. Scope and out-of-scope text is approved by architecture reviewer (name + date).
 2. Relevant ADR/RFC links are present and point to exact sections.
-3. Compatibility lane impact is explicitly marked:
+3. Compatibility impact is explicitly marked:
    - `Not applicable`, or
-   - `Compatibility lane change` with rationale.
+   - `Generic Modern.js compatibility change` with rationale.
 4. Risk and rollback note includes trigger + rollback command/path.
 
 ## Gate B: Implementation Validation

@@ -88,6 +88,7 @@ describe('@modern-js/code-tools', () => {
     expect(
       oxlintPlugin.rules['no-literal-visible-jsx-attributes'],
     ).toBeDefined();
+    expect(oxlintPlugin.rules['strict-effect-api-boundaries']).toBeDefined();
   });
 
   test('single-app runner allows localized expressions, technical JSX text, ignores, and non-JSX strings', () => {
@@ -287,6 +288,103 @@ export function App() {
 
     expect(result.exitCode).toBe(1);
     expect(combinedOutput(result)).toContain('data-mf-* boundary attributes');
+  });
+
+  test('workspace runner rejects raw API handler drift through Oxlint', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'verticals/catalog/api/index.ts',
+      `
+import { createHandler } from '@modern-js/plugin-bff/hono-server';
+
+export const handler = async (request: Request) => {
+  const body = await request.json();
+  return Response.json(body);
+};
+
+export default async function fallback() {
+  return new Response('legacy');
+}
+
+const runtimeFramework = 'hono';
+const strictEffectApproach = false;
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['verticals'],
+        locales: [],
+      }),
+    );
+    const output = combinedOutput(result);
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toContain('must not import Hono server helpers');
+    expect(output).toContain('must not hand-build Response objects');
+    expect(output).toContain('must not manually parse request bodies');
+    expect(output).toContain('must not export raw request handlers');
+    expect(output).toContain('must keep strictEffectApproach enabled');
+  });
+
+  test('workspace runner includes mts sources in strict API boundary checks', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'verticals/catalog/shared/api.mts',
+      `
+export const raw = () => new Response('legacy');
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['verticals'],
+        locales: [],
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(combinedOutput(result)).toContain(
+      'must not hand-build Response objects',
+    );
+  });
+
+  test('workspace runner rejects legacy API paths and non-HttpApi contracts', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'verticals/catalog/api/effect/index.ts',
+      `
+export const program = Effect.succeed('legacy path');
+`,
+    );
+    writeFile(
+      root,
+      'verticals/catalog/shared/api.ts',
+      `
+export type CatalogItem = {
+  readonly id: string;
+};
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['verticals'],
+        locales: [],
+      }),
+    );
+    const output = combinedOutput(result);
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toContain('api/effect, api/lambda, shared/effect');
+    expect(output).toContain('must declare an HttpApi contract');
+    expect(output).toContain('must declare endpoints through HttpApiEndpoint');
   });
 
   test('workspace runner accepts renamed locale resource identifiers and explicit resources property', () => {

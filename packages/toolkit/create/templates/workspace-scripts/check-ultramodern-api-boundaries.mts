@@ -96,12 +96,6 @@ function assertNotContains(relativePath, content, pattern, message) {
   assert(!pattern.test(content), `${relativePath}: ${message}`);
 }
 
-const generatedFiles = [
-  ...listFiles('apps'),
-  ...listFiles('verticals'),
-  ...listFiles('packages'),
-];
-
 for (const forbiddenPath of [
   'apps/shell-super-app/src/effect',
   ...listDirectories('verticals').flatMap(verticalPath => [
@@ -117,6 +111,11 @@ for (const forbiddenPath of [
   );
 }
 
+const generatedFiles = [
+  ...listFiles('apps'),
+  ...listFiles('verticals'),
+  ...listFiles('packages'),
+];
 const textFiles = generatedFiles.filter(file =>
   /\.(?:[cm]?[jt]sx?|json|md|mjs|mts|cts)$/u.test(file),
 );
@@ -129,12 +128,12 @@ for (const file of textFiles) {
       file,
       content,
       /\bnew\s+Response\s*\(|\bResponse\.json\s*\(/u,
-      'API modules must not hand-build Response objects; model the endpoint through Effect HttpApi and schemas.',
+      'API modules must not hand-build Response objects; model endpoints through Effect HttpApi and schemas.',
     );
     assertNotContains(
       file,
       content,
-      /\brequest\.(?:json|text|formData|arrayBuffer)\s*\(/u,
+      /\b(?:request|req)\.(?:json|text|formData|arrayBuffer)\s*\(/u,
       'API modules must not manually parse request bodies; use HttpApiEndpoint payload/query/params schemas.',
     );
     assertNotContains(
@@ -155,13 +154,19 @@ for (const file of textFiles) {
     file,
     content,
     /@modern-js\/plugin-bff\/hono-server/u,
-    'Hono server helpers are not part of generated UltraModern API workspaces.',
+    'UltraModern API workspaces must not import Hono server helpers; use @modern-js/plugin-bff/effect-edge and HttpApi.',
   );
   assertNotContains(
     file,
     content,
-    /runtimeFramework:\s*['"]hono['"]/u,
+    /\bruntimeFramework\s*(?::|=)\s*['"]hono['"]/u,
     'Generated UltraModern API apps must use the Effect runtime.',
+  );
+  assertNotContains(
+    file,
+    content,
+    /\bstrictEffectApproach\s*(?::|=)\s*false\b/u,
+    'Generated UltraModern API apps must keep strictEffectApproach enabled.',
   );
 }
 
@@ -298,7 +303,7 @@ if (exists('package.json')) {
   const rootPackageJson = JSON.parse(readText('package.json'));
   assert(
     rootPackageJson.scripts?.['api:check'] ===
-      'node ./scripts/check-ultramodern-api-boundaries.mjs',
+      'node ./scripts/check-ultramodern-api-boundaries.mts',
     'Root package.json must expose api:check.',
   );
   assert(

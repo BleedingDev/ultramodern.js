@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WORKSPACE_PACKAGE_VERSION } from '../ultramodern-package-source';
 import { readUltramodernConfig } from '../ultramodern-tooling/config';
+import { apiTopologyMetadata, createShellApiClient } from './api';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
@@ -14,23 +15,19 @@ import {
   createShellRemoteComponents,
 } from './demo-components';
 import {
-  appHasEffectApi,
+  appHasApi,
   appI18nNamespace,
   createModuleFederationRemoteContracts,
   createNeutralOwnership,
   createRemoteManifestEnv,
   createShellHost,
   createVerticalDescriptor,
-  effectApiPrefix,
   remoteDependencyAlias,
+  resolveApiPrefix,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
   zephyrRemoteDependency,
 } from './descriptors';
-import {
-  createShellEffectClient,
-  effectApiTopologyMetadata,
-} from './effect-api';
 import {
   formatGeneratedWorkspaceFiles,
   readJsonFile,
@@ -77,8 +74,8 @@ import type {
   UltramodernShellDependencyChange,
   UltramodernVerticalPlan,
   UltramodernWorkspaceOptions,
+  WorkspaceApi,
   WorkspaceApp,
-  WorkspaceEffectApi,
 } from './types';
 import { isRecord } from './types';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
@@ -305,7 +302,7 @@ export function rewriteShellAppFiles(
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/src/api/vertical-clients.ts`,
-    createShellEffectClient(scope, remotes),
+    createShellApiClient(scope, remotes),
   );
 }
 
@@ -331,7 +328,7 @@ export function addShellWorkspaceDependency(
   scope: string,
   remote: WorkspaceApp,
 ) {
-  if (!appHasEffectApi(remote)) {
+  if (!appHasApi(remote)) {
     return;
   }
 
@@ -373,8 +370,8 @@ export function verticalTopologyEntry(
       fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
-    ...(effectApiTopologyMetadata(vertical)
-      ? { api: effectApiTopologyMetadata(vertical) }
+    ...(apiTopologyMetadata(vertical)
+      ? { api: apiTopologyMetadata(vertical) }
       : {}),
     cloudflare: createCloudflareDeployContract(scope, vertical),
     ownership: vertical.ownership,
@@ -406,7 +403,7 @@ export function verticalsFromTopology(
     const domain = vertical.domain ?? String(vertical.id);
     const packageSuffix = vertical.package?.split('/').at(-1) ?? domain;
     const apiTopology = vertical.api;
-    const effectApi =
+    const api =
       apiTopology?.runtime === 'effect'
         ? ({
             stem:
@@ -418,7 +415,7 @@ export function verticalsFromTopology(
             consumedBy: Array.isArray(apiTopology.consumedBy)
               ? apiTopology.consumedBy
               : [shellApp.id, vertical.id],
-          } satisfies WorkspaceEffectApi)
+          } satisfies WorkspaceApi)
         : undefined;
 
     return {
@@ -458,7 +455,7 @@ export function verticalsFromTopology(
                 .filter((id: unknown): id is string => typeof id === 'string'),
             }
           : {}),
-      ...(effectApi ? { effectApi } : {}),
+      ...(api ? { api } : {}),
       ownership: vertical.ownership ?? createNeutralOwnership(vertical.id),
     };
   }) as WorkspaceApp[];
@@ -596,9 +593,9 @@ function validateWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
       throw new Error(`Invalid development port for ${appLabel}`);
     }
     assertNonEmptyString(app.mfName, `Module Federation name for ${appLabel}`);
-    if (app.effectApi) {
-      assertNonEmptyString(app.effectApi.prefix, `API prefix for ${appLabel}`);
-      if (!app.effectApi.prefix.startsWith('/')) {
+    if (app.api) {
+      assertNonEmptyString(app.api.prefix, `API prefix for ${appLabel}`);
+      if (!app.api.prefix.startsWith('/')) {
         throw new Error(`API prefix for ${appLabel} must start with "/"`);
       }
     }
@@ -613,7 +610,7 @@ function validateUniqueWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   );
   assertUniqueAppField(apps, 'Module Federation name', app => app.mfName);
   assertUniqueAppField(apps, 'development port', app => String(app.port));
-  assertUniqueAppField(apps, 'API prefix', app => app.effectApi?.prefix);
+  assertUniqueAppField(apps, 'API prefix', app => app.api?.prefix);
   assertUniqueAppField(apps, 'manifest environment name', app =>
     app.kind === 'vertical' ? createRemoteManifestEnv(app) : undefined,
   );
@@ -716,9 +713,7 @@ function createVerticalPlan(
       name: vertical.mfName,
       manifestUrl,
     },
-    ...(vertical.effectApi
-      ? { effectApiPrefix: effectApiPrefix(vertical) }
-      : {}),
+    ...(vertical.api ? { apiPrefix: resolveApiPrefix(vertical) } : {}),
     jsonMutations: createDryRunJsonMutations(preflight, manifestUrl),
     shellDependencyChanges: createShellDependencyChanges(scope, vertical),
     generatedContractChanges: [
@@ -736,13 +731,13 @@ function createDryRunJsonMutations(
   manifestUrl: string,
 ): UltramodernJsonMutation[] {
   const { scope, vertical } = preflight;
-  const effectApiMutation: UltramodernJsonMutation[] = appHasEffectApi(vertical)
+  const apiMutation: UltramodernJsonMutation[] = appHasApi(vertical)
     ? [
         {
           path: DEVELOPMENT_OVERLAY_PATH,
           pointer: `/apis/${vertical.id}`,
           description: `Add local API URL for ${vertical.id}`,
-          value: `http://localhost:${vertical.port}${effectApiPrefix(vertical)}`,
+          value: `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`,
         },
       ]
     : [];
@@ -788,7 +783,7 @@ function createDryRunJsonMutations(
       description: `Add local Module Federation manifest URL for ${vertical.id}`,
       value: manifestUrl,
     },
-    ...effectApiMutation,
+    ...apiMutation,
     {
       path: 'package.json',
       pointer: '/scripts',
@@ -833,7 +828,7 @@ function createShellDependencyChanges(
       packageName: remoteDependencyAlias(vertical),
       version: zephyrRemoteDependency(scope, vertical),
     },
-    ...(appHasEffectApi(vertical)
+    ...(appHasApi(vertical)
       ? [
           {
             path: `${shellApp.directory}/package.json`,
@@ -894,7 +889,7 @@ export function addUltramodernVertical(
     `http://localhost:${vertical.port}/mf-manifest.json`;
   overlay.apis ??= {};
   overlay.apis[vertical.id] =
-    `http://localhost:${vertical.port}${effectApiPrefix(vertical)}`;
+    `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`;
   writeJsonFile(topologyPath, topology as JsonValue);
   writeJsonFile(ownershipPath, ownership as JsonValue);
   writeJsonFile(overlayPath, overlay as JsonValue);

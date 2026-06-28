@@ -4,12 +4,12 @@ import {
 } from '../ultramodern-package-source';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
-  appHasEffectApi,
+  appHasApi,
   remoteDependencyAlias,
   resolveRemoteRefs,
   sharedPackages,
   shellApp,
-  verticalEffectApps,
+  verticalApiApps,
   zephyrRemoteDependency,
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
@@ -42,8 +42,8 @@ import {
   ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from './versions';
 
-export const createEffectTsgoTypecheckCommand = (packageDir: string) =>
-  `node ${relativeRootFor(packageDir)}/scripts/ultramodern-typecheck.mjs --project tsconfig.json`;
+export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
+  `node ${relativeRootFor(packageDir)}/scripts/ultramodern-typecheck.mts --project tsconfig.json`;
 
 export const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -164,7 +164,7 @@ export function appDependencies(
       '@modern-js/plugin-bff',
       packageSource,
     );
-    for (const remote of verticalEffectApps(remotes)) {
+    for (const remote of verticalApiApps(remotes)) {
       dependencies[packageName(scope, remote.packageSuffix)] =
         WORKSPACE_PACKAGE_VERSION;
     }
@@ -175,7 +175,7 @@ export function appDependencies(
       WORKSPACE_PACKAGE_VERSION;
   }
 
-  if (appHasEffectApi(app)) {
+  if (appHasApi(app)) {
     dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
       '@modern-js/plugin-bff',
       packageSource,
@@ -238,7 +238,7 @@ export function createRootPackageJson(
     'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck';
   const typecheck = bridge
     ? generatedPackageTypecheck
-    : 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json';
+    : 'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json';
   const bridgeScripts = bridge
     ? {
         ...Object.fromEntries(
@@ -287,21 +287,21 @@ export function createRootPackageJson(
       'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types`,
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
-        'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
-      'skills:install': 'node ./scripts/bootstrap-agent-skills.mjs',
-      'skills:check': 'node ./scripts/bootstrap-agent-skills.mjs --check',
-      'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mjs',
+        'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
+      'skills:install': 'node ./scripts/bootstrap-agent-skills.mts',
+      'skills:check': 'node ./scripts/bootstrap-agent-skills.mts --check',
+      'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mts',
       'agents:refs:check':
-        'node ./scripts/setup-agent-reference-repos.mjs --check',
-      'mf:types': 'node ./scripts/assert-mf-types.mjs',
+        'node ./scripts/setup-agent-reference-repos.mts --check',
+      'mf:types': 'node ./scripts/assert-mf-types.mts',
       'performance:readiness':
-        'node ./scripts/ultramodern-performance-readiness.mjs',
-      'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
-      'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mjs',
-      'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
+        'node ./scripts/ultramodern-performance-readiness.mts',
+      'contract:check': 'node ./scripts/validate-ultramodern-workspace.mts',
+      'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mts',
+      'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',
       ...bridgeScripts,
       postinstall:
-        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
+        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
       check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
     },
     engines: {
@@ -316,7 +316,7 @@ export function createRootPackageJson(
       ownership: './topology/ownership.json',
       packageSource: {
         strategy: packageSource.strategy,
-        config: './.modernjs/ultramodern.json#packageSource',
+        config: './.modernjs/ultramodern.json',
       },
     },
     devDependencies: {
@@ -474,11 +474,11 @@ export function createAppTsConfig(
   const references = [
     ...sharedPackages.map(sharedPackage => sharedPackage.directory),
     ...(app.kind === 'shell'
-      ? verticalEffectApps(remotes).map(remote => remote.directory)
+      ? verticalApiApps(remotes).map(remote => remote.directory)
       : resolveRemoteRefs(app, remotes).map(remote => remote.directory)),
   ];
   return createPackageTsConfig(app.directory, {
-    includeApi: appHasEffectApi(app),
+    includeApi: appHasApi(app),
     references,
   });
 }
@@ -541,7 +541,7 @@ export function createAppPackage(
     scripts: {
       dev: 'modern dev',
       build: app.exposes
-        ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mjs`
+        ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mts`
         : `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand}`,
       'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ${publicSurfaceCloudflareBuildCommand} && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && ${publicSurfaceCloudflareOutputCommand}`,
       'cloudflare:deploy':
@@ -550,26 +550,26 @@ export function createAppPackage(
         'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
       'cloudflare:proof': `node ${relativeRootFor(
         app.directory,
-      )}/scripts/proof-cloudflare-version.mjs --app ${app.id}`,
+      )}/scripts/proof-cloudflare-version.mts --app ${app.id}`,
       serve: 'modern serve',
-      typecheck: createEffectTsgoTypecheckCommand(app.directory),
+      typecheck: createStrictTsgoTypecheckCommand(app.directory),
     },
     modernjs: {
       preset: 'presetUltramodern',
       role: app.kind === 'shell' ? 'shell' : 'module-federation-remote',
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
-      ...(appHasEffectApi(app) ? { apiRuntime: 'effect' } : {}),
+      ...(appHasApi(app) ? { apiRuntime: 'effect' } : {}),
     },
     'zephyr:dependencies': createZephyrDependencies(scope, app, remotes),
     dependencies: appDependencies(scope, packageSource, app, remotes, bridge),
     devDependencies: appDevDependencies(packageSource, enableTailwind),
   };
 
-  if (appHasEffectApi(app)) {
+  if (appHasApi(app)) {
     Object.assign(packageExports, {
       './api': './shared/api.ts',
-      './api/client': `./src/api/${app.effectApi.stem}-client.ts`,
+      './api/client': `./src/api/${app.api.stem}-client.ts`,
     });
   } else if (app.kind === 'shell') {
     Object.assign(packageExports, {
@@ -599,7 +599,7 @@ export function createSharedPackage(
       '.': './src/index.ts',
     },
     scripts: {
-      typecheck: createEffectTsgoTypecheckCommand(`packages/${id}`),
+      typecheck: createStrictTsgoTypecheckCommand(`packages/${id}`),
     },
     devDependencies: {
       '@effect/tsgo': EFFECT_TSGO_VERSION,

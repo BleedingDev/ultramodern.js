@@ -12,8 +12,8 @@ import {
 import { toKebabCase } from '../ultramodern-workspace/naming';
 import type {
   ResolvedPackageSource,
+  WorkspaceApi,
   WorkspaceApp,
-  WorkspaceEffectApi,
 } from '../ultramodern-workspace/types';
 
 export type UltramodernToolingConfigSource = 'compact';
@@ -37,7 +37,7 @@ export type UltramodernToolingConfigApp = {
     hostOnly?: boolean;
     noExposes?: boolean;
   };
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 };
 
 export type UltramodernToolingConfig = {
@@ -187,19 +187,19 @@ function normalizeCompactConfig(
                     noExposes: app.moduleFederation.noExposes === true,
                   }
                 : undefined,
-            effectApi:
-              app.effectApi && typeof app.effectApi === 'object'
+            api:
+              app.api && typeof app.api === 'object'
                 ? {
                     stem:
-                      typeof app.effectApi.stem === 'string'
-                        ? app.effectApi.stem
+                      typeof app.api.stem === 'string'
+                        ? app.api.stem
                         : String(app.id),
                     prefix:
-                      typeof app.effectApi.prefix === 'string'
-                        ? app.effectApi.prefix
+                      typeof app.api.prefix === 'string'
+                        ? app.api.prefix
                         : `/${String(app.id)}-api`,
-                    consumedBy: Array.isArray(app.effectApi.consumedBy)
-                      ? app.effectApi.consumedBy.filter(
+                    consumedBy: Array.isArray(app.api.consumedBy)
+                      ? app.api.consumedBy.filter(
                           (consumer: unknown): consumer is string =>
                             typeof consumer === 'string',
                         )
@@ -277,7 +277,7 @@ export function workspaceAppsFromToolingConfig(
       ...(app.moduleFederation?.verticalRefs
         ? { verticalRefs: app.moduleFederation.verticalRefs }
         : {}),
-      ...(app.effectApi ? { effectApi: app.effectApi } : {}),
+      ...(app.api ? { api: app.api } : {}),
       ownership: createNeutralOwnership(app.id),
     };
   });

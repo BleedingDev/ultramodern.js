@@ -7,14 +7,16 @@ sidebar_position: 2
 
 This page compares **UltraModern.js 3.0** with the Modern.js 3.x line this fork tracks. The baseline is the current merged Modern.js `release-v3.x` baseline, not a frozen patch-version snapshot.
 
-UltraModern.js 3.0 is our SuperApp framework forked from Modern.js. It keeps compatibility with the Modern.js plugin/runtime mental model where that helps adoption, but it is positioned as a separate framework for Effect-first BFFs, TanStack Router, SSR, Module Federation, and independently deployable Micro Verticals.
+UltraModern.js 3.0 is our SuperApp framework forked from Modern.js. It keeps the Modern.js plugin/runtime mental model where that helps adoption, but it is positioned as a separate framework for Effect HttpApi-first HTTP APIs, TanStack Router, SSR, Module Federation, and independently deployable Micro Verticals.
 
 ## Design Principles
 
 - Keep deltas explicit and auditable.
-- Preserve compatibility with useful Modern.js concepts without presenting UltraModern.js as a preset-only variant.
+- Keep upstream Modern.js merge compatibility explicit: generic Modern.js runtime
+  code can remain where it belongs, while UltraModern-generated surfaces stay
+  strict.
 - Add platform-level contracts only where they improve cross-team reliability.
-- Keep opt-out switches and explicit compatibility lanes available.
+- Keep escape hatches explicit and outside the generated HTTP API path.
 
 ## Compatibility Contract
 
@@ -24,7 +26,9 @@ UltraModern.js 3.0 keeps:
 - Existing project structure and command flow.
 - Progressive adoption path (apps can stay mostly unchanged).
 
-UltraModern.js additions are designed as the default product surface for new SuperApps. Compatibility lanes remain available when they reduce migration risk, but the framework direction is Effect + TanStack + SSR + Micro Verticals.
+UltraModern.js additions are designed as the default product surface for new SuperApps. The framework direction is Effect + TanStack + SSR + Micro Verticals, and generated HTTP API work uses that direction by default instead of preserving parallel raw-handler layouts.
+Existing Modern.js apps can migrate gradually; once an API surface is generated
+or migrated as UltraModern HTTP API, it must use the strict Effect HttpApi path.
 
 ## Intentional Differences (v3 line)
 
@@ -33,7 +37,7 @@ UltraModern.js additions are designed as the default product surface for new Sup
 | Build diagnostics | RsDoctor is generally opt-in | Adds a first-class `performance.rsdoctor` config surface (opt-in; the earlier default-on behavior and diagnostics contract artifact were reverted) |
 | Output and static serving | Precompression behavior is app-defined | Enables `output.precompress` by default and serves `.br` / `.gz` variants via `Accept-Encoding` negotiation |
 | BFF runtime and contracts | Standard BFF runtime/client generation | Adds `requestId`-aware producer isolation, fail-fast initialization checks, and operation/trace correlation headers |
-| BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as the strict default API runtime (`api/index.ts`, `shared/api.ts`, `src/api/*`) and keeps raw Hono handlers as an explicit compatibility lane |
+| BFF runtime choices | Standard request-handler oriented BFF paths | Uses Effect `HttpApi` as the only generated HTTP API path (`api/index.ts`, `shared/api.ts`, `src/api/*`) and rejects raw handlers, manual parsing, manual `Response` construction, and Hono server imports in generated workspaces |
 | Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP/VictoriaMetrics exporters, redaction, batching, and backpressure controls |
 | App-level MF SSR handshake | No dedicated super-app app-level stability contract focus | Adds `server.ssr.moduleFederationAppSSR` plus integration-tested env/config handshake |
 | MF vertical loading reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
@@ -46,16 +50,19 @@ UltraModern.js additions are designed as the default product surface for new Sup
 
 - We do not hide the fork behind legacy Modern.js branding.
 - We do not optimize for generic Modern.js defaults when they conflict with SuperApp reliability.
+- We do not delete generic Modern.js Hono/file-convention runtime support just
+  to enforce UltraModern policy; the enforcement lives in UltraModern
+  generator, config, checks, and generated workspaces.
 - Generated UltraModern API work uses the Effect runtime only; raw Hono/function handlers are not part of the generated API architecture.
 - We make incompatible scaffold changes when they remove architecture drift.
 
 ## Migration Guide
 
-For teams already on Modern.js 3.0 or an older BleedingDev UltraModern scaffold, the adoption path is to move API work onto the strict Effect API surface instead of preserving older raw handler layouts.
+For teams already on Modern.js 3.0 or an older BleedingDev UltraModern scaffold, the adoption path is to move API work onto the strict Effect HttpApi surface instead of preserving older raw handler layouts.
 
-1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
+1. Keep existing Modern.js apps running as-is while they are outside the generated UltraModern surface. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but route migration can happen on the team's schedule.
 2. Use `bff.runtimeFramework: 'effect'` with `bff.effect.strictEffectApproach: true` for API work. Entries live at `api/index.ts`, contracts live at `shared/api.ts`, clients live under `src/api/*`, and request/response/error shapes come from Effect `Schema` plus `HttpApi`.
-3. Treat raw handlers, `api/lambda/**`, manual `Response` construction, and manual request parsing as migration defects in generated UltraModern workspaces.
+3. Treat raw handlers, `api/lambda/**`, manual `Response` construction, and manual request parsing as migration defects in generated or migrated UltraModern workspaces.
 4. The public preset now ships with explicit release and certification gates. Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`, so `pnpm check` and `pnpm build` stay part of the local adoption contract from day one while CI runs the primitive gates as parallel matrix jobs.
 
 For an older generated workspace, migrate by treating the published cohort as
@@ -71,14 +78,19 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-Strict Effect API migration is not compatible with
-`3.4.0-ultramodern.19` or older package cohorts. Those packages do not include
-the `strictEffectApproach` config type or the direct `api/index.ts`
-generator/checks. Until a newer BleedingDev cohort is published, use the local
-Modern.js workspace for migration validation; after publication, pin that exact
-new cohort with `--ultramodern-package-version`.
+Strict generated API migration requires `3.5.0-ultramodern.0` or newer.
+`3.4.0-ultramodern.20` and earlier cohorts do not include this full direct
+`api/index.ts` generator, generated `.mts` checks, and strict Oxlint boundary
+rule set. Agents that cannot install that BleedingDev cohort yet should use the
+local Modern.js workspace for migration validation; otherwise pin
+`3.5.0-ultramodern.0` or newer with `--ultramodern-package-version`.
 
-When migrating a generated workspace that already has Effect API files, make the
+Gradual migration means old, unmigrated Modern.js apps can keep their existing
+runtime until they are converted. Once a surface is generated or migrated as
+UltraModern HTTP API, it uses Effect HttpApi only; do not keep Hono, lambda
+handlers, or raw request handlers inside that UltraModern API surface.
+
+When migrating a generated workspace that already has nested Effect API files, make the
 move explicit and do not keep compatibility aliases:
 
 1. Move each vertical server entry from `verticals/<id>/api/effect/index.ts` to
@@ -98,13 +110,17 @@ move explicit and do not keep compatibility aliases:
 7. Update topology so API metadata lives directly under `api` with
    `api.bff.strictEffectApproach: true`; do not keep `api.effect`.
 8. Run `pnpm api:check`,
-   `scripts/validate-ultramodern-workspace.mjs`, `pnpm check`, and
+   `scripts/validate-ultramodern-workspace.mts`, `pnpm check`, and
    `pnpm build`.
 
 If a migration fails, fix the owning generated contract, topology, package
 exports, or API module. Do not add app-level aliases, raw request handlers,
 manual `Response` construction, local type casts, or package shims to make the
 old layout pass.
+
+Effect RPC, WebSockets, and other transports should be added as explicit
+transport surfaces when needed. They do not make raw request handlers valid
+inside generated HTTP API modules.
 
 Use one package-source strategy per repo. The published BleedingDev create
 package defaults to `--ultramodern-package-source=install` and records the
@@ -127,7 +143,7 @@ repos by hand-editing generated worker output; upgrade the framework cohort and
 rerun the generated validation instead.
 
 After installing the new cohort, run the generated
-`scripts/validate-ultramodern-workspace.mjs` contract check before accepting
+`scripts/validate-ultramodern-workspace.mts` contract check before accepting
 manual edits. Fix topology, ownership, package-source, local overlay, generated
 contract, Tailwind prefix, or Module Federation conflicts in the owning files
 instead of patching generated output by hand.
@@ -217,10 +233,10 @@ addUltramodernVertical({
 ```
 
 The public result includes the workspace root, package source, created apps,
-created paths, rewritten paths, assigned ports, Module Federation names, Effect
-API prefixes, generated contract path, and warnings. MicroVertical dry-run
+created paths, rewritten paths, assigned ports, Module Federation names, API
+prefixes, generated contract path, and warnings. MicroVertical dry-run
 returns the same shape plus `dryRun`, `selectedPort`, `moduleFederationRemote`,
-`effectApiPrefix`, `jsonMutations`, `shellDependencyChanges`, and
+`apiPrefix`, `jsonMutations`, `shellDependencyChanges`, and
 `generatedContractChanges`; it prints JSON from the CLI and writes no files.
 
 CodeSmith consumers can use the adapter subpath:

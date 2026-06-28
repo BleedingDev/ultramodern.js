@@ -101,7 +101,7 @@ function runPerformanceReadiness(
 ) {
   return execFileSync(
     process.execPath,
-    ['scripts/ultramodern-performance-readiness.mjs'],
+    ['scripts/ultramodern-performance-readiness.mts'],
     {
       cwd: workspaceDir,
       env: {
@@ -267,7 +267,7 @@ type CompactApp = {
   verticalRefs: string[];
   moduleFederationSsr: boolean;
   routes?: Record<string, any>;
-  effectApi?: {
+  api?: {
     stem: string;
     prefix: string;
     consumedBy: string[];
@@ -364,19 +364,19 @@ function normalizeCompactApp(rawApp: Record<string, any>): CompactApp {
     rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
       ? rawApp.moduleFederation
       : {};
-  const effectApi =
-    rawApp.effectApi && typeof rawApp.effectApi === 'object'
+  const api =
+    rawApp.api && typeof rawApp.api === 'object'
       ? {
           stem:
-            typeof rawApp.effectApi.stem === 'string'
-              ? rawApp.effectApi.stem
+            typeof rawApp.api.stem === 'string'
+              ? rawApp.api.stem
               : (domain ?? id),
           prefix:
-            typeof rawApp.effectApi.prefix === 'string'
-              ? rawApp.effectApi.prefix
+            typeof rawApp.api.prefix === 'string'
+              ? rawApp.api.prefix
               : `/${domain ?? id}-api`,
-          consumedBy: Array.isArray(rawApp.effectApi.consumedBy)
-            ? rawApp.effectApi.consumedBy.filter(
+          consumedBy: Array.isArray(rawApp.api.consumedBy)
+            ? rawApp.api.consumedBy.filter(
                 (consumer: unknown): consumer is string =>
                   typeof consumer === 'string',
               )
@@ -424,7 +424,7 @@ function normalizeCompactApp(rawApp: Record<string, any>): CompactApp {
       rawApp.routes && typeof rawApp.routes === 'object'
         ? rawApp.routes
         : undefined,
-    effectApi,
+    api,
   };
 }
 
@@ -524,7 +524,7 @@ function createPublicSurface(app: CompactApp) {
         ? ['robots.txt', 'sitemap.xml', 'site.webmanifest']
         : ['robots.txt'],
     generatedManifest: './src/routes/ultramodern-route-metadata',
-    generator: 'scripts/generate-public-surface-assets.mjs',
+    generator: 'scripts/generate-public-surface-assets.mts',
     languages: ['en', 'cs'],
     metadataExport: './src/routes/ultramodern-route-metadata',
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
@@ -678,9 +678,9 @@ function createCloudflareRoutes(app: CompactApp) {
     locale: `/locales/en/${appNamespace(app)}.json`,
     mfManifest: '/mf-manifest.json',
     ssr: '/en',
-    ...(app.effectApi
+    ...(app.api
       ? {
-          apiReadiness: `${app.effectApi.prefix}/${app.effectApi.stem}/readiness`,
+          apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
         }
       : {}),
   };
@@ -692,7 +692,7 @@ function createCloudflareDeploy(scope: string, app: CompactApp) {
     compatibilityDate: '2026-06-02',
     compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
     evidence: {
-      proofScript: 'scripts/proof-cloudflare-version.mjs',
+      proofScript: 'scripts/proof-cloudflare-version.mts',
       reportDefault:
         '.codex/reports/cloudflare-version-proof/public-url-proof.json',
     },
@@ -741,7 +741,7 @@ function createAppConfigContract(app: CompactApp) {
       'appTools',
       'tanstackRouterPlugin',
       'i18nPlugin',
-      ...(app.effectApi ? ['bffPlugin'] : []),
+      ...(app.api ? ['bffPlugin'] : []),
       'moduleFederationPlugin',
       'zephyrRspackPlugin',
     ],
@@ -765,11 +765,11 @@ function createAppConfigContract(app: CompactApp) {
       },
       siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
     },
-    ...(app.effectApi
+    ...(app.api
       ? {
           bff: {
             openapi: '/openapi.json',
-            prefix: app.effectApi.prefix,
+            prefix: app.api.prefix,
             runtimeFramework: 'effect',
           },
         }
@@ -835,11 +835,11 @@ function createStylingContract(scope: string, app: CompactApp) {
   };
 }
 
-function createEffectApiContract(app: CompactApp) {
-  if (!app.effectApi) {
+function createApiContract(app: CompactApp) {
+  if (!app.api) {
     return undefined;
   }
-  const stem = app.effectApi.stem;
+  const stem = app.api.stem;
   return {
     client: './api/client',
     contract: './api',
@@ -876,7 +876,7 @@ function createEffectApiContract(app: CompactApp) {
         source: 'generated-client',
       },
     },
-    prefix: app.effectApi.prefix,
+    prefix: app.api.prefix,
     readiness: {
       checks: ['moduleFederation', 'ssr', 'translations', 'api'],
       endpoint: `/${stem}/readiness`,
@@ -906,7 +906,7 @@ function createEffectApiContract(app: CompactApp) {
 
 function createAppContract(scope: string, app: CompactApp, apps: CompactApp[]) {
   return {
-    api: createEffectApiContract(app),
+    api: createApiContract(app),
     config: createAppConfigContract(app),
     deploy: {
       cloudflare: createCloudflareDeploy(scope, app),
@@ -936,7 +936,7 @@ function createAppContract(scope: string, app: CompactApp, apps: CompactApp[]) {
     kind: app.kind,
     marker: {
       appId: app.id,
-      apiSurface: app.effectApi ? 'api' : undefined,
+      apiSurface: app.api ? 'api' : undefined,
       build: buildMarkerFor(scope, app),
       deployProfile: 'cloudflare-ssr-mf-effect-v1',
       packageName: app.package ?? packageNameFor(scope, app.packageSuffix),
@@ -1033,7 +1033,7 @@ function readGeneratedContract(workspaceDir: string) {
         defaultPath:
           '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
         deterministic: true,
-        script: 'scripts/ultramodern-performance-readiness.mjs',
+        script: 'scripts/ultramodern-performance-readiness.mts',
       },
       scope: 'ultramodern-generated-and-framework-owned',
       signals: [
@@ -1090,7 +1090,7 @@ function expectPrivatePublicSurface(
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     metadataExport: './src/routes/ultramodern-route-metadata',
-    generator: 'scripts/generate-public-surface-assets.mjs',
+    generator: 'scripts/generate-public-surface-assets.mts',
     outputRoot: 'dist/public',
     cloudflareOutputRoot: '.output/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
@@ -1807,7 +1807,7 @@ async function expectGeneratedCloudflareProofContract(
   const realWorkspaceDir = fs.realpathSync(workspaceDir);
   const rootPackage = readJson(workspaceDir, 'package.json');
   expect(rootPackage.scripts['cloudflare:proof']).toBe(
-    'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
+    'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
   );
 
   const generatedContract = readGeneratedContract(workspaceDir);
@@ -1817,7 +1817,7 @@ async function expectGeneratedCloudflareProofContract(
   const publicUrlEnvNames = apps.map(app => app.deploy.cloudflare.publicUrlEnv);
   const proofScript = readText(
     workspaceDir,
-    'scripts/proof-cloudflare-version.mjs',
+    'scripts/proof-cloudflare-version.mts',
   );
   const proofHelperScript = readText(
     repoRoot,
@@ -1828,7 +1828,7 @@ async function expectGeneratedCloudflareProofContract(
 
   const helpOutput = execFileSync(
     process.execPath,
-    ['scripts/proof-cloudflare-version.mjs', '--help'],
+    ['scripts/proof-cloudflare-version.mts', '--help'],
     {
       cwd: workspaceDir,
       env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
@@ -1836,7 +1836,7 @@ async function expectGeneratedCloudflareProofContract(
     },
   ).toString();
   expect(helpOutput).toContain(
-    'node scripts/proof-cloudflare-version.mjs [--app workspace] [--out evidence.json] [--require-public-urls]',
+    'node scripts/proof-cloudflare-version.mts [--app workspace] [--out evidence.json] [--require-public-urls]',
   );
   expect(helpOutput).toContain(
     'ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev',
@@ -1913,7 +1913,7 @@ async function expectGeneratedCloudflareProofContract(
     '.codex/reports/cloudflare-version-proof/skipped-proof.json';
   const skippedOutput = execFileSync(
     process.execPath,
-    ['scripts/proof-cloudflare-version.mjs', '--out', skippedReportPath],
+    ['scripts/proof-cloudflare-version.mts', '--out', skippedReportPath],
     {
       cwd: workspaceDir,
       env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
@@ -1943,7 +1943,7 @@ async function expectGeneratedCloudflareProofContract(
   execFileSync(
     process.execPath,
     [
-      'scripts/proof-cloudflare-version.mjs',
+      'scripts/proof-cloudflare-version.mts',
       '--app',
       apps[0].id,
       '--out',
@@ -1971,7 +1971,7 @@ async function expectGeneratedCloudflareProofContract(
     execFileSync(
       process.execPath,
       [
-        'scripts/proof-cloudflare-version.mjs',
+        'scripts/proof-cloudflare-version.mts',
         '--app',
         apps[0].id,
         '--out',
@@ -2039,13 +2039,13 @@ describe('create-ultramodern-workspace', () => {
       '.codex/skills/rslib-best-practices/SKILL.md',
       '.codex/skills/rslib-modern-package/SKILL.md',
       '.codex/skills/rstest-best-practices/SKILL.md',
-      'scripts/assert-mf-types.mjs',
-      'scripts/validate-ultramodern-workspace.mjs',
-      'scripts/proof-cloudflare-version.mjs',
+      'scripts/assert-mf-types.mts',
+      'scripts/validate-ultramodern-workspace.mts',
+      'scripts/proof-cloudflare-version.mts',
       'scripts/ultramodern-performance-readiness.config.mjs',
-      'scripts/ultramodern-performance-readiness.mjs',
-      'scripts/ultramodern-typecheck.mjs',
-      'scripts/bootstrap-agent-skills.mjs',
+      'scripts/ultramodern-performance-readiness.mts',
+      'scripts/ultramodern-typecheck.mts',
+      'scripts/bootstrap-agent-skills.mts',
       '.modernjs/ultramodern.json',
       'topology/reference-topology.json',
       'topology/ownership.json',
@@ -2108,6 +2108,8 @@ describe('create-ultramodern-workspace', () => {
       '.github/workflows/ultramodern-workspace-gates.yml',
     );
     expect(workflowText).toMatch(/node-version:\s*['"]26\.3\.0['"]/u);
+    expect(workflowText).toContain('name: API Boundaries');
+    expect(workflowText).toContain('command: pnpm api:check');
     expect(workflowText).not.toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
@@ -2121,18 +2123,18 @@ describe('create-ultramodern-workspace', () => {
       config: './.modernjs/ultramodern.json',
     });
     expect(rootPackage.scripts['contract:check']).toBe(
-      'node ./scripts/validate-ultramodern-workspace.mjs',
+      'node ./scripts/validate-ultramodern-workspace.mts',
     );
     expect(rootPackage.scripts['mf:types']).toBe(
-      'node ./scripts/assert-mf-types.mjs',
+      'node ./scripts/assert-mf-types.mts',
     );
     expect(rootPackage.scripts.typecheck).toBe(
-      'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json',
+      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json',
     );
     expect(rootPackage.scripts['performance:readiness']).toBe(
-      'node ./scripts/ultramodern-performance-readiness.mjs',
+      'node ./scripts/ultramodern-performance-readiness.mts',
     );
-    expectPath(workspaceDir, 'scripts/generate-public-surface-assets.mjs');
+    expectPath(workspaceDir, 'scripts/generate-public-surface-assets.mts');
     expect(rootPackage.scripts.build).toBe(
       'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness',
     );
@@ -2143,7 +2145,7 @@ describe('create-ultramodern-workspace', () => {
       'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy',
     );
     expect(rootPackage.scripts['cloudflare:proof']).toBe(
-      'node ./scripts/proof-cloudflare-version.mjs --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
+      'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
     );
     expect(readJson(workspaceDir, 'tsconfig.json')).toMatchObject({
       files: [],
@@ -2198,28 +2200,28 @@ describe('create-ultramodern-workspace', () => {
       'oxlint apps verticals packages --fix',
     );
     expect(rootPackage.scripts['skills:install']).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs',
+      'node ./scripts/bootstrap-agent-skills.mts',
     );
     expect(rootPackage.scripts['skills:check']).toBe(
-      'node ./scripts/bootstrap-agent-skills.mjs --check',
+      'node ./scripts/bootstrap-agent-skills.mts --check',
     );
     expect(rootPackage.scripts.postinstall).toBe(
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
     );
     expect(
       rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
     ).toBe(true);
     expect(rootPackage.scripts['agents:refs:install']).toBe(
-      'node ./scripts/setup-agent-reference-repos.mjs',
+      'node ./scripts/setup-agent-reference-repos.mts',
     );
     const agentSkillsBootstrap = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mjs'),
+      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mts'),
       'utf8',
     );
     expect(agentSkillsBootstrap).not.toContain("run('brew'");
     expect(agentSkillsBootstrap).not.toContain('runShell(');
     const agentReferenceRepoSetup = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/setup-agent-reference-repos.mjs'),
+      path.join(workspaceDir, 'scripts/setup-agent-reference-repos.mts'),
       'utf8',
     );
     expect(agentReferenceRepoSetup).toContain(
@@ -2252,7 +2254,7 @@ describe('create-ultramodern-workspace', () => {
     });
     const typecheckScript = readText(
       workspaceDir,
-      'scripts/ultramodern-typecheck.mjs',
+      'scripts/ultramodern-typecheck.mts',
     );
     expect(typecheckScript).toContain('ULTRAMODERN_CREATE_BIN');
     expect(typecheckScript).toContain("'typecheck'");
@@ -2316,7 +2318,7 @@ describe('create-ultramodern-workspace', () => {
       mode: 'diagnostic',
       scope: 'ultramodern-generated-and-framework-owned',
       report: {
-        script: 'scripts/ultramodern-performance-readiness.mjs',
+        script: 'scripts/ultramodern-performance-readiness.mts',
         config: 'scripts/ultramodern-performance-readiness.config.mjs',
         defaultPath:
           '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
@@ -2384,10 +2386,10 @@ describe('create-ultramodern-workspace', () => {
       expect(packageJson.devDependencies.postcss).toBe('^8.5.15');
       expect(packageJson.scripts.dev).toBe('modern dev');
       expect(packageJson.scripts.build).toBe(
-        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target dist',
+        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target dist',
       );
       expect(packageJson.scripts['cloudflare:build']).toBe(
-        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && node ../../scripts/generate-public-surface-assets.mjs --app shell-super-app --target cloudflare',
+        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target cloudflare',
       );
       expect(packageJson.scripts['cloudflare:deploy']).toBe(
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
@@ -2396,7 +2398,7 @@ describe('create-ultramodern-workspace', () => {
         'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
       );
       expect(packageJson.scripts['cloudflare:proof']).toBe(
-        'node ../../scripts/proof-cloudflare-version.mjs --app shell-super-app',
+        'node ../../scripts/proof-cloudflare-version.mts --app shell-super-app',
       );
       expect(packageJson.scripts.serve).toBe('modern serve');
       expect(
@@ -2406,7 +2408,7 @@ describe('create-ultramodern-workspace', () => {
       ).toBe(true);
       expect(packageJson['zephyr:dependencies']).toEqual({});
       expect(packageJson.scripts.typecheck).toBe(
-        'node ../../scripts/ultramodern-typecheck.mjs --project tsconfig.json',
+        'node ../../scripts/ultramodern-typecheck.mts --project tsconfig.json',
       );
       expect(packageJson.dependencies['@tanstack/react-router']).toBe(
         '1.170.16',
@@ -2736,7 +2738,7 @@ describe('create-ultramodern-workspace', () => {
 
     const validationOutput = execFileSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mjs'],
+      ['scripts/validate-ultramodern-workspace.mts'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),
@@ -2763,7 +2765,7 @@ describe('create-ultramodern-workspace', () => {
     try {
       execFileSync(
         process.execPath,
-        ['scripts/validate-ultramodern-workspace.mjs'],
+        ['scripts/validate-ultramodern-workspace.mts'],
         {
           cwd: workspaceDir,
           env: generatedToolEnv(),
@@ -2887,7 +2889,7 @@ describe('create-ultramodern-workspace', () => {
     try {
       execFileSync(
         process.execPath,
-        ['scripts/check-ultramodern-i18n-boundaries.mjs'],
+        ['scripts/check-ultramodern-i18n-boundaries.mts'],
         {
           cwd: workspaceDir,
           stdio: 'pipe',
@@ -2936,7 +2938,7 @@ process.exit(1);
     fs.chmodSync(fakePnpmPath, 0o755);
     const patchVersionValidationOutput = execFileSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mjs'],
+      ['scripts/validate-ultramodern-workspace.mts'],
       {
         cwd: workspaceDir,
         env: {
@@ -2952,7 +2954,7 @@ process.exit(1);
 
     const mfTypesHelp = execFileSync(
       process.execPath,
-      ['scripts/assert-mf-types.mjs', '--help'],
+      ['scripts/assert-mf-types.mts', '--help'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),
@@ -2963,7 +2965,7 @@ process.exit(1);
 
     const publicSurfaceHelp = execFileSync(
       process.execPath,
-      ['scripts/generate-public-surface-assets.mjs', '--help'],
+      ['scripts/generate-public-surface-assets.mts', '--help'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),
@@ -3024,7 +3026,7 @@ process.exit(1);
     expect(remotePackage.scripts).toMatchObject({
       dev: 'modern dev',
       build:
-        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mjs --app catalog --target dist && node ../../scripts/assert-mf-types.mjs',
+        'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mts --app catalog --target dist && node ../../scripts/assert-mf-types.mts',
       serve: 'modern serve',
     });
     expect(remotePackage.dependencies['@tanstack/react-router']).toBe(
@@ -3363,7 +3365,7 @@ process.exit(1);
     });
     const validationOutput = execFileSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mjs'],
+      ['scripts/validate-ultramodern-workspace.mts'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),
@@ -3466,7 +3468,7 @@ process.exit(1);
 
     const validationOutput = execFileSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mjs'],
+      ['scripts/validate-ultramodern-workspace.mts'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),
@@ -3618,7 +3620,7 @@ export const entries = [
     execFileSync(
       process.execPath,
       [
-        'scripts/generate-public-surface-assets.mjs',
+        'scripts/generate-public-surface-assets.mts',
         '--app',
         'shell-super-app',
         '--target',
@@ -3691,7 +3693,7 @@ export const entries = [
     execFileSync(
       process.execPath,
       [
-        'scripts/generate-public-surface-assets.mjs',
+        'scripts/generate-public-surface-assets.mts',
         '--app',
         'shell-super-app',
         '--target',
@@ -3777,7 +3779,7 @@ export const entries = [
 
     const validationOutput = execFileSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mjs'],
+      ['scripts/validate-ultramodern-workspace.mts'],
       {
         cwd: workspaceDir,
         env: generatedToolEnv(),

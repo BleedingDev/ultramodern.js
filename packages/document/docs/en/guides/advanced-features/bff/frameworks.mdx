@@ -12,6 +12,15 @@ Modern.js supports two BFF runtime frameworks:
 
 `effect` and `hono` are strict runtime modes. There is no automatic fallback between them.
 
+::::info
+This page documents generic Modern.js runtime support. Generated UltraModern
+workspaces always use the `effect` runtime with
+`bff.effect.strictEffectApproach: true`. Add or change generated UltraModern
+HTTP API work through `shared/api.ts` and `api/index.ts`; do not add
+Hono/file-convention handlers, raw request parsing, or manual `Response`
+construction inside those workspaces.
+::::
+
 ## Switch to Effect runtime
 
 ```ts title="modern.config.ts"

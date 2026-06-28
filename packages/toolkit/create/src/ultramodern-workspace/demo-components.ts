@@ -1,7 +1,7 @@
 import {
-  appHasEffectApi,
-  effectApiStem,
+  appHasApi,
   remoteDependencyAlias,
+  resolveApiStem,
   shellApp,
 } from './descriptors';
 import {
@@ -248,8 +248,8 @@ ${showcaseItems}
 
 export function createRemotePage(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
-  const listApiItems = `list${toPascalCase(effectApiStem(app))}`;
-  const apiImport = appHasEffectApi(app)
+  const listApiItems = `list${toPascalCase(resolveApiStem(app))}`;
+  const apiImport = appHasApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
@@ -257,12 +257,12 @@ import {
   Effect,
   ${listApiItems},
   runEffectRequest,
-} from '../../api/${effectApiStem(app)}-client';
+} from '../../api/${resolveApiStem(app)}-client';
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
     : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Link } from '@modern-js/plugin-tanstack/runtime';\nimport { UltramodernRouteHead } from '../ultramodern-route-head';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
-  const apiState = appHasEffectApi(app)
+  const apiState = appHasApi(app)
     ? `  const [apiStatus, setApiStatus] = useState('pending');
 
   useEffect(() => {
@@ -293,7 +293,7 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 
 `
     : '';
-  const apiMarkup = appHasEffectApi(app)
+  const apiMarkup = appHasApi(app)
     ? `      <p data-testid="api-status">{apiStatus}</p>
 `
     : '';

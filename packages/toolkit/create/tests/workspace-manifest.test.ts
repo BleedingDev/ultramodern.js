@@ -79,17 +79,17 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/tsconfig.json',
   'patches/@tanstack__router-core@1.171.13.patch',
   'pnpm-workspace.yaml',
-  'scripts/assert-mf-types.mjs',
-  'scripts/bootstrap-agent-skills.mjs',
-  'scripts/check-ultramodern-api-boundaries.mjs',
-  'scripts/check-ultramodern-i18n-boundaries.mjs',
-  'scripts/generate-public-surface-assets.mjs',
-  'scripts/proof-cloudflare-version.mjs',
-  'scripts/setup-agent-reference-repos.mjs',
+  'scripts/assert-mf-types.mts',
+  'scripts/bootstrap-agent-skills.mts',
+  'scripts/check-ultramodern-api-boundaries.mts',
+  'scripts/check-ultramodern-i18n-boundaries.mts',
+  'scripts/generate-public-surface-assets.mts',
+  'scripts/proof-cloudflare-version.mts',
+  'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
-  'scripts/ultramodern-performance-readiness.mjs',
-  'scripts/ultramodern-typecheck.mjs',
-  'scripts/validate-ultramodern-workspace.mjs',
+  'scripts/ultramodern-performance-readiness.mts',
+  'scripts/ultramodern-typecheck.mts',
+  'scripts/validate-ultramodern-workspace.mts',
   'topology/local-overlays/development.json',
   'topology/ownership.json',
   'topology/reference-topology.json',
@@ -191,7 +191,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     assert.deepEqual(workspaceResult.moduleFederationNames, {
       'shell-super-app': 'shellSuperApp',
     });
-    assert.deepEqual(workspaceResult.effectApiPrefixes, {});
+    assert.deepEqual(workspaceResult.apiPrefixes, {});
     assert.equal(
       workspaceResult.generatedContractPath,
       '.modernjs/ultramodern.json',
@@ -241,14 +241,14 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
           './Route': './src/federation-entry.tsx',
           './Widget': './src/components/catalog-widget.tsx',
         },
-        effectApiPrefix: '/catalog-api',
+        apiPrefix: '/catalog-api',
       },
     ]);
     assert.deepEqual(verticalResult.assignedPorts, { catalog: 4101 });
     assert.deepEqual(verticalResult.moduleFederationNames, {
       catalog: 'verticalCatalog',
     });
-    assert.deepEqual(verticalResult.effectApiPrefixes, {
+    assert.deepEqual(verticalResult.apiPrefixes, {
       catalog: '/catalog-api',
     });
     assert.equal(

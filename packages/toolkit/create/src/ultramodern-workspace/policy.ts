@@ -1,10 +1,10 @@
 import {
-  appHasEffectApi,
+  appHasApi,
   appI18nNamespace,
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
-  effectApiPrefix,
-  effectApiStem,
+  resolveApiPrefix,
+  resolveApiStem,
 } from './descriptors';
 import { createLocalisedUrlsMap } from './routes';
 import type { JsonValue, WorkspaceApp } from './types';
@@ -31,9 +31,9 @@ export function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
     ssr: localizedPath ?? '/en',
     mfManifest: '/mf-manifest.json',
     locale: `/locales/en/${appI18nNamespace(app)}.json`,
-    ...(appHasEffectApi(app)
+    ...(appHasApi(app)
       ? {
-          apiReadiness: `${effectApiPrefix(app)}/${effectApiStem(
+          apiReadiness: `${resolveApiPrefix(app)}/${resolveApiStem(
             app,
           )}/readiness`,
         }
@@ -178,7 +178,7 @@ export function createCloudflareDeployContract(
     security: createCloudflareSecurityContract(),
     qualityGates: createPublicWebsiteQualityGateContract(),
     evidence: {
-      proofScript: 'scripts/proof-cloudflare-version.mjs',
+      proofScript: 'scripts/proof-cloudflare-version.mts',
       reportDefault:
         '.codex/reports/cloudflare-version-proof/public-url-proof.json',
     },

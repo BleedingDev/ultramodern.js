@@ -14,7 +14,7 @@ const EXPECTED_TARGET = 'cloudflare';
 const EXPECTED_ASSETS_BINDING = 'ASSETS';
 const WORKER_MANIFEST_FILE = path.join('server', 'modern-worker-manifest.json');
 const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
-  'Ensure the Effect BFF entry exists at api/effect/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
+  'Ensure the Effect BFF entry exists at api/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

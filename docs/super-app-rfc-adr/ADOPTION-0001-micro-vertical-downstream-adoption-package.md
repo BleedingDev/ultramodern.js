@@ -50,9 +50,9 @@ The current downstream starter is the Tractor reference workspace:
 | Boundary | Package | Owns |
 | --- | --- | --- |
 | Shell | `apps/shell-super-app` | route assembly, topology selection, MF host config, `zephyr:dependencies`, global fallback policy |
-| Explore | `apps/remotes/remote-explore` | discovery routes, browser-safe MF exposes, `/explore-api/effect/explore/*`, route-owned i18n, vertical CSS |
-| Decide | `apps/remotes/remote-decide` | product selection routes, MF exposes, `/decide-api/effect/decide/*`, route-owned i18n, vertical CSS |
-| Checkout | `apps/remotes/remote-checkout` | cart and checkout routes, MF exposes, `/checkout-api/effect/checkout/*`, route-owned i18n, vertical CSS |
+| Explore | `apps/remotes/remote-explore` | discovery routes, browser-safe MF exposes, `/explore-api/explore/*`, route-owned i18n, vertical CSS |
+| Decide | `apps/remotes/remote-decide` | product selection routes, MF exposes, `/decide-api/decide/*`, route-owned i18n, vertical CSS |
+| Checkout | `apps/remotes/remote-checkout` | cart and checkout routes, MF exposes, `/checkout-api/checkout/*`, route-owned i18n, vertical CSS |
 | Shared tokens | `packages/shared-design-tokens` | shared CSS token layer and `./tokens.css` export |
 
 The shell may orchestrate but must not take ownership of vertical-local route

@@ -1,11 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { verticalApiGroupName } from './api';
 import { remoteComponentOutputPath } from './demo-components';
 import {
-  appHasEffectApi,
+  appHasApi,
   appI18nNamespace,
   remoteDependencyAlias,
   shellApp,
 } from './descriptors';
-import { verticalEffectGroupName } from './effect-api';
 import {
   readFileTemplate,
   renderFileTemplate,
@@ -98,20 +100,49 @@ process.exit(result.status ?? 1);
 `;
 }
 
+function removeLegacyWorkspaceScript(targetDir: string, relativePath: string) {
+  fs.rmSync(path.join(targetDir, relativePath), { force: true });
+}
+
+function writeWorkspaceOwnedMtsScript(
+  targetDir: string,
+  name: string,
+  content: string,
+) {
+  writeFileReplacing(targetDir, `scripts/${name}.mts`, content);
+  removeLegacyWorkspaceScript(targetDir, `scripts/${name}.mjs`);
+}
+
+function migrateCopiedWorkspaceScriptToMts(targetDir: string, name: string) {
+  const legacyPath = path.join(targetDir, `scripts/${name}.mjs`);
+  const migratedPath = path.join(targetDir, `scripts/${name}.mts`);
+
+  if (!fs.existsSync(legacyPath)) {
+    return;
+  }
+
+  if (fs.existsSync(migratedPath)) {
+    fs.rmSync(legacyPath, { force: true });
+    return;
+  }
+
+  fs.renameSync(legacyPath, migratedPath);
+}
+
 export function createWorkspaceValidationScript(
   scope: string,
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const verticals = remotes.filter(appHasEffectApi).map(remote => ({
+  const verticals = remotes.filter(appHasApi).map(remote => ({
     id: remote.id,
     domain: remote.domain,
-    stem: remote.effectApi.stem,
-    group: verticalEffectGroupName(remote),
+    stem: remote.api.stem,
+    group: verticalApiGroupName(remote),
     path: remote.directory,
     port: remote.port,
     mfName: remote.mfName,
-    apiPrefix: remote.effectApi.prefix,
+    apiPrefix: remote.api.prefix,
     tailwindPrefix: tailwindPrefixForApp(remote),
     zephyrAlias: remoteDependencyAlias(remote),
     packageName: packageName(scope, remote.packageSuffix),
@@ -185,13 +216,13 @@ export function createWorkspaceValidationScript(
 
 export function createWorkspaceI18nBoundaryValidationScript(): string {
   return readFileTemplate(
-    'workspace-scripts/check-ultramodern-i18n-boundaries.mjs',
+    'workspace-scripts/check-ultramodern-i18n-boundaries.mts',
   );
 }
 
 export function createWorkspaceApiBoundaryValidationScript(): string {
   return readFileTemplate(
-    'workspace-scripts/check-ultramodern-api-boundaries.mjs',
+    'workspace-scripts/check-ultramodern-api-boundaries.mts',
   );
 }
 
@@ -207,34 +238,34 @@ export function writeGeneratedWorkspaceScripts(
   _enableTailwind: boolean,
   _remotes: WorkspaceApp[] = [],
 ) {
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/assert-mf-types.mjs',
+    'assert-mf-types',
     createToolWrapperScript('mf-types'),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/validate-ultramodern-workspace.mjs',
+    'validate-ultramodern-workspace',
     createToolWrapperScript('validate'),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/check-ultramodern-i18n-boundaries.mjs',
+    'check-ultramodern-i18n-boundaries',
     createWorkspaceI18nBoundaryValidationScript(),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/check-ultramodern-api-boundaries.mjs',
+    'check-ultramodern-api-boundaries',
     createWorkspaceApiBoundaryValidationScript(),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/generate-public-surface-assets.mjs',
+    'generate-public-surface-assets',
     createToolWrapperScript('public-surface'),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/proof-cloudflare-version.mjs',
+    'proof-cloudflare-version',
     createToolWrapperScript('cloudflare-proof'),
   );
   writeFileReplacing(
@@ -242,19 +273,20 @@ export function writeGeneratedWorkspaceScripts(
     'scripts/ultramodern-performance-readiness.config.mjs',
     createPerformanceReadinessConfigScript(),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/ultramodern-performance-readiness.mjs',
+    'ultramodern-performance-readiness',
     createToolWrapperScript('performance-readiness'),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/ultramodern-typecheck.mjs',
+    'ultramodern-typecheck',
     createToolWrapperScript('typecheck'),
   );
-  writeFileReplacing(
+  writeWorkspaceOwnedMtsScript(
     targetDir,
-    'scripts/bootstrap-agent-skills.mjs',
+    'bootstrap-agent-skills',
     createSkillsToolWrapperScript(),
   );
+  migrateCopiedWorkspaceScriptToMts(targetDir, 'setup-agent-reference-repos');
 }

@@ -22,12 +22,12 @@ The current Tractor reference workspace applies this profile to:
 | App | Cloudflare proof env | Effect readiness |
 | --- | --- | --- |
 | `shell-super-app` | `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP` | none |
-| `remote-explore` | `ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE` | `/explore-api/effect/explore/readiness` |
-| `remote-decide` | `ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE` | `/decide-api/effect/decide/readiness` |
-| `remote-checkout` | `ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT` | `/checkout-api/effect/checkout/readiness` |
+| `remote-explore` | `ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE` | `/explore-api/explore/readiness` |
+| `remote-decide` | `ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE` | `/decide-api/decide/readiness` |
+| `remote-checkout` | `ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT` | `/checkout-api/checkout/readiness` |
 
 Each remote is a single deployable ownership boundary for UI, MF manifest,
-Effect API, locale JSON, CSS, and build marker. Public proof must compare those
+API, locale JSON, CSS, and build marker. Public proof must compare those
 surfaces for the same selected build.
 
 The generated package scripts are:
@@ -98,7 +98,7 @@ pnpm cloudflare:proof -- --require-public-urls
 ```
 
 The generated proof reads `.modernjs/ultramodern-generated-contract.json` and
-asserts SSR HTML, MF manifest, locale JSON, CSS root marker, and Effect API
+asserts SSR HTML, MF manifest, locale JSON, CSS root marker, and API
 marker. It records skipped apps when public URL env vars are absent unless
 `--require-public-urls` is set.
 

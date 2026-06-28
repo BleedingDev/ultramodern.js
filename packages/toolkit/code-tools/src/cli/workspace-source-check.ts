@@ -72,7 +72,7 @@ const walk = (directory: string, files: string[] = []): string[] => {
 };
 
 const isSourceFile = (filePath: string): boolean =>
-  /\.(?:ts|tsx|js|jsx)$/u.test(filePath);
+  /\.(?:[cm]?[jt]sx?)$/u.test(filePath);
 
 const createLocaleJsonMatcher = (
   locales: readonly string[],
@@ -236,7 +236,7 @@ const runRuntimeAndLocaleResourceChecks = (
 
 export const runWorkspaceSourceCheck = ({
   cwd = process.cwd(),
-  sourceRoots = ['apps', 'verticals'],
+  sourceRoots = ['apps', 'verticals', 'packages'],
   locales = DEFAULT_LOCALES,
   pluralCategories,
 }: WorkspaceSourceCheckOptions = {}): number => {
@@ -262,6 +262,7 @@ export const runWorkspaceSourceCheck = ({
       ],
       'ultramodern/no-manual-locale-copy-branching': 'error',
       'ultramodern/no-split-translation-keys': 'error',
+      'ultramodern/strict-effect-api-boundaries': 'error',
     },
   });
 

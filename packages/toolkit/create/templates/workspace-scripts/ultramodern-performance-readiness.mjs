@@ -150,7 +150,7 @@ const createPerformanceReadinessContract = () => ({
   mode: 'diagnostic',
   scope: 'ultramodern-generated-and-framework-owned',
   report: {
-    script: 'scripts/ultramodern-performance-readiness.mjs',
+    script: 'scripts/ultramodern-performance-readiness.mts',
     config: 'scripts/ultramodern-performance-readiness.config.mjs',
     defaultPath: defaultReportPath,
     deterministic: true,
@@ -351,7 +351,7 @@ const main = async () => {
   );
   assert(
     contract.performanceReadiness?.report?.script ===
-      'scripts/ultramodern-performance-readiness.mjs',
+      'scripts/ultramodern-performance-readiness.mts',
     'Generated contract must point at the performance readiness diagnostics script',
   );
   const contractSignalIds =

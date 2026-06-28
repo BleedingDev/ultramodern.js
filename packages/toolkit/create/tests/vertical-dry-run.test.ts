@@ -135,7 +135,7 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
       name: 'verticalCatalog',
       manifestUrl: 'http://localhost:4101/mf-manifest.json',
     });
-    assert.equal(plan.effectApiPrefix, '/catalog-api');
+    assert.equal(plan.apiPrefix, '/catalog-api');
     assert.ok(
       plan.createdPaths.includes('verticals/catalog/package.json'),
       'dry-run must report paths it would create',
@@ -184,7 +184,7 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
     assert.deepEqual(plan.rewrittenPaths, result.rewrittenPaths);
     assert.deepEqual(plan.assignedPorts, result.assignedPorts);
     assert.deepEqual(plan.moduleFederationNames, result.moduleFederationNames);
-    assert.deepEqual(plan.effectApiPrefixes, result.effectApiPrefixes);
+    assert.deepEqual(plan.apiPrefixes, result.apiPrefixes);
     assert.equal(plan.generatedContractPath, result.generatedContractPath);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -287,7 +287,7 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', () => {
     assert.equal(plan.dryRun, true);
     assert.equal(plan.selectedPort, 4101);
     assert.equal(plan.moduleFederationRemote.name, 'verticalCatalog');
-    assert.equal(plan.effectApiPrefix, '/catalog-api');
+    assert.equal(plan.apiPrefix, '/catalog-api');
     assert.deepEqual(snapshotWorkspace(workspaceDir), before);
     assert.equal(
       fs.existsSync(path.join(workspaceDir, 'verticals/catalog')),

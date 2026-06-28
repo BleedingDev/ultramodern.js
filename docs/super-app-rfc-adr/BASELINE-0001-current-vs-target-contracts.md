@@ -34,7 +34,7 @@ It is intentionally framework-focused (not domain workflow-focused), to keep Mod
 
 1. New cross-project APIs follow Effect-first contracts.
 2. TanStack Router is default for new routing/data orchestration work.
-3. Hono and React Router/Remix remain compatibility lanes only.
+3. Hono and React Router/Remix remain generic Modern.js migration surfaces only; generated UltraModern surfaces do not use Hono.
 4. Tenant scope is server-bound and never trusted from client assertions.
 5. Any MF fallback/degradation must emit structured observability signals.
 6. Release promotion requires telemetry + contract gate success.
@@ -53,7 +53,7 @@ Architecture board approval for this baseline requires:
 
 To stay close to Modern.js v3:
 
-1. Keep compatibility lanes intact while changing defaults for new development.
+1. Keep upstream compatibility surfaces intact while changing defaults for new UltraModern development.
 2. Prefer additive contracts and feature flags over invasive rewrites.
 3. Keep upgrade surface documented in RFC/ADR + public docs.
 4. Avoid introducing business-domain assumptions into framework core.

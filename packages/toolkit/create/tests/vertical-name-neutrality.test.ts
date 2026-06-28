@@ -110,7 +110,7 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
       );
       assert.ok(appConfig, `${name} must be in the compact topology metadata`);
       assert.equal(appConfig.path, `verticals/${name}`);
-      assert.equal(appConfig.effectApi.prefix, `/${name}-api`);
+      assert.equal(appConfig.api.prefix, `/${name}-api`);
 
       const sharedApi = read(`verticals/${name}/shared/api.ts`);
       assert.match(

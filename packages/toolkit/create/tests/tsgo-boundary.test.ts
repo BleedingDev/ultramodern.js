@@ -19,6 +19,7 @@ const sourceExtensions = new Set([
   '.handlebars',
   '.js',
   '.mjs',
+  '.mts',
   '.ts',
   '.tsx',
 ]);

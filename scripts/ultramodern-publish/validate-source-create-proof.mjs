@@ -799,7 +799,7 @@ function runInstalledCreateSmoke({
     if (
       verticalResult.operation !== 'vertical' ||
       verticalResult.assignedPorts.catalog !== 4101 ||
-      verticalResult.effectApiPrefixes.catalog !== '/catalog-api'
+      verticalResult.apiPrefixes.catalog !== '/catalog-api'
     ) {
       throw new Error('Expected MicroVertical generation result');
     }
@@ -809,7 +809,7 @@ function runInstalledCreateSmoke({
     for (const relativePath of [
       '.modernjs/ultramodern.json',
       'apps/shell-super-app/package.json',
-      'scripts/check-ultramodern-api-boundaries.mjs',
+      'scripts/check-ultramodern-api-boundaries.mts',
       'verticals/catalog/package.json',
       'verticals/catalog/api/index.ts',
       'verticals/catalog/shared/api.ts',

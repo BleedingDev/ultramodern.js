@@ -101,10 +101,8 @@ function createOverlayRuntimeConfig(
       ? result.moduleFederationNames[generatedApp.id]
       : undefined,
     moduleFederationNames: result.moduleFederationNames,
-    effectApiPrefix: generatedApp
-      ? result.effectApiPrefixes[generatedApp.id]
-      : undefined,
-    effectApiPrefixes: result.effectApiPrefixes,
+    apiPrefix: generatedApp ? result.apiPrefixes[generatedApp.id] : undefined,
+    apiPrefixes: result.apiPrefixes,
     packageSource: result.packageSource,
     generationResult: result,
   };

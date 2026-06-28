@@ -42,12 +42,12 @@ export type WorkspaceApp = {
   port: number;
   mfName: string;
   exposes?: Record<string, string>;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
   verticalRefs?: string[];
   ownership: Ownership;
 };
 
-export type WorkspaceEffectApi = {
+export type WorkspaceApi = {
   stem: string;
   prefix: string;
   consumedBy: string[];
@@ -160,7 +160,7 @@ export type UltramodernGeneratedAppDescriptor = {
   port: number;
   moduleFederationName: string;
   exposes?: Record<string, string>;
-  effectApiPrefix?: string;
+  apiPrefix?: string;
 };
 
 /**
@@ -187,7 +187,7 @@ export type UltramodernGenerationResult = {
   rewrittenPaths: string[];
   assignedPorts: Record<string, number>;
   moduleFederationNames: Record<string, string>;
-  effectApiPrefixes: Record<string, string>;
+  apiPrefixes: Record<string, string>;
   generatedContractPath: string;
   warnings: UltramodernGenerationWarning[];
 };
@@ -207,8 +207,8 @@ export type UltramodernCodeSmithOverlayRuntimeConfig = {
   assignedPorts: Record<string, number>;
   moduleFederationName?: string;
   moduleFederationNames: Record<string, string>;
-  effectApiPrefix?: string;
-  effectApiPrefixes: Record<string, string>;
+  apiPrefix?: string;
+  apiPrefixes: Record<string, string>;
   packageSource: ResolvedPackageSource;
   generationResult: UltramodernGenerationResult;
 };
@@ -246,7 +246,7 @@ export type UltramodernVerticalPlan = UltramodernGenerationResult & {
     name: string;
     manifestUrl: string;
   };
-  effectApiPrefix?: string;
+  apiPrefix?: string;
   jsonMutations: UltramodernJsonMutation[];
   shellDependencyChanges: UltramodernShellDependencyChange[];
   generatedContractChanges: UltramodernGeneratedContractChange[];

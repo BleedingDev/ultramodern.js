@@ -104,8 +104,8 @@ This gate model is encoded in Beads labels and acceptance criteria.
 
 ## 6. Architecture Risk Decisions
 
-1. We accept compatibility lanes (Hono/React Router) for migration only.
-2. We reject making compatibility lanes the default for new features.
+1. Existing Modern.js Hono/React Router surfaces may remain during migration.
+2. We reject making Hono or React Router the default for new UltraModern-generated features.
 3. We accept temporary alpha-gated app-level MF SSR while reliability hardening completes.
 4. We reject client-trusted tenant scope for authorization or cache isolation.
 

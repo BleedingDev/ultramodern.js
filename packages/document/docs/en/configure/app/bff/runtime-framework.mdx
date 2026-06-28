@@ -25,4 +25,6 @@ export default defineConfig({
 - Set to `'hono'` to run BFF only from file-convention handlers under `api/lambda/**`.
 
 There is no implicit fallback between runtimes. Choose one runtime mode per app.
-Generated UltraModern apps use strict Effect APIs by default and set `bff.effect.strictEffectApproach: true`.
+Generated UltraModern apps use strict Effect APIs by default and set
+`bff.effect.strictEffectApproach: true`; `hono` and `api/lambda/**` are not
+valid generated UltraModern HTTP API paths.

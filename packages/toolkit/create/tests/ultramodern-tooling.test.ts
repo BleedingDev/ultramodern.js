@@ -199,7 +199,7 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
               './Custom': './src/features/custom-surface.tsx',
             },
           },
-          effectApi: {
+          api: {
             stem: 'catalog',
             prefix: '/catalog-api',
             consumedBy: ['shell-super-app', 'catalog'],

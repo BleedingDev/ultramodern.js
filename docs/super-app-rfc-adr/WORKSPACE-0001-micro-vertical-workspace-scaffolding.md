@@ -14,7 +14,7 @@
 
 This document defines the canonical downstream workspace shape for teams adopting Micro Verticals on top of the single public `presetUltramodern(...)` entrypoint.
 
-The goal is not a second framework mode. The goal is a repeatable repo layout and scaffold recipe that lets teams create shell, remote, service, and shared-package slices while staying aligned with the completed TanStack, Module Federation, Effect, Hono, topology, and certification contracts.
+The goal is not a second framework mode. The goal is a repeatable repo layout and scaffold recipe that lets teams create shell, remote, service, and shared-package slices while staying aligned with the completed TanStack, Module Federation, Effect HttpApi, topology, and certification contracts.
 
 This document is not a migration guide or codemod plan. Existing-app migration guidance is intentionally deferred from this framework topology scope.
 
@@ -26,7 +26,7 @@ A Micro Vertical workspace uses these package roles:
 | --- | --- | --- | --- |
 | Shell app | `apps/shell` | Platform shell owner | Route assembly, trust policy, topology selection, global telemetry, fallback policy |
 | Remote vertical | `apps/remotes/<vertical>` | Vertical owner | Route subtree, remote-local loader/action behavior, remote manifest, degradation UI |
-| Service | `services/<service>` | Service owner | Effect API boundary, request context propagation, operation contracts; Hono only as explicit compatibility |
+| Service | `services/<service>` | Service owner | Effect HttpApi boundary, request context propagation, operation contracts |
 | Shared package | `packages/<name>` | Platform or vertical owner | Tokens, primitives, domain-neutral utilities, generated clients |
 | Horizontal design-system remote | `apps/remotes/design-system` | Design-system owner | Module Federation remote for tokens/primitives when independent deployment is required |
 
@@ -122,24 +122,17 @@ Effect-first service:
 pnpm dlx @bleedingdev/modern-js-create catalog-api --microvertical service
 ```
 
-Hono compatibility services remain manual lower-level scaffolds:
-
-```bash
-pnpm dlx @bleedingdev/modern-js-create services/catalog-api --bff-runtime hono --workspace --sub
-```
-
 Service requirements:
 
 1. expose explicit operation contracts.
 2. preserve trace, locale, auth, and session propagation through `createRequestContextHeaders(...)`.
-3. keep Hono usage explicit as a compatibility lane.
+3. model HTTP endpoints through Effect HttpApi contracts and typed error channels.
 4. publish service references through topology metadata, not source-level environment URLs.
 
 Reference proof:
 
 1. `tests/integration/bff-runtime-parity`
 2. `tests/integration/bff-corss-project`
-3. `tests/integration/bff-hono`
 
 ### 3.5 Shared package
 
@@ -201,7 +194,6 @@ A generated Micro Vertical workspace is scaffold-ready only when these checks ha
 | Shell + remote route composition | `pnpm --dir tests exec rstest run integration/routes-tanstack-mf/test/index.test.ts` |
 | MF manifest and shared tree-shaking metadata | `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` |
 | Effect service propagation | `tests/integration/bff-runtime-parity` and `tests/integration/bff-corss-project` |
-| Hono compatibility lane | `tests/integration/bff-hono` |
 | Template manifest and supply-chain policy | `packages/toolkit/create/src/index.ts` manifest validation and `.modernjs/mv-template-manifest.json` output |
 | Release gate compatibility | `pnpm run validate:bun-smoke` |
 
@@ -218,7 +210,7 @@ UltraModern add flow:
 2. `--microvertical horizontal-remote` for independently deployed horizontal remotes.
 3. `--microvertical service` for Effect-first service packages.
 4. `--microvertical shared` for shared workspace packages.
-5. TanStack Router and Effect BFF are the default low-level app scaffold; `--router react-router`, `--bff-runtime hono`, `--workspace`, and `--sub` remain available as explicit compatibility/manual scaffolding primitives.
+5. TanStack Router and Effect HttpApi BFF are the default low-level app scaffold. Generated UltraModern HTTP APIs do not use `--bff-runtime hono`.
 
 New CLI flags should be added only when they produce materially different files
 or eliminate repeated, error-prone workspace metadata edits. `--microvertical`
@@ -232,7 +224,7 @@ A workspace is ready for Micro Vertical adoption when:
 1. shell, remote, service, and shared packages have distinct owners.
 2. shell source uses topology references rather than environment URLs.
 3. remote packages own degraded UI and fallback telemetry.
-4. service packages use Effect or explicit Hono lanes.
+4. service packages use Effect HttpApi for generated HTTP APIs.
 5. shared packages expose tokens, primitives, generated clients, or domain-neutral utilities only.
 6. local orchestration can run shell, remote, and service processes together.
 7. version-skew and remote-unavailable scenarios are rehearsed before production certification.

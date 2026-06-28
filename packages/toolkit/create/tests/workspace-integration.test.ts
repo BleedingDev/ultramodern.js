@@ -49,7 +49,19 @@ function exists(workspaceDir: string, relativePath: string) {
 function runGeneratedWorkspaceCheck(workspaceDir: string) {
   return spawnSync(
     process.execPath,
-    ['scripts/validate-ultramodern-workspace.mjs'],
+    ['scripts/validate-ultramodern-workspace.mts'],
+    {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+      env: hermeticEnv,
+    },
+  );
+}
+
+function runGeneratedApiCheck(workspaceDir: string) {
+  return spawnSync(
+    process.execPath,
+    ['scripts/check-ultramodern-api-boundaries.mts'],
     {
       cwd: workspaceDir,
       encoding: 'utf8',
@@ -207,7 +219,7 @@ function assertIntegratedVertical(
     './Widget',
   ]);
   assert.equal(configEntry.moduleFederation.name, mfName);
-  assert.equal(configEntry.effectApi.prefix, `/${id}-api`);
+  assert.equal(configEntry.api.prefix, `/${id}-api`);
   assert.equal(moduleFederationEntry.role, 'remote');
   assert.equal(moduleFederationEntry.name, mfName);
   assert.deepEqual(moduleFederationEntry.exposes, ['./Route', './Widget']);
@@ -534,6 +546,63 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       assert.match(output, scenario.expectedContract);
       assert.match(output, scenario.expectedFixArea);
     }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated API boundary check rejects raw handler drift through Oxlint', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-api-check-'));
+  const workspaceDir = path.join(tempRoot, 'api-check-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'api-check-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+
+    const passingResult = runGeneratedApiCheck(workspaceDir);
+    assert.equal(passingResult.status, 0, commandOutput(passingResult));
+
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/catalog/api/index.ts'),
+      `
+import { createHandler } from '@modern-js/plugin-bff/hono-server';
+
+export const handler = async (request: Request) => {
+  const body = await request.json();
+  return Response.json(body);
+};
+
+export default async function fallback() {
+  return new Response('legacy');
+}
+
+const runtimeFramework = 'hono';
+const strictEffectApproach = false;
+`,
+      'utf-8',
+    );
+
+    const failingResult = runGeneratedApiCheck(workspaceDir);
+    const output = commandOutput(failingResult);
+    assert.notEqual(failingResult.status, 0, output);
+    assert.match(output, /must not import Hono server helpers/);
+    assert.match(output, /must not hand-build Response objects/);
+    assert.match(output, /must not manually parse request bodies/);
+    assert.match(output, /must not export raw request handlers/);
+    assert.match(output, /must keep strictEffectApproach enabled/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

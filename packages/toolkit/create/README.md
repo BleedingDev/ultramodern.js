@@ -35,7 +35,7 @@ domains to delete. It generates:
 - `apps/shell-super-app` as the Module Federation host and topology owner.
 - `verticals/*` empty until a real domain is added with `--vertical`.
 - `packages/shared-*` placeholders for shared contracts, tokens, and Effect
-  API support.
+API support.
 - `.modernjs/ultramodern.json` as compact generator provenance, package-source
   config, app topology, bridge, deploy, Module Federation, and tooling config.
 - `topology/*` as app-owned topology, ownership, and local development overlay
@@ -81,8 +81,8 @@ such as Module Federation DTS generation, and use `@effect/tsgo` plus
 `@typescript/native-preview` as tooling for `pnpm typecheck`. Generated
 app/package source must not depend on compiler API internals. Existing compiler
 API tests in this package use the stable TypeScript 6 package. If a future AST
-utility is needed, keep it behind a dedicated compatibility module and test it
-against stable `typescript`, not native-preview internals.
+utility is needed, keep it behind a dedicated stable-TypeScript adapter and test
+it against stable `typescript`, not native-preview internals.
 
 Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
@@ -137,7 +137,7 @@ const vertical = addUltramodernVertical({
 
 Workspace generation returns `operation`, `workspaceRoot`, `packageScope`,
 `packageSource`, `createdApps`, `createdPaths`, `rewrittenPaths`,
-`assignedPorts`, `moduleFederationNames`, `effectApiPrefixes`,
+`assignedPorts`, `moduleFederationNames`, `apiPrefixes`,
 `generatedContractPath`, and `warnings`. MicroVertical addition returns the
 same shape for the new vertical and all rewritten integration surfaces.
 
@@ -151,7 +151,7 @@ pnpm dlx @bleedingdev/modern-js-create --vertical-name new-vertical --dry-run
 ```
 
 The dry-run object adds `dryRun: true`, `selectedPort`,
-`moduleFederationRemote`, `effectApiPrefix`, `jsonMutations`,
+`moduleFederationRemote`, `apiPrefix`, `jsonMutations`,
 `shellDependencyChanges`, and `generatedContractChanges`. It still validates
 the workspace before returning a plan.
 
@@ -193,7 +193,7 @@ Use `--ultramodern-package-source=install` for published cohort proof and pin a
 specific release with `--ultramodern-package-version` when CI must prove an
 exact framework version. Keep `--workspace` only for local monorepo testing
 against unpublished packages. After install, run the generated
-`scripts/validate-ultramodern-workspace.mjs` contract check and fix ownership
+`scripts/validate-ultramodern-workspace.mts` contract check and fix ownership
 conflicts in the owning JSON/config files instead of editing generated metadata
 by hand.
 
@@ -258,8 +258,8 @@ addUltramodernVertical({
 
 Overlay config receives `workspaceRoot`, `packageScope`, `operation`,
 `generatedApp`, `generatedApps`, `assignedPort`, `assignedPorts`,
-`moduleFederationName`, `moduleFederationNames`, `effectApiPrefix`,
-`effectApiPrefixes`, `packageSource`, and `generationResult`. Overlays extend
+`moduleFederationName`, `moduleFederationNames`, `apiPrefix`,
+`apiPrefixes`, `packageSource`, and `generationResult`. Overlays extend
 the generated output after base generation; they do not replace, inherit, or
 shadow the base templates. Overlay failures stop the command with an
 `UltraModern CodeSmith overlay failed` error and do not report base generation
@@ -269,7 +269,7 @@ as fully successful.
 
 Use the workspace add flow from the UltraModern workspace root. It derives the
 package path, package name, port, Module Federation name, topology entry, local
-overlay, ownership entry, Effect BFF surface, and root `dev:*` script from the
+overlay, ownership entry, strict Effect HttpApi surface, and root `dev:*` script from the
 requested vertical name.
 
 ```bash
@@ -299,7 +299,7 @@ exported by the vertical packages.
 
 Route metadata is route-owned and colocated in
 `src/routes/**/route.meta.ts`. The scaffold regenerates
-`src/routes/ultramodern-route-metadata.ts` as a compatibility manifest for
+`src/routes/ultramodern-route-metadata.ts` as a generated route manifest for
 Modern.js config, i18n, public head, and public surface contracts; authors
 should not hand-maintain it. Locale JSON is served from
 `/locales/{{lng}}/{{ns}}.json`; Czech and English routes are generated from the
@@ -323,7 +323,7 @@ Dynamic public routes can expand sitemap entries through route-owned,
 Node-safe ESM providers, normally `route.sitemap.mjs` beside the route
 metadata. The public-surface generator discovers those providers for dynamic
 public routes and still honors explicit `routes.publicSurface.contentSources`
-entries in the generated compatibility manifest. Providers may export
+entries in the generated route manifest. Providers may export
 `entries`, `entries()`, or a default entries/loader returning sitemap entries;
 draft entries and `indexable: false` entries are omitted.
 
@@ -349,7 +349,7 @@ updating workspaces.
 | --- | --- | --- |
 | `MODERN_PUBLIC_SITE_URL` | Canonical site origin for public SEO output only | Canonical, hreflang, sitemap `<loc>`, robots `Sitemap:` |
 | `MODERN_ASSET_PREFIX` | Preferred JS/CSS/static asset prefix | Modern/Rspack-emitted asset URLs |
-| `ULTRAMODERN_ASSET_PREFIX` | UltraModern compatibility asset prefix | Modern/Rspack-emitted asset URLs when `MODERN_ASSET_PREFIX` is unset |
+| `ULTRAMODERN_ASSET_PREFIX` | UltraModern asset prefix fallback | Modern/Rspack-emitted asset URLs when `MODERN_ASSET_PREFIX` is unset |
 | `ULTRAMODERN_PUBLIC_URL_<APP_ID>` | Per-app deployment/proof URL | Cloudflare proof inputs and Module Federation remote URLs |
 
 Asset URLs use this precedence: `MODERN_ASSET_PREFIX` →

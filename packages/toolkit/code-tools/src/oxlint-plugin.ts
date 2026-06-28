@@ -127,6 +127,14 @@ const LETTER_PATTERN = /\p{L}/u;
 
 const SPLIT_TRANSLATION_KEY_PATTERN = /\.(?:prefix|suffix|before|after)$/u;
 
+const API_SOURCE_FILE_PATTERN = /(?:^|\/)(?:api\/|shared\/api\.[cm]?[jt]sx?$)/u;
+const FORBIDDEN_GENERATED_EFFECT_PATH_PATTERN =
+  /(?:^|\/)(?:apps\/shell-super-app\/src\/effect|verticals\/[^/]+\/(?:api\/(?:effect|lambda)|shared\/effect|src\/effect))(?:\/|$)/u;
+const VERTICAL_API_ENTRY_PATTERN =
+  /(?:^|\/)verticals\/[^/]+\/api\/index\.[cm]?[jt]sx?$/u;
+const SHARED_API_CONTRACT_PATTERN =
+  /(?:^|\/)verticals\/[^/]+\/shared\/api\.[cm]?[jt]sx?$/u;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -435,7 +443,26 @@ const createNoLiteralVisibleJsxAttributesRule = (): Rule => ({
 });
 
 const getSourceText = (context: RuleContext, node: AstNode): string =>
-  context.getSourceCode?.().getText?.(node) ?? '';
+  context.getSourceCode?.().getText?.(node) ??
+  context.getSourceCode?.().text ??
+  '';
+
+const normalizeFilename = (filePath: string | undefined): string =>
+  (filePath ?? '').replaceAll('\\', '/');
+
+const isApiSourceFile = (filePath: string | undefined): boolean =>
+  API_SOURCE_FILE_PATTERN.test(normalizeFilename(filePath));
+
+const isForbiddenGeneratedEffectPath = (
+  filePath: string | undefined,
+): boolean =>
+  FORBIDDEN_GENERATED_EFFECT_PATH_PATTERN.test(normalizeFilename(filePath));
+
+const isVerticalApiEntryFile = (filePath: string | undefined): boolean =>
+  VERTICAL_API_ENTRY_PATTERN.test(normalizeFilename(filePath));
+
+const isSharedApiContractFile = (filePath: string | undefined): boolean =>
+  SHARED_API_CONTRACT_PATTERN.test(normalizeFilename(filePath));
 
 const looksLikeLocaleTest = (context: RuleContext, node: AstNode): boolean => {
   const text = getSourceText(context, node);
@@ -560,6 +587,182 @@ const createNoLegacyMfBoundaryAttributesRule = (): Rule => ({
   },
 });
 
+const reportProgramPattern = (
+  context: RuleContext,
+  node: AstNode,
+  source: string,
+  pattern: RegExp,
+  message: string,
+): void => {
+  if (pattern.test(source)) {
+    context.report({ node, message });
+  }
+};
+
+const reportMissingProgramPattern = (
+  context: RuleContext,
+  node: AstNode,
+  source: string,
+  pattern: RegExp,
+  message: string,
+): void => {
+  if (!pattern.test(source)) {
+    context.report({ node, message });
+  }
+};
+
+const createStrictEffectApiBoundariesRule = (): Rule => ({
+  meta: {
+    type: 'problem',
+    docs: {
+      description:
+        'Disallow raw HTTP handlers and non-Effect API runtime drift in UltraModern workspaces.',
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      Program(node) {
+        const source = getSourceText(context, node);
+        const filename = normalizeFilename(context.filename);
+        const apiFile = isApiSourceFile(filename);
+
+        if (isForbiddenGeneratedEffectPath(filename)) {
+          context.report({
+            node,
+            message:
+              'Generated UltraModern workspaces use direct api/index.ts, shared/api.ts and src/api/* paths; api/effect, api/lambda, shared/effect and src/effect are forbidden.',
+          });
+        }
+
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /@modern-js\/plugin-bff\/hono-server/u,
+          'UltraModern API workspaces must not import Hono server helpers; use @modern-js/plugin-bff/effect-edge and HttpApi.',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bruntimeFramework\s*(?::|=)\s*['"]hono['"]/u,
+          'UltraModern API apps must use bff.runtimeFramework: "effect".',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /(?:from|import)\s*['"][^'"]*(?:api\/effect|shared\/effect)[^'"]*['"]|shared-effect-api/u,
+          'Import API code from direct api/index.ts, shared/api.ts or src/api/* paths, not api/effect, shared/effect or shared Effect API packages.',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bstrictEffectApproach\s*(?::|=)\s*false\b/u,
+          'UltraModern API apps must keep strictEffectApproach enabled.',
+        );
+
+        if (isVerticalApiEntryFile(filename)) {
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bdefineEffectBff\b/u,
+            'Generated API entries must export defineEffectBff(...).',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bHttpApiBuilder\b/u,
+            'Generated API entries must implement handlers through HttpApiBuilder.',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bLayer\b/u,
+            'Generated API entries must compose dependencies with Effect Layer.',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /from\s+['"]\.\.\/shared\/api\.ts['"]/u,
+            'Generated API entries must import the contract from ../shared/api.ts.',
+          );
+        }
+
+        if (isSharedApiContractFile(filename)) {
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bHttpApi\.make\b/u,
+            'Generated shared API contracts must declare an HttpApi contract.',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bHttpApiGroup\.make\b/u,
+            'Generated shared API contracts must declare HttpApi groups.',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bHttpApiEndpoint\./u,
+            'Generated shared API contracts must declare endpoints through HttpApiEndpoint.',
+          );
+          reportMissingProgramPattern(
+            context,
+            node,
+            source,
+            /\bSchema\./u,
+            'Generated shared API contracts must model request, response and error shapes with Schema.',
+          );
+        }
+
+        if (!apiFile) {
+          return;
+        }
+
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bnew\s+Response\s*\(|\bResponse\.json\s*\(/u,
+          'API modules must not hand-build Response objects; model endpoints through Effect HttpApi and schemas.',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\b(?:request|req)\.(?:json|text|formData|arrayBuffer)\s*\(/u,
+          'API modules must not manually parse request bodies; use HttpApiEndpoint payload/query/params schemas.',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bexport\s+const\s+handler\b|\bexport\s+default\s+async\b/u,
+          'API modules must not export raw request handlers; export defineEffectBff(...) from api/index.ts.',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bcreateHandler\s*[:=]\s*(?!defineEffectBff\b)/u,
+          'API modules must not define unbranded handler factories; use defineEffectBff(...).',
+        );
+      },
+    };
+  },
+});
+
 const plugin = {
   meta: {
     name: 'ultramodern',
@@ -572,6 +775,7 @@ const plugin = {
       createNoLiteralVisibleJsxAttributesRule(),
     'no-manual-locale-copy-branching': createNoManualLocaleCopyBranchingRule(),
     'no-split-translation-keys': createNoSplitTranslationKeysRule(),
+    'strict-effect-api-boundaries': createStrictEffectApiBoundariesRule(),
   },
 };
 

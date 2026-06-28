@@ -13,14 +13,14 @@
 
 ## 1. Purpose
 
-This playbook gives existing Modern.js teams a concrete path from current applications toward the Micro Vertical shell, remote, and service model without breaking Compat lanes.
+This playbook gives existing Modern.js teams a concrete path from current applications toward the Micro Vertical shell, remote, and service model without reintroducing raw-handler API lanes.
 
 The target model is the one in `DELIVERY-0001-micro-vertical-reference-delivery.md`:
 
 1. start or remain in one `presetUltramodern(...)` app while ownership is unstable.
 2. split stable feature slices into shell-owned route modules.
 3. graduate isolated slices into Module Federation remotes.
-4. move cross-project data and workflows into strict Effect contracts, with Hono retained only as an explicit compatibility lane.
+4. move cross-project data and workflows into strict Effect HttpApi contracts.
 
 ## 2. Migration Principles
 
@@ -40,7 +40,7 @@ Before changing runtime, routing, or service shape, the owning team records thes
 | Current lane | Golden, Compat, or Experimental under `ADR-0010-mv-wave0-contract-first-gates.md`. |
 | Runtime surface | Module Federation, Garfish, or mixed. |
 | Router surface | TanStack, React Router, or mixed. |
-| Service surface | Effect, Hono, in-process handlers, or mixed. |
+| Service surface | Effect HttpApi, in-process handlers, or mixed legacy handlers to remove. |
 | Topology IDs | Shell, remote, and service IDs that will remain stable after extraction. |
 | Owners | Vertical owner, platform owner, service owner, design-system owner when applicable. |
 | Rollback controls | Kill switch, LKG candidate, CSR or maintenance fallback, and revocation path. |
@@ -66,9 +66,9 @@ Tractor split only when ownership is clear:
 
 | Existing surface | Target owner | Notes |
 | --- | --- | --- |
-| Catalog landing, recommendations, navigation/header/footer, dealer or store picker | Explore vertical | Owns `/tractors`, `/stores`, Explore MF exposes, and `/explore-api/effect/explore/*`. |
-| Product detail, comparison, configuration, option selection | Decide vertical | Owns `/tractors/:slug`, product/configuration operations, and `/decide-api/effect/decide/*`. |
-| Cart, add-to-cart, checkout, order confirmation | Checkout vertical | Owns `/cart`, `/checkout`, `/checkout/thank-you/:orderId?`, cart/order operations, and `/checkout-api/effect/checkout/*`. |
+| Catalog landing, recommendations, navigation/header/footer, dealer or store picker | Explore vertical | Owns `/tractors`, `/stores`, Explore MF exposes, and `/explore-api/explore/*`. |
+| Product detail, comparison, configuration, option selection | Decide vertical | Owns `/tractors/:slug`, product/configuration operations, and `/decide-api/decide/*`. |
+| Cart, add-to-cart, checkout, order confirmation | Checkout vertical | Owns `/cart`, `/checkout`, `/checkout/thank-you/:orderId?`, cart/order operations, and `/checkout-api/checkout/*`. |
 | Shared design tokens and primitive styling values | Shared design tokens package | Owns `./tokens.css`; do not move feature composites here. |
 | Cross-cutting orchestration, topology, fallback policy | Shell | Owns assembly only; it should not take over vertical route-local behavior. |
 
@@ -98,7 +98,7 @@ Required actions:
 
 1. Classify the current application against `ADR-0010-mv-wave0-contract-first-gates.md`.
 2. Stop adding new production dependencies on Experimental combinations unless an exception is approved under this playbook.
-3. Preserve existing React Router, Hono, and Garfish regression coverage until the target route, service, or remote has passed the equivalent MV gate.
+3. Preserve existing regression coverage until the target route, service, or remote has passed the equivalent MV gate.
 4. Record every cross-vertical source import, hardcoded remote URL, hardcoded service URL, and shell-owned feature composite as a migration blocker.
 
 Exit criteria:
@@ -164,14 +164,14 @@ Exit criteria:
 
 ### Phase 4: Promote Data and Workflow Boundaries
 
-Use Effect as the Golden service target. Keep Hono as a constrained compatibility surface for existing handlers and migration bridges.
+Use Effect HttpApi as the generated service target. Existing raw handlers are migration inputs to remove, not generated target architecture.
 
 Required actions:
 
 1. Identify operations consumed by more than one app, remote, or deployment boundary.
 2. Move those operations behind explicit service contracts with auth, session, locale, and trace propagation.
-3. Prefer Effect for new strict contracts.
-4. Keep Hono compatibility explicit and covered by regression tests until consumers move or an exception expires.
+3. Prefer Effect HttpApi for new strict HTTP contracts.
+4. Keep raw handler usage out of generated API modules; model exceptions as separate transport decisions.
 5. Avoid in-process convenience calls across future extraction boundaries.
 
 Exit criteria:
@@ -205,13 +205,13 @@ Exit criteria:
 
 ## 5. Compat Lane Protection
 
-Existing teams may continue using Compat while actively migrating, but Compat becomes a constrained lane:
+Existing teams may keep legacy regression gates while actively migrating, but generated target work is constrained:
 
-1. Existing React Router, Hono, and Garfish production workloads keep regression gates.
-2. New production features should target Golden unless the exception policy approves a Compat bridge.
-3. Compat changes must not bypass topology, trust, fallback, rollback, owner, or incident evidence.
-4. Compat is not a place for mixed unowned experiments. Mixed combinations belong in Experimental and are not production-supported.
-5. A Compat gate can be removed only after the replacement Golden path has passed the matching evidence gate and one release cycle has completed without a lane-specific rollback.
+1. Existing production workloads keep regression gates while being migrated.
+2. New production features should target the strict Effect HttpApi path unless the exception policy approves a separate non-HTTP transport.
+3. Legacy changes must not bypass topology, trust, fallback, rollback, owner, or incident evidence.
+4. Mixed unowned experiments are not production-supported.
+5. A legacy gate can be removed only after the replacement strict path has passed the matching evidence gate and one release cycle has completed without a lane-specific rollback.
 
 ## 6. Rollback and Exception Policy
 

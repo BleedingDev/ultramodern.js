@@ -1,92 +1,86 @@
 import {
-  appHasEffectApi,
-  effectApiPrefix,
-  effectApiStem,
-  verticalEffectApps,
+  appHasApi,
+  resolveApiPrefix,
+  resolveApiStem,
+  verticalApiApps,
 } from './descriptors';
 import { packageName, toCamelCase, toPascalCase } from './naming';
-import type { JsonValue, WorkspaceApp, WorkspaceEffectApi } from './types';
+import type { JsonValue, WorkspaceApi, WorkspaceApp } from './types';
 
-export function verticalEffectApiExport(service: {
-  id: string;
-  effectApi?: WorkspaceEffectApi;
-}) {
-  return `${toCamelCase(effectApiStem(service))}Api`;
+export function verticalApiExport(service: { id: string; api?: WorkspaceApi }) {
+  return `${toCamelCase(resolveApiStem(service))}Api`;
 }
 
-export function verticalEffectGroupName(service: {
+export function verticalApiGroupName(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return toCamelCase(effectApiStem(service));
+  return toCamelCase(resolveApiStem(service));
 }
 
-export function verticalEffectApiName(service: {
-  id: string;
-  effectApi?: WorkspaceEffectApi;
-}) {
-  return `${toPascalCase(effectApiStem(service))}Api`;
+export function verticalApiName(service: { id: string; api?: WorkspaceApi }) {
+  return `${toPascalCase(resolveApiStem(service))}Api`;
 }
 
-export function verticalEffectSchemaExport(service: {
+export function verticalApiSchemaExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toCamelCase(effectApiStem(service))}ItemSchema`;
+  return `${toCamelCase(resolveApiStem(service))}ItemSchema`;
 }
 
-export function verticalEffectMarkerSchemaExport(service: {
+export function verticalApiMarkerSchemaExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toCamelCase(effectApiStem(service))}MarkerSchema`;
+  return `${toCamelCase(resolveApiStem(service))}MarkerSchema`;
 }
 
-export function verticalEffectReadinessSchemaExport(service: {
+export function verticalApiReadinessSchemaExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toCamelCase(effectApiStem(service))}ReadinessSchema`;
+  return `${toCamelCase(resolveApiStem(service))}ReadinessSchema`;
 }
 
-export function verticalEffectErrorStem(service: {
+export function verticalApiErrorStem(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return effectApiStem(service);
+  return resolveApiStem(service);
 }
 
-export function verticalEffectCreatePayloadSchemaExport(service: {
+export function verticalApiCreatePayloadSchemaExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toCamelCase(effectApiStem(service))}CreatePayloadSchema`;
+  return `${toCamelCase(resolveApiStem(service))}CreatePayloadSchema`;
 }
 
-export function verticalEffectNotFoundErrorExport(service: {
+export function verticalApiNotFoundErrorExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toPascalCase(verticalEffectErrorStem(service))}NotFound`;
+  return `${toPascalCase(verticalApiErrorStem(service))}NotFound`;
 }
 
-export function verticalEffectNotFoundSchemaExport(service: {
+export function verticalApiNotFoundSchemaExport(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return `${toCamelCase(verticalEffectErrorStem(service))}NotFoundSchema`;
+  return `${toCamelCase(verticalApiErrorStem(service))}NotFoundSchema`;
 }
 
 function serviceHasCheckoutCartState(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  return effectApiStem(service) === 'checkout';
+  return resolveApiStem(service) === 'checkout';
 }
 
 function createCheckoutCartSharedSchemas(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
   if (!serviceHasCheckoutCartState(service)) {
     return '';
@@ -145,7 +139,7 @@ export const checkoutRemoveCartItemPayloadSchema: Schema.Codec<CheckoutRemoveCar
 
 function createCheckoutCartEndpointDefinitions(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
   if (!serviceHasCheckoutCartState(service)) {
     return '';
@@ -178,10 +172,10 @@ function createCheckoutCartEndpointDefinitions(service: {
 
 function createCheckoutCartOperationContexts(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  const apiName = verticalEffectApiName(service);
-  const groupName = verticalEffectGroupName(service);
+  const apiName = verticalApiName(service);
+  const groupName = verticalApiGroupName(service);
 
   if (!serviceHasCheckoutCartState(service)) {
     return '';
@@ -216,19 +210,19 @@ function createCheckoutCartOperationContexts(service: {
 
 function createCheckoutCartApiContractFields(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
   if (!serviceHasCheckoutCartState(service)) {
     return '';
   }
 
-  return `  checkoutCartPath: '${effectApiPrefix(service)}/checkout/cart',
+  return `  checkoutCartPath: '${resolveApiPrefix(service)}/checkout/cart',
 `;
 }
 
 function createCheckoutCartServerState(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
   if (!serviceHasCheckoutCartState(service)) {
     return '';
@@ -262,9 +256,9 @@ const createCheckoutCartSnapshot = () => {
 
 function createCheckoutCartServerHandlers(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
-  const groupName = verticalEffectGroupName(service);
+  const groupName = verticalApiGroupName(service);
 
   if (!serviceHasCheckoutCartState(service)) {
     return '';
@@ -323,14 +317,14 @@ function createCheckoutCartServerHandlers(service: {
 
 function createCheckoutCartClientExports(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }) {
   if (!serviceHasCheckoutCartState(service)) {
     return '';
   }
 
-  const stem = effectApiStem(service);
-  const groupName = verticalEffectGroupName(service);
+  const stem = resolveApiStem(service);
+  const groupName = verticalApiGroupName(service);
   const pascalStem = toPascalCase(stem);
   const clientOptionsName = `${pascalStem}ClientOptions`;
   const createClientName = `create${pascalStem}Client`;
@@ -409,7 +403,7 @@ export const clearCheckoutCart = (
 `;
 }
 
-export function createEffectSharedApiImports(): string {
+export function createSharedApiImports(): string {
   return `import {
   HttpApi,
   HttpApiEndpoint,
@@ -420,21 +414,21 @@ export function createEffectSharedApiImports(): string {
 `;
 }
 
-export function createEffectSharedApiContract(service: {
+export function createSharedApiContract(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }): string {
-  const schemaExport = verticalEffectSchemaExport(service);
-  const markerSchemaExport = verticalEffectMarkerSchemaExport(service);
-  const readinessSchemaExport = verticalEffectReadinessSchemaExport(service);
+  const schemaExport = verticalApiSchemaExport(service);
+  const markerSchemaExport = verticalApiMarkerSchemaExport(service);
+  const readinessSchemaExport = verticalApiReadinessSchemaExport(service);
   const createPayloadSchemaExport =
-    verticalEffectCreatePayloadSchemaExport(service);
-  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
-  const notFoundSchemaExport = verticalEffectNotFoundSchemaExport(service);
-  const apiExport = verticalEffectApiExport(service);
-  const apiName = verticalEffectApiName(service);
-  const groupName = verticalEffectGroupName(service);
-  const stem = effectApiStem(service);
+    verticalApiCreatePayloadSchemaExport(service);
+  const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
+  const notFoundSchemaExport = verticalApiNotFoundSchemaExport(service);
+  const apiExport = verticalApiExport(service);
+  const apiName = verticalApiName(service);
+  const groupName = verticalApiGroupName(service);
+  const stem = resolveApiStem(service);
   const pascalStem = toPascalCase(stem);
   const markerType = `${pascalStem}Marker`;
   const itemType = `${pascalStem}Item`;
@@ -442,7 +436,7 @@ export function createEffectSharedApiContract(service: {
   const createPayloadType = `${pascalStem}CreatePayload`;
   const createResponseType = `${pascalStem}CreateResponse`;
   const listResponseType = `${pascalStem}ListResponse`;
-  const apiPrefix = effectApiPrefix(service);
+  const apiPrefix = resolveApiPrefix(service);
   const checkoutCartSharedSchemas = createCheckoutCartSharedSchemas(service);
   const checkoutCartSharedSchemaSection =
     checkoutCartSharedSchemas === '' ? '' : `${checkoutCartSharedSchemas}\n`;
@@ -620,22 +614,22 @@ ${createCheckoutCartApiContractFields(service)}  ownerId: '${service.id}',
 `;
 }
 
-export function createEffectSharedApi(service: {
+export function createSharedApi(service: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }): string {
-  return `${createEffectSharedApiImports()}
-${createEffectSharedApiContract(service)}`;
+  return `${createSharedApiImports()}
+${createSharedApiContract(service)}`;
 }
 
-export function createEffectServiceEntry(
-  service: { id: string; effectApi?: WorkspaceEffectApi },
+export function createApiServiceEntry(
+  service: { id: string; api?: WorkspaceApi },
   contractImportPath: string,
 ): string {
-  const apiExport = verticalEffectApiExport(service);
-  const groupName = verticalEffectGroupName(service);
-  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
-  const stem = effectApiStem(service);
+  const apiExport = verticalApiExport(service);
+  const groupName = verticalApiGroupName(service);
+  const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
+  const stem = resolveApiStem(service);
 
   return `import {
   defineEffectBff,
@@ -766,15 +760,15 @@ export default apiRuntime;
 `;
 }
 
-export function createEffectClient(
-  service: { id: string; effectApi?: WorkspaceEffectApi },
+export function createApiClient(
+  service: { id: string; api?: WorkspaceApi },
   contractImportPath: string,
 ): string {
-  const apiExport = verticalEffectApiExport(service);
-  const contractExport = verticalEffectGroupName(service);
-  const stem = effectApiStem(service);
-  const groupName = verticalEffectGroupName(service);
-  const singular = verticalEffectErrorStem(service);
+  const apiExport = verticalApiExport(service);
+  const contractExport = verticalApiGroupName(service);
+  const stem = resolveApiStem(service);
+  const groupName = verticalApiGroupName(service);
+  const singular = verticalApiErrorStem(service);
   const clientOptionsName = `${toPascalCase(stem)}ClientOptions`;
   const createClientName = `create${toPascalCase(stem)}Client`;
   const clientTypeName = `${toPascalCase(stem)}Client`;
@@ -783,7 +777,7 @@ export function createEffectClient(
   const readinessName = `get${toPascalCase(stem)}Readiness`;
   const getName = `get${toPascalCase(singular)}`;
   const createName = `create${toPascalCase(singular)}`;
-  const notFoundErrorExport = verticalEffectNotFoundErrorExport(service);
+  const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
   const pascalStem = toPascalCase(stem);
   const itemType = `${pascalStem}Item`;
   const readinessType = `${pascalStem}Readiness`;
@@ -918,15 +912,15 @@ export const ${createName} = (
 `;
 }
 
-export function createShellEffectClient(
+export function createShellApiClient(
   scope: string,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const exports = verticalEffectApps(remotes)
+  const exports = verticalApiApps(remotes)
     .map(remote => {
-      const stem = effectApiStem(remote);
+      const stem = resolveApiStem(remote);
       const pascalStem = toPascalCase(stem);
-      const pascalSingular = toPascalCase(verticalEffectErrorStem(remote));
+      const pascalSingular = toPascalCase(verticalApiErrorStem(remote));
       const checkoutCartExports = serviceHasCheckoutCartState(remote)
         ? `  addCheckoutCartItem,
   clearCheckoutCart,
@@ -954,11 +948,11 @@ ${checkoutCartExports}  create${pascalSingular},
 `;
 }
 
-export function createEffectReadinessContract(app: {
+export function createApiReadinessContract(app: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }): JsonValue {
-  const stem = effectApiStem(app);
+  const stem = resolveApiStem(app);
   return {
     endpoint: `/${stem}/readiness`,
     marker: {
@@ -970,7 +964,7 @@ export function createEffectReadinessContract(app: {
   };
 }
 
-export function createEffectRequestContextContract(): JsonValue {
+export function createApiRequestContextContract(): JsonValue {
   return {
     propagatedHeaders: [
       'accept-language',
@@ -985,12 +979,12 @@ export function createEffectRequestContextContract(): JsonValue {
   };
 }
 
-export function createEffectDomainOperations(app: {
+export function createApiDomainOperations(app: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }): JsonValue {
-  const stem = effectApiStem(app);
-  const group = verticalEffectGroupName(app);
+  const stem = resolveApiStem(app);
+  const group = verticalApiGroupName(app);
   const basePath = `/${stem}`;
   const checkoutCartOperations = serviceHasCheckoutCartState(app)
     ? {
@@ -1035,14 +1029,14 @@ export function createEffectDomainOperations(app: {
       owner: app.id,
     },
     workspaceDetail: {
-      client: `get${toPascalCase(verticalEffectErrorStem(app))}`,
+      client: `get${toPascalCase(verticalApiErrorStem(app))}`,
       method: 'GET',
       path: `${basePath}/:id`,
       resource: 'workspace-item',
       owner: app.id,
     },
     workspaceCreate: {
-      client: `create${toPascalCase(verticalEffectErrorStem(app))}`,
+      client: `create${toPascalCase(verticalApiErrorStem(app))}`,
       method: 'POST',
       path: basePath,
       resource: group,
@@ -1051,17 +1045,15 @@ export function createEffectDomainOperations(app: {
   };
 }
 
-export function effectApiTopologyMetadata(
-  app: WorkspaceApp,
-): JsonValue | undefined {
-  if (!appHasEffectApi(app)) {
+export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
+  if (!appHasApi(app)) {
     return undefined;
   }
 
   return {
     runtime: 'effect',
     bff: {
-      prefix: app.effectApi.prefix,
+      prefix: app.api.prefix,
       openapi: '/openapi.json',
       strictEffectApproach: true,
     },
@@ -1071,22 +1063,22 @@ export function effectApiTopologyMetadata(
     },
     client: {
       export: './api/client',
-      path: `${app.directory}/src/api/${app.effectApi.stem}-client.ts`,
+      path: `${app.directory}/src/api/${app.api.stem}-client.ts`,
     },
     serverEntry: `${app.directory}/api/index.ts`,
-    basePath: `${app.effectApi.prefix}/${app.effectApi.stem}`,
-    consumedBy: app.effectApi.consumedBy,
-    readiness: createEffectReadinessContract(app),
-    requestContext: createEffectRequestContextContract(),
-    domainOperations: createEffectDomainOperations(app),
+    basePath: `${app.api.prefix}/${app.api.stem}`,
+    consumedBy: app.api.consumedBy,
+    readiness: createApiReadinessContract(app),
+    requestContext: createApiRequestContextContract(),
+    domainOperations: createApiDomainOperations(app),
   };
 }
 
-export function createEffectOperationContract(target: {
+export function createApiOperationContract(target: {
   id: string;
-  effectApi?: WorkspaceEffectApi;
+  api?: WorkspaceApi;
 }): JsonValue {
-  const stem = effectApiStem(target);
+  const stem = resolveApiStem(target);
   const checkoutCartOperations = serviceHasCheckoutCartState(target)
     ? {
         addCartItem: {
@@ -1112,8 +1104,8 @@ export function createEffectOperationContract(target: {
       }
     : {};
   return {
-    group: verticalEffectGroupName(target),
-    notFound: verticalEffectNotFoundErrorExport(target),
+    group: verticalApiGroupName(target),
+    notFound: verticalApiNotFoundErrorExport(target),
     operations: {
       ...checkoutCartOperations,
       list: {

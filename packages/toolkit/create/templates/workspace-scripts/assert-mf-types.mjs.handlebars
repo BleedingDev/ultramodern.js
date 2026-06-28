@@ -57,7 +57,7 @@ const generatedContract = readGeneratedContractView();
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
   process.stdout.write(`Usage:
-  node scripts/assert-mf-types.mjs [app-dir...]
+  node scripts/assert-mf-types.mts [app-dir...]
 
 Checks that every Module Federation remote with exposed modules emitted a non-empty dist/@mf-types.zip archive and uses the workspace TypeScript compiler.
 `);

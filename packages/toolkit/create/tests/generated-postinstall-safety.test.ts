@@ -156,21 +156,21 @@ test('generated postinstall owns Codex skills without system packages or referen
     );
     assert.equal(
       rootPackage.scripts.postinstall,
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
       'postinstall must not chain the reference-repo installer',
     );
     // The explicit opt-in entry points must remain available.
     assert.equal(
       rootPackage.scripts['skills:install'],
-      'node ./scripts/bootstrap-agent-skills.mjs',
+      'node ./scripts/bootstrap-agent-skills.mts',
     );
     assert.equal(
       rootPackage.scripts['agents:refs:install'],
-      'node ./scripts/setup-agent-reference-repos.mjs',
+      'node ./scripts/setup-agent-reference-repos.mts',
     );
 
     const bootstrapScript = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mjs'),
+      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mts'),
       'utf-8',
     );
     assert.equal(
@@ -250,7 +250,7 @@ test('bootstrap-agent-skills --postinstall installs vendored Codex skills and ke
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mjs', '--postinstall'],
+      ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
@@ -301,7 +301,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mjs', '--postinstall'],
+      ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
@@ -333,7 +333,7 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mjs', '--postinstall'],
+      ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
@@ -371,7 +371,7 @@ test('bootstrap-agent-skills --postinstall supports documented Codex skill opt-o
 
       const result = spawnSync(
         process.execPath,
-        ['scripts/bootstrap-agent-skills.mjs', '--postinstall'],
+        ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
         {
           cwd: workspaceDir,
           encoding: 'utf-8',
@@ -405,7 +405,7 @@ test('skills:check advises about missing clone-backed Codex skills', () => {
   try {
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mjs', '--check'],
+      ['scripts/bootstrap-agent-skills.mts', '--check'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',

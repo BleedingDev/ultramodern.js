@@ -79,7 +79,10 @@ export default defineConfig({
 - **类型：** `true`
 - **默认值：** `true`
 
-Effect BFF 模块必须导出严格 Effect API surface（`defineEffectBff(...)` 或 `{ api, layer }`），原始 request handler 会被拒绝。生成的 UltraModern 应用会显式写入这个标记。
+Effect BFF 模块必须导出严格 Effect API surface（`defineEffectBff(...)` 或
+`{ api, layer }`），原始 request handler 会被拒绝。生成的 UltraModern 应用会显式
+写入这个标记，并通过源码检查拒绝生成 API 模块中的 Hono server import、手写
+request parsing 和手写 `Response`。
 
 ## bff.effect.openapi
 

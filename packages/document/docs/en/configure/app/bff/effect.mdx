@@ -79,7 +79,11 @@ export default defineConfig({
 - **Type:** `true`
 - **Default:** `true`
 
-Effect BFF modules must expose the strict Effect API surface (`defineEffectBff(...)` or `{ api, layer }`) and raw request handlers are rejected. Generated UltraModern apps write this marker explicitly.
+Effect BFF modules must expose the strict Effect API surface
+(`defineEffectBff(...)` or `{ api, layer }`) and raw request handlers are
+rejected. Generated UltraModern apps write this marker explicitly and pair it
+with source checks that reject Hono server imports, manual request parsing, and
+manual `Response` construction in generated API modules.
 
 ## bff.effect.openapi
 

@@ -12,7 +12,7 @@
 
 Deployment preference is Bun, but current governance checks were validated primarily with Node/pnpm execution.
 
-We need deterministic Bun-lane smoke validation to keep Bun first-class without breaking compatibility lanes.
+We need deterministic Bun-lane smoke validation to keep Bun first-class without breaking existing Node workflow compatibility.
 
 ## 2. Decision
 
@@ -34,7 +34,7 @@ The Bun smoke gate validates a dependency-free compatibility slice:
 Positive:
 
 1. Bun gets explicit governance smoke coverage for the release-gate tooling path without duplicating the Node gate matrix.
-2. Compatibility lanes remain unchanged (Node workflows still run).
+2. Existing Node workflows remain unchanged.
 3. Failures in Bun execution surface early in PR workflows.
 
 Tradeoff:

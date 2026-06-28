@@ -321,8 +321,8 @@
         "id": "ultramodern-bff-runtime-framework-doc-contract",
         "path": "packages/document/docs/en/configure/app/bff/runtime-framework.mdx",
         "includes": [
-          "Generated UltraModern apps use the Effect lane by default",
-          "api/effect/index",
+          "Generated UltraModern apps use strict Effect APIs by default",
+          "api/index",
           "api/lambda/**",
           "Choose one runtime mode per app."
         ]

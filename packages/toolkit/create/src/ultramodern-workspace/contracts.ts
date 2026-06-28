@@ -1,13 +1,13 @@
+import { apiTopologyMetadata } from './api';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createModuleFederationRemoteContracts,
   createShellHost,
-  effectApiPrefix,
+  resolveApiPrefix,
   sharedPackages,
   shellApp,
-  verticalEffectApps,
+  verticalApiApps,
 } from './descriptors';
-import { effectApiTopologyMetadata } from './effect-api';
 import { packageName } from './naming';
 import { createCloudflareDeployContract } from './policy';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
@@ -64,8 +64,8 @@ export function createTopology(
         fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
-      ...(effectApiTopologyMetadata(vertical)
-        ? { api: effectApiTopologyMetadata(vertical) }
+      ...(apiTopologyMetadata(vertical)
+        ? { api: apiTopologyMetadata(vertical) }
         : {}),
       cloudflare: createCloudflareDeployContract(scope, vertical),
       ownership: vertical.ownership,
@@ -77,7 +77,7 @@ export function createTopology(
       description: sharedPackage.description,
     })),
     validation: {
-      script: 'scripts/validate-ultramodern-workspace.mjs',
+      script: 'scripts/validate-ultramodern-workspace.mts',
       commands: [
         'pnpm i18n:boundaries',
         'pnpm api:check',
@@ -142,9 +142,9 @@ export function createDevelopmentOverlay(
       ]),
     ),
     apis: Object.fromEntries(
-      verticalEffectApps(remotes).map(app => [
+      verticalApiApps(remotes).map(app => [
         app.id,
-        `http://localhost:${app.port}${effectApiPrefix(app)}`,
+        `http://localhost:${app.port}${resolveApiPrefix(app)}`,
       ]),
     ),
   };
@@ -229,12 +229,12 @@ export function createUltramodernConfig(
             tsConfigPath: './tsconfig.mf-types.json',
           },
         },
-        ...(app.effectApi
+        ...(app.api
           ? {
-              effectApi: {
-                stem: app.effectApi.stem,
-                prefix: app.effectApi.prefix,
-                consumedBy: app.effectApi.consumedBy,
+              api: {
+                stem: app.api.stem,
+                prefix: app.api.prefix,
+                consumedBy: app.api.consumedBy,
               },
             }
           : {}),
@@ -286,14 +286,14 @@ export function createUltramodernConfig(
     tooling: {
       command: 'modern-js-create ultramodern',
       wrappers: {
-        validate: 'scripts/validate-ultramodern-workspace.mjs',
-        typecheck: 'scripts/ultramodern-typecheck.mjs',
-        mfTypes: 'scripts/assert-mf-types.mjs',
-        publicSurface: 'scripts/generate-public-surface-assets.mjs',
-        cloudflareProof: 'scripts/proof-cloudflare-version.mjs',
-        performanceReadiness: 'scripts/ultramodern-performance-readiness.mjs',
-        apiBoundaries: 'scripts/check-ultramodern-api-boundaries.mjs',
-        skills: 'scripts/bootstrap-agent-skills.mjs',
+        validate: 'scripts/validate-ultramodern-workspace.mts',
+        typecheck: 'scripts/ultramodern-typecheck.mts',
+        mfTypes: 'scripts/assert-mf-types.mts',
+        publicSurface: 'scripts/generate-public-surface-assets.mts',
+        cloudflareProof: 'scripts/proof-cloudflare-version.mts',
+        performanceReadiness: 'scripts/ultramodern-performance-readiness.mts',
+        apiBoundaries: 'scripts/check-ultramodern-api-boundaries.mts',
+        skills: 'scripts/bootstrap-agent-skills.mts',
       },
     },
   };

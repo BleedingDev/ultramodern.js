@@ -107,16 +107,16 @@ function normalizeCompactApp(rawApp) {
       rawApp.routes && typeof rawApp.routes === 'object'
         ? rawApp.routes
         : undefined,
-    effectApi:
-      rawApp.effectApi && typeof rawApp.effectApi === 'object'
+    api:
+      rawApp.api && typeof rawApp.api === 'object'
         ? {
             stem:
-              typeof rawApp.effectApi.stem === 'string'
-                ? rawApp.effectApi.stem
+              typeof rawApp.api.stem === 'string'
+                ? rawApp.api.stem
                 : domain ?? id,
             prefix:
-              typeof rawApp.effectApi.prefix === 'string'
-                ? rawApp.effectApi.prefix
+              typeof rawApp.api.prefix === 'string'
+                ? rawApp.api.prefix
                 : `/${domain ?? id}-api`,
           }
         : undefined,
@@ -171,7 +171,7 @@ function createPublicSurface(app) {
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     metadataExport: './src/routes/ultramodern-route-metadata',
-    generator: 'scripts/generate-public-surface-assets.mjs',
+    generator: 'scripts/generate-public-surface-assets.mts',
     outputRoot: 'dist/public',
     cloudflareOutputRoot: '.output/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
@@ -289,7 +289,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/generate-public-surface-assets.mjs --app shell-super-app [--target dist|cloudflare] [--require-public-origin]
+  node scripts/generate-public-surface-assets.mts --app shell-super-app [--target dist|cloudflare] [--require-public-origin]
 
 Set each app's production URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com

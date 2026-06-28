@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { appHasEffectApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
+import { appHasApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
   ResolvedPackageSource,
@@ -102,10 +102,10 @@ export function createGenerationResult(options: {
     moduleFederationNames: Object.fromEntries(
       createdApps.map(app => [app.id, app.moduleFederationName]),
     ),
-    effectApiPrefixes: Object.fromEntries(
+    apiPrefixes: Object.fromEntries(
       createdApps
-        .filter(app => app.effectApiPrefix)
-        .map(app => [app.id, app.effectApiPrefix as string]),
+        .filter(app => app.apiPrefix)
+        .map(app => [app.id, app.apiPrefix as string]),
     ),
     generatedContractPath: ULTRAMODERN_CONFIG_PATH,
     warnings: options.warnings ?? [],
@@ -127,7 +127,7 @@ function createGeneratedAppDescriptor(
     port: app.port,
     moduleFederationName: app.mfName,
     ...(app.exposes ? { exposes: { ...app.exposes } } : {}),
-    ...(appHasEffectApi(app) ? { effectApiPrefix: app.effectApi.prefix } : {}),
+    ...(appHasApi(app) ? { apiPrefix: app.api.prefix } : {}),
   };
 }
 

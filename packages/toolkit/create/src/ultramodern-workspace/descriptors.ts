@@ -6,7 +6,7 @@ import {
   toKebabCase,
   toPascalCase,
 } from './naming';
-import type { Ownership, WorkspaceApp, WorkspaceEffectApi } from './types';
+import type { Ownership, WorkspaceApi, WorkspaceApp } from './types';
 
 export const ULTRAMODERN_CONFIG_PATH = '.modernjs/ultramodern.json';
 
@@ -98,7 +98,7 @@ export function createVerticalDescriptor(
       './Route': './src/federation-entry.tsx',
       './Widget': `./src/components/${domain}-widget.tsx`,
     },
-    effectApi: {
+    api: {
       stem: domain,
       prefix: `/${domain}-api`,
       consumedBy: [shellApp.id, id],
@@ -107,28 +107,22 @@ export function createVerticalDescriptor(
   };
 }
 
-export function appHasEffectApi(app: WorkspaceApp): app is WorkspaceApp & {
-  effectApi: WorkspaceEffectApi;
+export function appHasApi(app: WorkspaceApp): app is WorkspaceApp & {
+  api: WorkspaceApi;
 } {
-  return app.effectApi !== undefined;
+  return app.api !== undefined;
 }
 
-export function effectApiPrefix(target: {
-  id: string;
-  effectApi?: WorkspaceEffectApi;
-}) {
-  return target.effectApi?.prefix ?? `/${toKebabCase(target.id)}-api`;
+export function resolveApiPrefix(target: { id: string; api?: WorkspaceApi }) {
+  return target.api?.prefix ?? `/${toKebabCase(target.id)}-api`;
 }
 
-export function effectApiStem(target: {
-  id: string;
-  effectApi?: WorkspaceEffectApi;
-}) {
-  return target.effectApi?.stem ?? toKebabCase(target.id).replace(/-api$/, '');
+export function resolveApiStem(target: { id: string; api?: WorkspaceApi }) {
+  return target.api?.stem ?? toKebabCase(target.id).replace(/-api$/, '');
 }
 
-export function verticalEffectApps(remotes: WorkspaceApp[] = []) {
-  return remotes.filter(appHasEffectApi);
+export function verticalApiApps(remotes: WorkspaceApp[] = []) {
+  return remotes.filter(appHasApi);
 }
 
 export function remoteDependencyAlias(remote: WorkspaceApp): string {

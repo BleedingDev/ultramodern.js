@@ -73,16 +73,16 @@ function normalizeCompactApp(rawApp) {
     rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
       ? rawApp.moduleFederation
       : {};
-  const effectApi =
-    rawApp.effectApi && typeof rawApp.effectApi === 'object'
+  const api =
+    rawApp.api && typeof rawApp.api === 'object'
       ? {
           stem:
-            typeof rawApp.effectApi.stem === 'string'
-              ? rawApp.effectApi.stem
+            typeof rawApp.api.stem === 'string'
+              ? rawApp.api.stem
               : domain ?? id,
           prefix:
-            typeof rawApp.effectApi.prefix === 'string'
-              ? rawApp.effectApi.prefix
+            typeof rawApp.api.prefix === 'string'
+              ? rawApp.api.prefix
               : `/${domain ?? id}-api`,
         }
       : undefined;
@@ -99,7 +99,7 @@ function normalizeCompactApp(rawApp) {
         : kind === 'shell'
           ? 'shellSuperApp'
           : `vertical${toPascalCase(domain ?? id)}`,
-    effectApi,
+    api,
   };
 }
 
@@ -213,9 +213,9 @@ function createCloudflareRoutes(app) {
     ssr: '/en',
     mfManifest: '/mf-manifest.json',
     locale: `/locales/en/${appNamespace(app)}.json`,
-    ...(app.effectApi
+    ...(app.api
       ? {
-          apiReadiness: `${app.effectApi.prefix}/${app.effectApi.stem}/readiness`,
+          apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
         }
       : {}),
   };
@@ -318,7 +318,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/proof-cloudflare-version.mjs [--app workspace] [--out evidence.json] [--require-public-urls]
+  node scripts/proof-cloudflare-version.mts [--app workspace] [--out evidence.json] [--require-public-urls]
 
 Set each app's public URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev

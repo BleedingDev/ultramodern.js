@@ -114,8 +114,8 @@ contract validator:
 ```json
 {
   "scripts": {
-    "i18n:boundaries": "node ./scripts/check-ultramodern-i18n-boundaries.mjs",
-    "contract:check": "node ./scripts/validate-ultramodern-workspace.mjs",
+    "i18n:boundaries": "node ./scripts/check-ultramodern-i18n-boundaries.mts",
+    "contract:check": "node ./scripts/validate-ultramodern-workspace.mts",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check"
   }
 }
@@ -123,7 +123,7 @@ contract validator:
 
 ### Wrapper Script
 
-Create `scripts/check-ultramodern-i18n-boundaries.mjs`:
+Create `scripts/check-ultramodern-i18n-boundaries.mts`:
 
 ```js
 #!/usr/bin/env node
@@ -134,12 +134,12 @@ process.exitCode = runWorkspaceSourceCheck({ cwd: process.cwd() });
 
 ### Workspace Validator
 
-Update `scripts/validate-ultramodern-workspace.mjs` so the generated contract
+Update `scripts/validate-ultramodern-workspace.mts` so the generated contract
 requires:
 
-1. `scripts/check-ultramodern-i18n-boundaries.mjs` in `requiredPaths`.
+1. `scripts/check-ultramodern-i18n-boundaries.mts` in `requiredPaths`.
 2. `rootPackage.scripts['i18n:boundaries']` equals
-   `node ./scripts/check-ultramodern-i18n-boundaries.mjs`.
+   `node ./scripts/check-ultramodern-i18n-boundaries.mts`.
 3. `rootPackage.devDependencies['@modern-js/code-tools']` equals
    `expectedModernPackageSpecifier('@modern-js/code-tools')`.
 4. install-strategy package-source aliases include

@@ -16,7 +16,7 @@ This RFC defines how Modern.js evolves into an AI-first framework without introd
 1. expose machine-readable runtime state as stable contracts.
 2. make operational capabilities available through both MCP and CLI surfaces.
 3. keep reliability/performance measurable under failure, jitter, and fallback paths.
-4. preserve compatibility lanes while tightening defaults for automation and trust.
+4. preserve upstream and migration compatibility while tightening defaults for automation and trust.
 
 ## 2. Goals
 

@@ -1,5 +1,11 @@
 import fs from 'node:fs';
 import {
+  createApiClient,
+  createApiServiceEntry,
+  createSharedApi,
+  createShellApiClient,
+} from './api';
+import {
   createAppEnvDts,
   createAppRuntimeConfig,
   createAppStyles,
@@ -26,19 +32,13 @@ import {
   remoteComponentOutputPath,
 } from './demo-components';
 import {
-  appHasEffectApi,
+  appHasApi,
   appI18nNamespace,
   createShellHost,
   sharedPackages,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
 } from './descriptors';
-import {
-  createEffectClient,
-  createEffectServiceEntry,
-  createEffectSharedApi,
-  createShellEffectClient,
-} from './effect-api';
 import {
   copyRootTemplate,
   formatGeneratedWorkspaceFiles,
@@ -235,25 +235,25 @@ export function writeApp(
     writeFile(
       targetDir,
       `${resolvedApp.directory}/src/api/vertical-clients.ts`,
-      createShellEffectClient(scope, remotes),
+      createShellApiClient(scope, remotes),
     );
   }
 
-  if (appHasEffectApi(resolvedApp)) {
+  if (appHasApi(resolvedApp)) {
     writeFile(
       targetDir,
       `${resolvedApp.directory}/shared/api.ts`,
-      createEffectSharedApi(resolvedApp),
+      createSharedApi(resolvedApp),
     );
     writeFile(
       targetDir,
       `${resolvedApp.directory}/api/index.ts`,
-      createEffectServiceEntry(resolvedApp, '../shared/api.ts'),
+      createApiServiceEntry(resolvedApp, '../shared/api.ts'),
     );
     writeFile(
       targetDir,
-      `${resolvedApp.directory}/src/api/${resolvedApp.effectApi.stem}-client.ts`,
-      createEffectClient(resolvedApp, '../../shared/api'),
+      `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-client.ts`,
+      createApiClient(resolvedApp, '../../shared/api'),
     );
   }
 
