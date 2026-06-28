@@ -809,11 +809,23 @@ function runInstalledCreateSmoke({
     for (const relativePath of [
       '.modernjs/ultramodern.json',
       'apps/shell-super-app/package.json',
+      'scripts/check-ultramodern-api-boundaries.mjs',
       'verticals/catalog/package.json',
-      'verticals/catalog/shared/effect/api.ts',
+      'verticals/catalog/api/index.ts',
+      'verticals/catalog/shared/api.ts',
+      'verticals/catalog/src/api/catalog-client.ts',
     ]) {
       if (!fs.existsSync(path.join(workspaceRoot, relativePath))) {
         throw new Error('Missing generated output: ' + relativePath);
+      }
+    }
+    for (const forbiddenPath of [
+      'verticals/catalog/api/effect/index.ts',
+      'verticals/catalog/shared/effect/api.ts',
+      'verticals/catalog/src/effect/catalog-client.ts',
+    ]) {
+      if (fs.existsSync(path.join(workspaceRoot, forbiddenPath))) {
+        throw new Error('Forbidden strict Effect side path exists: ' + forbiddenPath);
       }
     }
   `;
